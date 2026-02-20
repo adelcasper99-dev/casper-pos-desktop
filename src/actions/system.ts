@@ -1,0 +1,69 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+export async function resetAllData() {
+    try {
+        console.log("Resetting transactional data...");
+
+        // Transactional tables (Order matters due to foreign keys)
+        // Delete child tables first
+
+        // Sales & POS
+        await prisma.salePayment.deleteMany();
+        await prisma.saleItem.deleteMany();
+        await prisma.sale.deleteMany();
+
+        await prisma.shiftAdjustment.deleteMany();
+        await prisma.transaction.deleteMany();
+        await prisma.expense.deleteMany();
+        await prisma.shift.deleteMany();
+
+        // Tickets (Not present in Desktop schema yet)
+        // await prisma.ticketPart.deleteMany();
+        // await prisma.ticket.deleteMany();
+
+        // Inventory
+        await prisma.stockMovement.deleteMany();
+        await prisma.stockWastage.deleteMany();
+        await prisma.stockRequestItem.deleteMany();
+        await prisma.stockRequest.deleteMany();
+        await prisma.stock.deleteMany();
+
+        // Purchasing
+        await prisma.purchaseItem.deleteMany();
+        await prisma.purchaseInvoice.deleteMany();
+        await prisma.supplierPayment.deleteMany();
+
+        // Core transactional entities
+        await prisma.product.deleteMany();
+        await prisma.category.deleteMany();
+        await prisma.customerTransaction.deleteMany();
+        // await prisma.customerDeviceHistory.deleteMany();
+        await prisma.customer.deleteMany();
+        await prisma.supplier.deleteMany();
+
+        // Accounting
+        await prisma.journalLine.deleteMany();
+        await prisma.journalEntry.deleteMany();
+        // await prisma.account.deleteMany(); 
+
+        // HRM
+        // await prisma.attendance.deleteMany();
+        // await prisma.dailyWorkLog.deleteMany();
+        // await prisma.payrollEntry.deleteMany();
+        // await prisma.payrollRun.deleteMany();
+        // await prisma.userShift.deleteMany();
+        // await prisma.leaveRequest.deleteMany();
+        // await prisma.employeeTransaction.deleteMany();
+
+        console.log("Transactional data reset complete.");
+        revalidatePath("/");
+
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to reset data:", error);
+        return { success: false, error: error instanceof Error ? error.message : "Reset failed" };
+    }
+}

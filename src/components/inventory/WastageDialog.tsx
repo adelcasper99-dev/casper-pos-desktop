@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { reportWastage } from '@/actions/inventory';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from '@/lib/i18n-mock';
+import { AlertCircle } from 'lucide-react';
 
 interface WastageDialogProps {
     open: boolean;
@@ -21,6 +23,7 @@ interface WastageDialogProps {
 }
 
 export function WastageDialog({ product, warehouseId, csrfToken, open, onOpenChange }: WastageDialogProps) {
+    const t = useTranslations('Inventory.wastage');
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -42,12 +45,12 @@ export function WastageDialog({ product, warehouseId, csrfToken, open, onOpenCha
         e.preventDefault();
 
         if (formData.quantity <= 0) {
-            toast.error('Quantity must be greater than 0');
+            toast.error(t('qtyError'));
             return;
         }
 
         if (formData.quantity > product.stock) {
-            toast.error(`Cannot report more than available stock (${product.stock})`);
+            toast.error(t('stockError', { stock: product.stock }));
             return;
         }
 
@@ -64,15 +67,15 @@ export function WastageDialog({ product, warehouseId, csrfToken, open, onOpenCha
             });
 
             if (result.success) {
-                toast.success(`Wastage reported: ${formData.quantity}x ${product.name}`);
+                toast.success(t('success', { amount: formData.quantity, name: product.name }));
                 onOpenChange(false);
                 router.refresh();
             } else {
-                toast.error(result.error || 'Failed to report wastage');
+                toast.error(result.error || t('reportingError') || 'Error');
             }
         } catch (error: any) {
             console.error('Wastage error:', error);
-            toast.error(error.message || 'Failed to report wastage');
+            toast.error(error.message || t('reportingError') || 'Error');
         } finally {
             setLoading(false);
         }
@@ -82,21 +85,23 @@ export function WastageDialog({ product, warehouseId, csrfToken, open, onOpenCha
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Report Stock Wastage</DialogTitle>
+                    <DialogTitle>{t('title')}</DialogTitle>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4" dir="rtl">
                     {/* Product Info */}
-                    <div className="p-3 bg-muted rounded-lg">
-                        <div className="text-sm font-medium">{product.name}</div>
-                        <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
-                        <div className="text-xs text-muted-foreground">Available Stock: {product.stock}</div>
+                    <div className="p-3 bg-muted rounded-lg border border-border">
+                        <div className="text-sm font-bold text-foreground">{product.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1 font-mono">SKU: {product.sku}</div>
+                        <div className="text-xs text-cyan-500 font-bold mt-1">
+                            {t('availableStock', { stock: product.stock })}
+                        </div>
                     </div>
 
                     {/* Quantity */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">
-                            Quantity *
+                        <label className="block text-sm font-bold mb-1">
+                            {t('quantityLabel')}
                         </label>
                         <input
                             type="number"
@@ -104,7 +109,7 @@ export function WastageDialog({ product, warehouseId, csrfToken, open, onOpenCha
                             max={product.stock}
                             value={formData.quantity}
                             onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary"
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all"
                             required
                             disabled={loading}
                         />
@@ -112,67 +117,66 @@ export function WastageDialog({ product, warehouseId, csrfToken, open, onOpenCha
 
                     {/* Reason */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">
-                            Reason *
+                        <label className="block text-sm font-bold mb-1">
+                            {t('reasonLabel')}
                         </label>
                         <select
                             value={formData.reason}
                             onChange={(e) => setFormData({ ...formData, reason: e.target.value as any })}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary"
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all"
                             required
                             disabled={loading}
                         >
-                            <option value="DAMAGED">Damaged</option>
-                            <option value="EXPIRED">Expired</option>
-                            <option value="THEFT">Theft</option>
-                            <option value="QUALITY_ISSUE">Quality Issue</option>
-                            <option value="OTHER">Other</option>
+                            <option value="DAMAGED">{t('reasons.DAMAGED')}</option>
+                            <option value="EXPIRED">{t('reasons.EXPIRED')}</option>
+                            <option value="THEFT">{t('reasons.THEFT')}</option>
+                            <option value="QUALITY_ISSUE">{t('reasons.QUALITY_ISSUE')}</option>
+                            <option value="OTHER">{t('reasons.OTHER')}</option>
                         </select>
                     </div>
 
                     {/* Notes */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">
-                            Notes (Optional)
+                        <label className="block text-sm font-bold mb-1">
+                            {t('notesLabel')}
                         </label>
                         <textarea
                             value={formData.notes}
                             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                             rows={3}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary resize-none"
-                            placeholder="Additional details about the wastage..."
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all resize-none"
+                            placeholder={t('notesPlaceholder')}
                             disabled={loading}
                         />
                     </div>
 
                     {/* Warning */}
-                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-900">
+                    <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                         <div className="flex gap-2">
-                            <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                                This will permanently deduct {formData.quantity} unit(s) from your inventory.
+                            <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                            <p className="text-sm text-yellow-200">
+                                {t('warning', { quantity: formData.quantity })}
                             </p>
                         </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 pt-2">
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 bg-red-600 hover:bg-red-700"
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold h-11"
                         >
-                            {loading ? 'Reporting...' : 'Report Wastage'}
+                            {loading ? t('reporting') : t('reportButton')}
                         </Button>
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
                             disabled={loading}
+                            className="flex-1 h-11"
                         >
-                            Cancel
+                            {t('cancel') || 'إلغاء'}
                         </Button>
                     </div>
                 </form>

@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { secureAction } from '@/lib/safe-action';
 import { PERMISSIONS } from '@/lib/permissions';
 import { z } from 'zod';
+import { getTranslations } from "@/lib/i18n-mock";
 
 /**
  * Inter-HQ Fund Transfer Action
@@ -24,9 +25,10 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
     const { fromTreasuryId, toTreasuryId, amount, paymentMethod, description, approverNotes } = data;
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
+    const t = await getTranslations('SystemMessages.Errors');
 
     if (fromTreasuryId === toTreasuryId) {
-        throw new Error("Cannot transfer to the same treasury");
+        throw new Error(t('sameTreasury'));
     }
 
     // Get both treasuries with branch info
@@ -42,17 +44,17 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
     ]);
 
     if (!fromTreasury || !toTreasury) {
-        throw new Error("One or both treasuries not found");
+        throw new Error(t('notFound'));
     }
 
     // Verify source treasury has sufficient balance
     if (Number(fromTreasury.balance) < amount) {
-        throw new Error(`Insufficient funds. Available: ${Number(fromTreasury.balance)}, Required: ${amount}`);
+        throw new Error(t('insufficientFunds', { available: Number(fromTreasury.balance), required: amount }));
     }
 
     // Verify both are HQ centers (not regular stores)
     if (fromTreasury.branch.type !== 'CENTER' || toTreasury.branch.type !== 'CENTER') {
-        throw new Error("Inter-HQ transfers must be between HQ centers only");
+        throw new Error(t('hqTransferOnly'));
     }
 
     // Execute transfer in transaction

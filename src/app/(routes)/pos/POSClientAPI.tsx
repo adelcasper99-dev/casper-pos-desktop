@@ -9,6 +9,7 @@ import clsx from "clsx";
 import CheckoutModal from "@/components/pos/CheckoutModal";
 import ReceiptModal from "@/components/pos/ReceiptModal";
 import CustomerSearch from "@/components/pos/CustomerSearch";
+import CategoryModal from "@/components/pos/CategoryModal";
 
 import { VirtuosoGrid } from 'react-virtuoso';
 
@@ -22,6 +23,8 @@ export default function POSClientAPI({ products, categories, settings, csrfToken
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [showHeldCarts, setShowHeldCarts] = useState(false);
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [categoryToEdit, setCategoryToEdit] = useState<{ id: string; name: string; color: string } | null>(null);
 
     // 🛡️ OFFLINE HANDLING
     const { isOnline } = useNetworkStatus();
@@ -212,17 +215,48 @@ export default function POSClientAPI({ products, categories, settings, csrfToken
                 csrfToken={csrfToken}
             />
 
+            <CategoryModal
+                isOpen={isCategoryModalOpen}
+                onClose={() => {
+                    setIsCategoryModalOpen(false);
+                    setCategoryToEdit(null);
+                }}
+                category={categoryToEdit}
+            />
+
             {/* RIGHT SIDE: Product Grid */}
             <div className="flex-1 flex bg-muted/10">
                 {/* Categories */}
                 <div className="w-40 border-r border-border bg-card/50 backdrop-blur-2xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full">
                     <button onClick={() => setSelectedCategory(null)} className={clsx("w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0", selectedCategory === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground")}>{t('allCategories')}</button>
                     {categories.map((c: any) => (
-                        <button key={c.id} onClick={() => setSelectedCategory(c.id)} className={clsx("w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/5", selectedCategory === c.id ? "scale-[1.02] ring-2 ring-white/50" : "hover:scale-[1.02] opacity-90 hover:opacity-100")} style={{ backgroundColor: c.color || "#06b6d4", color: "#000", textShadow: "0px 1px 2px rgba(255,255,255,0.2)" }}>
+                        <button
+                            key={c.id}
+                            onClick={() => setSelectedCategory(c.id)}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                setCategoryToEdit(c);
+                                setIsCategoryModalOpen(true);
+                            }}
+                            className={clsx("w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/5", selectedCategory === c.id ? "scale-[1.02] ring-2 ring-white/50" : "hover:scale-[1.02] opacity-90 hover:opacity-100")}
+                            style={{ backgroundColor: c.color || "#06b6d4", color: "#000", textShadow: "0px 1px 2px rgba(255,255,255,0.2)" }}
+                        >
                             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
                             <span className="relative z-10 text-white drop-shadow-md text-sm uppercase tracking-wider">{c.name}</span>
                         </button>
                     ))}
+
+                    {/* Add Category Button */}
+                    <button
+                        onClick={() => {
+                            setCategoryToEdit(null);
+                            setIsCategoryModalOpen(true);
+                        }}
+                        className="w-full h-16 rounded-xl flex items-center justify-center bg-zinc-800/50 border border-dashed border-zinc-700 text-zinc-500 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-zinc-800 transition-all shrink-0 group border-2"
+                        title={t('addCategory') || "Add Category"}
+                    >
+                        <Plus className="w-6 h-6 group-hover:scale-125 transition-transform" />
+                    </button>
                 </div>
 
                 {/* Products */}
@@ -230,10 +264,6 @@ export default function POSClientAPI({ products, categories, settings, csrfToken
                     {/* Search Header */}
                     <div className="flex flex-col gap-3">
                         <div className="flex gap-3">
-                            <div className="bg-card rounded-xl flex items-center gap-3 py-3 px-4 flex-[2] border border-border transition-all focus-within:border-cyan-500/50">
-                                <Search className="w-5 h-5 text-muted-foreground" />
-                                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('searchPlaceholder')} className="bg-transparent outline-none w-full placeholder:text-muted-foreground text-foreground" />
-                            </div>
                             <div className="bg-card rounded-xl flex items-center gap-3 py-3 px-4 flex-[2] border border-border transition-all focus-within:border-cyan-500/50">
                                 <Search className="w-5 h-5 text-muted-foreground" />
                                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('searchPlaceholder')} className="bg-transparent outline-none w-full placeholder:text-muted-foreground text-foreground" />

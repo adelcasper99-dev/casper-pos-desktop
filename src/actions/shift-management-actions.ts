@@ -6,6 +6,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { z } from "zod";
 import { getCurrentUser } from "./auth";
 import { secureAction } from "@/lib/safe-action";
+import { getTranslations } from "@/lib/i18n-mock";
 
 import { Decimal } from "@prisma/client/runtime/library";
 import { serialize } from "@/lib/serialization";
@@ -63,8 +64,10 @@ export const openShift = secureAction(async (data: {
     const currentUser = await getCurrentUser();
     const userId = data.userId || currentUser?.id;
 
+    const t = await getTranslations('SystemMessages.Errors');
+
     if (!userId) {
-        throw new Error("User ID required to open shift");
+        throw new Error(t('unauthorized'));
     }
 
     // Check for existing open shift for this user
@@ -77,11 +80,7 @@ export const openShift = secureAction(async (data: {
     });
 
     if (existingShift) {
-        throw new Error(
-            data.registerId
-                ? `You already have an open shift on register ${data.registerName || data.registerId}`
-                : "You already have an open shift. Please close it before opening a new one."
-        );
+        throw new Error(t('shiftOpenError'));
     }
 
     // Get timezone and business date
@@ -139,12 +138,14 @@ export const closeShift = secureAction(async (data: {
         }
     });
 
+    const t = await getTranslations('SystemMessages.Errors');
+
     if (!shift) {
-        throw new Error("Shift not found");
+        throw new Error(t('notFound'));
     }
 
     if (shift.status !== "OPEN") {
-        throw new Error(`Cannot close shift: Status is ${shift.status}`);
+        throw new Error(t('shiftCloseError', { status: shift.status }));
     }
 
 
@@ -492,8 +493,10 @@ export const forceCloseShift = secureAction(async (data: {
 }) => {
     const currentUser = await getCurrentUser();
 
+    const t = await getTranslations('SystemMessages.Errors');
+
     if (!currentUser) {
-        throw new Error("Authentication required");
+        throw new Error(t('unauthorized'));
     }
 
     const shift = await prisma.shift.findUnique({
@@ -502,7 +505,7 @@ export const forceCloseShift = secureAction(async (data: {
     });
 
     if (!shift) {
-        throw new Error("Shift not found");
+        throw new Error(t('notFound'));
     }
 
     // Calculate best-effort totals
@@ -606,6 +609,7 @@ export const handoffShift = secureAction(async (data: {
     newUserId: string;
     csrfToken?: string; // For CSRF validation
 }) => {
+    const t = await getTranslations('SystemMessages.Errors');
     const shift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
 
     if (!shift) {
@@ -613,13 +617,13 @@ export const handoffShift = secureAction(async (data: {
     }
 
     if (shift.status !== "OPEN") {
-        throw new Error("Can only handoff active shifts");
+        throw new Error(t('handoffActiveOnly'));
     }
 
     const newUser = await prisma.user.findUnique({ where: { id: data.newUserId } });
 
     if (!newUser) {
-        throw new Error("New user not found");
+        throw new Error(t('notFound'));
     }
 
     const updatedShift = await prisma.shift.update({
@@ -655,18 +659,20 @@ export const createShiftAdjustment = secureAction(async (data: {
 }) => {
     const currentUser = await getCurrentUser();
 
+    const t = await getTranslations('SystemMessages.Errors');
+
     if (!currentUser) {
-        throw new Error("Authentication required");
+        throw new Error(t('unauthorized'));
     }
 
     const shift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
 
     if (!shift) {
-        throw new Error("Shift not found");
+        throw new Error(t('notFound'));
     }
 
     if (shift.status === "OPEN") {
-        throw new Error("Cannot adjust active shift. Close it first.");
+        throw new Error(t('adjustmentActiveError'));
     }
 
     // Create adjustment

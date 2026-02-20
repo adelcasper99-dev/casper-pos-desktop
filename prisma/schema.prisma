@@ -509,16 +509,17 @@ model ShiftAdjustment {
 }
 
 model Treasury {
-  id           String        @id @default(uuid())
-  name         String
-  branchId     String
-  isDefault    Boolean       @default(false)
-  balance      Decimal       @default(0.00)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
-  transactions Transaction[]
-  branch       Branch        @relation(fields: [branchId], references: [id])
+  id            String        @id @default(uuid())
+  name          String
+  branchId      String
+  isDefault     Boolean       @default(false)
+  paymentMethod String?       // CASH | VISA | WALLET | INSTAPAY — null = general treasury
+  balance       Decimal       @default(0.00)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  transactions  Transaction[]
+  branch        Branch        @relation(fields: [branchId], references: [id])
 
   @@unique([branchId, name])
 }

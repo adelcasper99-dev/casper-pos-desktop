@@ -25,6 +25,7 @@ interface Transaction {
         quantity: number;
         unitCost: number;
     }[];
+    runningBalance?: number;
 }
 
 
@@ -51,9 +52,9 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     if (!supplier) {
         return (
             <div className="p-8 text-center">
-                <h2 className="text-xl font-bold text-red-500">Supplier Not Found</h2>
+                <h2 className="text-xl font-bold text-red-500">المورد غير موجود</h2>
                 <Link href="/inventory" className="text-cyan-500 hover:underline mt-4 block">
-                    &larr; Back to Inventory
+                    &larr; العودة إلى المخزون
                 </Link>
             </div>
         );
@@ -65,7 +66,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
         prisma.purchaseInvoice.findMany({
             where: { supplierId: id },
             orderBy: { createdAt: 'desc' },
-            take: 50,
+            take: 500,
             include: {
                 items: {
                     include: {
@@ -81,7 +82,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
         prisma.supplierPayment.findMany({
             where: { supplierId: id },
             orderBy: { paymentDate: 'desc' },
-            take: 50
+            take: 500
         })
     ]);
 
@@ -94,7 +95,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             reference: inv.invoiceNumber || 'INV-???',
             amount: inv.totalAmount.toNumber(),
             status: inv.status,
-            isCredit: false,
+            isCredit: false, // Increases Debt
             items: inv.items.map(item => ({
                 name: item.product.name,
                 sku: item.product.sku,
@@ -103,8 +104,6 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 unitCost: item.unitCost.toNumber()
             }))
         })),
-
-
         ...payments.map(pay => ({
             id: pay.id,
             date: pay.paymentDate,
@@ -112,11 +111,35 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             reference: 'PAYMENT',
             amount: pay.amount.toNumber(),
             status: 'COMPLETED',
-            isCredit: true,
+            isCredit: true, // Reduces Debt
             method: pay.method
         }))
     ].sort((a, b) => b.date.getTime() - a.date.getTime())
-        .slice(0, 50); // Hard limit combined list to 50 for now
+        .slice(0, 500); // Increased limit to 500
+
+    // 5. Calculate Running Balance (Working backwards from current balance)
+    let currentBalance = supplier.balance.toNumber();
+
+    // We attach the balance AFTER the transaction occurred
+    const transactionsWithBalance = transactions.map(tx => {
+        const balanceAfterTx = currentBalance;
+
+        // Prepare balance for the NEXT iteration (moving back in time)
+        // If Invoice (Increased Debt), previous was Less. So Previous = Current - Amount
+        // If Payment (Reduced Debt), previous was More. So Previous = Current + Amount
+        // Note: isCredit=true means Payment (Reduces Debt). isCredit=false means Invoice (Increases Debt).
+
+        if (tx.isCredit) {
+            currentBalance += tx.amount; // Use rounded numbers if needed, but float is okay for display mostly
+        } else {
+            currentBalance -= tx.amount;
+        }
+
+        return {
+            ...tx,
+            runningBalance: balanceAfterTx
+        };
+    });
 
     const stats = {
         totalInvoices: supplier._count.invoices,
@@ -125,6 +148,8 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             ? invoices.reduce((acc, i) => acc + i.totalAmount.toNumber(), 0) / invoices.length
             : 0
     };
+
+    const tSuppliers = await getTranslations('Inventory.Suppliers');
 
     return (
         <div className="p-6 space-y-6 w-full animate-fade-in">
@@ -163,7 +188,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 {/* Balance Card */}
                 <div className="glass-card p-6 bg-gradient-to-br from-card to-muted/20 border border-border rounded-xl">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Current Balance</h3>
+                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{tSuppliers('Details.currentBalance')}</h3>
                         <div className={`p-2 rounded-lg ${supplier.balance.toNumber() > 0 ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
                             <Wallet className="w-5 h-5" />
                         </div>
@@ -172,14 +197,14 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         ${supplier.balance.toNumber().toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                        {supplier.balance.toNumber() > 0 ? "Amount owed to supplier" : "No outstanding debt"}
+                        {supplier.balance.toNumber() > 0 ? tSuppliers('Details.amountOwed') : tSuppliers('Details.noDebt')}
                     </p>
                 </div>
 
                 {/* Stats Card 1 */}
                 <div className="glass-card p-6 border border-border rounded-xl">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Invoices</h3>
+                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{tSuppliers('Details.totalInvoices')}</h3>
                         <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
                             <Receipt className="w-5 h-5" />
                         </div>
@@ -188,14 +213,14 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         {stats.totalInvoices}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                        Lifetime invoices
+                        {tSuppliers('Details.lifetimeInvoices')}
                     </p>
                 </div>
 
                 {/* Stats Card 2 */}
                 <div className="glass-card p-6 border border-border rounded-xl">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Avg. Invoice</h3>
+                        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{tSuppliers('Details.averageInvoice')}</h3>
                         <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
                             <TrendingUp className="w-5 h-5" />
                         </div>
@@ -204,7 +229,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         ${stats.averageInvoice.toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                        Average transaction size
+                        {tSuppliers('Details.avgTransactionSize')}
                     </p>
                 </div>
             </div>
@@ -220,7 +245,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         phone={supplier.phone}
                         email={supplier.email}
                         address={supplier.address}
-                        transactions={transactions}
+                        transactions={transactionsWithBalance}
                     />
                 </div>
 
@@ -228,10 +253,10 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 <div className="lg:col-span-2 space-y-4">
                     <h3 className="font-bold text-xl flex items-center gap-2">
                         <History className="w-5 h-5 text-indigo-400" />
-                        Transaction History
+                        {tSuppliers('Details.transactionHistory')}
                     </h3>
 
-                    <SupplierHistoryTable transactions={transactions} />
+                    <SupplierHistoryTable transactions={transactionsWithBalance} />
                 </div>
             </div>
         </div>

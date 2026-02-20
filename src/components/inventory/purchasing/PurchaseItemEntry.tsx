@@ -144,7 +144,7 @@ export function PurchaseItemEntry({
                                             <div className={clsx("font-bold font-mono", p.stock > 0 ? "text-cyan-500" : "text-red-500")}>
                                                 {p.stock}
                                             </div>
-                                            <div className="text-[10px] text-muted-foreground uppercase">In Stock</div>
+                                            <div className="text-[10px] text-muted-foreground uppercase">{t('stock')}</div>
                                         </div>
                                     </button>
                                 ))}

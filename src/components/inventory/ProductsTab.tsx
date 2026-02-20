@@ -52,6 +52,7 @@ export default function ProductsTab({
     warehouseId?: string;
 }) {
     const t = useTranslations('Inventory.products');
+    const tCommon = useTranslations('Common');
     const [search, setSearch] = useState("");
     const [debouncedSearch] = useDebounce(search, 500);
     const [page, setPage] = useState(1);
@@ -236,7 +237,7 @@ export default function ProductsTab({
                                 <tr>
                                     <td colSpan={7 + (canViewPrice1 ? 1 : 0) + (canViewPrice2 ? 1 : 0) + (canViewPrice3 ? 1 : 0)} className="p-10 text-center text-muted-foreground">
                                         <Box className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                                        {t('noProducts', { fallback: 'No products found. Start by adding one.' })}
+                                        {t('noProducts')}
                                     </td>
                                 </tr>
                             ) : (
@@ -276,7 +277,7 @@ export default function ProductsTab({
                                                 <button
                                                     onClick={() => setQuickPrintProduct(p)}
                                                     className="p-2 hover:bg-cyan-500/10 rounded-lg text-muted-foreground hover:text-cyan-500 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                    title={t('quickPrint') || "Quick Print Label"}
+                                                    title={t('quickPrint')}
                                                 >
                                                     <Printer className="w-4 h-4" />
                                                 </button>
@@ -284,7 +285,7 @@ export default function ProductsTab({
                                                 <button
                                                     onClick={() => setEditingProduct(p)}
                                                     className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                    title="Edit"
+                                                    title={tCommon('edit')}
                                                 >
                                                     <Edit className="w-4 h-4" />
                                                 </button>
@@ -297,7 +298,7 @@ export default function ProductsTab({
                                                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                         </svg>
-                                                        {t('wastage') || 'Wastage'}
+                                                        {t('wastage')}
                                                     </button>
                                                 )}
 
@@ -305,7 +306,7 @@ export default function ProductsTab({
                                                     onClick={() => handleDelete(p.id)}
                                                     disabled={deletingId === p.id}
                                                     className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                    title="Delete"
+                                                    title={tCommon('delete')}
                                                 >
                                                     {deletingId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                                 </button>
@@ -510,6 +511,7 @@ export default function ProductsTab({
             <ThermalPrintLabel
                 products={quickPrintProduct ? [{ ...quickPrintProduct, quantity: 1 } as any] : []}
                 autoPrint={!!quickPrintProduct}
+                showButton={false}
                 onAfterPrint={() => setQuickPrintProduct(null)}
             />
         </div>

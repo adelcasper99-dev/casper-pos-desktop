@@ -109,5 +109,6 @@ export function hasPermission(userPermissions: string[] | string | undefined | n
         }
     }
 
+    if (perms.includes('*')) return true;
     return perms.includes(required);
 }

@@ -36,7 +36,9 @@ export function secureAction<T, A extends any[]>(
             // 1. Auth Check
             const session = await getSession();
             if (!session?.user) {
-                throw new AppError(ErrorCodes.UNAUTHORIZED, "Unauthorized: Please log in.");
+                const { getTranslations } = await import('@/lib/i18n-mock');
+                const t = await getTranslations('Auth');
+                throw new AppError(ErrorCodes.UNAUTHORIZED, t('error') || "Unauthorized");
             }
 
             const user = session.user;
@@ -75,9 +77,12 @@ export function secureAction<T, A extends any[]>(
                         timestamp: new Date().toISOString()
                     });
 
+                    const { getTranslations } = await import('@/lib/i18n-mock');
+                    const t = await getTranslations('SystemMessages.Errors');
+
                     throw new AppError(
                         ErrorCodes.VALIDATION_ERROR,
-                        "Security token expired or invalid. Please refresh the page and try again."
+                        t('csrfInvalid')
                     );
                 }
             }
@@ -94,7 +99,9 @@ export function secureAction<T, A extends any[]>(
                         userPermissions: user.permissions,
                         role: user.role
                     });
-                    throw new AppError(ErrorCodes.FORBIDDEN, "Forbidden: Insufficient permissions.");
+                    const { getTranslations } = await import('@/lib/i18n-mock');
+                    const t = await getTranslations('SystemMessages.Errors');
+                    throw new AppError(ErrorCodes.FORBIDDEN, t('forbidden'));
                 }
             }
 
@@ -114,17 +121,24 @@ export function secureAction<T, A extends any[]>(
 
             // Handle Zod Validation Errors
             if (error instanceof ZodError) {
+                // We will try to map common Zod errors to Arabic here if possible, 
+                // but since this is generic, we'll return the message. 
+                // The client should ideally handle translation of validation errors or we fix them in Zod map.
                 const message = error.issues.map((e: any) => e.message).join(", ");
                 return { success: false, error: message, code: ErrorCodes.VALIDATION_ERROR } as ActionResponse<T>;
             }
 
             // Handle Prisma Unique Constraint
             if (error.code === 'P2002') {
-                return { success: false, error: "Duplicate entry found.", code: ErrorCodes.VALIDATION_ERROR } as ActionResponse<T>;
+                const { getTranslations } = await import('@/lib/i18n-mock');
+                const t = await getTranslations('SystemMessages.Validation');
+                return { success: false, error: t('unique'), code: ErrorCodes.VALIDATION_ERROR } as ActionResponse<T>;
             }
 
             // Default Generic Error
-            const message = error.message || "An unexpected error occurred.";
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            const message = error.message || t('generic');
             return { success: false, error: message, code: ErrorCodes.INTERNAL_ERROR } as ActionResponse<T>;
         }
     };

@@ -28,7 +28,12 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     // 🔒 SHIFT GUARD: Ensure active shift exists
     const currentUser = await getCurrentUser();
-    if (!currentUser) throw new Error("Authentication required");
+
+    // Import getTranslations if not already available in scope (it's not)
+    const { getTranslations } = await import('@/lib/i18n-mock');
+    const tErrors = await getTranslations('SystemMessages.Errors');
+
+    if (!currentUser) throw new Error(tErrors('unauthorized'));
     const shiftResult = await getCurrentShiftInternal({
         userId: currentUser?.id,
         registerId: rawData.registerId // Support multi-register
@@ -36,7 +41,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     // Internal function returns { shift } directly (no success wrapper)
     if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error('Cannot process sale: No active shift. Please open a shift first.');
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.POS');
+        throw new Error(t('noActiveShift'));
     }
 
     const currentShift = shiftResult.shift;
@@ -49,7 +56,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
     const result = await prisma.$transaction(async (tx) => {
         // 0. Ensure Main Warehouse exists/get it
         const mainWarehouseRaw = await tx.warehouse.findFirst({ where: { isDefault: true } });
-        if (!mainWarehouseRaw) throw new Error("Main warehouse not found. Please initialize inventory.");
+        if (!mainWarehouseRaw) {
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('mainWarehouseMissing'));
+        }
         const mainWarehouseId = mainWarehouseRaw.id;
 
         // 0b. Fetch Settings for Tax
@@ -179,7 +190,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
                 if (globalResult.count === 0) {
                     const product = await tx.product.findUnique({ where: { id: item.id } });
-                    throw new Error(`Insufficient global stock for ${product?.name || 'Item ' + item.id} (Requested: ${item.quantity}, Available: ${product?.stock || 0})`);
+                    const { getTranslations } = await import('@/lib/i18n-mock');
+                    const t = await getTranslations('SystemMessages.Errors');
+                    throw new Error(t('insufficientStockGlobal', { item: product?.name || 'Item ' + item.id }));
                 }
 
                 const warehouseResult = await tx.stock.updateMany({
@@ -189,7 +202,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
                 if (warehouseResult.count === 0) {
                     const product = await tx.product.findUnique({ where: { id: item.id } });
-                    throw new Error(`Insufficient warehouse stock for ${product?.name || 'Item ' + item.id}`);
+                    const { getTranslations } = await import('@/lib/i18n-mock');
+                    const t = await getTranslations('SystemMessages.Errors');
+                    throw new Error(t('insufficientStockWarehouse', { item: product?.name || 'Item ' + item.id }));
                 }
             }
         }
@@ -228,34 +243,44 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             }
         });
 
-        // 3. Record in Treasury/Ledger (Granular Split Support)
-        // 🆕 Find default treasury for this branch
-        let defaultTreasuryId: string | null = null;
+        // 3. Record in Treasury/Ledger (per payment method treasury)
+        // Pre-fetch all treasuries for this branch, keyed by paymentMethod
+        let branchTreasuries: { id: string; paymentMethod: string | null; isDefault: boolean }[] = [];
         if (currentUser.branchId) {
-            const defaultTreasury = await tx.treasury.findFirst({
-                where: { branchId: currentUser.branchId, isDefault: true }
+            branchTreasuries = await tx.treasury.findMany({
+                where: { branchId: currentUser.branchId, deletedAt: null },
+                select: { id: true, paymentMethod: true, isDefault: true }
             });
-            if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
         }
+
+        const getTreasuryForMethod = (method: string): string | null => {
+            // Find treasury for this specific payment method
+            const byMethod = branchTreasuries.find(t => t.paymentMethod === method);
+            if (byMethod) return byMethod.id;
+            // Fallback to default treasury
+            const def = branchTreasuries.find(t => t.isDefault);
+            return def?.id || null;
+        };
 
         for (const p of paymentsToProcess) {
             const amt = Number(p.amount);
             if (amt > 0) {
+                const treasuryId = getTreasuryForMethod(p.method);
                 await tx.transaction.create({
                     data: {
                         type: 'SALE',
                         amount: new Decimal(amt),
                         paymentMethod: p.method,
                         description: `Sale #${sale.id.split('-')[0].toUpperCase()}`,
-                        shiftId: currentShift.id, // 🔗 Link to Shift
-                        treasuryId: defaultTreasuryId
+                        shiftId: currentShift.id,
+                        treasuryId
                     }
                 });
 
-                // Update Treasury Balance if linked AND NOT ACCOUNT/DEFERRED
-                if (defaultTreasuryId && p.method !== 'ACCOUNT' && p.method !== 'DEFERRED') {
+                // Update treasury balance
+                if (treasuryId && p.method !== 'ACCOUNT' && p.method !== 'DEFERRED') {
                     await tx.treasury.update({
-                        where: { id: defaultTreasuryId },
+                        where: { id: treasuryId },
                         data: { balance: { increment: amt } }
                     });
                 }

@@ -10,6 +10,7 @@ import { useTranslations } from "@/lib/i18n-mock";
 
 export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[], csrfToken?: string }) {
     const t = useTranslations('Purchasing.Suppliers');
+    const tCommon = useTranslations('Common');
     const router = useRouter();
     const [isAddMode, setIsAddMode] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -21,6 +22,8 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
     const [address, setAddress] = useState("");
+    const [createError, setCreateError] = useState("");
+    const [duplicateSupplier, setDuplicateSupplier] = useState<any>(null);
 
     const filteredSuppliers = suppliers.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -34,11 +37,15 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
         setAddress("");
         setEditingId(null);
         setIsAddMode(false);
+        setCreateError("");
+        setDuplicateSupplier(null);
     }
 
     async function handleSave() {
         if (!name.trim()) return;
         setLoading(true);
+        setCreateError("");
+        setDuplicateSupplier(null);
 
         const data = {
             name,
@@ -50,11 +57,8 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
 
         let res;
         if (editingId) {
-            // NOTE: updateSupplier might fail CSRF check if it relies on first arg being object with csrfToken.
-            // For now, focusing on create as requested.
             res = await updateSupplier(editingId, data);
         } else {
-            // Refactored to accept plain object
             res = await createSupplier(data);
         }
 
@@ -63,12 +67,15 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
         if (res?.success) {
             resetForm();
         } else {
-            alert(res?.error || "Failed to save supplier");
+            setCreateError(res?.error || "Failed to save supplier");
+            if (res?.duplicateSupplier) {
+                setDuplicateSupplier(res.duplicateSupplier);
+            }
         }
     }
 
     async function handleDelete(id: string) {
-        if (confirm("Are you sure? This will remove the supplier record.")) {
+        if (confirm(t('confirmDelete'))) {
             setLoading(true);
             const res = await deleteSupplier({ id, csrfToken });
             setLoading(false);
@@ -110,7 +117,7 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
     }
 
     return (
-        <div className="space-y-4 animate-fly-in">
+        <div className="space-y-4 animate-fly-in" dir="rtl">
             {/* ... Header & Search ... */}
 
             {/* List */}
@@ -207,49 +214,75 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
             <GlassModal
                 isOpen={isAddMode}
                 onClose={resetForm}
-                title={editingId ? "Edit Supplier" : "New Supplier"}
+                title={editingId ? t('editSupplier') : t('new')}
             >
                 <div className="space-y-4">
-                    {/* ... Form Inputs (Same as before) ... */}
                     <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Company Name</label>
+                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('companyName')}</label>
                         <input
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             className="glass-input w-full"
-                            placeholder="Supplier Name"
+                            placeholder={t('companyName')}
                         />
                     </div>
-                    {/* Simplified for brevity in replacer, but keeping full form in real edit if possible or assuming context match */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Phone</label>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('phone')}</label>
                             <input
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
                                 className="glass-input w-full"
-                                placeholder="+1 234..."
+                                placeholder={t('phonePlaceholder')}
                             />
                         </div>
                         <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Email</label>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('email')}</label>
                             <input
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="glass-input w-full"
-                                placeholder="contact@supplier.com"
+                                placeholder={t('emailPlaceholder')}
                             />
                         </div>
                     </div>
                     <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Address</label>
+                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('address')}</label>
                         <textarea
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
                             className="glass-input w-full h-20 resize-none"
-                            placeholder="Full address..."
+                            placeholder={t('addressPlaceholder')}
                         />
                     </div>
+
+                    {createError && (
+                        <div className="space-y-2">
+                            <p className="text-xs text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-400/20">{createError}</p>
+                            {duplicateSupplier && (
+                                <button
+                                    onClick={() => {
+                                        router.push(`/inventory/suppliers/${duplicateSupplier.id}`);
+                                        resetForm();
+                                    }}
+                                    className="w-full flex items-center justify-between p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 transition-all text-right"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                            <Truck className="w-4 h-4" />
+                                        </div>
+                                        <div className="text-xs text-right">
+                                            <div className="font-bold text-white">{duplicateSupplier.name}</div>
+                                            <div className="text-indigo-400/70">{duplicateSupplier.phone}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs bg-indigo-500 text-white px-3 py-1 rounded-full font-bold">
+                                        {tCommon('view') || "عرض"}
+                                    </div>
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     <button
                         onClick={handleSave}
@@ -257,7 +290,7 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
                         className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 mt-2"
                     >
                         {loading ? <Loader2 className="animate-spin" /> : <Check />}
-                        Save Supplier
+                        {t('saveSupplier')}
                     </button>
                 </div>
             </GlassModal>
@@ -283,7 +316,7 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
                             value={paymentAmount}
                             onChange={(e) => setPaymentAmount(e.target.value)}
                             className="glass-input w-full text-xl font-bold"
-                            placeholder="0.00"
+                            placeholder={t('paymentPlaceholder')}
                             autoFocus
                         />
                     </div>

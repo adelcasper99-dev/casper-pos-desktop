@@ -307,7 +307,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 name="name"
                                 defaultValue={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder={t('customerName')}
+                                placeholder={t('notes')}
                                 className="glass-input w-full"
                                 required
                             />
@@ -335,7 +335,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         />
                         <div className="flex items-center gap-2">
                             <Shield className="w-5 h-5 text-green-400" />
-                            <span className="font-medium text-foreground">الضمان / Warranty</span>
+                            <span className="font-medium text-foreground">{t('warrantyTitle')}</span>
                         </div>
                     </label>
 
@@ -343,7 +343,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         <div className="space-y-2 animate-fly-in">
                             <label className="text-sm text-muted-foreground flex items-center gap-2">
                                 <CalendarCheck className="w-4 h-4" />
-                                فترة الضمان / Warranty Period
+                                {t('warrantyPeriod')}
                             </label>
                             <div className="grid grid-cols-4 gap-2">
                                 {[30, 60, 90, 180].map((days) => (
@@ -359,12 +359,12 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                         )}
                                     >
                                         <div className="text-lg font-bold">{days}</div>
-                                        <div className="text-xs">يوم</div>
+                                        <div className="text-xs">{t('warrantyDays')}</div>
                                     </button>
                                 ))}
                             </div>
                             <p className="text-xs text-muted-foreground text-center">
-                                📅 تاريخ انتهاء الضمان: {new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000).toLocaleDateString('ar-EG')}
+                                📅 {t('warrantyExpires')}: {new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000).toLocaleDateString('ar-EG')}
                             </p>
                         </div>
                     )}

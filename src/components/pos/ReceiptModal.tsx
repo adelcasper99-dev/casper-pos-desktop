@@ -102,7 +102,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
     };
 
     return (
-        <GlassModal isOpen={isOpen} onClose={onClose} title="Receipt">
+        <GlassModal isOpen={isOpen} onClose={onClose} title={t('printReceipt')}>
             <div className="flex flex-col items-center justify-center p-6 space-y-6">
                 <div className="flex flex-col items-center gap-2">
                     <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.5)] animate-bounce-in">

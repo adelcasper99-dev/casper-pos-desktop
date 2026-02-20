@@ -101,13 +101,70 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         return subtotal + del;
     }, [subtotal, deliveryCharge]);
 
+    // --- Persistence Logic ---
+    const STORAGE_KEY = 'purchase_form_draft';
+
+    // Load from storage on mount
+    useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                if (data.selectedSupplierId) setSelectedSupplierId(data.selectedSupplierId);
+                if (data.selectedBranchId) setSelectedBranchId(data.selectedBranchId);
+                if (data.selectedWarehouseId) setSelectedWarehouseId(data.selectedWarehouseId);
+                if (data.paymentMethod) setPaymentMethod(data.paymentMethod);
+                if (data.deliveryCharge) setDeliveryCharge(data.deliveryCharge);
+                if (data.paidAmount) setPaidAmount(data.paidAmount);
+                if (data.cart && Array.isArray(data.cart)) setCart(data.cart);
+
+                // Only open if we have significant data
+                if (data.selectedSupplierId || (data.cart && data.cart.length > 0)) {
+                    setIsNewPurchaseOpen(true);
+                }
+            } catch (e) {
+                console.error("Failed to load draft", e);
+            }
+        }
+    }, []);
+
+    // Save to storage on change
+    useEffect(() => {
+        // Don't save if editing an existing invoice
+        if (editingInvoiceId) return;
+
+        const draft = {
+            selectedSupplierId,
+            selectedBranchId,
+            selectedWarehouseId,
+            paymentMethod,
+            deliveryCharge,
+            paidAmount,
+            cart
+        };
+
+        // Debounce slightly or just save
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    }, [
+        selectedSupplierId,
+        selectedBranchId,
+        selectedWarehouseId,
+        paymentMethod,
+        deliveryCharge,
+        paidAmount,
+        cart,
+        editingInvoiceId
+    ]);
+
     // Reset Form
     const resetForm = () => {
         setEditingInvoiceId(null);
-        // Persist header info (Supplier, Branch, Warehouse) as requested by user
-        // setSelectedSupplierId(""); 
-        // if (isHQUser) setSelectedBranchId("");
-        // setSelectedWarehouseId("");
+        localStorage.removeItem(STORAGE_KEY); // Clear draft
+
+        setSelectedSupplierId("");
+        // Keep branch if user is not HQ, otherwise reset
+        if (isHQUser) setSelectedBranchId("");
+        setSelectedWarehouseId("");
         setPaymentMethod("CASH");
         setCart([]);
         setDeliveryCharge("");
@@ -201,6 +258,35 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         setCart(cart.filter(i => i.id !== id));
     };
 
+    const updateCartItem = (id: string, updates: Partial<InvoiceItem>) => {
+        setCart(prev => prev.map(item => {
+            if (item.id === id) {
+                const newItem = { ...item, ...updates };
+
+                // Price Variance Check (Only for existing products)
+                if (updates.unitCost !== undefined && item.productId) {
+                    const originalProduct = products.find(p => p.id === item.productId);
+                    if (originalProduct && originalProduct.costPrice > 0) {
+                        const oldPrice = originalProduct.costPrice;
+                        const newPrice = updates.unitCost;
+                        const variance = ((newPrice - oldPrice) / oldPrice) * 100;
+
+                        if (variance > 5) {
+                            toast.warning(t('validation.priceVarianceWarning', {
+                                name: item.name,
+                                percentage: variance.toFixed(1),
+                                oldPrice: oldPrice.toFixed(2)
+                            }), { duration: 5000 });
+                        }
+                    }
+                }
+
+                return newItem;
+            }
+            return item;
+        }));
+    };
+
     const handleSubmit = async () => {
         // Block submission while CSRF token is loading
         if (csrfLoading) {
@@ -262,7 +348,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         setLoading(false);
         if (result.success) {
             setIsNewPurchaseOpen(false);
-            resetForm();
+            resetForm(); // This will also clear localStorage
             toast.success(editingInvoiceId ? "Purchase updated" : "Purchase created");
             if (onSaveSuccess) onSaveSuccess();
         } else {
@@ -305,6 +391,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         // Cart
         cart, setCart,
         removeFromCart,
+        updateCartItem,
         addToCartExisting,
         addToCartNew,
 

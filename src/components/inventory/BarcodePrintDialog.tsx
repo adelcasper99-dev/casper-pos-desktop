@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Printer, CheckCircle, AlertCircle, Download, Globe } from 'lucide-react';
 import { printService } from '@/lib/print-service';
-import { type LabelProduct, type LabelTemplate, migrateTemplate } from '@/lib/label-commands';
+import { type LabelTemplate, migrateTemplate } from '@/lib/label-commands';
 import { getEffectiveStoreSettings } from '@/actions/settings';
-import { toast } from 'sonner';
+import { useTranslations } from '@/lib/i18n-mock';
 import { ThermalPrintLabel } from './ThermalPrintLabel';
 import Barcode from 'react-barcode';
 
@@ -22,6 +22,9 @@ interface BarcodePrintDialogProps {
 }
 
 export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProps) {
+  const t = useTranslations('Inventory.labels');
+  const tCommon = useTranslations('Common');
+
   const [quantities, setQuantities] = useState<Record<string, number>>(
     products.reduce((acc, p) => ({ ...acc, [p.id]: 1 }), {})
   );
@@ -82,34 +85,34 @@ export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProp
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" dir="rtl">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-white/10">
+          <div className="flex items-center justify-between p-6 border-b border-white/10 bg-zinc-800/50">
             <div>
-              <h2 className="text-2xl font-bold text-white">Print Barcode Labels</h2>
+              <h2 className="text-2xl font-bold text-white">{t('printTitle')}</h2>
               <p className="text-sm text-zinc-400 mt-1">
-                {products.length} product{products.length !== 1 ? 's' : ''} • {totalLabels} label{totalLabels !== 1 ? 's' : ''}
+                {t('labelsCount', { products: products.length, labels: totalLabels })}
               </p>
             </div>
 
             <div className="flex items-center gap-4">
               {/* QZ Tray Status Indicator */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950/50 rounded-full border border-white/5">
                 {qzStatus === 'online' && (
                   <>
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-sm text-green-500">QZ Tray Online</span>
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span className="text-xs font-bold text-green-500">{t('qzOnline')}</span>
                   </>
                 )}
                 {qzStatus === 'offline' && (
                   <>
-                    <AlertCircle className="w-5 h-5 text-red-500" />
-                    <span className="text-sm text-red-500">QZ Tray Offline</span>
+                    <AlertCircle className="w-4 h-4 text-red-500" />
+                    <span className="text-xs font-bold text-red-500">{t('qzOffline')}</span>
                   </>
                 )}
                 {qzStatus === 'checking' && (
-                  <span className="text-sm text-zinc-400">Checking...</span>
+                  <span className="text-xs text-zinc-400">{tCommon('loading') || 'Checking...'}</span>
                 )}
               </div>
 
@@ -123,133 +126,150 @@ export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProp
           </div>
 
           {/* Product List with Quantities and Editable Fields */}
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left: Editable Fields */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-white mb-4">Edit Label Content</h3>
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Right: Editable Fields (Arabic RTL - Right side) */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-6 bg-cyan-500 rounded-full" />
+                  {t('editContent')}
+                </h3>
                 {products.map((product) => (
                   <div
                     key={product.id}
-                    className="bg-white/5 rounded-lg p-4 border border-white/10 space-y-3"
+                    className="bg-white/5 rounded-xl p-5 border border-white/10 space-y-4 hover:bg-white/10 transition-colors"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        {/* Editable Product Name */}
+                    <div className="flex flex-col gap-4">
+                      {/* Editable Product Name */}
+                      <div>
+                        <label className="text-xs font-bold text-zinc-400 mb-1.5 block uppercase tracking-wider">{t('productName')}</label>
+                        <input
+                          type="text"
+                          value={editableData[product.id]?.name || product.name}
+                          onChange={(e) =>
+                            setEditableData((prev) => ({
+                              ...prev,
+                              [product.id]: {
+                                ...prev[product.id],
+                                name: e.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full px-4 py-2.5 bg-zinc-800 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Editable SKU */}
                         <div>
-                          <label className="text-xs text-zinc-400 mb-1 block">Product Name</label>
+                          <label className="text-xs font-bold text-zinc-400 mb-1.5 block uppercase tracking-wider">{t('skuBarcode')}</label>
                           <input
                             type="text"
-                            value={editableData[product.id]?.name || product.name}
+                            dir="ltr"
+                            value={editableData[product.id]?.sku || product.sku}
                             onChange={(e) =>
                               setEditableData((prev) => ({
                                 ...prev,
                                 [product.id]: {
                                   ...prev[product.id],
-                                  name: e.target.value,
+                                  sku: e.target.value,
                                 },
                               }))
                             }
-                            className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-white"
+                            className="w-full px-4 py-2.5 bg-zinc-800 border border-white/10 rounded-xl text-white font-mono text-center focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all"
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* Editable SKU */}
-                          <div>
-                            <label className="text-xs text-zinc-400 mb-1 block">SKU / Barcode</label>
-                            <input
-                              type="text"
-                              value={editableData[product.id]?.sku || product.sku}
-                              onChange={(e) =>
-                                setEditableData((prev) => ({
-                                  ...prev,
-                                  [product.id]: {
-                                    ...prev[product.id],
-                                    sku: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-white font-mono"
-                            />
-                          </div>
-
-                          {/* Editable Price */}
-                          <div>
-                            <label className="text-xs text-zinc-400 mb-1 block">Price</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={editableData[product.id]?.price ?? product.sellPrice}
-                              onChange={(e) =>
-                                setEditableData((prev) => ({
-                                  ...prev,
-                                  [product.id]: {
-                                    ...prev[product.id],
-                                    price: parseFloat(e.target.value) || 0,
-                                  },
-                                }))
-                              }
-                              className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-white"
-                            />
-                          </div>
+                        {/* Editable Price */}
+                        <div>
+                          <label className="text-xs font-bold text-zinc-400 mb-1.5 block uppercase tracking-wider">{t('price')}</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            dir="ltr"
+                            value={editableData[product.id]?.price ?? product.sellPrice}
+                            onChange={(e) =>
+                              setEditableData((prev) => ({
+                                ...prev,
+                                [product.id]: {
+                                  ...prev[product.id],
+                                  price: parseFloat(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                            className="w-full px-4 py-2.5 bg-zinc-800 border border-white/10 rounded-xl text-white text-center focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all"
+                          />
                         </div>
                       </div>
 
                       {/* Quantity Selector */}
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm text-zinc-400">Qty:</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={quantities[product.id]}
-                          onChange={(e) =>
-                            setQuantities((prev) => ({
-                              ...prev,
-                              [product.id]: Math.max(1, parseInt(e.target.value) || 1),
-                            }))
-                          }
-                          className="w-20 px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-white text-center"
-                        />
+                      <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/5">
+                        <label className="text-sm font-bold text-zinc-300">{t('qty')}</label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setQuantities(prev => ({ ...prev, [product.id]: Math.max(1, prev[product.id] - 1) }))}
+                            className="w-10 h-10 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white flex items-center justify-center font-bold"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            max="500"
+                            dir="ltr"
+                            value={quantities[product.id]}
+                            onChange={(e) =>
+                              setQuantities((prev) => ({
+                                ...prev,
+                                [product.id]: Math.max(1, parseInt(e.target.value) || 1),
+                              }))
+                            }
+                            className="w-16 h-10 bg-zinc-800 border border-white/10 rounded-lg text-white text-center font-bold focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-all"
+                          />
+                          <button
+                            onClick={() => setQuantities(prev => ({ ...prev, [product.id]: prev[product.id] + 1 }))}
+                            className="w-10 h-10 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white flex items-center justify-center font-bold"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Right: Live Preview */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-white mb-4">Live Preview (Standard Layout)</h3>
-                <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  <div className="space-y-4">
+              {/* Left: Live Preview (Arabic RTL - Left side) */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-6 bg-cyan-500 rounded-full" />
+                  {t('previewTitle')}
+                </h3>
+                <div className="bg-zinc-950/50 rounded-2xl p-8 border border-white/10 flex items-center justify-center min-h-[400px]">
+                  <div className="space-y-8">
                     {products.map((product) => (
-                      <div key={product.id} className="bg-white rounded-lg p-1 border-2 border-zinc-300 overflow-hidden" style={{ width: '220px', height: '113px' }}>
-                        {/* Preview of 58mm x 30mm label (scaled for screen) 
-                            NOTE: This preview currently shows standard layout.
-                            Ideally, we should reuse ThermalPrintLabel logic for preview or LabelDesigner preview.
-                            For now, we keep the static preview but warn user if they have custom template.
-                        */}
-                        <div className="flex h-full text-black">
-                          {/* Left Side: SKU (Vertical) */}
-                          <div className="w-[15%] h-full flex items-center justify-center border-r border-black mr-1 bg-gray-50">
+                      <div key={product.id} className="bg-white rounded-lg p-1 border-4 border-zinc-400 overflow-hidden shadow-2xl relative" style={{ width: '250px', height: '130px' }}>
+                        {/* Preview of 58mm x 30mm label (scaled for screen) */}
+                        <div className="flex h-full text-black" dir="rtl">
+                          {/* Right Side: SKU (Vertical) for RTL */}
+                          <div className="w-[15%] h-full flex items-center justify-center border-l border-black ml-1 bg-gray-50">
                             <div
-                              className="text-[9px] font-bold whitespace-nowrap text-zinc-800"
-                              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                              className="text-[10px] font-bold whitespace-nowrap text-zinc-800 font-mono"
+                              style={{ writingMode: 'vertical-rl', transform: 'rotate(0deg)' }}
                             >
                               {editableData[product.id]?.sku || product.sku}
                             </div>
                           </div>
 
-                          {/* Right Side: Store, Barcode, Name, Price */}
-                          <div className="flex-1 flex flex-col items-center justify-start h-full pt-1">
+                          {/* Left Side: Content */}
+                          <div className="flex-1 flex flex-col items-center justify-start h-full pt-1 overflow-hidden">
                             {/* Store Name */}
-                            <div className="text-[8px] font-bold text-center leading-none mb-1 w-full truncate px-1">
+                            <div className="text-[10px] font-bold text-center leading-none mb-1 w-full truncate px-1 uppercase tracking-tight">
                               {storeName}
                             </div>
 
                             {/* Barcode */}
-                            <div className="flex justify-center mb-1">
+                            <div className="flex justify-center mb-1 scale-110">
                               <Barcode
                                 value={editableData[product.id]?.sku || product.sku}
                                 width={1}
@@ -261,21 +281,23 @@ export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProp
                             </div>
 
                             {/* Product Name */}
-                            <div className="text-[9px] font-bold text-center leading-tight line-clamp-2 px-1 mb-1">
+                            <div className="text-[11px] font-bold text-center leading-tight line-clamp-2 px-1 mb-1 h-8 flex items-center justify-center">
                               {(editableData[product.id]?.name || product.name)}
                             </div>
 
                             {/* Price */}
-                            <div className="text-[10px] font-extrabold leading-tight">
-                              ${(editableData[product.id]?.price ?? product.sellPrice).toFixed(2)}
+                            <div className="text-[14px] font-black leading-tight text-cyan-700 bg-cyan-50 px-3 rounded-full border border-cyan-100">
+                              LE {(editableData[product.id]?.price ?? product.sellPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </div>
                           </div>
                         </div>
                       </div>
                     ))}
-                    <p className="text-xs text-zinc-400 mt-2">
-                      ℹ️ Note: If you have a custom label design saved, it will be used for printing instead of this preview.
-                    </p>
+                    <div className="bg-cyan-500/5 p-4 rounded-xl border border-cyan-500/10 max-w-[250px]">
+                      <p className="text-xs text-zinc-400 text-center leading-relaxed">
+                        {t('previewNote')}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -283,50 +305,51 @@ export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProp
           </div>
 
           {/* Actions */}
-          <div className="p-6 border-t border-white/10 space-y-4">
+          <div className="p-6 border-t border-white/10 space-y-4 bg-zinc-800/50">
             {/* Print Method Selection */}
-            <div className="flex items-center gap-4 pb-4 border-b border-white/10">
-              <span className="text-sm text-zinc-400">Print Method:</span>
-              <div className="flex gap-2">
+            <div className="flex items-center gap-6 pb-4 border-b border-white/5">
+              <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('printMethod')}</span>
+              <div className="flex gap-3">
                 <button
                   onClick={() => setPrintMethod('browser')}
-                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${printMethod === 'browser'
-                    ? 'bg-cyan-500 text-black font-medium'
+                  className={`px-6 py-2.5 rounded-xl flex items-center gap-3 transition-all font-bold ${printMethod === 'browser'
+                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20 active:scale-95'
                     : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
                     }`}
                 >
-                  <Globe className="w-4 h-4" />
-                  Browser Print
+                  <Globe className="w-5 h-5" />
+                  {t('browserPrint')}
                 </button>
                 <button
                   onClick={() => setPrintMethod('qz')}
-                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${printMethod === 'qz'
-                    ? 'bg-cyan-500 text-black font-medium'
+                  className={`px-6 py-2.5 rounded-xl flex items-center gap-3 transition-all font-bold ${printMethod === 'qz'
+                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20 active:scale-95'
                     : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
                     }`}
                 >
-                  <Printer className="w-4 h-4" />
-                  QZ Tray
-                  {qzStatus === 'offline' && <span className="text-xs text-red-400">(Offline)</span>}
+                  <Printer className="w-5 h-5" />
+                  {t('qzTrayPrint')}
+                  {qzStatus === 'offline' && <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full ml-1">OFFLINE</span>}
                 </button>
               </div>
             </div>
 
             {/* Print Action Buttons */}
             <div className="flex items-center justify-between">
-              <div className="text-sm text-zinc-400">
+              <div className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
                 {printMethod === 'browser'
-                  ? '🖨️ System Dialog: Set Margins to "None" for best results.'
-                  : '🖨️ Direct thermal printing via QZ Tray'
+                  ? t('browserPrintNote')
+                  : t('qzPrintNote')
                 }
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors"
+                  className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white font-bold rounded-xl transition-all active:scale-95"
                 >
-                  Cancel
+                  {tCommon('cancel') || 'إلغاء'}
                 </button>
 
                 {printMethod === 'browser' ? (
@@ -362,47 +385,45 @@ export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProp
 
       {/* QZ Tray Offline Modal */}
       {showQzModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
-          <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-md p-6">
-            <div className="flex items-start gap-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] backdrop-blur-md p-4">
+          <div className="bg-zinc-900 rounded-2xl border border-white/10 w-full max-w-md p-8 shadow-3xl text-center" dir="rtl">
+            <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertCircle className="w-12 h-12 text-red-500 flex-shrink-0" />
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-white mb-2">QZ Tray Not Running</h3>
-                <p className="text-zinc-400 mb-4">
-                  Please start the QZ Tray Printer Service to enable direct thermal printing.
-                </p>
+            </div>
 
-                <div className="bg-white/5 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-zinc-300 mb-2">Don't have QZ Tray installed?</p>
-                  <a
-                    href="https://qz.io/download/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm font-medium"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download QZ Tray
-                  </a>
-                </div>
+            <h3 className="text-2xl font-bold text-white mb-3">{t('qzNotRunningTitle')}</h3>
+            <p className="text-zinc-400 mb-8 leading-relaxed">
+              {t('qzNotRunningDesc')}
+            </p>
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShowQzModal(false)}
-                    className="flex-1 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowQzModal(false);
-                      checkQzTrayStatus();
-                    }}
-                    className="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-lg transition-colors"
-                  >
-                    Retry Connection
-                  </button>
-                </div>
-              </div>
+            <div className="bg-white/5 rounded-2xl p-5 mb-8 border border-white/5 group hover:border-cyan-500/30 transition-all">
+              <a
+                href="https://qz.io/download/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-3 text-cyan-400 hover:text-cyan-300 text-base font-bold"
+              >
+                <Download className="w-5 h-5" />
+                {t('qzDownload')}
+              </a>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowQzModal(false)}
+                className="flex-1 px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white font-bold rounded-xl transition-all active:scale-95"
+              >
+                {tCommon('cancel') || 'إلغاء'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowQzModal(false);
+                  checkQzTrayStatus();
+                }}
+                className="flex-1 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-xl shadow-lg shadow-cyan-500/20 transition-all active:scale-95"
+              >
+                {t('retryConnection')}
+              </button>
             </div>
           </div>
         </div>

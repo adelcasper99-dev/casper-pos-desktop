@@ -1,29 +1,52 @@
+import ar from "../../messages/ar.json";
+
+// Helper to get nested value from object
+function getNestedValue(obj: any, path: string) {
+    return path.split('.').reduce((prev, curr) => {
+        return prev ? prev[curr] : undefined;
+    }, obj);
+}
+
 // Mock for next-intl server-side
 export async function getTranslations(namespace: string) {
     return (key: string, params?: Record<string, string | number>) => {
+        const messages = ar as any;
+        const nsObj = getNestedValue(messages, namespace);
+        const result = (nsObj ? getNestedValue(nsObj, key) : undefined) || key;
+
         if (params) {
-            let text = key.split('.').pop() || key;
+            let text = result;
             Object.entries(params).forEach(([k, v]) => {
-                text += ` (${k}=${v})`;
+                text = text.replace(`{${k}}`, String(v));
             });
             return text;
         }
-        const parts = key.split('.');
-        return parts[parts.length - 1].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return result;
     };
 }
 
 // Mock for next-intl client-side
 export function useTranslations(namespace: string) {
     return (key: string, params?: Record<string, string | number>) => {
+        const messages = ar as any;
+        const nsObj = getNestedValue(messages, namespace);
+        const result = (nsObj ? getNestedValue(nsObj, key) : undefined) || key;
+
         if (params) {
-            let text = key.split('.').pop() || key;
+            let text = result;
             Object.entries(params).forEach(([k, v]) => {
-                text += ` (${k}=${v})`;
+                text = text.replace(`{${k}}`, String(v));
             });
             return text;
         }
-        const parts = key.split('.');
-        return parts[parts.length - 1].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return result;
     };
+}
+
+export function useLocale(): "en" | "ar" {
+    return "ar";
+}
+
+export function useDirection() {
+    return "rtl";
 }

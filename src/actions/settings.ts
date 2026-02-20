@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { secureAction } from "@/lib/safe-action";
 
 import { settingsSchema } from "@/lib/validation/settings";
-
+import { ensureMainBranch, syncMainBranchName } from "@/lib/ensure-main-branch";
 
 import { getSession } from "@/lib/auth";
 
@@ -24,6 +24,10 @@ export const getStoreSettings = secureAction(async () => {
             }
         });
     }
+
+    // Ensure one main branch exists (single-branch mode)
+    await ensureMainBranch();
+
     // Serialize Decimal fields for client consumption
     return {
         data: {
@@ -36,29 +40,28 @@ export const getStoreSettings = secureAction(async () => {
 export const getEffectiveStoreSettings = secureAction(async () => {
     // 1. Get Base Settings
     const baseSettingsRes = await getStoreSettings();
-    if (!baseSettingsRes.success || !baseSettingsRes.data) throw new Error("Failed to load base settings");
+    if (!baseSettingsRes.success || !baseSettingsRes.data) {
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new Error(t('generic'));
+    }
 
-    // Initialize with extended type to support branch overrides
-    let settings: any = { ...baseSettingsRes.data, printHeader: null };
+    // Initialize settings
+    let settings: any = { ...baseSettingsRes.data };
 
     // 2. Get User Session to check for Branch Override
     const session = await getSession();
     const branchId = session?.user?.branchId;
 
     if (branchId) {
-        const branch = await prisma.branch.findUnique({ where: { id: branchId } }) as any;
+        const branch = await prisma.branch.findUnique({ where: { id: branchId } });
         if (branch) {
             settings = {
                 ...settings,
-                // Override with branch specific values if they exist
-                name: branch.displayName || branch.name || settings.name,
+                // Override with branch specific values if they exist (single-branch mode)
+                name: branch.name || settings.name,
                 address: branch.address || settings.address,
                 phone: branch.phone || settings.phone,
-                logoUrl: branch.logoUrl || settings.logoUrl,
-                receiptFooter: branch.printFooter || settings.receiptFooter,
-                printHeader: branch.printHeader || null,
-                // Also merge printSettings JSON if applicable
-                ...(typeof branch.printSettings === 'object' ? branch.printSettings : {}),
             };
         }
     }
@@ -79,8 +82,13 @@ export const updateStoreSettings = secureAction(async (data: any) => {
         }
     });
 
+    // Sync main branch name with store name (single-branch mode)
+    if (validated.name) {
+        await syncMainBranchName(validated.name);
+    }
+
     revalidatePath("/settings");
     revalidatePath("/pos");
     return { success: true };
-}, { permission: 'MANAGE_SETTINGS' });
+}, { permission: 'MANAGE_SETTINGS', requireCSRF: false });
 

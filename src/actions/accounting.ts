@@ -9,6 +9,7 @@ import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { getCurrentShiftInternal } from "./shift-management-actions";
 import { getCurrentUser } from "./auth";
 import { seedAccounts } from "@/lib/accounting/seed-accounts";
+import { getTranslations } from "@/lib/i18n-mock";
 
 // Repair/Initialize Accounting Accounts
 export const repairAccounting = secureAction(async () => {
@@ -31,8 +32,9 @@ export const createExpense = secureAction(async (data: {
     treasuryId?: string;
     csrfToken?: string;
 }) => {
+    const t = await getTranslations('SystemMessages.Errors');
     const currentUser = await getCurrentUser();
-    if (!currentUser) throw new Error("Authentication required");
+    if (!currentUser) throw new Error(t('unauthorized'));
 
     // Get current shift if one is active
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
@@ -115,8 +117,9 @@ export const updateExpense = secureAction(async (id: string, data: {
     paymentMethod?: string;
     csrfToken?: string;
 }, reason?: string) => {
+    const t = await getTranslations('SystemMessages.Errors');
     const existing = await prisma.expense.findUnique({ where: { id } });
-    if (!existing) throw new Error("Expense not found");
+    if (!existing) throw new Error(t('notFound'));
 
     // Create audit log
     await prisma.auditLog.create({
@@ -150,8 +153,9 @@ export const updateExpense = secureAction(async (id: string, data: {
 
 // Delete expense with audit trail
 export const deleteExpense = secureAction(async (id: string, reason?: string) => {
+    const t = await getTranslations('SystemMessages.Errors');
     const existing = await prisma.expense.findUnique({ where: { id } });
-    if (!existing) throw new Error("Expense not found");
+    if (!existing) throw new Error(t('notFound'));
 
     await prisma.auditLog.create({
         data: {
@@ -235,8 +239,9 @@ export const addTransaction = secureAction(async (type: string, amount: number, 
 
 // Update transaction with audit
 export const updateTransaction = secureAction(async (id: string, data: Prisma.TransactionUpdateInput, reason?: string) => {
+    const t = await getTranslations('SystemMessages.Errors');
     const existing = await prisma.transaction.findUnique({ where: { id } });
-    if (!existing) throw new Error("Transaction not found");
+    if (!existing) throw new Error(t('notFound'));
 
     await prisma.auditLog.create({
         data: {
@@ -264,8 +269,9 @@ export const updateTransaction = secureAction(async (id: string, data: Prisma.Tr
 // Soft delete transaction
 export const deleteTransaction = secureAction(async (id: string, reason?: string) => {
     const currentUser = await getCurrentUser();
+    const t = await getTranslations('SystemMessages.Errors');
     const existing = await prisma.transaction.findUnique({ where: { id } });
-    if (!existing) throw new Error("Transaction not found");
+    if (!existing) throw new Error(t('notFound'));
 
     await prisma.auditLog.create({
         data: {

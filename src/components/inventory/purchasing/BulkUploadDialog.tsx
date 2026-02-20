@@ -20,7 +20,7 @@ export function BulkUploadDialog({
     onUploadComplete,
     csrfToken
 }: BulkUploadDialogProps) {
-    const t = useTranslations('Purchasing');
+    const t = useTranslations('Purchasing.bulkImport');
 
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<ParsedInvoice[]>([]);
@@ -47,13 +47,13 @@ export function BulkUploadDialog({
 
             if (!validation.valid) {
                 setValidationErrors(validation.errors);
-                toast.error(`Found ${validation.errors.length} validation errors`);
+                toast.error(t('errorsFound', { count: validation.errors.length }));
             } else if (duplicates.length > 0) {
                 toast.warning(`Warning: Duplicate SKUs found: ${duplicates.join(', ')}`);
                 setPreview(invoices);
             } else {
                 setPreview(invoices);
-                toast.success(`Loaded ${invoices.length} invoices with ${invoices.reduce((acc, inv) => acc + inv.items.length, 0)} items`);
+                toast.success(t('success', { count: invoices.length }));
             }
         } catch (error: any) {
             toast.error(`Failed to parse CSV: ${error.message}`);
@@ -72,16 +72,16 @@ export function BulkUploadDialog({
                 setResult(res.results);
 
                 if (res.results.failed === 0) {
-                    toast.success(`Successfully imported ${res.results.successful} invoices!`);
+                    toast.success(t('success', { count: res.results.successful }));
                     setTimeout(() => {
                         onUploadComplete();
                         onOpenChange(false);
                     }, 2000);
                 } else {
-                    toast.warning(`Imported ${res.results.successful} invoices, ${res.results.failed} failed`);
+                    toast.warning(t('failedCount', { successful: res.results.successful, failed: res.results.failed }));
                 }
             } else {
-                toast.error('Import failed');
+                toast.error(t('importFailed'));
             }
         } catch (error: any) {
             toast.error(`Import error: ${error.message}`);
@@ -112,16 +112,17 @@ export function BulkUploadDialog({
             <div
                 className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
+                dir="rtl"
             >
                 {/* Header */}
                 <div className="p-6 border-b border-border flex justify-between items-center bg-muted/20">
                     <div>
                         <h2 className="text-xl font-bold flex items-center gap-2">
                             <Upload className="w-5 h-5 text-indigo-400" />
-                            Bulk Import Invoices (CSV)
+                            {t('title')}
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
-                            Import multiple purchase invoices from Excel or Google Sheets
+                            {t('description')}
                         </p>
                     </div>
                     <button
@@ -142,10 +143,10 @@ export function BulkUploadDialog({
                                     <div className="glass-card p-8 border-2 border-dashed border-border hover:border-cyan-500 transition-colors text-center">
                                         <Upload className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
                                         <p className="font-bold text-foreground">
-                                            {file ? file.name : 'Click to select CSV file'}
+                                            {file ? file.name : t('selectFile')}
                                         </p>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            Max 10MB, up to 500 invoices
+                                            {t('maxSizeNote', { size: '10MB', count: 500 })}
                                         </p>
                                     </div>
                                     <input
@@ -161,7 +162,7 @@ export function BulkUploadDialog({
                                     className="bg-muted hover:bg-muted/80 text-foreground font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                                 >
                                     <Download className="w-4 h-4" />
-                                    Template
+                                    {t('templateButton')}
                                 </button>
                             </div>
 
@@ -170,17 +171,17 @@ export function BulkUploadDialog({
                                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <AlertCircle className="w-5 h-5 text-red-500" />
-                                        <span className="font-bold text-red-500">{validationErrors.length} Errors Found</span>
+                                        <span className="font-bold text-red-500">{t('errorsFound', { count: validationErrors.length })}</span>
                                     </div>
                                     <div className="max-h-40 overflow-y-auto space-y-1">
                                         {validationErrors.slice(0, 10).map((err, idx) => (
                                             <div key={idx} className="text-sm text-red-400">
-                                                Row {err.row}, {err.field}: {err.message}
+                                                {t('row')} {err.row}, {t('field')} {err.field}: {err.message}
                                             </div>
                                         ))}
                                         {validationErrors.length > 10 && (
                                             <div className="text-sm text-red-400 italic">
-                                                ...and {validationErrors.length - 10} more
+                                                ...
                                             </div>
                                         )}
                                     </div>
@@ -191,9 +192,9 @@ export function BulkUploadDialog({
                             {preview.length > 0 && validationErrors.length === 0 && (
                                 <div className="glass-card p-4 space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <span className="font-bold">Preview ({preview.length} invoices)</span>
+                                        <span className="font-bold">{t('preview', { count: preview.length })}</span>
                                         <span className="text-sm text-muted-foreground">
-                                            {preview.reduce((acc, inv) => acc + inv.items.length, 0)} total items
+                                            {t('totalItems', { count: preview.reduce((acc, inv) => acc + inv.items.length, 0) })}
                                         </span>
                                     </div>
 
@@ -206,11 +207,6 @@ export function BulkUploadDialog({
                                                 </div>
                                             </div>
                                         ))}
-                                        {preview.length > 5 && (
-                                            <div className="text-center text-muted-foreground text-xs italic">
-                                                ...and {preview.length - 5} more invoices
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             )}
@@ -229,7 +225,7 @@ export function BulkUploadDialog({
                                     )}
                                     <div>
                                         <div className="text-2xl font-bold">
-                                            {result.successful} / {result.total} Successful
+                                            {t('success', { successful: result.successful, total: result.total })}
                                         </div>
                                         <div className="text-sm text-muted-foreground">
                                             {result.failed} failed
@@ -240,7 +236,7 @@ export function BulkUploadDialog({
 
                             {result.errors.length > 0 && (
                                 <div className="glass-card p-4 space-y-2">
-                                    <div className="font-bold text-red-400">Failed Invoices:</div>
+                                    <div className="font-bold text-red-400">{t('failedInvoices')}</div>
                                     <div className="max-h-48 overflow-y-auto space-y-2">
                                         {result.errors.map((err: any, idx: number) => (
                                             <div key={idx} className="bg-red-500/10 p-2 rounded text-sm">
@@ -261,7 +257,7 @@ export function BulkUploadDialog({
                         onClick={handleClose}
                         className="bg-muted hover:bg-muted/80 text-foreground font-bold px-6 py-2 rounded-lg transition-colors"
                     >
-                        {result ? 'Close' : 'Cancel'}
+                        {result ? t('close') : t('cancel')}
                     </button>
 
                     {!result && preview.length > 0 && validationErrors.length === 0 && (
@@ -273,12 +269,12 @@ export function BulkUploadDialog({
                             {uploading ? (
                                 <>
                                     <Loader2 className="w-5 h-5 animate-spin" />
-                                    Importing...
+                                    {t('importing')}
                                 </>
                             ) : (
                                 <>
                                     <Upload className="w-5 h-5" />
-                                    Import {preview.length} Invoices
+                                    {t('importButton', { count: preview.length })}
                                 </>
                             )}
                         </button>

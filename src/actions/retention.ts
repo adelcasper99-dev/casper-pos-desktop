@@ -1,6 +1,7 @@
 "use server";
 
 import { getBackups, removeBackup } from './backup';
+import { getTranslations } from "@/lib/i18n-mock";
 
 interface RetentionStats {
     scanned: number;
@@ -24,7 +25,8 @@ export async function applyRetentionPolicy() {
         const backupsResult = await getBackups();
 
         if (!backupsResult.success || !backupsResult.backups) {
-            throw new Error("Failed to load backups");
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('retentionLoadError'));
         }
 
         const allBackups = backupsResult.backups;
@@ -96,7 +98,8 @@ export async function previewRetentionPolicy() {
         const backupsResult = await getBackups();
 
         if (!backupsResult.success || !backupsResult.backups) {
-            throw new Error("Failed to load backups");
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('retentionLoadError'));
         }
 
         const allBackups = backupsResult.backups;

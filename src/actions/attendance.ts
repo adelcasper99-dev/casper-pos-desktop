@@ -6,13 +6,14 @@ import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS } from "@/lib/permissions/registry";
 import { logAction } from '@/lib/audit'
 import { getSession } from "@/lib/auth";
+import { getTranslations } from "@/lib/i18n-mock";
 
 const db = prisma as any;
 
 export const upsertDailyLog = secureAction(async (data: { userId: string, dateStr: string, data: any, csrfToken?: string }) => {
     // Note: data.data is the nested daily log data.
     const { userId, dateStr, data: logData } = data;
-    const date = new Date(dateStr); 
+    const date = new Date(dateStr);
 
     const existing = await db.dailyWorkLog.findUnique({
         where: {
@@ -35,12 +36,12 @@ export const upsertDailyLog = secureAction(async (data: { userId: string, dateSt
                 checkOut: logData.checkOut ? new Date(`${dateStr}T${logData.checkOut}:00`) : undefined,
             }
         });
-        
+
         // Audit only if meaningful change (Status or Financials)
         if (existing.status !== logData.status || logData.deduction || logData.bonus) {
-                await logAction("ATTENDANCE", existing.id, "UPDATE", { 
-                oldStatus: existing.status, 
-                newStatus: logData.status, 
+            await logAction("ATTENDANCE", existing.id, "UPDATE", {
+                oldStatus: existing.status,
+                newStatus: logData.status,
                 deduction: logData.deduction,
                 bonus: logData.bonus
             });
@@ -59,7 +60,7 @@ export const upsertDailyLog = secureAction(async (data: { userId: string, dateSt
                 checkOut: logData.checkOut ? new Date(`${dateStr}T${logData.checkOut}:00`) : undefined,
             }
         });
-        
+
         await logAction("ATTENDANCE", newLog.id, "CREATE", { status: logData.status });
     }
 
@@ -97,16 +98,17 @@ export const getMonthlyLogs = secureAction(async (monthStr: string) => { // "202
  * Throws an error if unauthorized instead of returning error response
  */
 export async function getMonthlyLogsForPage(monthStr: string) {
+    const t = await getTranslations('SystemMessages.Errors');
     const session = await getSession();
     if (!session?.user) {
-        throw new Error("Unauthorized: Please log in.");
+        throw new Error(t('unauthorized'));
     }
-    
+
     const user = session.user;
     const hasAccess = user.permissions?.includes(PERMISSIONS.HR_VIEW_ATTENDANCE) || user.role === "ADMIN";
-    
+
     if (!hasAccess) {
-        throw new Error("Forbidden: Insufficient permissions.");
+        throw new Error(t('forbidden'));
     }
 
     const startOfMonth = new Date(`${monthStr}-01`);

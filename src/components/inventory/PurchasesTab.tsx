@@ -2,8 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPurchase, refundPurchase } from "@/actions/inventory";
-import { Loader2, Edit, Pencil, Plus, ShoppingCart, FileText, Calendar, Trash2, X, Search, Wand2, Check, Box, Printer, Filter, Upload } from "lucide-react";
+import { getPurchase, refundPurchase, getPurchaseInvoices } from "@/actions/inventory";
+import {
+    Loader2, Edit, Pencil, Plus, ShoppingCart, FileText,
+    Calendar, Trash2, X, Search, Wand2, Check, Box,
+    Printer, Filter, Upload,
+    Calendar as CalendarIcon
+} from "lucide-react";
+import {
+    startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
+    startOfMonth, endOfMonth, isWithinInterval
+} from 'date-fns';
+import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import { PurchaseHeader } from "@/components/inventory/purchasing/PurchaseHeader";
 import { PurchaseItemEntry } from "@/components/inventory/purchasing/PurchaseItemEntry";
 import { PurchaseItemsTable } from "@/components/inventory/purchasing/PurchaseItemsTable";
@@ -106,16 +116,18 @@ export default function PurchasesTab({
     const { data: activeInvoices } = useQuery({
         queryKey: ['purchase-invoices'],
         queryFn: async () => {
-            const res = await fetch('/api/purchasing/invoices');
-            if (!res.ok) throw new Error('Failed to fetch invoices');
-            return res.json();
+            const res = await getPurchaseInvoices();
+            if (!res.success) throw new Error(res.error || 'Failed to fetch invoices');
+            return res.data || [];
         },
         initialData: invoices,
-        refetchInterval: 5000, // Poll every 5 seconds
+        refetchInterval: 5000,
         staleTime: 4000
     });
 
     const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL' | 'VOIDED'>('ACTIVE');
+    const [dateFilter, setDateFilter] = useState("all");
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
 
     const queryClient = useQueryClient();
@@ -155,6 +167,7 @@ export default function PurchasesTab({
         newItemSellPrice3, setNewItemSellPrice3,
         cart, setCart,
         removeFromCart,
+        updateCartItem,
         addToCartExisting,
         addToCartNew,
         handleAutoSku,
@@ -226,7 +239,7 @@ export default function PurchasesTab({
         if (!res.success) {
             toast.error(res.error || "Failed to void invoice");
         } else {
-            toast.success("Invoice voided successfully");
+            toast.success(t('voidSuccess') || "Invoice voided successfully");
         }
     };
 
@@ -332,7 +345,7 @@ export default function PurchasesTab({
         : [];
 
     return (
-        <div className="space-y-6 animate-fly-in">
+        <div className="space-y-6 animate-fly-in" dir="rtl">
             {isNewPurchaseOpen && <BarcodeListener onScan={handleScan} />}
             <div className="flex justify-between items-center bg-muted/50 p-4 rounded-xl border border-border">
                 <div>
@@ -348,7 +361,7 @@ export default function PurchasesTab({
                         className="bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
                     >
                         <Upload className="w-4 h-4" />
-                        Bulk CSV
+                        {t('bulkCsv')}
                     </button>
                     <button
                         onClick={() => {
@@ -363,56 +376,157 @@ export default function PurchasesTab({
                 </div>
             </div>
 
-            {/* Status Filter */}
+            {/* Filters Bar */}
             <div className="flex flex-wrap gap-4 items-center bg-muted/30 p-4 rounded-xl border border-border">
-                <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                        {t('filter.status') || 'Filter'}
-                    </span>
+                {/* Status Filter */}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <Filter className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                            {t('filter.status')}
+                        </span>
+                    </div>
+
+                    <div className="flex bg-background/50 p-1 rounded-lg border border-border/50">
+                        <button
+                            onClick={() => setStatusFilter('ACTIVE')}
+                            className={clsx(
+                                "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
+                                statusFilter === 'ACTIVE'
+                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                            )}
+                        >
+                            {t('filter.active')}
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('ALL')}
+                            className={clsx(
+                                "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
+                                statusFilter === 'ALL'
+                                    ? "bg-zinc-600 text-white shadow-lg shadow-zinc-600/30"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                            )}
+                        >
+                            {t('filter.all')}
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('VOIDED')}
+                            className={clsx(
+                                "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
+                                statusFilter === 'VOIDED'
+                                    ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                            )}
+                        >
+                            {t('filter.voided')}
+                        </button>
+                    </div>
                 </div>
 
-                <div className="flex bg-background/50 p-1 rounded-lg border border-border/50">
-                    <button
-                        onClick={() => setStatusFilter('ACTIVE')}
-                        className={clsx(
-                            "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
-                            statusFilter === 'ACTIVE'
-                                ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
-                                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                        )}
-                    >
-                        {t('filter.active')}
-                    </button>
-                    <button
-                        onClick={() => setStatusFilter('ALL')}
-                        className={clsx(
-                            "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
-                            statusFilter === 'ALL'
-                                ? "bg-zinc-600 text-white shadow-lg shadow-zinc-600/30"
-                                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                        )}
-                    >
-                        {t('filter.all')}
-                    </button>
-                    <button
-                        onClick={() => setStatusFilter('VOIDED')}
-                        className={clsx(
-                            "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
-                            statusFilter === 'VOIDED'
-                                ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30"
-                                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                        )}
-                    >
-                        {t('filter.voided')}
-                    </button>
+                <div className="h-6 w-px bg-border/50 mx-2" />
+
+                {/* Date Filter & Presets */}
+                <div className="flex flex-wrap items-center gap-3 flex-1">
+                    <div className="flex items-center gap-1 bg-background/50 p-1 rounded-lg border border-border/50">
+                        <button
+                            onClick={() => {
+                                setDateFilter("today");
+                                setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+                            }}
+                            className={clsx(
+                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
+                                dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
+                            )}
+                        >
+                            اليوم
+                        </button>
+                        <button
+                            onClick={() => {
+                                const yesterday = subDays(new Date(), 1);
+                                setDateFilter("yesterday");
+                                setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
+                            }}
+                            className={clsx(
+                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
+                                dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
+                            )}
+                        >
+                            أمس
+                        </button>
+                        <button
+                            onClick={() => {
+                                setDateFilter("week");
+                                setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
+                            }}
+                            className={clsx(
+                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
+                                dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
+                            )}
+                        >
+                            الأسبوع
+                        </button>
+                        <button
+                            onClick={() => {
+                                setDateFilter("month");
+                                setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                            }}
+                            className={clsx(
+                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
+                                dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
+                            )}
+                        >
+                            الشهر
+                        </button>
+                    </div>
+
+                    <FlatpickrRangePicker
+                        onRangeChange={(dates) => {
+                            if (dates.length === 2) {
+                                setDateRange({ from: dates[0], to: dates[1] });
+                                setDateFilter("custom");
+                            } else if (dates.length === 0) {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                            }
+                        }}
+                        onClear={() => {
+                            setDateRange(undefined);
+                            setDateFilter("all");
+                        }}
+                        initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
+                        className="w-64"
+                    />
+
+                    {(dateFilter !== "all" || statusFilter !== 'ACTIVE') && (
+                        <button
+                            onClick={() => {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                                setStatusFilter('ACTIVE');
+                            }}
+                            className="flex items-center gap-1 text-xs text-orange-400 font-bold hover:text-orange-300 transition-colors"
+                        >
+                            <X className="w-3 h-3" /> مسح الفلاتر
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Invoices List */}
             {activeInvoices.filter((inv: any) => {
-                if (statusFilter === 'ACTIVE') return inv.status !== 'VOIDED';
-                if (statusFilter === 'VOIDED') return inv.status === 'VOIDED';
+                // Status Filter
+                if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
+                if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
+
+                // Date Filter
+                if (dateRange?.from && dateRange?.to) {
+                    return isWithinInterval(new Date(inv.purchaseDate), {
+                        start: dateRange.from,
+                        end: dateRange.to
+                    });
+                }
+
                 return true;
             }).length === 0 ? (
                 <div className="glass-card p-10 text-center text-zinc-500 flex flex-col items-center">
@@ -430,7 +544,7 @@ export default function PurchasesTab({
                                 <th className="p-4 text-start">{t('table.branch')}</th>
                                 <th className="p-4 text-start">{t('table.warehouse')}</th>
                                 <th className="p-4 text-center">{t('table.status')}</th>
-                                <th className="p-4 text-end">{t('table.delivery') || 'Delivery'}</th>
+                                <th className="p-4 text-end">{t('table.delivery')}</th>
                                 <th className="p-4 text-end">{t('table.total')}</th>
                                 <th className="p-4 text-end">{t('table.paid')}</th>
                                 <th className="p-4 text-end">{t('table.balance')}</th>
@@ -439,8 +553,18 @@ export default function PurchasesTab({
                         </thead>
                         <tbody className="divide-y divide-border">
                             {activeInvoices.filter((inv: any) => {
-                                if (statusFilter === 'ACTIVE') return inv.status !== 'VOIDED';
-                                if (statusFilter === 'VOIDED') return inv.status === 'VOIDED';
+                                // Status Filter
+                                if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
+                                if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
+
+                                // Date Filter
+                                if (dateRange?.from && dateRange?.to) {
+                                    return isWithinInterval(new Date(inv.purchaseDate), {
+                                        start: dateRange.from,
+                                        end: dateRange.to
+                                    });
+                                }
+
                                 return true;
                             }).map((inv: PurchaseInvoice) => (
                                 <tr key={inv.id} className={clsx(
@@ -492,7 +616,7 @@ export default function PurchasesTab({
                                             <button
                                                 onClick={() => handleEdit(inv.id)}
                                                 className="bg-muted hover:bg-cyan-500 text-muted-foreground hover:text-black p-2 rounded-lg transition-colors"
-                                                title="Edit Invoice"
+                                                title={t('editInvoice')}
                                             >
                                                 <Pencil className="w-4 h-4" />
                                             </button>
@@ -505,7 +629,7 @@ export default function PurchasesTab({
                                                         ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-30"
                                                         : "bg-muted hover:bg-orange-500 text-muted-foreground hover:text-black"
                                                 )}
-                                                title={inv.status === 'VOIDED' ? "Already Voided" : "Void Invoice"}
+                                                title={inv.status === 'VOIDED' ? t('alreadyVoided') : t('voidInvoice')}
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
@@ -533,7 +657,7 @@ export default function PurchasesTab({
                                 {editingInvoiceId ? t('editInvoice') : t('createInvoice')}
                             </h2>
                             <div className="flex items-center gap-2">
-                                <button onClick={handlePrint} className="p-2 hover:bg-muted rounded-full" title="Print Invoice">
+                                <button onClick={handlePrint} className="p-2 hover:bg-muted rounded-full" title={t('printInvoice')}>
                                     <Printer className="w-5 h-5 text-muted-foreground" />
                                 </button>
                                 <button onClick={() => setIsNewPurchaseOpen(false)} className="p-2 hover:bg-muted rounded-full text-muted-foreground">
@@ -548,7 +672,7 @@ export default function PurchasesTab({
                             {/* Error Banner */}
                             {errorResult && (
                                 <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg flex items-center gap-2">
-                                    <span className="font-bold">Error:</span> {errorResult}
+                                    <span className="font-bold">{t('error') || 'خطأ'}:</span> {errorResult}
                                 </div>
                             )}
 
@@ -560,8 +684,6 @@ export default function PurchasesTab({
                                 onBranchChange={setSelectedBranchId}
                                 selectedWarehouseId={selectedWarehouseId}
                                 onWarehouseChange={setSelectedWarehouseId}
-                                paymentMethod={paymentMethod}
-                                onPaymentMethodChange={setPaymentMethod}
                                 suppliers={suppliers}
                                 branches={branches}
                                 warehouses={filteredWarehouses}
@@ -603,6 +725,7 @@ export default function PurchasesTab({
                             <PurchaseItemsTable
                                 items={cart}
                                 onRemoveItem={removeFromCart}
+                                onUpdateItem={updateCartItem}
                             />
                         </div>
 
@@ -613,7 +736,7 @@ export default function PurchasesTab({
                                 <div className="text-2xl font-bold font-mono text-cyan-500">
                                     {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-sm text-muted-foreground">SAR</span>
                                 </div>
-                                <div className="text-xs text-muted-foreground">{cart.length} items</div>
+                                <div className="text-xs text-muted-foreground">{t('itemsCount', { count: cart.length })}</div>
                             </div>
 
                             <div className="flex gap-4 items-end">
@@ -651,13 +774,13 @@ export default function PurchasesTab({
                                     <select
                                         value={paymentMethod}
                                         onChange={e => setPaymentMethod(e.target.value)}
-                                        className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono focus:border-cyan-500 outline-none transition-colors h-[42px]"
+                                        className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono focus:border-cyan-500 outline-none transition-colors h-[42px] [&>option]:text-black"
                                     >
-                                        <option value="CASH">CASH</option>
-                                        <option value="VISA">VISA</option>
-                                        <option value="MADA">MADA</option>
-                                        <option value="TRANSFER">TRANSFER</option>
-                                        <option value="CREDIT">DEFERRED</option>
+                                        <option value="CASH">{t('methods.CASH')}</option>
+                                        <option value="VISA">{t('methods.VISA')}</option>
+                                        <option value="MADA">{t('methods.MADA')}</option>
+                                        <option value="TRANSFER">{t('methods.TRANSFER')}</option>
+                                        <option value="CREDIT">{t('methods.CREDIT')}</option>
                                     </select>
                                 </div>
 
@@ -681,7 +804,7 @@ export default function PurchasesTab({
                                     className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-lg px-8 py-2 rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] h-[46px]"
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                                    {editingInvoiceId ? t('save') || 'Save' : t('save') || 'Save'}
+                                    {tCommon('save')}
                                 </button>
                             </div>
                         </div>

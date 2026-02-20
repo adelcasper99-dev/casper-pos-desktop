@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { secureAction } from "@/lib/safe-action";
 
 import { getCurrentUser } from "./auth";
+import { getTranslations } from "@/lib/i18n-mock";
 
 /**
  * Get branches visible to current user
@@ -12,8 +13,9 @@ import { getCurrentUser } from "./auth";
  * - HQ users (Admin/Manager): All branches
  */
 export const getVisibleBranches = secureAction(async () => {
+    const t = await getTranslations('SystemMessages.Errors');
     const user = await getCurrentUser();
-    if (!user) throw new Error("Not authenticated");
+    if (!user) throw new Error(t('unauthorized'));
 
     // DEBUG: Log user info
     console.log('=== getVisibleBranches DEBUG ===');
@@ -70,8 +72,10 @@ export const getWarehousesByBranch = secureAction(async (branchId: string) => {
         roleUpper === 'MANAGER' ||
         user.branchType === 'CENTER';
 
+    const t = await getTranslations('SystemMessages.Errors');
+
     if (!isHQUser && user.branchId !== branchId) {
-        throw new Error("Access denied to this branch");
+        throw new Error(t('forbidden'));
     }
 
     const warehouses = await prisma.warehouse.findMany({
@@ -87,8 +91,9 @@ export const getWarehousesByBranch = secureAction(async (branchId: string) => {
  * Get all warehouses visible to the user
  */
 export const getAllWarehouses = secureAction(async () => {
+    const t = await getTranslations('SystemMessages.Errors');
     const user = await getCurrentUser();
-    if (!user) throw new Error("Not authenticated");
+    if (!user) throw new Error(t('unauthorized'));
 
     const roleUpper = user.role?.toUpperCase() || '';
     const isHQUser = roleUpper === 'ADMIN' ||

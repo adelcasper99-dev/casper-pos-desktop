@@ -8,7 +8,6 @@ export const userSchema = z.object({
     password: z.string().min(6, "Password must be at least 6 chars").optional().or(z.literal('')),
     roleId: z.string().optional(),
     branchId: z.string().min(1, "Branch is required"),
-    salary: z.coerce.number().optional(),
     managedHQIds: z.array(z.string()).optional(),
     isGlobalAdmin: z.boolean().optional(),
 });

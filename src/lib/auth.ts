@@ -50,6 +50,8 @@ export async function getSession() {
     const cookieStore = cookies();
     const token = cookieStore.get("session")?.value;
 
+    console.log(`[AUTH DEBUG] Token from cookie: ${token ? 'Found' : 'MISSING'}`);
+
     if (!token) return null;
 
     // Eager load user and branch if needed
@@ -57,25 +59,38 @@ export async function getSession() {
         where: { token },
         include: {
             user: {
-                // We might need branch info if your schema has relation
-                // In simplified schema, branchId is on User, but relation might not be named 'branch' in my schema update?
-                // I added Branch model. Let's check relation.
-                // User model in schema: branchId String?, no relation defined in my snippet?
-                // Wait, in schema.prisma I defined: 
-                // model User { ... branchId String? ... }
-                // I did NOT define `branch Branch @relation(...)` in the snippet I wrote.
-                // So I can't include branch. I'll just return branchId.
+                include: {
+                    role: true
+                }
             }
         }
     });
 
+    console.log(`[AUTH DEBUG] Session from DB: ${session ? 'Found' : 'NOT FOUND'}`);
+
     // Handle expired
     if (!session || session.expiresAt < new Date()) {
+        if (session) console.log(`[AUTH DEBUG] Session expired at: ${session.expiresAt}`);
         return null;
     }
 
     // Construct UserSession object
     const user = session.user;
+
+    // Parse Permissions
+    let permissions: string[] = [];
+    if (user.role && user.role.permissions) {
+        try {
+            permissions = JSON.parse(user.role.permissions);
+        } catch (e) {
+            console.error("Failed to parse permissions", e);
+        }
+    } else if (user.roleStr === 'ADMIN') {
+        permissions = ['*'];
+    }
+
+    console.log(`[AUTH DEBUG] User found: ${user.username} (${user.id}) - Perms: ${permissions.length}`);
+
     return {
         user: {
             id: user.id,
@@ -83,7 +98,7 @@ export async function getSession() {
             name: user.name,
             role: user.roleStr,
             branchId: user.branchId,
-            permissions: [] // Simplify for now
+            permissions: permissions
         } as UserSession
     };
 }
@@ -91,6 +106,8 @@ export async function getSession() {
 export async function destroySession() {
     const cookieStore = cookies();
     const token = cookieStore.get("session")?.value;
+
+    console.log(`[AUTH DEBUG] Destroying session for token: ${token ? 'Found' : 'MISSING'}`);
 
     if (token) {
         await prisma.session.deleteMany({ where: { token } });

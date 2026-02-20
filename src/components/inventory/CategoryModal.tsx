@@ -62,8 +62,8 @@ export default function CategoryModal({
         setLoading(true);
 
         const result = initialData
-            ? await updateCategory(initialData.id, { name, color })
-            : await createCategory({ name, color });
+            ? await updateCategory(initialData.id, { name, color, csrfToken } as any)
+            : await createCategory({ name, color, csrfToken } as any);
 
         setLoading(false);
 

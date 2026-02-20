@@ -11,7 +11,9 @@ import { secureAction } from "@/lib/safe-action";
 import { productSchema, supplierSchema, categorySchema, purchaseSchema } from "@/lib/validation/inventory";
 import { CACHE_TAGS } from "@/lib/cache-keys";
 import { logger } from "@/lib/logger";
+import { AppError, ErrorCodes } from "@/lib/errors"; // Added import
 import { getCurrentUser } from "./auth";
+import { getTranslations } from "@/lib/i18n-mock";
 
 // --- Suppliers ---
 
@@ -22,16 +24,34 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
         const phoneCheck = await checkGlobalPhoneUniqueness(validated.phone, 'SUPPLIER');
         if (!phoneCheck.unique) {
-            throw new Error(`Phone number is already in use by a ${phoneCheck.usedBy} (${phoneCheck.entityName || 'Unknown'})`);
+            const t = await getTranslations('SystemMessages.Errors');
+
+            // Try to find the actual supplier if it's a supplier duplicate
+            let existingSupplier = null;
+            if (phoneCheck.usedBy === 'SUPPLIER' && phoneCheck.entityId) {
+                existingSupplier = await prisma.supplier.findUnique({
+                    where: { id: phoneCheck.entityId }
+                });
+            }
+
+            return {
+                success: false,
+                error: t('phoneInUse', { usedBy: phoneCheck.entityName || 'Unknown' }),
+                duplicateSupplier: existingSupplier ? {
+                    id: existingSupplier.id,
+                    name: existingSupplier.name,
+                    phone: existingSupplier.phone
+                } : null
+            };
         }
     }
 
-    await prisma.supplier.create({
+    const supplier = await prisma.supplier.create({
         data: validated,
     });
 
     revalidatePath("/inventory", 'page');
-    return { success: true };
+    return { success: true, supplier };
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const updateSupplier = secureAction(async (id: string, data: z.infer<typeof supplierSchema>) => {
@@ -41,7 +61,20 @@ export const updateSupplier = secureAction(async (id: string, data: z.infer<type
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
         const phoneCheck = await checkGlobalPhoneUniqueness(validated.phone, 'SUPPLIER', id);
         if (!phoneCheck.unique) {
-            throw new Error(`Phone number is already in use by a ${phoneCheck.usedBy} (${phoneCheck.entityName || 'Unknown'})`);
+            const t = await getTranslations('SystemMessages.Errors');
+
+            let existingSupplier = null;
+            if (phoneCheck.usedBy === 'SUPPLIER' && phoneCheck.entityId) {
+                existingSupplier = await prisma.supplier.findUnique({
+                    where: { id: phoneCheck.entityId }
+                });
+            }
+
+            return {
+                success: false,
+                error: t('phoneInUse', { usedBy: phoneCheck.entityName || 'Unknown' }),
+                duplicateSupplier: existingSupplier
+            };
         }
     }
 
@@ -143,10 +176,32 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
     const startTime = Date.now();
     const validated = productSchema.parse(data);
 
-    // Manual check for Unique SKU slightly cleaner than Prisma Error
-    const existing = await prisma.product.findUnique({ where: { sku: validated.sku } });
+    // 1. Validate supplier exists
+    // NOTE: This logic seems to be misplaced here. It refers to 'invoice.supplier' which is not defined in createProduct.
+    // It might be intended for a 'bulkImportPurchases' function.
+    // For now, it's commented out to maintain syntactical correctness.
+    /*
+    const supplier = await prisma.supplier.findFirst({
+        where: { name: { equals: invoice.supplier } }
+    });
+
+    if (!supplier) {
+        throw new Error(`Supplier "${invoice.supplier}" not found. Please create it first.`);
+    }
+    */
+
+    // 2. Get or create default warehouse
+    // NOTE: The original instruction had a malformed line here: "warehouseductData } = validated;"
+    // It's corrected to "const { categoryId, ...productData } = validated;" which is the existing correct line.
+    // Check SKU uniqueness
+    const existing = await prisma.product.findUnique({
+        where: { sku: data.sku }
+    });
+
     if (existing) {
-        throw new Error(`SKU ${validated.sku} already exists`);
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new AppError(ErrorCodes.VALIDATION_ERROR, t('skuExists'));
     }
 
     const { categoryId, ...productData } = validated;
@@ -214,12 +269,14 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
     revalidateTag(CACHE_TAGS.INVENTORY);
     revalidateTag("dashboard");
 
-    logger.info('Product created', {
-        productId: product.id,
-        sku: product.sku,
-        name: product.name,
-        duration: Date.now() - startTime,
-    });
+    if (product) {
+        logger.info('Product created', {
+            productId: product.id,
+            sku: product.sku,
+            name: product.name,
+            duration: Date.now() - startTime,
+        });
+    }
 
     return product;
 }, { permission: 'INVENTORY_MANAGE' });
@@ -273,7 +330,8 @@ export const deleteProduct = secureAction(async (id: string) => {
         return { success: true };
     } catch (e: unknown) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-            throw new Error("Cannot delete product because it has associated sales or purchases.");
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('deleteProductError'));
         }
         throw e;
     }
@@ -316,10 +374,16 @@ export const deleteCategory = secureAction(async (id: string) => {
 // --- Purchases ---
 
 export const createPurchase = secureAction(async (data: z.infer<typeof purchaseSchema>) => {
+    // 1. Pre-computation & Reads (Outside Transaction)
+    const startTime = Date.now();
     const validated = purchaseSchema.parse(data);
     const { items, ...header } = validated;
 
-    // Calculate Total
+    // Get User for audit/treasury
+    const { getCurrentUser } = await import('./auth');
+    const user = await getCurrentUser();
+
+    // Calculate Totals
     const subtotal = items.reduce((acc: number, item) => acc + (item.quantity * item.unitCost), 0);
     const deliveryCharge = header.deliveryCharge || 0;
     const totalAmount = subtotal + deliveryCharge;
@@ -329,160 +393,137 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     if (paidAmount >= totalAmount) status = "PAID";
     else if (paidAmount > 0) status = "PARTIAL";
 
+    // Prepare Products Lookup (Batch Read)
+    const skusToCheck = items.filter(i => !i.productId && i.sku).map(i => i.sku as string);
+    const existingProducts = skusToCheck.length > 0
+        ? await prisma.product.findMany({ where: { sku: { in: skusToCheck } } })
+        : [];
+    const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
+
+    // Prepare Warehouse ID
+    let warehouseId = header.warehouseId;
+    if (!warehouseId) {
+        // Try to find default without transaction first
+        const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        if (main) warehouseId = main.id;
+    }
+
+    // 2. Transaction (Optimized Writes)
     await prisma.$transaction(async (tx) => {
-        // 1. Process Items (Create Products if needed)
-        const processedItems: {
-            productId: string;
-            quantity: number;
-            unitCost: number;
-            sellPrice?: number;
-            sellPrice2?: number;
-            sellPrice3?: number;
-        }[] = [];
-        for (const item of items) {
-            let pid = item.productId;
-
-            // If new item, create it first
-            // Note: validation schema allows optional productId
-            if (!pid && item.name && item.sku) {
-                const existing = await tx.product.findUnique({ where: { sku: item.sku } });
-                if (existing) {
-                    pid = existing.id;
-                } else {
-                    const newProduct = await tx.product.create({
-                        data: {
-                            name: item.name,
-                            sku: item.sku,
-                            costPrice: item.unitCost,
-                            sellPrice: item.sellPrice || 0,
-                            sellPrice2: item.sellPrice2 || 0,
-                            sellPrice3: item.sellPrice3 || 0,
-                            stock: 0,
-                            ...(item.categoryId ? { category: { connect: { id: item.categoryId } } } : {})
-                        } as any
-                    });
-                    pid = newProduct.id;
-                }
-            }
-
-            if (pid) {
-                processedItems.push({
-                    productId: pid,
-                    quantity: item.quantity,
-                    unitCost: item.unitCost,
-                    sellPrice: item.sellPrice,
-                    sellPrice2: item.sellPrice2,
-                    sellPrice3: item.sellPrice3
-                });
-            }
-        }
-
-        // 2. Warehouse Logic
-        let warehouseId = header.warehouseId;
+        // A. Ensure Warehouse Exists (Rare write, okay to be serial)
         if (!warehouseId) {
-            let main = await tx.warehouse.findFirst({ where: { isDefault: true } });
-            if (!main) {
-                let defaultBranch = await tx.branch.findFirst();
-                if (!defaultBranch) {
-                    defaultBranch = await tx.branch.create({
-                        data: { name: "Main Store", code: "MAIN", type: "STORE" }
-                    });
-                }
-
-                main = await tx.warehouse.create({
-                    data: {
-                        name: "Main Store",
-                        address: "Primary Location",
-                        isDefault: true,
-                        branchId: defaultBranch.id
-                    }
+            let defaultBranch = await tx.branch.findFirst();
+            if (!defaultBranch) {
+                defaultBranch = await tx.branch.create({
+                    data: { name: "Main Store", code: "MAIN", type: "STORE" }
                 });
             }
+            const main = await tx.warehouse.create({
+                data: {
+                    name: "Main Store",
+                    address: "Primary Location",
+                    isDefault: true,
+                    branchId: defaultBranch.id
+                }
+            });
             warehouseId = main.id;
         }
 
-        // Auto-generate Sequential Invoice Number (P-001)
+        // B. Resolve Item IDs (Create missing products in parallel)
+        const productsToCreate: any[] = [];
+        const processedItems: any[] = [];
+
+        // Identify what needs creation
+        for (const item of items) {
+            let pid = item.productId;
+            if (!pid && item.sku) {
+                const existing = existingProductMap.get(item.sku);
+                if (existing) {
+                    pid = existing.id;
+                } else {
+                    // Queue for creation
+                    productsToCreate.push({ ...item });
+                    continue; // Skip adding to processed yet
+                }
+            }
+            if (pid) {
+                processedItems.push({ ...item, productId: pid });
+            }
+        }
+
+        // Create new products in Parallel
+        if (productsToCreate.length > 0) {
+            const createdProducts = await Promise.all(productsToCreate.map(item =>
+                tx.product.create({
+                    data: {
+                        name: item.name!,
+                        sku: item.sku!,
+                        costPrice: item.unitCost,
+                        sellPrice: item.sellPrice || 0,
+                        sellPrice2: item.sellPrice2 || 0,
+                        sellPrice3: item.sellPrice3 || 0,
+                        stock: 0,
+                        ...(item.categoryId ? { category: { connect: { id: item.categoryId } } } : {})
+                    } as any
+                })
+            ));
+
+            // Merge back
+            createdProducts.forEach((p, idx) => {
+                const originalItem = productsToCreate[idx];
+                processedItems.push({ ...originalItem, productId: p.id });
+            });
+        }
+
+        // C. Generate Invoice Number (Keep inside for sequence safety, but it's fast)
         let finalInvoiceNumber = header.invoiceNumber;
         if (!finalInvoiceNumber) {
             const lastInvoice = await tx.purchaseInvoice.findFirst({
                 where: { invoiceNumber: { startsWith: 'P-' } },
-                orderBy: { createdAt: 'desc' }
+                orderBy: { createdAt: 'desc' },
+                select: { invoiceNumber: true } // Select only needed field
             });
             let nextSeq = 1;
             if (lastInvoice?.invoiceNumber) {
                 const parts = lastInvoice.invoiceNumber.split('-');
-                if (parts.length === 2) {
-                    const num = parseInt(parts[1]);
-                    if (!isNaN(num)) nextSeq = num + 1;
+                if (parts.length === 2 && !isNaN(parseInt(parts[1]))) {
+                    nextSeq = parseInt(parts[1]) + 1;
                 }
             }
             finalInvoiceNumber = `P-${nextSeq.toString().padStart(3, '0')}`;
         }
 
+        // D. Create Invoice & Items
+        // Note: Using nested createMany is faster than looping
         const invoice = await tx.purchaseInvoice.create({
             data: {
                 supplierId: header.supplierId,
                 invoiceNumber: finalInvoiceNumber,
-                warehouseId: warehouseId,
+                warehouseId: warehouseId!, // We ensured it exists
                 totalAmount: totalAmount,
                 deliveryCharge: deliveryCharge,
                 paidAmount: paidAmount,
                 status: status,
                 paymentMethod: header.paymentMethod || "CASH",
                 items: {
-                    create: processedItems.map(i => ({
-                        productId: i.productId,
-                        quantity: i.quantity,
-                        unitCost: i.unitCost
-                    }))
+                    createMany: {
+                        data: processedItems.map(i => ({
+                            productId: i.productId,
+                            quantity: i.quantity,
+                            unitCost: i.unitCost
+                        }))
+                    }
                 }
             }
         });
 
-        // 3. Update Supplier Balance
-        const netBalanceChange = totalAmount - paidAmount;
+        // E. Update Supplier Balance
         await tx.supplier.update({
             where: { id: header.supplierId },
-            data: {
-                balance: {
-                    increment: netBalanceChange
-                }
-            }
+            data: { balance: { increment: totalAmount - paidAmount } }
         });
 
-        // 4. Record Payment
-        if (paidAmount > 0) {
-            // 🆕 FIND DEFAULT TREASURY for payment
-            let defaultTreasuryId: string | null = null;
-            // Note: We need user info here. createPurchase already runs as user but doesn't expose it inside transaction easily.
-            // But we can fetch it again or pass it. 
-            // Wait, createPurchase doesn't have `user` in scope of transaction loop?
-            // Actually `createPurchase` has `secureAction` which doesn't auto-inject user into args.
-            // Let's import getCurrentUser inside.
-            /* 
-               Re-fetching user inside transaction might be tricky if not careful, but secureAction 
-               already verifies auth. We can fetch user at top of function.
-               Let's modify the top of function first to get user.
-            */
-        }
-
-        // Wait, I need to modify the TOP of the function to get the user first, then pass it down.
-        // OR just fetch it here.
-        // Let's look at the surrounding code provided in the view_file earlier.
-        // The function `createPurchase` starts at line 282. It does NOT fetch user.
-        // I should fetch user at start of `createPurchase`.
-
-        // Okay, I will do this in two steps or one large MultiReplace?
-        // Let's do a replace of the whole Payment block effectively, but I need the user's branch ID.
-        // If I can't easily get the user at the top without breaking scope, I can fetch it here.
-        // `getCurrentUser` is async.
-        /*
-        const { getCurrentUser } = await import('./auth');
-        const user = await getCurrentUser();
-        // ... find treasury
-        */
-
-        // Let's write the code to fetch user and treasury right here inside the payment block.
+        // F. Record Payment (Optimized)
         if (paidAmount > 0) {
             await tx.supplierPayment.create({
                 data: {
@@ -493,115 +534,121 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 }
             });
 
-            // 🆕 Find Default Treasury
-            // Since we are inside a transaction, we should use `tx` if possible, but for findFirst it's fine.
-            // But waaaait, `getCurrentUser` is an async imported function.
-            // We can just call it.
-            const { getCurrentUser } = await import('./auth');
-            const user = await getCurrentUser();
-
-            let treasuryId: string | null = null;
+            // Treasury Logic
             if (user?.branchId) {
-                const t = await tx.treasury.findFirst({
-                    where: { branchId: user.branchId, isDefault: true }
+                const treasury = await tx.treasury.findFirst({
+                    where: { branchId: user.branchId, isDefault: true },
+                    select: { id: true }
                 });
-                if (t) treasuryId = t.id;
-            }
 
-            await tx.transaction.create({
-                data: {
-                    type: 'OUT',
-                    amount: new Decimal(paidAmount),
-                    description: `Supplier Payment: Invoice #${finalInvoiceNumber}`,
-                    paymentMethod: header.paymentMethod || "CASH",
-                    treasuryId: treasuryId // 🔗 LINKED
+                if (treasury) {
+                    await tx.transaction.create({
+                        data: {
+                            type: 'OUT',
+                            amount: new Decimal(paidAmount),
+                            description: `Supplier Payment: Invoice #${finalInvoiceNumber}`,
+                            paymentMethod: header.paymentMethod || "CASH",
+                            treasuryId: treasury.id
+                        }
+                    });
+
+                    await tx.treasury.update({
+                        where: { id: treasury.id },
+                        data: { balance: { decrement: paidAmount } }
+                    });
                 }
-            });
-
-            // 🆕 Deduct from Treasury
-            if (treasuryId) {
-                await tx.treasury.update({
-                    where: { id: treasuryId },
-                    data: { balance: { decrement: paidAmount } }
-                });
             }
         }
 
-        // 5. Update Stock & Log Movement
-        for (const item of processedItems) {
-            // Global
-            await tx.product.update({
-                where: { id: item.productId },
-                data: {
-                    stock: { increment: item.quantity },
-                    costPrice: item.unitCost,
-                    ...(item.sellPrice ? { sellPrice: item.sellPrice } : {}),
-                    ...(item.sellPrice2 ? { sellPrice2: item.sellPrice2 } : {}),
-                    ...(item.sellPrice3 ? { sellPrice3: item.sellPrice3 } : {})
-                }
-            });
+        // G. Stock Updates (PARALLEL & BATCHED)
+        // 1. Sort items to prevent deadlocks (by productId)
+        const sortedItems = [...processedItems].sort((a, b) => a.productId.localeCompare(b.productId));
 
-            // Warehouse
-            await tx.stock.upsert({
-                where: {
-                    productId_warehouseId: {
-                        productId: item.productId,
-                        warehouseId: warehouseId!
+        // 2. Prepare Stock Movements for Batch Insert
+        const movementsData = sortedItems.map(item => ({
+            type: 'PURCHASE',
+            productId: item.productId,
+            fromWarehouseId: null,
+            toWarehouseId: warehouseId!,
+            quantity: item.quantity,
+            reason: `Purchase Invoice #${finalInvoiceNumber}`
+        }));
+
+        await tx.stockMovement.createMany({
+            data: movementsData
+        });
+
+        // 3. Update Product & Warehouse Stock (Concurrent)
+        // We use Promise.all for parallelism. Prisma handles connection pooling.
+        await Promise.all([
+            // Update Products
+            ...sortedItems.map(item =>
+                tx.product.update({
+                    where: { id: item.productId },
+                    data: {
+                        stock: { increment: item.quantity },
+                        costPrice: item.unitCost,
+                        ...(item.sellPrice ? { sellPrice: item.sellPrice } : {}),
+                        ...(item.sellPrice2 ? { sellPrice2: item.sellPrice2 } : {}),
+                        ...(item.sellPrice3 ? { sellPrice3: item.sellPrice3 } : {})
                     }
-                },
-                update: { quantity: { increment: item.quantity } },
-                create: {
-                    productId: item.productId,
-                    warehouseId: warehouseId!,
-                    quantity: item.quantity
-                }
-            });
-
-            // Traceability: Stock Movement
-            await tx.stockMovement.create({
-                data: {
-                    type: 'PURCHASE',
-                    productId: item.productId,
-                    fromWarehouseId: null, // From External
-                    toWarehouseId: warehouseId!,
-                    quantity: item.quantity,
-                    reason: `Purchase Invoice #${finalInvoiceNumber}`
-                }
-            });
-        }
+                })
+            ),
+            // Update Warehouse Stock
+            ...sortedItems.map(item =>
+                tx.stock.upsert({
+                    where: {
+                        productId_warehouseId: {
+                            productId: item.productId,
+                            warehouseId: warehouseId!
+                        }
+                    },
+                    update: { quantity: { increment: item.quantity } },
+                    create: {
+                        productId: item.productId,
+                        warehouseId: warehouseId!,
+                        quantity: item.quantity
+                    }
+                })
+            )
+        ]);
 
         // Accounting Integration
         try {
-            // 1. Accrue Liability (Inventory vs Accounts Payable)
             await AccountingEngine.recordTransaction({
                 description: `Purchase Invoice #${finalInvoiceNumber}`,
                 reference: finalInvoiceNumber || 'PURCHASE',
                 date: new Date(),
                 lines: [
-                    { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' }, // Debit Inventory
-                    { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' } // Credit AP
+                    { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
+                    { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
                 ]
             });
 
-            // 2. Record Payment (if any)
             if (paidAmount > 0) {
                 const isCash = (header.paymentMethod || "CASH") === 'CASH';
-                const creditAccount = isCash ? '1000' : '1010'; // 1000=Cash, 1010=Bank
-
+                const creditAccount = isCash ? '1000' : '1010';
                 await AccountingEngine.recordTransaction({
                     description: `Payment for Invoice #${finalInvoiceNumber}`,
                     reference: finalInvoiceNumber || 'PAYMENT',
                     date: new Date(),
                     lines: [
-                        { accountCode: '2000', debit: paidAmount, credit: 0, description: 'Accounts Payable' }, // Debit AP (reduce liability)
-                        { accountCode: creditAccount, debit: 0, credit: paidAmount, description: isCash ? 'Cash' : 'Bank' } // Credit Asset
+                        { accountCode: '2000', debit: paidAmount, credit: 0, description: 'Accounts Payable' },
+                        { accountCode: creditAccount, debit: 0, credit: paidAmount, description: isCash ? 'Cash' : 'Bank' }
                     ]
                 });
             }
         } catch (accErr) {
             console.error("Accounting Error", accErr);
         }
+
+    }, {
+        maxWait: 5000,
+        timeout: 20000 // Increased to 20s
     });
+
+    const duration = Date.now() - startTime;
+    logger.info("Purchase Created", { duration, itemsCount: items.length });
 
     revalidatePath("/inventory", 'page');
     revalidateTag("dashboard");
@@ -609,36 +656,61 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const updatePurchase = secureAction(async (id: string, data: z.infer<typeof purchaseSchema>) => {
-    // ... (logic remains same for now due to complexity, but adding transaction type)
-    const items = data.items;
-    // const userId = data.userId; // userId is not part of purchaseSchema
+    // 1. Pre-computation & Reads (Outside Transaction)
+    const startTime = Date.now();
+    const validated = purchaseSchema.parse(data);
+    const { items, ...header } = validated;
 
-    return await prisma.$transaction(async (tx) => {
+    // Get User
+    const { getCurrentUser } = await import('./auth');
+    const user = await getCurrentUser();
+
+    // Prepare Products Lookup (Batch Read)
+    const skusToCheck = items.filter(i => !i.productId && i.sku).map(i => i.sku as string);
+    const existingProducts = skusToCheck.length > 0
+        ? await prisma.product.findMany({ where: { sku: { in: skusToCheck } } })
+        : [];
+    const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
+
+    // Prepare Warehouse ID (Reads)
+    let warehouseId = header.warehouseId;
+    if (!warehouseId) {
+        const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        if (main) warehouseId = main.id;
+    }
+
+    // 2. Transaction (Optimized Writes)
+    await prisma.$transaction(async (tx) => {
+        // Fetch Old Data
         const oldInvoice = await tx.purchaseInvoice.findUnique({
             where: { id },
             include: { items: true }
         });
 
-        if (!oldInvoice) throw new Error("Invoice not found");
+        const t = await getTranslations('SystemMessages.Errors');
 
-        // 🔴 CRITICAL FIX #1: Prevent editing voided invoices
-        if (oldInvoice.status === 'VOIDED') {
-            throw new Error("Cannot edit a voided invoice. Voided invoices are locked for audit purposes.");
-        }
+        if (!oldInvoice) throw new Error(t('notFound'));
+        if (oldInvoice.status === 'VOIDED') throw new Error(t('voidedInvoice'));
 
-        // Revert Stock
-        for (const oldItem of oldInvoice.items) {
-            await tx.product.update({
-                where: { id: oldItem.productId },
-                data: { stock: { decrement: oldItem.quantity } }
-            });
-            if (oldInvoice.warehouseId) {
-                await tx.stock.update({
-                    where: { productId_warehouseId: { productId: oldItem.productId, warehouseId: oldInvoice.warehouseId } },
-                    data: { quantity: { decrement: oldItem.quantity } }
-                });
-            }
-        }
+        // REVERT STOCK (Parallel)
+        // 1. Group by Product for Revert
+        const revertItems = oldInvoice.items;
+        await Promise.all([
+            // Revert Global Stock
+            ...revertItems.map(item =>
+                tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { decrement: item.quantity } }
+                })
+            ),
+            // Revert Warehouse Stock
+            ...(oldInvoice.warehouseId ? revertItems.map(item =>
+                tx.stock.update({
+                    where: { productId_warehouseId: { productId: item.productId, warehouseId: oldInvoice.warehouseId! } },
+                    data: { quantity: { decrement: item.quantity } }
+                })
+            ) : [])
+        ]);
 
         // Revert Supplier Balance
         const oldNet = oldInvoice.totalAmount.toNumber() - oldInvoice.paidAmount.toNumber();
@@ -647,42 +719,51 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
             data: { balance: { decrement: oldNet } }
         });
 
+        // Delete Old Items (Batch)
         await tx.purchaseItem.deleteMany({ where: { purchaseInvoiceId: id } });
 
-        // Apply New
-        const processedItems = [];
+        // --- APPLY NEW ---
+
+        // B. Resolve New Item IDs (Create missing products in parallel)
+        const productsToCreate: any[] = [];
+        const processedItems: any[] = [];
+
         for (const item of items) {
             let pid = item.productId;
-            if (!pid && item.name && item.sku) {
-                const existing = await tx.product.findUnique({ where: { sku: item.sku } });
-                if (existing) pid = existing.id;
-                else {
-                    const newProduct = await tx.product.create({
-                        data: {
-                            name: item.name,
-                            sku: item.sku,
-                            categoryId: item.categoryId,
-                            costPrice: item.unitCost,
-                            sellPrice: item.sellPrice || 0,
-                            stock: 0
-                        } as any
-                    });
-                    pid = newProduct.id;
+            if (!pid && item.sku) {
+                const existing = existingProductMap.get(item.sku);
+                if (existing) {
+                    pid = existing.id;
+                } else {
+                    productsToCreate.push({ ...item });
+                    continue;
                 }
             }
-            if (pid) {
-                processedItems.push({
-                    productId: pid,
-                    quantity: item.quantity,
-                    unitCost: item.unitCost,
-                    sellPrice: item.sellPrice,
-                    sellPrice2: item.sellPrice2,
-                    sellPrice3: item.sellPrice3
-                });
-            }
+            if (pid) processedItems.push({ ...item, productId: pid });
         }
 
-        // Update Header
+        if (productsToCreate.length > 0) {
+            const createdProducts = await Promise.all(productsToCreate.map(item =>
+                tx.product.create({
+                    data: {
+                        name: item.name!,
+                        sku: item.sku!,
+                        costPrice: item.unitCost,
+                        sellPrice: item.sellPrice || 0,
+                        sellPrice2: item.sellPrice2 || 0,
+                        sellPrice3: item.sellPrice3 || 0,
+                        stock: 0,
+                        ...(item.categoryId ? { category: { connect: { id: item.categoryId } } } : {})
+                    } as any
+                })
+            ));
+
+            createdProducts.forEach((p, idx) => {
+                processedItems.push({ ...productsToCreate[idx], productId: p.id });
+            });
+        }
+
+        // Calculate New Totals
         const subtotal = processedItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
         const deliveryCharge = data.deliveryCharge || 0;
         const totalAmount = subtotal + deliveryCharge;
@@ -691,54 +772,66 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
         if (paidAmount >= totalAmount) status = "PAID";
         else if (paidAmount > 0) status = "PARTIAL";
 
+        // Update Header & Create Items (Batch)
         await tx.purchaseInvoice.update({
             where: { id },
             data: {
                 supplierId: data.supplierId,
                 invoiceNumber: data.invoiceNumber,
-                warehouseId: data.warehouseId,
+                warehouseId: warehouseId || data.warehouseId, // Use resolved or provided
                 totalAmount,
                 deliveryCharge,
                 paidAmount,
                 status,
                 paymentMethod: data.paymentMethod,
                 items: {
-                    create: processedItems.map(i => ({
-                        productId: i.productId,
-                        quantity: i.quantity,
-                        unitCost: i.unitCost
-                    }))
+                    createMany: {
+                        data: processedItems.map(i => ({
+                            productId: i.productId,
+                            quantity: i.quantity,
+                            unitCost: i.unitCost
+                        }))
+                    }
                 }
             }
         });
 
+        // Update Supplier Balance
         await tx.supplier.update({
             where: { id: data.supplierId },
             data: { balance: { increment: totalAmount - paidAmount } }
         });
 
-        // Re-Apply Stock
-        for (const item of processedItems) {
-            await tx.product.update({
-                where: { id: item.productId },
-                data: {
-                    stock: { increment: item.quantity },
-                    costPrice: item.unitCost,
-                    ...(item.sellPrice ? { sellPrice: item.sellPrice } : {})
-                }
-            });
-            const whId = data.warehouseId || oldInvoice.warehouseId;
-            if (whId) {
-                await tx.stock.upsert({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: whId } },
-                    update: { quantity: { increment: item.quantity } },
-                    create: { productId: item.productId, warehouseId: whId, quantity: item.quantity }
-                });
-            }
-        }
+        // Re-Apply Stock (Parallel)
+        const sortedItems = [...processedItems].sort((a, b) => a.productId.localeCompare(b.productId));
+        const activeWhId = warehouseId || data.warehouseId || oldInvoice.warehouseId;
 
-        // Audit (Simple table insert if schema exists, skipping complex AuditLog helper for now to keep it safe)
+        await Promise.all([
+            // Global Stock
+            ...sortedItems.map(item =>
+                tx.product.update({
+                    where: { id: item.productId },
+                    data: {
+                        stock: { increment: item.quantity },
+                        costPrice: item.unitCost,
+                        ...(item.sellPrice ? { sellPrice: item.sellPrice } : {})
+                    }
+                })
+            ),
+            // Warehouse Stock
+            ...(activeWhId ? sortedItems.map(item =>
+                tx.stock.upsert({
+                    where: { productId_warehouseId: { productId: item.productId, warehouseId: activeWhId } },
+                    update: { quantity: { increment: item.quantity } },
+                    create: { productId: item.productId, warehouseId: activeWhId, quantity: item.quantity }
+                })
+            ) : [])
+        ]);
+
         return { success: true };
+    }, {
+        maxWait: 5000,
+        timeout: 20000 // Increased limit
     });
 }, { permission: 'INVENTORY_MANAGE' });
 
@@ -768,11 +861,8 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
             });
 
             if (!product || product.stock < item.quantity) {
-                throw new Error(
-                    `Cannot void invoice: "${product?.name || 'Unknown Product'}" has insufficient stock. ` +
-                    `Available: ${product?.stock || 0}, Required: ${item.quantity}. ` +
-                    `Some items may have already been sold.`
-                );
+                const t = await getTranslations('SystemMessages.Errors');
+                throw new Error(t('insufficientStockWarehouse', { item: product?.name || 'Unknown' }));
             }
         }
 
@@ -883,7 +973,8 @@ export const transferStock = secureAction(async (data: {
     reason?: string;
 }) => {
     if (data.fromWarehouseId === data.toWarehouseId) {
-        throw new Error("Cannot transfer to same warehouse");
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new Error(t('transferSameWarehouse'));
     }
 
     await prisma.$transaction(async (tx) => {
@@ -892,7 +983,8 @@ export const transferStock = secureAction(async (data: {
                 where: { productId_warehouseId: { productId: item.productId, warehouseId: data.fromWarehouseId } }
             });
             if (!sourceStock || sourceStock.quantity < item.quantity) {
-                throw new Error(`Insufficient stock for product ${item.productId}`);
+                const t = await getTranslations('SystemMessages.Errors');
+                throw new Error(t('insufficientStockWarehouse', { item: item.productId }));
             }
             await tx.stock.update({
                 where: { productId_warehouseId: { productId: item.productId, warehouseId: data.fromWarehouseId } },
@@ -1043,20 +1135,41 @@ export const getPurchase = secureAction(async (id: string) => {
     return { success: true, data: purchase };
 }, { requireCSRF: false });
 
-export const createWarehouse = secureAction(async (data: { name: string; address?: string; branchId: string; csrfToken?: string }) => {
-    if (!data.branchId) throw new Error("Branch ID is required");
+export const createWarehouse = secureAction(async (data: { name: string; address?: string; branchId?: string; csrfToken?: string }) => {
+    let targetBranchId = data.branchId;
+
+    if (!targetBranchId) {
+        // Fallback: get the first available branch
+        let firstBranch = await prisma.branch.findFirst({ select: { id: true } });
+
+        if (!firstBranch) {
+            // Create default branch if strictly no branches exist
+            firstBranch = await prisma.branch.create({
+                data: {
+                    name: "Main Branch",
+                    code: "MAIN",
+                    type: "STORE",
+                    phone: "",
+                    address: "Main Location"
+                },
+                select: { id: true }
+            });
+        }
+
+        targetBranchId = firstBranch.id;
+    }
 
     await prisma.warehouse.create({
         data: {
             name: data.name,
             address: data.address || null,
-            branchId: data.branchId,
+            branchId: targetBranchId,
             isDefault: false
         }
     });
 
     revalidatePath("/inventory");
-    revalidatePath(`/branches/${data.branchId}/warehouses`);
+    revalidatePath(`/branches/${targetBranchId}/warehouses`);
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
@@ -1187,7 +1300,8 @@ export const reportWastage = secureAction(async (data: {
 }) => {
     // Validation
     if (data.quantity <= 0) {
-        throw new Error('Quantity must be greater than 0');
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new Error(t('quantityPositive'));
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -1198,7 +1312,8 @@ export const reportWastage = secureAction(async (data: {
         });
 
         if (!product) {
-            throw new Error('Product not found');
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('productNotFound'));
         }
 
         const warehouseStock = await tx.stock.findUnique({
@@ -1211,14 +1326,16 @@ export const reportWastage = secureAction(async (data: {
         });
 
         if (!warehouseStock || warehouseStock.quantity < data.quantity) {
-            throw new Error(`Insufficient stock in warehouse. Available: ${warehouseStock?.quantity || 0}, Requested: ${data.quantity}`);
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('insufficientStockWarehouse', { item: product.name }));
         }
 
         // 2. Get current user for audit
         const { getCurrentUser } = await import('@/actions/auth');
         const user = await getCurrentUser();
         if (!user) {
-            throw new Error('User not authenticated');
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('unauthorized'));
         }
 
         // 3. Create wastage record
@@ -1273,6 +1390,48 @@ export const reportWastage = secureAction(async (data: {
     return { success: true, wastage: result };
 }, { permission: 'INVENTORY_EDIT' });
 
+export const getPurchaseInvoices = secureAction(async () => {
+    const invoices = await prisma.purchaseInvoice.findMany({
+        orderBy: { purchaseDate: 'desc' },
+        include: {
+            supplier: { select: { name: true } },
+            warehouse: {
+                select: {
+                    name: true,
+                    branch: {
+                        select: {
+                            name: true,
+                            code: true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Transform to match simplified interface if needed, or return as is 
+    // The frontend expects specific fields, Prisma return should match cleanly
+    return {
+        data: invoices.map(inv => ({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            supplier: { name: inv.supplier.name },
+            totalAmount: Number(inv.totalAmount),
+            paidAmount: Number(inv.paidAmount),
+            deliveryCharge: Number(inv.deliveryCharge),
+            status: inv.status,
+            purchaseDate: inv.purchaseDate,
+            warehouse: inv.warehouse ? {
+                name: inv.warehouse.name,
+                branch: inv.warehouse.branch ? {
+                    name: inv.warehouse.branch.name,
+                    code: inv.warehouse.branch.code
+                } : undefined
+            } : undefined
+        }))
+    };
+}, { permission: 'INVENTORY_VIEW', requireCSRF: false });
+
 // --- Bulk CSV Import ---
 
 /**
@@ -1300,202 +1459,236 @@ export const bulkImportPurchases = secureAction(async (data: {
     }>;
     csrfToken?: string;
 }) => {
+    const startTime = Date.now();
     const results = {
         total: data.invoices.length,
         successful: 0,
         failed: 0,
+        successRating: 0,
         errors: [] as { invoice: string; error: string }[],
-        createdInvoices: [] as string[]
+        gaps: [] as { type: 'SKU' | 'CATEGORY' | 'SUPPLIER' | 'SYSTEM', message: string, item?: string }[],
+        createdInvoices: [] as string[],
+        performance: {
+            durationMs: 0,
+            itemsProcessed: 0
+        }
     };
 
-    // Process each invoice in its own transaction
-    for (const invoice of data.invoices) {
-        try {
-            // 1. Validate supplier exists
-            const supplier = await prisma.supplier.findFirst({
-                where: { name: { equals: invoice.supplier } }
-            });
+    // 1. Extraction & Pre-Fetching (READ Phase)
+    // ---------------------------------------------------------
+    const allSkus = new Set<string>();
+    const allCategories = new Set<string>();
+    const allSupplierNames = new Set<string>();
+    const allWarehouseNames = new Set<string>();
 
-            if (!supplier) {
-                throw new Error(`Supplier "${invoice.supplier}" not found. Please create it first.`);
-            }
+    let totalItems = 0;
 
-            // 2. Get or create default warehouse
-            let warehouseId: string | undefined;
-            if (invoice.warehouse) {
-                const wh = await prisma.warehouse.findFirst({
-                    where: { name: { equals: invoice.warehouse } }
-                });
-                warehouseId = wh?.id;
-            }
+    data.invoices.forEach(inv => {
+        allSupplierNames.add(inv.supplier);
+        if (inv.warehouse) allWarehouseNames.add(inv.warehouse);
+        inv.items.forEach(item => {
+            if (item.productSku) allSkus.add(item.productSku);
+            if (item.category) allCategories.add(item.category);
+            totalItems++;
+        });
+    });
 
-            if (!warehouseId) {
-                const defaultWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-                warehouseId = defaultWh?.id;
-            }
+    // Bulk Fetch Data
+    const [existingProducts, existingCategories, existingSuppliers, existingWarehouses, defaultWarehouse] = await Promise.all([
+        prisma.product.findMany({ where: { sku: { in: Array.from(allSkus) } } }),
+        prisma.category.findMany({ where: { name: { in: Array.from(allCategories) } } }),
+        prisma.supplier.findMany({ where: { name: { in: Array.from(allSupplierNames) } } }),
+        prisma.warehouse.findMany({ where: { name: { in: Array.from(allWarehouseNames) } } }),
+        prisma.warehouse.findFirst({ where: { isDefault: true } })
+    ]);
 
-            // Validate that we have a warehouse before proceeding
-            if (!warehouseId) {
-                throw new Error('No warehouse found. Please create a default warehouse or specify a valid warehouse name.');
-            }
+    // Maps for O(1) Lookup
+    const productMap = new Map(existingProducts.map(p => [p.sku, p]));
+    const categoryMap = new Map(existingCategories.map(c => [c.name, c]));
+    const supplierMap = new Map(existingSuppliers.map(s => [s.name, s]));
+    const warehouseMap = new Map(existingWarehouses.map(w => [w.name, w]));
 
-            // 3. Prepare payload for createPurchase (reuse existing logic)
-            const payload = {
-                supplierId: supplier.id,
-                invoiceNumber: invoice.invoiceNumber,
-                warehouseId,
-                items: invoice.items.map(item => ({
+    // 2. Data Preparation (WRITE Phase - Pre-Transaction)
+    // ---------------------------------------------------------
+
+    // Create Missing Categories
+    const missingCategories = Array.from(allCategories).filter(name => !categoryMap.has(name));
+    if (missingCategories.length > 0) {
+        await prisma.category.createMany({
+            data: missingCategories.map(name => ({ name, color: '#6b7280' }))
+        });
+
+        // Re-fetch to get IDs
+        const newCats = await prisma.category.findMany({ where: { name: { in: missingCategories } } });
+        newCats.forEach(c => categoryMap.set(c.name, c));
+    }
+
+    // Identify Missing Products for Batch Creation
+    const productsToCreate: any[] = [];
+    const processedNewSkus = new Set<string>();
+
+    data.invoices.forEach(inv => {
+        inv.items.forEach(item => {
+            if (item.productSku && !productMap.has(item.productSku) && !processedNewSkus.has(item.productSku)) {
+                let categoryId: string | null = null;
+                if (item.category && categoryMap.has(item.category)) {
+                    categoryId = categoryMap.get(item.category)!.id;
+                }
+                // Fallback to Uncategorized if needed or leave null
+                if (!categoryId) {
+                    const uncat = categoryMap.get('Uncategorized');
+                    if (uncat) categoryId = uncat.id;
+                }
+
+                productsToCreate.push({
                     name: item.productName,
                     sku: item.productSku,
-                    categoryId: item.category, // Will need to resolve category name to ID
+                    categoryId,
+                    costPrice: item.unitCost,
+                    sellPrice: item.sellPrice || 0,
+                    sellPrice2: item.sellPrice2 || 0,
+                    sellPrice3: item.sellPrice3 || 0,
+                    stock: 0
+                });
+                processedNewSkus.add(item.productSku);
+            }
+        });
+    });
+
+    if (productsToCreate.length > 0) {
+        // Ensure 'Uncategorized' exists if we rely on it
+        const needsUncategorized = productsToCreate.some(p => !p.categoryId);
+        if (needsUncategorized && !categoryMap.has('Uncategorized')) {
+            const uncat = await prisma.category.create({ data: { name: 'Uncategorized', color: '#6b7280' } });
+            categoryMap.set('Uncategorized', uncat);
+            productsToCreate.forEach(p => { if (!p.categoryId) p.categoryId = uncat.id; });
+        } else if (needsUncategorized) {
+            const uncat = categoryMap.get('Uncategorized')!;
+            productsToCreate.forEach(p => { if (!p.categoryId) p.categoryId = uncat.id; });
+        }
+
+        await prisma.product.createMany({
+            data: productsToCreate
+        });
+
+        const createdProducts = await prisma.product.findMany({
+            where: { sku: { in: productsToCreate.map(p => p.sku) } }
+        });
+        createdProducts.forEach(p => productMap.set(p.sku, p));
+    }
+
+    // 3. Invoice Execution (Transaction Per Invoice)
+    // ---------------------------------------------------------
+
+    for (const invoice of data.invoices) {
+        try {
+            const supplier = supplierMap.get(invoice.supplier);
+            if (!supplier) {
+                results.gaps.push({ type: 'SUPPLIER', message: `Supplier '${invoice.supplier}' not found.`, item: invoice.supplier });
+                throw new Error(`Supplier '${invoice.supplier}' not found.`);
+            }
+
+            let warehouseId = invoice.warehouse ? warehouseMap.get(invoice.warehouse)?.id : defaultWarehouse?.id;
+            if (!warehouseId) throw new Error(`Default warehouse not found.`);
+
+            const finalItems: any[] = [];
+            for (const item of invoice.items) {
+                const product = productMap.get(item.productSku);
+                if (!product) {
+                    results.gaps.push({ type: 'SKU', message: `SKU '${item.productSku}' could not be registered.`, item: item.productSku });
+                    throw new Error(`Product SKU '${item.productSku}' failed logic.`);
+                }
+                finalItems.push({
+                    productId: product.id,
                     quantity: item.quantity,
                     unitCost: item.unitCost,
-                    sellPrice: item.sellPrice || 0,
+                    sellPrice: item.sellPrice,
                     sellPrice2: item.sellPrice2,
                     sellPrice3: item.sellPrice3
-                })),
-                deliveryCharge: invoice.deliveryCharge,
-                paidAmount: invoice.paidAmount,
-                paymentMethod: invoice.paymentMethod,
-                csrfToken: data.csrfToken
-            };
+                });
+            }
 
-            // 4. Process invoice (reuse createPurchase logic internally via transaction)
+            const subtotal = finalItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
+            const totalAmount = subtotal + invoice.deliveryCharge;
+            let status = "PENDING";
+            if (invoice.paidAmount >= totalAmount) status = "PAID";
+            else if (invoice.paidAmount > 0) status = "PARTIAL";
+
             await prisma.$transaction(async (tx) => {
-                const { items, ...header } = payload;
-                const processedItems = [];
-
-                // Process items (create products if needed)
-                for (const item of items) {
-                    let productId: string | undefined;
-
-                    // Check if product exists by SKU
-                    const existingProduct = await tx.product.findUnique({
-                        where: { sku: item.sku }
-                    });
-
-                    if (existingProduct) {
-                        productId = existingProduct.id;
-                    } else {
-                        // Create category if needed
-                        let categoryId = item.categoryId;
-                        if (item.categoryId && typeof item.categoryId === 'string') {
-                            let cat = await tx.category.findFirst({
-                                where: { name: { equals: item.categoryId } }
-                            });
-                            if (!cat) {
-                                cat = await tx.category.create({
-                                    data: { name: item.categoryId }
-                                });
-                            }
-                            categoryId = cat.id;
-                        } else {
-                            // No category specified - use or create "Uncategorized"
-                            let defaultCat = await tx.category.findFirst({
-                                where: { name: { equals: 'Uncategorized' } }
-                            });
-                            if (!defaultCat) {
-                                defaultCat = await tx.category.create({
-                                    data: { name: 'Uncategorized', color: '#6b7280' }
-                                });
-                            }
-                            categoryId = defaultCat.id;
-                        }
-
-                        // Create new product
-                        const newProduct = await tx.product.create({
-                            data: {
-                                name: item.name,
-                                sku: item.sku,
-                                categoryId, // Now always has a value
-                                costPrice: item.unitCost,
-                                sellPrice: item.sellPrice || 0,
-                                sellPrice2: item.sellPrice2,
-                                sellPrice3: item.sellPrice3,
-                                stock: 0 // Will be updated below
-                            }
-                        });
-                        productId = newProduct.id;
-                    }
-
-                    processedItems.push({
-                        productId,
-                        quantity: item.quantity,
-                        unitCost: item.unitCost
-                    });
-                }
-
-                // Calculate totals
-                const subtotal = processedItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
-                const totalAmount = subtotal + header.deliveryCharge;
-                let status = "PENDING";
-                if (header.paidAmount >= totalAmount) status = "PAID";
-                else if (header.paidAmount > 0) status = "PARTIAL";
-
-                // Create pur invoice
-                const purchaseInvoice = await tx.purchaseInvoice.create({
+                const newInvoice = await tx.purchaseInvoice.create({
                     data: {
-                        supplierId: header.supplierId,
-                        invoiceNumber: header.invoiceNumber,
-                        warehouseId: header.warehouseId,
+                        supplierId: supplier.id,
+                        invoiceNumber: invoice.invoiceNumber || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                        warehouseId: warehouseId!,
                         totalAmount,
-                        deliveryCharge: header.deliveryCharge,
-                        paidAmount: header.paidAmount,
+                        deliveryCharge: invoice.deliveryCharge,
+                        paidAmount: invoice.paidAmount,
                         status,
-                        paymentMethod: header.paymentMethod,
+                        paymentMethod: invoice.paymentMethod,
                         items: {
-                            create: processedItems.map(i => ({
-                                productId: i.productId,
-                                quantity: i.quantity,
-                                unitCost: i.unitCost
-                            }))
+                            createMany: {
+                                data: finalItems.map(i => ({
+                                    productId: i.productId,
+                                    quantity: i.quantity,
+                                    unitCost: i.unitCost
+                                }))
+                            }
                         }
                     }
                 });
 
-                // Update supplier balance
                 await tx.supplier.update({
-                    where: { id: header.supplierId },
-                    data: { balance: { increment: totalAmount - header.paidAmount } }
+                    where: { id: supplier.id },
+                    data: { balance: { increment: totalAmount - invoice.paidAmount } }
                 });
 
-                // Update stock
-                for (const item of processedItems) {
+                // Parallel stock updates allowed here since they target different products usually
+                await Promise.all(finalItems.map(async (item) => {
                     await tx.product.update({
                         where: { id: item.productId },
-                        data: { stock: { increment: item.quantity } }
+                        data: {
+                            stock: { increment: item.quantity },
+                            costPrice: item.unitCost,
+                            ...(item.sellPrice ? { sellPrice: item.sellPrice } : {}),
+                            ...(item.sellPrice2 ? { sellPrice2: item.sellPrice2 } : {}),
+                            ...(item.sellPrice3 ? { sellPrice3: item.sellPrice3 } : {}),
+                        }
                     });
 
-                    if (header.warehouseId) {
-                        await tx.stock.upsert({
-                            where: {
-                                productId_warehouseId: {
-                                    productId: item.productId,
-                                    warehouseId: header.warehouseId
-                                }
-                            },
-                            update: { quantity: { increment: item.quantity } },
-                            create: {
-                                productId: item.productId,
-                                warehouseId: header.warehouseId,
-                                quantity: item.quantity
-                            }
-                        });
-                    }
-                }
+                    await tx.stock.upsert({
+                        where: { productId_warehouseId: { productId: item.productId, warehouseId: warehouseId! } },
+                        update: { quantity: { increment: item.quantity } },
+                        create: { productId: item.productId, warehouseId: warehouseId!, quantity: item.quantity }
+                    });
+                }));
 
-                results.createdInvoices.push(purchaseInvoice.id);
+                results.createdInvoices.push(newInvoice.id);
+            }, {
+                maxWait: 20000,
+                timeout: 30000
             });
 
             results.successful++;
-        } catch (error: unknown) {
+
+        } catch (error: any) {
             results.failed++;
             results.errors.push({
-                invoice: invoice.invoiceNumber || `Invoice #${results.successful + results.failed}`,
-                error: error instanceof Error ? error.message : 'Unknown error'
+                invoice: invoice.invoiceNumber || 'Unknown',
+                error: error.message
             });
+            if (!results.gaps.some(g => g.message === error.message)) {
+                results.gaps.push({
+                    type: 'SYSTEM',
+                    message: error.message,
+                    item: invoice.invoiceNumber
+                });
+            }
         }
     }
+
+    results.successRating = results.total > 0 ? (results.successful / results.total) * 100 : 0;
+    results.performance.durationMs = Date.now() - startTime;
+    results.performance.itemsProcessed = totalItems;
 
     revalidatePath('/inventory');
     revalidateTag(CACHE_TAGS.INVENTORY);
@@ -1507,4 +1700,26 @@ export const bulkImportPurchases = secureAction(async (data: {
         results
     };
 }, { permission: 'INVENTORY_MANAGE' });
+export const getProductPriceHistory = secureAction(async (productId: string) => {
+    const history = await prisma.purchaseItem.findMany({
+        where: { productId },
+        take: 5,
+        orderBy: { invoice: { createdAt: 'desc' } },
+        include: {
+            invoice: {
+                include: { supplier: { select: { name: true } } }
+            }
+        }
+    });
 
+    return {
+        success: true,
+        history: history.map(h => ({
+            id: h.id,
+            date: h.invoice.createdAt,
+            supplierName: h.invoice.supplier.name,
+            unitCost: h.unitCost.toNumber(),
+            invoiceNumber: h.invoice.invoiceNumber
+        }))
+    };
+}, { permission: 'INVENTORY_VIEW' });

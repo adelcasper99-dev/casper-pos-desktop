@@ -19,7 +19,7 @@ export default function PurchasingClient({
     userBranchId,
     csrfToken
 }: any) {
-    const t = useTranslations('purchasing');
+    const t = useTranslations('Purchasing');
     const [activeTab, setActiveTab] = useState<'PURCHASES' | 'SUPPLIERS'>('PURCHASES');
 
     return (
@@ -35,7 +35,7 @@ export default function PurchasingClient({
                         )}
                     >
                         <ShoppingCart className="w-4 h-4" />
-                        {t('Purchasing.tabs.invoices')}
+                        {t('tabs.invoices')}
                     </button>
                     <button
                         onClick={() => setActiveTab('SUPPLIERS')}
@@ -45,7 +45,7 @@ export default function PurchasingClient({
                         )}
                     >
                         <Truck className="w-4 h-4" />
-                        {t('Purchasing.tabs.suppliers')}
+                        {t('tabs.suppliers')}
                     </button>
                 </div>
             </div>

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { userSchema } from '@/lib/validation/users';
 import { logger } from '@/lib/logger';
 import { getSession, invalidateUserSessions } from '@/lib/auth';
+import { ensureMainBranch } from '@/lib/ensure-main-branch';
 
 type UserWithRelations = Prisma.UserGetPayload<{
     include: {
@@ -19,8 +20,8 @@ type UserWithRelations = Prisma.UserGetPayload<{
 
 export const getUsers = secureAction(async () => {
     const session = await getSession();
-    const canViewSalary = session?.user?.permissions?.includes('HR_VIEW_COMPENSATION')
-        || session?.user?.role === 'ADMIN';
+    // In desktop project, simplified permissions might mean session.user.permissions is undefined or empty
+    const canViewSalary = session?.user?.role === 'ADMIN' || session?.user?.permissions?.includes('HR_VIEW_COMPENSATION');
 
     const users = await prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
@@ -32,8 +33,8 @@ export const getUsers = secureAction(async () => {
 
     const serializedUsers = users.map((user: UserWithRelations) => ({
         ...user,
-        // ⭐ PRIVACY: Only expose salary to users with HR_VIEW_COMPENSATION permission
-        // salary: canViewSalary ? (user.salary ? Number(user.salary) : 0) : undefined
+        // Handle SQLite JSON string for managedHQIds
+        managedHQIds: typeof user.managedHQIds === 'string' ? JSON.parse(user.managedHQIds) : user.managedHQIds
     }))
 
     return { data: serializedUsers }
@@ -41,8 +42,7 @@ export const getUsers = secureAction(async () => {
 
 export const getUsersByBranch = secureAction(async (branchId: string) => {
     const session = await getSession();
-    const canViewSalary = session?.user?.permissions?.includes('HR_VIEW_COMPENSATION')
-        || session?.user?.role === 'ADMIN';
+    const canViewSalary = session?.user?.role === 'ADMIN' || session?.user?.permissions?.includes('HR_VIEW_COMPENSATION');
 
     const users = await prisma.user.findMany({
         where: { branchId },
@@ -55,7 +55,7 @@ export const getUsersByBranch = secureAction(async (branchId: string) => {
 
     const serializedUsers = users.map((user: UserWithRelations) => ({
         ...user,
-        // salary: canViewSalary ? (user.salary ? Number(user.salary) : 0) : undefined
+        managedHQIds: typeof user.managedHQIds === 'string' ? JSON.parse(user.managedHQIds) : user.managedHQIds
     }))
 
     return { data: serializedUsers }
@@ -63,25 +63,31 @@ export const getUsersByBranch = secureAction(async (branchId: string) => {
 
 export const createUser = secureAction(async (data: z.infer<typeof userSchema>) => {
     const startTime = Date.now();
-    const { name, username, password, roleId, branchId, salary, managedHQIds, isGlobalAdmin, phone } = data;
+    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone } = data;
 
     // Global Phone Uniqueness Check
     if (phone) {
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
         const phoneCheck = await checkGlobalPhoneUniqueness(phone, 'USER');
         if (!phoneCheck.unique) {
-            throw new Error(`Phone number is already in use by a ${phoneCheck.usedBy} (${phoneCheck.entityName || 'Unknown'})`);
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
         }
     }
 
     if (!password) {
-        throw new Error('Password is required for new users');
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Validation');
+        throw new Error(t('required'));
     }
 
     // Check existing
     const existing = await prisma.user.findUnique({ where: { username } });
     if (existing) {
-        throw new Error('Username already exists');
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new Error(t('usernameExists') || "Username already exists"); // Fallback if key missing
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -93,6 +99,9 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
         if (role) roleName = role.name;
     }
 
+    // Auto-assign to main branch if no branch specified (single-branch mode)
+    const effectiveBranchId = branchId || await ensureMainBranch();
+
     await prisma.user.create({
         data: {
             name,
@@ -100,8 +109,7 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
             password: hashedPassword,
             roleId: roleId || undefined,
             roleStr: roleName,
-            branchId,
-            // salary: salary ? Number(salary) : undefined,
+            branchId: effectiveBranchId,
             managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : "[]",
             isGlobalAdmin: isGlobalAdmin || false,
             phone: phone || null
@@ -114,20 +122,22 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
         duration: Date.now() - startTime,
     });
 
-    revalidatePath('/settings')
+    revalidatePath('/settings/users')
     return { success: true }
 }, { permission: 'MANAGE_USERS', requireCSRF: false });
 
 export const updateUser = secureAction(async (id: string, data: z.infer<typeof userSchema>) => {
     // Note: password is optional in update
-    const { name, username, password, roleId, branchId, salary, managedHQIds, isGlobalAdmin, phone } = data;
+    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone } = data;
 
     // Global Phone Uniqueness Check (Exclude self)
     if (phone) {
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
         const phoneCheck = await checkGlobalPhoneUniqueness(phone, 'USER', id);
         if (!phoneCheck.unique) {
-            throw new Error(`Phone number is already in use by a ${phoneCheck.usedBy} (${phoneCheck.entityName || 'Unknown'})`);
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
         }
     }
 
@@ -135,10 +145,9 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
         name,
         username,
         role: roleId ? { connect: { id: roleId } } : { disconnect: true },
-        branch: { connect: { id: branchId } },
-        // salary: salary ? Number(salary) : null,
+        branch: branchId ? { connect: { id: branchId } } : { disconnect: true },
         managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : undefined,
-        isGlobalAdmin: isGlobalAdmin || false,
+        isGlobalAdmin: isGlobalAdmin ?? undefined,
         phone: phone || null
     }
 
@@ -160,7 +169,7 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
     // Invalidate user sessions to force fresh login with new permissions/details
     await invalidateUserSessions(id);
 
-    revalidatePath('/settings')
+    revalidatePath('/settings/users')
     return { success: true }
 }, { permission: 'MANAGE_USERS', requireCSRF: false });
 
@@ -170,18 +179,20 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id }
+            where: { id },
         });
 
         if (!user) {
             logger.warn('Delete attempt on non-existent user', { userId: id });
-            return { success: false, error: 'User not found' };
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            return { success: false, error: t('notFound') };
         }
 
-        // Invalidate sessions before deletion (best effort)
+        // Invalidate sessions before deletion
         await invalidateUserSessions(id);
 
-        // Now delete the user
+        // Delete user
         await prisma.user.delete({
             where: { id }
         });
@@ -192,7 +203,7 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
             duration: Date.now() - startTime,
         });
 
-        revalidatePath('/settings');
+        revalidatePath('/settings/users');
         return { success: true };
     } catch (error: any) {
         logger.error('Failed to delete user', {
@@ -200,33 +211,33 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
             error: error.message,
             duration: Date.now() - startTime,
         });
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Errors');
         return {
             success: false,
-            error: `Failed to delete user: ${error.message}`
+            error: error.message || t('generic')
         };
     }
 }, { permission: 'MANAGE_USERS', requireCSRF: false });
 
-/**
- * Server-side data fetching for Server Components
- * Throws an error if unauthorized instead of returning error response
- */
 export async function getUsersForPage() {
     const session = await getSession();
     if (!session?.user) {
-        throw new Error("Unauthorized: Please log in.");
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new Error(t('unauthorized'));
     }
 
-    // Check if user has MANAGE_USERS permission or is ADMIN
     const user = session.user;
-    const hasPermission = user.permissions?.includes('MANAGE_USERS') || user.role === 'ADMIN';
+    const hasPermission = user.role === 'ADMIN' || user.permissions?.includes('MANAGE_USERS');
 
     if (!hasPermission) {
-        throw new Error("Forbidden: Insufficient permissions.");
+        const { getTranslations } = await import('@/lib/i18n-mock');
+        const t = await getTranslations('SystemMessages.Errors');
+        throw new Error(t('forbidden'));
     }
 
-    // ⭐ PRIVACY FIX: Check if user can view salary information
-    const canViewSalary = user.permissions?.includes('HR_VIEW_COMPENSATION') || user.role === 'ADMIN';
+    const canViewSalary = user.role === 'ADMIN' || user.permissions?.includes('HR_VIEW_COMPENSATION');
 
     const users = await prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
@@ -236,9 +247,8 @@ export async function getUsersForPage() {
         }
     })
 
-    return users.map((user: UserWithRelations) => ({
-        ...user,
-        // ⭐ PRIVACY: Only expose salary to users with HR_VIEW_COMPENSATION permission
-        // salary: canViewSalary ? (user.salary ? Number(user.salary) : 0) : undefined
+    return users.map((u: any) => ({
+        ...u,
+        managedHQIds: typeof u.managedHQIds === 'string' ? JSON.parse(u.managedHQIds) : u.managedHQIds
     }));
 }

@@ -104,17 +104,11 @@ export default async function InventoryPage() {
             </div>
 
             <ClientHelper
-                suppliers={suppliers}
                 categories={categories}
                 products={products}
-                invoices={invoices}
                 warehouses={warehouses}
-                branches={branches}
-                isHQUser={isHQUser}
-                userBranchId={user?.branchId || undefined}
                 csrfToken={csrfToken || ''}
                 user={session?.user}
-                stockRequests={stockRequests}
             />
         </div>
     );

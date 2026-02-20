@@ -4,6 +4,7 @@ import { Printer } from 'lucide-react';
 import type { LabelProduct, LabelTemplate } from '@/lib/label-commands';
 import { printService } from '@/lib/print-service';
 import { useFormatCurrency } from "@/contexts/SettingsContext";
+import { useTranslations } from '@/lib/i18n-mock';
 
 interface ProductToPrint extends LabelProduct {
     quantity: number;
@@ -15,6 +16,7 @@ interface ThermalPrintLabelProps {
     template?: LabelTemplate;
     autoPrint?: boolean;
     forceBrowser?: boolean; // New prop
+    showButton?: boolean;
     onAfterPrint?: () => void;
 }
 
@@ -32,8 +34,10 @@ export function ThermalPrintLabel({
     template,
     autoPrint = false,
     forceBrowser = false,
+    showButton = true,
     onAfterPrint
 }: ThermalPrintLabelProps) {
+    const t = useTranslations('Inventory.labels');
     const formatCurrency = useFormatCurrency();
     const printContentRef = useRef<HTMLDivElement>(null);
     const totalLabels = products.reduce((acc, p) => acc + p.quantity, 0);
@@ -265,7 +269,7 @@ export function ThermalPrintLabel({
                 boxSizing: 'border-box',
                 border: '1px solid rgba(0,0,0,0.1)'
             }}>
-                <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+                <div style={{ display: 'flex', width: '100%', height: '100%', direction: 'rtl' }}>
                     {/* Left Side: SKU (Vertical) */}
                     <div style={{
                         width: '15%',
@@ -345,14 +349,16 @@ export function ThermalPrintLabel({
     return (
         <>
             {/* Screen-only print button */}
-            <button
-                onClick={handlePrint}
-                className="no-print px-6 py-2 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-lg flex items-center gap-2 transition-colors"
-                type="button"
-            >
-                <Printer className="w-5 h-5" />
-                Print {totalLabels} Label{totalLabels > 1 ? 's' : ''}
-            </button>
+            {showButton && (
+                <button
+                    onClick={handlePrint}
+                    className="no-print px-6 py-2 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-lg flex items-center gap-2 transition-colors"
+                    type="button"
+                >
+                    <Printer className="w-5 h-5" />
+                    {t('printButton', { count: totalLabels })}
+                </button>
+            )}
 
             {/* 
                 Hidden Source of Truth. 

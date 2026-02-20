@@ -173,7 +173,7 @@
 /* Base Styles */
 body {
   background-color: var(--background);
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: Inter, var(--font-geist-sans), sans-serif;
   overflow: hidden;
   /* App-like feel */
   transition: background-color 0.3s ease, color 0.3s ease;

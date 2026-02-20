@@ -5,6 +5,7 @@ import { ArrowRightLeft, Package, AlertTriangle, ScanBarcode } from "lucide-reac
 import GlassModal from "../ui/GlassModal";
 import { transferStock, adjustStock, getWarehouseStock } from "@/actions/inventory";
 import clsx from "clsx";
+import { useTranslations } from "@/lib/i18n-mock";
 import { Loader2 } from "lucide-react";
 
 interface Branch {
@@ -43,6 +44,7 @@ export default function WarehouseOperations({
     isHQUser?: boolean,
     userBranchId?: string
 }) {
+    const t = useTranslations('Inventory.operations');
     const [activeTab, setActiveTab] = useState<'TRANSFER' | 'ADJUSTMENT'>('TRANSFER');
     const [loading, setLoading] = useState(false);
 
@@ -56,12 +58,12 @@ export default function WarehouseOperations({
     // Transfer State
     const [fromBranchId, setFromBranchId] = useState(() => {
         if (userBranchId) return userBranchId;
-        if (!isHQUser && branches.length === 1) return branches[0].id;
+        if (branches.length > 0) return branches[0].id;
         return "";
     });
     const [toBranchId, setToBranchId] = useState(() => {
         if (userBranchId) return userBranchId;
-        if (!isHQUser && branches.length === 1) return branches[0].id;
+        if (branches.length > 0) return branches[0].id;
         return "";
     });
 
@@ -102,7 +104,7 @@ export default function WarehouseOperations({
     // Adjustment State
     const [adjBranchId, setAdjBranchId] = useState(() => {
         if (userBranchId) return userBranchId;
-        if (!isHQUser && branches.length === 1) return branches[0].id;
+        if (branches.length > 0) return branches[0].id;
         return "";
     });
     const [adjWarehouseId, setAdjWarehouseId] = useState("");
@@ -132,7 +134,7 @@ export default function WarehouseOperations({
         });
         setLoading(false);
         if (res.success) {
-            alert("Transfer Successful!");
+            alert(t('transferSuccess', { defaultValue: "Transfer Successful!" }));
             setTransferItems([]);
             // Refresh stock
             const stockRes = await getWarehouseStock(fromId);
@@ -158,7 +160,7 @@ export default function WarehouseOperations({
         });
         setLoading(false);
         if (res.success) {
-            alert("Adjustment Successful!");
+            alert(t('adjustmentSuccess', { defaultValue: "Adjustment Successful!" }));
             setAdjNewQty("");
             setAdjReason("");
         } else {
@@ -167,19 +169,19 @@ export default function WarehouseOperations({
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" dir="rtl">
             <div className="flex gap-2 bg-muted/50 p-1 rounded-xl w-fit">
                 <button
                     onClick={() => setActiveTab('TRANSFER')}
                     className={clsx("px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all", activeTab === 'TRANSFER' ? "bg-cyan-500 text-black" : "text-muted-foreground hover:text-foreground")}
                 >
-                    <ArrowRightLeft className="w-4 h-4" /> Transfer
+                    <ArrowRightLeft className="w-4 h-4" /> {t('transfer')}
                 </button>
                 <button
                     onClick={() => setActiveTab('ADJUSTMENT')}
                     className={clsx("px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all", activeTab === 'ADJUSTMENT' ? "bg-orange-500 text-black" : "text-muted-foreground hover:text-foreground")}
                 >
-                    <AlertTriangle className="w-4 h-4" /> Adjustment
+                    <AlertTriangle className="w-4 h-4" /> {t('adjustment')}
                 </button>
             </div>
 
@@ -187,15 +189,15 @@ export default function WarehouseOperations({
                 {activeTab === 'TRANSFER' ? (
                     <div className="space-y-6">
                         <h3 className="text-lg font-bold flex items-center gap-2">
-                            <ArrowRightLeft className="w-5 h-5 text-cyan-400" /> Stock Transfer
+                            <ArrowRightLeft className="w-5 h-5 text-cyan-400" /> {t('stockTransferTitle')}
                         </h3>
 
                         <div className="grid grid-cols-2 gap-6">
                             {/* FROM SECTION */}
                             <div className="bg-muted/20 p-4 rounded-xl space-y-3">
-                                <h4 className="font-bold text-sm text-cyan-500 uppercase">Origin (From)</h4>
-                                <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Branch</label>
+                                <h4 className="font-bold text-sm text-cyan-500 uppercase">{t('origin')}</h4>
+                                <div className="hidden">
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('branch')}</label>
                                     <select
                                         className="glass-input w-full [&>option]:text-black"
                                         value={fromBranchId}
@@ -205,19 +207,19 @@ export default function WarehouseOperations({
                                         }}
                                         disabled={!isHQUser}
                                     >
-                                        <option value="">Select Branch...</option>
+                                        <option value="">{t('selectBranch')}</option>
                                         {branches.map(b => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Warehouse</label>
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('warehouse')}</label>
                                     <select
                                         className="glass-input w-full [&>option]:text-black"
                                         value={fromId}
                                         onChange={e => setFromId(e.target.value)}
                                         disabled={!fromBranchId}
                                     >
-                                        <option value="">Select Origin...</option>
+                                        <option value="">{t('selectOrigin')}</option>
                                         {fromWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                     </select>
                                 </div>
@@ -225,9 +227,9 @@ export default function WarehouseOperations({
 
                             {/* TO SECTION */}
                             <div className="bg-muted/20 p-4 rounded-xl space-y-3">
-                                <h4 className="font-bold text-sm text-orange-500 uppercase">Destination (To)</h4>
-                                <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Branch</label>
+                                <h4 className="font-bold text-sm text-orange-500 uppercase">{t('destination')}</h4>
+                                <div className="hidden">
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('branch')}</label>
                                     <select
                                         className="glass-input w-full [&>option]:text-black"
                                         value={toBranchId}
@@ -237,19 +239,19 @@ export default function WarehouseOperations({
                                         }}
                                         disabled={!isHQUser} // Assuming even HQ can transfer anywhere? Yes.
                                     >
-                                        <option value="">Select Branch...</option>
+                                        <option value="">{t('selectBranch')}</option>
                                         {branches.map(b => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Warehouse</label>
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('warehouse')}</label>
                                     <select
                                         className="glass-input w-full [&>option]:text-black"
                                         value={toId}
                                         onChange={e => setToId(e.target.value)}
                                         disabled={!toBranchId}
                                     >
-                                        <option value="">Select Destination...</option>
+                                        <option value="">{t('selectDestination')}</option>
                                         {toWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                     </select>
                                 </div>
@@ -260,12 +262,12 @@ export default function WarehouseOperations({
                         <div className="relative">
                             <input
                                 className="glass-input w-full"
-                                placeholder={fromId ? "Search Product to Add..." : "Select Source Warehouse First"}
+                                placeholder={fromId ? t('searchProductPlaceholder') : t('selectSourceFirst')}
                                 disabled={!fromId}
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
-                            {loadingStock && <div className="absolute right-3 top-3 text-xs text-muted-foreground">Loading stock...</div>}
+                            {loadingStock && <div className="absolute left-3 top-3 text-xs text-muted-foreground">{t('loadingStock')}</div>}
 
                             {filteredProducts.length > 0 && (
                                 <div className="absolute top-full left-0 w-full bg-popover border border-border rounded-xl mt-1 z-50 overflow-hidden shadow-xl">
@@ -286,7 +288,7 @@ export default function WarehouseOperations({
                                                     <div className={clsx("font-bold", qtyInSource > 0 ? "text-cyan-400" : "text-red-500")}>
                                                         {qtyInSource}
                                                     </div>
-                                                    <div className="text-[10px] text-muted-foreground uppercase">Available</div>
+                                                    <div className="text-[10px] text-muted-foreground uppercase">{t('available')}</div>
                                                 </div>
                                             </button>
                                         );
@@ -359,18 +361,18 @@ export default function WarehouseOperations({
                             disabled={loading || !fromId || !toId || transferItems.length === 0}
                             className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-3 rounded-xl disabled:opacity-50"
                         >
-                            {loading ? "Processing..." : "Confirm Transfer"}
+                            {loading ? t('processing') : t('confirmTransfer')}
                         </button>
                     </div>
                 ) : (
                     <div className="space-y-6">
                         <h3 className="text-lg font-bold flex items-center gap-2 text-orange-400">
-                            <AlertTriangle className="w-5 h-5" /> Stock Adjustment
+                            <AlertTriangle className="w-5 h-5" /> {t('stockAdjustmentTitle')}
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Branch</label>
+                            <div className="hidden">
+                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('branch')}</label>
                                 <select
                                     className="glass-input w-full h-12 [&>option]:text-black"
                                     value={adjBranchId}
@@ -380,48 +382,48 @@ export default function WarehouseOperations({
                                     }}
                                     disabled={!isHQUser}
                                 >
-                                    <option value="">Select Branch...</option>
+                                    <option value="">{t('selectBranch')}</option>
                                     {branches.map(b => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Warehouse</label>
+                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('adjustmentLocation')}</label>
                                 <select
                                     className="glass-input w-full h-12 [&>option]:text-black"
                                     value={adjWarehouseId}
                                     onChange={e => setAdjWarehouseId(e.target.value)}
                                     disabled={!adjBranchId}
                                 >
-                                    <option value="">Select Location...</option>
+                                    <option value="">{t('selectOrigin')}</option>
                                     {adjWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Product</label>
+                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('adjustmentProduct')}</label>
                                 <select className="glass-input w-full h-12 [&>option]:text-black" value={adjProductId} onChange={e => setAdjProductId(e.target.value)}>
-                                    <option value="">Select Item...</option>
+                                    <option value="">{t('selectProduct')}</option>
                                     {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
                                 </select>
                             </div>
                         </div>
 
                         <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">New Quantity (Accurate Count)</label>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('newQuantityLabel')}</label>
                             <input
                                 type="number"
                                 className="glass-input w-full h-12"
-                                placeholder="e.g. 50"
+                                placeholder={t('newQuantityPlaceholder')}
                                 value={adjNewQty}
                                 onChange={e => setAdjNewQty(e.target.value)}
                             />
-                            <p className="text-xs text-muted-foreground mt-1">This will overwrite the current stock level.</p>
+                            <p className="text-xs text-muted-foreground mt-1">{t('overwriteNote')}</p>
                         </div>
 
                         <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">Reason</label>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('reasonLabel')}</label>
                             <input
                                 className="glass-input w-full h-12"
-                                placeholder="e.g. Broken, Found, Theft..."
+                                placeholder={t('reasonPlaceholder')}
                                 value={adjReason}
                                 onChange={e => setAdjReason(e.target.value)}
                             />
@@ -432,7 +434,7 @@ export default function WarehouseOperations({
                             disabled={loading || !adjWarehouseId || !adjProductId || !adjNewQty || !adjReason}
                             className="w-full bg-orange-500 hover:bg-orange-400 text-black font-bold py-3 rounded-xl disabled:opacity-50"
                         >
-                            {loading ? "Processing..." : "Confirm Adjustment"}
+                            {loading ? t('processing') : t('confirmAdjustment')}
                         </button>
                     </div>
                 )}
