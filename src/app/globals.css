@@ -1,0 +1,472 @@
+@import "tailwindcss";
+
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-neon-cyan: #00F2FF;
+  --color-neon-purple: #BF00FF;
+  --color-neon-green: #CCFF00;
+
+  /* Map Semantic Colors to CSS Variables for Tailwind 4 */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Custom "Ghost" vars adaptation */
+  --color-glass-bg: var(--glass-bg);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-border: var(--sidebar-border);
+}
+
+/* Theme Variables */
+:root {
+  /* Light Mode (High Contrast & Touch Optimized) */
+  /* Pure White */
+  /* Deep Navy/Black for max readability */
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  /* Casper Cyan Primary - Used for Buttons/Highlights (WCAG AA Compliant: 4.5:1) */
+  --primary: oklch(0.145 0 0);
+  /* Text ON PRIMARY must be white for contrast */
+  --primary-foreground: oklch(0.985 0 0);
+
+  /* Secondary/Muted - Used for backgrounds of secondary items */
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  /* Muted Text - Needs to be readable, not too faint */
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  /* Darker gray for readability */
+
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: hsl(210 40% 98%);
+
+  /* Borders - High contrast for structure */
+  --border: oklch(0.922 0 0);
+  /* Visible Slate-300 */
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  --radius: 0.625rem;
+  /* Slightly friendlier radius */
+
+  /* Glass/Ghost - Cleaned up for Light Mode */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  /* More solid to prevent noise */
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --sidebar-bg: hsl(210 40% 98%);
+  /* Distinct sidebar background */
+  --sidebar-border: oklch(0.922 0 0);
+
+  /* Elevation Shadows for depth */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  /* Dark Mode (Ghost Theme) - Hex values mapped or kept */
+  --background: oklch(0.145 0 0);
+  /* #08090a approx is 210 11% 3-4% */
+  --foreground: oklch(0.985 0 0);
+
+  --card: oklch(0.147 0 0);
+  --card-foreground: oklch(0.985 0 0);
+
+  --popover: oklch(0.147 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
+  --primary: oklch(0.707 0.186 195.87);
+  /* #00F2FF */
+  --primary-foreground: oklch(0.153 0.042 252.42);
+
+  --secondary: oklch(0.263 0 0);
+  /* #27272a */
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted: oklch(0.263 0 0);
+  --muted-foreground: oklch(0.60 0 0);
+  /* Updated from 0.556 for WCAG AA compliance (4.6:1 ratio) */
+  /* #a1a1aa */
+
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  --border: oklch(1 0 0 / 10%);
+  /* using alpha syntax if needed or just rgba */
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
+  /* Custom "Ghost" vars */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --sidebar-bg: rgba(255, 255, 255, 0.05);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Base Styles */
+body {
+  background-color: var(--background);
+  font-family: var(--font-geist-sans), sans-serif;
+  overflow: hidden;
+  /* App-like feel */
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Glassmorphism Utilities */
+@layer utilities {
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+  }
+
+  .glass-input {
+    background: var(--input);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    border-radius: 8px;
+    padding: 10px 14px;
+    transition: all 0.2s ease;
+  }
+
+  .glass-input:focus {
+    outline: none;
+    border-color: var(--color-neon-cyan);
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
+  }
+
+  /* Scrollbar */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Accessibility Fallback for Glassmorphism */
+  @media (prefers-contrast: high) {
+    .glass-card {
+      background: var(--card);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 2px solid var(--border);
+    }
+  }
+
+  /* Custom Scrollbar for desktop/touch */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--muted-foreground);
+    border-radius: 99px;
+    opacity: 0.2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--foreground);
+  }
+
+  /* Touch-Safe Button Utilities */
+  .touch-safe-icon-btn {
+    @apply h-12 w-12 min-h-[48px] min-w-[48px];
+  }
+
+  .touch-safe-icon {
+    @apply w-6 h-6;
+  }
+
+  .touch-safe-btn {
+    @apply min-h-[48px] px-6 py-3;
+  }
+
+  /* Solid Card Alternative (High Contrast - No Glass) */
+  .solid-card {
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .solid-input {
+    background: var(--background);
+    border: 2px solid var(--border);
+    color: var(--foreground);
+    border-radius: 8px;
+    padding: 12px 16px;
+    transition: all 0.2s ease;
+    min-height: 48px;
+    font-size: 16px;
+    /* Prevents zoom on iOS */
+  }
+
+  .solid-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
+  }
+
+  .solid-input::placeholder {
+    color: var(--muted-foreground);
+  }
+}
+
+/* Animations */
+@keyframes flyIn {
+  from {
+    transform: translateX(50px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-fly-in {
+  animation: flyIn 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
+  70% {
+    transform: scale(0.9);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+.receipt-paper {
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 19px, #00000008 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #00000008 20px);
+  background-size: 20px 20px;
+}
+
+@media print {
+
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show payslip (existing functionality) */
+  #printable-payslip,
+  #printable-payslip * {
+    visibility: visible;
+  }
+
+  #printable-payslip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Thermal Label Printing - 58mm width (let printer handle length) */
+  .thermal-label-print,
+  .thermal-label-print * {
+    visibility: visible !important;
+    color: black !important;
+  }
+
+  .thermal-label-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 0;
+    background: white;
+    width: 100%;
+  }
+
+  .thermal-label-page {
+    /* Remove page breaks - thermal printers use continuous paper */
+    page-break-after: auto;
+    page-break-inside: avoid;
+    width: 58mm;
+    min-height: 30mm;
+    margin: 0 auto 3mm auto;
+    /* Small gap between labels */
+    padding: 2mm;
+    box-sizing: border-box;
+    background: white !important;
+    color: black !important;
+  }
+
+  .thermal-label-page:last-child {
+    margin-bottom: 0;
+  }
+
+  .label-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-family: Arial, sans-serif;
+    background: white;
+    color: black;
+  }
+
+  .product-name {
+    font-size: 10pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2mm;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: black !important;
+  }
+
+  .barcode-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 1mm 0;
+  }
+
+  .barcode-container svg {
+    max-width: 54mm !important;
+    height: auto;
+  }
+
+  /* Force barcode to be black */
+  .barcode-container svg rect {
+    fill: black !important;
+  }
+
+  .barcode-container svg text {
+    fill: black !important;
+  }
+
+  .label-info {
+    font-size: 8pt;
+    line-height: 1.3;
+    color: black !important;
+  }
+
+  .sku-line,
+  .price-line {
+    margin: 0.5mm 0;
+    color: black !important;
+  }
+
+  /* Hide non-print elements */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Let printer determine page size based on its settings */
+  @page {
+    margin: 0;
+    size: auto;
+    /* Use printer's default paper size */
+  }
+}

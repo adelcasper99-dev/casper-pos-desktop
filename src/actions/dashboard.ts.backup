@@ -1,0 +1,377 @@
+'use server'
+
+import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+
+export type DashboardMetrics = {
+    salesToday: number
+    ordersToday: number
+    grossProfit: number
+    lowStockCount: number
+    recentSales: {
+        id: string
+        customer: string
+        amount: number
+        time: Date
+        paymentMethod: string
+        itemsSummary: string
+    }[]
+    weeklySales: {
+        date: string
+        amount: number
+    }[]
+    topProducts: {
+        name: string
+        quantity: number
+    }[]
+    peakHours: {
+        hour: number
+        count: number
+    }[]
+    categorySales: {
+        name: string
+        value: number
+    }[]
+}
+
+
+import { unstable_cache } from 'next/cache';
+
+// Cached Dashboard Metrics
+export const getDashboardMetrics = unstable_cache(
+    async (): Promise<DashboardMetrics> => {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(today.getDate() - 6)
+        sevenDaysAgo.setHours(0, 0, 0, 0)
+
+        // 1. Total Sales Today
+        const salesTodayAgg = await prisma.sale.aggregate({
+            _sum: {
+                totalAmount: true,
+            },
+            _count: {
+                id: true,
+            },
+            where: {
+                createdAt: {
+                    gte: today,
+                },
+                status: 'COMPLETED',
+            },
+        })
+
+        // 2. Gross Profit Today (Cost of Goods Sold)
+        // Uses unitCost snapshot from SaleItem (Phase 2 fix - stable COGS)
+        const salesItemsToday = await prisma.saleItem.findMany({
+            where: {
+                sale: {
+                    createdAt: {
+                        gte: today,
+                    },
+                    status: 'COMPLETED',
+                },
+            },
+            select: {
+                quantity: true,
+                unitCost: true, // Use snapshot, not current product price
+            },
+        })
+
+        let totalCost = 0
+        salesItemsToday.forEach((item) => {
+            // unitCost is snapshot at time of sale (0 for legacy sales without snapshot)
+            const cost = Number(item.unitCost ?? 0) * item.quantity
+            totalCost += cost
+        })
+
+        const totalRevenue = Number(salesTodayAgg._sum.totalAmount || 0)
+        const grossProfit = totalRevenue - totalCost
+
+        // 3. Low Stock Items
+        // Using queryRaw for "stock <= minStock" comparison if needed, but Prisma filter works for column vs column in newer versions?
+        // Actually Prisma doesn't easily support comparing two columns in `where` (stock <= minStock).
+        // We'll use a raw query or just fetch all and filter if dataset is small.
+        // For scalability, raw query is best.
+        // "SELECT COUNT(*) FROM Product WHERE stock <= minStock"
+
+        // NOTE: Prisma `count` doesn't support field comparison yet. using queryRaw
+        // But for safety and simplicity in this rapid dev, let's try to fetch products with low stock.
+        // If we can't do column comparison easily, we'll skip the exact "minStock" dynamic check and use a threshold or fetch.
+        // Let's assume a static threshold of 5 for simpler query OR use raw query.
+        // Let's use raw query for correctness.
+
+        const lowStockCountRaw = await prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count FROM "Product" WHERE "stock" <= "minStock"
+      `
+        // queryRaw returns BigInt which needs conversion
+        const lowStockCount = Number(lowStockCountRaw[0]?.count || 0)
+
+
+        // 4. Recent Sales
+        const recentSalesRaw = await prisma.sale.findMany({
+            take: 5,
+            orderBy: {
+                createdAt: 'desc',
+            },
+            where: {
+                status: 'COMPLETED',
+            },
+            include: {
+                items: {
+                    take: 1,
+                    include: { product: true }
+                }
+            }
+        })
+
+        const recentSales = recentSalesRaw.map(s => ({
+            id: s.id,
+            customer: s.customerName || 'Walk-in Customer',
+            amount: Number(s.totalAmount),
+            time: s.createdAt,
+            paymentMethod: s.paymentMethod,
+            itemsSummary: (s.items[0]?.product.name || 'Unknown') + (s.items.length > 1 ? ` +${s.items.length - 1} more` : '')
+        }))
+
+        // 5. Weekly Sales Trend
+        // We need last 7 days.
+        const salesLast7Days = await prisma.sale.findMany({
+            where: {
+                createdAt: {
+                    gte: sevenDaysAgo,
+                },
+                status: 'COMPLETED',
+            },
+            select: {
+                createdAt: true,
+                totalAmount: true
+            }
+        })
+
+        // Aggregate in JS
+        const weeklyMap = new Map<string, number>()
+        // Init last 7 days to 0
+        for (let i = 0; i < 7; i++) {
+            const d = new Date()
+            d.setDate(today.getDate() - i)
+            const key = d.toLocaleDateString('en-CA') // YYYY-MM-DD
+            weeklyMap.set(key, 0)
+        }
+
+        salesLast7Days.forEach(sale => {
+            const key = sale.createdAt.toLocaleDateString('en-CA')
+            if (weeklyMap.has(key)) {
+                weeklyMap.set(key, (weeklyMap.get(key) || 0) + Number(sale.totalAmount))
+            }
+        })
+
+        // Convert map to array sorted by date
+        // Sort keys
+        const sortedKeys = Array.from(weeklyMap.keys()).sort()
+        const weeklySales = sortedKeys.map(date => ({
+            date, // YYYY-MM-DD
+            amount: weeklyMap.get(date) || 0
+        }))
+
+
+        // 6. Top Products (Last 30 Days)
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(today.getDate() - 30)
+
+        const topProductsRaw = await prisma.saleItem.groupBy({
+            by: ['productId'],
+            _sum: {
+                quantity: true
+            },
+            where: {
+                sale: {
+                    createdAt: { gte: thirtyDaysAgo },
+                    status: 'COMPLETED'
+                }
+            },
+            orderBy: {
+                _sum: {
+                    quantity: 'desc'
+                }
+            },
+            take: 5
+        })
+
+        // We have IDs, need names.
+        const productIds = topProductsRaw.map(p => p.productId)
+        const products = await prisma.product.findMany({
+            where: {
+                id: { in: productIds }
+            },
+            select: {
+                id: true,
+                name: true
+            }
+        })
+
+        const topProducts = topProductsRaw.map(item => {
+            const p = products.find(x => x.id === item.productId)
+            return {
+                name: p ? p.name : 'Unknown Product',
+                quantity: item._sum.quantity || 0
+            }
+        })
+
+        // 7. Peak Hours Analysis (Heatmap)
+        // Group sales by hour of day (0-23)
+        // We fetch sales with created date and process in JS for timezone simplicity
+        const salesForHeatmap = await prisma.sale.findMany({
+            where: {
+                createdAt: { gte: sevenDaysAgo }, // Last 7 days sample
+                status: 'COMPLETED'
+            },
+            select: { createdAt: true }
+        })
+
+        const hoursMap = new Array(24).fill(0)
+        salesForHeatmap.forEach(s => {
+            const hour = s.createdAt.getHours() // Local server time, okay for single location
+            hoursMap[hour]++
+        })
+
+        const peakHours = hoursMap.map((count, hour) => ({
+            hour,
+            count
+        }))
+
+        // 8. Category Sales Analysis
+        // Revenue by Category
+        const categorySalesRaw = await prisma.saleItem.groupBy({
+            by: ['productId'],
+            _sum: {
+                quantity: true
+            },
+            where: {
+                sale: {
+                    createdAt: { gte: thirtyDaysAgo },
+                    status: 'COMPLETED'
+                }
+            }
+        })
+
+        // Fetch products with categories
+        const productIdsCat = categorySalesRaw.map(p => p.productId)
+        const productsCat = await prisma.product.findMany({
+            where: { id: { in: productIdsCat } },
+            include: { category: true }
+        })
+
+        const categoryMap = new Map<string, number>()
+        // Aggregate manually
+        categorySalesRaw.forEach(item => {
+            const product = productsCat.find(p => p.id === item.productId)
+            if (product && product.category) {
+                const catName = product.category.name
+                const current = categoryMap.get(catName) || 0
+                // Use quantity for popularity (or could use amount if we fetched price)
+                // Let's use Quantity for now as "Popularity"
+                categoryMap.set(catName, current + (item._sum.quantity || 0))
+            }
+        })
+
+        const categorySales = Array.from(categoryMap.entries())
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5) // Top 5 categories
+
+
+        return {
+            salesToday: totalRevenue,
+            ordersToday: salesTodayAgg._count.id,
+            grossProfit,
+            lowStockCount,
+            recentSales,
+            weeklySales,
+            topProducts,
+            peakHours,
+            categorySales
+        }
+    },
+    ['dashboard-metrics'],
+    {
+        tags: ['dashboard', 'pos', 'inventory'],
+        revalidate: 60 // Cache for 60 seconds
+    }
+);
+
+// --- FINANCIAL METRICS --- //
+
+export type FinancialMetrics = {
+    totalRevenue: number
+    totalTax: number
+    totalExpenses: number
+    netProfit: number
+    paymentMethods: { method: string; amount: number; count: number }[]
+}
+
+export async function getFinancialMetrics(): Promise<FinancialMetrics> {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // 1. Sales Data (Revenue + Tax)
+    const salesToday = await prisma.sale.findMany({
+        where: { createdAt: { gte: today }, status: 'COMPLETED' },
+        select: {
+            totalAmount: true,
+            taxAmount: true,
+            createdAt: true
+        }
+    })
+
+    const totalRevenue = salesToday.reduce((acc, s) => acc + Number(s.totalAmount), 0)
+    const totalTax = salesToday.reduce((acc, s) => acc + Number(s.taxAmount), 0)
+
+    // 2. Expenses Data
+    const expensesToday = await prisma.expense.aggregate({
+        _sum: { amount: true },
+        where: { date: { gte: today } }
+    })
+    const totalExpenses = Number(expensesToday._sum.amount || 0)
+
+    // 3. Cost of Goods Sold (COGS)
+    // Uses unitCost snapshot from SaleItem (Phase 2 fix - stable COGS)
+    // Net Profit = (Revenue - Tax - COGS) - Expenses
+
+    const salesItemsToday = await prisma.saleItem.findMany({
+        where: { sale: { createdAt: { gte: today }, status: 'COMPLETED' } },
+        select: { quantity: true, unitCost: true }
+    })
+
+    let totalCOGS = 0
+    salesItemsToday.forEach(item => {
+        const cost = Number(item.unitCost ?? 0) * item.quantity
+        totalCOGS += cost
+    })
+
+    const netProfit = (totalRevenue - totalTax - totalCOGS) - totalExpenses
+
+    // 4. Payment Methods (Use SalePayment table for accuracy including Splits)
+    const paymentsToday = await prisma.salePayment.groupBy({
+        by: ['method'],
+        _sum: { amount: true },
+        _count: { id: true },
+        where: { createdAt: { gte: today } }
+    })
+
+    const paymentMethods = paymentsToday.map(p => ({
+        method: p.method,
+        amount: Number(p._sum.amount || 0),
+        count: p._count.id
+    }))
+
+    return {
+        totalRevenue,
+        totalTax,
+        totalExpenses,
+        netProfit,
+        paymentMethods
+    }
+}

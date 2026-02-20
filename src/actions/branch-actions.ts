@@ -1,0 +1,110 @@
+'use server';
+
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { secureAction } from "@/lib/safe-action";
+
+import { getCurrentUser } from "./auth";
+
+/**
+ * Get branches visible to current user
+ * - Regular users: Only their branch
+ * - HQ users (Admin/Manager): All branches
+ */
+export const getVisibleBranches = secureAction(async () => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    // DEBUG: Log user info
+    console.log('=== getVisibleBranches DEBUG ===');
+    console.log('User:', {
+        id: user.id,
+        role: user.role,
+        branchId: user.branchId,
+        branchType: user.branchType
+    });
+
+    // Check if user is HQ/Admin who can see all branches
+    // We check role OR if their branch type is 'CENTER' (HQ)
+    const roleUpper = user.role?.toUpperCase() || '';
+    const isHQUser = roleUpper === 'ADMIN' ||
+        roleUpper === 'MANAGER' ||
+        user.branchType === 'CENTER';
+
+    console.log('Computed isHQUser:', isHQUser);
+
+    // Fix: If user has no branchId but is not HQ, return all branches
+    // This handles the case where user.branchId is undefined/null
+    let whereClause: Prisma.BranchWhereInput = {};
+    if (!isHQUser && user.branchId) {
+        whereClause = { id: user.branchId };
+    }
+    // If !isHQUser && !user.branchId, we return all branches (empty where clause)
+    // This allows the user to select a branch
+
+    console.log('Where clause:', whereClause);
+
+    const branches = await prisma.branch.findMany({
+        where: whereClause,
+        orderBy: { name: 'asc' }
+    });
+
+    console.log('Branches found:', branches.length);
+    console.log('================================');
+
+    return { success: true, data: branches, isHQUser };
+}, { requireCSRF: false });
+
+/**
+ * Get warehouses for a specific branch
+ * Validates user has permission to access that branch
+ */
+export const getWarehousesByBranch = secureAction(async (branchId: string) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    // Check if user can access this branch
+    // Check if user can access this branch
+    const roleUpper = user.role?.toUpperCase() || '';
+    const isHQUser = roleUpper === 'ADMIN' ||
+        roleUpper === 'MANAGER' ||
+        user.branchType === 'CENTER';
+
+    if (!isHQUser && user.branchId !== branchId) {
+        throw new Error("Access denied to this branch");
+    }
+
+    const warehouses = await prisma.warehouse.findMany({
+        where: { branchId },
+        include: { branch: true },
+        orderBy: { isDefault: 'desc' }
+    });
+
+    return { success: true, data: warehouses };
+}, { requireCSRF: false });
+
+/**
+ * Get all warehouses visible to the user
+ */
+export const getAllWarehouses = secureAction(async () => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const roleUpper = user.role?.toUpperCase() || '';
+    const isHQUser = roleUpper === 'ADMIN' ||
+        roleUpper === 'MANAGER' ||
+        user.branchType === 'CENTER';
+
+    let where: Prisma.WarehouseWhereInput = {};
+    if (!isHQUser && user.branchId) {
+        where = { branchId: user.branchId };
+    }
+
+    const warehouses = await prisma.warehouse.findMany({
+        where,
+        include: { branch: true },
+        orderBy: { name: 'asc' }
+    });
+
+    return { success: true, data: warehouses };
+}, { requireCSRF: false });

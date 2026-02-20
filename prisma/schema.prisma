@@ -1,0 +1,605 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./local.db"
+}
+
+// System Config
+model SystemConfig {
+  id                    String   @id @default("default")
+  warrantyDays          Int      @default(30)
+  returnClawbackEnabled Boolean  @default(true)
+  returnClawbackPercent Int      @default(100)
+  taxEnabled            Boolean  @default(false)
+  taxRate               Decimal  @default(0.00)
+  updatedAt             DateTime @updatedAt
+  backupPath            String?
+}
+
+model StoreSettings {
+  id             String  @id @default("settings")
+  name           String  @default("Casper Store")
+  phone          String?
+  address        String?
+  taxRate        Decimal @default(0.00)
+  currency       String  @default("SAR")
+  receiptFooter  String  @default("Thank you for shopping with us!")
+  vatNumber      String?
+  logoUrl        String?
+  autoPrint      Boolean @default(false)
+  paperSize      String  @default("80mm")
+  features       String  @default("{}")
+  locationLat    Float   @default(24.7136)
+  locationLng    Float   @default(46.6753)
+  locationRadius Int     @default(500)
+  labelTemplate  String? // Changed from Json for SQLite
+}
+
+// Identity (Simplified)
+model User {
+  id                   String                @id @default(uuid())
+  username             String                @unique
+  password             String
+  name                 String?
+  roleStr              String                @default("STAFF")
+  createdAt            DateTime              @default(now())
+  branchId             String?               // Optional for desktop standalone if single branch
+  deletedAt            DateTime?
+  phone                String?               @unique
+  isGlobalAdmin        Boolean               @default(false)
+  managedHQIds         String?               // Stored as JSON string for SQLite
+  
+  // Relations
+  actionLogs           ActionLog[]
+  sales                Sale[]                @relation("ShiftOwner")
+  shifts               Shift[]               @relation("ShiftOwner")
+  stockMovements       StockMovement[]
+  reportedWastage      StockWastage[]
+  roleId               String?
+  role                 Role?                 @relation(fields: [roleId], references: [id])
+  branch               Branch?               @relation(fields: [branchId], references: [id])
+  sessions             Session[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  permissions String   @default("[]")
+  users       User[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Core Geo
+model Branch {
+  id                String           @id @default(uuid())
+  name              String
+  code              String           @unique
+  address           String?
+  phone             String?
+  type              String           @default("STORE")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+  
+  parentBranchId    String?
+  parentBranch      Branch?          @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
+  childBranches     Branch[]         @relation("BranchHierarchy")
+  region            String?
+  sortOrder         Int?             @default(0)
+  territoryCode     String?
+
+  // Relations
+  warehouses        Warehouse[]
+  users             User[]
+  treasuries        Treasury[]
+  stockRequests     StockRequest[]   @relation("RequestedByBranch")
+}
+
+model Warehouse {
+  id                  String            @id @default(uuid())
+  name                String
+  address             String?
+  isDefault           Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  branchId            String
+  deletedAt           DateTime?
+  
+  // Relations
+  branch              Branch            @relation(fields: [branchId], references: [id])
+  purchases           PurchaseInvoice[]
+  sales               Sale[]
+  stocks              Stock[]
+  movementsFrom       StockMovement[]   @relation("FromWarehouse")
+  movementsTo         StockMovement[]   @relation("ToWarehouse")
+  fulfillmentRequests StockRequest[]    @relation("FulfillingWarehouse")
+  wastages            StockWastage[]
+  technicians         Technician[]
+}
+
+// Accounting
+model Customer {
+  id              String                  @id @default(uuid())
+  name            String
+  phone           String                  @unique
+  email           String?
+  address         String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  balance         Decimal                 @default(0.00)
+  creditLimit     Decimal?
+  
+  sales           Sale[]
+  transactions    CustomerTransaction[]
+}
+
+model CustomerTransaction {
+  id          String   @id @default(uuid())
+  customerId  String
+  type        String
+  amount      Decimal
+  description String?
+  reference   String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model Supplier {
+  id            String            @id @default(uuid())
+  name          String
+  phone         String?           @unique
+  email         String?
+  address       String?
+  balance       Decimal           @default(0.00)
+  createdAt     DateTime          @default(now())
+  
+  invoices      PurchaseInvoice[]
+  payments      SupplierPayment[]
+}
+
+model SupplierPayment {
+  id          String   @id @default(uuid())
+  supplierId  String
+  amount      Decimal
+  notes       String?
+  paymentDate DateTime @default(now())
+  method      String   @default("CASH")
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  code         String        @unique
+  name         String
+  type         String
+  description  String?
+  isSystem     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  journalLines JournalLine[]
+}
+
+model JournalEntry {
+  id          String           @id @default(uuid())
+  date        DateTime         @default(now())
+  description String
+  reference   String?
+  saleId      String?
+  purchaseId  String?
+  expenseId   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  expense     Expense?         @relation(fields: [expenseId], references: [id])
+  purchase    PurchaseInvoice? @relation(fields: [purchaseId], references: [id])
+  sale        Sale?            @relation(fields: [saleId], references: [id])
+  lines       JournalLine[]
+
+  @@index([date])
+}
+
+model JournalLine {
+  id             String       @id @default(uuid())
+  journalEntryId String
+  accountId      String
+  debit          Decimal      @default(0.00)
+  credit         Decimal      @default(0.00)
+  description    String?
+  account        Account      @relation(fields: [accountId], references: [id])
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([journalEntryId])
+}
+
+// Inventory
+model Category {
+  id        String    @id @default(uuid())
+  name      String
+  color     String?   @default("#06b6d4")
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id                String             @id @default(uuid())
+  sku               String             @unique
+  name              String
+  description       String?
+  costPrice         Decimal            @default(0.00)
+  sellPrice         Decimal            @default(0.00)
+  sellPrice2        Decimal            @default(0.00)
+  sellPrice3        Decimal            @default(0.00)
+  stock             Int                @default(0)
+  minStock          Int                @default(5)
+  categoryId        String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deletedAt         DateTime?
+  version           Int                @default(1)
+  archived          Boolean            @default(false)
+  
+  category          Category           @relation(fields: [categoryId], references: [id])
+  purchaseItems     PurchaseItem[]
+  saleItems         SaleItem[]
+  stocks            Stock[]
+  stockMovements    StockMovement[]
+  stockRequestItems StockRequestItem[]
+  wastages          StockWastage[]
+}
+
+model Stock {
+  id          String    @id @default(uuid())
+  productId   String
+  warehouseId String
+  quantity    Int       @default(0)
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+}
+
+model StockMovement {
+  id              String     @id @default(uuid())
+  type            String
+  productId       String
+  fromWarehouseId String?
+  toWarehouseId   String?
+  quantity        Int
+  reason          String?
+  createdAt       DateTime   @default(now())
+  performedById   String?
+  
+  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  performedBy     User?      @relation(fields: [performedById], references: [id])
+  product         Product    @relation(fields: [productId], references: [id])
+  toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+}
+
+model StockRequest {
+  id              String             @id @default(uuid())
+  requestNumber   Int                @unique // Removed default(autoincrement()) for SQLite
+  branchId        String
+  warehouseId     String
+  status          String             @default("PENDING")
+  notes           String?
+  requestedBy     String
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  fallbackReason  String?
+  routedHQId      String?
+  routingMethod   String             @default("AUTO")
+  
+  branch          Branch             @relation("RequestedByBranch", fields: [branchId], references: [id])
+  warehouse       Warehouse          @relation("FulfillingWarehouse", fields: [warehouseId], references: [id])
+  items           StockRequestItem[]
+
+  @@index([branchId])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model StockRequestItem {
+  id             String       @id @default(uuid())
+  stockRequestId String
+  productId      String
+  quantity       Int
+  product        Product      @relation(fields: [productId], references: [id])
+  stockRequest   StockRequest @relation(fields: [stockRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([stockRequestId, productId])
+}
+
+model StockWastage {
+  id          String        @id @default(cuid())
+  productId   String
+  warehouseId String
+  quantity    Int
+  reason      String // Simplified from enum for SQLite compatibility if needed, though enums work
+  notes       String?
+  reportedBy  String
+  createdAt   DateTime      @default(now())
+  
+  product     Product       @relation(fields: [productId], references: [id])
+  user        User          @relation(fields: [reportedBy], references: [id])
+  warehouse   Warehouse     @relation(fields: [warehouseId], references: [id])
+
+  @@index([productId, createdAt])
+  @@index([warehouseId, createdAt])
+}
+
+model PurchaseInvoice {
+  id             String         @id @default(uuid())
+  invoiceNumber  String?
+  supplierId     String
+  warehouseId    String
+  totalAmount    Decimal        @default(0.00)
+  paidAmount     Decimal        @default(0.00)
+  status         String         @default("PENDING")
+  paymentMethod  String         @default("CASH")
+  purchaseDate   DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  deliveryCharge Decimal        @default(0.00)
+  voidReason     String?
+  voidedAt       DateTime?
+  voidedBy       String?
+  
+  journalEntries JournalEntry[]
+  supplier       Supplier       @relation(fields: [supplierId], references: [id])
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  items          PurchaseItem[]
+}
+
+model PurchaseItem {
+  id                String          @id @default(uuid())
+  purchaseInvoiceId String
+  productId         String
+  quantity          Int
+  unitCost          Decimal
+  product           Product         @relation(fields: [productId], references: [id])
+  invoice           PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
+}
+
+// POS & Shifts
+model Sale {
+  id                 String         @id @default(uuid())
+  customerName       String?
+  customerPhone      String?
+  customerAddress    String?
+  warehouseId        String
+  totalAmount        Decimal
+  paymentMethod      String
+  status             String         @default("NEW")
+  refundReason       String?
+  taxAmount          Decimal        @default(0.00)
+  subTotal           Decimal        @default(0.00)
+  createdAt          DateTime       @default(now())
+  shiftId            String?
+  warrantyDays       Int?
+  warrantyExpiryDate DateTime?
+  customerId         String?
+  
+  journalEntries     JournalEntry[]
+  customer           Customer?      @relation(fields: [customerId], references: [id])
+  shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
+  warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
+  items              SaleItem[]
+  payments           SalePayment[]
+  
+  // This relation was in User 'sales' but mapped to ShiftOwner??
+  // In pos_shifts.prisma: User has sales Sale[] @relation("ShiftOwner") -> This seems wrong in original schema, possibly copy paste error unless User owns the sale directly.
+  // In `pos_shifts.prisma`: `user User @relation("ShiftOwner", fields: [userId], references: [id])` is on Shift, not Sale.
+  // The User model has `sales Sale[] @relation("ShiftOwner")`?
+  // Checking original schema: User has `sales Sale[]` (implicit) AND `ownedShifts Shift[] @relation("ShiftOwner")`.
+  // Wait, `Sale` model in pos_shifts.prisma doesn't have a `userId` field or relation to User directly, only through Shift?
+  // Ah, let's look at `prisma/schema.prisma` again.
+  // `Sale` has no `userId`.
+  // `User` has `sales Sale[]`.
+  // This implies an implicit relation? Or `Sale` has `userId`?
+  // Looking at `pos_shifts.prisma` provided earlier: `Sale` does NOT have `userId`.
+  // So `User.sales` must be a mistake in my reading or it's implicitly defined in `schema.prisma` but I missed the field in `Sale`.
+  // Let's assume for now Sale is linked to User via Shift or we add `userId` if needed.
+  // Actually, for a desktop app, we definitely want to know who made the sale.
+  // I will add `userId` to Sale for simplicity in Desktop.
+  userId             String?
+  user               User?          @relation("ShiftOwner", fields: [userId], references: [id]) // Reusing relation name to match User definition
+}
+
+model SalePayment {
+  id        String   @id @default(uuid())
+  saleId    String
+  method    String
+  amount    Decimal
+  reference String?
+  createdAt DateTime @default(now())
+  sale      Sale     @relation(fields: [saleId], references: [id])
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  productId String
+  quantity  Int
+  unitPrice Decimal
+  unitCost  Decimal @default(0.00)
+  product   Product @relation(fields: [productId], references: [id])
+  sale      Sale    @relation(fields: [saleId], references: [id])
+}
+
+model Shift {
+  id                         String            @id @default(uuid())
+  openedAt                   DateTime          @default(now())
+  closedAt                   DateTime?
+  startCash                  Decimal           @default(0.00)
+  endCash                    Decimal           @default(0.00)
+  actualCash                 Decimal           @default(0.00)
+  status                     String            @default("OPEN")
+  cashierName                String?
+  businessDate               String?
+  cashVariance               Decimal           @default(0.00)
+  createdAt                  DateTime          @default(now())
+  crossShiftRefundsIssued    Decimal           @default(0.00)
+  crossShiftRefundsReceived  Decimal           @default(0.00)
+  forceCloseReason           String?
+  forceClosed                Boolean           @default(false)
+  forceClosedBy              String?
+  hasAdjustments             Boolean           @default(false)
+  isOrphaned                 Boolean           @default(false)
+  lastHeartbeat              DateTime          @default(now())
+  notes                      String?
+  registerId                 String?
+  registerName               String?
+  timezone                   String            @default("UTC")
+  totalCardSales             Decimal           @default(0.00)
+  totalCashSales             Decimal           @default(0.00)
+  totalExpenses              Decimal           @default(0.00)
+  totalInstapay              Decimal           @default(0.00)
+  totalRefunds               Decimal           @default(0.00)
+  totalSales                 Int               @default(0)
+  totalSplitPayments         Int               @default(0)
+  totalTickets               Int               @default(0)
+  totalWalletSales           Decimal           @default(0.00)
+  updatedAt                  DateTime          @updatedAt
+  userId                     String
+  totalTicketRevenueCard     Decimal           @default(0.00)
+  totalTicketRevenueCash     Decimal           @default(0.00)
+  totalTicketRevenueInstapay Decimal           @default(0.00)
+  totalTicketRevenueWallet   Decimal           @default(0.00)
+  
+  expenses                   Expense[]         @relation("ShiftExpenses")
+  sales                      Sale[]            @relation("ShiftSales")
+  user                       User              @relation("ShiftOwner", fields: [userId], references: [id])
+  adjustments                ShiftAdjustment[]
+  transactions               Transaction[]
+
+  @@index([userId, status])
+  @@index([registerId, status])
+}
+
+model ShiftAdjustment {
+  id                   String   @id @default(uuid())
+  shiftId              String
+  type                 String
+  amount               Decimal
+  reason               String
+  approvedBy           String
+  createdBy            String
+  relatedTransactionId String?
+  createdAt            DateTime @default(now())
+  shift                Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@index([shiftId])
+}
+
+model Treasury {
+  id           String        @id @default(uuid())
+  name         String
+  branchId     String
+  isDefault    Boolean       @default(false)
+  balance      Decimal       @default(0.00)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+  transactions Transaction[]
+  branch       Branch        @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, name])
+}
+
+model Transaction {
+  id                   String    @id @default(uuid())
+  type                 String
+  amount               Decimal
+  description          String?
+  paymentMethod        String    @default("CASH")
+  createdAt            DateTime  @default(now())
+  deletedAt            DateTime?
+  deletedBy            String?
+  deletedReason        String?
+  isTransfer           Boolean   @default(false)
+  relatedTransactionId String?
+  shiftId              String?
+  treasuryId           String?
+  shift                Shift?    @relation(fields: [shiftId], references: [id])
+  treasury             Treasury? @relation(fields: [treasuryId], references: [id])
+}
+
+model Expense {
+  id             String         @id @default(uuid())
+  description    String
+  amount         Decimal
+  category       String
+  date           DateTime       @default(now())
+  paymentMethod  String         @default("CASH")
+  shiftId        String?
+  shift          Shift?         @relation("ShiftExpenses", fields: [shiftId], references: [id])
+  journalEntries JournalEntry[]
+}
+
+// Misc needed for compilation but maybe not used
+model ActionLog {
+  id        String   @id @default(uuid())
+  action    String
+  details   String?
+  userId    String?
+  branchId  String?
+  createdAt DateTime @default(now())
+  
+  // Relations need to be optional if User/Branch not always present, but here they are just IDs
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+// Technician placeholder if referenced
+model Technician {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  entityType   String
+  entityId     String
+  action       String
+  newData      String?
+  previousData String?
+  reason       String?
+  user         String?
+  branchId     String?
+  hqId         String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model BackupLog {
+  id           String   @id @default(uuid())
+  filename     String
+  filePath     String
+  fileSize     Float    // Use Float or Int for SQLite, BigInt has issues in JSON serialization usually
+  checksum     String?
+  compressed   Boolean  @default(false)
+  encrypted    Boolean  @default(false)
+  uploadStatus String   @default("PENDING")
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  driveFileId  String?
+}
