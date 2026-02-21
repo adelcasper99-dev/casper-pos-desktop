@@ -10,6 +10,7 @@ export const productSchema = z.object({
     stock: z.coerce.number().int().default(0),
     minStock: z.coerce.number().int().default(5),
     categoryId: z.string().optional(),
+    trackStock: z.boolean().default(true),
 });
 
 export const supplierSchema = z.object({

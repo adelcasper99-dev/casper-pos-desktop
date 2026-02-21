@@ -9,6 +9,7 @@ export interface CartItem {
     price: number;
     quantity: number;
     maxQuantity: number; // Added for Stock Protection
+    trackStock?: boolean;
 }
 
 export interface HeldCart {
@@ -19,6 +20,8 @@ export interface HeldCart {
     customerName?: string;
     customerPhone?: string;
     customerId?: string; // 🆕 Added to HeldCart interface
+    tableId?: string;
+    tableName?: string;
 }
 
 interface CartState {
@@ -26,12 +29,15 @@ interface CartState {
     customerName: string;
     customerPhone: string;
     customerId?: string; // 🆕 Added Customer ID
+    tableId?: string;
+    tableName?: string;
 
     addToCart: (product: CartProduct) => void;
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, delta: number) => void;
     clearCart: () => void;
     setCustomer: (name: string, phone: string, id?: string) => void;
+    setTable: (id?: string, name?: string) => void;
 
     // Hold Cart Actions
     heldCarts: HeldCart[];
@@ -50,17 +56,20 @@ export const useCartStore = create<CartState>()(
             customerName: '',
             customerPhone: '',
             customerId: undefined,
+            tableId: undefined,
+            tableName: undefined,
             heldCarts: [],
 
             setCustomer: (name, phone, id) => set({ customerName: name, customerPhone: phone, customerId: id }),
+            setTable: (id, name) => set({ tableId: id, tableName: name }),
 
-            addToCart: (product) => {
+            addToCart: (product: any) => {
                 const items = get().items;
                 const existingItem = items.find((i) => i.id === product.id);
                 const currentQty = existingItem ? existingItem.quantity : 0;
                 const maxQty = product.stock;
 
-                if (currentQty >= maxQty) {
+                if (product.trackStock !== false && currentQty >= maxQty) {
                     // Start of Stock Protection: Prevent adding if out of stock
                     // In a real app we'd trigger a toast here
                     return;
@@ -82,7 +91,8 @@ export const useCartStore = create<CartState>()(
                                 name: product.name,
                                 price: Number(product.sellPrice),
                                 quantity: 1,
-                                maxQuantity: product.stock
+                                maxQuantity: product.stock,
+                                trackStock: product.trackStock
                             },
                         ],
                     });
@@ -95,7 +105,7 @@ export const useCartStore = create<CartState>()(
                     items: items.map((i) => {
                         if (i.id === productId) {
                             const newQty = i.quantity + delta;
-                            if (newQty > i.maxQuantity) return i; // Block exceeding stock
+                            if (i.trackStock !== false && newQty > i.maxQuantity) return i; // Block exceeding stock
                             return { ...i, quantity: Math.max(1, newQty) };
                         }
                         return i;
@@ -109,7 +119,7 @@ export const useCartStore = create<CartState>()(
                 });
             },
 
-            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined }),
+            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined, tableId: undefined, tableName: undefined }),
 
             holdCart: (cartName) => {
                 const { items, heldCarts, customerName, customerPhone } = get();
@@ -122,14 +132,18 @@ export const useCartStore = create<CartState>()(
                     date: new Date(),
                     customerName,
                     customerPhone,
-                    customerId: get().customerId
+                    customerId: get().customerId,
+                    tableId: get().tableId,
+                    tableName: get().tableName
                 };
 
                 set({
                     heldCarts: [...heldCarts, newHeldCart],
                     items: [], // Clear main cart
                     customerName: '',
-                    customerPhone: ''
+                    customerPhone: '',
+                    tableId: undefined,
+                    tableName: undefined
                 });
             },
 
@@ -143,6 +157,8 @@ export const useCartStore = create<CartState>()(
                         customerName: cartToResume.customerName || '',
                         customerPhone: cartToResume.customerPhone || '',
                         customerId: cartToResume.customerId, // Restore ID if exists
+                        tableId: cartToResume.tableId,
+                        tableName: cartToResume.tableName,
                         heldCarts: heldCarts.filter(c => c.id !== cartId)
                     });
                 }

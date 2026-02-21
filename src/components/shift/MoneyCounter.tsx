@@ -18,7 +18,7 @@ const DENOMINATIONS = [
 ];
 
 export default function MoneyCounter({ onTotalChange, initialTotal = 0 }: MoneyCounterProps) {
-    const [counts, setCounts] = useState<Record<number, number>>({});
+    const [counts, setCounts] = useState<Record<number, string>>({});
     const [isExpanded, setIsExpanded] = useState(false);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const mounted = useRef(false);
@@ -26,7 +26,8 @@ export default function MoneyCounter({ onTotalChange, initialTotal = 0 }: MoneyC
 
     // Calculate total whenever counts change
     useEffect(() => {
-        const total = Object.entries(counts).reduce((sum, [value, count]) => {
+        const total = Object.entries(counts).reduce((sum, [value, countStr]) => {
+            const count = parseInt(countStr) || 0;
             return sum + (parseFloat(value) * count);
         }, 0);
 
@@ -49,8 +50,8 @@ export default function MoneyCounter({ onTotalChange, initialTotal = 0 }: MoneyC
         mounted.current = true;
     }, [counts, onTotalChange, initialTotal]);
 
-    const setCount = (value: number, count: number) => {
-        setCounts(prev => ({ ...prev, [value]: Math.max(0, count) }));
+    const setCount = (value: number, countStr: string) => {
+        setCounts(prev => ({ ...prev, [value]: countStr }));
     };
 
     const clearAll = () => {
@@ -68,7 +69,8 @@ export default function MoneyCounter({ onTotalChange, initialTotal = 0 }: MoneyC
         }
     };
 
-    const total = Object.entries(counts).reduce((sum, [value, count]) => {
+    const total = Object.entries(counts).reduce((sum, [value, countStr]) => {
+        const count = parseInt(countStr) || 0;
         return sum + (parseFloat(value) * count);
     }, 0);
 
@@ -104,29 +106,33 @@ export default function MoneyCounter({ onTotalChange, initialTotal = 0 }: MoneyC
                 <div className="p-3 pt-0 space-y-2">
                     {/* All denominations in a simple grid */}
                     <div className="grid grid-cols-5 gap-2">
-                        {DENOMINATIONS.map((denom, index) => (
-                            <div key={denom.value} className="text-center">
-                                <div className={`text-xs font-semibold mb-1 ${denom.value >= 1 ? 'text-green-400' : 'text-gray-400'}`}>
-                                    {denom.label}
-                                </div>
-                                <input
-                                    ref={el => { inputRefs.current[index] = el; }}
-                                    type="number"
-                                    min="0"
-                                    value={counts[denom.value] || ""}
-                                    onChange={(e) => setCount(denom.value, parseInt(e.target.value) || 0)}
-                                    onKeyDown={(e) => handleKeyDown(e, index)}
-                                    onFocus={(e) => e.target.select()}
-                                    placeholder="0"
-                                    className="w-full h-8 bg-gray-700 border border-gray-600 rounded text-center text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                                {(counts[denom.value] || 0) > 0 && (
-                                    <div className="text-xs text-gray-500 mt-0.5">
-                                        ${((counts[denom.value] || 0) * denom.value).toFixed(2)}
+                        {DENOMINATIONS.map((denom, index) => {
+                            const countStr = counts[denom.value] || "";
+                            const countNum = parseInt(countStr) || 0;
+                            return (
+                                <div key={denom.value} className="text-center">
+                                    <div className={`text-xs font-semibold mb-1 ${denom.value >= 1 ? 'text-green-400' : 'text-gray-400'}`}>
+                                        {denom.label}
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                    <input
+                                        ref={el => { inputRefs.current[index] = el; }}
+                                        type="number"
+                                        min="0"
+                                        value={countStr}
+                                        onChange={(e) => setCount(denom.value, e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, index)}
+                                        onFocus={(e) => e.target.select()}
+                                        placeholder="0"
+                                        className="w-full h-8 bg-gray-700 border border-gray-600 rounded text-center text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                    {countNum > 0 && (
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                            ${(countNum * denom.value).toFixed(2)}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Total and Actions */}

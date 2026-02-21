@@ -24,6 +24,8 @@ import { PERMISSIONS } from "@/lib/permissions";
 interface ProcessSaleData extends z.infer<typeof saleSchema> {
     registerId?: string;
     force?: boolean;
+    tableId?: string;
+    tableName?: string;
     warranty?: {
         warrantyDays?: number;
         warrantyExpiryDate?: Date;
@@ -70,6 +72,12 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         }
         const mainWarehouseId = mainWarehouseRaw.id;
 
+        // 🛡️ SHIFT FK GUARD: Ensure currentShift.id is valid
+        const shiftExists = await tx.shift.findUnique({ where: { id: currentShift.id } });
+        if (!shiftExists) {
+            throw new Error("Shift record not found or has been deleted.");
+        }
+
         // 0b. Fetch Settings for Tax
         const settings = await tx.storeSettings.findUnique({ where: { id: "settings" } });
         const taxRate = Number(settings?.taxRate || 0);
@@ -83,12 +91,19 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         const productIds = data.items.map(item => item.id);
         const products = await tx.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, costPrice: true }
+            select: { id: true, costPrice: true, name: true }
         });
+
+        // 🛡️ FK GUARD: Ensure all products exist
+        if (products.length !== data.items.length) {
+            const missingIds = productIds.filter(id => !products.find(p => p.id === id));
+            throw new Error(`Invalid Product IDs detected: ${missingIds.join(', ')}`);
+        }
+
         const costPriceMap = new Map(products.map((p) => [p.id, Number(p.costPrice)]));
 
         // 2. Create Sale Record (linked to shift, with warranty if provided)
-        const sale = await tx.sale.create({
+        const sale = await (tx.sale.create as any)({
             data: {
                 status: 'COMPLETED', // Explicitly mark as completed for dashboard visibility
                 paymentMethod: data.paymentMethod,
@@ -97,13 +112,16 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 subTotal: new Decimal(subTotal),
                 customerName: data.customer?.name,
                 customerPhone: data.customer?.phone,
-                customerId: data.customer?.id, // 🆕 Link to Customer Record
+                customerId: (data.customer?.id && data.customer.id.trim() !== "") ? data.customer.id : null,
                 customerAddress: data.customer?.address,
                 warehouseId: mainWarehouseId,
                 shiftId: currentShift.id, // 🆕 Link to shift
                 // 🆕 Warranty Information
                 warrantyDays: warranty?.warrantyDays || null,
                 warrantyExpiryDate: warranty?.warrantyExpiryDate || null,
+                tableId: rawData.tableId || null,
+                tableName: rawData.tableName || null,
+                userId: currentUser.id || null,
                 items: {
                     create: data.items.map((item) => ({
                         productId: item.id,
@@ -162,6 +180,17 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         // 2b. Deduct Stock (With Manager Override Support)
         for (const item of data.items) {
+            // Check if product requires stock tracking
+            const product = await tx.product.findUnique({
+                where: { id: item.id },
+                select: { trackStock: true }
+            });
+
+            if (product && !product.trackStock) {
+                console.log(`[POS] Skipping stock deduction for product: ${item.id} (trackStock=false)`);
+                continue;
+            }
+
             if (force) {
                 // FORCE MODE: Blind Decrement (Allowed to go negative)
                 await tx.product.update({
@@ -187,11 +216,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                         reason: `Forced Sale #${sale.id.slice(0, 8)} (Override)`
                     }
                 });
-
             } else {
                 // SAFE MODE: BL-06/BL-07 fix — use shared atomic helper.
-                // decrementWarehouseStock updates BOTH Product.stock AND Stock.quantity
-                // in a single guarded operation, preventing dual-state divergence.
                 await decrementWarehouseStock(tx, item.id, mainWarehouseId, item.quantity);
             }
         }

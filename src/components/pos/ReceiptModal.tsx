@@ -25,6 +25,15 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
     // Initialize from prop if available
     const [settings, setSettings] = useState<any>(settingsProp || null);
     const [printAttempted, setPrintAttempted] = useState(false);
+    const [copyCount, setCopyCount] = useState(1);
+    const [saveAsDefault, setSaveAsDefault] = useState(false);
+
+    useEffect(() => {
+        const savedCopies = localStorage.getItem('casper_default_print_copies');
+        if (savedCopies) {
+            setCopyCount(parseInt(savedCopies, 10));
+        }
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
@@ -58,6 +67,11 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
 
         const printContent = document.getElementById("receipt-content");
         if (!printContent) return;
+
+        // Save as default if checked
+        if (saveAsDefault) {
+            localStorage.setItem('casper_default_print_copies', copyCount.toString());
+        }
 
         // Configurable width using standard MM
         const paperWidthMm = settings.paperSize === '58mm' ? PAPER_SIZES.MOBILE : (settings.paperSize === '100mm' ? PAPER_SIZES.WIDE : PAPER_SIZES.STANDARD);
@@ -94,7 +108,17 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
 
         const receiptPrinter = localStorage.getItem('casper_receipt_printer');
 
-        toast.promise(printService.printHTML(htmlContent, receiptPrinter || undefined), {
+        const printJob = async () => {
+            for (let i = 0; i < copyCount; i++) {
+                await printService.printHTML(htmlContent, receiptPrinter || undefined);
+                // Optional small delay between copies for older printers
+                if (copyCount > 1 && i < copyCount - 1) {
+                    await new Promise(r => setTimeout(r, 200));
+                }
+            }
+        };
+
+        toast.promise(printJob(), {
             loading: t('printing') || 'Printing...',
             success: t('sentToPrinter') || 'Sent to printer',
             error: (err) => `Print failed: ${err.message || 'Unknown error'}`
@@ -134,6 +158,13 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                             )}
                             <h3 className="text-xl font-black tracking-widest uppercase">{settings.name || "CASPER POS"}</h3>
                             <p className="text-xs font-bold mt-1">{settings.address || "Ghost Retail System"}</p>
+
+                            {saleData.tableName && (
+                                <div className="mt-2 mb-1 p-2 border-2 border-black/80 font-black text-lg uppercase tracking-wider">
+                                    {saleData.tableName}
+                                </div>
+                            )}
+
                             <p className="text-[10px] mt-2 text-zinc-600">{new Date(saleData.date).toLocaleString()}</p>
                             <p className="text-[10px] text-zinc-600">{t('saleNumber')} {saleData.saleId?.split('-')[0].toUpperCase()}</p>
                         </div>
@@ -165,15 +196,15 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                         {saleData.warranty?.warrantyDays && (
                             <div className="warranty border-t border-dashed border-black/60 pt-3 mb-3 text-center">
                                 <div className="flex items-center justify-center gap-2 mb-2">
-                                    <span className="text-xs font-black uppercase">🛡️ {t('warranty.title')}</span>
+                                    <span className="text-xs font-black uppercase">🛡️ {t('warrantyTitle')}</span>
                                 </div>
                                 <div className="text-[10px] space-y-1 text-zinc-700">
                                     <div className="flex justify-between">
-                                        <span>{t('warranty.period')}:</span>
-                                        <span className="font-bold">{saleData.warranty.warrantyDays} {t('warranty.days')}</span>
+                                        <span>{t('warrantyPeriod')}:</span>
+                                        <span className="font-bold">{saleData.warranty.warrantyDays} {t('warrantyDays')}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span>{t('warranty.expires')}:</span>
+                                        <span>{t('warrantyExpires')}:</span>
                                         <span className="font-bold">
                                             {new Date(saleData.warranty.warrantyExpiryDate).toLocaleDateString('ar-EG')}
                                         </span>
@@ -193,6 +224,36 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                         <Loader2 className="animate-spin text-muted-foreground" />
                     </div>
                 )}
+
+                {/* Print Controls */}
+                <div className="w-full bg-muted/30 p-4 rounded-2xl border border-border/50 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm font-bold opacity-70">{t('copyCount') || 'Number of Copies'}</label>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setCopyCount(Math.max(1, copyCount - 1))}
+                                className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                            >-</button>
+                            <span className="w-8 text-center font-black">{copyCount}</span>
+                            <button
+                                onClick={() => setCopyCount(copyCount + 1)}
+                                className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                            >+</button>
+                        </div>
+                    </div>
+
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                        <input
+                            type="checkbox"
+                            checked={saveAsDefault}
+                            onChange={(e) => setSaveAsDefault(e.target.checked)}
+                            className="w-5 h-5 rounded-lg border-2 border-muted bg-transparent transition-all checked:bg-cyan-500 checked:border-cyan-500"
+                        />
+                        <span className="text-sm font-bold opacity-70 group-hover:opacity-100 transition-opacity">
+                            {t('saveAsDefault') || 'Save as Default'}
+                        </span>
+                    </label>
+                </div>
 
                 <div className="flex gap-3 w-full">
                     <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-foreground">

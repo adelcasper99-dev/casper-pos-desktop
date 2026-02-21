@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Truck, ShoppingCart } from "lucide-react";
 import PurchasesTab from "@/components/inventory/PurchasesTab";
 import SuppliersTab from "@/components/inventory/SuppliersTab";
+import ServicesTab from "@/components/inventory/ServicesTab";
 import clsx from "clsx";
 
 import { useTranslations } from "@/lib/i18n-mock";
@@ -20,7 +21,7 @@ export default function PurchasingClient({
     csrfToken
 }: any) {
     const t = useTranslations('Purchasing');
-    const [activeTab, setActiveTab] = useState<'PURCHASES' | 'SUPPLIERS'>('PURCHASES');
+    const [activeTab, setActiveTab] = useState<'PURCHASES' | 'SUPPLIERS' | 'SERVICES'>('PURCHASES');
 
     return (
         <div className="space-y-6">
@@ -47,6 +48,16 @@ export default function PurchasingClient({
                         <Truck className="w-4 h-4" />
                         {t('tabs.suppliers')}
                     </button>
+                    <button
+                        onClick={() => setActiveTab('SERVICES')}
+                        className={clsx(
+                            "px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all whitespace-nowrap",
+                            activeTab === 'SERVICES' ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(168,85,247,0.4)]" : "text-zinc-400 hover:text-white hover:bg-white/5"
+                        )}
+                    >
+                        <ShoppingCart className="w-4 h-4" /> {/* Use a different icon? maybe Layers */}
+                        {t('tabs.services')}
+                    </button>
                 </div>
             </div>
 
@@ -68,6 +79,13 @@ export default function PurchasingClient({
 
                 {activeTab === 'SUPPLIERS' && (
                     <SuppliersTab suppliers={suppliers} csrfToken={csrfToken} />
+                )}
+
+                {activeTab === 'SERVICES' && (
+                    <ServicesTab
+                        categories={categories}
+                        csrfToken={csrfToken}
+                    />
                 )}
             </div>
         </div>

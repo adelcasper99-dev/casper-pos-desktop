@@ -135,7 +135,7 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
                 </div>
                 <button
                     onClick={() => setIsAddMode(true)}
-                    className="bg-cyan-500 text-black font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-cyan-400"
+                    className="bg-cyan-500 text-black font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-cyan-400 ml-24"
                 >
                     <Plus className="w-4 h-4" />
                     {t('new')}

@@ -53,5 +53,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
         zoomOut: () => { const z = Math.max(webFrame.getZoomFactor() - 0.1, 0.5); webFrame.setZoomFactor(z); console.log('[zoom] out ->', z.toFixed(2)); },
         zoomReset: () => { webFrame.setZoomFactor(1.0); console.log('[zoom] reset'); },
     },
+
+    /**
+     * Database location and setup config API
+     */
+    config: {
+        showOpenDialog: () => ipcRenderer.invoke('dialog:showOpenDialog'),
+        getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
+        saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
+    }
 });
 

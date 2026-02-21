@@ -27,9 +27,9 @@ export default async function POSPage() {
         categoryId: p.categoryId,
         costPrice: p.costPrice.toNumber(),
         sellPrice: p.sellPrice.toNumber(),
-        sellPrice2: p.sellPrice2?.toNumber() || 0,
         sellPrice3: p.sellPrice3?.toNumber() || 0,
-        minStock: p.minStock
+        minStock: p.minStock,
+        trackStock: (p as any).trackStock ?? true
     }));
     const categories = await prisma.category.findMany();
 
@@ -43,16 +43,32 @@ export default async function POSPage() {
         { id: "reg-2", name: "Counter A" }
     ];
 
+    // Fetch Floors and Tables unconditionally now
+    let floors: any[] = [];
+    try {
+        floors = await prisma.floor.findMany({
+            include: { tables: true },
+            orderBy: { createdAt: 'asc' }
+        });
+    } catch (e) {
+        console.error("Failed to fetch floors", e);
+    }
+
     return (
         <div className="flex flex-col h-screen overflow-hidden">
-            {/* Shift Status Indicator with integrated shift button */}
-            <div className="shrink-0 p-4 pb-0">
-                <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
+            {/* Top Bar: Shift & Printer Status */}
+            <div className="shrink-0 p-4 pb-0 flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                <div className="flex-1">
+                    <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
+                </div>
+                <div className="shrink-0">
+                    <PrinterStatusIndicator />
+                </div>
             </div>
 
             {/* POS Interface - fills remaining height */}
             <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden p-4 animate-fly-in">
-                <POSClientAPI products={products} categories={categories} settings={settings} csrfToken={csrfToken || ''} />
+                <POSClientAPI products={products} categories={categories} settings={settings} csrfToken={csrfToken || ''} floors={floors} />
             </div>
         </div>
     );

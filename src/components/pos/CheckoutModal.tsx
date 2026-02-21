@@ -28,7 +28,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const formatCurrency = useFormatCurrency();
     const t = useTranslations("POS");
     const router = useRouter();
-    const { items, getTotal, clearCart, customerName, customerPhone, customerId } = useCartStore();
+    const { items, getTotal, clearCart, customerName, customerPhone, customerId, tableId, tableName } = useCartStore();
     const { isOnline } = useNetworkStatus();
     const [loading, setLoading] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'VISA' | 'WALLET' | 'INSTAPAY' | 'ACCOUNT'>('CASH');
@@ -39,7 +39,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     // }, [customerPhone]);
 
     // Warranty Settings (Default: 30 days)
-    const [warrantyEnabled, setWarrantyEnabled] = useState(true);
+    const [warrantyEnabled, setWarrantyEnabled] = useState(false);
     const [warrantyDays, setWarrantyDays] = useState(30);
 
     // Delivery / Customer Details
@@ -99,6 +99,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 warrantyDays: warrantyDays,
                 warrantyExpiryDate: new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000)
             } : undefined,
+            tableId: tableId,
+            tableName: tableName,
             force: force, // <--- Send Force Flag
             csrfToken
         };
@@ -121,6 +123,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                     paymentMethod: paymentMethod,
                     customerName: saleCustomerData?.name,
                     customerPhone: saleCustomerData?.phone,
+                    tableId: tableId,
+                    tableName: tableName,
                     createdAt: new Date(),
                     synced: 0 as const, // 0 = false for IndexedDB query compatibility
                     syncRetries: 0
@@ -166,6 +170,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 date: new Date(),
                 customer: saleCustomerData,
                 paymentMethod: paymentMethod,
+                tableId: tableId,
+                tableName: tableName,
                 warranty: warrantyEnabled ? {
                     warrantyDays: warrantyDays,
                     warrantyExpiryDate: new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000)
@@ -196,17 +202,17 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                     <div className="space-y-2">
                         <h2 className="text-2xl font-bold text-white">{t('orderConfirmed') || "Order Confirmed!"}</h2>
-                        <p className="text-zinc-400 text-sm">Sale ID: {saleResult.saleId}</p>
+                        <p className="text-zinc-400 text-sm">{t('saleId')}: {saleResult.saleId}</p>
                     </div>
 
                     <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">
                         <div className="flex justify-between text-sm">
-                            <span className="text-zinc-400">Total Amount</span>
+                            <span className="text-zinc-400">{t('totalAmount')}</span>
                             <span className="text-white font-bold text-lg">{formatCurrency(saleResult.totalAmount)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-zinc-400">Payment Method</span>
-                            <span className="text-cyan-400 font-bold uppercase">{saleResult.paymentMethod}</span>
+                            <span className="text-zinc-400">{t('paymentMethod')}</span>
+                            <span className="text-cyan-400 font-bold uppercase">{t(saleResult.paymentMethod.toLowerCase()) || saleResult.paymentMethod}</span>
                         </div>
                     </div>
 
@@ -279,7 +285,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         active={paymentMethod === "ACCOUNT"}
                         onClick={() => setPaymentMethod("ACCOUNT")}
                         disabled={!customerId}
-                        warning={!customerId ? "Select Customer First" : undefined}
+                        warning={!customerId ? t('selectCustomerFirst') : undefined}
                     />
                 </div>
 

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCartStore } from "@/store/cart";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -11,12 +11,15 @@ import CheckoutModal from "@/components/pos/CheckoutModal";
 import ReceiptModal from "@/components/pos/ReceiptModal";
 import CustomerSearch from "@/components/pos/CustomerSearch";
 import CategoryModal from "@/components/pos/CategoryModal";
+import TableSelectionModal from "@/components/pos/TableSelectionModal";
+import { toast } from "sonner";
+import { printService } from "@/lib/print-service";
 
 import { VirtuosoGrid } from 'react-virtuoso';
 
 // ... (other imports remain, remove unused if any)
 
-export default function POSClientAPI({ products, categories: initialCategories, settings, csrfToken }: any) {
+export default function POSClientAPI({ products, categories: initialCategories, settings, csrfToken, floors = [] }: any) {
     const t = useTranslations("POS");
     const router = useRouter();
     const formatCurrency = useFormatCurrency();
@@ -25,6 +28,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [showHeldCarts, setShowHeldCarts] = useState(false);
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [isTableModalOpen, setIsTableModalOpen] = useState(false);
     const [categoryToEdit, setCategoryToEdit] = useState<{ id: string; name: string; color: string } | null>(null);
     // Local categories state for instant UI updates after create/edit
     const [localCategories, setLocalCategories] = useState<{ id: string; name: string; color: string }[]>(initialCategories || []);
@@ -46,8 +50,21 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     const {
         items, addToCart, removeFromCart, updateQuantity, getTotal, clearCart,
         holdCart, heldCarts, resumeCart, removeHeldCart,
-        customerName, customerPhone, setCustomer
+        customerName, customerPhone, setCustomer,
+        tableId, tableName, setTable
     } = useCartStore();
+
+    const [orderMode, setOrderMode] = useState<"takeaway" | "dine-in">("takeaway");
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    // Sync orderMode with held carts that might have a table selected
+    useEffect(() => {
+        if (tableId) setOrderMode("dine-in");
+    }, [tableId]);
 
     const filteredProducts = useMemo(() => {
         return displayProducts.filter((p: any) => {
@@ -97,11 +114,108 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     //     );
     // };
 
+    const isTableEnabled = useMemo(() => {
+        try {
+            const feats = typeof settings?.features === 'string'
+                ? JSON.parse(settings.features)
+                : (settings?.features || {});
+            return feats.enableTables === true;
+        } catch { return false; }
+    }, [settings?.features]);
+
+    const printOrderReceipt = async () => {
+        if (items.length === 0) return;
+
+        try {
+            const receiptHtml = `
+            <div style="font-family: sans-serif; text-align: center; width: 100%; max-width: 300px; margin: 0 auto;">
+                <h2 style="margin: 0 0 10px 0;">OPEN ORDER / طلب غير مدفوع</h2>
+                ${tableName ? `<h3 style="margin: 0 0 10px 0; border: 2px solid #000; padding: 5px;">${tableName}</h3>` : ''}
+                <div style="text-align: left; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 10px 0; margin-bottom: 10px;">
+                    ${items.map((item: any) => `
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 1.1em;">
+                            <span>${item.quantity}x ${item.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <p style="font-size: 0.8em; color: #666;">Printed: ${new Date().toLocaleString()}</p>
+            </div>
+            `;
+            await printService.printHTML(receiptHtml, settings);
+            toast.success(t('orderTicketSent') || "Order ticket sent to printer");
+        } catch (error) {
+            console.error("Print error:", error);
+            toast.error(t('printOrderFailed') || "Failed to print order ticket");
+        }
+    };
+
+    const handleSelectTable = (newTableId: string, newTableName: string, action: 'resume' | 'new' = 'resume') => {
+        if (tableId === newTableId && action !== 'new') {
+            setIsTableModalOpen(false);
+            return;
+        }
+
+        if (items.length > 0) {
+            const cartName = customerName || `${tableName || 'Cart'} - ${new Date().toLocaleTimeString()}`;
+            holdCart(cartName);
+        }
+
+        setOrderMode('dine-in');
+        setIsTableModalOpen(false);
+
+        if (action === 'resume') {
+            const existingCartForTable = heldCarts.find(c => c.tableId === newTableId);
+            if (existingCartForTable) {
+                resumeCart(existingCartForTable.id);
+                return;
+            }
+        }
+
+        // Action is 'new' or no existing cart
+        setTable(newTableId, newTableName);
+    };
+
+    if (!isMounted) return null;
+
     return (
         <div className="flex h-full w-full gap-0">
             {/* LEFT: Cart Sidebar - UNCHANGED */}
             <div className="w-full md:w-[400px] flex flex-col h-full bg-card border-r border-border z-20 shadow-2xl shrink-0">
                 <div className="flex-1 flex flex-col overflow-hidden relative">
+                    {/* Top Panel: Table Selection / Order Mode Toggle */}
+                    <div className="p-4 border-b border-border bg-card z-10 shadow-sm flex flex-col gap-3">
+                        <div className="flex bg-black/40 rounded-xl p-1 border border-white/10 shrink-0">
+                            <button
+                                onClick={() => {
+                                    setTable(undefined, undefined);
+                                    setOrderMode('takeaway');
+                                }}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${orderMode === 'takeaway' && !tableId ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-500 hover:text-white'}`}
+                            >
+                                {t('takeaway') || 'Takeaway'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setOrderMode('dine-in');
+                                    if (!tableId) setIsTableModalOpen(true);
+                                }}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${orderMode === 'dine-in' || tableId ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-500 hover:text-white'}`}
+                            >
+                                {t('dineIn') || 'Dine-In'}
+                            </button>
+                        </div>
+
+                        {(orderMode === 'dine-in' || tableId) && (
+                            <button
+                                onClick={() => setIsTableModalOpen(true)}
+                                className="bg-black/50 border border-white/10 hover:border-cyan-500/50 rounded-xl p-3 text-white text-md font-bold w-full transition-colors flex items-center justify-between animate-in fade-in slide-in-from-top-1"
+                            >
+                                <span>{tableId ? tableName : (t('selectTable') || "Select Table (Required)")}</span>
+                                <span className="text-zinc-500 text-xs">{t('change') || 'Change'}</span>
+                            </button>
+                        )}
+                    </div>
+
                     {/* Header */}
                     <div className="p-4 border-b border-border flex justify-between items-center bg-muted/50">
                         <h2 className="font-bold flex items-center gap-2 text-lg text-foreground">
@@ -203,9 +317,18 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             </div>
                         </div>
 
-                        <div className="flex gap-3 h-14">
-                            <button onClick={() => holdCart()} disabled={items.length === 0} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart"><PauseCircle className="w-6 h-6" /></button>
-                            <button onClick={() => setIsCheckoutOpen(true)} disabled={items.length === 0} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"><Banknote className="w-6 h-6" />{t('checkout')}</button>
+                        <div className="flex flex-col gap-3">
+                            <div className="flex gap-2 h-14 w-full">
+                                <button onClick={printOrderReceipt} disabled={items.length === 0} className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title={t('printOrder') || "Print Order Ticket"}>
+                                    <Printer className="w-6 h-6" />
+                                </button>
+                                <button onClick={() => holdCart()} disabled={items.length === 0} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart">
+                                    <PauseCircle className="w-6 h-6" />
+                                </button>
+                                <button onClick={() => setIsCheckoutOpen(true)} disabled={items.length === 0} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+                                    <Banknote className="w-6 h-6" />{t('checkout')}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -312,13 +435,19 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                         <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center text-xs font-bold text-muted-foreground">
                                             {(p.sku || "??").slice(0, 2)}
                                         </div>
-                                        <span className={clsx(
-                                            "text-[10px] font-bold px-2 py-1 rounded-full h-fit",
-                                            p.stock > 5 ? "bg-green-500/10 text-green-500" :
-                                                p.stock > 0 ? "bg-yellow-500/10 text-yellow-500" : "bg-red-500/10 text-red-500"
-                                        )}>
-                                            {p.stock}
-                                        </span>
+                                        {p.trackStock === false ? (
+                                            <span className="text-[10px] font-bold px-2 py-1 rounded-full h-fit bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20" title={t('service') || "Service"}>
+                                                <Infinity className="w-3.5 h-3.5" />
+                                            </span>
+                                        ) : (
+                                            <span className={clsx(
+                                                "text-[10px] font-bold px-2 py-1 rounded-full h-fit",
+                                                p.stock > 5 ? "bg-green-500/10 text-green-500" :
+                                                    p.stock > 0 ? "bg-yellow-500/10 text-yellow-500" : "bg-red-500/10 text-red-500"
+                                            )}>
+                                                {p.stock}
+                                            </span>
+                                        )}
                                     </div>
 
                                     <div>
@@ -331,6 +460,17 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                     </div>
                 </div>
             </div>
+
+            <TableSelectionModal
+                isOpen={isTableModalOpen}
+                onClose={() => setIsTableModalOpen(false)}
+                floors={floors}
+                currentTableId={tableId || undefined}
+                heldCarts={heldCarts}
+                activeCartItems={items}
+                onSelectTable={handleSelectTable}
+                t={t}
+            />
         </div>
     );
 }

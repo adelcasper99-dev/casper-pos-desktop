@@ -8,6 +8,7 @@ import PrinterSettings from "@/components/settings/PrinterSettings";
 import BackupManager from "@/components/settings/BackupManager";
 import UserManagement from "@/components/settings/UserManagement";
 import RoleManagement from "@/components/settings/RoleManagement";
+import TablesManagement from "@/components/settings/TablesManagement";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { prisma } from "@/lib/prisma";
@@ -55,6 +56,9 @@ export default async function SettingsPage() {
                     </TabsTrigger>
                     <TabsTrigger value="users" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
                         <Users className="w-4 h-4" /> Users & Roles
+                    </TabsTrigger>
+                    <TabsTrigger value="tables" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
+                        <Store className="w-4 h-4" /> Tables
                     </TabsTrigger>
                 </TabsList>
 
@@ -120,6 +124,10 @@ export default async function SettingsPage() {
                             <RoleManagement initialRoles={roles} />
                         </TabsContent>
                     </Tabs>
+                </TabsContent>
+
+                <TabsContent value="tables" className="outline-none">
+                    <TablesManagement />
                 </TabsContent>
             </Tabs>
         </div>

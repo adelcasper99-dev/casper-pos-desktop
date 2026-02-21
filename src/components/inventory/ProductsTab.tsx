@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Box, Edit, Loader2, Save, Wand2, Trash2, ChevronLeft, ChevronRight, Lock, Printer } from "lucide-react";
+import { Search, Box, Edit, Loader2, Save, Wand2, Trash2, ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon } from "lucide-react";
 import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
 import { ThermalPrintLabel } from "./ThermalPrintLabel";
@@ -30,6 +30,7 @@ interface Product {
     deletedAt: string | null;
     archived: boolean;
     minStock: number;
+    trackStock: boolean;
     version: number;
 }
 
@@ -140,7 +141,8 @@ export default function ProductsTab({
             sellPrice3: Number(editingProduct.sellPrice3),
             costPrice: Number(editingProduct.costPrice),
             stock: Number(editingProduct.stock),
-            minStock: 5
+            minStock: 5,
+            trackStock: editingProduct.trackStock
         } as any);
 
         setLoading(false);
@@ -265,9 +267,16 @@ export default function ProductsTab({
                                             {categories.find(c => c.id === p.categoryId)?.name || '-'}
                                         </td>
                                         <td className="p-4 text-center">
-                                            <span className={clsx("px-2 py-1 rounded-full text-xs font-bold", p.stock < 5 ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600')}>
-                                                {p.stock}
-                                            </span>
+                                            {p.trackStock === false ? (
+                                                <span className="px-2 py-1 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-500 flex items-center justify-center gap-1">
+                                                    <InfinityIcon className="w-3 h-3" />
+                                                    {t('products.serviceLabel')}
+                                                </span>
+                                            ) : (
+                                                <span className={clsx("px-2 py-1 rounded-full text-xs font-bold", p.stock < 5 ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600')}>
+                                                    {p.stock}
+                                                </span>
+                                            )}
                                         </td>
                                         {canViewPrice1 && <td className="p-4 text-end font-bold text-foreground">${Number(p.sellPrice).toFixed(2)}</td>}
                                         {canViewPrice2 && <td className="p-4 text-end font-mono text-muted-foreground">${Number(p.sellPrice2 || 0).toFixed(2)}</td>}
@@ -462,6 +471,20 @@ export default function ProductsTab({
                                     />
                                 </div>
                             ) : null}
+                        </div>
+
+                        <div className="flex items-center gap-2 p-3 bg-muted/20 rounded-xl border border-border">
+                            <input
+                                type="checkbox"
+                                id="trackStock"
+                                checked={editingProduct.trackStock}
+                                onChange={e => setEditingProduct({ ...editingProduct, trackStock: e.target.checked })}
+                                className="w-4 h-4 rounded text-cyan-500"
+                            />
+                            <label htmlFor="trackStock" className="text-sm font-bold flex items-center gap-2 cursor-pointer">
+                                {editingProduct.trackStock ? <Box className="w-4 h-4 text-zinc-400" /> : <InfinityIcon className="w-4 h-4 text-cyan-400" />}
+                                {editingProduct.trackStock ? t('products.trackStockOn') : t('products.trackStockOff')}
+                            </label>
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4">

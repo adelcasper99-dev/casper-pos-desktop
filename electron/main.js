@@ -29,6 +29,21 @@ const getDatabasePath = () => {
     if (!fs.existsSync(userDataPath)) {
         fs.mkdirSync(userDataPath, { recursive: true });
     }
+
+    const configPath = path.join(userDataPath, 'casper-config.json');
+    if (fs.existsSync(configPath)) {
+        try {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            if (config.dbPath) {
+                // Return custom path with local.db appended
+                return path.join(config.dbPath, 'local.db');
+            }
+        } catch (e) {
+            log(`Failed to read casper-config.json: ${e.message}`);
+        }
+    }
+
+    // Default fallback
     return path.join(userDataPath, 'local.db');
 };
 
@@ -235,5 +250,84 @@ ipcMain.on('window:minimize', () => mainWindow?.minimize());
 ipcMain.on('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
 ipcMain.on('window:close', () => mainWindow?.close());
 ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() || false);
+
+ipcMain.handle('printers:list', async () => {
+    if (!mainWindow) return [];
+    try {
+        return await mainWindow.webContents.getPrintersAsync();
+    } catch (error) {
+        log(`Error getting printers: ${error.message}`);
+        return [];
+    }
+});
+
+ipcMain.handle('print:html', async (event, html, printerName, options) => {
+    if (!mainWindow) return { success: false, error: 'Main window not found' };
+
+    // Create a hidden worker window for printing
+    const printWindow = new BrowserWindow({
+        show: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    try {
+        await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+        return new Promise((resolve) => {
+            printWindow.webContents.print({
+                silent: true,
+                printBackground: true,
+                deviceName: printerName,
+                ...options
+            }, (success, failureReason) => {
+                printWindow.close();
+                if (success) {
+                    resolve({ success: true });
+                } else {
+                    resolve({ success: false, error: failureReason });
+                }
+            });
+        });
+    } catch (error) {
+        if (!printWindow.isDestroyed()) printWindow.close();
+        return { success: false, error: error.message };
+    }
+});
+
+// --- NEW CONFIG AND SETUP IPC HANDLERS ---
+ipcMain.handle('dialog:showOpenDialog', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Select Database Folder'
+    });
+    return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('app:get-db-path', () => {
+    // Return the directory where local.db is (or will be) stored
+    return path.dirname(getDatabasePath());
+});
+
+ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'casper-config.json');
+
+        fs.writeFileSync(configPath, JSON.stringify({ dbPath: newDbFolder }, null, 2), 'utf8');
+        log(`Saved new config path: ${newDbFolder}. Restarting...`);
+
+        // Relaunch the application and exit
+        app.relaunch();
+        app.quit();
+        return true;
+    } catch (err) {
+        log(`Failed save-config-and-restart: ${err.message}`);
+        return false;
+    }
+});
 
 app.whenReady().then(createWindow);

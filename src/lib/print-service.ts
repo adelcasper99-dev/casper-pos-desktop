@@ -34,6 +34,12 @@ declare global {
         zoomOut: () => void;
         zoomReset: () => void;
       };
+      /** Database Configuration API */
+      config?: {
+        showOpenDialog: () => Promise<string | null>;
+        getDbPath: () => Promise<string>;
+        saveConfigAndRestart: (path: string) => Promise<boolean>;
+      };
     };
   }
 }
@@ -327,12 +333,16 @@ class PrintService {
     // 1. Electron (best path — zero dependencies, truly silent)
     if (electronChannel.isAvailable()) {
       try {
-        await electronChannel.print(html, printerName, {
-          paperWidth: 80000,   // 80mm wide in microns
-          paperHeight: 2970000 // large max height so receipt isn't clipped
-        });
-        console.log(`✓ [Electron] Printed to "${printerName}"`);
-        return true;
+        if (!window.electronAPI?.print) {
+          console.warn('[PrintService] electronAPI.print is MISSING from bridge');
+        } else {
+          await electronChannel.print(html, printerName, {
+            paperWidth: 80000,   // 80mm wide in microns
+            paperHeight: 2970000 // large max height so receipt isn't clipped
+          });
+          console.log(`✓ [Electron] Printed to "${printerName}"`);
+          return true;
+        }
       } catch (err) {
         console.warn('[PrintService] Electron silent print failed, trying Agent...', err);
       }
@@ -353,7 +363,7 @@ class PrintService {
     // 3. QZ Tray
     try {
       const service = await getQZService();
-      const isOnline = await service.isIdeallyConnected();
+      const isOnline = await service.healthCheck();
       if (isOnline) {
         await service.print({
           printer: printerName,

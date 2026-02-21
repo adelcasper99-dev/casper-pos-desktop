@@ -249,6 +249,7 @@ model Product {
   sellPrice3        Decimal            @default(0.00)
   stock             Int                @default(0)
   minStock          Int                @default(5)
+  trackStock        Boolean            @default(true)
   categoryId        String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -398,6 +399,8 @@ model Sale {
   warrantyDays       Int?
   warrantyExpiryDate DateTime?
   customerId         String?
+  tableId            String?
+  tableName          String?
   
   journalEntries     JournalEntry[]
   customer           Customer?      @relation(fields: [customerId], references: [id])
@@ -599,4 +602,24 @@ model BackupLog {
   createdBy    String?
   createdAt    DateTime @default(now())
   driveFileId  String?
+}
+
+model Floor {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  tables    Table[]
+}
+
+model Table {
+  id        String   @id @default(uuid())
+  name      String
+  floorId   String
+  status    String   @default("AVAILABLE") // AVAILABLE, OCCUPIED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
 }

@@ -36,6 +36,11 @@ export function secureAction<T, A extends any[]>(
             // 1. Auth Check
             const session = await getSession();
             if (!session?.user) {
+                console.error("[SecureAction ERROR] Session or user missing:", {
+                    action: action.name,
+                    hasSession: !!session,
+                    hasUser: !!session?.user
+                });
                 const { getTranslations } = await import('@/lib/i18n-mock');
                 const t = await getTranslations('Auth');
                 throw new AppError(ErrorCodes.UNAUTHORIZED, t('error') || "Unauthorized");

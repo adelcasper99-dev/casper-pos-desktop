@@ -212,6 +212,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
         const newProduct = await tx.product.create({
             data: {
                 ...productData,
+                trackStock: validated.trackStock ?? true,
                 ...(categoryId ? { category: { connect: { id: categoryId } } } : {})
             } as any
         });
@@ -290,6 +291,7 @@ export const updateProduct = secureAction(async (id: string, data: z.infer<typeo
         where: { id },
         data: {
             ...validated,
+            trackStock: validated.trackStock,
             // Handle potential undefineds if generic schema allows optional
         }
     });

@@ -355,7 +355,7 @@ export default function PurchasesTab({
                     </h2>
                     <p className="text-muted-foreground text-sm">{t('subtitle')}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 ml-24">
                     <button
                         onClick={() => setShowBulkUpload(true)}
                         className="bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
