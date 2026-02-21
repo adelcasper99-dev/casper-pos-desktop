@@ -313,8 +313,8 @@ export const partialRefundSale = secureAction(async (data: {
             if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
 
             // V-07 fix: Check against available quantity (original - already refunded)
-            const alreadyRefunded = originalItem.refundedQty || 0;
-            const availableQty = originalItem.quantity - alreadyRefunded;
+            const alreadyRefunded = (originalItem as any).refundedQty || 0;
+            const availableQty = (originalItem as any).quantity - alreadyRefunded;
 
             if (refundItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
             if (refundItem.quantity > availableQty) {
@@ -376,15 +376,15 @@ export const partialRefundSale = secureAction(async (data: {
         // 6b. V-07: Update SaleItem refundedQty — do NOT delete or decrement original quantity
         for (const { item, refundQty } of processedItems) {
             await tx.saleItem.update({
-                where: { id: item.id },
-                data: { refundedQty: { increment: refundQty } }
+                where: { id: (item as any).id },
+                data: { refundedQty: { increment: refundQty } } as any
             });
         }
 
         // 6c. Recalculate sale totals based on (original quantity - total refunded)
         const allItemsAfter = await tx.saleItem.findMany({ where: { saleId } });
         const newSubTotal = allItemsAfter.reduce(
-            (sum, i) => sum + Number(i.unitPrice) * (i.quantity - (i.refundedQty || 0)),
+            (sum, i) => sum + Number(i.unitPrice) * (i.quantity - ((i as any).refundedQty || 0)),
             0
         );
         // Keep the same tax rate
@@ -395,7 +395,7 @@ export const partialRefundSale = secureAction(async (data: {
         const newTotal = newSubTotal + taxAmount;
 
         // 7. Determine status based on cumulative refunds
-        const allReturned = allItemsAfter.every(i => i.refundedQty === i.quantity);
+        const allReturned = allItemsAfter.every(i => (i as any).refundedQty === i.quantity);
 
         await tx.sale.update({
             where: { id: saleId },
@@ -407,6 +407,23 @@ export const partialRefundSale = secureAction(async (data: {
                 refundReason: reason || 'مرتجع جزئي'
             } as any
         });
+
+        // 7.5 Record Accounting Journal Entry for the Refund
+        const isDeferred = sale.paymentMethod === 'DEFERRED' || sale.paymentMethod === 'ACCOUNT';
+        await AccountingEngine.recordTransaction({
+            description: `Partial Refund: Sale #${saleId.split('-')[0]}`,
+            reference: saleId,
+            saleId: saleId,
+            lines: [
+                { accountCode: '4000', debit: Number(refundTotal), credit: 0, description: 'Sales Revenue Reversed (Partial)' },
+                {
+                    accountCode: isDeferred ? '1200' : '1000',
+                    debit: 0,
+                    credit: Number(refundTotal),
+                    description: isDeferred ? 'AR Reduced' : 'Cash Refunded'
+                }
+            ]
+        }, tx);
 
         // 8. Audit log
         await tx.auditLog.create({
@@ -430,7 +447,7 @@ export const partialRefundSale = secureAction(async (data: {
             updatedItems: allItemsAfter.map(i => ({
                 id: i.id,
                 quantity: i.quantity,
-                refundedQty: i.refundedQty,
+                refundedQty: (i as any).refundedQty,
                 unitPrice: Number(i.unitPrice),
             }))
         };

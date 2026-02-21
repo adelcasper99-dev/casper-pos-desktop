@@ -19,13 +19,13 @@ export async function initDatabase(): Promise<void> {
     initialized = true;
 
     try {
-        // ── WAL mode (prevents SQLITE_BUSY under concurrent writes) ──────────
-        await prisma.$executeRawUnsafe('PRAGMA journal_mode=WAL;');
+        // ── WAL mode (returns 'wal' string, so use $queryRaw to avoid 'Execute returned results' error) ────
+        await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;');
 
-        // ── Foreign key enforcement (off by default in SQLite) ────────────────
+        // ── Foreign key enforcement (doesn't return data) ────────────────
         await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
 
-        // ── Synchronous: NORMAL (fast + safe; FULL = fsync every write = slow) ─
+        // ── Synchronous: NORMAL (doesn't return data) ─
         await prisma.$executeRawUnsafe('PRAGMA synchronous=NORMAL;');
 
         console.log('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');

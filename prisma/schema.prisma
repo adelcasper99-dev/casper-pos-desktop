@@ -4,8 +4,9 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./local.db"
+  url      = env("DATABASE_URL")
 }
+
 
 // System Config
 model SystemConfig {
@@ -179,6 +180,8 @@ model SupplierPayment {
   paymentDate DateTime @default(now())
   method      String   @default("CASH")
   supplier    Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
 }
 
 model Account {
@@ -430,6 +433,8 @@ model SaleItem {
   unitCost     Decimal @default(0.00)
   product      Product @relation(fields: [productId], references: [id])
   sale         Sale    @relation(fields: [saleId], references: [id])
+
+  @@index([saleId])
 }
 
 model Shift {

@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
-    // distDir: "dist", // REMOVED to avoid conflict with electron-builder and simplify standalone path
+    productionBrowserSourceMaps: false,
+    compress: true,
     images: {
         unoptimized: true,
     },

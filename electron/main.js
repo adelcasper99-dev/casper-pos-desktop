@@ -1,258 +1,239 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
-const { spawn } = require('child_process');
+const { execSync, spawn } = require('child_process');
 
-/**
- * Gap 4 (§2.1): Find a free OS port so the Next.js server doesn't bind
- * to a predictable port (3000) reachable by other local processes.
- */
-function findFreePort() {
-    return new Promise((resolve, reject) => {
-        const srv = net.createServer();
-        srv.listen(0, '127.0.0.1', () => {
-            const port = srv.address().port;
-            srv.close(() => resolve(port));
-        });
-        srv.on('error', reject);
-    });
+const debugLog = path.join(os.homedir(), 'casper-boot.log');
+const log = (msg) => {
+    fs.appendFileSync(debugLog, `[${new Date().toISOString()}] [PROCESS ${process.pid}] ${msg}\n`);
+};
+
+log(`--- ENTRY: ${JSON.stringify(process.argv)} ---`);
+
+if (!app.requestSingleInstanceLock()) {
+    log('Process: Not original instance. Quitting...');
+    app.quit();
 }
 
-let mainWindow = null;
-let nextServer;
-let appPort = 3000; // default for dev; overridden at startup in packaged mode
-
-const startServer = async () => {
-    if (app.isPackaged) {
-        const port = await findFreePort();
-        appPort = port;
-        const serverPath = path.join(process.resourcesPath, '.next/standalone/server.js');
-        const cwd = path.join(process.resourcesPath, '.next/standalone');
-
-        console.log(`Starting server from: ${serverPath} on port ${port}`);
-
-        nextServer = spawn(process.execPath, [serverPath], {
-            cwd,
-            // Bind to 127.0.0.1 only (loopback) + ephemeral port so no other
-            // local process can connect via a predictable address.
-            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: String(port), HOST: '127.0.0.1' },
-            stdio: 'inherit'
-        });
-
-        nextServer.on('error', (err) => {
-            console.error('Failed to start server:', err);
-        });
+app.on('second-instance', () => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
     }
+});
+
+const getDatabasePath = () => {
+    const userDataPath = app.getPath('userData');
+    if (!fs.existsSync(userDataPath)) {
+        fs.mkdirSync(userDataPath, { recursive: true });
+    }
+    return path.join(userDataPath, 'local.db');
+};
+
+const runMigrations = (dbPath) => {
+    if (!app.isPackaged) return;
+    log('Migrations: Starting...');
+
+    const normalizedDbPath = dbPath.replace(/\\/g, '/');
+    const dbUrl = `file:${normalizedDbPath}`;
+
+    const enginesPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@prisma', 'engines');
+    const queryEnginePath = path.join(enginesPath, 'query_engine-windows.dll.node');
+    const schemaEnginePath = path.join(enginesPath, 'schema-engine-windows.exe');
+
+    const prismaJs = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'prisma', 'build', 'index.js');
+    const schemaPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'prisma', 'schema.prisma');
+
+    if (!fs.existsSync(prismaJs)) {
+        log(`Migrations: FATAL - Prisma CLI not found at ${prismaJs}`);
+        return;
+    }
+
+    const env = {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        DATABASE_URL: dbUrl,
+        PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath,
+        PRISMA_SCHEMA_ENGINE_BINARY: schemaEnginePath,
+        PRISMA_CLI_QUERY_ENGINE_TYPE: 'library'
+    };
+
+    const attemptMigration = (attempt) => {
+        try {
+            log(`Migrations: Running deploy (attempt ${attempt}) on ${dbUrl}...`);
+            const output = execSync(`"${process.execPath}" "${prismaJs}" migrate deploy --schema "${schemaPath}"`, {
+                env, windowsHide: true, encoding: 'utf-8'
+            });
+            log(`Migrations Output: ${output}`);
+            log('Migrations: Success.');
+            return true;
+        } catch (err) {
+            log(`Migrations: Deploy failed: ${err.message}`);
+
+            // Fallback: try db push
+            try {
+                log('Migrations: Trying db push as fallback...');
+                const output = execSync(`"${process.execPath}" "${prismaJs}" db push --schema "${schemaPath}" --accept-data-loss`, {
+                    env, windowsHide: true, encoding: 'utf-8'
+                });
+                log(`Migrations Push Output: ${output}`);
+                log('Migrations: Database synced via push.');
+                return true;
+            } catch (pushErr) {
+                log(`Migrations: db push also failed: ${pushErr.message}`);
+                return false;
+            }
+        }
+    };
+
+    // First attempt
+    const firstAttempt = attemptMigration(1);
+
+    if (!firstAttempt) {
+        // Auto-recovery: the DB is likely corrupt/empty from a previous failed boot.
+        // Delete it and retry from scratch so the user doesn't need to manually intervene.
+        log('Migrations: AUTO-RECOVERY — deleting corrupt/empty database and retrying...');
+        try {
+            if (fs.existsSync(dbPath)) {
+                fs.unlinkSync(dbPath);
+                log(`Migrations: Deleted corrupt database at ${dbPath}`);
+            }
+            // Also remove WAL and SHM sidecar files if present
+            [`${dbPath}-wal`, `${dbPath}-shm`].forEach(f => {
+                if (fs.existsSync(f)) { fs.unlinkSync(f); log(`Migrations: Deleted ${f}`); }
+            });
+            attemptMigration(2);
+        } catch (recoveryErr) {
+            log(`Migrations: FATAL - Auto-recovery failed: ${recoveryErr.message}`);
+        }
+    }
+};
+
+let mainWindow = null;
+let splashWindow = null;
+let nextServer;
+let appPort = 3000;
+
+const findFreePort = () => {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+        server.listen(0, '127.0.0.1', () => {
+            const port = server.address().port;
+            server.close(() => resolve(port));
+        });
+    });
+};
+
+const startServer = () => {
+    return new Promise(async (resolve, reject) => {
+        const dbPath = getDatabasePath();
+
+        if (app.isPackaged) {
+            runMigrations(dbPath);
+            appPort = await findFreePort();
+
+            const cwd = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone');
+            const serverPath = path.join(cwd, 'server.js');
+
+            if (!fs.existsSync(serverPath)) {
+                return reject(new Error(`Next.js server.js not found! Ensure '.next/standalone' is in asarUnpack.\nPath checked: ${serverPath}`));
+            }
+
+            log(`Server: Starting on port ${appPort} inside ${cwd}...`);
+            const enginesPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@prisma', 'engines');
+            const queryEnginePath = path.join(enginesPath, 'query_engine-windows.dll.node');
+            const normalizedDbPath = dbPath.replace(/\\/g, '/');
+
+            nextServer = spawn(process.execPath, [serverPath], {
+                cwd,
+                env: {
+                    ...process.env,
+                    ELECTRON_RUN_AS_NODE: '1',
+                    PORT: String(appPort),
+                    HOST: '127.0.0.1',
+                    DATABASE_URL: `file:${normalizedDbPath}`,
+                    PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath
+                }
+            });
+
+            let isReady = false;
+
+            nextServer.stdout.on('data', (data) => log(`SERVER STDOUT: ${data.toString().trim()}`));
+            nextServer.stderr.on('data', (data) => log(`SERVER STDERR: ${data.toString().trim()}`));
+            nextServer.on('error', (err) => reject(new Error(`Spawn Error: ${err.message}`)));
+            nextServer.on('exit', (code) => {
+                if (!isReady) reject(new Error(`Server crashed immediately with exit code ${code}. Check casper-boot.log.`));
+            });
+
+            // Actively poll the port until Next.js is ready
+            const poll = setInterval(() => {
+                const socket = new net.Socket();
+                socket.on('connect', () => {
+                    isReady = true;
+                    clearInterval(poll);
+                    socket.destroy();
+                    resolve();
+                }).on('error', () => {
+                    socket.destroy();
+                }).connect(appPort, '127.0.0.1');
+            }, 500);
+
+        } else {
+            resolve();
+        }
+    });
+};
+
+const createSplashWindow = () => {
+    splashWindow = new BrowserWindow({
+        width: 400, height: 400, transparent: true, frame: false, alwaysOnTop: true,
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+    splashWindow.loadFile(path.join(__dirname, 'splash.html'));
 };
 
 const createWindow = async () => {
-    // Resolve icon: packaged → resources dir, dev → public/assets
-    const iconPath = app.isPackaged
-        ? path.join(process.resourcesPath, 'public', 'assets', 'icon.png')
-        : path.join(__dirname, '..', 'public', 'assets', 'icon.png');
+    createSplashWindow();
 
+    const iconPath = path.join(__dirname, '..', 'public', 'assets', 'icon.png');
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        icon: iconPath,
-        // ── Frameless / borderless window ──────────────────────────────────
-        frame: false,           // Remove native OS title bar & borders
-        titleBarStyle: 'hidden', // Belt-and-suspenders on macOS
-        show: false,            // Reveal only after maximize to avoid flash
-        // ───────────────────────────────────────────────────────────────────
+        width: 1200, height: 800, icon: iconPath, frame: false, titleBarStyle: 'hidden', show: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
-            webSecurity: true, // §2.1: enforce same-origin policy
-        },
+            nodeIntegration: false, contextIsolation: true
+        }
     });
 
-    // Launch maximized, then reveal – avoids the "windowed then maximized" flash
-    mainWindow.once('ready-to-show', () => {
+    try {
+        await startServer(); // Wait explicitly for the server to be completely healthy
+
+        const url = app.isPackaged ? `http://127.0.0.1:${appPort}` : 'http://localhost:3000';
+        log(`Loading main UI from: ${url}`);
+        await mainWindow.loadURL(url);
+
+        if (splashWindow) splashWindow.close();
         mainWindow.maximize();
         mainWindow.show();
-    });
-
-    // Forward maximize / restore events to renderer so the icon stays in sync
-    mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximized', true));
-    mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximized', false));
-
-    if (app.isPackaged) {
-        await startServer(); // sets appPort to the ephemeral port
-
-        const loadURL = async () => {
-            try {
-                await mainWindow.loadURL(`http://127.0.0.1:${appPort}`);
-            } catch (e) {
-                console.log('Server not ready, retrying...');
-                setTimeout(loadURL, 1000);
-            }
-        };
-        loadURL();
-    } else {
-        mainWindow.loadURL('http://localhost:3000');
-        if (process.env.ENABLE_DEVTOOLS === 'true') {
-            mainWindow.webContents.openDevTools();
-        }
+    } catch (error) {
+        log(`FATAL BOOT ERROR: ${error.message}`);
+        dialog.showErrorBox("Startup Error", `Failed to start the background server.\n\n${error.message}\n\nPlease check casper-boot.log in your user folder.`);
+        app.quit();
     }
 };
 
-// ============================================================================
-// IPC: Custom Window Controls
-// ============================================================================
-ipcMain.on('window:minimize', () => {
-    if (mainWindow) mainWindow.minimize();
-});
-
-ipcMain.on('window:maximize', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
-    } else {
-        mainWindow.maximize();
-    }
-});
-
-ipcMain.on('window:close', () => {
-    if (mainWindow) mainWindow.close();
-});
-
-ipcMain.handle('window:isMaximized', () => {
-    return mainWindow ? mainWindow.isMaximized() : false;
-});
-
-// ── Zoom Controls handlers ──────────────────────────────────────
-ipcMain.on('window:zoomIn', () => {
-    if (!mainWindow) return;
-    const currentZoom = mainWindow.webContents.getZoomFactor();
-    const newZoom = Math.min(currentZoom + 0.1, 3.0);
-    console.log(`[IPC] Zoom In: ${currentZoom} -> ${newZoom}`);
-    mainWindow.webContents.setZoomFactor(newZoom);
-});
-
-ipcMain.on('window:zoomOut', () => {
-    if (!mainWindow) return;
-    const currentZoom = mainWindow.webContents.getZoomFactor();
-    const newZoom = Math.max(currentZoom - 0.1, 0.5);
-    console.log(`[IPC] Zoom Out: ${currentZoom} -> ${newZoom}`);
-    mainWindow.webContents.setZoomFactor(newZoom);
-});
-
-ipcMain.on('window:zoomReset', () => {
-    if (!mainWindow) return;
-    console.log(`[IPC] Zoom Reset`);
-    mainWindow.webContents.setZoomFactor(1.0);
-});
-// ───────────────────────────────────────────────────────────────
-
-// ============================================================================
-// IPC: List all installed printers
-// ============================================================================
-ipcMain.handle('printers:list', async () => {
-    try {
-        const printers = await mainWindow.webContents.getPrintersAsync();
-        return printers.map(p => ({
-            name: p.name,
-            isDefault: p.isDefault,
-            status: p.status,
-        }));
-    } catch (err) {
-        console.error('[PRINT] Failed to list printers:', err);
-        return [];
-    }
-});
-
-// ============================================================================
-// IPC: Silent print HTML to a named printer
-// Writes HTML to a temp file (avoids data: URL length limit for large receipts)
-// Uses 80mm paper size (width: 80mm in microns) with no margins for thermal receipts
-// Falls back to A4 if paperSize override is provided by the caller
-// ============================================================================
-ipcMain.handle('print:html', async (_event, html, printerName, options = {}) => {
-    return new Promise((resolve, reject) => {
-        // 1. Write HTML to a temp file so we can load it as file:// (no URL length limit)
-        const tmpFile = path.join(os.tmpdir(), `casper-print-${Date.now()}.html`);
-        try {
-            fs.writeFileSync(tmpFile, html, 'utf-8');
-        } catch (writeErr) {
-            return reject(new Error(`Failed to write temp print file: ${writeErr.message}`));
-        }
-
-        // 2. Create an invisible off-screen window
-        const printWin = new BrowserWindow({
-            show: false,
-            width: 800,
-            height: 600,
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-            },
-        });
-
-        const cleanup = () => {
-            try {
-                if (!printWin.isDestroyed()) printWin.close();
-            } catch (_) { /* ignore */ }
-            try {
-                fs.unlinkSync(tmpFile);
-            } catch (_) { /* ignore */ }
-        };
-
-        // 3. Load temp file
-        printWin.loadURL(`file://${tmpFile}`);
-
-        // 4. Wait for full load + 250ms CSS/font settle, then print
-        printWin.webContents.once('did-finish-load', () => {
-            setTimeout(() => {
-                // Paper size: 80mm wide × 297mm tall (in microns: 1mm = 1000µm)
-                // Adjust height to a large value so content is not clipped
-                const paperWidth = options.paperWidth || 80000;   // µm (80mm)
-                const paperHeight = options.paperHeight || 2970000; // µm (297mm tall max)
-
-                const printOptions = {
-                    silent: true,
-                    printBackground: true,
-                    deviceName: printerName || '',   // '' = system default printer
-                    pageSize: { width: paperWidth, height: paperHeight },
-                    margins: { marginType: 'none' },
-                    scaleFactor: 100,
-                };
-
-                console.log(`[PRINT] Sending to: "${printerName || 'default'}" (${paperWidth / 1000}mm wide)`);
-
-                printWin.webContents.print(printOptions, (success, failureReason) => {
-                    cleanup();
-                    if (success) {
-                        console.log(`[PRINT] ✓ Success → ${printerName}`);
-                        resolve({ success: true });
-                    } else {
-                        console.error(`[PRINT] ✗ Failed: ${failureReason}`);
-                        reject(new Error(failureReason || 'Print failed'));
-                    }
-                });
-            }, 250);
-        });
-
-        // Handle load errors (e.g., temp file missing)
-        printWin.webContents.once('did-fail-load', (_e, code, desc) => {
-            cleanup();
-            reject(new Error(`Print window failed to load: ${desc} (${code})`));
-        });
-    });
-});
-
-app.on('ready', createWindow);
-
 app.on('window-all-closed', () => {
     if (nextServer) nextServer.kill();
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    if (process.platform !== 'darwin') app.quit();
 });
-
-app.on('before-quit', () => {
+app.on('will-quit', () => {
     if (nextServer) nextServer.kill();
 });
+
+ipcMain.on('window:minimize', () => mainWindow?.minimize());
+ipcMain.on('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
+ipcMain.on('window:close', () => mainWindow?.close());
+ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() || false);
+
+app.whenReady().then(createWindow);

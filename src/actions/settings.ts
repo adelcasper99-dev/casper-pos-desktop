@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { secureAction } from "@/lib/safe-action";
 
@@ -74,11 +75,40 @@ export const updateStoreSettings = secureAction(async (data: any) => {
 
     await prisma.storeSettings.upsert({
         where: { id: "settings" },
-        update: validated,
+        update: {
+            name: validated.name ?? undefined,
+            phone: validated.phone ?? undefined,
+            address: validated.address ?? undefined,
+            taxRate: validated.taxRate !== undefined ? new Prisma.Decimal(validated.taxRate) : undefined,
+            currency: validated.currency ?? undefined,
+            vatNumber: validated.vatNumber ?? undefined,
+            receiptFooter: validated.receiptFooter ?? undefined,
+            logoUrl: validated.logoUrl ?? undefined,
+            autoPrint: validated.autoPrint ?? undefined,
+            paperSize: validated.paperSize ?? undefined,
+            features: validated.features ?? undefined,
+            labelTemplate: validated.labelTemplate ?? undefined,
+            locationLat: validated.locationLat ?? undefined,
+            locationLng: validated.locationLng ?? undefined,
+            locationRadius: validated.locationRadius ?? undefined,
+        },
         create: {
             id: "settings",
-            // @ts-ignore - TS might complain about optional mismatch but Zod ensures types
-            ...validated
+            name: validated.name || "Casper Store",
+            phone: validated.phone || null,
+            address: validated.address || null,
+            taxRate: new Prisma.Decimal(validated.taxRate || 0),
+            currency: validated.currency || "SAR",
+            vatNumber: validated.vatNumber || null,
+            receiptFooter: validated.receiptFooter || "Thank you for shopping with us!",
+            logoUrl: validated.logoUrl || null,
+            autoPrint: validated.autoPrint || false,
+            paperSize: validated.paperSize || "80mm",
+            features: validated.features || "{}",
+            labelTemplate: validated.labelTemplate || null,
+            locationLat: validated.locationLat || 24.7136,
+            locationLng: validated.locationLng || 46.6753,
+            locationRadius: validated.locationRadius || 500,
         }
     });
 

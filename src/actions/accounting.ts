@@ -81,23 +81,19 @@ export const createExpense = secureAction(async (data: {
             });
         }
 
-        return expense;
-    });
-
-    // 4. Create journal entry (non-blocking)
-    try {
+        // 4. Create journal entry (inside transaction)
         await AccountingEngine.recordTransaction({
             description: `Expense: ${data.description}`,
-            reference: result.id,
-            expenseId: result.id,
+            reference: expense.id,
+            expenseId: expense.id,
             lines: [
                 { accountCode: '5200', debit: data.amount, credit: 0, description: data.category },
                 { accountCode: '1000', debit: 0, credit: data.amount, description: 'Cash Paid' }
             ]
-        });
-    } catch (accError) {
-        console.error("Accounting sync error:", accError);
-    }
+        }, tx);
+
+        return expense;
+    });
 
     revalidatePath('/accounting', 'page');
     revalidatePath('/pos', 'page');
