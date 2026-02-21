@@ -1,5 +1,11 @@
 "use server";
 
+/**
+ * AUDIT TRAIL POLICY: This file performs sensitive financial/inventory operations.
+ * All mutations MUST be accompanied by an AuditLog entry.
+ * AuditLog is APPEND-ONLY and must not be deleted or modified.
+ */
+
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache"
@@ -111,7 +117,7 @@ export const openShift = secureAction(async (data: {
         shift: shift,
         message: `Shift opened successfully with $${data.startCash} starting cash`
     });
-}, { permission: "SHIFT_MANAGE", requireCSRF: false });
+}, { permission: "SHIFT_MANAGE", requireCSRF: true });
 
 /**
  * Close an existing shift
@@ -163,8 +169,16 @@ export const closeShift = secureAction(async (data: {
         if (sale.payments.length > 1) splitPaymentCount++;
     }
 
-    // Calculate total expenses
-    const totalExpenses = shift.expenses.reduce(
+    // ✅ BL-03 fix: Only count CASH expenses for cash drawer variance
+    // Non-cash expenses (Bank/Visa) shouldn't affect the physical cash drawer
+    const totalCashExpenses = shift.expenses
+        .filter(exp => (exp.paymentMethod || 'CASH').toUpperCase() === 'CASH')
+        .reduce(
+            (sum, exp) => sum.add(new Decimal(exp.amount)),
+            new Decimal(0)
+        );
+
+    const totalAllExpenses = shift.expenses.reduce(
         (sum, exp) => sum.add(new Decimal(exp.amount)),
         new Decimal(0)
     );
@@ -172,7 +186,7 @@ export const closeShift = secureAction(async (data: {
     // Calculate expected cash: Start + Cash Sales - Cash Expenses
     const expectedCash = shift.startCash
         .add(totalCashSales)
-        .minus(totalExpenses);
+        .minus(totalCashExpenses);
 
     const actualCashDecimal = new Decimal(data.actualCash);
     const cashVariance = actualCashDecimal.minus(expectedCash);
@@ -253,7 +267,7 @@ export const closeShift = secureAction(async (data: {
             totalWalletSales,
             totalInstapay,
             totalSplitPayments: splitPaymentCount,
-            totalExpenses,
+            totalExpenses: totalAllExpenses,
             totalSales: finalSalesCount,      // ✅ Verified
             totalTickets: finalTicketsCount,  // ✅ Verified
             hasAdjustments: hasDiscrepancy,   // ✅ Flag if corrected
@@ -299,7 +313,7 @@ export const closeShift = secureAction(async (data: {
                 ? "Shift closed successfully - Perfect balance!"
                 : `Shift closed with ${cashVariance.greaterThan(0) ? 'overage' : 'shortage'} of $${Math.abs(cashVariance.toNumber())}`
     });
-}, { permission: "SHIFT_MANAGE", requireCSRF: false });
+}, { permission: "SHIFT_MANAGE", requireCSRF: true });
 
 /**
  * Internal function to get current shift - for use within other server actions
@@ -508,21 +522,10 @@ export const forceCloseShift = secureAction(async (data: {
         throw new Error(t('notFound'));
     }
 
-    // Calculate best-effort totals
-    let totalCashSales = new Decimal(0);
-    let totalExpenses = new Decimal(0);
-
-    for (const sale of shift.sales) {
-        for (const payment of sale.payments) {
-            if (payment.method.toUpperCase() === "CASH") {
-                totalCashSales = totalCashSales.add(new Decimal(payment.amount));
-            }
-        }
-    }
-
-    for (const expense of shift.expenses) {
-        totalExpenses = totalExpenses.add(new Decimal(expense.amount));
-    }
+    // ✅ BL-04 fix: Use ATOMIC aggregated totals already in the Shift record
+    // recalculating from sales/expenses causes data loss if records are soft-deleted or shifted.
+    const totalCashSales = shift.totalCashSales;
+    const totalExpenses = shift.totalExpenses;
 
     const estimatedCash = shift.startCash.add(totalCashSales).minus(totalExpenses);
 
@@ -620,6 +623,15 @@ export const handoffShift = secureAction(async (data: {
         throw new Error(t('handoffActiveOnly'));
     }
 
+    // ✅ BL-05 fix: Only the current owner or an ADMIN can hand off
+    const currentUser = await getCurrentUser();
+    const isOwner = shift.userId === currentUser?.id;
+    const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.permissions?.includes('*');
+
+    if (!isOwner && !isAdmin) {
+        throw new Error(t('forbidden'));
+    }
+
     const newUser = await prisma.user.findUnique({ where: { id: data.newUserId } });
 
     if (!newUser) {
@@ -644,7 +656,7 @@ export const handoffShift = secureAction(async (data: {
         shift: updatedShift,
         message: `Shift handed off to ${newUser.name || newUser.username}`
     });
-}, { permission: "SHIFT_HANDOFF", requireCSRF: false });
+}, { permission: "SHIFT_HANDOFF", requireCSRF: true });
 
 /**
  * Create adjustment entry for closed shift

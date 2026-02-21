@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <defs>
+    <linearGradient id="ghostBody" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%" stop-color="#aaeeff"/>
+      <stop offset="50%" stop-color="#66ccff"/>
+      <stop offset="100%" stop-color="#3399ee"/>
+    </linearGradient>
+    <linearGradient id="ringGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00cfff"/>
+      <stop offset="100%" stop-color="#a020f0"/>
+    </linearGradient>
+    <linearGradient id="ringGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00cfff"/>
+      <stop offset="100%" stop-color="#a020f0"/>
+    </linearGradient>
+    <linearGradient id="ringGrad3" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#00cfff"/>
+      <stop offset="100%" stop-color="#a020f0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- === ICON (left side, centered vertically) === -->
+  <g transform="translate(20, 0)">
+    <!-- Orbit rings -->
+    <g filter="url(#glow)">
+      <ellipse cx="145" cy="185" rx="100" ry="36"
+        fill="none" stroke="url(#ringGrad1)" stroke-width="5"
+        transform="rotate(-30 145 185)" opacity="0.95"/>
+      <ellipse cx="145" cy="185" rx="100" ry="36"
+        fill="none" stroke="url(#ringGrad2)" stroke-width="5"
+        transform="rotate(30 145 185)" opacity="0.95"/>
+      <ellipse cx="145" cy="185" rx="36" ry="98"
+        fill="none" stroke="url(#ringGrad3)" stroke-width="5"
+        opacity="0.90"/>
+    </g>
+    <!-- Center dot -->
+    <circle cx="145" cy="185" r="5" fill="#b060ff" filter="url(#glow)"/>
+
+    <!-- Ghost -->
+    <g filter="url(#softGlow)">
+      <path d="
+        M 145 60
+        C 105 60 88 88 88 118
+        C 88 145 88 155 88 165
+        Q 88 180 97 180
+        Q 106 180 111 170
+        Q 116 160 123 170
+        Q 130 180 145 180
+        Q 160 180 167 170
+        Q 174 160 179 170
+        Q 184 180 193 180
+        Q 202 180 202 165
+        L 202 118
+        C 202 88 185 60 145 60 Z
+      " fill="url(#ghostBody)" opacity="0.95"/>
+    </g>
+    <!-- Highlight -->
+    <ellipse cx="133" cy="90" rx="14" ry="18" fill="white" opacity="0.18" transform="rotate(-10 133 90)"/>
+    <!-- Eyes -->
+    <ellipse cx="131" cy="110" rx="10" ry="12" fill="#0a0a18" opacity="0.9"/>
+    <ellipse cx="159" cy="110" rx="10" ry="12" fill="#0a0a18" opacity="0.9"/>
+    <ellipse cx="134" cy="106" rx="3" ry="4" fill="white" opacity="0.8"/>
+    <ellipse cx="162" cy="106" rx="3" ry="4" fill="white" opacity="0.8"/>
+  </g>
+
+  <!-- Divider line -->
+  <line x1="320" y1="60" x2="320" y2="240" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+
+  <!-- === TEXT (right side) === -->
+  <!-- CASPER -->
+  <text x="350" y="175"
+    font-family="'Segoe UI', Arial, sans-serif"
+    font-size="110"
+    font-weight="900"
+    letter-spacing="-2"
+    fill="white">CASPER</text>
+
+  <!-- ERP subtitle -->
+  <text x="354" y="218"
+    font-family="'Segoe UI', Arial, sans-serif"
+    font-size="42"
+    font-weight="400"
+    letter-spacing="14"
+    fill="rgba(255,255,255,0.55)">ERP</text>
+
+  <!-- Separator line under CASPER -->
+  <line x1="350" y1="188" x2="870" y2="188" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+</svg>

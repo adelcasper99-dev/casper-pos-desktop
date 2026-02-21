@@ -1,5 +1,11 @@
 "use server";
 
+/**
+ * AUDIT TRAIL POLICY: This file performs sensitive financial/inventory operations.
+ * All mutations MUST be accompanied by an AuditLog entry.
+ * AuditLog is APPEND-ONLY and must not be deleted or modified.
+ */
+
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
@@ -7,6 +13,7 @@ import { z } from 'zod';
 import { Decimal } from "@prisma/client/runtime/library";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { secureAction } from "@/lib/safe-action";
+import { decrementWarehouseStock } from "@/lib/stock-helpers"; // BL-06/BL-07 fix
 
 import { saleSchema } from "@/lib/validation/pos";
 import { logger } from "@/lib/logger";
@@ -182,30 +189,10 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 });
 
             } else {
-                // SAFE MODE: Atomic Check
-                const globalResult = await tx.product.updateMany({
-                    where: { id: item.id, stock: { gte: item.quantity } },
-                    data: { stock: { decrement: item.quantity } }
-                });
-
-                if (globalResult.count === 0) {
-                    const product = await tx.product.findUnique({ where: { id: item.id } });
-                    const { getTranslations } = await import('@/lib/i18n-mock');
-                    const t = await getTranslations('SystemMessages.Errors');
-                    throw new Error(t('insufficientStockGlobal', { item: product?.name || 'Item ' + item.id }));
-                }
-
-                const warehouseResult = await tx.stock.updateMany({
-                    where: { productId: item.id, warehouseId: mainWarehouseId, quantity: { gte: item.quantity } },
-                    data: { quantity: { decrement: item.quantity } }
-                });
-
-                if (warehouseResult.count === 0) {
-                    const product = await tx.product.findUnique({ where: { id: item.id } });
-                    const { getTranslations } = await import('@/lib/i18n-mock');
-                    const t = await getTranslations('SystemMessages.Errors');
-                    throw new Error(t('insufficientStockWarehouse', { item: product?.name || 'Item ' + item.id }));
-                }
+                // SAFE MODE: BL-06/BL-07 fix — use shared atomic helper.
+                // decrementWarehouseStock updates BOTH Product.stock AND Stock.quantity
+                // in a single guarded operation, preventing dual-state divergence.
+                await decrementWarehouseStock(tx, item.id, mainWarehouseId, item.quantity);
             }
         }
 
@@ -287,15 +274,18 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             }
         }
 
+        // BL-01 fix: Accounting is inside the transaction.
+        // If journal entry fails, the entire sale rolls back automatically.
+        await AccountingEngine.recordSale(
+            sale.id,
+            paymentsToProcess.map(p => ({ method: p.method, amount: Number(p.amount) })),
+            tx
+        );
+
         return sale;
     }, { timeout: 20000 });
 
-    // 4. Integrated Accounting (Async/Side-effect)
-    try {
-        await AccountingEngine.recordSale(result.id, Number(result.totalAmount), data.paymentMethod);
-    } catch (accError) {
-        console.error("Accounting Sync Error:", accError);
-    }
+    // BL-01: Accounting now runs inside the transaction above — removed from here.
 
     // 🆕 Update shift heartbeat to prevent orphan detection
     try {
@@ -317,6 +307,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
     revalidatePath("/", 'page');
     revalidatePath("/inventory", 'page');
     revalidatePath("/pos", 'page');
+    revalidatePath("/logs", 'page');
+    revalidatePath("/reports", 'page');
     revalidatePath("/accounting", 'page');
     revalidateTag("dashboard");
 

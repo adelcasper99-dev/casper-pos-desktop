@@ -2,7 +2,7 @@
 
 import { login } from "@/actions/auth";
 import { useState } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 
 export default function LoginPage() {
@@ -36,9 +36,12 @@ export default function LoginPage() {
             <div className="glass-card p-8 w-full max-w-md animate-fly-in">
                 <div className="text-center mb-8">
                     <div className="flex justify-center mb-4">
-                        <div className="w-20 h-20 bg-cyan-500 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                            <Lock className="w-10 h-10 text-white" />
-                        </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src="/assets/casper-icon.png"
+                            alt="Casper ERP"
+                            className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(0,207,255,0.45)]"
+                        />
                     </div>
                     <h1 className="text-2xl font-bold">{t('title')}</h1>
                     <p className="text-zinc-400 text-sm mt-2">{t('subtitle')}</p>

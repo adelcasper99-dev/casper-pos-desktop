@@ -3,14 +3,9 @@
 import { useState } from 'react';
 import {
     Search, Filter, Eye, RotateCcw,
-    User, CreditCard,
-    ChevronLeft, ChevronRight, FileText,
-    CheckCircle2, XCircle, AlertCircle,
-    ChevronDown, CalendarCheck2,
-    Calendar as CalendarIcon
+    FileText, AlertCircle,
+    ChevronDown, Package, Printer
 } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import {
     DropdownMenu, DropdownMenuContent,
     DropdownMenuItem, DropdownMenuLabel,
@@ -36,14 +31,18 @@ import {
     startOfMonth, endOfMonth, subDays
 } from 'date-fns';
 import { refundSale } from '@/actions/sales-actions';
-import { cn } from '@/lib/utils';
-import { DateRange } from "react-day-picker"
+import { cn, formatCurrency } from '@/lib/utils';
+import { DateRange } from "react-day-picker";
+import PartialRefundDialog from './PartialRefundDialog';
+import { getStoreSettings } from '@/actions/settings';
+import { printService } from '@/lib/print-service';
 
 interface SalesLogProps {
     initialSales: any[];
+    csrfToken?: string;
 }
 
-export default function SalesLog({ initialSales }: SalesLogProps) {
+export default function SalesLog({ initialSales, csrfToken }: SalesLogProps) {
     const [activeTab, setActiveTab] = useState("sales");
     const [sales, setSales] = useState(initialSales);
     const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +52,7 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [selectedSale, setSelectedSale] = useState<any>(null);
     const [loading, setLoading] = useState<string | null>(null);
+    const [partialRefundSale, setPartialRefundSale] = useState<any>(null);
 
     const filteredSales = sales.filter(sale => {
         const matchesSearch =
@@ -89,19 +89,127 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
 
         setLoading(saleId);
         try {
-            const res = await refundSale({ saleId, reason: reason || undefined });
+            const res = await refundSale({ saleId, reason: reason || undefined, csrfToken });
             if (res.success) {
                 toast.success("تم تنفيذ المرتجع بنجاح");
-                setSales(sales.map(s => s.id === saleId ? { ...s, status: 'REFUNDED' } : s));
+
+                // Find the original sale
+                const originalSale = sales.find(s => s.id === saleId);
+
+                // Build a new refund entry to show as a separate log entry
+                const refundEntry = originalSale ? {
+                    ...originalSale,
+                    id: `refund-${saleId}`,
+                    status: 'REFUNDED',
+                    totalAmount: -(res.refundedAmount ?? originalSale.totalAmount),
+                    taxAmount: -originalSale.taxAmount,
+                    subTotal: -originalSale.subTotal,
+                    createdAt: new Date().toISOString(),
+                    refundReason: reason || 'مرتجع',
+                    _isRefundEntry: true,
+                } : null;
+
+                setSales(prev => {
+                    const updated = prev.map(s => s.id === saleId ? { ...s, status: 'REFUNDED' } : s);
+                    return refundEntry ? [refundEntry, ...updated] : updated;
+                });
+
                 if (selectedSale?.id === saleId) setSelectedSale({ ...selectedSale, status: 'REFUNDED' });
             } else {
                 toast.error(res.error || "فشل تنفيذ المرتجع");
             }
+
         } catch (error) {
             toast.error("خطأ في الخادم");
         } finally {
             setLoading(null);
         }
+    };
+
+    const handlePartialRefundDone = (saleId: string, refundedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
+        const originalSale = sales.find(s => s.id === saleId);
+
+        // Build a refund entry for the log
+        const refundEntry = originalSale ? {
+            ...originalSale,
+            id: `refund-${Date.now()}-${saleId}`,
+            status: 'REFUNDED',
+            totalAmount: -refundedAmount,
+            createdAt: new Date().toISOString(),
+            _isRefundEntry: true,
+            _partialItems: returnedItems,
+        } : null;
+
+        setSales(prev => {
+            const updated = prev.map(s => {
+                if (s.id !== saleId) return s;
+
+                // Update original sale's total and merge item quantities from server
+                const updatedSaleItems = (s.items || [])
+                    .map((item: any) => {
+                        const serverItem = updatedItems.find((u: any) => u.id === item.id);
+                        if (!serverItem) return null; // fully returned — remove
+                        return { ...item, quantity: serverItem.quantity };
+                    })
+                    .filter(Boolean);
+
+                return {
+                    ...s,
+                    status: allReturned ? 'REFUNDED' : 'PARTIAL_REFUND',
+                    totalAmount: newTotal,
+                    items: updatedSaleItems,
+                };
+            });
+            return refundEntry ? [refundEntry, ...updated] : updated;
+        });
+
+        setPartialRefundSale(null);
+    };
+
+    const handlePrintInvoice = async (sale: any) => {
+        const settingsRes = await getStoreSettings();
+        const settings = settingsRes.success ? settingsRes.data : null;
+
+        const itemsHtml = (sale.items || []).map((item: any) => `
+            <div class="item">
+                <span>${item.product?.name || 'صنف'} x${item.quantity}</span>
+                <span>${(Number(item.unitPrice) * item.quantity).toFixed(2)}</span>
+            </div>
+        `).join('');
+
+        const html = `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+@page { margin: 0; }
+body { font-family: 'Courier New', monospace; width: 80mm; margin: 0 auto; padding: 5mm; direction: rtl; font-size: 12px; background: white; }
+.header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+.store-name { font-size: 16px; font-weight: 900; }
+.item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #ddd; }
+.total { font-weight: 900; font-size: 14px; display: flex; justify-content: space-between; border-top: 1px dashed #000; padding-top: 6px; margin-top: 6px; }
+.footer { text-align: center; font-size: 10px; color: #666; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="header">
+<div class="store-name">${settings?.name || 'CASPER ERP'}</div>
+  <div>${settings?.address || ''}</div>
+  <div>فاتورة #${sale.id.slice(0, 8).toUpperCase()}</div>
+  <div>${new Date(sale.createdAt).toLocaleString('ar-EG')}</div>
+  <div>العميل: ${sale.customerName || 'نقدي'}</div>
+</div>
+${itemsHtml}
+<div class="total"><span>الإجمالي</span><span>${Number(sale.totalAmount).toFixed(2)} ${settings?.currency || 'ج.م'}</span></div>
+<div class="footer">${settings?.receiptFooter || 'شكراً لتعاملكم معنا'}</div>
+</body></html>`;
+
+        const receiptPrinter = typeof window !== 'undefined' ? localStorage.getItem('casper_receipt_printer') : null;
+        toast.promise(printService.printHTML(html, receiptPrinter || undefined), {
+            loading: 'جارى الطباعة...',
+            success: 'تم الإرسال للطابعة',
+            error: (err: any) => `فشل الطباعة: ${err.message}`
+        });
     };
 
     return (
@@ -253,10 +361,17 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
                             </TableRow>
                         ) : (
                             filteredSales.map((sale) => (
-                                <tr key={sale.id} className="border-white/5 hover:bg-white/5 transition-colors group">
+                                <tr key={sale.id} className={`border-white/5 hover:bg-white/5 transition-colors group ${sale._isRefundEntry ? 'bg-red-500/5 border-l-2 border-l-red-500/40' : ''}`}>
                                     <td className="py-2 px-4">
-                                        <div className="font-mono text-cyan-500/80 text-xs">
-                                            #{sale.id.slice(0, 8).toUpperCase()}
+                                        <div className="flex flex-col gap-0.5">
+                                            {sale._isRefundEntry && (
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-red-400 flex items-center gap-1">
+                                                    ↩ ارتجاع
+                                                </span>
+                                            )}
+                                            <div className={`font-mono text-xs ${sale._isRefundEntry ? 'text-red-400/80' : 'text-cyan-500/80'}`}>
+                                                #{sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase()}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="py-2 px-4 text-zinc-300 text-xs">
@@ -265,8 +380,8 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
                                     <td className="py-2 px-4 font-bold text-zinc-100 italic">
                                         {sale.customerName || "عميل نقدي"}
                                     </td>
-                                    <td className="py-2 px-4 font-mono font-bold text-zinc-100">
-                                        {sale.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    <td className={`py-2 px-4 font-mono font-bold ${sale._isRefundEntry ? 'text-red-400' : 'text-zinc-100'}`}>
+                                        {sale.totalAmount < 0 ? '-' : ''}{Math.abs(sale.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </td>
                                     <td className="py-2 px-4">
                                         <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 font-bold uppercase">
@@ -275,12 +390,17 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
                                     </td>
                                     <td className="py-2 px-4">
                                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${sale.status === 'REFUNDED'
-                                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                : sale.status === 'PARTIAL_REFUND'
+                                                    ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                             }`}>
-                                            {sale.status === 'REFUNDED' ? 'مرتجع' : 'مدفوع'}
+                                            {sale.status === 'REFUNDED' ? 'مرتجع كامل'
+                                                : sale.status === 'PARTIAL_REFUND' ? 'مرتجع جزئي'
+                                                    : 'مدفوع'}
                                         </span>
                                     </td>
+
                                     <td className="py-2 px-4 text-right">
                                         <div className="flex justify-end gap-1">
                                             <Button
@@ -291,20 +411,34 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </Button>
-                                            {sale.status !== 'REFUNDED' && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-red-400 hover:bg-red-400/10"
-                                                    disabled={loading === sale.id}
-                                                    onClick={() => handleRefund(sale.id)}
-                                                >
-                                                    {loading === sale.id ? (
-                                                        <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                                                    ) : (
-                                                        <RotateCcw className="w-4 h-4" />
-                                                    )}
-                                                </Button>
+                                            {!sale._isRefundEntry && sale.status !== 'REFUNDED' && (
+                                                <>
+                                                    {/* Partial Refund */}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-orange-400 hover:bg-orange-400/10"
+                                                        title="مرتجع جزئي"
+                                                        onClick={() => setPartialRefundSale(sale)}
+                                                    >
+                                                        <Package className="w-4 h-4" />
+                                                    </Button>
+                                                    {/* Full Refund */}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-red-400 hover:bg-red-400/10"
+                                                        title="مرتجع كامل"
+                                                        disabled={loading === sale.id}
+                                                        onClick={() => handleRefund(sale.id)}
+                                                    >
+                                                        {loading === sale.id ? (
+                                                            <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                                                        ) : (
+                                                            <RotateCcw className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </>
                                             )}
                                         </div>
                                     </td>
@@ -382,13 +516,38 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
                                 </div>
 
                                 {selectedSale.status !== 'REFUNDED' && (
+                                    <div className="flex gap-2 mt-4">
+                                        <Button
+                                            className="flex-1 h-10 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl gap-2"
+                                            onClick={() => handlePrintInvoice(selectedSale)}
+                                        >
+                                            <Printer className="w-4 h-4" />
+                                            طباعة الفاتورة
+                                        </Button>
+                                        <Button
+                                            className="flex-1 h-10 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl gap-2"
+                                            onClick={() => { setSelectedSale(null); setPartialRefundSale(selectedSale); }}
+                                        >
+                                            <Package className="w-4 h-4" />
+                                            مرتجع جزئي
+                                        </Button>
+                                        <Button
+                                            className="flex-1 h-10 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl gap-2"
+                                            onClick={() => handleRefund(selectedSale.id)}
+                                            disabled={loading === selectedSale.id}
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                            {loading === selectedSale.id ? '...' : 'مرتجع كامل'}
+                                        </Button>
+                                    </div>
+                                )}
+                                {selectedSale.status === 'REFUNDED' && (
                                     <Button
-                                        className="w-full h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl mt-4 gap-2 shadow-lg shadow-red-900/20"
-                                        onClick={() => handleRefund(selectedSale.id)}
-                                        disabled={loading === selectedSale.id}
+                                        className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl mt-4 gap-2"
+                                        onClick={() => handlePrintInvoice(selectedSale)}
                                     >
-                                        <RotateCcw className="w-4 h-4" />
-                                        {loading === selectedSale.id ? "جاري المعالجة..." : "عمل مرتجع للفاتورة"}
+                                        <Printer className="w-4 h-4" />
+                                        طباعة الفاتورة
                                     </Button>
                                 )}
                             </CardContent>
@@ -396,6 +555,15 @@ export default function SalesLog({ initialSales }: SalesLogProps) {
                     </DialogContent>
                 </Dialog>
             )}
+
+            {/* Partial Refund Dialog */}
+            <PartialRefundDialog
+                isOpen={!!partialRefundSale}
+                onClose={() => setPartialRefundSale(null)}
+                sale={partialRefundSale}
+                csrfToken={csrfToken}
+                onRefundDone={handlePartialRefundDone}
+            />
         </div>
     );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import GlassModal from "@/components/ui/GlassModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,15 +14,20 @@ interface CategoryModalProps {
     isOpen: boolean;
     onClose: () => void;
     category?: { id: string; name: string; color: string } | null;
+    csrfToken: string;
+    onCategorySaved?: (category: { id: string; name: string; color: string }) => void;
 }
 
 const PRESET_COLORS = [
     "#06b6d4", "#10b981", "#3b82f6", "#f59e0b", "#ef4444",
-    "#8b5cf6", "#ec4899", "#71717a", "#000000", "#ffffff"
+    "#8b5cf6", "#ec4899", "#f97316", "#84cc16", "#14b8a6",
+    "#6366f1", "#a855f7", "#d946ef", "#f43f5e", "#71717a",
+    "#000000", "#ffffff", "#451a03", "#1e293b", "#115e59"
 ];
 
-export default function CategoryModal({ isOpen, onClose, category }: CategoryModalProps) {
+export default function CategoryModal({ isOpen, onClose, category, csrfToken, onCategorySaved }: CategoryModalProps) {
     const t = useTranslations("POS");
+    const router = useRouter();
     const [name, setName] = useState("");
     const [color, setColor] = useState("#06b6d4");
     const [loading, setLoading] = useState(false);
@@ -42,12 +48,27 @@ export default function CategoryModal({ isOpen, onClose, category }: CategoryMod
 
         try {
             if (category) {
-                await updateCategory(category.id, { name, color });
+                // Edit existing category
+                const result = await updateCategory(category.id, { name, color, csrfToken } as any);
+                if (!result.success) {
+                    toast.error(result.error || (t("categoryError") || "Failed to save category"));
+                    return;
+                }
                 toast.success(t("categoryUpdated") || "Category updated successfully");
+                onCategorySaved?.({ id: category.id, name, color });
             } else {
-                await createCategory({ name, color });
+                // Create new category
+                const result = await createCategory({ name, color, csrfToken } as any);
+                if (!result.success) {
+                    toast.error(result.error || (t("categoryError") || "Failed to save category"));
+                    return;
+                }
                 toast.success(t("categoryCreated") || "Category created successfully");
+                if (result.category) {
+                    onCategorySaved?.({ id: result.category.id, name, color });
+                }
             }
+            router.refresh(); // 🔄 Force the server component to re-fetch categories
             onClose();
         } catch (error) {
             console.error(error);

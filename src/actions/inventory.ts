@@ -265,6 +265,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
     });
 
     revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
     revalidateTag(CACHE_TAGS.PRODUCTS);
     revalidateTag(CACHE_TAGS.INVENTORY);
     revalidateTag("dashboard");
@@ -293,6 +294,7 @@ export const updateProduct = secureAction(async (id: string, data: z.infer<typeo
         }
     });
     revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
     revalidateTag(CACHE_TAGS.PRODUCTS);
     revalidateTag(CACHE_TAGS.INVENTORY);
     return { success: true };
@@ -325,6 +327,7 @@ export const deleteProduct = secureAction(async (id: string) => {
         });
 
         revalidatePath("/inventory", 'page');
+        revalidatePath("/pos", 'page');
         revalidateTag(CACHE_TAGS.PRODUCTS);
         revalidateTag(CACHE_TAGS.INVENTORY);
         return { success: true };
@@ -347,8 +350,11 @@ export const createCategory = secureAction(async (data: z.infer<typeof categoryS
             color: validated.color || "#06b6d4"
         }
     });
-    revalidatePath('/[locale]/inventory', 'page');
-    return category;
+    revalidatePath('/inventory', 'page');
+    revalidatePath('/pos', 'page');
+    revalidateTag(CACHE_TAGS.CATEGORIES);
+    revalidateTag("dashboard");
+    return { success: true, category };
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const updateCategory = secureAction(async (id: string, data: z.infer<typeof categorySchema>) => {
@@ -357,16 +363,18 @@ export const updateCategory = secureAction(async (id: string, data: z.infer<type
         where: { id },
         data: validated
     });
-    revalidatePath('/[locale]/inventory', 'page');
-    revalidatePath('/[locale]/inventory', 'page');
+    revalidatePath('/inventory', 'page');
+    revalidatePath('/pos', 'page');
+    revalidateTag(CACHE_TAGS.CATEGORIES);
     revalidateTag("dashboard");
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const deleteCategory = secureAction(async (id: string) => {
     await prisma.category.delete({ where: { id } });
-    revalidatePath('/[locale]/inventory', 'page');
-    revalidatePath('/[locale]/inventory', 'page');
+    revalidatePath('/inventory', 'page');
+    revalidatePath('/pos', 'page');
+    revalidateTag(CACHE_TAGS.CATEGORIES);
     revalidateTag("dashboard");
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
@@ -613,33 +621,30 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             )
         ]);
 
-        // Accounting Integration
-        try {
+        // BL-10 fix: Accounting is inside the transaction with tx client.
+        // Errors here will roll back inventory + supplier changes.
+        await AccountingEngine.recordTransaction({
+            description: `Purchase Invoice #${finalInvoiceNumber}`,
+            reference: finalInvoiceNumber || 'PURCHASE',
+            date: new Date(),
+            lines: [
+                { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
+                { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
+            ]
+        }, tx); // ✅ tx passed: participates in same transaction
+
+        if (paidAmount > 0) {
+            const isCash = (header.paymentMethod || "CASH") === 'CASH';
+            const creditAccount = isCash ? '1000' : '1010';
             await AccountingEngine.recordTransaction({
-                description: `Purchase Invoice #${finalInvoiceNumber}`,
-                reference: finalInvoiceNumber || 'PURCHASE',
+                description: `Payment for Invoice #${finalInvoiceNumber}`,
+                reference: finalInvoiceNumber || 'PAYMENT',
                 date: new Date(),
                 lines: [
-                    { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
-                    { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
+                    { accountCode: '2000', debit: paidAmount, credit: 0, description: 'Accounts Payable' },
+                    { accountCode: creditAccount, debit: 0, credit: paidAmount, description: isCash ? 'Cash' : 'Bank' }
                 ]
-            });
-
-            if (paidAmount > 0) {
-                const isCash = (header.paymentMethod || "CASH") === 'CASH';
-                const creditAccount = isCash ? '1000' : '1010';
-                await AccountingEngine.recordTransaction({
-                    description: `Payment for Invoice #${finalInvoiceNumber}`,
-                    reference: finalInvoiceNumber || 'PAYMENT',
-                    date: new Date(),
-                    lines: [
-                        { accountCode: '2000', debit: paidAmount, credit: 0, description: 'Accounts Payable' },
-                        { accountCode: creditAccount, debit: 0, credit: paidAmount, description: isCash ? 'Cash' : 'Bank' }
-                    ]
-                });
-            }
-        } catch (accErr) {
-            console.error("Accounting Error", accErr);
+            }, tx); // ✅ tx passed
         }
 
     }, {
@@ -651,6 +656,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     logger.info("Purchase Created", { duration, itemsCount: items.length });
 
     revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
+    revalidatePath("/logs", 'page');
+    revalidatePath("/reports", 'page');
     revalidateTag("dashboard");
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
@@ -828,11 +836,14 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
             ) : [])
         ]);
 
-        return { success: true };
-    }, {
-        maxWait: 5000,
-        timeout: 20000 // Increased limit
     });
+    revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
+    revalidatePath("/logs", 'page');
+    revalidatePath("/reports", 'page');
+    revalidateTag(CACHE_TAGS.INVENTORY);
+    revalidateTag("dashboard");
+    return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const refundPurchase = secureAction(async (id: string, reason?: string, force: boolean = false) => {
@@ -962,6 +973,13 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
 
         return { success: true };
     });
+    revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
+    revalidatePath("/logs", 'page');
+    revalidatePath("/reports", 'page');
+    revalidateTag(CACHE_TAGS.INVENTORY);
+    revalidateTag(CACHE_TAGS.PRODUCTS);
+    revalidateTag("dashboard");
 }, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
 // --- Stock Ops ---
@@ -1008,7 +1026,9 @@ export const transferStock = secureAction(async (data: {
         }
     });
 
-    revalidatePath("/inventory");
+    revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
+    revalidateTag(CACHE_TAGS.INVENTORY);
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
@@ -1061,8 +1081,10 @@ export const adjustStock = secureAction(async (data: {
         });
     });
 
-    revalidatePath("/inventory");
+    revalidatePath("/inventory", 'page');
+    revalidatePath("/pos", 'page');
     revalidateTag(CACHE_TAGS.INVENTORY);
+    revalidateTag(CACHE_TAGS.PRODUCTS);
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
@@ -1382,7 +1404,9 @@ export const reportWastage = secureAction(async (data: {
         return wastage;
     });
 
-    revalidatePath('/inventory');
+    revalidatePath('/inventory', 'page');
+    revalidatePath('/pos', 'page');
+
     revalidateTag(CACHE_TAGS.INVENTORY);
     revalidateTag(CACHE_TAGS.PRODUCTS);
     revalidateTag('dashboard');

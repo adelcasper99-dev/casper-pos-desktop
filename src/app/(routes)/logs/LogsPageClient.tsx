@@ -13,9 +13,10 @@ import PurchaseLog from '@/components/logs/PurchaseLog';
 interface LogsPageClientProps {
     sales: any[];
     purchases: any[];
+    csrfToken?: string;
 }
 
-export default function LogsPageClient({ sales, purchases }: LogsPageClientProps) {
+export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPageClientProps) {
     const [activeTab, setActiveTab] = useState("sales");
 
     return (
@@ -76,7 +77,7 @@ export default function LogsPageClient({ sales, purchases }: LogsPageClientProps
 
                 <TabsContent value="sales" className="mt-0 ring-0 focus-visible:ring-0">
                     <div className="animate-in fade-in zoom-in-95 duration-300">
-                        <SalesLog initialSales={sales} />
+                        <SalesLog initialSales={sales} csrfToken={csrfToken} />
                     </div>
                 </TabsContent>
 

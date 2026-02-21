@@ -54,7 +54,7 @@ model User {
   
   // Relations
   actionLogs           ActionLog[]
-  sales                Sale[]                @relation("ShiftOwner")
+  sales                Sale[]                @relation("SaleOwner")
   shifts               Shift[]               @relation("ShiftOwner")
   stockMovements       StockMovement[]
   reportedWastage      StockWastage[]
@@ -402,24 +402,12 @@ model Sale {
   warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
   items              SaleItem[]
   payments           SalePayment[]
-  
-  // This relation was in User 'sales' but mapped to ShiftOwner??
-  // In pos_shifts.prisma: User has sales Sale[] @relation("ShiftOwner") -> This seems wrong in original schema, possibly copy paste error unless User owns the sale directly.
-  // In `pos_shifts.prisma`: `user User @relation("ShiftOwner", fields: [userId], references: [id])` is on Shift, not Sale.
-  // The User model has `sales Sale[] @relation("ShiftOwner")`?
-  // Checking original schema: User has `sales Sale[]` (implicit) AND `ownedShifts Shift[] @relation("ShiftOwner")`.
-  // Wait, `Sale` model in pos_shifts.prisma doesn't have a `userId` field or relation to User directly, only through Shift?
-  // Ah, let's look at `prisma/schema.prisma` again.
-  // `Sale` has no `userId`.
-  // `User` has `sales Sale[]`.
-  // This implies an implicit relation? Or `Sale` has `userId`?
-  // Looking at `pos_shifts.prisma` provided earlier: `Sale` does NOT have `userId`.
-  // So `User.sales` must be a mistake in my reading or it's implicitly defined in `schema.prisma` but I missed the field in `Sale`.
-  // Let's assume for now Sale is linked to User via Shift or we add `userId` if needed.
-  // Actually, for a desktop app, we definitely want to know who made the sale.
-  // I will add `userId` to Sale for simplicity in Desktop.
   userId             String?
-  user               User?          @relation("ShiftOwner", fields: [userId], references: [id]) // Reusing relation name to match User definition
+  user               User?          @relation("SaleOwner", fields: [userId], references: [id])
+
+  @@index([shiftId])
+  @@index([customerId])
+  @@index([status, createdAt])
 }
 
 model SalePayment {
@@ -433,14 +421,15 @@ model SalePayment {
 }
 
 model SaleItem {
-  id        String  @id @default(uuid())
-  saleId    String
-  productId String
-  quantity  Int
-  unitPrice Decimal
-  unitCost  Decimal @default(0.00)
-  product   Product @relation(fields: [productId], references: [id])
-  sale      Sale    @relation(fields: [saleId], references: [id])
+  id           String  @id @default(uuid())
+  saleId       String
+  productId    String
+  quantity     Int
+  refundedQty  Int     @default(0)  // Tracks how many units have been returned — audit fix V-07
+  unitPrice    Decimal
+  unitCost     Decimal @default(0.00)
+  product      Product @relation(fields: [productId], references: [id])
+  sale         Sale    @relation(fields: [saleId], references: [id])
 }
 
 model Shift {
@@ -540,6 +529,8 @@ model Transaction {
   treasuryId           String?
   shift                Shift?    @relation(fields: [shiftId], references: [id])
   treasury             Treasury? @relation(fields: [treasuryId], references: [id])
+
+  @@index([treasuryId, createdAt])
 }
 
 model Expense {

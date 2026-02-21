@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
 import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -15,9 +16,9 @@ import { VirtuosoGrid } from 'react-virtuoso';
 
 // ... (other imports remain, remove unused if any)
 
-export default function POSClientAPI({ products, categories, settings, csrfToken }: any) {
-    // ... (existing hooks and state) 
+export default function POSClientAPI({ products, categories: initialCategories, settings, csrfToken }: any) {
     const t = useTranslations("POS");
+    const router = useRouter();
     const formatCurrency = useFormatCurrency();
     const [search, setSearch] = useState("");
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -25,6 +26,8 @@ export default function POSClientAPI({ products, categories, settings, csrfToken
     const [showHeldCarts, setShowHeldCarts] = useState(false);
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [categoryToEdit, setCategoryToEdit] = useState<{ id: string; name: string; color: string } | null>(null);
+    // Local categories state for instant UI updates after create/edit
+    const [localCategories, setLocalCategories] = useState<{ id: string; name: string; color: string }[]>(initialCategories || []);
 
     // 🛡️ OFFLINE HANDLING
     const { isOnline } = useNetworkStatus();
@@ -222,6 +225,19 @@ export default function POSClientAPI({ products, categories, settings, csrfToken
                     setCategoryToEdit(null);
                 }}
                 category={categoryToEdit}
+                csrfToken={csrfToken}
+                onCategorySaved={(savedCategory) => {
+                    setLocalCategories(prev => {
+                        const exists = prev.find(c => c.id === savedCategory.id);
+                        if (exists) {
+                            // Update existing
+                            return prev.map(c => c.id === savedCategory.id ? { ...c, ...savedCategory } : c);
+                        } else {
+                            // Add new
+                            return [...prev, savedCategory];
+                        }
+                    });
+                }}
             />
 
             {/* RIGHT SIDE: Product Grid */}
@@ -229,7 +245,7 @@ export default function POSClientAPI({ products, categories, settings, csrfToken
                 {/* Categories */}
                 <div className="w-40 border-r border-border bg-card/50 backdrop-blur-2xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full">
                     <button onClick={() => setSelectedCategory(null)} className={clsx("w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0", selectedCategory === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground")}>{t('allCategories')}</button>
-                    {categories.map((c: any) => (
+                    {localCategories.map((c: any) => (
                         <button
                             key={c.id}
                             onClick={() => setSelectedCategory(c.id)}

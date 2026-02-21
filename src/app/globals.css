@@ -286,6 +286,18 @@ body {
   .solid-input::placeholder {
     color: var(--muted-foreground);
   }
+
+  /* Electron frameless window – drag regions */
+  .drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+    cursor: default;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
 }
 
 /* Animations */

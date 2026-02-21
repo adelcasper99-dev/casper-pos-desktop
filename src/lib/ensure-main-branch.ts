@@ -90,6 +90,26 @@ export async function ensureMainBranch(): Promise<string> {
         }
     }
 
+    // Cleanup: Ensure only ONE treasury is marked as default for this branch
+    const defaults = await prisma.treasury.findMany({
+        where: { branchId: branch.id, isDefault: true, deletedAt: null },
+        orderBy: { updatedAt: 'desc' }
+    });
+
+    if (defaults.length > 1) {
+        // Keep only the most recently updated default (or prioritize CASH if exists)
+        const primaryDefault = defaults.find(d => d.paymentMethod === 'CASH') || defaults[0];
+
+        await prisma.treasury.updateMany({
+            where: {
+                branchId: branch.id,
+                isDefault: true,
+                id: { not: primaryDefault.id }
+            },
+            data: { isDefault: false }
+        });
+    }
+
     // Assign all users without a branch to this branch
     await prisma.user.updateMany({
         where: { branchId: null },

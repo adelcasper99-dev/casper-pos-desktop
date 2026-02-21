@@ -23,7 +23,6 @@ import {
     ShieldCheck,
     Calculator,
     Smartphone,
-    Clock,
     Building2,
     Package,
     Activity,
@@ -44,7 +43,6 @@ const MENU_ITEMS = [
     { key: "inventory", href: "/inventory", icon: Box, permission: PERMISSIONS.INVENTORY_VIEW },
     { key: "customers", href: "/customers", icon: Users, permission: PERMISSIONS.CUSTOMER_VIEW },
     { key: "purchasing", href: "/purchasing", icon: Truck, permission: PERMISSIONS.PURCHASING_VIEW },
-    { key: "shift", href: "/shift", icon: Clock, permission: PERMISSIONS.SHIFT_VIEW },
     { key: "treasury", href: "/treasury", icon: Landmark, permission: PERMISSIONS.TREASURY_VIEW },
     { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSIONS.POS_ACCESS },
     { key: "reports", href: "/reports", icon: BarChart3, permission: PERMISSIONS.REPORTS_VIEW },
@@ -71,7 +69,7 @@ function Sidebar({ user }: { user: any }) {
     return (
         <aside
             className={cn(
-                "h-full border-e-4 border-cyan-500 bg-zinc-900 z-50 flex flex-col transition-all duration-300 ease-in-out relative",
+                "h-full bg-zinc-900 z-50 flex flex-col transition-all duration-300 ease-in-out relative",
                 isExpanded ? "w-64" : "w-20"
             )}
             onMouseEnter={() => setIsExpanded(true)}
@@ -79,8 +77,9 @@ function Sidebar({ user }: { user: any }) {
         >
             <div className="p-4 flex items-center justify-between overflow-hidden h-20">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-cyan-500 rounded-lg flex items-center justify-center shrink-0">
-                        <Store className="text-black w-6 h-6" />
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/assets/casper-icon.png" alt="Casper ERP" className="w-10 h-10 object-contain" />
                     </div>
                     <span className={cn(
                         "font-bold text-lg tracking-tight whitespace-nowrap transition-opacity duration-200",

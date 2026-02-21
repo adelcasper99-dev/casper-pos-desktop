@@ -1,11 +1,42 @@
 /**
  * Print Service
- * Dynamically loads QZ Tray service only on client-side
+ * Priority chain:
+ *   1. Electron IPC (native silent print — no dialog, no third-party software)
+ *   2. Casper Agent (HTTP sidecar)
+ *   3. QZ Tray (WebSocket)
+ *   4. Iframe fallback (browser print dialog)
  */
 
 import type { LabelProduct, LabelTemplate } from './label-commands';
 import { PRINTER_REGISTRY_KEY, type PrinterRegistry } from '@/types/printer-config';
 import { safeRandomUUID } from './utils';
+
+// ─────────────────────────────────────────────
+// Type augmentation for the Electron bridge
+// ─────────────────────────────────────────────
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: true;
+      getPrinters: () => Promise<{ name: string; isDefault: boolean; status: number }[]>;
+      print: (html: string, printerName: string, options?: {
+        paperWidth?: number;
+        paperHeight?: number;
+      }) => Promise<{ success: true }>;
+      /** Custom frameless window controls – exposed by TitleBar */
+      windowControls?: {
+        minimize: () => void;
+        maximize: () => void;
+        close: () => void;
+        isMaximized: () => Promise<boolean>;
+        onMaximizeChange: (cb: (isMaximized: boolean) => void) => () => void;
+        zoomIn: () => void;
+        zoomOut: () => void;
+        zoomReset: () => void;
+      };
+    };
+  }
+}
 
 export interface PrinterStatus {
   online: boolean;
@@ -16,7 +47,38 @@ export interface PrinterStatus {
 
 let qzService: any = null;
 
-// --- Casper Agent Client ---
+// ─────────────────────────────────────────────
+// Channel 1: Electron Native IPC
+// ─────────────────────────────────────────────
+class ElectronPrintChannel {
+  isAvailable(): boolean {
+    return typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  }
+
+  async getPrinters(): Promise<string[]> {
+    const printers = await window.electronAPI!.getPrinters();
+    return printers.map(p => p.name);
+  }
+
+  async getDefaultPrinterName(): Promise<string | null> {
+    const printers = await window.electronAPI!.getPrinters();
+    const def = printers.find(p => p.isDefault);
+    return def?.name ?? (printers[0]?.name ?? null);
+  }
+
+  async print(html: string, printerName: string, options?: {
+    paperWidth?: number;
+    paperHeight?: number;
+  }): Promise<void> {
+    await window.electronAPI!.print(html, printerName, options ?? {});
+  }
+}
+
+const electronChannel = new ElectronPrintChannel();
+
+// ─────────────────────────────────────────────
+// Channel 2: Casper Agent (HTTP sidecar)
+// ─────────────────────────────────────────────
 const AGENT_URL = 'http://localhost:21234';
 
 class CasperAgentClient {
@@ -55,21 +117,19 @@ class CasperAgentClient {
 
 const agentClient = new CasperAgentClient();
 
-
-/**
- * Lazy load QZ Tray service (client-side only)
- */
+// ─────────────────────────────────────────────
+// Channel 3: QZ Tray (lazy loaded)
+// ─────────────────────────────────────────────
 async function getQZService() {
   if (qzService) return qzService;
-
   const module = await import('./qz-tray-service.client');
   qzService = module.qzTrayService;
   return qzService;
 }
 
-/**
- * Print Service Class
- */
+// ─────────────────────────────────────────────
+// Print Service
+// ─────────────────────────────────────────────
 class PrintService {
   private defaultPrinterName = 'Xprinter XP-200B';
   private registry: PrinterRegistry | null = null;
@@ -86,7 +146,7 @@ class PrintService {
       try {
         this.registry = JSON.parse(stored);
       } catch (e) {
-        console.warn("Failed to parse printer registry", e);
+        console.warn('Failed to parse printer registry', e);
       }
     }
 
@@ -103,7 +163,7 @@ class PrintService {
           updatedAt: Date.now()
         };
         this.saveRegistry();
-        console.log("✓ Migrated legacy printer settings to Registry v2");
+        console.log('✓ Migrated legacy printer settings to Registry v2');
       }
     }
   }
@@ -114,9 +174,7 @@ class PrintService {
     }
   }
 
-  getRegistry(): PrinterRegistry | null {
-    return this.registry;
-  }
+  getRegistry(): PrinterRegistry | null { return this.registry; }
 
   updateRegistry(updates: Partial<PrinterRegistry>) {
     this.registry = {
@@ -128,15 +186,15 @@ class PrintService {
     this.saveRegistry();
   }
 
-  setDefaultPrinter(name: string) {
-    this.defaultPrinterName = name;
-  }
+  setDefaultPrinter(name: string) { this.defaultPrinterName = name; }
 
   getDefaultPrinter(): string {
     return this.registry?.labelPrinter || this.defaultPrinterName;
   }
 
   async isServerOnline(): Promise<boolean> {
+    // Electron is always "online"
+    if (electronChannel.isAvailable()) return true;
     try {
       const service = await getQZService();
       return await service.healthCheck();
@@ -145,8 +203,25 @@ class PrintService {
     }
   }
 
+  /**
+   * Returns the full printer status, preferring Electron → Agent → QZ
+   */
   async getStatus(): Promise<PrinterStatus> {
-    // 1. Try Casper Agent first
+    // 1. Electron
+    if (electronChannel.isAvailable()) {
+      try {
+        const printers = await electronChannel.getPrinters();
+        return {
+          online: true,
+          version: 'Electron Native',
+          printers,
+        };
+      } catch (e) {
+        // Fall through
+      }
+    }
+
+    // 2. Casper Agent
     try {
       const agentStatus = await agentClient.getStatus();
       return {
@@ -155,45 +230,44 @@ class PrintService {
         printers: agentStatus.printers?.map((p: any) => p.name) || [],
       };
     } catch (e) {
-      // Agent offline, fall back to QZ
+      // Fall through
     }
 
+    // 3. QZ Tray
     try {
       const service = await getQZService();
       const status = await service.getStatus();
-
-      if (!status.connected) {
-        return {
-          online: false,
-          error: status.error
-        }
-      }
-
+      if (!status.connected) return { online: false, error: status.error };
       return {
         online: status.connected,
         version: status.version,
         printers: status.printers?.map((p: any) => p.name),
       };
     } catch (error: any) {
-      return {
-        online: false,
-        error: error.message,
-      };
+      return { online: false, error: error.message };
     }
   }
 
+  /**
+   * Returns a list of printer names, preferring Electron → Agent → QZ
+   */
   async getPrinters(): Promise<string[]> {
-    // 1. Try Agent
-    try {
-      const agentStatus = await agentClient.getStatus();
-      if (agentStatus.printers) {
-        return agentStatus.printers.map((p: any) => p.name);
+    // 1. Electron
+    if (electronChannel.isAvailable()) {
+      try {
+        return await electronChannel.getPrinters();
+      } catch (e) {
+        console.warn('[PrintService] Electron getPrinters failed', e);
       }
-    } catch (e) {
-      // Ignore
     }
 
-    // 2. Fallback QZ
+    // 2. Agent
+    try {
+      const agentStatus = await agentClient.getStatus();
+      if (agentStatus.printers) return agentStatus.printers.map((p: any) => p.name);
+    } catch (e) { /* ignore */ }
+
+    // 3. QZ
     try {
       const service = await getQZService();
       const printers = await service.getPrinters();
@@ -207,23 +281,15 @@ class PrintService {
     try {
       const service = await getQZService();
       const isOnline = await this.isServerOnline();
-
-      if (!isOnline) {
-        throw new Error('QZ_TRAY_OFFLINE');
-      }
-
+      if (!isOnline) throw new Error('QZ_TRAY_OFFLINE');
       const targetPrinter = printerName || this.defaultPrinterName;
       await service.findPrinter(targetPrinter);
-
       const { generateMultipleLabelCommands } = await import('./label-commands');
       const commands = generateMultipleLabelCommands(labels, template);
-
       await service.printESCPOS(targetPrinter, commands);
       console.log(`✓ Printed ${labels.length} label(s) to ${targetPrinter}`);
     } catch (error: any) {
-      if (error.message === 'QZ_TRAY_OFFLINE') {
-        throw error;
-      }
+      if (error.message === 'QZ_TRAY_OFFLINE') throw error;
       throw new Error(`Print error: ${error.message}`);
     }
   }
@@ -231,7 +297,6 @@ class PrintService {
   async testPrint(printerName?: string): Promise<void> {
     const service = await getQZService();
     const targetPrinter = printerName || this.defaultPrinterName;
-
     try {
       await service.findPrinter(targetPrinter);
       const { generateTestLabel } = await import('./label-commands');
@@ -253,82 +318,95 @@ class PrintService {
     await service.disconnect();
   }
 
+  /**
+   * Silent HTML print.
+   * Priority: Electron IPC → Casper Agent → QZ Tray
+   * Returns true if a silent print succeeded.
+   */
   async printSilentHTML(html: string, printerName: string): Promise<boolean> {
-    const service = await getQZService();
+    // 1. Electron (best path — zero dependencies, truly silent)
+    if (electronChannel.isAvailable()) {
+      try {
+        await electronChannel.print(html, printerName, {
+          paperWidth: 80000,   // 80mm wide in microns
+          paperHeight: 2970000 // large max height so receipt isn't clipped
+        });
+        console.log(`✓ [Electron] Printed to "${printerName}"`);
+        return true;
+      } catch (err) {
+        console.warn('[PrintService] Electron silent print failed, trying Agent...', err);
+      }
+    }
 
-    // 1. Try Casper Agent
+    // 2. Casper Agent
     try {
       const isAgentAvailable = await agentClient.isAvailable();
       if (isAgentAvailable) {
         await agentClient.printHTML(html, printerName);
-        console.log(`✓ Agent printed HTML to ${printerName}`);
+        console.log(`✓ [Agent] Printed to "${printerName}"`);
         return true;
       }
     } catch (e) {
-      console.warn("Agent print failed", e);
+      console.warn('[PrintService] Agent print failed', e);
     }
 
-    // 2. Try QZ Tray
+    // 3. QZ Tray
     try {
+      const service = await getQZService();
       const isOnline = await service.isIdeallyConnected();
       if (isOnline) {
         await service.print({
           printer: printerName,
-          data: [{
-            type: 'html',
-            format: 'plain',
-            data: html
-          } as any],
+          data: [{ type: 'html', format: 'plain', data: html } as any],
           options: { flavor: 'html' }
         });
-        console.log(`✓ QZ printed HTML to ${printerName}`);
+        console.log(`✓ [QZ] Printed to "${printerName}"`);
         return true;
       }
     } catch (e) {
-      console.warn("QZ print failed", e);
+      console.warn('[PrintService] QZ print failed', e);
     }
 
     return false;
   }
 
+  /**
+   * Main entry point for receipt printing.
+   * Tries silent print first; falls back to iframe print dialog.
+   */
   async printHTML(html: string, printerName?: string): Promise<void> {
-    const targetPrinter = printerName || this.registry?.receiptPrinter || localStorage.getItem('printer_receipt');
+    // Resolve printer name from args > registry > localStorage
+    const targetPrinter = printerName
+      || this.registry?.receiptPrinter
+      || localStorage.getItem('printer_receipt')
+      || undefined;
 
     if (targetPrinter) {
       const success = await this.printSilentHTML(html, targetPrinter);
       if (success) return;
-      console.warn("Silent print failed or unavailable, falling back to iframe");
+      console.warn('[PrintService] All silent print channels failed — falling back to iframe dialog');
     }
 
-    // 2. Fallback: Invisible Iframe Printing
-    // This bypasses popup blockers and provides a cleaner experience
+    // ─── Fallback: Invisible iframe print dialog ──────────────────────
     return new Promise((resolve, reject) => {
       try {
         const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
+        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
         iframe.src = 'about:blank';
-
         document.body.appendChild(iframe);
 
         const doc = iframe.contentWindow?.document || iframe.contentDocument;
-        if (!doc) throw new Error("Could not access iframe document");
+        if (!doc) throw new Error('Could not access iframe document');
 
         doc.open();
         doc.write(html);
         doc.close();
 
-        // Wait for resources (images, etc) to load before printing
         iframe.onload = () => {
           setTimeout(() => {
             try {
               iframe.contentWindow?.focus();
               iframe.contentWindow?.print();
-              // Clean up after a delay to allow print dialog to handle the reference
               setTimeout(() => {
                 document.body.removeChild(iframe);
                 resolve();

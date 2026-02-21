@@ -90,7 +90,11 @@ export function secureAction<T, A extends any[]>(
             // 3. Permission Check
             if (options.permission) {
                 // Assuming user.permissions is an array of strings
-                const hasPermission = user.permissions?.includes(options.permission) || user.role === 'ADMIN';
+                // V-03 fix: never check role name string (can be spoofed).
+                // ADMIN users get permissions=['*'] from getSession() → role.permissions parsing.
+                const hasPermission =
+                    user.permissions?.includes(options.permission) ||
+                    user.permissions?.includes('*');
                 if (!hasPermission) {
                     logger.warn("Access Denied: Insufficient permissions", {
                         userId: user.id,

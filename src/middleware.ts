@@ -25,14 +25,19 @@ export function middleware(request: NextRequest) {
         });
 
         // Set cookie on the response for the client browser
+        // V-02 fix: httpOnly:true prevents JS from reading the CSRF token directly.
+        // Clients should read the token from the X-CSRF-Token response header instead.
         response.cookies.set({
             name: 'csrf-token',
             value: newToken,
-            httpOnly: false, // Accessible by client-side if needed
+            httpOnly: true,  // ✅ V-02 fix: was false — JS must NOT access this cookie
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            sameSite: 'strict',
             path: '/',
         });
+
+        // Expose token in header so client-side reads it from fetch response header
+        response.headers.set('X-CSRF-Token', newToken);
 
         return response;
     }

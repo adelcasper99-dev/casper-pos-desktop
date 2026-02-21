@@ -357,20 +357,22 @@ export default function TreasuryDashboard({
                                 onClick={() => setViewTreasuryId(tr.id === viewTreasuryId ? null : tr.id)}
                                 className={`relative glass-card p-5 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02] group ${viewTreasuryId === tr.id ? "ring-2 ring-cyan-400 bg-cyan-500/10 border-cyan-500/40" : "border-border"}`}
                             >
-                                {tr.isDefault && (
-                                    <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30">افتراضي</span>
-                                )}
                                 {!tr.isDefault && (
-                                    <button onClick={e => { e.stopPropagation(); setDeletingTreasuryId(tr.id); }} className="absolute top-2 left-2 p-1 text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={e => { e.stopPropagation(); setDeletingTreasuryId(tr.id); }} className="absolute top-2 left-2 p-1 text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                         <Trash2 className="w-3 h-3" />
                                     </button>
                                 )}
                                 <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="text-muted-foreground text-xs uppercase font-bold">{tr.name}</p>
-                                        <h2 className={`text-2xl font-mono font-bold mt-1 ${tr.balance >= 0 ? iconColor : "text-red-500"}`}>{tr.balance.toFixed(2)}</h2>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <p className="text-muted-foreground text-xs uppercase font-bold truncate">{tr.name}</p>
+                                            {tr.isDefault && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30 whitespace-nowrap">الافتراضي</span>
+                                            )}
+                                        </div>
+                                        <h2 className={`text-2xl font-mono font-bold ${tr.balance >= 0 ? iconColor : "text-red-500"}`}>{tr.balance.toFixed(2)}</h2>
                                     </div>
-                                    <div className={`p-3 rounded-full border ${colorCls}`}>
+                                    <div className={`p-3 rounded-full border shrink-0 ${colorCls}`}>
                                         <IconComp className={`w-5 h-5 ${iconColor}`} />
                                     </div>
                                 </div>

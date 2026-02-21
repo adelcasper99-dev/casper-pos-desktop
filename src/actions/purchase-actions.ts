@@ -18,56 +18,61 @@ interface PurchaseFilters {
 /**
  * Fetch purchase history
  */
-export const getPurchasesHistory = secureAction(async (filters?: PurchaseFilters) => {
-    const { startDate, endDate, supplierId, status } = filters || {};
+export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ success: boolean; purchases?: any[]; error?: string }> {
+    try {
+        const { startDate, endDate, supplierId, status } = filters || {};
 
-    const where: any = {};
+        const where: any = {};
 
-    if (startDate || endDate) {
-        where.purchaseDate = {};
-        if (startDate) where.purchaseDate.gte = new Date(startDate);
-        if (endDate) where.purchaseDate.lte = new Date(endDate);
-    }
+        if (startDate || endDate) {
+            where.purchaseDate = {};
+            if (startDate) where.purchaseDate.gte = new Date(startDate);
+            if (endDate) where.purchaseDate.lte = new Date(endDate);
+        }
 
-    if (supplierId) where.supplierId = supplierId;
-    if (status) where.status = status;
+        if (supplierId) where.supplierId = supplierId;
+        if (status) where.status = status;
 
-    const purchases = await prisma.purchaseInvoice.findMany({
-        where,
-        include: {
-            supplier: {
-                select: { name: true }
-            },
-            warehouse: {
-                select: { name: true, branch: { select: { name: true } } }
-            },
-            items: {
-                include: {
-                    product: {
-                        select: { name: true, sku: true }
+        const purchases = await prisma.purchaseInvoice.findMany({
+            where,
+            include: {
+                supplier: {
+                    select: { name: true }
+                },
+                warehouse: {
+                    select: { name: true, branch: { select: { name: true } } }
+                },
+                items: {
+                    include: {
+                        product: {
+                            select: { name: true, sku: true }
+                        }
                     }
                 }
+            },
+            orderBy: {
+                purchaseDate: 'desc'
             }
-        },
-        orderBy: {
-            purchaseDate: 'desc'
-        }
-    });
+        });
 
-    return {
-        success: true,
-        purchases: purchases.map(p => ({
-            ...p,
-            totalAmount: Number(p.totalAmount),
-            paidAmount: Number(p.paidAmount),
-            deliveryCharge: Number(p.deliveryCharge),
-            items: p.items.map(i => ({
-                ...i,
-                unitCost: Number(i.unitCost)
+        return {
+            success: true,
+            purchases: purchases.map(p => ({
+                ...p,
+                totalAmount: Number(p.totalAmount),
+                paidAmount: Number(p.paidAmount),
+                deliveryCharge: Number(p.deliveryCharge),
+                items: p.items.map(i => ({
+                    ...i,
+                    unitCost: Number(i.unitCost)
+                }))
             }))
-        }))
-    };
-}, { permission: PERMISSIONS.PURCHASING_VIEW });
+        };
+    } catch (error: any) {
+        console.error('[getPurchasesHistory] Error:', error);
+        return { success: false, purchases: [], error: error.message };
+    }
+}
 
 /**
  * Fetch a single purchase for editing
@@ -99,7 +104,7 @@ export const getPurchase = secureAction(async (id: string) => {
             }))
         }
     };
-}, { permission: PERMISSIONS.PURCHASING_VIEW });
+}, { permission: PERMISSIONS.PURCHASING_VIEW, requireCSRF: false });
 
 /**
  * Void a purchase (refund)
@@ -202,6 +207,7 @@ export const voidPurchase = secureAction(async (id: string, reason?: string) => 
 
     revalidatePath("/inventory");
     revalidatePath("/logs");
+    revalidatePath("/reports");
     revalidatePath("/purchasing");
 
     return {

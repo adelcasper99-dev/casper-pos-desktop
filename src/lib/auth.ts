@@ -50,7 +50,9 @@ export async function getSession() {
     const cookieStore = cookies();
     const token = cookieStore.get("session")?.value;
 
-    console.log(`[AUTH DEBUG] Token from cookie: ${token ? 'Found' : 'MISSING'}`);
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[AUTH DEBUG] Token from cookie: ${token ? 'Found' : 'MISSING'}`);
+    }
 
     if (!token) return null;
 
@@ -66,11 +68,15 @@ export async function getSession() {
         }
     });
 
-    console.log(`[AUTH DEBUG] Session from DB: ${session ? 'Found' : 'NOT FOUND'}`);
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[AUTH DEBUG] Session from DB: ${session ? 'Found' : 'NOT FOUND'}`);
+    }
 
     // Handle expired
     if (!session || session.expiresAt < new Date()) {
-        if (session) console.log(`[AUTH DEBUG] Session expired at: ${session.expiresAt}`);
+        if (session && process.env.NODE_ENV === 'development') {
+            console.log(`[AUTH DEBUG] Session expired at: ${session.expiresAt}`);
+        }
         return null;
     }
 
@@ -89,7 +95,9 @@ export async function getSession() {
         permissions = ['*'];
     }
 
-    console.log(`[AUTH DEBUG] User found: ${user.username} (${user.id}) - Perms: ${permissions.length}`);
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[AUTH DEBUG] User found: ${user.username} (${user.id}) - Perms: ${permissions.length}`);
+    }
 
     return {
         user: {
@@ -107,7 +115,9 @@ export async function destroySession() {
     const cookieStore = cookies();
     const token = cookieStore.get("session")?.value;
 
-    console.log(`[AUTH DEBUG] Destroying session for token: ${token ? 'Found' : 'MISSING'}`);
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[AUTH DEBUG] Destroying session for token: ${token ? 'Found' : 'MISSING'}`);
+    }
 
     if (token) {
         await prisma.session.deleteMany({ where: { token } });
