@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 
 interface MoneyCounterProps {
-    onTotalChange: (total: number) => void;
     initialTotal?: number;
 }
 
@@ -17,38 +16,17 @@ const DENOMINATIONS = [
     { value: 1, label: "$1" },
 ];
 
-export default function MoneyCounter({ onTotalChange, initialTotal = 0 }: MoneyCounterProps) {
+export default function MoneyCounter({ initialTotal = 0 }: MoneyCounterProps) {
     const [counts, setCounts] = useState<Record<number, string>>({});
     const [isExpanded, setIsExpanded] = useState(false);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const mounted = useRef(false);
     const prevTotal = useRef<number | null>(null);
 
-    // Calculate total whenever counts change
+    // Removed auto-emitting logic so it just acts as a calculator.
     useEffect(() => {
-        const total = Object.entries(counts).reduce((sum, [value, countStr]) => {
-            const count = parseInt(countStr) || 0;
-            return sum + (parseFloat(value) * count);
-        }, 0);
-
-        const newTotal = Math.round(total * 100) / 100;
-
-        // Prevent emitting 0 on mount if no initial total is provided
-        // This allows parent form to stay empty instead of forcing 0
-        if (!mounted.current && total === 0 && !initialTotal) {
-            mounted.current = true;
-            prevTotal.current = newTotal;
-            return;
-        }
-
-        // Only call onTotalChange if the total actually changed
-        if (prevTotal.current !== newTotal) {
-            prevTotal.current = newTotal;
-            onTotalChange(newTotal);
-        }
-
         mounted.current = true;
-    }, [counts, onTotalChange, initialTotal]);
+    }, []);
 
     const setCount = (value: number, countStr: string) => {
         setCounts(prev => ({ ...prev, [value]: countStr }));

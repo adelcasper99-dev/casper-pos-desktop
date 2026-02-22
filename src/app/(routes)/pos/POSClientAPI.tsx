@@ -14,6 +14,7 @@ import CategoryModal from "@/components/pos/CategoryModal";
 import TableSelectionModal from "@/components/pos/TableSelectionModal";
 import { toast } from "sonner";
 import { printService } from "@/lib/print-service";
+import { formatArabicPrintText } from "@/lib/arabic-reshaper";
 
 import { VirtuosoGrid } from 'react-virtuoso';
 
@@ -127,21 +128,69 @@ export default function POSClientAPI({ products, categories: initialCategories, 
         if (items.length === 0) return;
 
         try {
-            const receiptHtml = `
-            <div style="font-family: sans-serif; text-align: center; width: 100%; max-width: 300px; margin: 0 auto;">
-                <h2 style="margin: 0 0 10px 0;">OPEN ORDER / طلب غير مدفوع</h2>
-                ${tableName ? `<h3 style="margin: 0 0 10px 0; border: 2px solid #000; padding: 5px;">${tableName}</h3>` : ''}
-                <div style="text-align: left; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 10px 0; margin-bottom: 10px;">
-                    ${items.map((item: any) => `
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 1.1em;">
-                            <span>${item.quantity}x ${item.name}</span>
-                        </div>
-                    `).join('')}
+            const paperWidthMm = settings?.paperSize === '58mm' ? 58 : (settings?.paperSize === '100mm' ? 100 : 80);
+            const width = `${paperWidthMm}mm`;
+
+            const itemsHtml = items.map((item: any) => `
+                <div class="item">
+                    <span class="item-name">${formatArabicPrintText(item.name)}</span>
+                    <span class="item-qty">x${item.quantity}</span>
                 </div>
-                <p style="font-size: 0.8em; color: #666;">Printed: ${new Date().toLocaleString()}</p>
-            </div>
+            `).join('');
+
+            const receiptHtml = `
+            <!DOCTYPE html>
+            <html dir="ltr">
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    @page { margin: 0; }
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        padding: 0; 
+                        margin: 0 auto; 
+                        width: ${width}; 
+                        box-sizing: border-box;
+                        direction: ltr; 
+                        text-align: right;
+                        background: white; 
+                        color: black;
+                        font-size: 14px;
+                    }
+                    .header { text-align: center; border-bottom: 2px dashed black; padding-bottom: 8px; margin-bottom: 8px; }
+                    .header h2 { margin: 0 0 5px 0; font-size: 18px; font-weight: 900; }
+                    .header h3 { margin: 0; border: 1px solid black; padding: 3px; display: inline-block; font-size: 16px; }
+                    .items { width: 100%; margin-bottom: 10px; }
+                    .item { 
+                        display: flex; 
+                        justify-content: space-between; 
+                        flex-direction: row-reverse;
+                        margin-bottom: 5px; 
+                        border-bottom: 1px dotted #ccc;
+                        padding-bottom: 3px;
+                        font-weight: bold;
+                    }
+                    .item-name { flex: 1; text-align: right; padding-left: 5px; }
+                    .item-qty { font-family: monospace; font-size: 14px; border: 1px solid #000; padding: 0 4px; border-radius: 3px; height: fit-content; }
+                    .footer { text-align: center; margin-top: 15px; font-size: 10px; color: #333; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>${formatArabicPrintText('طـلـب مـفـتـوح')}</h2>
+                    ${tableName ? `<h3>${formatArabicPrintText(tableName)}</h3>` : ''}
+                </div>
+                <div class="items">
+                    ${itemsHtml}
+                </div>
+                <div class="footer">
+                    ${formatArabicPrintText('الوقت')}: ${new Date().toLocaleString('ar-EG')}
+                </div>
+            </body>
+            </html>
             `;
-            await printService.printHTML(receiptHtml, settings);
+            const receiptPrinter = localStorage.getItem('casper_receipt_printer');
+            await printService.printHTML(receiptHtml, receiptPrinter || undefined, { paperWidthMm });
             toast.success(t('orderTicketSent') || "Order ticket sent to printer");
         } catch (error) {
             console.error("Print error:", error);

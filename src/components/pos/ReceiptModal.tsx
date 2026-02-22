@@ -11,7 +11,9 @@ import { qzTrayService } from "@/lib/qz-tray-service";
 import { printService } from "@/lib/print-service";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { formatArabicPrintText } from "@/lib/arabic-reshaper";
 import { MM_TO_PX, PAPER_SIZES } from "@/lib/constants";
+import html2canvas from "html2canvas";
 
 interface ReceiptModalProps {
     isOpen: boolean;
@@ -73,48 +75,48 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
             localStorage.setItem('casper_default_print_copies', copyCount.toString());
         }
 
-        // Configurable width using standard MM
         const paperWidthMm = settings.paperSize === '58mm' ? PAPER_SIZES.MOBILE : (settings.paperSize === '100mm' ? PAPER_SIZES.WIDE : PAPER_SIZES.STANDARD);
         const width = `${paperWidthMm}mm`; // CRITICAL: Use MM for correct physical sizing
-
-        // Generate the combined HTML
-        const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    @page { margin: 0; }
-                    body { font-family: 'Courier New', monospace; padding: 0; margin: 0 auto; width: ${width}; direction: ltr; background: white; text-align: center; transform: translateX(-4mm); }
-                    .content { padding: 5mm; display: inline-block; width: 100%; text-align: left; box-sizing: border-box; }
-                    .header { text-align: center; margin-bottom: 20px; border-bottom: 1px dashed black; padding-bottom: 10px; }
-                    .logo { max-width: 60px; max-height: 60px; margin: 0 auto 10px auto; display: block; filter: grayscale(100%); }
-                    .item { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-                    .total { border-top: 1px dashed black; margin-top: 10px; padding-top: 10px; font-weight: bold; display: flex; justify-content: space-between; }
-                    .footer { text-align: center; margin-top: 20px; font-size: 10px; white-space: pre-wrap; }
-                    /* Hide screen-only styles */
-                    .receipt-paper { box-shadow: none !important; transform: none !important; }
-                    @media print {
-                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="content">
-                    ${printContent.innerHTML}
-                </div>
-            </body>
-            </html>
-        `;
 
         const receiptPrinter = localStorage.getItem('casper_receipt_printer');
 
         const printJob = async () => {
-            for (let i = 0; i < copyCount; i++) {
-                await printService.printHTML(htmlContent, receiptPrinter || undefined);
-                // Optional small delay between copies for older printers
-                if (copyCount > 1 && i < copyCount - 1) {
-                    await new Promise(r => setTimeout(r, 200));
+            // New instructions implementation: printReceipt()
+            await printReceipt();
+        };
+
+        const printReceipt = async () => {
+            const container = document.getElementById("receipt-container");
+            if (!container) return;
+
+            try {
+                // Remove hidden class temporarily for capture if needed, 
+                // but we'll use a permanent hidden container strategy
+                const canvas = await html2canvas(container, {
+                    scale: 2, // High clarity for print as requested
+                    useCORS: true,
+                    backgroundColor: "#ffffff",
+                    logging: false
+                });
+
+                const base64Image = canvas.toDataURL('image/png');
+
+                const response = await fetch('http://localhost:3002/print', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: base64Image }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server responded with ${response.status}`);
                 }
+
+                console.log('Receipt sent to print server successfully');
+            } catch (error) {
+                console.error('Error during capture or print:', error);
+                throw error; // Let the toast handle the error display
             }
         };
 
@@ -135,95 +137,34 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                     <h2 className="text-2xl font-bold text-foreground tracking-wide">{t('saleCompleted')}</h2>
                 </div>
 
-                {/* Receipt Preview (Paper Style) */}
-                {settings ? (
-                    <div id="receipt-content" className="bg-white text-black p-6 w-full font-mono text-sm shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden receipt-paper transform rotate-1"
-                        style={{ maxWidth: `${(settings.paperSize === '58mm' ? PAPER_SIZES.MOBILE : (settings.paperSize === '100mm' ? PAPER_SIZES.WIDE : PAPER_SIZES.STANDARD)) * MM_TO_PX}px` }}>
-                        {/* Zigzag Top */}
-                        <div className="absolute top-0 left-0 w-full h-2 bg-[linear-gradient(45deg,transparent_33.333%,#ffffff_33.333%,#ffffff_66.667%,transparent_66.667%),linear-gradient(-45deg,transparent_33.333%,#ffffff_33.333%,#ffffff_66.667%,transparent_66.667%)] bg-[length:10px_20px]"></div>
 
-                        <div className="header text-center border-b-2 border-dashed border-black/80 pb-4 mb-4 mt-2">
-                            {settings?.logoUrl && settings.logoUrl !== "undefined" && (
-                                <div className="relative w-16 h-16 mx-auto mb-2">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={settings.logoUrl}
-                                        alt="Logo"
-                                        className="logo opacity-80 grayscale object-contain w-16 h-16 mx-auto"
-                                    />
-                                </div>
-                            )}
-                            {settings.printHeader && (
-                                <div className="text-xs font-bold mb-2 whitespace-pre-wrap">{settings.printHeader}</div>
-                            )}
-                            <h3 className="text-xl font-black tracking-widest uppercase">{settings.name || "CASPER POS"}</h3>
-                            <p className="text-xs font-bold mt-1">{settings.address || "Ghost Retail System"}</p>
 
-                            {saleData.tableName && (
-                                <div className="mt-2 mb-1 p-2 border-2 border-black/80 font-black text-lg uppercase tracking-wider">
-                                    {saleData.tableName}
-                                </div>
-                            )}
-
-                            <p className="text-[10px] mt-2 text-zinc-600">{new Date(saleData.date).toLocaleString()}</p>
-                            <p className="text-[10px] text-zinc-600">{t('saleNumber')} {saleData.saleId?.split('-')[0].toUpperCase()}</p>
-                        </div>
-
-                        <div className="items space-y-2 mb-4">
-                            {saleData.items.map((item: any, i: number) => (
-                                <div key={i} className="item flex justify-between items-end border-b border-dotted border-gray-300 pb-1">
-                                    <div className="flex flex-col">
-                                        <span className="font-bold">{item.name}</span>
-                                        <span className="text-xs text-zinc-500">x{item.quantity} @ {formatCurrency(item.price, settings.currency)}</span>
-                                    </div>
-                                    <span className="font-bold">{formatCurrency(item.price * item.quantity, settings.currency)}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="total border-t-2 border-black pt-4 mb-6">
-                            <div className="flex justify-between text-lg font-black">
-                                <span>{t('total').toUpperCase()}</span>
-                                <span>{formatCurrency(saleData.totalAmount, settings.currency)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs font-bold mt-2 text-zinc-600 uppercase border-t border-dotted border-black/30 pt-2">
-                                <span>{t('paidVia')}</span>
-                                <span>{saleData.paymentMethod?.replace('_', ' ')}</span>
-                            </div>
-                        </div>
-
-                        {/* Warranty Information */}
-                        {saleData.warranty?.warrantyDays && (
-                            <div className="warranty border-t border-dashed border-black/60 pt-3 mb-3 text-center">
-                                <div className="flex items-center justify-center gap-2 mb-2">
-                                    <span className="text-xs font-black uppercase">🛡️ {t('warrantyTitle')}</span>
-                                </div>
-                                <div className="text-[10px] space-y-1 text-zinc-700">
-                                    <div className="flex justify-between">
-                                        <span>{t('warrantyPeriod')}:</span>
-                                        <span className="font-bold">{saleData.warranty.warrantyDays} {t('warrantyDays')}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>{t('warrantyExpires')}:</span>
-                                        <span className="font-bold">
-                                            {new Date(saleData.warranty.warrantyExpiryDate).toLocaleDateString('ar-EG')}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="footer text-center text-[10px] font-bold text-zinc-500 space-y-1 whitespace-pre-wrap">{settings.receiptFooter || "THANK YOU FOR YOUR VISIT"}
-                        </div>
-
-                        {/* Zigzag Bottom */}
-                        <div className="absolute bottom-0 left-0 w-full h-2 bg-[linear-gradient(45deg,transparent_33.333%,#ffffff_33.333%,#ffffff_66.667%,transparent_66.667%),linear-gradient(-45deg,transparent_33.333%,#ffffff_33.333%,#ffffff_66.667%,transparent_66.667%)] bg-[length:10px_20px]"></div>
+                {/* Hidden Receipt Container for HTML-to-Image Pipeline */}
+                <div id="receipt-container" dir="rtl" className="fixed -left-[9999px] top-0 bg-white text-black p-4 w-[300px]" style={{ fontFamily: 'Arial, sans-serif' }}>
+                    <div className="text-center border-b border-dashed border-black pb-2 mb-2">
+                        <h3 className="text-lg font-bold uppercase">{settings?.name || "CASPER POS"}</h3>
+                        <p className="text-xs">{settings?.address}</p>
+                        <p className="text-[10px]">{new Date(saleData.date).toLocaleString('ar-EG')}</p>
                     </div>
-                ) : (
-                    <div className="h-[300px] flex items-center justify-center">
-                        <Loader2 className="animate-spin text-muted-foreground" />
+
+                    <div className="space-y-1 mb-2">
+                        {saleData.items.map((item: any, i: number) => (
+                            <div key={i} className="flex justify-between text-xs">
+                                <span>{item.name}</span>
+                                <span>{item.quantity} x {formatCurrency(item.price, settings?.currency)}</span>
+                            </div>
+                        ))}
                     </div>
-                )}
+
+                    <div className="border-t border-black pt-2 flex justify-between font-bold">
+                        <span>المجموع (Total)</span>
+                        <span>{formatCurrency(saleData.totalAmount, settings?.currency)}</span>
+                    </div>
+
+                    <div className="text-center text-[10px] mt-4 border-t border-dashed border-black pt-2">
+                        {settings?.receiptFooter || "شكراً لزيارتكم"}
+                    </div>
+                </div>
 
                 {/* Print Controls */}
                 <div className="w-full bg-muted/30 p-4 rounded-2xl border border-border/50 space-y-4">
@@ -265,6 +206,6 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                     </button>
                 </div>
             </div>
-        </GlassModal>
+        </GlassModal >
     );
 }

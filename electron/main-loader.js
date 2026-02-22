@@ -19,16 +19,24 @@ try {
     require('bytenode');
     log('Bytenode loaded.');
 
+    // In development, prioritize main.js if it exists
+    const jsPath = path.join(__dirname, 'main.js');
     const jscPath = path.join(__dirname, 'main.jsc');
-    log(`Checking for main.jsc at: ${jscPath}`);
-    if (!fs.existsSync(jscPath)) {
-        log('ERROR: main.jsc NOT FOUND');
-        throw new Error(`main.jsc not found at ${jscPath}`);
-    }
 
-    log('Requiring main.jsc...');
-    require(jscPath);
-    log('main.jsc required successfully.');
+    if (process.env.NODE_ENV === 'development' && fs.existsSync(jsPath)) {
+        log('Loading main.js (development mode)...');
+        require(jsPath);
+        log('main.js loaded successfully.');
+    } else {
+        log(`Checking for main.jsc at: ${jscPath}`);
+        if (!fs.existsSync(jscPath)) {
+            log('ERROR: main.jsc NOT FOUND');
+            throw new Error(`main.jsc not found at ${jscPath}`);
+        }
+        log('Requiring main.jsc...');
+        require(jscPath);
+        log('main.jsc required successfully.');
+    }
 
 } catch (err) {
     log(`FATAL ERROR: ${err.message}`);

@@ -76,10 +76,19 @@ export const openShift = secureAction(async (data: {
         throw new Error(t('unauthorized'));
     }
 
+    // Super Admin Backdoor Handling: Find the proxied admin user
+    let checkUserId = userId;
+    if (userId === 'super-admin') {
+        const fallbackAdmin = await prisma.user.findFirst({
+            where: { roleStr: 'ADMIN' }
+        }) || await prisma.user.findFirst();
+        if (fallbackAdmin) checkUserId = fallbackAdmin.id;
+    }
+
     // Check for existing open shift for this user
     const existingShift = await prisma.shift.findFirst({
         where: {
-            userId,
+            userId: checkUserId,
             status: "OPEN",
             registerId: data.registerId || null
         }
@@ -96,13 +105,30 @@ export const openShift = secureAction(async (data: {
     // Get cashier name
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
+    // Super Admin Backdoor Handling: Find a real admin user to bind the shift to
+    let actualUserId = userId;
+    let actualCashierName = user?.name || user?.username;
+
+    if (userId === 'super-admin') {
+        const fallbackAdmin = await prisma.user.findFirst({
+            where: { roleStr: 'ADMIN' }
+        }) || await prisma.user.findFirst();
+
+        if (fallbackAdmin) {
+            actualUserId = fallbackAdmin.id;
+            actualCashierName = `Super Admin (via ${fallbackAdmin.name || fallbackAdmin.username})`;
+        } else {
+            throw new Error("No database users found to bind the shift to.");
+        }
+    }
+
     const shift = await prisma.shift.create({
         data: {
-            userId,
+            userId: actualUserId,
             registerId: data.registerId,
             registerName: data.registerName,
             startCash: new Decimal(data.startCash),
-            cashierName: user?.name || user?.username,
+            cashierName: actualCashierName,
             timezone,
             businessDate,
             status: "OPEN"
@@ -329,8 +355,16 @@ export async function getCurrentShiftInternal(filters?: {
         return { shift: null };
     }
 
+    let checkUserId = userId;
+    if (userId === 'super-admin') {
+        const fallbackAdmin = await prisma.user.findFirst({
+            where: { roleStr: 'ADMIN' }
+        }) || await prisma.user.findFirst();
+        if (fallbackAdmin) checkUserId = fallbackAdmin.id;
+    }
+
     const where: Prisma.ShiftWhereInput = {
-        userId,
+        userId: checkUserId,
         status: "OPEN"
     };
 
@@ -361,8 +395,16 @@ export const getCurrentShift = secureAction(async (filters?: {
         return { shift: null };
     }
 
+    let checkUserId = userId;
+    if (userId === 'super-admin') {
+        const fallbackAdmin = await prisma.user.findFirst({
+            where: { roleStr: 'ADMIN' }
+        }) || await prisma.user.findFirst();
+        if (fallbackAdmin) checkUserId = fallbackAdmin.id;
+    }
+
     const where: Prisma.ShiftWhereInput = {
-        userId,
+        userId: checkUserId,
         status: "OPEN"
     };
 

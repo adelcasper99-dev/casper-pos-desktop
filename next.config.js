@@ -8,6 +8,9 @@ const nextConfig = {
     },
     experimental: {
         serverComponentsExternalPackages: ["bcryptjs"],
+        serverActions: {
+            allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
+        }
     },
 };
 

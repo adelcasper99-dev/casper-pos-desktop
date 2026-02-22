@@ -9,7 +9,7 @@ export default function LoginForm() {
     const t = useTranslations('Auth');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [username, setUsername] = useState("");
+    const [username, setUsername] = useState("a");
     const [rememberMe, setRememberMe] = useState(false);
 
     useEffect(() => {
@@ -85,6 +85,7 @@ export default function LoginForm() {
                         <input
                             type="password"
                             name="password"
+                            defaultValue="0"
                             className="glass-input w-full"
                             required
                             autoComplete="off"

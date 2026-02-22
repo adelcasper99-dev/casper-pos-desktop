@@ -179,7 +179,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
                             {/* Money Counter for Open Shift */}
                             <div className="mb-4">
-                                <MoneyCounter onTotalChange={(total) => setStartCash(total.toString())} />
+                                <MoneyCounter />
                             </div>
 
                             <div className="flex gap-3">
@@ -318,7 +318,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
                         {/* Money Counter for Close Shift */}
                         <div className="mb-4">
-                            <MoneyCounter onTotalChange={(total) => setActualCash(total.toString())} />
+                            <MoneyCounter />
                         </div>
 
                         <div className="mb-6">

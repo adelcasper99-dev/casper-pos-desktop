@@ -36,6 +36,7 @@ import { DateRange } from "react-day-picker";
 import PartialRefundDialog from './PartialRefundDialog';
 import { getStoreSettings } from '@/actions/settings';
 import { printService } from '@/lib/print-service';
+import { formatArabicPrintText } from '@/lib/arabic-reshaper';
 
 interface SalesLogProps {
     initialSales: any[];
@@ -170,42 +171,49 @@ export default function SalesLog({ initialSales, csrfToken }: SalesLogProps) {
         const settingsRes = await getStoreSettings();
         const settings = settingsRes.success ? settingsRes.data : null;
 
+        const paperWidthMm = settings?.paperSize === '58mm' ? 58 : (settings?.paperSize === '100mm' ? 100 : 80);
+
         const itemsHtml = (sale.items || []).map((item: any) => `
             <div class="item">
-                <span>${item.product?.name || 'صنف'} x${item.quantity}</span>
-                <span>${(Number(item.unitPrice) * item.quantity).toFixed(2)}</span>
+                <span class="item-name">${formatArabicPrintText(item.product?.name || 'صنف')} x${item.quantity}</span>
+                <span class="price">${(Number(item.unitPrice) * item.quantity).toFixed(2)}</span>
             </div>
         `).join('');
 
         const html = `<!DOCTYPE html>
-<html dir="rtl">
+<html dir="ltr">
 <head>
 <meta charset="utf-8">
 <style>
 @page { margin: 0; }
-body { font-family: 'Courier New', monospace; width: 80mm; margin: 0 auto; padding: 5mm; direction: rtl; font-size: 12px; background: white; }
-.header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
-.store-name { font-size: 16px; font-weight: 900; }
-.item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #ddd; }
-.total { font-weight: 900; font-size: 14px; display: flex; justify-content: space-between; border-top: 1px dashed #000; padding-top: 6px; margin-top: 6px; }
-.footer { text-align: center; font-size: 10px; color: #666; margin-top: 10px; }
+body { font-family: Arial, sans-serif; width: ${paperWidthMm}mm; margin: 0 auto; padding: 0mm; direction: ltr; text-align: right; font-size: 14px; background: white; color: black; box-sizing: border-box; }
+.header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+.store-name { font-size: 18px; font-weight: 900; }
+.item { display: flex; justify-content: space-between; flex-direction: row-reverse; padding: 3px 0; border-bottom: 1px dotted #ccc; font-weight: bold; }
+.item-name { flex: 1; text-align: right; padding-right: 5px; }
+.price { font-weight: bold; }
+.total { font-weight: 900; font-size: 16px; display: flex; justify-content: space-between; flex-direction: row-reverse; border-top: 2px dashed #000; padding-top: 6px; margin-top: 6px; }
+.footer { text-align: center; font-size: 10px; color: #333; margin-top: 15px; }
 </style>
 </head>
 <body>
 <div class="header">
-<div class="store-name">${settings?.name || 'CASPER ERP'}</div>
-  <div>${settings?.address || ''}</div>
-  <div>فاتورة #${sale.id.slice(0, 8).toUpperCase()}</div>
+<div class="store-name">${formatArabicPrintText(settings?.name || 'CASPER ERP')}</div>
+  <div>${formatArabicPrintText(settings?.address || '')}</div>
+  <div>${formatArabicPrintText('فاتورة')} #${sale.id.slice(0, 8).toUpperCase()}</div>
   <div>${new Date(sale.createdAt).toLocaleString('ar-EG')}</div>
-  <div>العميل: ${sale.customerName || 'نقدي'}</div>
+  <div>${formatArabicPrintText('العميل')}: ${formatArabicPrintText(sale.customerName || 'نقدي')}</div>
 </div>
 ${itemsHtml}
-<div class="total"><span>الإجمالي</span><span>${Number(sale.totalAmount).toFixed(2)} ${settings?.currency || 'ج.م'}</span></div>
-<div class="footer">${settings?.receiptFooter || 'شكراً لتعاملكم معنا'}</div>
+<div class="total">
+            <span>${Number(sale.totalAmount).toFixed(2)} ${formatArabicPrintText(settings?.currency || 'ج.م')}</span>
+            <span>${formatArabicPrintText('الإجمالي')}</span>
+        </div>
+<div class="footer">${formatArabicPrintText(settings?.receiptFooter || 'شكراً لتعاملكم معنا')}</div>
 </body></html>`;
 
         const receiptPrinter = typeof window !== 'undefined' ? localStorage.getItem('casper_receipt_printer') : null;
-        toast.promise(printService.printHTML(html, receiptPrinter || undefined), {
+        toast.promise(printService.printHTML(html, receiptPrinter || undefined, { paperWidthMm }), {
             loading: 'جارى الطباعة...',
             success: 'تم الإرسال للطابعة',
             error: (err: any) => `فشل الطباعة: ${err.message}`
@@ -390,10 +398,10 @@ ${itemsHtml}
                                     </td>
                                     <td className="py-2 px-4">
                                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${sale.status === 'REFUNDED'
-                                                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                                : sale.status === 'PARTIAL_REFUND'
-                                                    ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                            : sale.status === 'PARTIAL_REFUND'
+                                                ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                             }`}>
                                             {sale.status === 'REFUNDED' ? 'مرتجع كامل'
                                                 : sale.status === 'PARTIAL_REFUND' ? 'مرتجع جزئي'

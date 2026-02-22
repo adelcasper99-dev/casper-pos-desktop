@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { printService } from "@/lib/print-service";
+import { toast } from "sonner";
+import { formatArabicPrintText } from "@/lib/arabic-reshaper";
 
 interface ZReportReceiptProps {
     shift: any;
@@ -9,29 +12,62 @@ interface ZReportReceiptProps {
 export default function ZReportReceipt({ shift }: ZReportReceiptProps) {
     const printRef = useRef<HTMLDivElement>(null);
 
-    const handlePrint = () => {
-        if (printRef.current) {
-            const printContent = printRef.current.innerHTML;
-            const printWindow = window.open('', '', 'height=600,width=400');
-            if (printWindow) {
-                printWindow.document.write('<html><head><title>Z-Report</title>');
-                printWindow.document.write('<style>');
-                printWindow.document.write(`
-                    body { font-family: monospace; font-size: 12px; margin: 20px; }
+    const [isPrinting, setIsPrinting] = useState(false);
+
+    const handlePrint = async () => {
+        if (!printRef.current || isPrinting) return;
+        setIsPrinting(true);
+
+        try {
+            const rawContent = printRef.current.innerHTML;
+
+            // Safely reshape Arabic text without destroying HTML markup
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(rawContent, 'text/html');
+            const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+
+            let node;
+            while ((node = walker.nextNode())) {
+                if (node.nodeValue && node.nodeValue.trim() !== '') {
+                    node.nodeValue = formatArabicPrintText(node.nodeValue);
+                }
+            }
+
+            const printContent = doc.body.innerHTML;
+
+            const htmlContent = `
+            <!DOCTYPE html>
+            <html dir="ltr">
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body { font-family: monospace; font-size: 10px; margin: 0; padding: 2mm; width: 80mm; background: white; color: black; box-sizing: border-box; direction: ltr; text-align: right; }
                     .center { text-align: center; }
                     .line { border-bottom: 1px dashed #000; margin: 5px 0; }
                     .double-line { border-bottom: 2px solid #000; margin: 5px 0; }
-                    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+                    .row { display: flex; justify-content: space-between; flex-direction: row-reverse; margin: 2px 0; }
                     .bold { font-weight: bold; }
                     .large { font-size: 14px; }
                     .section { margin: 10px 0; }
-                `);
-                printWindow.document.write('</style></head><body>');
-                printWindow.document.write(printContent);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.print();
-            }
+                    .text-green-600 { color: #16a34a; }
+                    .text-red-600 { color: #dc2626; }
+                    .text-xs { font-size: 9px; }
+                </style>
+            </head>
+            <body>
+                ${printContent}
+            </body>
+            </html>
+            `;
+
+            const receiptPrinter = localStorage.getItem('casper_receipt_printer');
+            await printService.printHTML(htmlContent, receiptPrinter || undefined, { paperWidthMm: 80 });
+            toast.success("Z-Report sent to printer");
+        } catch (error) {
+            console.error("Z-Report print failed:", error);
+            toast.error("Failed to print Z-Report");
+        } finally {
+            setIsPrinting(false);
         }
     };
 
@@ -55,9 +91,10 @@ export default function ZReportReceipt({ shift }: ZReportReceiptProps) {
         <div className="bg-white p-6 rounded-lg shadow max-w-md">
             <button
                 onClick={handlePrint}
-                className="mb-4 w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={isPrinting}
+                className="mb-4 w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
-                🖨️ Print Z-Report
+                {isPrinting ? "🖨️ Printing..." : "🖨️ Print Z-Report"}
             </button>
 
             <div ref={printRef} className="font-mono text-sm" style={{ maxWidth: '400px' }}>

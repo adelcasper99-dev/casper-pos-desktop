@@ -19,10 +19,7 @@ declare global {
     electronAPI?: {
       isElectron: true;
       getPrinters: () => Promise<{ name: string; isDefault: boolean; status: number }[]>;
-      print: (html: string, printerName: string, options?: {
-        paperWidth?: number;
-        paperHeight?: number;
-      }) => Promise<{ success: true }>;
+      print: (html: string, printerName: string, options?: any) => Promise<{ success: true }>;
       /** Custom frameless window controls – exposed by TitleBar */
       windowControls?: {
         minimize: () => void;
@@ -72,10 +69,7 @@ class ElectronPrintChannel {
     return def?.name ?? (printers[0]?.name ?? null);
   }
 
-  async print(html: string, printerName: string, options?: {
-    paperWidth?: number;
-    paperHeight?: number;
-  }): Promise<void> {
+  async print(html: string, printerName: string, options?: any): Promise<void> {
     await window.electronAPI!.print(html, printerName, options ?? {});
   }
 }
@@ -329,16 +323,19 @@ class PrintService {
    * Priority: Electron IPC → Casper Agent → QZ Tray
    * Returns true if a silent print succeeded.
    */
-  async printSilentHTML(html: string, printerName: string): Promise<boolean> {
+  async printSilentHTML(html: string, printerName: string, options?: { paperWidthMm?: number }): Promise<boolean> {
     // 1. Electron (best path — zero dependencies, truly silent)
     if (electronChannel.isAvailable()) {
       try {
         if (!window.electronAPI?.print) {
           console.warn('[PrintService] electronAPI.print is MISSING from bridge');
         } else {
+          const widthMicrons = Math.round((options?.paperWidthMm || 80) * 1000);
           await electronChannel.print(html, printerName, {
-            paperWidth: 80000,   // 80mm wide in microns
-            paperHeight: 2970000 // large max height so receipt isn't clipped
+            pageSize: {
+              width: widthMicrons,
+              height: 2970000 // large max height so receipt isn't clipped
+            }
           });
           console.log(`✓ [Electron] Printed to "${printerName}"`);
           return true;
@@ -384,7 +381,7 @@ class PrintService {
    * Main entry point for receipt printing.
    * Tries silent print first; falls back to iframe print dialog.
    */
-  async printHTML(html: string, printerName?: string): Promise<void> {
+  async printHTML(html: string, printerName?: string, options?: { paperWidthMm?: number }): Promise<void> {
     // Resolve printer name from args > registry > localStorage
     const targetPrinter = printerName
       || this.registry?.receiptPrinter
@@ -392,7 +389,7 @@ class PrintService {
       || undefined;
 
     if (targetPrinter) {
-      const success = await this.printSilentHTML(html, targetPrinter);
+      const success = await this.printSilentHTML(html, targetPrinter, options);
       if (success) return;
       console.warn('[PrintService] All silent print channels failed — falling back to iframe dialog');
     }

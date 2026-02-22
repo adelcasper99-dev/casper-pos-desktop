@@ -129,7 +129,7 @@ const runMigrations = (dbPath) => {
 let mainWindow = null;
 let splashWindow = null;
 let nextServer;
-let appPort = 3000;
+let appPort = 3001;
 
 const findFreePort = () => {
     return new Promise((resolve) => {
@@ -224,7 +224,7 @@ const createWindow = async () => {
     try {
         await startServer(); // Wait explicitly for the server to be completely healthy
 
-        const url = app.isPackaged ? `http://127.0.0.1:${appPort}` : 'http://localhost:3000';
+        const url = app.isPackaged ? `http://127.0.0.1:${appPort}` : 'http://localhost:3001';
         log(`Loading main UI from: ${url}`);
         await mainWindow.loadURL(url);
 
@@ -264,7 +264,6 @@ ipcMain.handle('printers:list', async () => {
 ipcMain.handle('print:html', async (event, html, printerName, options) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
-    // Create a hidden worker window for printing
     const printWindow = new BrowserWindow({
         show: false,
         webPreferences: {
@@ -274,7 +273,14 @@ ipcMain.handle('print:html', async (event, html, printerName, options) => {
     });
 
     try {
-        await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        // BEST PRACTICE: Use a physical temp file instead of data URI to avoid encoding limits
+        const tempFilePath = path.join(os.tmpdir(), `casper_print_${Date.now()}.html`);
+        fs.writeFileSync(tempFilePath, html, 'utf8');
+
+        await printWindow.loadFile(tempFilePath);
+
+        // BEST PRACTICE: Wait a short moment for fonts and images to actually buffer in the DOM
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         return new Promise((resolve) => {
             printWindow.webContents.print({
@@ -284,6 +290,9 @@ ipcMain.handle('print:html', async (event, html, printerName, options) => {
                 ...options
             }, (success, failureReason) => {
                 printWindow.close();
+                // Cleanup temp file
+                try { fs.unlinkSync(tempFilePath); } catch (e) { }
+
                 if (success) {
                     resolve({ success: true });
                 } else {

@@ -121,7 +121,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 warrantyExpiryDate: warranty?.warrantyExpiryDate || null,
                 tableId: rawData.tableId || null,
                 tableName: rawData.tableName || null,
-                userId: currentUser.id || null,
+                userId: currentUser.id === 'super-admin' ? currentShift.userId : (currentUser.id || null),
                 items: {
                     create: data.items.map((item) => ({
                         productId: item.id,

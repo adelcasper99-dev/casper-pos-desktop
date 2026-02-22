@@ -31,8 +31,8 @@ export function middleware(request: NextRequest) {
             name: 'csrf-token',
             value: newToken,
             httpOnly: true,  // ✅ V-02 fix: was false — JS must NOT access this cookie
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false, // Force false for Electron local protocol
+            sameSite: 'lax', // Use lax instead of strict for local Electron protocols
             path: '/',
         });
 
