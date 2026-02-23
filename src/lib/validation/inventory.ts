@@ -46,4 +46,5 @@ export const purchaseSchema = z.object({
     paidAmount: z.coerce.number().min(0).optional(),
     deliveryCharge: z.coerce.number().min(0).optional(),
     paymentMethod: z.string().optional(),
+    treasuryId: z.string().optional(),
 });

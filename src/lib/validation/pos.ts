@@ -7,6 +7,7 @@ export const saleSchema = z.object({
         price: z.number().min(0, "Price cannot be negative")
     })).min(1, "Cart cannot be empty"),
     paymentMethod: z.enum(['CASH', 'VISA', 'CARD', 'WALLET', 'INSTAPAY', 'ACCOUNT', 'DEFERRED']),
+    treasuryId: z.string().optional(),
     totalAmount: z.number().min(0),
     payments: z.array(z.object({
         method: z.string(),

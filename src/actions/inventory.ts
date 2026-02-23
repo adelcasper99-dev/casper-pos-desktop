@@ -387,7 +387,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     // 1. Pre-computation & Reads (Outside Transaction)
     const startTime = Date.now();
     const validated = purchaseSchema.parse(data);
-    const { items, ...header } = validated;
+    const { items, treasuryId, ...header } = validated;
 
     // Get User for audit/treasury
     const { getCurrentUser } = await import('./auth');
@@ -545,11 +545,22 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             });
 
             // Treasury Logic
-            if (user?.branchId) {
-                const treasury = await tx.treasury.findFirst({
-                    where: { branchId: user.branchId, isDefault: true },
-                    select: { id: true }
-                });
+            if (user?.branchId || treasuryId) {
+                // If explicit treasury given, use it. Otherwise fallback to branch default
+                let treasury = null;
+                if (treasuryId) {
+                    treasury = await tx.treasury.findUnique({
+                        where: { id: treasuryId },
+                        select: { id: true }
+                    });
+                }
+
+                if (!treasury && user?.branchId) {
+                    treasury = await tx.treasury.findFirst({
+                        where: { branchId: user.branchId, isDefault: true },
+                        select: { id: true }
+                    });
+                }
 
                 if (treasury) {
                     await tx.transaction.create({
@@ -669,7 +680,7 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
     // 1. Pre-computation & Reads (Outside Transaction)
     const startTime = Date.now();
     const validated = purchaseSchema.parse(data);
-    const { items, ...header } = validated;
+    const { items, treasuryId, ...header } = validated;
 
     // Get User
     const { getCurrentUser } = await import('./auth');
@@ -805,6 +816,57 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
                 }
             }
         });
+
+        // E. Record Payment (Optimized)
+        // If paidAmount increased or we need to record a new payment
+        if (paidAmount > oldInvoice.paidAmount.toNumber()) {
+            const diffAmount = paidAmount - oldInvoice.paidAmount.toNumber();
+
+            await tx.supplierPayment.create({
+                data: {
+                    supplierId: data.supplierId,
+                    amount: diffAmount,
+                    method: data.paymentMethod || "CASH",
+                    notes: `Update Invoice Payment #${data.invoiceNumber || id}`
+                }
+            });
+
+            // Treasury Logic
+            if (user?.branchId || treasuryId) {
+                // If explicit treasury given, use it. Otherwise fallback to branch default
+                let treasury = null;
+                if (treasuryId) {
+                    treasury = await tx.treasury.findUnique({
+                        where: { id: treasuryId },
+                        select: { id: true }
+                    });
+                }
+
+                if (!treasury && user?.branchId) {
+                    treasury = await tx.treasury.findFirst({
+                        where: { branchId: user.branchId, isDefault: true },
+                        select: { id: true }
+                    });
+                }
+
+                if (treasury) {
+                    await tx.transaction.create({
+                        data: {
+                            type: 'OUT',
+                            amount: new Decimal(diffAmount),
+                            description: `Supplier Payment: Update Invoice #${data.invoiceNumber || id}`,
+                            paymentMethod: data.paymentMethod || "CASH",
+                            treasuryId: treasury.id
+                        }
+                    });
+
+                    await tx.treasury.update({
+                        where: { id: treasury.id },
+                        data: { balance: { decrement: diffAmount } }
+                    });
+                }
+            }
+        }
 
         // Update Supplier Balance
         await tx.supplier.update({

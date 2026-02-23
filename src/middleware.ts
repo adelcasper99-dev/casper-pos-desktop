@@ -42,6 +42,28 @@ export function middleware(request: NextRequest) {
         return response;
     }
 
+    // --- Session Verification ---
+    const sessionToken = request.cookies.get('session')?.value;
+    const path = request.nextUrl.pathname;
+
+    // Define public routes that don't require auth
+    const isPublicRoute = path === '/login' || path === '/setup' || path.startsWith('/assets') || path.startsWith('/_next');
+
+    // If no session and trying to access a protected route
+    if (!sessionToken && !isPublicRoute) {
+        return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // If session exists and trying to access the root path, send to dashboard
+    if (sessionToken && path === '/') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    // If no session and trying to access root, send to login
+    if (!sessionToken && path === '/') {
+        return NextResponse.redirect(new URL('/login', request.url));
+    }
+
     return response;
 }
 

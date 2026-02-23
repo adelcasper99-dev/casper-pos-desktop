@@ -5,11 +5,11 @@ import {
     Plus, Minus, Landmark, CreditCard, Smartphone, Banknote,
     ArrowUpCircle, ArrowDownCircle, Loader2, Edit, Trash2,
     Filter, X, Calendar, PlusCircle, RefreshCw, ArrowLeftRight,
-    Calendar as CalendarIcon
+    Calendar as CalendarIcon, Printer, FileDown, Download
 } from "lucide-react";
 import {
     startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
-    startOfMonth, endOfMonth
+    startOfMonth, endOfMonth, format
 } from 'date-fns';
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import GlassModal from "@/components/ui/GlassModal";
@@ -341,11 +341,55 @@ export default function TreasuryDashboard({
         INSTAPAY: { icon: RefreshCw, color: "text-pink-400 bg-pink-500/10 border-pink-500/30", label: "انستاباي" },
     };
 
+    const handleExportCSV = () => {
+        const headers = ["التاريخ", "النوع", "الخزنة", "طريقة الدفع", "البيان", "المبلغ"];
+        const csvRows = [headers.join(",")];
+
+        displayedTx.forEach(tx => {
+            const dateStr = format(new Date(tx.createdAt), 'yyyy-MM-dd HH:mm');
+            const typeStr = TYPE_LABELS[tx.type] || tx.type;
+            const treasuryStr = tx.treasuryName || "-";
+            const methodStr = tx.paymentMethod;
+            const descStr = (tx.description || "-").replace(/,/g, " "); // Basic CSV escaping
+            const amountStr = (POSITIVE_TYPES.includes(tx.type) ? tx.amount : -tx.amount).toFixed(2);
+
+            csvRows.push(`${dateStr},${typeStr},${treasuryStr},${methodStr},${descStr},${amountStr}`);
+        });
+
+        const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `treasury_ledger_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div className="space-y-6 animate-fade-in-up">
+            <style jsx global>{`
+                @media print {
+                    .no-print { display: none !important; }
+                    body { background: white !important; color: black !important; }
+                    .glass-card { background: transparent !important; border: 1px solid #ddd !important; box-shadow: none !important; color: black !important; }
+                    .text-muted-foreground { color: #666 !important; }
+                    .text-cyan-400, .text-green-400, .text-indigo-400 { color: black !important; }
+                    .bg-muted, .bg-muted\/20, .bg-muted\/30, .bg-muted\/50 { background: transparent !important; }
+                    table { border-collapse: collapse !important; width: 100% !important; }
+                    th, td { border: 1px solid #ddd !important; color: black !important; padding: 8px !important; }
+                    .print-only { display: block !important; }
+                }
+                .print-only { display: none; }
+            `}</style>
+
+            <div className="print-only mb-6 text-center border-b pb-4">
+                <h1 className="text-2xl font-bold">سجل حركة الخزينة</h1>
+                <p className="text-sm text-gray-500" suppressHydrationWarning>{new Date().toLocaleString('ar-EG')}</p>
+            </div>
             {/* ── Treasury Accounts ────────────────────── */}
             {data.treasuries.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                     {data.treasuries.map(tr => {
                         const style = tr.paymentMethod ? METHOD_STYLE[tr.paymentMethod] : null;
                         const IconComp = style?.icon || Landmark;
@@ -387,7 +431,7 @@ export default function TreasuryDashboard({
 
             {/* ── Toolbar ──────────────────────────────── */}
             <div className="glass-card p-4 rounded-2xl space-y-4">
-                <div className="flex flex-wrap gap-3 items-center justify-between">
+                <div className="flex flex-wrap gap-3 items-center justify-between no-print">
                     <div className="flex gap-2">
                         <button onClick={() => setShowFilters(v => !v)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-medium text-sm">
                             <Filter className="w-4 h-4" />
@@ -395,6 +439,14 @@ export default function TreasuryDashboard({
                         </button>
                         <button onClick={() => refresh()} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-medium text-sm">
                             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                        </button>
+                        <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-medium text-sm" title="طباعة">
+                            <Printer className="w-4 h-4" />
+                            طباعة
+                        </button>
+                        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-medium text-sm" title="تصدير CSV">
+                            <FileDown className="w-4 h-4" />
+                            تصدير
                         </button>
                     </div>
                     <div className="flex gap-2">
@@ -414,7 +466,7 @@ export default function TreasuryDashboard({
                 </div>
 
                 {showFilters && (
-                    <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-4">
+                    <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-4 no-print">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-1 bg-background/50 p-1 rounded-lg border border-border/50">
                                 <button
@@ -577,7 +629,7 @@ export default function TreasuryDashboard({
                                             </td>
                                             <td className={`p-4 text-end font-mono font-bold ${isPos ? "text-green-400" : "text-red-400"}`}>
                                                 {isPos ? "+" : "-"}{Math.abs(tx.amount).toFixed(2)}
-                                                <div className="flex gap-1 justify-end mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex gap-1 justify-end mt-1 opacity-0 group-hover:opacity-100 transition-opacity no-print">
                                                     <button onClick={() => handleEditClick(tx)} className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground" title="تعديل">
                                                         <Edit className="w-3 h-3" />
                                                     </button>
@@ -596,117 +648,119 @@ export default function TreasuryDashboard({
             </div>
 
             {/* ── Add / Edit Transaction Modal ─────────── */}
-            <GlassModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title={editingId ? "تعديل الحركة" : transType === "CAPITAL" ? "إيداع / إضافة رصيد" : "سحب / صرف"}
-            >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {editingId && (
-                        <div className="flex gap-2 p-2 bg-muted/30 rounded-xl">
-                            {(["CAPITAL", "OUT"] as const).map(tp => (
-                                <button key={tp} type="button" onClick={() => setTransType(tp)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${transType === tp ? (tp === "CAPITAL" ? "bg-green-500 text-black" : "bg-red-500 text-white") : "text-muted-foreground hover:bg-muted"}`}>
-                                    {tp === "CAPITAL" ? "إيداع" : "سحب"}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {data.treasuries.length > 0 && (
-                        <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">الخزنة</label>
-                            <select className="glass-input w-full" value={selectedTreasuryId} onChange={e => setSelectedTreasuryId(e.target.value)}>
-                                <option value="">الخزنة العامة</option>
-                                {data.treasuries.map(tr => (
-                                    <option key={tr.id} value={tr.id} className="text-black">{tr.name} ({tr.balance.toFixed(2)})</option>
+            <div className="no-print">
+                <GlassModal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    title={editingId ? "تعديل الحركة" : transType === "CAPITAL" ? "إيداع / إضافة رصيد" : "سحب / صرف"}
+                >
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {editingId && (
+                            <div className="flex gap-2 p-2 bg-muted/30 rounded-xl">
+                                {(["CAPITAL", "OUT"] as const).map(tp => (
+                                    <button key={tp} type="button" onClick={() => setTransType(tp)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${transType === tp ? (tp === "CAPITAL" ? "bg-green-500 text-black" : "bg-red-500 text-white") : "text-muted-foreground hover:bg-muted"}`}>
+                                        {tp === "CAPITAL" ? "إيداع" : "سحب"}
+                                    </button>
                                 ))}
-                            </select>
-                        </div>
-                    )}
+                            </div>
+                        )}
 
-                    <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">طريقة الدفع</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {METHODS.map(m => (
-                                <button key={m.key} type="button" onClick={() => setMethod(m.key)} className={`py-2 rounded-xl text-xs font-bold border transition-all ${method === m.key ? "bg-cyan-500 text-black border-cyan-500" : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"}`}>
-                                    {m.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                        {data.treasuries.length > 0 && (
+                            <div>
+                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">الخزنة</label>
+                                <select className="glass-input w-full" value={selectedTreasuryId} onChange={e => setSelectedTreasuryId(e.target.value)}>
+                                    <option value="">الخزنة العامة</option>
+                                    {data.treasuries.map(tr => (
+                                        <option key={tr.id} value={tr.id} className="text-black">{tr.name} ({tr.balance.toFixed(2)})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
-                    <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">البيان</label>
-                        <input className="glass-input w-full" placeholder={transType === "CAPITAL" ? "مثال: رأس مال أولي..." : "مثال: مصاريف شراء..."} value={description} onChange={e => setDescription(e.target.value)} required />
-                    </div>
-
-                    <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">المبلغ</label>
-                        <input type="number" step="0.01" min="0.01" className="glass-input w-full text-xl font-mono" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} required />
-                    </div>
-
-                    {editingId && (
                         <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">سبب التعديل</label>
-                            <input className="glass-input w-full" placeholder="أدخل سبب التعديل..." value={reason} onChange={e => setReason(e.target.value)} required />
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">طريقة الدفع</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {METHODS.map(m => (
+                                    <button key={m.key} type="button" onClick={() => setMethod(m.key)} className={`py-2 rounded-xl text-xs font-bold border transition-all ${method === m.key ? "bg-cyan-500 text-black border-cyan-500" : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"}`}>
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    )}
 
-                    <button type="submit" disabled={loading} className={`w-full font-bold py-3 rounded-xl mt-2 flex justify-center items-center gap-2 ${transType === "CAPITAL" ? "bg-green-500 hover:bg-green-400 text-black" : "bg-red-500 hover:bg-red-400 text-white"}`}>
-                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : transType === "CAPITAL" ? <Plus className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-                        {editingId ? "حفظ التعديل" : transType === "CAPITAL" ? "تأكيد الإيداع" : "تأكيد السحب"}
-                    </button>
-                </form>
-            </GlassModal>
+                        <div>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">البيان</label>
+                            <input className="glass-input w-full" placeholder={transType === "CAPITAL" ? "مثال: رأس مال أولي..." : "مثال: مصاريف شراء..."} value={description} onChange={e => setDescription(e.target.value)} required />
+                        </div>
 
-            {/* ── Delete Transaction Modal ─────────────── */}
-            <GlassModal isOpen={!!deletingId} onClose={() => setDeletingId(null)} title="حذف الحركة">
-                <div className="space-y-4">
-                    <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-red-200 text-sm">
-                        سيتم حذف الحركة من السجل (يُحفظ في سجل المراجعة). هذا الإجراء لا يرجع.
-                    </div>
-                    <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">سبب الحذف</label>
-                        <input className="glass-input w-full" placeholder="مثال: إدخال خاطئ" value={reason} onChange={e => setReason(e.target.value)} autoFocus />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                        <button onClick={() => setDeletingId(null)} className="px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground">إلغاء</button>
-                        <button onClick={handleDelete} disabled={!reason.trim() || loading} className="bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
-                            {loading && <Loader2 className="animate-spin w-4 h-4" />} حذف
+                        <div>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">المبلغ</label>
+                            <input type="number" step="0.01" min="0.01" className="glass-input w-full text-xl font-mono" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} required />
+                        </div>
+
+                        {editingId && (
+                            <div>
+                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">سبب التعديل</label>
+                                <input className="glass-input w-full" placeholder="أدخل سبب التعديل..." value={reason} onChange={e => setReason(e.target.value)} required />
+                            </div>
+                        )}
+
+                        <button type="submit" disabled={loading} className={`w-full font-bold py-3 rounded-xl mt-2 flex justify-center items-center gap-2 ${transType === "CAPITAL" ? "bg-green-500 hover:bg-green-400 text-black" : "bg-red-500 hover:bg-red-400 text-white"}`}>
+                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : transType === "CAPITAL" ? <Plus className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                            {editingId ? "حفظ التعديل" : transType === "CAPITAL" ? "تأكيد الإيداع" : "تأكيد السحب"}
                         </button>
-                    </div>
-                </div>
-            </GlassModal>
+                    </form>
+                </GlassModal>
 
-            {/* ── Delete Treasury Modal ────────────────── */}
-            <GlassModal isOpen={!!deletingTreasuryId} onClose={() => setDeletingTreasuryId(null)} title="حذف الخزنة">
-                <div className="space-y-4">
-                    <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-red-200 text-sm">
-                        سيتم حذف الخزنة نهائياً. يجب أن يكون الرصيد صفراً قبل الحذف.
+                {/* ── Delete Transaction Modal ─────────────── */}
+                <GlassModal isOpen={!!deletingId} onClose={() => setDeletingId(null)} title="حذف الحركة">
+                    <div className="space-y-4">
+                        <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-red-200 text-sm">
+                            سيتم حذف الحركة من السجل (يُحفظ في سجل المراجعة). هذا الإجراء لا يرجع.
+                        </div>
+                        <div>
+                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">سبب الحذف</label>
+                            <input className="glass-input w-full" placeholder="مثال: إدخال خاطئ" value={reason} onChange={e => setReason(e.target.value)} autoFocus />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setDeletingId(null)} className="px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground">إلغاء</button>
+                            <button onClick={handleDelete} disabled={!reason.trim() || loading} className="bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                                {loading && <Loader2 className="animate-spin w-4 h-4" />} حذف
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex justify-end gap-2">
-                        <button onClick={() => setDeletingTreasuryId(null)} className="px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground">إلغاء</button>
-                        <button onClick={handleDeleteTreasury} disabled={loading} className="bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2 rounded-lg flex items-center gap-2">
-                            {loading && <Loader2 className="animate-spin w-4 h-4" />} حذف
-                        </button>
+                </GlassModal>
+
+                {/* ── Delete Treasury Modal ────────────────── */}
+                <GlassModal isOpen={!!deletingTreasuryId} onClose={() => setDeletingTreasuryId(null)} title="حذف الخزنة">
+                    <div className="space-y-4">
+                        <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-red-200 text-sm">
+                            سيتم حذف الخزنة نهائياً. يجب أن يكون الرصيد صفراً قبل الحذف.
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setDeletingTreasuryId(null)} className="px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground">إلغاء</button>
+                            <button onClick={handleDeleteTreasury} disabled={loading} className="bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2 rounded-lg flex items-center gap-2">
+                                {loading && <Loader2 className="animate-spin w-4 h-4" />} حذف
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </GlassModal>
+                </GlassModal>
 
-            {/* ── Create Treasury Modal ────────────────── */}
-            <CreateTreasuryModal
-                isOpen={isCreateTreasuryOpen}
-                onClose={() => setIsCreateTreasuryOpen(false)}
-                branches={branches}
-                onSuccess={refresh}
-            />
+                {/* ── Create Treasury Modal ────────────────── */}
+                <CreateTreasuryModal
+                    isOpen={isCreateTreasuryOpen}
+                    onClose={() => setIsCreateTreasuryOpen(false)}
+                    branches={branches}
+                    onSuccess={refresh}
+                />
 
-            <TransferModal
-                isOpen={isTransferOpen}
-                onClose={() => setIsTransferOpen(false)}
-                treasuries={data.treasuries}
-                onSuccess={refresh}
-            />
+                <TransferModal
+                    isOpen={isTransferOpen}
+                    onClose={() => setIsTransferOpen(false)}
+                    treasuries={data.treasuries}
+                    onSuccess={refresh}
+                />
+            </div>
         </div>
     );
 }

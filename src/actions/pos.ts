@@ -57,9 +57,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     const currentShift = shiftResult.shift;
 
-    // 1. Separate "force" flag and "warranty" from Schema validation
-    // We treat 'rawData' as { items: [], ...others, force?: boolean, warranty?: {...} }
-    const { force, warranty, ...schemaData } = rawData;
+    // 1. Separate "force", "warranty" and "treasuryId" from Schema validation
+    // We treat 'rawData' as { items: [], ...others, force?: boolean, warranty?: {...}, treasuryId?: string }
+    const { force, warranty, treasuryId, ...schemaData } = rawData;
     const data = saleSchema.parse(schemaData);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -257,20 +257,34 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         });
 
         // 3. Record in Treasury/Ledger (per payment method treasury)
-        // Pre-fetch all treasuries for this branch, keyed by paymentMethod
+        // If an explicit treasuryId was provided for the main payment, we will use it.
+        // Otherwise, fallback to the legacy method lookup.
+
         let branchTreasuries: { id: string; paymentMethod: string | null; isDefault: boolean }[] = [];
-        if (currentUser.branchId) {
+        if (currentUser.branchId || treasuryId) {
+            // We fetch the treasuries for the branch OR the explicitly requested treasury to ensure it exists
             branchTreasuries = await tx.treasury.findMany({
-                where: { branchId: currentUser.branchId, deletedAt: null },
+                where: {
+                    OR: [
+                        { branchId: currentUser.branchId || undefined },
+                        { id: treasuryId || undefined }
+                    ],
+                    deletedAt: null
+                },
                 select: { id: true, paymentMethod: true, isDefault: true }
             });
         }
 
-        const getTreasuryForMethod = (method: string): string | null => {
-            // Find treasury for this specific payment method
+        const getTreasuryForMethod = (method: string, passedTreasuryId?: string): string | null => {
+            // If explicit treasuryId is provided and we found it, use it
+            if (passedTreasuryId) {
+                const explicit = branchTreasuries.find(t => t.id === passedTreasuryId);
+                if (explicit) return explicit.id;
+            }
+            // Fallback: Find treasury for this specific payment method
             const byMethod = branchTreasuries.find(t => t.paymentMethod === method);
             if (byMethod) return byMethod.id;
-            // Fallback to default treasury
+            // Absolute Fallback to default treasury
             const def = branchTreasuries.find(t => t.isDefault);
             return def?.id || null;
         };
@@ -278,7 +292,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         for (const p of paymentsToProcess) {
             const amt = Number(p.amount);
             if (amt > 0) {
-                const treasuryId = getTreasuryForMethod(p.method);
+                // Determine if this specific payment record uses the explicitly passed treasuryId
+                // (usually only the main payment method would, but for simplicity we bind it to the matching method)
+                const isMainPayment = p.method === data.paymentMethod;
+                const assignedTreasuryId = getTreasuryForMethod(p.method, isMainPayment ? treasuryId : undefined);
+
                 await tx.transaction.create({
                     data: {
                         type: 'SALE',
@@ -286,14 +304,14 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                         paymentMethod: p.method,
                         description: `Sale #${sale.id.split('-')[0].toUpperCase()}`,
                         shiftId: currentShift.id,
-                        treasuryId
+                        treasuryId: assignedTreasuryId || undefined
                     }
                 });
 
                 // Update treasury balance
-                if (treasuryId && p.method !== 'ACCOUNT' && p.method !== 'DEFERRED') {
+                if (assignedTreasuryId && p.method !== 'ACCOUNT' && p.method !== 'DEFERRED') {
                     await tx.treasury.update({
-                        where: { id: treasuryId },
+                        where: { id: assignedTreasuryId },
                         data: { balance: { increment: amt } }
                     });
                 }

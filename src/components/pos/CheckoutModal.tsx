@@ -7,6 +7,8 @@ import GlassModal from "../ui/GlassModal";
 import { Banknote, CreditCard, Clock, Truck, Loader2, Store, User, Smartphone, ArrowRightLeft, XCircle, Shield, CalendarCheck, UserCircle, Printer, CheckCircle } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { processSale } from "@/actions/pos";
+import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
+import { getCurrentUser } from "@/actions/auth";
 import clsx from "clsx";
 import ReceiptModal from "./ReceiptModal";
 import { offlineDB } from "@/lib/offline-db";
@@ -31,12 +33,46 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const { items, getTotal, clearCart, customerName, customerPhone, customerId, tableId, tableName } = useCartStore();
     const { isOnline } = useNetworkStatus();
     const [loading, setLoading] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'VISA' | 'WALLET' | 'INSTAPAY' | 'ACCOUNT'>('CASH');
+
+    // Treasury States
+    const [treasuries, setTreasuries] = useState<any[]>([]);
+    const [fetchingTreasuries, setFetchingTreasuries] = useState(true);
+    const [selectedTreasuryId, setSelectedTreasuryId] = useState<string>('');
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'VISA' | 'WALLET' | 'INSTAPAY' | 'ACCOUNT' | 'DEFERRED'>('CASH');
+
     const [isDelivery, setIsDelivery] = useState(false);
     const [saleResult, setSaleResult] = useState<any>(null); // Store sale result for receipt
-    // 🔍 Employee Lookup Effect REMOVED
-    // useEffect(() => {
-    // }, [customerPhone]);
+
+    // Fetch Treasuries
+    useEffect(() => {
+        if (!isOpen) return;
+        let isMounted = true;
+
+        async function loadTreasuries() {
+            setFetchingTreasuries(true);
+            try {
+                const user = await getCurrentUser();
+                const res = await getBranchTreasuriesForDropdown(user?.branchId || null);
+                if (res.success && res.data && isMounted) {
+                    setTreasuries(res.data);
+                    // Auto-select the first default treasury if available
+                    const defaultTreasury = res.data.find(t => t.isDefault) || res.data[0];
+                    if (defaultTreasury) {
+                        setSelectedTreasuryId(defaultTreasury.id);
+                        setPaymentMethod((defaultTreasury.paymentMethod || 'CASH') as any);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch treasuries", err);
+            } finally {
+                if (isMounted) setFetchingTreasuries(false);
+            }
+        }
+
+        loadTreasuries();
+
+        return () => { isMounted = false; };
+    }, [isOpen]);
 
     // Warranty Settings (Default: 30 days)
     const [warrantyEnabled, setWarrantyEnabled] = useState(false);
@@ -92,7 +128,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
         const payload = {
             items: items.map(i => ({ id: i.id, quantity: i.quantity, price: i.price })),
-            paymentMethod: paymentMethod,
+            paymentMethod: paymentMethod, // Keep for backward compatibility with reporting
+            treasuryId: paymentMethod !== 'ACCOUNT' && paymentMethod !== 'DEFERRED' ? selectedTreasuryId : undefined,
             totalAmount: finalTotal, // Send Tax Inclusive Total
             customer: saleCustomerData,
             warranty: warrantyEnabled ? {
@@ -121,6 +158,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                     totalAmount: finalTotal,
                     taxAmount: taxAmount,
                     paymentMethod: paymentMethod,
+                    treasuryId: paymentMethod !== 'ACCOUNT' && paymentMethod !== 'DEFERRED' ? selectedTreasuryId : undefined,
                     customerName: saleCustomerData?.name,
                     customerPhone: saleCustomerData?.phone,
                     tableId: tableId,
@@ -254,39 +292,50 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         <GlassModal isOpen={isOpen} onClose={onClose} title={t('checkout')}>
             <div className="space-y-6">
                 {/* Payment Methods */}
-                <div className="grid grid-cols-2 gap-3">
-                    <PaymentMethod
-                        label={t('cash')}
-                        icon={Banknote}
-                        active={paymentMethod === "CASH"}
-                        onClick={() => setPaymentMethod("CASH")}
-                    />
-                    <PaymentMethod
-                        label={t('visa')}
-                        icon={CreditCard}
-                        active={paymentMethod === "VISA"}
-                        onClick={() => setPaymentMethod("VISA")}
-                    />
-                    <PaymentMethod
-                        label={t('wallet')}
-                        icon={Smartphone}
-                        active={paymentMethod === "WALLET"}
-                        onClick={() => setPaymentMethod("WALLET")}
-                    />
-                    <PaymentMethod
-                        label={t('instapay')}
-                        icon={ArrowRightLeft}
-                        active={paymentMethod === "INSTAPAY"}
-                        onClick={() => setPaymentMethod("INSTAPAY")}
-                    />
-                    <PaymentMethod
-                        label={t('deferred')} // or "ACCOUNT" / "آجل"
-                        icon={User}
-                        active={paymentMethod === "ACCOUNT"}
-                        onClick={() => setPaymentMethod("ACCOUNT")}
-                        disabled={!customerId}
-                        warning={!customerId ? t('selectCustomerFirst') : undefined}
-                    />
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {fetchingTreasuries ? (
+                        <div className="col-span-full flex justify-center py-4 text-cyan-500">
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                        </div>
+                    ) : (
+                        <>
+                            {/* Map through dynamic treasuries */}
+                            {treasuries.map(tData => {
+                                // Match icon based on treasury's mapped paymentMethod string
+                                let TIcon = Banknote;
+                                if (tData.paymentMethod === 'VISA' || tData.paymentMethod === 'CARD') TIcon = CreditCard;
+                                else if (tData.paymentMethod === 'WALLET') TIcon = Smartphone;
+                                else if (tData.paymentMethod === 'INSTAPAY') TIcon = ArrowRightLeft;
+
+                                return (
+                                    <PaymentMethod
+                                        key={tData.id}
+                                        label={tData.name}
+                                        icon={TIcon}
+                                        active={paymentMethod !== 'ACCOUNT' && paymentMethod !== 'DEFERRED' && selectedTreasuryId === tData.id}
+                                        onClick={() => {
+                                            setSelectedTreasuryId(tData.id);
+                                            setPaymentMethod(tData.paymentMethod || 'CASH');
+                                        }}
+                                        isDefault={tData.isDefault}
+                                    />
+                                );
+                            })}
+
+                            {/* Keep Deferred/Account explicitly distinct since it bypassed treasury entirely */}
+                            <PaymentMethod
+                                label={t('deferred')} // or "ACCOUNT" / "آجل"
+                                icon={User}
+                                active={paymentMethod === "ACCOUNT" || paymentMethod === "DEFERRED"}
+                                onClick={() => {
+                                    setPaymentMethod("ACCOUNT");
+                                    setSelectedTreasuryId('');
+                                }}
+                                disabled={!customerId}
+                                warning={!customerId ? t('selectCustomerFirst') : undefined}
+                            />
+                        </>
+                    )}
                 </div>
 
                 {/* 👷 Employee Detection Banner REMOVED */}
@@ -369,8 +418,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                     </button>
                                 ))}
                             </div>
-                            <p className="text-xs text-muted-foreground text-center">
-                                📅 {t('warrantyExpires')}: {new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000).toLocaleDateString('ar-EG')}
+                            <p className="text-xs text-muted-foreground text-center" suppressHydrationWarning>
+                                📅 {t('warrantyExpires')}: {new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000).toLocaleDateString()}
                             </p>
                         </div>
                     )}
@@ -428,7 +477,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     );
 }
 
-function PaymentMethod({ label, icon: Icon, active, onClick, disabled, warning }: any) {
+function PaymentMethod({ label, icon: Icon, active, onClick, disabled, warning, isDefault }: any) {
     return (
         <button
             onClick={onClick}
@@ -443,7 +492,12 @@ function PaymentMethod({ label, icon: Icon, active, onClick, disabled, warning }
             )}
         >
             <Icon className="w-6 h-6" />
-            <span className="text-xs font-bold uppercase">{label}</span>
+            <span className="text-xs font-bold uppercase text-center">{label}</span>
+            {isDefault && (
+                <span className="absolute top-1 right-1 bg-cyan-500/30 text-cyan-300 text-[9px] px-1 rounded-sm border border-cyan-500/50">
+                    Default
+                </span>
+            )}
 
             {/* Tooltip for disabled state */}
             {disabled && warning && (

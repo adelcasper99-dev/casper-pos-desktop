@@ -4,6 +4,7 @@ import { login } from "@/actions/auth";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
+import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
     const t = useTranslations('Auth');
@@ -11,6 +12,8 @@ export default function LoginForm() {
     const [error, setError] = useState("");
     const [username, setUsername] = useState("a");
     const [rememberMe, setRememberMe] = useState(false);
+
+    const router = useRouter();
 
     useEffect(() => {
         const storedUsername = localStorage.getItem('rememberedAccount');
@@ -43,6 +46,8 @@ export default function LoginForm() {
             } catch (error) {
                 console.warn('Failed to store session data:', error);
             }
+            // Navigate to dashboard using standard location to clear Next.js cache and enforce middleware
+            window.location.href = '/dashboard';
         }
     };
 

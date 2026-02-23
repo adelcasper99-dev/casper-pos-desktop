@@ -28,7 +28,9 @@ export default function LayoutContent({
         return (
             <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
                 {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
-                <TitleBar />
+                <div className="print:hidden">
+                    <TitleBar />
+                </div>
                 <div className="flex-1 overflow-hidden">
                     {children}
                 </div>
@@ -39,7 +41,9 @@ export default function LayoutContent({
     return (
         <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
             {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
-            <TitleBar />
+            <div className="print:hidden">
+                <TitleBar />
+            </div>
             <div className="flex flex-1 overflow-hidden">
                 {user && <Sidebar user={user} />}
                 <main className="flex-1 overflow-y-auto custom-scrollbar relative">

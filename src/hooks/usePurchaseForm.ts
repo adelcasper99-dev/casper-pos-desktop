@@ -69,6 +69,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
     });
     const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
     const [paymentMethod, setPaymentMethod] = useState("CASH");
+    const [treasuryId, setTreasuryId] = useState<string>("");
 
     // Form State - Totals
     const [deliveryCharge, setDeliveryCharge] = useState("");
@@ -114,6 +115,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
                 if (data.selectedBranchId) setSelectedBranchId(data.selectedBranchId);
                 if (data.selectedWarehouseId) setSelectedWarehouseId(data.selectedWarehouseId);
                 if (data.paymentMethod) setPaymentMethod(data.paymentMethod);
+                if (data.treasuryId) setTreasuryId(data.treasuryId);
                 if (data.deliveryCharge) setDeliveryCharge(data.deliveryCharge);
                 if (data.paidAmount) setPaidAmount(data.paidAmount);
                 if (data.cart && Array.isArray(data.cart)) setCart(data.cart);
@@ -138,6 +140,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
             selectedBranchId,
             selectedWarehouseId,
             paymentMethod,
+            treasuryId,
             deliveryCharge,
             paidAmount,
             cart
@@ -150,6 +153,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         selectedBranchId,
         selectedWarehouseId,
         paymentMethod,
+        treasuryId,
         deliveryCharge,
         paidAmount,
         cart,
@@ -166,6 +170,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         if (isHQUser) setSelectedBranchId("");
         setSelectedWarehouseId("");
         setPaymentMethod("CASH");
+        setTreasuryId("");
         setCart([]);
         setDeliveryCharge("");
         setPaidAmount("");
@@ -336,6 +341,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
             paidAmount: parseFloat(paidAmount) || 0,
             deliveryCharge: parseFloat(deliveryCharge) || 0,
             paymentMethod,
+            treasuryId: treasuryId || undefined,
             csrfToken: internalCsrfToken
         };
 
@@ -371,6 +377,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         selectedBranchId, setSelectedBranchId,
         selectedWarehouseId, setSelectedWarehouseId,
         paymentMethod, setPaymentMethod,
+        treasuryId, setTreasuryId,
         deliveryCharge, setDeliveryCharge,
         paidAmount, setPaidAmount,
 

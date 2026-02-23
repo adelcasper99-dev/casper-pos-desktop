@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from "react";
 import { openShift, closeShift } from "@/actions/shift-management-actions";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
-import MoneyCounter from "./MoneyCounter";
+import { printZReport } from "@/lib/print-zreport";
+import { toast } from "sonner";
 
 interface ShiftStatusIndicatorProps {
     shift?: any;
@@ -84,6 +85,18 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 setShowCloseModal(false);
                 setActualCash("");
                 setNotes("");
+
+                // Auto Print Z-Report
+                if (result.shift) {
+                    toast.info("Generating Z-Report...");
+                    const printSuccess = await printZReport(result.shift);
+                    if (printSuccess) {
+                        toast.success("Z-Report printed successfully!");
+                    } else {
+                        toast.error("Failed to print Z-Report. Please check printer.");
+                    }
+                }
+
                 router.refresh();
             } else {
                 // Display the actual error message
@@ -160,7 +173,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
                             <div className="mb-4">
                                 <label className="block text-sm font-medium mb-2 text-gray-300">
-                                    {t('startCash')}
+                                    المبلغ العهدة (Start Cash)
                                 </label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
@@ -175,11 +188,6 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                         autoFocus
                                     />
                                 </div>
-                            </div>
-
-                            {/* Money Counter for Open Shift */}
-                            <div className="mb-4">
-                                <MoneyCounter />
                             </div>
 
                             <div className="flex gap-3">
@@ -246,7 +254,22 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="text-right">
-                        <div className="text-xs text-green-100">{t('expectedCash')}</div>
+                        <div className="text-xs text-green-100">💰 Cash / كاش</div>
+                        <div className="font-bold text-white">${Number(shift.totalCashSales || 0).toFixed(2)}</div>
+                    </div>
+                    <div className="h-8 w-px bg-green-400/50"></div>
+                    <div className="text-right">
+                        <div className="text-xs text-green-100">💳 Visa / فيزا</div>
+                        <div className="font-bold text-white">${Number(shift.totalCardSales || 0).toFixed(2)}</div>
+                    </div>
+                    <div className="h-8 w-px bg-green-400/50"></div>
+                    <div className="text-right">
+                        <div className="text-xs text-red-100">⬅️ Returns</div>
+                        <div className="font-bold text-red-100">${Number(shift.totalRefunds || 0).toFixed(2)}</div>
+                    </div>
+                    <div className="h-8 w-px bg-green-400/50"></div>
+                    <div className="text-right bg-green-800/50 px-3 py-1 rounded-lg">
+                        <div className="text-xs text-green-200">الدرج المتوقع</div>
                         <div className="font-bold text-lg text-white">
                             ${(
                                 Number(shift.startCash) +
@@ -254,11 +277,6 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 Number(shift.totalExpenses || 0)
                             ).toFixed(2)}
                         </div>
-                    </div>
-                    <div className="h-8 w-px bg-green-400/50"></div>
-                    <div className="text-right opacity-80">
-                        <div className="text-xs text-green-100">{t('startCash')}</div>
-                        <div className="font-bold">${Number(shift.startCash).toFixed(2)}</div>
                     </div>
                 </div>
             </div>
@@ -279,27 +297,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                             </div>
                         </div>
 
-                        <div className="mb-4 p-4 bg-blue-500 bg-opacity-20 rounded-lg border border-blue-500 border-opacity-30">
-                            <div className="flex justify-between items-center text-blue-300 mb-2">
-                                <span className="text-sm font-medium">{t('expectedCash')}</span>
-                                <span className="text-2xl font-bold">
-                                    ${(
-                                        Number(shift.startCash) +
-                                        Number(shift.totalCashSales || 0) -
-                                        Number(shift.totalExpenses || 0)
-                                    ).toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="text-xs text-gray-400">
-                                Start: ${Number(shift.startCash).toFixed(2)} +
-                                Sales: ${Number(shift.totalCashSales || 0).toFixed(2)} -
-                                Expenses: ${Number(shift.totalExpenses || 0).toFixed(2)}
-                            </div>
-                        </div>
-
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-2 text-gray-300">
-                                {t('actualCash')}
+                                المبلغ الفعلي (Actual Amount in Drawer)
                             </label>
                             <div className="relative">
                                 <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
@@ -314,11 +314,6 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                     autoFocus
                                 />
                             </div>
-                        </div>
-
-                        {/* Money Counter for Close Shift */}
-                        <div className="mb-4">
-                            <MoneyCounter />
                         </div>
 
                         <div className="mb-6">
@@ -338,9 +333,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                             <button
                                 onClick={handleCloseShift}
                                 disabled={isLoading}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-lg shadow-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all animate-pulse hover:animate-none"
                             >
-                                {isLoading ? tVal('required') : t('confirmClose')}
+                                {isLoading ? tVal('required') : "إنهاء الوردية (Blind Close)"}
                             </button>
                             <button
                                 onClick={() => {

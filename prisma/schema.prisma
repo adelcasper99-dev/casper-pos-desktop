@@ -414,6 +414,7 @@ model Sale {
   @@index([shiftId])
   @@index([customerId])
   @@index([status, createdAt])
+  @@index([warehouseId, status])
 }
 
 model SalePayment {

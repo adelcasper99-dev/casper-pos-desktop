@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getPurchase, refundPurchase, getPurchaseInvoices } from "@/actions/inventory";
+import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
 import {
     Loader2, Edit, Pencil, Plus, ShoppingCart, FileText,
     Calendar, Trash2, X, Search, Wand2, Check, Box,
@@ -144,7 +145,6 @@ export default function PurchasesTab({
         }
     });
 
-
     const {
         isNewPurchaseOpen, setIsNewPurchaseOpen,
         loading, setLoading, errorResult, setErrorResult,
@@ -153,6 +153,7 @@ export default function PurchasesTab({
         selectedBranchId, setSelectedBranchId,
         selectedWarehouseId, setSelectedWarehouseId,
         paymentMethod, setPaymentMethod,
+        treasuryId, setTreasuryId,
         deliveryCharge, setDeliveryCharge,
         paidAmount, setPaidAmount,
         entryMode, setEntryMode,
@@ -174,6 +175,38 @@ export default function PurchasesTab({
         handleSubmit,
         totalAmount
     } = form;
+
+    // Fetch Treasuries
+    const [treasuries, setTreasuries] = useState<any[]>([]);
+    useEffect(() => {
+        let isMounted = true;
+        async function loadTreasuries() {
+            setTreasuries([]); // Clear treasuries when branch changes
+
+            // Prioritize the branch selected in the form, 
+            // fallback to userBranchId, then to the first available branch.
+            const branchToFetch = selectedBranchId || userBranchId || (branches.length > 0 ? branches[0].id : null);
+
+            if (branchToFetch) {
+                const res = await getBranchTreasuriesForDropdown(branchToFetch);
+                if (res.success && res.data && isMounted) {
+                    setTreasuries(res.data);
+
+                    // Reset treasuryId if the currently selected one is not in the new branch's list
+                    setTreasuryId((prevId: string) => {
+                        if (prevId && !res.data.find((t: any) => t.id === prevId)) {
+                            return "";
+                        }
+                        return prevId;
+                    });
+                }
+            }
+        }
+        loadTreasuries();
+        return () => { isMounted = false; };
+    }, [selectedBranchId, userBranchId, branches, setTreasuryId]);
+
+    // Content moved up
 
     // Calculate subtotal for display if needed
     const subtotal = cart.reduce((acc, item) => acc + (item.quantity * item.unitCost), 0);
@@ -571,12 +604,10 @@ export default function PurchasesTab({
                                     "hover:bg-muted/30 transition-colors group",
                                     inv.status === 'VOIDED' && "opacity-50 bg-muted/10"
                                 )}>
-                                    <td className="p-4 text-muted-foreground">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="w-3 h-3" />
-                                            {new Date(inv.purchaseDate).toLocaleDateString()}
-                                        </div>
-                                    </td>
+                                    <div className="flex items-center gap-2" suppressHydrationWarning>
+                                        <Calendar className="w-3 h-3" />
+                                        {new Date(inv.purchaseDate).toLocaleDateString()}
+                                    </div>
                                     <td className="p-4 font-mono text-xs text-muted-foreground">
                                         {inv.invoiceNumber || <span className="text-muted-foreground/50 italic">Auto</span>}
                                     </td>
@@ -770,17 +801,23 @@ export default function PurchasesTab({
                                 <div className="text-2xl font-light text-muted-foreground/50 pb-2">=</div>
 
                                 <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('paymentMethod') || 'Method'}</label>
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('paymentMethod') || 'Bank / Treasury'}</label>
                                     <select
-                                        value={paymentMethod}
-                                        onChange={e => setPaymentMethod(e.target.value)}
-                                        className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono focus:border-cyan-500 outline-none transition-colors h-[42px] [&>option]:text-black"
+                                        value={treasuryId}
+                                        onChange={e => {
+                                            const selectedId = e.target.value;
+                                            setTreasuryId(selectedId);
+                                            const selectedT = treasuries.find(t => t.id === selectedId);
+                                            if (selectedT) {
+                                                setPaymentMethod(selectedT.paymentMethod || 'CASH');
+                                            }
+                                        }}
+                                        className="bg-background border border-border px-3 py-2 rounded-lg w-48 font-mono focus:border-cyan-500 outline-none transition-colors h-[42px] [&>option]:text-black"
                                     >
-                                        <option value="CASH">{t('methods.CASH')}</option>
-                                        <option value="VISA">{t('methods.VISA')}</option>
-                                        <option value="MADA">{t('methods.MADA')}</option>
-                                        <option value="TRANSFER">{t('methods.TRANSFER')}</option>
-                                        <option value="CREDIT">{t('methods.CREDIT')}</option>
+                                        <option value="">-- Select Treasury --</option>
+                                        {treasuries.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name} ({t.paymentMethod})</option>
+                                        ))}
                                     </select>
                                 </div>
 

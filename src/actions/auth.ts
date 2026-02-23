@@ -50,7 +50,7 @@ export async function login(formData: FormData) {
             permissions: ['*'],
             rememberMe
         }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
-        redirect("/dashboard");
+        return { success: true };
     }
 
     // V-01 fix: No auto-seed admin. Redirect to /setup on first run.
@@ -108,7 +108,7 @@ export async function login(formData: FormData) {
         rememberMe
     }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
 
-    redirect("/dashboard");
+    return { success: true };
 }
 
 export async function logout() {

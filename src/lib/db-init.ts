@@ -30,14 +30,11 @@ export async function initDatabase(): Promise<void> {
 
         console.log('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
 
-        // ── Seed Chart of Accounts if empty (BL-09 fix: moved out of transactions) ─
-        const accountCount = await prisma.account.count();
-        if (accountCount === 0) {
-            console.log('[DB] Chart of Accounts empty — seeding...');
-            const { seedAccounts } = await import('./accounting/seed-accounts');
-            await seedAccounts();
-            console.log('[DB] Chart of Accounts seeded successfully.');
-        }
+        // ── Seed / Sync Chart of Accounts (BL-09 fix: ensures system accounts exist on every startup)
+        console.log('[DB] Ensuring system accounts exist...');
+        const { seedAccounts } = await import('./accounting/seed-accounts');
+        await seedAccounts();
+        console.log('[DB] Chart of Accounts sync complete.');
     } catch (err) {
         console.error('[DB] initDatabase failed:', err);
         // Non-fatal — app can still serve requests, just with reduced safety guarantees

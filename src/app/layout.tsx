@@ -5,6 +5,7 @@ import Providers from "@/components/Providers";
 import Sidebar from "@/components/Sidebar";
 import { getCurrentUser } from "@/actions/auth";
 import { initDatabase } from "@/lib/db-init";
+import LayoutContent from "./LayoutContent";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -36,7 +37,6 @@ export default async function RootLayout({
 }
 
 // Client-side wrapper to handle conditional sidebar
-import LayoutContent from "./LayoutContent";
 
 function LayoutWrapper({ children, user }: { children: React.ReactNode, user: any }) {
     return (

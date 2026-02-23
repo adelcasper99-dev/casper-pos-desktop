@@ -69,7 +69,7 @@ function Sidebar({ user }: { user: any }) {
     return (
         <aside
             className={cn(
-                "h-full bg-zinc-900 z-50 flex flex-col transition-all duration-300 ease-in-out relative",
+                "h-full bg-zinc-900 z-50 flex flex-col transition-all duration-300 ease-in-out relative print:hidden",
                 isExpanded ? "w-64" : "w-20"
             )}
             onMouseEnter={() => setIsExpanded(true)}

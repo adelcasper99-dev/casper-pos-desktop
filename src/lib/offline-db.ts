@@ -30,6 +30,7 @@ export interface OfflineSale {
     totalAmount: number;
     taxAmount: number;
     paymentMethod: string;
+    treasuryId?: string; // 🆕 Added field
     customerName?: string;
     customerPhone?: string;
     createdAt: Date;
@@ -83,6 +84,18 @@ class OfflineDatabase extends Dexie {
             sales: 'id, createdAt, synced, syncRetries',
             tickets: 'id, barcode, createdAt, synced, syncRetries',
             syncMetadata: 'key, lastSyncTime'
+        });
+
+        // 🆕 Version 2: Added treasuryId to sales
+        this.version(2).stores({
+            products: 'id, barcode, name, categoryId, syncPriority',
+            sales: 'id, createdAt, synced, syncRetries, treasuryId',
+            tickets: 'id, barcode, createdAt, synced, syncRetries',
+            syncMetadata: 'key, lastSyncTime'
+        }).upgrade(tx => {
+            return tx.table('sales').toCollection().modify(sale => {
+                if (!sale.treasuryId) sale.treasuryId = undefined;
+            });
         });
     }
 

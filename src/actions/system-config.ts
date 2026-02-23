@@ -3,8 +3,19 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+// Electron-safe in-memory cache
+let cachedConfig: any = null;
+
 export async function getSystemConfig() {
     try {
+        if (cachedConfig) {
+            return {
+                success: true,
+                ...cachedConfig,
+                taxRate: cachedConfig.taxRate ? Number(cachedConfig.taxRate) : 0
+            };
+        }
+
         const config = await prisma.systemConfig.findUnique({
             where: { id: "default" }
         });
@@ -19,10 +30,20 @@ export async function getSystemConfig() {
                     taxEnabled: false
                 }
             });
-            return { success: true, ...newConfig };
+            cachedConfig = newConfig;
+            return {
+                success: true,
+                ...newConfig,
+                taxRate: newConfig.taxRate ? Number(newConfig.taxRate) : 0
+            };
         }
 
-        return { success: true, ...config };
+        cachedConfig = config;
+        return {
+            success: true,
+            ...config,
+            taxRate: config.taxRate ? Number(config.taxRate) : 0
+        };
     } catch (error) {
         console.error("Failed to get system config:", error);
         return { success: false, error: "Failed to get config" };
@@ -31,9 +52,6 @@ export async function getSystemConfig() {
 
 export async function updateSystemConfig(data: any) {
     try {
-        // We only support one config row with id="default"
-        // But the schema implies id="default" is default.
-
         await prisma.systemConfig.upsert({
             where: { id: "default" },
             update: data,
@@ -42,6 +60,9 @@ export async function updateSystemConfig(data: any) {
                 ...data
             }
         });
+
+        // Invalidate the in-memory cache
+        cachedConfig = null;
 
         revalidatePath("/settings");
         return { success: true };

@@ -262,6 +262,36 @@ export async function getTreasuries() {
   }
 }
 
+// ─── Get Branch Treasuries For Dropdown / Checkout ────────────────────────────
+export async function getBranchTreasuriesForDropdown(branchId?: string | null) {
+  try {
+    const whereClause: any = { deletedAt: null };
+    if (branchId && branchId !== "all" && branchId !== "") {
+      whereClause.branchId = branchId;
+    }
+
+    const treasuries = await prisma.treasury.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        name: true,
+        paymentMethod: true,
+        isDefault: true,
+        branchId: true
+      },
+      orderBy: [
+        { isDefault: "desc" }, // Put default first
+        { name: "asc" }
+      ]
+    });
+
+    return { success: true, data: treasuries };
+  } catch (err) {
+    console.error("Error fetching branch treasuries:", err);
+    return { success: false, data: [] };
+  }
+}
+
 // ─── Transfer Between Treasuries ─────────────────────────────────────────────
 export async function transferBetweenTreasuries(data: {
   fromTreasuryId: string;

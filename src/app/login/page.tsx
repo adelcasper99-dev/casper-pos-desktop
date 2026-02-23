@@ -4,8 +4,10 @@ import { login } from "@/actions/auth";
 import { useState, useEffect } from "react";
 import { Loader2, Lock } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+    const router = useRouter();
     const t = useTranslations('Auth');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -44,7 +46,10 @@ export default function LoginPage() {
                 console.warn('Failed to store session data:', error);
             }
         }
-        // If success, it redirects, so no need to set loading false
+
+        if (res?.success) {
+            window.location.href = '/dashboard';
+        }
     };
 
     return (
