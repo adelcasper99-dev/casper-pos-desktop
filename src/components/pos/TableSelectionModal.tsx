@@ -318,13 +318,9 @@ export default function TableSelectionModal({
 
                     {/* Main Content - Tables Grid */}
                     <div className="flex-1 p-6 overflow-y-auto relative">
-                        {currentFloor?.tables.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-zinc-500">
-                                <p>{t('noTablesConfigured') || 'No tables configured on this floor.'}</p>
-                            </div>
-                        ) : (
+                        {currentFloor ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-12">
-                                {currentFloor?.tables.map(table => {
+                                {currentFloor.tables.map(table => {
                                     const isOccupied = table.status === 'OCCUPIED' ||
                                         heldCarts.some(c => c.tableId === table.id && c.items.length > 0) ||
                                         (currentTableId === table.id && activeCartItems.length > 0);
@@ -402,40 +398,42 @@ export default function TableSelectionModal({
                                     );
                                 })}
 
-                                {currentFloor && (
-                                    isAddingTable ? (
-                                        <div className="relative p-4 rounded-xl flex flex-col items-center justify-center gap-3 aspect-square bg-muted/30 border border-dashed border-cyan-500/50">
-                                            <input
-                                                type="text"
-                                                autoFocus
-                                                placeholder={t('tableName') || "Table Name"}
-                                                className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-center text-sm font-bold text-white focus:outline-none focus:border-cyan-500"
-                                                value={newTableName}
-                                                onChange={(e) => setNewTableName(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') handleCreateTable();
-                                                    if (e.key === 'Escape') setIsAddingTable(false);
-                                                }}
-                                            />
-                                            <div className="flex gap-2 w-full">
-                                                <button onClick={handleCreateTable} disabled={isAddingTableLoading} className="flex-1 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 text-xs font-bold py-2 rounded-md flex items-center justify-center transition-colors">
-                                                    {isAddingTableLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (t('save') || 'Save')}
-                                                </button>
-                                                <button onClick={() => setIsAddingTable(false)} className="px-3 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-md transition-colors">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                {isAddingTable ? (
+                                    <div className="relative p-4 rounded-xl flex flex-col items-center justify-center gap-3 aspect-square bg-muted/30 border border-dashed border-cyan-500/50">
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder={t('tableName') || "Table Name"}
+                                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-center text-sm font-bold text-white focus:outline-none focus:border-cyan-500"
+                                            value={newTableName}
+                                            onChange={(e) => setNewTableName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleCreateTable();
+                                                if (e.key === 'Escape') setIsAddingTable(false);
+                                            }}
+                                        />
+                                        <div className="flex gap-2 w-full">
+                                            <button onClick={handleCreateTable} disabled={isAddingTableLoading} className="flex-1 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 text-xs font-bold py-2 rounded-md flex items-center justify-center transition-colors">
+                                                {isAddingTableLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (t('save') || 'Save')}
+                                            </button>
+                                            <button onClick={() => setIsAddingTable(false)} className="px-3 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-md transition-colors">
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => setIsAddingTable(true)}
-                                            className="relative p-6 rounded-xl flex flex-col items-center justify-center gap-2 aspect-square border-2 border-dashed border-white/10 text-zinc-500 hover:text-cyan-400 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all"
-                                        >
-                                            <Plus className="w-8 h-8 mb-2 opacity-50" />
-                                            <div className="text-sm font-bold uppercase tracking-widest">{t('addTable') || 'Add Table'}</div>
-                                        </button>
-                                    )
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsAddingTable(true)}
+                                        className="relative p-6 rounded-xl flex flex-col items-center justify-center gap-2 aspect-square border-2 border-dashed border-white/10 text-zinc-500 hover:text-cyan-400 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all"
+                                    >
+                                        <Plus className="w-8 h-8 mb-2 opacity-50" />
+                                        <div className="text-sm font-bold uppercase tracking-widest">{t('addTable') || 'Add Table'}</div>
+                                    </button>
                                 )}
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-zinc-500">
+                                <p>{t('selectFloorToViewTables') || 'Please select a floor to view or add tables.'}</p>
                             </div>
                         )}
                     </div>

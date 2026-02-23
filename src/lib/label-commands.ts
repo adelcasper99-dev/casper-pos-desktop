@@ -299,6 +299,76 @@ export function generateTestLabel(): string[] {
 }
 
 /**
+ * Generate a self-contained HTML string for printing labels via Electron / browser.
+ * Mirrors the layout of ThermalPrintLabel.tsx for consistent output.
+ */
+export function generateLabelHTML(products: LabelProduct[], template?: LabelTemplate): string {
+  const pageW = template?.page?.width ?? 58;
+  const pageH = template?.page?.height ?? 30;
+  const mT = template?.margin?.top ?? 0;
+  const mR = template?.margin?.right ?? 0;
+  const mB = template?.margin?.bottom ?? 0;
+  const mL = template?.margin?.left ?? 0;
+  const orientation = pageW > pageH ? 'landscape' : 'portrait';
+
+  const style = `
+    @page { size: ${pageW}mm ${pageH}mm ${orientation}; margin: 0; }
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    .label-page {
+      width: ${pageW}mm; height: ${pageH}mm;
+      position: relative; page-break-after: always;
+      box-sizing: border-box; overflow: hidden;
+    }
+    .label-area {
+      position: absolute;
+      top: ${mT}mm; left: ${mL}mm;
+      width: calc(100% - ${mL + mR}mm);
+      height: calc(100% - ${mT + mB}mm);
+    }
+    .el { position: absolute; white-space: nowrap; line-height: 1; font-family: Arial, sans-serif; }
+  `;
+
+  const renderElement = (el: LabelElement, product: LabelProduct): string => {
+    if (!el.visible) return '';
+    const posStyle = `left:${el.x}mm;top:${el.y}mm;${el.width ? `width:${el.width}mm;` : ''}transform:rotate(${el.rotation ?? 0}deg);transform-origin:top left;`;
+    const fontStyle = `font-size:${el.fontSize ?? 10}pt;font-weight:${el.fontWeight ?? 'normal'};`;
+
+    if (el.type === 'barcode') {
+      // Use a text fallback — SVG barcode requires a DOM library, so we show the SKU text
+      return `<div class="el" style="${posStyle}font-size:8pt;">${product.sku}</div>`;
+    }
+
+    let text = '';
+    const id = el.id?.toLowerCase() ?? '';
+    if (id === 'productname') text = product.name;
+    else if (id === 'price') text = `${product.price.toFixed(2)}`;
+    else if (id === 'sku') text = product.sku;
+    else if (id === 'storename') text = product.storeName ?? '';
+    else text = el.label;
+
+    return `<div class="el" style="${posStyle}${fontStyle}">${text}</div>`;
+  };
+
+  const renderLabel = (product: LabelProduct): string => {
+    if (!template) {
+      // Legacy layout fallback
+      return `
+        <div class="label-page" style="padding:2mm;box-sizing:border-box;">
+          <div style="font-size:9px;font-weight:bold;text-align:center;">${product.storeName ?? ''}</div>
+          <div style="font-size:9px;text-align:center;">${product.name}</div>
+          <div style="font-size:10px;font-weight:bold;text-align:center;">${product.price.toFixed(2)}</div>
+          <div style="font-size:8px;text-align:center;">SKU: ${product.sku}</div>
+        </div>`;
+    }
+    const elements = template.elements.filter(el => el.visible).map(el => renderElement(el, product)).join('');
+    return `<div class="label-page"><div class="label-area">${elements}</div></div>`;
+  };
+
+  const body = products.map(renderLabel).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${body}</body></html>`;
+}
+
+/**
  * ESC/POS Command Reference
  * For future enhancements and troubleshooting
  */

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2 } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCartStore } from "@/store/cart";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -12,6 +12,7 @@ import ReceiptModal from "@/components/pos/ReceiptModal";
 import CustomerSearch from "@/components/pos/CustomerSearch";
 import CategoryModal from "@/components/pos/CategoryModal";
 import TableSelectionModal from "@/components/pos/TableSelectionModal";
+import { generateThermalReceiptHTML } from "@/components/pos/ThermalReceiptTemplate";
 import { toast } from "sonner";
 import { printService } from "@/lib/print-service";
 import { formatArabicPrintText } from "@/lib/arabic-reshaper";
@@ -33,6 +34,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     const [categoryToEdit, setCategoryToEdit] = useState<{ id: string; name: string; color: string } | null>(null);
     // Local categories state for instant UI updates after create/edit
     const [localCategories, setLocalCategories] = useState<{ id: string; name: string; color: string }[]>(initialCategories || []);
+    const [isPrinting, setIsPrinting] = useState(false);
 
     // 🛡️ OFFLINE HANDLING
     const { isOnline } = useNetworkStatus();
@@ -125,76 +127,31 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     }, [settings?.features]);
 
     const printOrderReceipt = async () => {
-        if (items.length === 0) return;
+        if (items.length === 0 || isPrinting) return;
 
+        setIsPrinting(true);
         try {
             const paperWidthMm = settings?.paperSize === '58mm' ? 58 : (settings?.paperSize === '100mm' ? 100 : 80);
-            const width = `${paperWidthMm}mm`;
+            // Use the "perfect" thermal template in order mode
+            const receiptHtml = generateThermalReceiptHTML({
+                saleData: {
+                    items,
+                    tableName,
+                    date: new Date().toISOString(),
+                    invoiceNumber: "DRAFT"
+                },
+                settings,
+                mode: 'order'
+            });
 
-            const itemsHtml = items.map((item: any) => `
-                <div class="item">
-                    <span class="item-name">${formatArabicPrintText(item.name)}</span>
-                    <span class="item-qty">x${item.quantity}</span>
-                </div>
-            `).join('');
-
-            const receiptHtml = `
-            <!DOCTYPE html>
-            <html dir="ltr">
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    @page { margin: 0; }
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        padding: 0; 
-                        margin: 0 auto; 
-                        width: ${width}; 
-                        box-sizing: border-box;
-                        direction: ltr; 
-                        text-align: right;
-                        background: white; 
-                        color: black;
-                        font-size: 14px;
-                    }
-                    .header { text-align: center; border-bottom: 2px dashed black; padding-bottom: 8px; margin-bottom: 8px; }
-                    .header h2 { margin: 0 0 5px 0; font-size: 18px; font-weight: 900; }
-                    .header h3 { margin: 0; border: 1px solid black; padding: 3px; display: inline-block; font-size: 16px; }
-                    .items { width: 100%; margin-bottom: 10px; }
-                    .item { 
-                        display: flex; 
-                        justify-content: space-between; 
-                        flex-direction: row-reverse;
-                        margin-bottom: 5px; 
-                        border-bottom: 1px dotted #ccc;
-                        padding-bottom: 3px;
-                        font-weight: bold;
-                    }
-                    .item-name { flex: 1; text-align: right; padding-left: 5px; }
-                    .item-qty { font-family: monospace; font-size: 14px; border: 1px solid #000; padding: 0 4px; border-radius: 3px; height: fit-content; }
-                    .footer { text-align: center; margin-top: 15px; font-size: 10px; color: #333; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h2>${formatArabicPrintText('طـلـب مـفـتـوح')}</h2>
-                    ${tableName ? `<h3>${formatArabicPrintText(tableName)}</h3>` : ''}
-                </div>
-                <div class="items">
-                    ${itemsHtml}
-                </div>
-                <div class="footer">
-                    ${formatArabicPrintText('الوقت')}: ${new Date().toLocaleString('ar-EG')}
-                </div>
-            </body>
-            </html>
-            `;
             const receiptPrinter = localStorage.getItem('casper_receipt_printer');
             await printService.printHTML(receiptHtml, receiptPrinter || undefined, { paperWidthMm });
             toast.success(t('orderTicketSent') || "Order ticket sent to printer");
         } catch (error) {
             console.error("Print error:", error);
             toast.error(t('printOrderFailed') || "Failed to print order ticket");
+        } finally {
+            setIsPrinting(false);
         }
     };
 
@@ -368,13 +325,22 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
                         <div className="flex flex-col gap-3">
                             <div className="flex gap-2 h-14 w-full">
-                                <button onClick={printOrderReceipt} disabled={items.length === 0} className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title={t('printOrder') || "Print Order Ticket"}>
-                                    <Printer className="w-6 h-6" />
+                                <button
+                                    onClick={printOrderReceipt}
+                                    disabled={items.length === 0 || isPrinting}
+                                    className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    title={t('printOrder') || "Print Order Ticket"}
+                                >
+                                    {isPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-6 h-6" />}
                                 </button>
-                                <button onClick={() => holdCart()} disabled={items.length === 0} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart">
+                                <button onClick={() => holdCart()} disabled={items.length === 0 || isPrinting} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart">
                                     <PauseCircle className="w-6 h-6" />
                                 </button>
-                                <button onClick={() => setIsCheckoutOpen(true)} disabled={items.length === 0} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+                                <button
+                                    onClick={() => setIsCheckoutOpen(true)}
+                                    disabled={items.length === 0 || isPrinting}
+                                    className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                                >
                                     <Banknote className="w-6 h-6" />{t('checkout')}
                                 </button>
                             </div>

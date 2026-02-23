@@ -37,104 +37,54 @@ export function useNetworkStatus() {
     }, []);
 
     useEffect(() => {
-        // Initial check
-        setStatus(prev => ({
-            ...prev,
-            isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
-        }));
+        // Initial setup
+        const connection = (navigator as any).connection;
 
-        // 🎨 VISUAL CLARITY: Get network quality info
-        const updateConnectionInfo = () => {
-            const connection = (navigator as any).connection;
-            if (connection) {
-                setStatus(prev => ({
-                    ...prev,
-                    effectiveType: connection.effectiveType,
-                    downlink: connection.downlink,
-                    rtt: connection.rtt,
-                }));
-            }
+        const updateStatus = () => {
+            setStatus(prev => ({
+                ...prev,
+                isOnline: navigator.onLine,
+                effectiveType: connection?.effectiveType,
+                downlink: connection?.downlink,
+                rtt: connection?.rtt,
+            }));
         };
 
         const handleOnline = () => {
-            console.log('🟢 Network: ONLINE (Browser Event)');
-            setStatus(prev => ({
-                ...prev,
-                isOnline: true,
-                wasOffline: true, // Flag for showing reconnection message
-            }));
-            updateConnectionInfo();
-
-            // ⚡ SPEED: Trigger background sync immediately
-            if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype) {
-                navigator.serviceWorker.ready.then(registration => {
-                    (registration as any).sync.register('sync-offline-data');
-                }).catch(console.error);
-            }
+            console.log('🟢 Network: ONLINE');
+            setStatus(prev => ({ ...prev, isOnline: true, wasOffline: true }));
+            updateStatus();
         };
 
         const handleOffline = () => {
-            console.log('🔴 Network: OFFLINE (Browser Event)');
-            // Don't immediately trust offline event - verify with ping
+            console.log('🔴 Network: OFFLINE');
+            // Verify with ping before committing to offline state
             checkConnection().then(isActuallyOnline => {
-                if (isActuallyOnline) {
-                    console.log('🟢 Network: False Alarm (Ping succeeded)');
-                    setStatus(prev => ({ ...prev, isOnline: true }));
-                } else {
-                    setStatus(prev => ({ ...prev, isOnline: false }));
-                }
+                setStatus(prev => ({ ...prev, isOnline: isActuallyOnline }));
             });
-        };
-
-        const handleConnectionChange = () => {
-            updateConnectionInfo();
         };
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
+        connection?.addEventListener('change', updateStatus);
 
-        const connection = (navigator as any).connection;
-        if (connection) {
-            connection.addEventListener('change', handleConnectionChange);
-        }
-
-        // 🛡️ POLLING: If browser says offline, verify periodically
-        let intervalId: NodeJS.Timeout;
-        if (!status.isOnline) {
-            intervalId = setInterval(async () => {
+        // 🛡️ POLLING: Less aggressive polling
+        const intervalId = setInterval(async () => {
+            if (!navigator.onLine || !status.isOnline) {
                 const isActuallyOnline = await checkConnection();
-                if (isActuallyOnline) {
-                    console.log('🟢 Network: Recovered (Ping succeeded)');
-                    setStatus(prev => ({
-                        ...prev,
-                        isOnline: true,
-                        wasOffline: true
-                    }));
+                if (isActuallyOnline && !status.isOnline) {
+                    setStatus(prev => ({ ...prev, isOnline: true, wasOffline: true }));
                 }
-            }, 5000);
-        }
-
-        // Initial connection info
-        updateConnectionInfo();
-
-        // Double check initial state if it says offline
-        if (!navigator.onLine) {
-            checkConnection().then(online => {
-                if (online) {
-                    setStatus(prev => ({ ...prev, isOnline: true }));
-                }
-            });
-        }
+            }
+        }, 10000); // 10 seconds (less aggressive)
 
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
-            if (connection) {
-                connection.removeEventListener('change', handleConnectionChange);
-            }
-            if (intervalId) clearInterval(intervalId);
+            connection?.removeEventListener('change', updateStatus);
+            clearInterval(intervalId);
         };
-    }, [status.isOnline, checkConnection]);
+    }, [checkConnection]); // Removed [status.isOnline] which caused unnecessary effect resets
 
     return { ...status, acknowledgeReconnection };
 }

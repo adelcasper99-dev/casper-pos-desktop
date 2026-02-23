@@ -1,46 +1,41 @@
-
 "use client";
 
 import GlassModal from "@/components/ui/GlassModal";
-import Image from "next/image";
 import { Printer, CheckCircle, Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getStoreSettings } from "@/actions/settings";
-import { qzTrayService } from "@/lib/qz-tray-service";
 import { printService } from "@/lib/print-service";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
-import { formatArabicPrintText } from "@/lib/arabic-reshaper";
-import { MM_TO_PX, PAPER_SIZES } from "@/lib/constants";
-import html2canvas from "html2canvas";
+import { PAPER_SIZES } from "@/lib/constants";
+import { generateThermalReceiptHTML } from "./ThermalReceiptTemplate";
 
 interface ReceiptModalProps {
     isOpen: boolean;
     onClose: () => void;
     saleData: any;
-    settings?: any; // New prop for optimization
+    settings?: any;
 }
 
 export default function ReceiptModal({ isOpen, onClose, saleData, settings: settingsProp }: ReceiptModalProps) {
     const t = useTranslations("POS");
-    // Initialize from prop if available
     const [settings, setSettings] = useState<any>(settingsProp || null);
     const [printAttempted, setPrintAttempted] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
     const [copyCount, setCopyCount] = useState(1);
     const [saveAsDefault, setSaveAsDefault] = useState(false);
+    const receiptRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const savedCopies = localStorage.getItem('casper_default_print_copies');
-        if (savedCopies) {
-            setCopyCount(parseInt(savedCopies, 10));
-        }
+        const saved = localStorage.getItem('casper_default_print_copies');
+        if (saved) setCopyCount(parseInt(saved, 10));
     }, []);
 
     useEffect(() => {
         if (isOpen) {
-            setPrintAttempted(false); // Reset on open
-            // Only fetch if not provided via props
+            setPrintAttempted(false);
+            setIsPrinting(false);
             if (settingsProp) {
                 setSettings(settingsProp);
             } else {
@@ -51,134 +46,154 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
         }
     }, [isOpen, settingsProp]);
 
-    // Auto-Print Logic
+    // Auto-print if enabled
     useEffect(() => {
         if (isOpen && settings?.autoPrint && saleData && !printAttempted) {
             setPrintAttempted(true);
-            // Small delay to ensure DOM is ready
-            setTimeout(() => {
-                handlePrint();
-            }, 500);
+            setTimeout(() => handlePrint(), 500);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, settings, saleData, printAttempted]);
 
     if (!saleData) return null;
 
     const handlePrint = async () => {
-        if (!settings) return;
+        if (!settings || isPrinting) return;
 
-        const printContent = document.getElementById("receipt-content");
-        if (!printContent) return;
-
-        // Save as default if checked
+        setIsPrinting(true);
         if (saveAsDefault) {
             localStorage.setItem('casper_default_print_copies', copyCount.toString());
         }
 
-        const paperWidthMm = settings.paperSize === '58mm' ? PAPER_SIZES.MOBILE : (settings.paperSize === '100mm' ? PAPER_SIZES.WIDE : PAPER_SIZES.STANDARD);
-        const width = `${paperWidthMm}mm`; // CRITICAL: Use MM for correct physical sizing
-
-        const receiptPrinter = localStorage.getItem('casper_receipt_printer');
+        const receiptPrinter = localStorage.getItem('casper_receipt_printer') || undefined;
+        const paperWidthMm = settings?.paperSize === '58mm'
+            ? PAPER_SIZES.MOBILE
+            : (settings?.paperSize === '100mm' ? PAPER_SIZES.WIDE : PAPER_SIZES.STANDARD);
 
         const printJob = async () => {
-            // New instructions implementation: printReceipt()
-            await printReceipt();
-        };
+            const html = generateThermalReceiptHTML({ saleData, settings });
 
-        const printReceipt = async () => {
-            const container = document.getElementById("receipt-container");
-            if (!container) return;
-
-            try {
-                // Remove hidden class temporarily for capture if needed, 
-                // but we'll use a permanent hidden container strategy
-                const canvas = await html2canvas(container, {
-                    scale: 2, // High clarity for print as requested
-                    useCORS: true,
-                    backgroundColor: "#ffffff",
-                    logging: false
-                });
-
-                const base64Image = canvas.toDataURL('image/png');
-
-                const response = await fetch('http://localhost:3002/print', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ image: base64Image }),
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Server responded with ${response.status}`);
-                }
-
-                console.log('Receipt sent to print server successfully');
-            } catch (error) {
-                console.error('Error during capture or print:', error);
-                throw error; // Let the toast handle the error display
+            for (let i = 0; i < copyCount; i++) {
+                await printService.printHTML(html, receiptPrinter, { paperWidthMm });
             }
         };
 
         toast.promise(printJob(), {
             loading: t('printing') || 'Printing...',
             success: t('sentToPrinter') || 'Sent to printer',
-            error: (err) => `Print failed: ${err.message || 'Unknown error'}`
+            error: (err: Error) => {
+                setIsPrinting(false);
+                return `Print failed: ${err?.message || 'Unknown error'}`;
+            },
+            finally: () => setIsPrinting(false)
         });
     };
 
+    // ... (rest of the component)
+    const items = saleData.items ?? [];
+    const total = saleData.totalAmount ?? 0;
+    const currency = settings?.currency ?? 'SAR';
+    const date = new Date(saleData.date);
+    const dateStr = date.toLocaleDateString('ar-EG');
+    const timeStr = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
     return (
-        <GlassModal isOpen={isOpen} onClose={onClose} title={t('printReceipt')}>
-            <div className="flex flex-col items-center justify-center p-6 space-y-6">
+        <GlassModal isOpen={isOpen} onClose={onClose} title={t('printReceipt') || "طباعة الإيصال"}>
+            <div className="flex flex-col items-center justify-center p-4 space-y-5">
+
+                {/* Success badge */}
                 <div className="flex flex-col items-center gap-2">
-                    <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.5)] animate-bounce-in">
-                        <CheckCircle className="w-10 h-10" />
+                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.5)]">
+                        <CheckCircle className="w-8 h-8" />
                     </div>
-                    <h2 className="text-2xl font-bold text-foreground tracking-wide">{t('saleCompleted')}</h2>
+                    <h2 className="text-xl font-bold text-foreground">{t('saleCompleted') || "تمت العملية بنجاح"}</h2>
                 </div>
 
-
-
-                {/* Hidden Receipt Container for HTML-to-Image Pipeline */}
-                <div id="receipt-container" dir="rtl" className="fixed -left-[9999px] top-0 bg-white text-black p-4 w-[300px]" style={{ fontFamily: 'Arial, sans-serif' }}>
-                    <div className="text-center border-b border-dashed border-black pb-2 mb-2">
-                        <h3 className="text-lg font-bold uppercase">{settings?.name || "CASPER POS"}</h3>
-                        <p className="text-xs">{settings?.address}</p>
-                        <p className="text-[10px]">{new Date(saleData.date).toLocaleString('ar-EG')}</p>
+                {/* ── Receipt Preview ── */}
+                <div
+                    ref={receiptRef}
+                    dir="rtl"
+                    style={{
+                        fontFamily: 'Arial, Tahoma, sans-serif',
+                        fontSize: '12px',
+                        color: '#000000',
+                        backgroundColor: '#ffffff',
+                        width: '300px',
+                        maxWidth: '300px',
+                        borderRadius: '0px',
+                        border: '1px solid #000000',
+                        overflow: 'hidden',
+                        padding: '12px',
+                        fontWeight: 600
+                    }}
+                >
+                    {/* Header */}
+                    <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '8px', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {settings?.name ?? 'CASPER POS'}
+                        </div>
+                        {settings?.phone && (
+                            <div style={{ fontSize: '11px', marginTop: '4px' }}>📞 {settings.phone}</div>
+                        )}
+                        {settings?.address && (
+                            <div style={{ fontSize: '10px', marginTop: '2px' }}>📍 {settings.address}</div>
+                        )}
                     </div>
 
-                    <div className="space-y-1 mb-2">
-                        {saleData.items.map((item: any, i: number) => (
-                            <div key={i} className="flex justify-between text-xs">
-                                <span>{item.name}</span>
-                                <span>{item.quantity} x {formatCurrency(item.price, settings?.currency)}</span>
+                    {/* Info */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderBottom: '1px solid #000000', paddingBottom: '6px', marginBottom: '4px' }}>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '12px' }}>#{saleData.invoiceNumber || "0000"}</div>
+                            <div>{dateStr} - {timeStr}</div>
+                        </div>
+                    </div>
+
+                    {/* Items */}
+                    <div style={{ padding: '4px 0' }}>
+                        {items.length === 0 && (
+                            <div style={{ textAlign: 'center', fontSize: '11px', color: '#a1a1aa' }}>لا توجد عناصر</div>
+                        )}
+                        {items.map((item: any, i: number) => (
+                            <div key={i} style={{ padding: '6px 0', borderBottom: '1px solid #000000' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '12px' }}>
+                                    <span>{item.name}</span>
+                                    <span>{formatCurrency(item.price * (item.quantity || 1), currency)}</span>
+                                </div>
+                                {(item.storage || item.color) && (
+                                    <div style={{ fontSize: '11px', marginTop: '2px' }}>{[item.storage, item.color].filter(Boolean).join(' - ')}</div>
+                                )}
+                                {item.quantity > 1 && (
+                                    <div style={{ fontSize: '10px' }}>الكمية: {item.quantity} x {formatCurrency(item.price, currency)}</div>
+                                )}
                             </div>
                         ))}
                     </div>
 
-                    <div className="border-t border-black pt-2 flex justify-between font-bold">
-                        <span>المجموع (Total)</span>
-                        <span>{formatCurrency(saleData.totalAmount, settings?.currency)}</span>
+                    {/* Total Box */}
+                    <div style={{ background: '#000000', color: '#ffffff', margin: '12px -12px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.8 }}>الإجمالي</div>
+                        <div style={{ fontSize: '20px', fontWeight: 700 }}>{formatCurrency(total, currency)}</div>
                     </div>
 
-                    <div className="text-center text-[10px] mt-4 border-t border-dashed border-black pt-2">
-                        {settings?.receiptFooter || "شكراً لزيارتكم"}
+                    {/* Footer */}
+                    <div style={{ textAlign: 'center', borderTop: '1px solid #000000', paddingTop: '8px', marginTop: '4px' }}>
+                        <div style={{ fontSize: '11px' }}>{settings?.receiptFooter || 'شكراً لزيارتكم'}</div>
                     </div>
                 </div>
 
-                {/* Print Controls */}
-                <div className="w-full bg-muted/30 p-4 rounded-2xl border border-border/50 space-y-4">
+                {/* Controls */}
+                <div className="w-full max-w-[300px] bg-muted/30 p-4 rounded-2xl border border-border/50 space-y-3">
                     <div className="flex items-center justify-between">
-                        <label className="text-sm font-bold opacity-70">{t('copyCount') || 'Number of Copies'}</label>
+                        <label className="text-sm font-bold opacity-70">{t('copyCount') || 'عدد النسخ'}</label>
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => setCopyCount(Math.max(1, copyCount - 1))}
-                                className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                                className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors font-black"
                             >-</button>
                             <span className="w-8 text-center font-black">{copyCount}</span>
                             <button
                                 onClick={() => setCopyCount(copyCount + 1)}
-                                className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                                className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors font-black"
                             >+</button>
                         </div>
                     </div>
@@ -188,24 +203,37 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                             type="checkbox"
                             checked={saveAsDefault}
                             onChange={(e) => setSaveAsDefault(e.target.checked)}
-                            className="w-5 h-5 rounded-lg border-2 border-muted bg-transparent transition-all checked:bg-cyan-500 checked:border-cyan-500"
+                            className="w-4 h-4 rounded border-2 border-muted bg-transparent"
                         />
-                        <span className="text-sm font-bold opacity-70 group-hover:opacity-100 transition-opacity">
-                            {t('saveAsDefault') || 'Save as Default'}
+                        <span className="text-sm opacity-70 group-hover:opacity-100 transition-opacity">
+                            {t('saveAsDefault') || 'حفظ كافتراضي'}
                         </span>
                     </label>
                 </div>
 
-                <div className="flex gap-3 w-full">
-                    <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-foreground">
-                        {t('close')}
+                {/* Actions */}
+                <div className="flex gap-3 w-full max-w-[300px]">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 py-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-foreground font-bold"
+                        disabled={isPrinting}
+                    >
+                        {t('close') || 'إغلاق'}
                     </button>
-                    <button onClick={handlePrint} disabled={!settings} className="flex-1 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-colors flex items-center justify-center gap-2">
-                        <Printer className="w-4 h-4" />
-                        {t('print')}
+                    <button
+                        onClick={handlePrint}
+                        disabled={!settings || isPrinting}
+                        className="flex-1 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isPrinting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Printer className="w-4 h-4" />
+                        )}
+                        {isPrinting ? (t('printing') || 'جاري الطباعة...') : (t('print') || 'طباعة')}
                     </button>
                 </div>
             </div>
-        </GlassModal >
+        </GlassModal>
     );
 }

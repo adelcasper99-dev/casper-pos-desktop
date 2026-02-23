@@ -131,7 +131,7 @@ async function getQZService() {
 // Print Service
 // ─────────────────────────────────────────────
 class PrintService {
-  private defaultPrinterName = 'Xprinter XP-200B';
+  private defaultPrinterName = ''; // Resolved to OS default at print time if no registry entry
   private registry: PrinterRegistry | null = null;
 
   constructor() {
@@ -189,7 +189,7 @@ class PrintService {
   setDefaultPrinter(name: string) { this.defaultPrinterName = name; }
 
   getDefaultPrinter(): string {
-    return this.registry?.labelPrinter || this.defaultPrinterName;
+    return this.registry?.labelPrinter || '';
   }
 
   async isServerOnline(): Promise<boolean> {
@@ -278,16 +278,37 @@ class PrintService {
   }
 
   async printLabels(labels: LabelProduct[], template?: LabelTemplate, printerName?: string): Promise<void> {
+    const targetPrinter = printerName
+      || this.registry?.labelPrinter
+      || (electronChannel.isAvailable() ? await electronChannel.getDefaultPrinterName() : null)
+      || '';
+
+    // 1. Try Electron IPC first (silent, native — no QZ needed)
+    if (electronChannel.isAvailable()) {
+      try {
+        const { generateLabelHTML } = await import('./label-commands');
+        const html = generateLabelHTML(labels, template);
+        const widthMm = template?.page?.width ?? 58;
+        const success = await this.printSilentHTML(html, targetPrinter, { paperWidthMm: widthMm });
+        if (success) {
+          console.log(`✓ [Electron] Printed ${labels.length} label(s) to "${targetPrinter}"`);
+          return;
+        }
+      } catch (err) {
+        console.warn('[PrintService] Electron label print failed, falling back to QZ...', err);
+      }
+    }
+
+    // 2. Fallback: QZ Tray ESC/POS (for non-Electron environments)
     try {
       const service = await getQZService();
       const isOnline = await this.isServerOnline();
       if (!isOnline) throw new Error('QZ_TRAY_OFFLINE');
-      const targetPrinter = printerName || this.defaultPrinterName;
-      await service.findPrinter(targetPrinter);
+      if (targetPrinter) await service.findPrinter(targetPrinter);
       const { generateMultipleLabelCommands } = await import('./label-commands');
       const commands = generateMultipleLabelCommands(labels, template);
       await service.printESCPOS(targetPrinter, commands);
-      console.log(`✓ Printed ${labels.length} label(s) to ${targetPrinter}`);
+      console.log(`✓ [QZ] Printed ${labels.length} label(s) to "${targetPrinter}"`);
     } catch (error: any) {
       if (error.message === 'QZ_TRAY_OFFLINE') throw error;
       throw new Error(`Print error: ${error.message}`);
@@ -389,9 +410,13 @@ class PrintService {
       || undefined;
 
     if (targetPrinter) {
-      const success = await this.printSilentHTML(html, targetPrinter, options);
+      // 🛡️ HARDENING: Added a safety race to ensure the frontend doesn't hang if IPC doesn't return
+      const printPromise = this.printSilentHTML(html, targetPrinter, options);
+      const timeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 20000));
+
+      const success = await Promise.race([printPromise, timeoutPromise]);
       if (success) return;
-      console.warn('[PrintService] All silent print channels failed — falling back to iframe dialog');
+      console.warn('[PrintService] Silent print timed out or failed — falling back to iframe dialog');
     }
 
     // ─── Fallback: Invisible iframe print dialog ──────────────────────

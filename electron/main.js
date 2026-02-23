@@ -267,32 +267,34 @@ ipcMain.handle('print:html', async (event, html, printerName, options) => {
     const printWindow = new BrowserWindow({
         show: false,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: false,
+            contextIsolation: true
         }
     });
 
-    try {
-        // BEST PRACTICE: Use a physical temp file instead of data URI to avoid encoding limits
-        const tempFilePath = path.join(os.tmpdir(), `casper_print_${Date.now()}.html`);
-        fs.writeFileSync(tempFilePath, html, 'utf8');
+    // 🛡️ HARDENING: Safety timeout to prevent the app from hanging if the printer/spooler is unresponsive
+    const TIMEOUT_MS = 15000; // 15 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('PRINT_TIMEOUT')), TIMEOUT_MS);
+    });
 
+    const tempFilePath = path.join(os.tmpdir(), `casper_print_${Date.now()}.html`);
+
+    try {
+        fs.writeFileSync(tempFilePath, html, 'utf8');
         await printWindow.loadFile(tempFilePath);
 
-        // BEST PRACTICE: Wait a short moment for fonts and images to actually buffer in the DOM
+        // Wait a short moment for fonts and images to actually buffer in the DOM
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        return new Promise((resolve) => {
+        const printPromise = new Promise((resolve) => {
             printWindow.webContents.print({
                 silent: true,
                 printBackground: true,
                 deviceName: printerName,
+                margins: { marginType: 'none' },
                 ...options
             }, (success, failureReason) => {
-                printWindow.close();
-                // Cleanup temp file
-                try { fs.unlinkSync(tempFilePath); } catch (e) { }
-
                 if (success) {
                     resolve({ success: true });
                 } else {
@@ -300,9 +302,24 @@ ipcMain.handle('print:html', async (event, html, printerName, options) => {
                 }
             });
         });
-    } catch (error) {
+
+        // Race between actual print and the safety timeout
+        const result = await Promise.race([printPromise, timeoutPromise]);
+
+        // Cleanup & Success
         if (!printWindow.isDestroyed()) printWindow.close();
-        return { success: false, error: error.message };
+        try { fs.unlinkSync(tempFilePath); } catch (e) { }
+        return result;
+
+    } catch (error) {
+        log(`Print Error: ${error.message}`);
+        if (!printWindow.isDestroyed()) printWindow.close();
+        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
+
+        return {
+            success: false,
+            error: error.message === 'PRINT_TIMEOUT' ? 'Printer timed out (Spooler busy?)' : error.message
+        };
     }
 });
 
