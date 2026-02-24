@@ -8,6 +8,9 @@ export interface PrinterRegistry {
     /** Assigned printer for receipts */
     receiptPrinter?: string;
 
+    /** Assigned format for receipts */
+    receiptFormat?: 'thermal' | 'a4';
+
     /** Assigned printer for labels */
     labelPrinter?: string;
 

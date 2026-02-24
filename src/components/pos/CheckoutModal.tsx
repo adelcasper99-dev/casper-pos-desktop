@@ -11,7 +11,7 @@ import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
 import { getCurrentUser } from "@/actions/auth";
 import clsx from "clsx";
 import ReceiptModal from "./ReceiptModal";
-import { offlineDB } from "@/lib/offline-db";
+import { db as offlineDB } from "@/lib/offline-db";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { safeRandomUUID } from "@/lib/utils";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -30,7 +30,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const formatCurrency = useFormatCurrency();
     const t = useTranslations("POS");
     const router = useRouter();
-    const { items, getTotal, clearCart, customerName, customerPhone, customerId, tableId, tableName } = useCartStore();
+    const { items, getTotal, clearCart, customerName, customerPhone, customerBalance, customerId, tableId, tableName } = useCartStore();
     const { isOnline } = useNetworkStatus();
     const [loading, setLoading] = useState(false);
 
@@ -145,27 +145,26 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         // 🛡️ OFFLINE HANDLING
         if (!isOnline) {
             try {
-                // Construct offline sale object
-                const offlineSale = {
+                // Construct offline sale object matching OfflineSale interface
+                const offlineSale: any = {
                     id: safeRandomUUID(),
-                    items: items.map(i => ({
+                    items: currentItems.map(i => ({
                         productId: i.id,
                         productName: i.name,
                         quantity: i.quantity,
                         unitPrice: i.price,
-                        unitCost: 0 // Will be resolved by server on sync if possible, or 0
                     })),
                     totalAmount: finalTotal,
                     taxAmount: taxAmount,
+                    subTotal: subTotal,
                     paymentMethod: paymentMethod,
-                    treasuryId: paymentMethod !== 'ACCOUNT' && paymentMethod !== 'DEFERRED' ? selectedTreasuryId : undefined,
                     customerName: saleCustomerData?.name,
                     customerPhone: saleCustomerData?.phone,
-                    tableId: tableId,
-                    tableName: tableName,
-                    createdAt: new Date(),
-                    synced: 0 as const, // 0 = false for IndexedDB query compatibility
-                    syncRetries: 0
+                    customerAddress: saleCustomerData?.address,
+                    warehouseId: 'default', // Fallback for offline
+                    createdAt: Date.now(),
+                    syncStatus: 'PENDING',
+                    offlineFlag: true
                 };
 
                 await offlineDB.sales.add(offlineSale);
@@ -177,6 +176,9 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                     totalAmount: finalTotal,
                     date: new Date(),
                     customer: saleCustomerData,
+                    customerName: saleCustomerData?.name,
+                    customerPhone: saleCustomerData?.phone,
+                    customerBalance: customerBalance,
                     paymentMethod: paymentMethod,
                     warranty: warrantyEnabled ? {
                         warrantyDays: warrantyDays,
@@ -207,6 +209,9 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 totalAmount: finalTotal, // Use calculated total from client or result
                 date: new Date(),
                 customer: saleCustomerData,
+                customerName: saleCustomerData?.name,
+                customerPhone: saleCustomerData?.phone,
+                customerBalance: customerBalance,
                 paymentMethod: paymentMethod,
                 tableId: tableId,
                 tableName: tableName,

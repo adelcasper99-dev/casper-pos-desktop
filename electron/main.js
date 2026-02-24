@@ -103,6 +103,22 @@ const runMigrations = (dbPath) => {
         }
     };
 
+    // Check for schema integrity BEFORE running migrations if possible,
+    // though Prisma handle migration safety, PRAGMA check is for data durability.
+    try {
+        log('Database: Running integrity check...');
+        const output = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+            env, input: 'PRAGMA integrity_check;', windowsHide: true, encoding: 'utf-8'
+        });
+        if (output.includes('ok')) {
+            log('Database: Integrity check - OK');
+        } else {
+            log(`Database: Integrity check found issues: ${output}`);
+        }
+    } catch (e) {
+        log(`Database: Integrity check failed to run: ${e.message}`);
+    }
+
     // First attempt
     const firstAttempt = attemptMigration(1);
 
@@ -353,6 +369,120 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     } catch (err) {
         log(`Failed save-config-and-restart: ${err.message}`);
         return false;
+    }
+});
+
+// --- OFFLINE DATA PERSISTENCE & MAINTENANCE ---
+
+ipcMain.handle('app:save-offline-data', async (event, data) => {
+    try {
+        const dbPath = getDatabasePath();
+        const userDataPath = app.getPath('userData');
+        const backupPath = path.join(userDataPath, 'local_mirror.db');
+
+        // Mirror the actual SQLite file for durability (Constitution Requirement)
+        if (fs.existsSync(dbPath)) {
+            fs.copyFileSync(dbPath, backupPath);
+            log(`Mirror: SQLite mirrored to ${backupPath}`);
+        }
+
+        // Also save provided metadata if any
+        if (data && Object.keys(data).length > 0) {
+            const jsonPath = path.join(userDataPath, 'offline_backup.json');
+            fs.writeFileSync(jsonPath, JSON.stringify(data), 'utf8');
+        }
+
+        return { success: true };
+    } catch (err) {
+        log(`Failed to save offline data: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('app:load-offline-data', async () => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const backupPath = path.join(userDataPath, 'offline_backup.json');
+        if (!fs.existsSync(backupPath)) return null;
+        const data = fs.readFileSync(backupPath, 'utf8');
+        return JSON.parse(data);
+    } catch (err) {
+        log(`Failed to load offline data: ${err.message}`);
+        return null;
+    }
+});
+
+ipcMain.handle('app:export-support-bundle', async () => {
+    try {
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: 'Export Support Bundle',
+            defaultPath: path.join(os.homedir(), `casper_support_${Date.now()}.zip`),
+            filters: [{ name: 'Zip Files', extensions: ['zip'] }]
+        });
+
+        if (canceled || !filePath) return null;
+
+        const userDataPath = app.getPath('userData');
+        const dbPath = getDatabasePath();
+        const logPath = path.join(os.homedir(), 'casper-boot.log');
+
+        // Note: For a real ZIP we'd use adm-zip, but for now let's just copy files to a folder
+        // if the user provided a folder path, OR we can just copy to a temp folder and let them know.
+        // Given we have fs-extra, we can use it if we want, but it's not imported here yet.
+        const fsExtra = require('fs-extra');
+        const exportDir = filePath.replace(/\.zip$/, '');
+        if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+
+        if (fs.existsSync(dbPath)) fsExtra.copySync(dbPath, path.join(exportDir, 'local.db'));
+        if (fs.existsSync(logPath)) fsExtra.copySync(logPath, path.join(exportDir, 'boot.log'));
+
+        return { success: true, path: exportDir };
+    } catch (err) {
+        log(`Failed to export support bundle: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('app:vacuum-db', async () => {
+    try {
+        const dbPath = getDatabasePath();
+        const prismaJs = app.isPackaged
+            ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'prisma', 'build', 'index.js')
+            : path.join(__dirname, '..', 'node_modules', 'prisma', 'build', 'index.js');
+        const schemaPath = app.isPackaged
+            ? path.join(process.resourcesPath, 'app.asar.unpacked', 'prisma', 'schema.prisma')
+            : path.join(__dirname, '..', 'prisma', 'schema.prisma');
+
+        const normalizedDbPath = dbPath.replace(/\\/g, '/');
+        const env = {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: '1',
+            DATABASE_URL: `file:${normalizedDbPath}`
+        };
+
+        // Running a raw SQL VACUUM via prisma execute
+        log('Database: Running VACUUM...');
+        execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+            env, input: 'VACUUM;', windowsHide: true, encoding: 'utf-8'
+        });
+        log('Database: VACUUM success.');
+        return { success: true };
+    } catch (err) {
+        log(`Failed to vacuum database: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('app:print-thermal-receipt', async (event, layout) => {
+    // This is the "Speed Print" implementation.
+    // It bypasses the standard Electron preview if possible and sends raw or high-speed silent print.
+    // For now, we reuse the print:html logic but with higher priority and no dialog.
+    log('Print: Speed Print triggered');
+    try {
+        return await ipcMain.emit('print:html', null, layout.html, layout.printerName || '', { silent: true });
+    } catch (err) {
+        log(`Print: Speed Print failed: ${err.message}`);
+        return { success: false, error: err.message };
     }
 });
 

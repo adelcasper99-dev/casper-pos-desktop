@@ -28,6 +28,16 @@ export async function initDatabase(): Promise<void> {
         // ── Synchronous: NORMAL (doesn't return data) ─
         await prisma.$executeRawUnsafe('PRAGMA synchronous=NORMAL;');
 
+        // ── Database Health Check ────────────────────────────────────────
+        console.log('[DB] Running health check...');
+        const integrityCheck = await prisma.$queryRawUnsafe('PRAGMA integrity_check;');
+        if (Array.isArray(integrityCheck) && integrityCheck[0]?.integrity_check !== 'ok') {
+            console.error('[DB] Integrity check failed:', integrityCheck);
+            // In a real desktop app, we might trigger a recovery or alert here
+        } else {
+            console.log('[DB] Integrity check passed.');
+        }
+
         console.log('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
 
         // ── Seed / Sync Chart of Accounts (BL-09 fix: ensures system accounts exist on every startup)

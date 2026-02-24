@@ -115,6 +115,8 @@
         "printOrder": "طباعة طلب",
         "orderTicketSent": "تم إرسال تذكرة الطلب للطابعة",
         "printOrderFailed": "فشل طباعة تذكرة الطلب",
+        "speedPrint": "طباعة سريعة",
+        "speedPrintPreview": "معاينة الطباعة السريعة",
         "addCategory": "إضافة فئة"
     },
     "Shift": {

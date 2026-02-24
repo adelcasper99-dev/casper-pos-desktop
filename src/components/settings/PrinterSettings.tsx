@@ -23,6 +23,7 @@ export default function PrinterSettings() {
 
     // Preferences
     const [receiptPrinter, setReceiptPrinter] = useState<string>('');
+    const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
     const [labelPrinter, setLabelPrinter] = useState<string>('');
 
     useEffect(() => {
@@ -35,6 +36,7 @@ export default function PrinterSettings() {
         const registry = printService.getRegistry();
         if (registry) {
             if (registry.receiptPrinter) setReceiptPrinter(registry.receiptPrinter);
+            if (registry.receiptFormat) setReceiptFormat(registry.receiptFormat);
             if (registry.labelPrinter) setLabelPrinter(registry.labelPrinter);
         } else {
             // Fallback for immediate load after migration
@@ -113,6 +115,7 @@ export default function PrinterSettings() {
     const handleSave = () => {
         printService.updateRegistry({
             receiptPrinter: receiptPrinter,
+            receiptFormat: receiptFormat,
             labelPrinter: labelPrinter
         });
         toast.success("Printer preferences saved to this device registry");
@@ -239,6 +242,20 @@ export default function PrinterSettings() {
                                     Test Print
                                 </Button>
                             )}
+                        </div>
+
+                        {/* Receipt Format Selection */}
+                        <div className="space-y-2">
+                            <Label>Receipt Format / Layout</Label>
+                            <Select value={receiptFormat} onValueChange={(val: any) => setReceiptFormat(val)}>
+                                <SelectTrigger className="glass-input bg-black/20 border-white/10 text-white">
+                                    <SelectValue placeholder="Select format..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                    <SelectItem value="thermal">Thermal Roll (80mm/58mm)</SelectItem>
+                                    <SelectItem value="a4">Standard Invoice (A4)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {/* Label Printer Selection */}

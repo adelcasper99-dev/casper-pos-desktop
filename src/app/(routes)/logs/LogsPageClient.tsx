@@ -18,6 +18,8 @@ interface LogsPageClientProps {
 
 export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPageClientProps) {
     const [activeTab, setActiveTab] = useState("sales");
+    const [salesTotals, setSalesTotals] = useState({ netTotal: 0, count: 0 });
+    const [purchaseTotals, setPurchaseTotals] = useState({ actualTotal: 0, remaining: 0 });
 
     return (
         <div className="w-full px-4 md:px-8 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -69,21 +71,50 @@ export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPage
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="hidden lg:flex items-center gap-2 text-xs text-zinc-500 font-mono italic">
-                        <FileText className="w-3 h-3" />
-                        {activeTab === 'sales' ? `${sales.length} عملية موثقة` : `${purchases.length} فاتورة موثقة`}
+                    <div className="hidden lg:flex items-center gap-6">
+                        {activeTab === 'sales' ? (
+                            <>
+                                <div className="flex flex-col text-right">
+                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">إجمالي المبيعات (الصافي)</span>
+                                    <span className="text-cyan-400 font-bold text-sm font-mono">
+                                        {salesTotals.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                <div className="w-px h-8 bg-white/5" />
+                                <div className="flex flex-col text-right">
+                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">عدد العمليات</span>
+                                    <span className="text-zinc-300 font-bold text-sm font-mono">{salesTotals.count}</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex flex-col text-right">
+                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">إجمالي المشتريات الفعلي</span>
+                                    <span className="text-indigo-400 font-bold text-sm font-mono">
+                                        {purchaseTotals.actualTotal.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="w-px h-8 bg-white/5" />
+                                <div className="flex flex-col text-right">
+                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">المتبقي للموردين</span>
+                                    <span className="text-rose-400 font-bold text-sm font-mono">
+                                        {purchaseTotals.remaining.toLocaleString()}
+                                    </span>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
                 <TabsContent value="sales" className="mt-0 ring-0 focus-visible:ring-0">
                     <div className="animate-in fade-in zoom-in-95 duration-300">
-                        <SalesLog initialSales={sales} csrfToken={csrfToken} />
+                        <SalesLog initialSales={sales} csrfToken={csrfToken} onTotalsChange={setSalesTotals} />
                     </div>
                 </TabsContent>
 
                 <TabsContent value="purchases" className="mt-0 ring-0 focus-visible:ring-0">
                     <div className="animate-in fade-in zoom-in-95 duration-300">
-                        <PurchaseLog initialPurchases={purchases} />
+                        <PurchaseLog initialPurchases={purchases} onTotalsChange={setPurchaseTotals} />
                     </div>
                 </TabsContent>
             </Tabs>

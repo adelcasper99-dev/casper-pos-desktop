@@ -12,7 +12,7 @@ interface ThermalReceiptTemplateProps {
  * based on the optimized design extracted from ELOS Accounting.
  */
 export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt' }: ThermalReceiptTemplateProps): string {
-  const { items = [], totalAmount = 0, date, invoiceNumber, paymentMethod, remaining = 0, paidAmount, tableName } = saleData;
+  const { items = [], totalAmount = 0, date, invoiceNumber, paymentMethod, remaining = 0, paidAmount, tableName, customerName, customerBalance, customerPhone } = saleData;
 
   const isOrder = mode === 'order';
   const storeName = settings?.name ?? "CASPER POS";
@@ -155,8 +155,19 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
 <body>
   <div class="header">
     <div class="shop-name">${isOrder ? "طـلـب مـفـتـوح" : storeName}</div>
-    ${isOrder && tableName ? `<div style="font-size: 20px; font-weight: 900; border: 1mm solid #000; padding: 2mm; margin-top: 2mm;">${tableName}</div>` : ""}
-    ${!isOrder && phone ? `<div style="font-size: 11px; margin-top: 1mm;">📞 ${phone}</div>` : ""}
+    ${tableName ? `<div style="font-size: 20px; font-weight: 900; border: 1mm solid #000; padding: 2mm; margin-top: 2mm;">${tableName}</div>` : ""}
+    ${customerName ? `
+      <div style="margin-top: 2mm; padding: 2mm 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000;">
+        <div style="font-size: 14px; font-weight: bold;">👤 ${customerName}</div>
+        ${customerPhone ? `<div style="font-size: 11px; font-weight: bold; margin-top: 1mm;">📞 ${customerPhone}</div>` : ""}
+        ${customerBalance !== undefined && customerBalance !== null ? `
+          <div style="font-size: 12px; font-weight: bold; margin-top: 1mm;">
+            الرصيد: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP' }).format(customerBalance)}
+          </div>
+        ` : ""}
+      </div>
+    ` : ""}
+    ${!isOrder && phone ? `<div style="font-size: 11px; margin-top: 2mm;">📞 ${phone}</div>` : ""}
     ${!isOrder && address ? `<div style="font-size: 10px;">📍 ${address}</div>` : ""}
   </div>
 

@@ -46,8 +46,9 @@ export default function LoginForm() {
             } catch (error) {
                 console.warn('Failed to store session data:', error);
             }
-            // Navigate to dashboard using standard location to clear Next.js cache and enforce middleware
-            window.location.href = '/dashboard';
+            // Navigate to dashboard using SPA routing for instant load
+            router.push('/dashboard');
+            router.refresh(); // Tells Next.js to re-fetch Server Components with the new auth cookie
         }
     };
 

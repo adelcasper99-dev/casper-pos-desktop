@@ -1,19 +1,23 @@
 import { offlineDB } from './offline-db';
 import { ProductCacheService } from './product-cache';
+import { LocalPersistenceService } from './local-persistence';
 
 // 👤 USABILITY: Initialize offline DB and cache products on app load
 export async function initializeOfflineMode() {
     try {
         console.log('🔄 Initializing offline mode...');
 
-        // Initialize IndexedDB
+        // 1. Initialize IndexedDB
         const dbInitialized = await offlineDB.open();
         if (!dbInitialized) {
             console.error('❌ Failed to initialize IndexedDB');
             return false;
         }
 
-        // Check if products are already cached
+        // 2. RESTORATION: If DB is empty, try to restore from local filesystem backup (Electron)
+        await LocalPersistenceService.restoreFromFilesystem();
+
+        // 3. PRODUCT CACHE: Check if products are already cached
         const syncStatus = await ProductCacheService.getSyncStatus();
         const lastSynced = syncStatus.lastSynced;
         const now = new Date();
@@ -34,6 +38,9 @@ export async function initializeOfflineMode() {
                     // Cache products
                     await ProductCacheService.syncProducts(products);
                     console.log(`✅ Cached ${products.length} products for offline use`);
+
+                    // Trigger a filesystem backup after fresh product sync
+                    await LocalPersistenceService.backupToFilesystem();
                 }
             } catch (error) {
                 console.error('⚠️ Failed to cache products:', error);
@@ -55,7 +62,12 @@ export function setupOfflineMode() {
     if (typeof window !== 'undefined') {
         // Initialize on page load
         window.addEventListener('load', () => {
-            initializeOfflineMode().catch(console.error);
+            initializeOfflineMode()
+                .then(() => {
+                    // Start periodic auto-backup to filesystem
+                    LocalPersistenceService.startAutoBackup();
+                })
+                .catch(console.error);
         });
 
         // Re-sync when coming back online

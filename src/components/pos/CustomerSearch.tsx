@@ -69,14 +69,14 @@ export default function CustomerSearch() {
     }, [query, isOpen]);
 
     const handleSelect = (customer: any) => {
-        setCustomer(customer.name, customer.phone, customer.id || undefined);
+        setCustomer(customer.name, customer.phone, customer.id || undefined, customer.balance);
         setQuery(customer.name);
         setIsOpen(false);
         setShowAddForm(false);
     };
 
     const handleClear = () => {
-        setCustomer("", "", undefined);
+        setCustomer("", "", undefined, undefined);
         setQuery("");
         setResults([]);
         setIsOpen(false);

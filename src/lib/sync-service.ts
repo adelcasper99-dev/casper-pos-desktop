@@ -45,7 +45,7 @@ export class SyncService {
     static async syncSales() {
         const unsyncedSales = await offlineDB.sales
             .where('synced').equals(0) // 🛡️ Use 0 for false in IndexedDB
-            .and(sale => sale.syncRetries < 5) // Max 5 retries
+            .and(sale => (sale.syncRetries || 0) < 5) // Max 5 retries
             .toArray();
 
         if (unsyncedSales.length === 0) {
@@ -86,7 +86,7 @@ export class SyncService {
 
                 // Update retry count and error
                 await offlineDB.sales.update(sale.id, {
-                    syncRetries: sale.syncRetries + 1,
+                    syncRetries: (sale.syncRetries || 0) + 1,
                     syncError: error.message
                 });
                 failed++;
@@ -101,7 +101,7 @@ export class SyncService {
     static async syncTickets() {
         const unsyncedTickets = await offlineDB.tickets
             .where('synced').equals(0) // 🛡️ Use 0 for false in IndexedDB
-            .and(ticket => ticket.syncRetries < 5)
+            .and(ticket => (ticket.syncRetries || 0) < 5)
             .toArray();
 
         if (unsyncedTickets.length === 0) {
@@ -142,7 +142,7 @@ export class SyncService {
 
                 // Update retry count and error
                 await offlineDB.tickets.update(ticket.id, {
-                    syncRetries: ticket.syncRetries + 1,
+                    syncRetries: (ticket.syncRetries || 0) + 1,
                     syncError: error.message
                 });
                 failed++;

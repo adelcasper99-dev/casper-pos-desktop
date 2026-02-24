@@ -410,11 +410,14 @@ model Sale {
   payments           SalePayment[]
   userId             String?
   user               User?          @relation("SaleOwner", fields: [userId], references: [id])
+  syncStatus         String         @default("PENDING") // PENDING, SYNCED, ERROR
+  offlineFlag        Boolean        @default(false)
 
   @@index([shiftId])
   @@index([customerId])
   @@index([status, createdAt])
   @@index([warehouseId, status])
+  @@index([syncStatus])
 }
 
 model SalePayment {
@@ -623,4 +626,13 @@ model Table {
   updatedAt DateTime @updatedAt
   
   floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+}
+
+model LocalBackup {
+  id              Int      @id @default(autoincrement())
+  backupPath      String
+  createdAt       DateTime @default(now())
+  fileSize        Int
+  integrityStatus String   @default("UNCHECKED") // VALID, CORRUPT, UNCHECKED
+  lastRestoredAt  DateTime?
 }

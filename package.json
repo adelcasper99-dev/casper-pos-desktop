@@ -4,7 +4,7 @@
     "main": "electron/main-loader.js",
     "scripts": {
         "dev": "concurrently \"npm run dev:next\" \"wait-on tcp:3001 && npm run dev:electron\"",
-        "dev:next": "next dev -p 3001",
+        "dev:next": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && npx prisma db push --accept-data-loss && next dev -p 3001",
         "dev:electron": "cross-env NODE_ENV=development electron .",
         "build": "next build",
         "electron:build": "npm run build && node scripts/prepare-standalone.js",

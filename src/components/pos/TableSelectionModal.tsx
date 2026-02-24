@@ -353,13 +353,14 @@ export default function TableSelectionModal({
                                             ) : null}
                                             <button
                                                 onClick={() => {
+                                                    const fullTableName = `${currentFloor.name} - ${table.name}`;
                                                     if (isSelected) {
-                                                        onSelectTable(table.id, table.name, 'resume');
+                                                        onSelectTable(table.id, fullTableName, 'resume');
                                                         onClose();
                                                     } else if (isOccupied) {
                                                         setActionTable(table);
                                                     } else {
-                                                        onSelectTable(table.id, table.name, 'new');
+                                                        onSelectTable(table.id, fullTableName, 'new');
                                                         onClose();
                                                     }
                                                 }}
@@ -450,7 +451,7 @@ export default function TableSelectionModal({
                             <div className="flex flex-col gap-3 w-full">
                                 <button
                                     onClick={() => {
-                                        onSelectTable(actionTable.id, actionTable.name, 'resume');
+                                        onSelectTable(actionTable.id, `${currentFloor.name} - ${actionTable.name}`, 'resume');
                                         setActionTable(null);
                                         onClose();
                                     }}
@@ -461,7 +462,7 @@ export default function TableSelectionModal({
                                 </button>
                                 <button
                                     onClick={() => {
-                                        onSelectTable(actionTable.id, actionTable.name, 'new');
+                                        onSelectTable(actionTable.id, `${currentFloor.name} - ${actionTable.name}`, 'new');
                                         setActionTable(null);
                                         onClose();
                                     }}

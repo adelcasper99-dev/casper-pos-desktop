@@ -53,11 +53,9 @@ export async function login(formData: FormData) {
         return { success: true };
     }
 
-    // V-01 fix: No auto-seed admin. Redirect to /setup on first run.
-    const userCount = await prisma.user.count();
-    if (userCount === 0) {
-        redirect("/setup");
-    }
+    // Note: Database initialization check (userCount === 0) is now 
+    // handled globally via interception in src/app/login/layout.tsx
+    // to keep this hot-path as fast as possible.
 
     const { getTranslations } = await import('@/lib/i18n-mock');
     const t = await getTranslations('Auth');

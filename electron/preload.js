@@ -24,8 +24,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
      * @param {object} [options]    - Optional overrides: { paperWidth, paperHeight } in microns
      * @returns Promise<{ success: true }>
      */
-    print: (html, printerName, options = {}) =>
-        ipcRenderer.invoke('print:html', html, printerName, options),
+    print: (html, printerName, options) =>
+        ipcRenderer.invoke('print:silent', html, printerName, options),
+
+    /**
+     * High-speed thermal receipt printing (bypass generic PDF generation)
+     */
+    printThermalReceipt: (html, printerName, paperWidthMm) => ipcRenderer.invoke('app:print-thermal-receipt', { html, printerName, paperWidthMm }),
 
     /**
      * Custom window controls (used by TitleBar component).
@@ -61,6 +66,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
         showOpenDialog: () => ipcRenderer.invoke('dialog:showOpenDialog'),
         getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
+    },
+
+    /**
+     * Offline Data Resilience & Maintenance API
+     */
+    storage: {
+        saveOfflineData: (data) => ipcRenderer.invoke('app:save-offline-data', data),
+        loadOfflineData: () => ipcRenderer.invoke('app:load-offline-data'),
+        exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
+        vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
+        printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),
     }
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Search, Filter, Eye, RotateCcw,
     FileText, AlertCircle,
@@ -41,9 +41,10 @@ import { formatArabicPrintText } from '@/lib/arabic-reshaper';
 interface SalesLogProps {
     initialSales: any[];
     csrfToken?: string;
+    onTotalsChange?: (totals: { netTotal: number; count: number }) => void;
 }
 
-export default function SalesLog({ initialSales, csrfToken }: SalesLogProps) {
+export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: SalesLogProps) {
     const [activeTab, setActiveTab] = useState("sales");
     const [sales, setSales] = useState(initialSales);
     const [searchTerm, setSearchTerm] = useState("");
@@ -83,6 +84,21 @@ export default function SalesLog({ initialSales, csrfToken }: SalesLogProps) {
 
         return matchesSearch && matchesStatus && matchesPayment && matchesDate;
     });
+
+    // Compute totals based on filtered results
+    const computedTotals = {
+        netTotal: filteredSales
+            .filter(s => s.status !== 'REFUNDED' && !s._isRefundEntry)
+            .reduce((acc, s) => acc + s.totalAmount, 0),
+        count: filteredSales.filter(s => !s._isRefundEntry).length
+    };
+
+    // Push totals to parent when they change
+    useEffect(() => {
+        if (onTotalsChange) {
+            onTotalsChange(computedTotals);
+        }
+    }, [computedTotals.netTotal, computedTotals.count]);  // Intentionally omitting onTotalsChange to avoid unnecessary effect triggers
 
     const handleRefund = async (saleId: string) => {
         const reason = prompt("سبب الارتجاع (اختياري):");

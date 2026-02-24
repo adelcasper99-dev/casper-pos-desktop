@@ -18,6 +18,7 @@ import { printService } from "@/lib/print-service";
 import { formatArabicPrintText } from "@/lib/arabic-reshaper";
 
 import { VirtuosoGrid } from 'react-virtuoso';
+import { DesktopStatus } from "@/components/pos/DesktopStatus";
 
 // ... (other imports remain, remove unused if any)
 
@@ -50,10 +51,13 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
     const displayProducts = isOnline ? products : cachedProducts;
 
+    const [isSpeedPrintModalOpen, setIsSpeedPrintModalOpen] = useState(false);
+    const [speedPrintData, setSpeedPrintData] = useState<any>(null);
+
     const {
         items, addToCart, removeFromCart, updateQuantity, getTotal, clearCart,
         holdCart, heldCarts, resumeCart, removeHeldCart,
-        customerName, customerPhone, setCustomer,
+        customerId, customerName, customerPhone, customerBalance, setCustomer,
         tableId, tableName, setTable
     } = useCartStore();
 
@@ -126,33 +130,21 @@ export default function POSClientAPI({ products, categories: initialCategories, 
         } catch { return false; }
     }, [settings?.features]);
 
-    const printOrderReceipt = async () => {
+    const handleSpeedPrint = async () => {
         if (items.length === 0 || isPrinting) return;
 
-        setIsPrinting(true);
-        try {
-            const paperWidthMm = settings?.paperSize === '58mm' ? 58 : (settings?.paperSize === '100mm' ? 100 : 80);
-            // Use the "perfect" thermal template in order mode
-            const receiptHtml = generateThermalReceiptHTML({
-                saleData: {
-                    items,
-                    tableName,
-                    date: new Date().toISOString(),
-                    invoiceNumber: "DRAFT"
-                },
-                settings,
-                mode: 'order'
-            });
-
-            const receiptPrinter = localStorage.getItem('casper_receipt_printer');
-            await printService.printHTML(receiptHtml, receiptPrinter || undefined, { paperWidthMm });
-            toast.success(t('orderTicketSent') || "Order ticket sent to printer");
-        } catch (error) {
-            console.error("Print error:", error);
-            toast.error(t('printOrderFailed') || "Failed to print order ticket");
-        } finally {
-            setIsPrinting(false);
-        }
+        // Open ReceiptModal instead of printing directly
+        setSpeedPrintData({
+            items,
+            tableName,
+            customerName,
+            customerBalance,
+            customerPhone,
+            date: new Date().toISOString(),
+            invoiceNumber: "DRAFT",
+            totalAmount: getTotal() * (1 + (Number(settings?.taxRate || 0) / 100))
+        });
+        setIsSpeedPrintModalOpen(true);
     };
 
     const handleSelectTable = (newTableId: string, newTableName: string, action: 'resume' | 'new' = 'resume') => {
@@ -326,10 +318,10 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                         <div className="flex flex-col gap-3">
                             <div className="flex gap-2 h-14 w-full">
                                 <button
-                                    onClick={printOrderReceipt}
+                                    onClick={handleSpeedPrint}
                                     disabled={items.length === 0 || isPrinting}
                                     className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                                    title={t('printOrder') || "Print Order Ticket"}
+                                    title={t('speedPrint') || "Speed Print"}
                                 >
                                     {isPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-6 h-6" />}
                                 </button>
@@ -355,6 +347,18 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 settings={settings}
                 csrfToken={csrfToken}
             />
+
+            {isSpeedPrintModalOpen && speedPrintData && (
+                <ReceiptModal
+                    isOpen={isSpeedPrintModalOpen}
+                    onClose={() => {
+                        setIsSpeedPrintModalOpen(false);
+                        setSpeedPrintData(null);
+                    }}
+                    saleData={speedPrintData}
+                    settings={settings}
+                />
+            )}
 
             <CategoryModal
                 isOpen={isCategoryModalOpen}
@@ -417,6 +421,9 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 <div className="flex-1 flex flex-col gap-4 h-full overflow-hidden p-4">
                     {/* Search Header */}
                     <div className="flex flex-col gap-3">
+                        <div className="flex justify-between items-center">
+                            <DesktopStatus />
+                        </div>
                         <div className="flex gap-3">
                             <div className="bg-card rounded-xl flex items-center gap-3 py-3 px-4 flex-[2] border border-border transition-all focus-within:border-cyan-500/50">
                                 <Search className="w-5 h-5 text-muted-foreground" />

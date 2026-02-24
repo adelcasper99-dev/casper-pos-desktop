@@ -30,6 +30,7 @@ interface ProcessSaleData extends z.infer<typeof saleSchema> {
         warrantyDays?: number;
         warrantyExpiryDate?: Date;
     };
+    offlineFlag?: boolean;
 }
 
 export const processSale = secureAction(async (rawData: ProcessSaleData) => {
@@ -122,6 +123,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 tableId: rawData.tableId || null,
                 tableName: rawData.tableName || null,
                 userId: currentUser.id === 'super-admin' ? currentShift.userId : (currentUser.id || null),
+                syncStatus: rawData.offlineFlag ? 'SYNCED' : 'PENDING',
+                offlineFlag: rawData.offlineFlag || false,
                 items: {
                     create: data.items.map((item) => ({
                         productId: item.id,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Search, Filter, Eye, Pencil,
     Trash2, Truck,
@@ -36,9 +36,10 @@ import { DateRange } from "react-day-picker"
 
 interface PurchaseLogProps {
     initialPurchases: any[];
+    onTotalsChange?: (totals: { actualTotal: number; remaining: number }) => void;
 }
 
-export default function PurchaseLog({ initialPurchases }: PurchaseLogProps) {
+export default function PurchaseLog({ initialPurchases, onTotalsChange }: PurchaseLogProps) {
     const [purchases, setPurchases] = useState(initialPurchases);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -74,6 +75,17 @@ export default function PurchaseLog({ initialPurchases }: PurchaseLogProps) {
 
         return matchesSearch && matchesStatus && matchesDate;
     });
+
+    const computedTotals = {
+        actualTotal: filteredPurchases.filter(p => p.status !== 'VOIDED').reduce((acc, p) => acc + p.totalAmount, 0),
+        remaining: filteredPurchases.filter(p => p.status !== 'VOIDED').reduce((acc, p) => acc + (p.totalAmount - p.paidAmount), 0)
+    };
+
+    useEffect(() => {
+        if (onTotalsChange) {
+            onTotalsChange(computedTotals);
+        }
+    }, [computedTotals.actualTotal, computedTotals.remaining]);
 
     const handleVoid = async (id: string) => {
         const reason = prompt("سبب الإلغاء/المرتجع (اختياري):");
@@ -334,28 +346,6 @@ export default function PurchaseLog({ initialPurchases }: PurchaseLogProps) {
                         )}
                     </TableBody>
                 </Table>
-            </div>
-
-            {/* Efficiency Footer / Summary */}
-            <div className="flex justify-between items-center px-4 py-3 bg-indigo-500/5 rounded-xl border border-indigo-500/10 text-xs">
-                <div className="flex gap-6">
-                    <div className="flex flex-col">
-                        <span className="text-zinc-500 uppercase tracking-tighter mb-1">إجمالي المشتريات</span>
-                        <span className="text-indigo-400 font-bold text-lg font-mono">
-                            {purchases.filter(p => p.status !== 'VOIDED').reduce((acc, p) => acc + p.totalAmount, 0).toLocaleString()}
-                        </span>
-                    </div>
-                    <div className="flex flex-col border-r border-white/5 pr-6">
-                        <span className="text-zinc-500 uppercase tracking-tighter mb-1">المتبقي للموردين</span>
-                        <span className="text-rose-400 font-bold text-lg font-mono">
-                            {purchases.filter(p => p.status !== 'VOIDED').reduce((acc, p) => acc + (p.totalAmount - p.paidAmount), 0).toLocaleString()}
-                        </span>
-                    </div>
-                </div>
-                <div className="text-zinc-500 text-right italic font-medium">
-                    تقييم الكفاءة: 98% <br />
-                    <span className="text-[10px] text-emerald-500/70">كل العمليات متوافقة مع المخزن والحسابات</span>
-                </div>
             </div>
         </div>
     );

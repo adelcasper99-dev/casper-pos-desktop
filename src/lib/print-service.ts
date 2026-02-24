@@ -20,6 +20,7 @@ declare global {
       isElectron: true;
       getPrinters: () => Promise<{ name: string; isDefault: boolean; status: number }[]>;
       print: (html: string, printerName: string, options?: any) => Promise<{ success: true }>;
+      printThermalReceipt: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
       /** Custom frameless window controls – exposed by TitleBar */
       windowControls?: {
         minimize: () => void;
@@ -36,6 +37,13 @@ declare global {
         showOpenDialog: () => Promise<string | null>;
         getDbPath: () => Promise<string>;
         saveConfigAndRestart: (path: string) => Promise<boolean>;
+      };
+      /** Offline Data Resilience & Maintenance API */
+      storage?: {
+        saveOfflineData: (data: any) => Promise<{ success: boolean; error?: string }>;
+        loadOfflineData: () => Promise<any>;
+        exportSupportBundle: () => Promise<{ success: boolean; path?: string; error?: string }>;
+        vacuumDatabase: () => Promise<{ success: boolean; error?: string }>;
       };
     };
   }
@@ -337,6 +345,30 @@ class PrintService {
   async disconnect(): Promise<void> {
     const service = await getQZService();
     await service.disconnect();
+  }
+
+  /**
+   * Optimized thermal printing.
+   * Directly uses the high-speed thermal channel in Electron if available.
+   */
+  async printThermal(html: string, printerName: string, paperWidthMm: number = 80): Promise<boolean> {
+    if (this.isElectron()) {
+      try {
+        const result = await window.electronAPI!.printThermalReceipt(html, printerName, paperWidthMm);
+        if (result.success) {
+          console.log(`✓ [Electron-Thermal] Printed to "${printerName}"`);
+          return true;
+        }
+      } catch (err) {
+        console.warn('[PrintService] Electron thermal channel failed', err);
+      }
+    }
+    // Fallback to generic silent print
+    return await this.printSilentHTML(html, printerName, { paperWidthMm });
+  }
+
+  isElectron(): boolean {
+    return typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
   }
 
   /**

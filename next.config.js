@@ -19,3 +19,4 @@ const nextConfig = {
 };
 
 module.exports = withBundleAnalyzer(nextConfig);
+// Touch to force rebuild

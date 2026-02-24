@@ -20,6 +20,7 @@ export interface HeldCart {
     customerName?: string;
     customerPhone?: string;
     customerId?: string; // 🆕 Added to HeldCart interface
+    customerBalance?: number; // 🆕 Added to HeldCart interface
     tableId?: string;
     tableName?: string;
 }
@@ -29,6 +30,7 @@ interface CartState {
     customerName: string;
     customerPhone: string;
     customerId?: string; // 🆕 Added Customer ID
+    customerBalance?: number; // 🆕 Added Customer Balance
     tableId?: string;
     tableName?: string;
 
@@ -36,7 +38,7 @@ interface CartState {
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, delta: number) => void;
     clearCart: () => void;
-    setCustomer: (name: string, phone: string, id?: string) => void;
+    setCustomer: (name: string, phone: string, id?: string, balance?: number) => void;
     setTable: (id?: string, name?: string) => void;
 
     // Hold Cart Actions
@@ -56,11 +58,12 @@ export const useCartStore = create<CartState>()(
             customerName: '',
             customerPhone: '',
             customerId: undefined,
+            customerBalance: undefined,
             tableId: undefined,
             tableName: undefined,
             heldCarts: [],
 
-            setCustomer: (name, phone, id) => set({ customerName: name, customerPhone: phone, customerId: id }),
+            setCustomer: (name, phone, id, balance) => set({ customerName: name, customerPhone: phone, customerId: id, customerBalance: balance }),
             setTable: (id, name) => set({ tableId: id, tableName: name }),
 
             addToCart: (product: any) => {
@@ -133,6 +136,7 @@ export const useCartStore = create<CartState>()(
                     customerName,
                     customerPhone,
                     customerId: get().customerId,
+                    customerBalance: get().customerBalance,
                     tableId: get().tableId,
                     tableName: get().tableName
                 };
@@ -142,6 +146,8 @@ export const useCartStore = create<CartState>()(
                     items: [], // Clear main cart
                     customerName: '',
                     customerPhone: '',
+                    customerId: undefined,
+                    customerBalance: undefined,
                     tableId: undefined,
                     tableName: undefined
                 });
@@ -157,6 +163,7 @@ export const useCartStore = create<CartState>()(
                         customerName: cartToResume.customerName || '',
                         customerPhone: cartToResume.customerPhone || '',
                         customerId: cartToResume.customerId, // Restore ID if exists
+                        customerBalance: cartToResume.customerBalance, // Restore balance
                         tableId: cartToResume.tableId,
                         tableName: cartToResume.tableName,
                         heldCarts: heldCarts.filter(c => c.id !== cartId)
