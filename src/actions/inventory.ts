@@ -8,7 +8,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { secureAction } from "@/lib/safe-action";
 
-import { productSchema, supplierSchema, categorySchema, purchaseSchema } from "@/lib/validation/inventory";
+import { productSchema, supplierSchema, categorySchema, purchaseSchema, warehouseSchema } from "@/lib/validation/inventory";
 import { CACHE_TAGS } from "@/lib/cache-keys";
 import { logger } from "@/lib/logger";
 import { AppError, ErrorCodes } from "@/lib/errors"; // Added import
@@ -1256,6 +1256,106 @@ export const createWarehouse = secureAction(async (data: { name: string; address
 
     revalidatePath("/inventory");
     revalidatePath(`/branches/${targetBranchId}/warehouses`);
+    return { success: true };
+}, { permission: 'INVENTORY_MANAGE' });
+
+export const updateWarehouse = secureAction(async (id: string, data: z.infer<typeof warehouseSchema>) => {
+    const validated = warehouseSchema.parse(data);
+
+    const warehouse = await prisma.warehouse.update({
+        where: { id },
+        data: {
+            name: validated.name,
+            address: validated.address || null,
+        }
+    });
+
+    revalidatePath("/inventory");
+    revalidatePath(`/branches/${warehouse.branchId}/warehouses`);
+    return { success: true };
+}, { permission: 'INVENTORY_MANAGE' });
+
+export const deleteWarehouse = secureAction(async (id: string) => {
+    const t = await getTranslations('Inventory.warehouses');
+
+    // 1. Check for stock availability
+    const stockCount = await prisma.stock.count({
+        where: { warehouseId: id, quantity: { gt: 0 } }
+    });
+
+    if (stockCount > 0) {
+        return { success: false, error: t('warehouseHasStock', { defaultValue: "Warehouse has stock and cannot be deleted" }) };
+    }
+
+    // 2. Check for Invoices
+    const invoiceCount = await prisma.purchaseInvoice.count({
+        where: { warehouseId: id }
+    });
+
+    if (invoiceCount > 0) {
+        return { success: false, error: t('warehouseHasInvoices', { defaultValue: "Warehouse is linked to invoices and cannot be deleted" }) };
+    }
+
+    // 3. Check for Sales (Critical for Audit)
+    const saleCount = await prisma.sale.count({
+        where: { warehouseId: id }
+    });
+
+    if (saleCount > 0) {
+        return { success: false, error: t('warehouseHasSales', { defaultValue: "Warehouse is linked to sales and cannot be deleted" }) };
+    }
+
+    // 4. Check for Stock Movements (Audit Trail)
+    const movementCount = await prisma.stockMovement.count({
+        where: {
+            OR: [
+                { fromWarehouseId: id },
+                { toWarehouseId: id }
+            ]
+        }
+    });
+
+    if (movementCount > 0) {
+        return { success: false, error: t('warehouseHasMovements', { defaultValue: "Warehouse has historical stock movements and cannot be deleted" }) };
+    }
+
+    // 5. Check for Wastage
+    const wastageCount = await prisma.stockWastage.count({
+        where: { warehouseId: id }
+    });
+
+    if (wastageCount > 0) {
+        return { success: false, error: t('warehouseHasWastages', { defaultValue: "Warehouse has wastage reports and cannot be deleted" }) };
+    }
+
+    // 6. Check for Stock Requests
+    const requestCount = await prisma.stockRequest.count({
+        where: { warehouseId: id }
+    });
+
+    if (requestCount > 0) {
+        return { success: false, error: t('warehouseHasRequests', { defaultValue: "Warehouse has stock requests and cannot be deleted" }) };
+    }
+
+    // 7. Cleanup & Delete
+    const warehouse = await prisma.$transaction(async (tx) => {
+        // Delete zero-quantity stock records first to satisfy FK
+        await tx.stock.deleteMany({
+            where: { warehouseId: id }
+        });
+
+        // Delete Technicians assigned to this warehouse if any
+        await tx.technician.deleteMany({
+            where: { warehouseId: id }
+        });
+
+        return await tx.warehouse.delete({
+            where: { id }
+        });
+    });
+
+    revalidatePath("/inventory");
+    revalidatePath(`/branches/${warehouse.branchId}/warehouses`);
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 

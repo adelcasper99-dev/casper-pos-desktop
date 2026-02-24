@@ -222,7 +222,10 @@
             "updateError": "فشل تحديث المستخدم",
             "deleteError": "فشل حذف المستخدم",
             "deleteConfirm": "هل أنت متأكد من حذف هذا المستخدم؟"
-        }
+        },
+        "selectRole": "اختر الصلاحية",
+        "selectBranch": "اختر الفرع",
+        "assignedBranch": "الفرع المعين"
     },
     "Common": {
         "save": "حفظ",
@@ -311,6 +314,15 @@
             "viewStock": "عرض المخزون",
             "saving": "جاري الحفظ...",
             "createWarehouse": "إنشاء مخزن",
+            "editWarehouse": "تعديل المخزن",
+            "updateWarehouse": "تحديث المخزن",
+            "deleteWarehouse": "حذف المخزن",
+            "confirmDeleteWarehouse": "هل أنت متأكد من حذف هذا المخزن؟",
+            "warehouseHasStock": "لا يمكن حذف المخزن لأنه يحتوي على مخزون",
+            "warehouseHasInvoices": "لا يمكن حذف المخزن لأنه مرتبط بفواتير شراء",
+            "warehouseHasSales": "لا يمكن حذف المخزن لأنه يحتوي على مبيعات مسجلة",
+            "warehouseHasMovements": "لا يمكن حذف المخزن لوجود حركات مخزنية مرتبطة",
+            "warehouseHasWastages": "لا يمكن حذف المخزن لوجود تقارير تالف مرتبطة",
             "mainLabel": "الرئيسي",
             "stockInWarehouse": "المخزون في {name}",
             "loadingStock": "جاري تحميل المخزون...",

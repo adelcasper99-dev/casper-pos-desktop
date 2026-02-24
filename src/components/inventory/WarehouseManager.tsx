@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Warehouse, MapPin, Eye, Package } from "lucide-react";
+import { Plus, Warehouse, MapPin, Eye, Package, Edit2, Trash2, AlertCircle } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
-import { createWarehouse, getWarehouseStock } from "@/actions/inventory";
+import { createWarehouse, updateWarehouse, deleteWarehouse, getWarehouseStock } from "@/actions/inventory";
 import clsx from "clsx";
 import { useTranslations } from "@/lib/i18n-mock";
 
@@ -27,29 +27,65 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // Create Form
+    // Form State (Handles both Create & Edit)
+    const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
+
+    // Delete State
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     // View Stock State
     const [viewedWarehouse, setViewedWarehouse] = useState<Warehouse | null>(null);
     const [stockList, setStockList] = useState<StockItem[]>([]);
     const [stockLoading, setStockLoading] = useState(false);
 
+    const openCreateModal = () => {
+        setEditingWarehouse(null);
+        setName("");
+        setAddress("");
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (warehouse: Warehouse) => {
+        setEditingWarehouse(warehouse);
+        setName(warehouse.name);
+        setAddress(warehouse.address || "");
+        setIsModalOpen(true);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        // If branchId is not provided (legacy global view?), we might error or handle it.
-        // Plan says "contextual creation", so we assume branchId is present in Branch View.
-        const res = await createWarehouse({ name, address, csrfToken, branchId });
+
+        const res = editingWarehouse
+            ? await updateWarehouse(editingWarehouse.id, { name, address })
+            : await createWarehouse({ name, address, csrfToken, branchId });
+
         setLoading(false);
 
         if (res.success) {
             setIsModalOpen(false);
             setName("");
             setAddress("");
+            setEditingWarehouse(null);
         } else {
-            alert(res.error || t('failCreate', { defaultValue: "Failed to create warehouse" }));
+            alert(res.error || (editingWarehouse ? t('failUpdate') : t('failCreate')));
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm(t('confirmDeleteWarehouse'))) return;
+
+        setIsDeleting(true);
+        setDeletingId(id);
+        const res = await deleteWarehouse(id);
+        setIsDeleting(false);
+        setDeletingId(null);
+
+        if (!res.success) {
+            alert(res.error || t('failDelete'));
         }
     };
 
@@ -82,7 +118,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                 </div>
 
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={openCreateModal}
                     className="text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]"
                 >
                     <Plus className="w-4 h-4" />
@@ -92,14 +128,39 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {warehouses.map((w) => (
-                    <div key={w.id} className="glass-card p-5 group hover:border-cyan-500/30 transition-all flex flex-col justify-between h-40 bg-card border-border">
+                    <div key={w.id} className="glass-card p-5 group hover:border-cyan-500/30 transition-all flex flex-col justify-between h-48 bg-card border-border relative">
                         <div>
                             <div className="flex justify-between items-start mb-2">
                                 <div className={clsx(
                                     "w-10 h-1 rounded-full mb-3",
                                     w.isDefault ? "bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]" : "bg-muted-foreground/30"
                                 )} />
-                                {w.isDefault && <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-bold border border-cyan-500/20">{t('mainLabel')}</span>}
+                                <div className="flex gap-2 items-center">
+                                    {w.isDefault && <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-bold border border-cyan-500/20">{t('mainLabel')}</span>}
+                                    {!w.isDefault && (
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => openEditModal(w)}
+                                                className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-cyan-400"
+                                                title={t('editWarehouse')}
+                                            >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(w.id)}
+                                                disabled={isDeleting && deletingId === w.id}
+                                                className="p-1.5 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive"
+                                                title={t('deleteWarehouse')}
+                                            >
+                                                {isDeleting && deletingId === w.id ? (
+                                                    <div className="w-3.5 h-3.5 border-2 border-destructive border-t-transparent animate-spin rounded-full" />
+                                                ) : (
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <h4 className="font-bold text-lg text-foreground mb-1 truncate">{w.name}</h4>
@@ -126,11 +187,11 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                 ))}
             </div>
 
-            {/* CREATE MODAL */}
+            {/* CREATE / EDIT MODAL */}
             <GlassModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                title={t('newWarehouseTitle')}
+                title={editingWarehouse ? t('editWarehouse') : t('newWarehouseTitle')}
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -157,7 +218,11 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                         disabled={loading}
                         className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-3 rounded-xl flex justify-center items-center gap-2"
                     >
-                        {loading ? t('saving') : <><Plus className="w-4 h-4" /> {t('createWarehouse')}</>}
+                        {loading ? t('saving') : (
+                            editingWarehouse
+                                ? <><Edit2 className="w-4 h-4" /> {t('updateWarehouse')}</>
+                                : <><Plus className="w-4 h-4" /> {t('createWarehouse')}</>
+                        )}
                     </button>
                 </form>
             </GlassModal>

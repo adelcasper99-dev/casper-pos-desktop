@@ -48,3 +48,9 @@ export const purchaseSchema = z.object({
     paymentMethod: z.string().optional(),
     treasuryId: z.string().optional(),
 });
+
+export const warehouseSchema = z.object({
+    name: z.string().min(1, "Warehouse Name is required"),
+    address: z.string().optional(),
+    branchId: z.string().optional(),
+});
