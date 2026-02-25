@@ -117,6 +117,8 @@
         "printOrderFailed": "فشل طباعة تذكرة الطلب",
         "speedPrint": "طباعة سريعة",
         "speedPrintPreview": "معاينة الطباعة السريعة",
+        "thermalRoll": "رول حراري (80mm)",
+        "standardA4": "فاتورة مكتبية (A4)",
         "addCategory": "إضافة فئة"
     },
     "Shift": {

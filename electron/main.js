@@ -277,21 +277,20 @@ ipcMain.handle('printers:list', async () => {
     }
 });
 
-ipcMain.handle('print:html', async (event, html, printerName, options) => {
+/**
+ * Shared Silent Print Logic
+ */
+const handlePrintSilent = async (event, html, printerName, options) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
     const printWindow = new BrowserWindow({
         show: false,
+        width: 1024, // Explicit width for headless rendering
+        height: 1024,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true
         }
-    });
-
-    // 🛡️ HARDENING: Safety timeout to prevent the app from hanging if the printer/spooler is unresponsive
-    const TIMEOUT_MS = 15000; // 15 seconds
-    const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('PRINT_TIMEOUT')), TIMEOUT_MS);
     });
 
     const tempFilePath = path.join(os.tmpdir(), `casper_print_${Date.now()}.html`);
@@ -300,42 +299,113 @@ ipcMain.handle('print:html', async (event, html, printerName, options) => {
         fs.writeFileSync(tempFilePath, html, 'utf8');
         await printWindow.loadFile(tempFilePath);
 
-        // Wait a short moment for fonts and images to actually buffer in the DOM
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Hardened Rendering: Wait for content and fonts to be 100% ready
+        await printWindow.webContents.executeJavaScript(`
+            new Promise((resolve) => {
+                if (document.readyState === 'complete') {
+                    document.fonts.ready.then(resolve);
+                } else {
+                    window.addEventListener('load', () => {
+                        document.fonts.ready.then(resolve);
+                    });
+                }
+            })
+        `);
 
-        const printPromise = new Promise((resolve) => {
-            printWindow.webContents.print({
+        // Extra buffer for any dynamic adjustments or image decodes
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const isThermal = options?.paperWidthMm && options.paperWidthMm < 200;
+
+        // --- STRICT SEPARATION LOGIC ---
+        // We branch the options completely to ensure A4 fixes never break Thermal and vice-versa.
+        let printOptions;
+
+        if (isThermal) {
+            // THERMAL BRANCH: Focused on 80mm/58mm roll paper
+            printOptions = {
                 silent: true,
+                deviceName: printerName && printerName !== 'none' ? printerName : '',
                 printBackground: true,
-                deviceName: printerName,
-                margins: { marginType: 'none' },
-                ...options
-            }, (success, failureReason) => {
+                color: false, // Thermal is always B&W
+                margins: { marginType: 'default' }, // Good for thermal alignment
+                pageSize: {
+                    width: Math.round((options?.paperWidthMm || 80) * 1000),
+                    height: 297000 // Vertical max
+                }
+            };
+        } else {
+            // OFFICE/A4 BRANCH: Focused on standard document printing
+            printOptions = {
+                silent: true,
+                deviceName: printerName && printerName !== 'none' ? printerName : '',
+                printBackground: true,
+                color: true, // A4 supports color
+                margins: { marginType: 'none' }, // Let CSS handle margins for precision
+                pageSize: 'A4'
+            };
+        }
+
+        // Apply incoming options (like deviceName) but PRESERVE our strict format rules
+        const incomingPageSize = options?.pageSize;
+        Object.assign(printOptions, options);
+
+        // RE-ENFORCE A4 RULES: Never let A4 be overwritten by thermal hints
+        if (!isThermal) {
+            printOptions.pageSize = 'A4';
+            printOptions.margins = { marginType: 'none' };
+            printOptions.color = true;
+        }
+
+        log(`Print: Starting silent print to [${printerName}]`);
+
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                log('Print: Timeout reached');
+                if (!printWindow.isDestroyed()) printWindow.destroy();
+                resolve({ success: false, error: 'Printing timeout (Spooler busy?)' });
+            }, 15000);
+
+            printWindow.webContents.print(printOptions, (success, errorType) => {
+                clearTimeout(timeout);
+                try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
+                if (!printWindow.isDestroyed()) printWindow.destroy();
+
                 if (success) {
+                    log('Print: Success');
                     resolve({ success: true });
                 } else {
-                    resolve({ success: false, error: failureReason });
+                    log(`Print: Failed (${errorType})`);
+                    resolve({ success: false, error: errorType });
                 }
             });
         });
+    } catch (err) {
+        log(`Print error: ${err.message}`);
+        if (fs.existsSync(tempFilePath)) try { fs.unlinkSync(tempFilePath); } catch (e) { }
+        if (!printWindow.isDestroyed()) printWindow.destroy();
+        return { success: false, error: err.message };
+    }
+};
 
-        // Race between actual print and the safety timeout
-        const result = await Promise.race([printPromise, timeoutPromise]);
+ipcMain.handle('print:silent', handlePrintSilent);
 
-        // Cleanup & Success
-        if (!printWindow.isDestroyed()) printWindow.close();
-        try { fs.unlinkSync(tempFilePath); } catch (e) { }
-        return result;
-
-    } catch (error) {
-        log(`Print Error: ${error.message}`);
-        if (!printWindow.isDestroyed()) printWindow.close();
-        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
-
-        return {
-            success: false,
-            error: error.message === 'PRINT_TIMEOUT' ? 'Printer timed out (Spooler busy?)' : error.message
-        };
+/**
+ * Legacy/Speed channel for thermal receipts
+ */
+ipcMain.handle('app:print-thermal-receipt', async (event, layout) => {
+    log('Print: Speed Print triggered');
+    try {
+        return await handlePrintSilent(event, layout.html, layout.printerName || '', {
+            silent: true,
+            pageSize: {
+                width: Math.round((layout.paperWidthMm || 80) * 1000),
+                height: 297000
+            }
+        });
+    } catch (err) {
+        log(`Print: Speed Print failed: ${err.message}`);
+        return { success: false, error: err.message };
     }
 });
 
@@ -350,7 +420,6 @@ ipcMain.handle('dialog:showOpenDialog', async () => {
 });
 
 ipcMain.handle('app:get-db-path', () => {
-    // Return the directory where local.db is (or will be) stored
     return path.dirname(getDatabasePath());
 });
 
@@ -358,11 +427,7 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     try {
         const userDataPath = app.getPath('userData');
         const configPath = path.join(userDataPath, 'casper-config.json');
-
         fs.writeFileSync(configPath, JSON.stringify({ dbPath: newDbFolder }, null, 2), 'utf8');
-        log(`Saved new config path: ${newDbFolder}. Restarting...`);
-
-        // Relaunch the application and exit
         app.relaunch();
         app.quit();
         return true;
@@ -372,29 +437,18 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     }
 });
 
-// --- OFFLINE DATA PERSISTENCE & MAINTENANCE ---
-
 ipcMain.handle('app:save-offline-data', async (event, data) => {
     try {
         const dbPath = getDatabasePath();
         const userDataPath = app.getPath('userData');
         const backupPath = path.join(userDataPath, 'local_mirror.db');
-
-        // Mirror the actual SQLite file for durability (Constitution Requirement)
-        if (fs.existsSync(dbPath)) {
-            fs.copyFileSync(dbPath, backupPath);
-            log(`Mirror: SQLite mirrored to ${backupPath}`);
-        }
-
-        // Also save provided metadata if any
+        if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
         if (data && Object.keys(data).length > 0) {
             const jsonPath = path.join(userDataPath, 'offline_backup.json');
             fs.writeFileSync(jsonPath, JSON.stringify(data), 'utf8');
         }
-
         return { success: true };
     } catch (err) {
-        log(`Failed to save offline data: ${err.message}`);
         return { success: false, error: err.message };
     }
 });
@@ -404,12 +458,8 @@ ipcMain.handle('app:load-offline-data', async () => {
         const userDataPath = app.getPath('userData');
         const backupPath = path.join(userDataPath, 'offline_backup.json');
         if (!fs.existsSync(backupPath)) return null;
-        const data = fs.readFileSync(backupPath, 'utf8');
-        return JSON.parse(data);
-    } catch (err) {
-        log(`Failed to load offline data: ${err.message}`);
-        return null;
-    }
+        return JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+    } catch (err) { return null; }
 });
 
 ipcMain.handle('app:export-support-bundle', async () => {
@@ -419,28 +469,15 @@ ipcMain.handle('app:export-support-bundle', async () => {
             defaultPath: path.join(os.homedir(), `casper_support_${Date.now()}.zip`),
             filters: [{ name: 'Zip Files', extensions: ['zip'] }]
         });
-
         if (canceled || !filePath) return null;
-
-        const userDataPath = app.getPath('userData');
-        const dbPath = getDatabasePath();
-        const logPath = path.join(os.homedir(), 'casper-boot.log');
-
-        // Note: For a real ZIP we'd use adm-zip, but for now let's just copy files to a folder
-        // if the user provided a folder path, OR we can just copy to a temp folder and let them know.
-        // Given we have fs-extra, we can use it if we want, but it's not imported here yet.
         const fsExtra = require('fs-extra');
         const exportDir = filePath.replace(/\.zip$/, '');
         if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
-
+        const dbPath = getDatabasePath();
         if (fs.existsSync(dbPath)) fsExtra.copySync(dbPath, path.join(exportDir, 'local.db'));
-        if (fs.existsSync(logPath)) fsExtra.copySync(logPath, path.join(exportDir, 'boot.log'));
-
+        if (fs.existsSync(debugLog)) fsExtra.copySync(debugLog, path.join(exportDir, 'boot.log'));
         return { success: true, path: exportDir };
-    } catch (err) {
-        log(`Failed to export support bundle: ${err.message}`);
-        return { success: false, error: err.message };
-    }
+    } catch (err) { return { success: false, error: err.message }; }
 });
 
 ipcMain.handle('app:vacuum-db', async () => {
@@ -452,38 +489,12 @@ ipcMain.handle('app:vacuum-db', async () => {
         const schemaPath = app.isPackaged
             ? path.join(process.resourcesPath, 'app.asar.unpacked', 'prisma', 'schema.prisma')
             : path.join(__dirname, '..', 'prisma', 'schema.prisma');
-
-        const normalizedDbPath = dbPath.replace(/\\/g, '/');
-        const env = {
-            ...process.env,
-            ELECTRON_RUN_AS_NODE: '1',
-            DATABASE_URL: `file:${normalizedDbPath}`
-        };
-
-        // Running a raw SQL VACUUM via prisma execute
-        log('Database: Running VACUUM...');
+        const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1', DATABASE_URL: `file:${dbPath.replace(/\\/g, '/')}` };
         execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
             env, input: 'VACUUM;', windowsHide: true, encoding: 'utf-8'
         });
-        log('Database: VACUUM success.');
         return { success: true };
-    } catch (err) {
-        log(`Failed to vacuum database: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-});
-
-ipcMain.handle('app:print-thermal-receipt', async (event, layout) => {
-    // This is the "Speed Print" implementation.
-    // It bypasses the standard Electron preview if possible and sends raw or high-speed silent print.
-    // For now, we reuse the print:html logic but with higher priority and no dialog.
-    log('Print: Speed Print triggered');
-    try {
-        return await ipcMain.emit('print:html', null, layout.html, layout.printerName || '', { silent: true });
-    } catch (err) {
-        log(`Print: Speed Print failed: ${err.message}`);
-        return { success: false, error: err.message };
-    }
+    } catch (err) { return { success: false, error: err.message }; }
 });
 
 app.whenReady().then(createWindow);

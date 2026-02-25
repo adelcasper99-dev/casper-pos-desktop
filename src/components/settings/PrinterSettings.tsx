@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { printService } from '@/lib/print-service';
 import { toast } from 'sonner';
 import { checkQZCertificateStatus, installQZCertificate } from '@/actions/qz-actions';
@@ -22,9 +23,12 @@ export default function PrinterSettings() {
     const [installing, setInstalling] = useState(false);
 
     // Preferences
-    const [receiptPrinter, setReceiptPrinter] = useState<string>('');
+    const [thermalPrinter, setThermalPrinter] = useState<string>('');
+    const [a4Printer, setA4Printer] = useState<string>('');
     const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
     const [labelPrinter, setLabelPrinter] = useState<string>('');
+    const [enableThermal, setEnableThermal] = useState<boolean>(true);
+    const [enableA4, setEnableA4] = useState<boolean>(true);
 
     useEffect(() => {
         loadSettings();
@@ -35,14 +39,19 @@ export default function PrinterSettings() {
     const loadSettings = () => {
         const registry = printService.getRegistry();
         if (registry) {
-            if (registry.receiptPrinter) setReceiptPrinter(registry.receiptPrinter);
+            if (registry.thermalPrinter) setThermalPrinter(registry.thermalPrinter);
+            if (registry.a4Printer) setA4Printer(registry.a4Printer);
             if (registry.receiptFormat) setReceiptFormat(registry.receiptFormat);
             if (registry.labelPrinter) setLabelPrinter(registry.labelPrinter);
+            setEnableThermal(registry.enableThermal !== false); // Default to true
+            setEnableA4(registry.enableA4 !== false); // Default to true
         } else {
             // Fallback for immediate load after migration
-            const savedReceipt = localStorage.getItem('printer_receipt');
+            const savedThermal = localStorage.getItem('thermal_printer');
+            const savedA4 = localStorage.getItem('a4_printer');
             const savedLabel = localStorage.getItem('printer_label');
-            if (savedReceipt) setReceiptPrinter(savedReceipt);
+            if (savedThermal) setThermalPrinter(savedThermal);
+            if (savedA4) setA4Printer(savedA4);
             if (savedLabel) setLabelPrinter(savedLabel);
         }
     };
@@ -114,19 +123,23 @@ export default function PrinterSettings() {
 
     const handleSave = () => {
         printService.updateRegistry({
-            receiptPrinter: receiptPrinter,
+            thermalPrinter: thermalPrinter,
+            a4Printer: a4Printer,
             receiptFormat: receiptFormat,
-            labelPrinter: labelPrinter
+            labelPrinter: labelPrinter,
+            enableThermal: enableThermal,
+            enableA4: enableA4
         });
         toast.success("Printer preferences saved to this device registry");
     };
 
     const handleTestReceipt = async () => {
-        if (!receiptPrinter) return toast.error("Select a receipt printer first");
+        const target = receiptFormat === 'a4' ? a4Printer : thermalPrinter;
+        if (!target || target === 'none') return toast.error("Select a printer first");
         try {
             toast.loading("Sending test receipt...");
-            await printService.testPrint(receiptPrinter);
-            toast.success("Test sent to " + receiptPrinter);
+            await printService.testPrint(target);
+            toast.success("Test sent to " + target);
         } catch (e: any) {
             toast.error("Print failed: " + e.message);
         }
@@ -223,40 +236,86 @@ export default function PrinterSettings() {
                     </div>
 
                     <div className="grid gap-4">
-                        {/* Receipt Printer Selection */}
+                        {/* Thermal Printer Selection */}
                         <div className="space-y-2">
-                            <Label>Default Receipt Printer (A4 / 80mm)</Label>
-                            <Select value={receiptPrinter} onValueChange={setReceiptPrinter} disabled={!qzStatus?.online}>
-                                <SelectTrigger className="glass-input bg-black/20 border-white/10 text-white">
-                                    <SelectValue placeholder="Select printer..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                                    <SelectItem value="none">-- None (Use Browser Dialog) --</SelectItem>
-                                    {printers.map(p => (
-                                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {receiptPrinter && (
-                                <Button variant="link" size="sm" className="text-cyan-400 h-auto p-0" onClick={handleTestReceipt}>
-                                    Test Print
-                                </Button>
+                            <div className="flex items-center justify-between">
+                                <Label className={!enableThermal ? "opacity-50" : ""}>Thermal Printer (80mm / 58mm)</Label>
+                                <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded border border-white/10">
+                                    <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">{enableThermal ? 'Active' : 'Hidden'}</span>
+                                    <Switch
+                                        checked={enableThermal}
+                                        onCheckedChange={(val) => setEnableThermal(val)}
+                                    />
+                                </div>
+                            </div>
+
+                            {enableThermal && (
+                                <Select
+                                    value={thermalPrinter || "none"}
+                                    onValueChange={(val) => {
+                                        setThermalPrinter(val);
+                                        if (val !== 'none') setReceiptFormat('thermal');
+                                    }}
+                                    disabled={!qzStatus?.online}
+                                >
+                                    <SelectTrigger className="glass-input bg-black/20 border-white/10 text-white animate-in fade-in slide-in-from-top-1 duration-200">
+                                        <SelectValue placeholder="Select thermal printer..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                        <SelectItem value="none">-- None --</SelectItem>
+                                        {printers.map(p => (
+                                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             )}
                         </div>
 
-                        {/* Receipt Format Selection */}
+                        {/* A4 Printer Selection */}
                         <div className="space-y-2">
-                            <Label>Receipt Format / Layout</Label>
-                            <Select value={receiptFormat} onValueChange={(val: any) => setReceiptFormat(val)}>
-                                <SelectTrigger className="glass-input bg-black/20 border-white/10 text-white">
-                                    <SelectValue placeholder="Select format..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                                    <SelectItem value="thermal">Thermal Roll (80mm/58mm)</SelectItem>
-                                    <SelectItem value="a4">Standard Invoice (A4)</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center justify-between">
+                                <Label className={!enableA4 ? "opacity-50" : ""}>Office Printer (A4)</Label>
+                                <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded border border-white/10">
+                                    <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">{enableA4 ? 'Active' : 'Hidden'}</span>
+                                    <Switch
+                                        checked={enableA4}
+                                        onCheckedChange={(val) => setEnableA4(val)}
+                                    />
+                                </div>
+                            </div>
+
+                            {enableA4 && (
+                                <Select
+                                    value={a4Printer || "none"}
+                                    onValueChange={(val) => {
+                                        setA4Printer(val);
+                                        if (val !== 'none') setReceiptFormat('a4');
+                                    }}
+                                    disabled={!qzStatus?.online}
+                                >
+                                    <SelectTrigger className="glass-input bg-black/20 border-white/10 text-white animate-in fade-in slide-in-from-top-1 duration-200">
+                                        <SelectValue placeholder="Select A4 printer..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                        <SelectItem value="none">-- None --</SelectItem>
+                                        {printers.map(p => (
+                                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
+
+                        {/* Quick Test Actions */}
+                        {(enableThermal || enableA4) && (
+                            <div className="flex gap-2">
+                                <Button variant="link" size="sm" className="text-cyan-400 h-auto p-0" onClick={handleTestReceipt}>
+                                    Test Selected Printer
+                                </Button>
+                            </div>
+                        )}
+
+                        <hr className="border-white/5" />
 
                         {/* Label Printer Selection */}
                         <div className="space-y-2">

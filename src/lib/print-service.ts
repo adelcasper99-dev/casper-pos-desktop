@@ -436,8 +436,10 @@ class PrintService {
    */
   async printHTML(html: string, printerName?: string, options?: { paperWidthMm?: number }): Promise<void> {
     // Resolve printer name from args > registry > localStorage
+    const registry = this.getRegistry();
     const targetPrinter = printerName
-      || this.registry?.receiptPrinter
+      || (options?.paperWidthMm && options.paperWidthMm > 100 ? registry?.a4Printer : registry?.thermalPrinter)
+      || registry?.receiptPrinter
       || localStorage.getItem('printer_receipt')
       || undefined;
 

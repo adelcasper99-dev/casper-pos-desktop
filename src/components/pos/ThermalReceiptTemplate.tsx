@@ -61,8 +61,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
       width: ${paperWidth};
       max-width: ${paperWidth};
       margin: 0 auto;
-      margin-left: -3mm;
-      padding: 3mm 5mm;
+      padding: 3mm 13mm 3mm 0mm;
       background: #fff;
       color: #000;
       font-size: 12px;

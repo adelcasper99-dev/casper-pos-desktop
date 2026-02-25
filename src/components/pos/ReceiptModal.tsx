@@ -28,6 +28,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
     const [copyCount, setCopyCount] = useState(1);
     const [saveAsDefault, setSaveAsDefault] = useState(false);
     const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
+    const [enabledFormats, setEnabledFormats] = useState({ thermal: true, a4: true });
     const receiptRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -38,8 +39,18 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
         if (registryStr) {
             try {
                 const registry = JSON.parse(registryStr);
-                if (registry.receiptFormat === 'a4') {
+                const isA4 = registry.receiptFormat === 'a4';
+                const thermalEnabled = registry.enableThermal !== false;
+                const a4Enabled = registry.enableA4 !== false;
+
+                setEnabledFormats({ thermal: thermalEnabled, a4: a4Enabled });
+
+                if (isA4 && a4Enabled) {
                     setReceiptFormat('a4');
+                } else if (!thermalEnabled && a4Enabled) {
+                    setReceiptFormat('a4');
+                } else {
+                    setReceiptFormat('thermal');
                 }
             } catch (e) { }
         }
@@ -78,41 +89,47 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
             localStorage.setItem('casper_default_print_copies', copyCount.toString());
         }
 
-        const receiptPrinter = localStorage.getItem('casper_receipt_printer') || undefined;
-        const paperWidthMm = settings?.paperSize === '58mm'
-            ? PAPER_SIZES.MOBILE
-            : (settings?.paperSize === '100mm' ? PAPER_SIZES.WIDE : PAPER_SIZES.STANDARD);
+        const registry = printService.getRegistry();
+        const rawReceiptPrinter = receiptFormat === 'a4'
+            ? registry?.a4Printer
+            : (registry?.thermalPrinter || registry?.receiptPrinter);
+
+        const receiptPrinter = (rawReceiptPrinter && rawReceiptPrinter !== 'none') ? rawReceiptPrinter : undefined;
 
         const printJob = async () => {
             const html = receiptFormat === 'a4'
                 ? generateA4ReceiptHTML({ saleData, settings })
                 : generateThermalReceiptHTML({ saleData, settings });
 
-            const widthToUse = receiptFormat === 'a4'
-                ? 210 // A4 width in mm
-                : (settings?.paperSize === '58mm' ? 58 : 80);
-
-            for (let i = 0; i < copyCount; i++) {
-                await printService.printThermal(html, receiptPrinter || '', widthToUse);
+            if (receiptFormat === 'a4') {
+                // Ensure A4 jobs have the correct paper width and use printHTML for standard routing
+                await printService.printHTML(html, receiptPrinter || '', { paperWidthMm: 210 });
+            } else {
+                const widthToUse = settings?.paperSize === '58mm' ? 58 : 80;
+                for (let i = 0; i < copyCount; i++) {
+                    await printService.printThermal(html, receiptPrinter || '', widthToUse);
+                }
             }
         };
 
-        toast.promise(printJob(), {
-            loading: t('printing') || 'Printing...',
-            success: t('sentToPrinter') || 'Sent to printer',
-            error: (err: Error) => {
-                setIsPrinting(false);
-                return `Print failed: ${err?.message || 'Unknown error'}`;
-            },
-            finally: () => setIsPrinting(false)
-        });
+        try {
+            await toast.promise(printJob(), {
+                loading: t('printing') || 'Printing...',
+                success: t('sentToPrinter') || 'Sent to printer',
+                error: (err: any) => `Print failed: ${err?.message || 'Unknown error'}`
+            });
+        } catch (e) {
+            console.error("Print promise error:", e);
+        } finally {
+            setIsPrinting(false);
+        }
     };
 
     // ... (rest of the component)
     const items = saleData.items ?? [];
     const total = saleData.totalAmount ?? 0;
     const currency = settings?.currency ?? 'SAR';
-    const date = new Date(saleData.date);
+    const date = new Date(saleData.date || new Date());
     const dateStr = date.toLocaleDateString('ar-EG');
     const timeStr = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
@@ -120,21 +137,44 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
         <GlassModal isOpen={isOpen} onClose={onClose} title={t('printReceipt') || "طباعة الإيصال"}>
             <div className="flex flex-col items-center justify-center p-4 space-y-5">
 
-                {/* Success badge - Hide if DRAFT */}
-                {saleData.invoiceNumber !== "DRAFT" ? (
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.5)]">
-                            <CheckCircle className="w-8 h-8" />
+                {/* Success badge & Format Toggle */}
+                <div className="w-full flex flex-col items-center gap-4">
+                    {saleData.invoiceNumber !== "DRAFT" ? (
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.5)]">
+                                <CheckCircle className="w-8 h-8" />
+                            </div>
+                            <h2 className="text-xl font-bold text-foreground">{t('saleCompleted') || "تمت العملية بنجاح"}</h2>
                         </div>
-                        <h2 className="text-xl font-bold text-foreground">{t('saleCompleted') || "تمت العملية بنجاح"}</h2>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center gap-2">
-                        {/* Optionally show a different header for DRAFT / Speed Print */}
-                        <h2 className="text-xl font-bold text-cyan-400">{t('speedPrintPreview') || "معاينة الطباعة السريعة"}</h2>
-                        <p className="text-sm text-zinc-400">هذا الطلب لم يتم محاسبته بعد</p>
-                    </div>
-                )}
+                    ) : (
+                        <div className="flex flex-col items-center gap-2">
+                            <h2 className="text-xl font-bold text-cyan-400">{t('speedPrintPreview') || "معاينة الطباعة السريعة"}</h2>
+                            <p className="text-sm text-zinc-400">هذا الطلب لم يتم محاسبته بعد</p>
+                        </div>
+                    )}
+
+                    {/* Format Switcher Tabs - Show container if at least one is enabled */}
+                    {(enabledFormats.thermal || enabledFormats.a4) && (
+                        <div className="flex bg-zinc-900/50 p-1 rounded-xl border border-white/5 w-64 shadow-inner">
+                            {enabledFormats.thermal && (
+                                <button
+                                    onClick={() => setReceiptFormat('thermal')}
+                                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all duration-200 ${receiptFormat === 'thermal' ? 'bg-cyan-500 text-black shadow-[0_0_10px_rgba(6,182,212,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+                                >
+                                    {t('thermalRoll') || "Thermal Roll"}
+                                </button>
+                            )}
+                            {enabledFormats.a4 && (
+                                <button
+                                    onClick={() => setReceiptFormat('a4')}
+                                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all duration-200 ${receiptFormat === 'a4' ? 'bg-cyan-500 text-black shadow-[0_0_10px_rgba(6,182,212,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+                                >
+                                    {t('standardA4') || "Standard A4"}
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {receiptFormat === 'a4' ? (
                     // ── A4 Preview Container ── 
@@ -168,6 +208,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                             backgroundColor: '#ffffff',
                             width: '300px',
                             maxWidth: '300px',
+                            margin: '0 auto',
                             borderRadius: '0px',
                             border: '1px solid #000000',
                             overflow: 'hidden',

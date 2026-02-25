@@ -40,6 +40,7 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
     <html lang="ar" dir="rtl">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             @page {
                 size: A4;
@@ -55,10 +56,13 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                 font-size: 18px; /* Increased from 14px */
             }
             .document {
-                max-width: 800px;
-                margin: 0 auto;
+                width: 210mm;
+                max-width: 100%;
+                margin: 0;
                 background: #ffffff;
-                min-height: 100vh;
+                color: #000000 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
             .header {
                 display: flex;
