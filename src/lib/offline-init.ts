@@ -65,7 +65,7 @@ export function setupOfflineMode() {
             initializeOfflineMode()
                 .then(() => {
                     // Start periodic auto-backup to filesystem
-                    LocalPersistenceService.startAutoBackup();
+                    LocalPersistenceService.startAutoBackup().catch(console.error);
                 })
                 .catch(console.error);
         });

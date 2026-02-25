@@ -35,15 +35,29 @@ declare global {
       /** Database Configuration API */
       config?: {
         showOpenDialog: () => Promise<string | null>;
+        selectBackupFolder: () => Promise<string | null>;
+        getConfig: () => Promise<any>;
         getDbPath: () => Promise<string>;
         saveConfigAndRestart: (path: string) => Promise<boolean>;
+        saveBackupConfig: (config: { backupPath: string; backupInterval?: number; maxBackups?: number }) => Promise<{ success: boolean; error?: string }>;
       };
       /** Offline Data Resilience & Maintenance API */
       storage?: {
         saveOfflineData: (data: any) => Promise<{ success: boolean; error?: string }>;
         loadOfflineData: () => Promise<any>;
+        getAvailableBackups: () => Promise<{ success: boolean; backups?: any[]; error?: string }>;
+        deleteBackup: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+        restoreFromBackup: (filePath: string) => Promise<{ success: boolean; error?: string }>;
         exportSupportBundle: () => Promise<{ success: boolean; path?: string; error?: string }>;
         vacuumDatabase: () => Promise<{ success: boolean; error?: string }>;
+      };
+      /** Auto Updater API */
+      updater?: {
+        onUpdateAvailable: (cb: (info: any) => void) => () => void;
+        onDownloadProgress: (cb: (progress: any) => void) => () => void;
+        onUpdateDownloaded: (cb: (info: any) => void) => () => void;
+        onError: (cb: (err: any) => void) => () => void;
+        installUpdate: () => Promise<void>;
       };
     };
   }

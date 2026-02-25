@@ -12,11 +12,17 @@
 
 import { prisma } from './prisma';
 
-let initialized = false;
+// ── V-05: Use globalThis to survive Next.js dev hot-reloads ────────────
+const globalForDbInit = globalThis as unknown as { dbInitialized: boolean };
 
 export async function initDatabase(): Promise<void> {
-    if (initialized) return;
-    initialized = true;
+    if (globalForDbInit.dbInitialized) {
+        // Skip heavy initialization if already done (crucial for dev hot-reloads)
+        return;
+    }
+
+    // Set flag immediately to prevent concurrent requests from triggering multiple seeds
+    globalForDbInit.dbInitialized = true;
 
     try {
         // ── WAL mode (returns 'wal' string, so use $queryRaw to avoid 'Execute returned results' error) ────
@@ -45,6 +51,11 @@ export async function initDatabase(): Promise<void> {
         const { seedAccounts } = await import('./accounting/seed-accounts');
         await seedAccounts();
         console.log('[DB] Chart of Accounts sync complete.');
+
+        // ── Ensure Main Branch (V-05 fix: run once at startup, not on every login)
+        const { ensureMainBranch } = await import('./ensure-main-branch');
+        await ensureMainBranch();
+
     } catch (err) {
         console.error('[DB] initDatabase failed:', err);
         // Non-fatal — app can still serve requests, just with reduced safety guarantees

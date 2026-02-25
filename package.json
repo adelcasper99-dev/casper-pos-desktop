@@ -19,6 +19,11 @@
         "appId": "com.caspererp.app",
         "productName": "Casper POS",
         "copyright": "Copyright © 2026 Casper POS",
+        "publish": {
+            "provider": "github",
+            "owner": "adelcasper99-dev",
+            "repo": "casper-pos-desktop"
+        },
         "asar": true,
         "asarUnpack": [
             ".next/standalone/**/*",
@@ -89,6 +94,7 @@
         "decimal.js": "^10.6.0",
         "dexie": "^4.3.0",
         "electron-serve": "^1.3.0",
+        "electron-updater": "^6.3.9",
         "flatpickr": "^4.6.13",
         "fs-extra": "^11.2.0",
         "html2canvas": "^1.4.1",

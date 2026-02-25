@@ -1,58 +1,64 @@
-# Casper POS Desktop - Development Setup
+# Casper POS Desktop
 
-This guide explains how to set up the development environment on a new machine.
+Casper POS Desktop is a modern, offline-first Point of Sale application built with Next.js, Electron, Prisma, and SQLite.
+
+## Core Features
+
+- **Offline-First Resilience**: Transactions are logged locally to IndexedDB and securely mirrored to a local SQLite database for maximum durability, even without an internet connection.
+- **Guided Setup Wizard**: First-time launch provides a seamless setup experience, allowing you to choose your database storage location and establish the first Admin superuser account.
+- **Automated Background Updates**: Powered by `electron-updater` and GitHub Releases. New versions download silently over-the-air. A "Restart to Update" button appears when ready, ensuring cashiers are never interrupted.
+- **High-Speed Thermal Printing**: Direct IPC integration for silent, rapid ESC/POS thermal printing with RTL Arabic support.
+- **Production-Ready Performance**: Electron initialization is accelerated using V8 bytecode compilation (`bytenode`), and the local SQLite database runs in WAL mode for high-concurrency read/writes.
 
 ## Prerequisites
 
-1.  **Node.js**: Install the latest LTS version of Node.js (v18+ recommended).
-    -   Download: [nodejs.org](https://nodejs.org/)
-2.  **Git** (Optional): If you are using version control.
+- **Node.js**: v18+ (v20+ recommended)
+- **Windows**: Target platform for the executable.
 
-## Setup Steps
+## Development Setup
 
-1.  **Copy the Project**:
-    -   Copy the `desktop` folder to your new machine.
-    -   **Important**: Do NOT copy the `node_modules`, `.next`, or `dist` folders. These will be regenerated.
+1. **Install Dependencies**:
 
-2.  **Install Dependencies**:
-    Open a terminal in the `desktop` folder and run:
-    ```bash
-    npm install
-    ```
+   ```bash
+   npm install
+   ```
 
-3.  **Database Setup (SQLite)**:
-    -   **Option A: Keep Existing Data**
-        -   Copy the `prisma/local.db` file from your old machine to `desktop/prisma/local.db` on the new machine.
-    -   **Option B: Start Fresh**
-        -   Run the following command to create a new empty database:
-            ```bash
-            npx prisma db push
-            ```
+2. **Start Development Server**:
 
-4.  **Generate Prisma Client**:
-    Regardless of Option A or B, you must run:
-    ```bash
-    npx prisma generate
-    ```
+   ```bash
+   npm run dev
+   ```
 
-## Running the App
+   This will spin up Next.js on port 3001 and launch the Electron wrapper with hot-reloading.
 
-### Development Mode
-To start the development server (with hot-reload):
-```bash
-npm run dev
-```
--   The app will open in your browser at `http://localhost:3000`.
--   The Electron window will also launch.
+## Production Build & Code Signing
 
-### Production Build
-To build the Windows installer (`.exe`):
-```bash
-npm run dist
-```
--   The output will be in the `dist` folder.
+The build pipeline uses `electron-builder` to package the Next.js standalone output and Prisma engines into a secure `.asar` and single executable installer.
 
-## Troubleshooting
+### To release an update
 
--   **Database Errors**: If you see errors about "table not found", run `npx prisma db push`.
--   **Native Module Errors**: If `npm install` fails on `sqlite3` or compilation, ensure you have build tools installed (Windows Build Tools) or simply skip `sqlite3` as it's not strictly required (Prisma uses its own engine).
+1. You must have a valid Code Signing Certificate to avoid Windows SmartScreen warnings. Set the required environment variables:
+
+   ```powershell
+   $env:WIN_CSC_LINK="C:\path\to\your\certificate.pfx"
+   $env:WIN_CSC_KEY_PASSWORD="your-password"
+   $env:GH_TOKEN="your-github-personal-access-token"
+   ```
+
+2. Update the `version` in `package.json`.
+3. Run the full distribution pipeline:
+
+   ```bash
+   npm run dist
+   ```
+
+4. The signed executable and `latest.yml` will be published as a Draft Release on your GitHub repository. Publish the release to automatically deploy it to all terminals.
+
+## Data Maintenance
+
+The application features a built-in Desktop Status widget (located in the top header) which provides:
+
+- Live network connectivity status.
+- Real-time backup monitoring.
+- One-click Database Vacuuming (Optimization).
+- One-click Support Bundle Export for troubleshooting.

@@ -4,11 +4,22 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const { execSync, spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
 const log = (msg) => {
     fs.appendFileSync(debugLog, `[${new Date().toISOString()}] [PROCESS ${process.pid}] ${msg}\n`);
 };
+
+// Configure autoUpdater logger
+autoUpdater.logger = {
+    info(msg) { log(`Updater: ${msg}`); },
+    warn(msg) { log(`Updater Warn: ${msg}`); },
+    error(msg) { log(`Updater Error: ${msg}`); },
+    debug(msg) { log(`Updater Debug: ${msg}`); }
+};
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 
 log(`--- ENTRY: ${JSON.stringify(process.argv)} ---`);
 
@@ -25,6 +36,11 @@ app.on('second-instance', () => {
 });
 
 const getDatabasePath = () => {
+    // In development mode, Prisma puts the database in the prisma directory
+    if (!app.isPackaged) {
+        return path.join(__dirname, '..', 'prisma', 'local.db');
+    }
+
     const userDataPath = app.getPath('userData');
     if (!fs.existsSync(userDataPath)) {
         fs.mkdirSync(userDataPath, { recursive: true });
@@ -247,6 +263,14 @@ const createWindow = async () => {
         if (splashWindow) splashWindow.close();
         mainWindow.maximize();
         mainWindow.show();
+
+        // Check for updates shortly after boot
+        setTimeout(() => {
+            if (app.isPackaged) {
+                log('Updater: Triggering check for updates...');
+                autoUpdater.checkForUpdatesAndNotify();
+            }
+        }, 5000);
     } catch (error) {
         log(`FATAL BOOT ERROR: ${error.message}`);
         dialog.showErrorBox("Startup Error", `Failed to start the background server.\n\n${error.message}\n\nPlease check casper-boot.log in your user folder.`);
@@ -260,6 +284,30 @@ app.on('window-all-closed', () => {
 });
 app.on('will-quit', () => {
     if (nextServer) nextServer.kill();
+});
+
+// --- AUTO UPDATER EVENTS AND IPC ---
+autoUpdater.on('checking-for-update', () => log('Updater: Checking for update...'));
+autoUpdater.on('update-available', (info) => {
+    log('Updater: Update available.');
+    if (mainWindow) mainWindow.webContents.send('updater:update-available', info);
+});
+autoUpdater.on('update-not-available', (info) => log('Updater: Update not available.'));
+autoUpdater.on('error', (err) => {
+    log(`Updater Error: ${err.message}`);
+    if (mainWindow) mainWindow.webContents.send('updater:error', err.message);
+});
+autoUpdater.on('download-progress', (progressObj) => {
+    if (mainWindow) mainWindow.webContents.send('updater:download-progress', progressObj);
+});
+autoUpdater.on('update-downloaded', (info) => {
+    log('Updater: Update downloaded.');
+    if (mainWindow) mainWindow.webContents.send('updater:update-downloaded', info);
+});
+
+ipcMain.handle('app:install-update', () => {
+    log('Updater: Installing update and quitting...');
+    autoUpdater.quitAndInstall(false, true);
 });
 
 ipcMain.on('window:minimize', () => mainWindow?.minimize());
@@ -340,6 +388,19 @@ ipcMain.handle('print:html', async (event, html, printerName, options) => {
 });
 
 // --- NEW CONFIG AND SETUP IPC HANDLERS ---
+const loadConfig = () => {
+    const userDataPath = app.getPath('userData');
+    const configPath = path.join(userDataPath, 'casper-config.json');
+    if (fs.existsSync(configPath)) {
+        try {
+            return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        } catch (e) {
+            log(`Failed to parse config: ${e.message}`);
+        }
+    }
+    return {};
+};
+
 ipcMain.handle('dialog:showOpenDialog', async () => {
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -347,6 +408,28 @@ ipcMain.handle('dialog:showOpenDialog', async () => {
         title: 'Select Database Folder'
     });
     return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('dialog:showBackupFolderDialog', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Select Custom Backup Folder'
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+
+    let selectedPath = result.filePaths[0];
+    if (!selectedPath.endsWith('Casper Backups')) {
+        selectedPath = path.join(selectedPath, 'Casper Backups');
+        if (!fs.existsSync(selectedPath)) {
+            fs.mkdirSync(selectedPath, { recursive: true });
+        }
+    }
+    return selectedPath;
+});
+
+ipcMain.handle('app:get-config', () => {
+    return loadConfig();
 });
 
 ipcMain.handle('app:get-db-path', () => {
@@ -359,7 +442,10 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
         const userDataPath = app.getPath('userData');
         const configPath = path.join(userDataPath, 'casper-config.json');
 
-        fs.writeFileSync(configPath, JSON.stringify({ dbPath: newDbFolder }, null, 2), 'utf8');
+        const existingConfig = loadConfig();
+        const newConfig = { ...existingConfig, dbPath: newDbFolder };
+
+        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
         log(`Saved new config path: ${newDbFolder}. Restarting...`);
 
         // Relaunch the application and exit
@@ -372,22 +458,83 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     }
 });
 
+ipcMain.handle('app:save-backup-config', async (event, configData) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'casper-config.json');
+
+        const existingConfig = loadConfig();
+        const newConfig = { ...existingConfig, ...configData };
+
+        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
+        log(`Saved custom backup config: path=${configData.backupPath}, interval=${configData.backupInterval}`);
+        return { success: true };
+    } catch (err) {
+        log(`Failed to save backup config: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
 // --- OFFLINE DATA PERSISTENCE & MAINTENANCE ---
 
 ipcMain.handle('app:save-offline-data', async (event, data) => {
     try {
         const dbPath = getDatabasePath();
         const userDataPath = app.getPath('userData');
-        const backupPath = path.join(userDataPath, 'local_mirror.db');
+        const hiddenMirrorPath = path.join(userDataPath, 'local_mirror.db');
 
-        // Mirror the actual SQLite file for durability (Constitution Requirement)
+        // 1. Always create the hidden fail-safe mirror
         if (fs.existsSync(dbPath)) {
-            fs.copyFileSync(dbPath, backupPath);
-            log(`Mirror: SQLite mirrored to ${backupPath}`);
+            fs.copyFileSync(dbPath, hiddenMirrorPath);
+            // log(`Mirror: SQLite mirrored to ${hiddenMirrorPath}`); // Too noisy for 15min intervals
+        } else {
+            throw new Error(`Source database not found at ${dbPath}`);
         }
 
-        // Also save provided metadata if any
-        if (data && Object.keys(data).length > 0) {
+        // 2. Custom Destination Backup with Timestamp & Cleanup
+        const config = loadConfig();
+        if (config.backupPath && fs.existsSync(config.backupPath)) {
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-');
+            const customBackupName = `casper_backup_${timestamp}.db`;
+            const customBackupPath = path.join(config.backupPath, customBackupName);
+
+            fs.copyFileSync(dbPath, customBackupPath);
+            log(`Backup saved to ${customBackupPath}`);
+
+            // Cleanup: Keep only the configured number of recent .db files (default 30)
+            try {
+                const maxBackups = config.maxBackups || 30;
+                const files = fs.readdirSync(config.backupPath);
+                const dbBackups = files
+                    .filter(f => f.startsWith('casper_backup_') && f.endsWith('.db'))
+                    .map(f => ({
+                        name: f,
+                        path: path.join(config.backupPath, f),
+                        time: fs.statSync(path.join(config.backupPath, f)).mtime.getTime()
+                    }))
+                    .sort((a, b) => b.time - a.time); // Newest first
+
+                if (dbBackups.length > maxBackups) {
+                    const filesToDelete = dbBackups.slice(maxBackups);
+                    filesToDelete.forEach(file => {
+                        fs.unlinkSync(file.path);
+                        log(`Auto-cleanup: Deleted old backup ${file.name}`);
+                    });
+                }
+            } catch (cleanupErr) {
+                log(`Auto-cleanup failed: ${cleanupErr.message}`);
+            }
+        } else if (data && data.isManual) {
+            // If it's a manual backup and no path is configured, we should probably warn them,
+            // but the UI shouldn't allow the button to be clicked anyway.
+            if (!config.backupPath) {
+                throw new Error("No backup path configured. Please apply configuration first.");
+            }
+        }
+
+        // 3. Save frontend offline json metadata if provided
+        if (data && Object.keys(data).length > 0 && !data.isManual) {
             const jsonPath = path.join(userDataPath, 'offline_backup.json');
             fs.writeFileSync(jsonPath, JSON.stringify(data), 'utf8');
         }
@@ -395,6 +542,96 @@ ipcMain.handle('app:save-offline-data', async (event, data) => {
         return { success: true };
     } catch (err) {
         log(`Failed to save offline data: ${err.message}`);
+        // Do not crash the app, return gracefully
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('app:get-available-backups', async () => {
+    try {
+        const config = loadConfig();
+        if (!config.backupPath || !fs.existsSync(config.backupPath)) {
+            return { success: true, backups: [] };
+        }
+
+        const files = fs.readdirSync(config.backupPath);
+        const dbBackups = files
+            .filter(f => f.startsWith('casper_backup_') && f.endsWith('.db'))
+            .map(f => {
+                const fullPath = path.join(config.backupPath, f);
+                const stats = fs.statSync(fullPath);
+                return {
+                    filename: f,
+                    path: fullPath,
+                    sizeBytes: stats.size,
+                    createdAt: stats.mtime.toISOString(),
+                };
+            })
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        return { success: true, backups: dbBackups };
+    } catch (err) {
+        log(`Failed to get available backups: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+// App: Delete specific backup file
+ipcMain.handle('app:delete-backup', async (event, backupPath) => {
+    try {
+        log(`Deleting backup file: ${backupPath}`);
+        if (!fs.existsSync(backupPath)) {
+            return { success: false, error: 'Backup file not found' };
+        }
+
+        fs.unlinkSync(backupPath);
+        log(`Backup file deleted successfully: ${backupPath}`);
+        return { success: true };
+    } catch (err) {
+        log(`Failed to delete backup: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('app:restore-from-backup', async (event, backupFilePath) => {
+    try {
+        log(`RESTORE: Initiating restore from ${backupFilePath}`);
+
+        if (!fs.existsSync(backupFilePath)) {
+            throw new Error('Selected backup file does not exist.');
+        }
+
+        const activeDbPath = getDatabasePath();
+
+        // Safety Strategy: We cannot replace the active DB while Prisma or Next.js holds a lock on it.
+        // The safest way to do this in Electron without introducing complex Prisma disconnection IPCs
+        // is to kill the Next.js/Prisma server child process entirely, replace the file, and relaunch the app.
+
+        log(`RESTORE: Killing Next.js server to release database locks...`);
+        if (nextServer) {
+            nextServer.kill('SIGKILL');
+        }
+
+        // Wait a brief moment to ensure file locks are released by the OS
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Copy overwrite
+        log(`RESTORE: Copying backup to active database path...`);
+        fs.copyFileSync(backupFilePath, activeDbPath);
+
+        // Ensure sidecar WAL files are removed so the new DB state isn't corrupted by old WALs
+        const walPath = `${activeDbPath}-wal`;
+        const shmPath = `${activeDbPath}-shm`;
+        if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+        if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+
+        log(`RESTORE: Complete. Restarting application...`);
+        app.relaunch();
+        app.quit();
+
+        return { success: true };
+    } catch (err) {
+        log(`RESTORE FATAL ERROR: ${err.message}`);
         return { success: false, error: err.message };
     }
 });

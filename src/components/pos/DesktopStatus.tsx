@@ -7,7 +7,8 @@ import {
     Download,
     Wand2,
     Wifi,
-    WifiOff
+    WifiOff,
+    RefreshCw
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -17,6 +18,8 @@ export const DesktopStatus: React.FC = () => {
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
     const [lastBackup, setLastBackup] = useState<string | null>(null);
     const [isActionInProgress, setIsActionInProgress] = useState(false);
+    const [updateReady, setUpdateReady] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -28,9 +31,25 @@ export const DesktopStatus: React.FC = () => {
         const stored = localStorage.getItem('casper_last_fs_backup');
         if (stored) setLastBackup(stored);
 
+        // Auto Updater Listeners
+        let unsubProgress = () => { };
+        let unsubDownloaded = () => { };
+        if (window.electronAPI?.updater) {
+            unsubProgress = window.electronAPI.updater.onDownloadProgress((progress: any) => {
+                setDownloadProgress(Math.round(progress.percent));
+            });
+            unsubDownloaded = window.electronAPI.updater.onUpdateDownloaded(() => {
+                setDownloadProgress(null);
+                setUpdateReady(true);
+                toast.success('Update ready to install!');
+            });
+        }
+
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            unsubProgress();
+            unsubDownloaded();
         };
     }, []);
 
@@ -112,11 +131,12 @@ export const DesktopStatus: React.FC = () => {
 
             {/* Database Info */}
             <div
-                className="flex items-center gap-1.5 cursor-help"
-                title="Your data is automatically mirrored from the browser to your computer's storage every 5 minutes for safety."
+                className="flex items-center gap-1.5 cursor-pointer hover:text-blue-400 transition-colors"
+                title="Configure Backups in Settings"
+                onClick={() => window.location.hash = '#/settings'}
             >
                 <Database className="w-3.5 h-3.5 text-blue-500" />
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground font-medium border-b border-dashed border-blue-500/50">
                     {lastBackup ? `Backed up: ${lastBackup}` : 'No local backup'}
                 </span>
             </div>
@@ -158,6 +178,30 @@ export const DesktopStatus: React.FC = () => {
                     <Download className="w-3.5 h-3.5" />
                 </Button>
             </div>
+
+            {/* Update Status */}
+            {(updateReady || downloadProgress !== null) && (
+                <>
+                    <div className="w-px h-3 bg-border" />
+                    <div className="flex items-center gap-1.5 px-1">
+                        {updateReady ? (
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="h-6 text-[10px] bg-cyan-600 hover:bg-cyan-500 text-white leading-none px-2"
+                                onClick={() => window.electronAPI?.updater?.installUpdate()}
+                            >
+                                <RefreshCw className="w-3 h-3 mr-1" />
+                                Restart to Update
+                            </Button>
+                        ) : (
+                            <span className="text-muted-foreground animate-pulse whitespace-nowrap">
+                                Downloading Update: {downloadProgress}%
+                            </span>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 };

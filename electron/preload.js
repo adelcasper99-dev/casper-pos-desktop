@@ -64,8 +64,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     config: {
         showOpenDialog: () => ipcRenderer.invoke('dialog:showOpenDialog'),
+        selectBackupFolder: () => ipcRenderer.invoke('dialog:showBackupFolderDialog'),
+        getConfig: () => ipcRenderer.invoke('app:get-config'),
         getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
+        saveBackupConfig: (path) => ipcRenderer.invoke('app:save-backup-config', path),
     },
 
     /**
@@ -74,9 +77,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
     storage: {
         saveOfflineData: (data) => ipcRenderer.invoke('app:save-offline-data', data),
         loadOfflineData: () => ipcRenderer.invoke('app:load-offline-data'),
+        getAvailableBackups: () => ipcRenderer.invoke('app:get-available-backups'),
+        deleteBackup: (filePath) => ipcRenderer.invoke('app:delete-backup', filePath),
+        restoreFromBackup: (filePath) => ipcRenderer.invoke('app:restore-from-backup', filePath),
         exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
         vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
         printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),
+    },
+
+    /**
+     * Auto-Updater API
+     */
+    updater: {
+        onUpdateAvailable: (callback) => {
+            const handler = (_event, info) => callback(info);
+            ipcRenderer.on('updater:update-available', handler);
+            return () => ipcRenderer.removeListener('updater:update-available', handler);
+        },
+        onDownloadProgress: (callback) => {
+            const handler = (_event, progress) => callback(progress);
+            ipcRenderer.on('updater:download-progress', handler);
+            return () => ipcRenderer.removeListener('updater:download-progress', handler);
+        },
+        onUpdateDownloaded: (callback) => {
+            const handler = (_event, info) => callback(info);
+            ipcRenderer.on('updater:update-downloaded', handler);
+            return () => ipcRenderer.removeListener('updater:update-downloaded', handler);
+        },
+        onError: (callback) => {
+            const handler = (_event, error) => callback(error);
+            ipcRenderer.on('updater:error', handler);
+            return () => ipcRenderer.removeListener('updater:error', handler);
+        },
+        installUpdate: () => ipcRenderer.invoke('app:install-update')
     }
 });
 
