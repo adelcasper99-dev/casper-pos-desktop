@@ -90,9 +90,14 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
 
         // Recalculate Totals for Integrity
-        const subTotal = data.items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
-        const taxAmount = subTotal * (taxRate / 100);
-        const totalAmount = subTotal + taxAmount;
+        const subTotalAmount = data.items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
+        const discountAmount = data.discountAmount || 0;
+
+        // Guard: Discount cannot exceed subtotal
+        const effectiveSubTotal = Math.max(0, subTotalAmount - discountAmount);
+
+        const taxAmount = effectiveSubTotal * (taxRate / 100);
+        const totalAmount = effectiveSubTotal + taxAmount;
 
         // 1. Fetch product costPrices for COGS snapshot (Phase 2 fix)
         const productIds = data.items.map(item => item.id);
@@ -122,7 +127,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 customerId: (data.customer?.id && data.customer.id.trim() !== "") ? data.customer.id : null,
                 warehouseId: mainWarehouseId,
                 totalAmount: new Decimal(totalAmount),
-                subTotal: new Decimal(subTotal),
+                subTotal: new Decimal(subTotalAmount),
+                discountAmount: new Decimal(discountAmount),
+                discountPercentage: data.discountPercentage ? new Decimal(data.discountPercentage) : null,
                 taxAmount: new Decimal(taxAmount),
                 paymentMethod: data.paymentMethod,
                 shiftId: currentShift.id,

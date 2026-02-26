@@ -28,7 +28,7 @@ import { useTranslations } from "@/lib/i18n-mock";
 import { usePurchaseForm } from "@/hooks/usePurchaseForm";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 import { toast } from "sonner";
-import { safeRandomUUID } from "@/lib/utils";
+import { safeRandomUUID, formatCurrency } from "@/lib/utils";
 import { ReasonDialog } from "@/components/ui/ReasonDialog";
 
 interface Product {
@@ -220,8 +220,6 @@ export default function PurchasesTab({
         loadTreasuries();
         return () => { isMounted = false; };
     }, [selectedBranchId, userBranchId, branches, setTreasuryId]);
-
-    // Content moved up
 
     // Calculate subtotal for display if needed
     const subtotal = cart.reduce((acc, item) => acc + (item.quantity * item.unitCost), 0);
@@ -620,16 +618,16 @@ export default function PurchasesTab({
                                         </span>
                                     </td>
                                     <td className="p-4 text-end font-mono text-muted-foreground text-xs">
-                                        ${Number(inv.deliveryCharge || 0).toFixed(2)}
+                                        {formatCurrency(inv.deliveryCharge || 0, settings?.currency)}
                                     </td>
                                     <td className="p-4 text-end font-mono text-cyan-500 font-bold">
-                                        {Number(inv.totalAmount).toFixed(2)}
+                                        {formatCurrency(inv.totalAmount, settings?.currency)}
                                     </td>
                                     <td className="p-4 text-end font-mono text-muted-foreground">
-                                        {Number(inv.paidAmount).toFixed(2)}
+                                        {formatCurrency(inv.paidAmount, settings?.currency)}
                                     </td>
                                     <td className="p-4 text-end font-mono text-red-400">
-                                        {(Number(inv.totalAmount) - Number(inv.paidAmount)).toFixed(2)}
+                                        {formatCurrency(Number(inv.totalAmount) - Number(inv.paidAmount), settings?.currency)}
                                     </td>
                                     <td className="p-4 text-center">
                                         <div className="flex gap-2 justify-center">
@@ -765,15 +763,15 @@ export default function PurchasesTab({
                             <div className="flex flex-col gap-1">
                                 <div className="text-xs text-muted-foreground uppercase">{t('total')}</div>
                                 <div className="text-2xl font-bold font-mono text-cyan-500">
-                                    {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-sm text-muted-foreground">EGP</span>
+                                    {formatCurrency(totalAmount, settings?.currency)}
                                 </div>
                                 <div className="text-xs text-muted-foreground">{t('itemsCount', { count: cart.length })}</div>
                             </div>
 
-                            <div className="flex gap-4 items-end">
+                            <div className="flex flex-wrap gap-4 items-end justify-end">
                                 <div>
                                     <div className="text-xs text-muted-foreground uppercase font-bold mb-1">{tCommon('subtotal')}</div>
-                                    <div className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono text-right text-muted-foreground">
+                                    <div className="bg-background border border-border px-3 py-2 rounded-lg w-28 font-mono text-right text-muted-foreground">
                                         {subtotal.toFixed(2)}
                                     </div>
                                 </div>
@@ -784,7 +782,7 @@ export default function PurchasesTab({
                                         type="number"
                                         value={deliveryCharge}
                                         onChange={e => setDeliveryCharge(e.target.value)}
-                                        className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-32 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors"
+                                        className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-28 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors"
                                         placeholder="0.00"
                                     />
                                 </div>
@@ -793,74 +791,89 @@ export default function PurchasesTab({
 
                                 <div>
                                     <div className="text-xs text-muted-foreground uppercase font-bold mb-1">{t('totalAmount')}</div>
-                                    <div className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono text-right font-bold text-foreground">
+                                    <div className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono text-right font-bold text-cyan-400">
                                         {totalAmount.toFixed(2)}
                                     </div>
                                 </div>
 
-                                <div className="text-2xl font-light text-muted-foreground/50 pb-2">=</div>
-
+                                {/* Paid Amount */}
                                 <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('paymentMethod') || 'Bank / Treasury'}</label>
-                                    <select
-                                        value={treasuryId}
-                                        onChange={e => {
-                                            const selectedId = e.target.value;
-                                            setTreasuryId(selectedId);
-                                            const selectedT = treasuries.find(t => t.id === selectedId);
-                                            if (selectedT) {
-                                                setPaymentMethod(selectedT.paymentMethod || 'CASH');
-                                            }
-                                        }}
-                                        className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-48 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors h-[42px] [&>option]:bg-zinc-900 [&>option]:text-zinc-100"
-                                    >
-                                        <option value="" className="bg-zinc-900">-- Select Treasury --</option>
-                                        {treasuries.map(t => (
-                                            <option key={t.id} value={t.id} className="bg-zinc-900">
-                                                {t.name} ({t.paymentMethod})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('paidAmount')}</label>
+                                    <div className="flex justify-between items-end mb-1">
+                                        <label className="text-xs text-emerald-400 uppercase font-bold pl-2">{t('paidAmount') || "المدفوع"}</label>
+                                        {cart.length > 0 && parseFloat(paidAmount || '0') < totalAmount && (
+                                            <button
+                                                onClick={() => setPaidAmount(totalAmount.toString())}
+                                                className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded hover:bg-emerald-500/30 transition-colors cursor-pointer"
+                                            >
+                                                دفع كامل
+                                            </button>
+                                        )}
+                                    </div>
                                     <input
                                         type="number"
                                         value={paidAmount}
-                                        onChange={e => setPaidAmount(e.target.value)}
-                                        className={clsx(
-                                            "bg-zinc-900 border px-3 py-2 rounded-lg w-32 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors h-[42px]",
-                                            parseFloat(paidAmount || '0') >= totalAmount ? "border-green-500 text-green-500" : "border-white/10"
-                                        )}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === '') {
+                                                setPaidAmount('');
+                                                return;
+                                            }
+                                            const num = parseFloat(val);
+                                            if (!isNaN(num) && num > totalAmount && totalAmount > 0) {
+                                                setPaidAmount(totalAmount.toString());
+                                            } else {
+                                                setPaidAmount(val);
+                                            }
+                                        }}
+                                        className="bg-zinc-900 border border-emerald-500/30 px-3 py-2 rounded-lg w-32 font-mono text-emerald-400 focus:border-emerald-500 outline-none transition-colors"
                                         placeholder="0.00"
+                                        min="0"
                                     />
                                 </div>
 
+                                {/* Treasury Selection */}
+                                {parseFloat(paidAmount || '0') > 0 && treasuries.length > 0 && (
+                                    <div className="animate-in fade-in slide-in-from-right-4">
+                                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">
+                                            {t('treasury') || 'الخزينة'}
+                                        </label>
+                                        <select
+                                            value={treasuryId}
+                                            onChange={(e) => setTreasuryId(e.target.value)}
+                                            className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-40 text-sm text-zinc-100 focus:border-cyan-500 outline-none transition-colors cursor-pointer"
+                                        >
+                                            <option value="">{t('selectTreasury') || 'الخزينة الافتراضية'}</option>
+                                            {treasuries.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
                                 <button
-                                    onClick={handleSubmit}
+                                    onClick={() => handleSubmit()}
                                     disabled={loading || cart.length === 0}
-                                    className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-lg px-8 py-2 rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] h-[46px]"
+                                    className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold px-8 py-2 rounded-lg shadow-lg shadow-cyan-500/20 active:scale-95 transition-all flex items-center gap-2"
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                                     {tCommon('save')}
                                 </button>
                             </div>
                         </div>
+
+                        {/* Bulk Upload Dialog */}
+                        <BulkUploadDialog
+                            open={showBulkUpload}
+                            onOpenChange={setShowBulkUpload}
+                            onUploadComplete={() => {
+                                // Refresh page to show new invoices
+                                window.location.reload();
+                            }}
+                            csrfToken={csrfToken}
+                        />
                     </div>
                 </div>
             )}
-
-            {/* Bulk Upload Dialog */}
-            <BulkUploadDialog
-                open={showBulkUpload}
-                onOpenChange={setShowBulkUpload}
-                onUploadComplete={() => {
-                    // Refresh page to show new invoices
-                    window.location.reload();
-                }}
-                csrfToken={csrfToken}
-            />
         </div>
     );
 }

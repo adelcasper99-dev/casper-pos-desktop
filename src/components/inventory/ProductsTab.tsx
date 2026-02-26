@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { useTranslations } from "@/lib/i18n-mock";
+import { formatCurrency } from "@/lib/utils";
 
 interface Product {
     id: string;
@@ -44,13 +45,15 @@ export default function ProductsTab({
     categories,
     csrfToken,
     user,
-    warehouseId
+    warehouseId,
+    currency = "EGP"
 }: {
     products: any[];
     categories: Category[];
     csrfToken?: string;
     user?: any;
     warehouseId?: string;
+    currency?: string;
 }) {
     const t = useTranslations('Inventory.products');
     const tCommon = useTranslations('Common');
@@ -270,7 +273,7 @@ export default function ProductsTab({
                                             {p.trackStock === false ? (
                                                 <span className="px-2 py-1 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-500 flex items-center justify-center gap-1">
                                                     <InfinityIcon className="w-3 h-3" />
-                                                    {t('products.serviceLabel')}
+                                                    {t('serviceLabel')}
                                                 </span>
                                             ) : (
                                                 <span className={clsx("px-2 py-1 rounded-full text-xs font-bold", p.stock < 5 ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600')}>
@@ -278,9 +281,9 @@ export default function ProductsTab({
                                                 </span>
                                             )}
                                         </td>
-                                        {canViewPrice1 && <td className="p-4 text-end font-bold text-foreground">${Number(p.sellPrice).toFixed(2)}</td>}
-                                        {canViewPrice2 && <td className="p-4 text-end font-mono text-muted-foreground">${Number(p.sellPrice2 || 0).toFixed(2)}</td>}
-                                        {canViewPrice3 && <td className="p-4 text-end font-mono text-muted-foreground">${Number(p.sellPrice3 || 0).toFixed(2)}</td>}
+                                        {canViewPrice1 && <td className="p-4 text-end font-bold text-foreground">{formatCurrency(p.sellPrice, currency)}</td>}
+                                        {canViewPrice2 && <td className="p-4 text-end font-mono text-muted-foreground">{formatCurrency(p.sellPrice2 || 0, currency)}</td>}
+                                        {canViewPrice3 && <td className="p-4 text-end font-mono text-muted-foreground">{formatCurrency(p.sellPrice3 || 0, currency)}</td>}
                                         {canManage && (
                                             <td className="p-4 text-center flex gap-2 justify-end">
                                                 <button

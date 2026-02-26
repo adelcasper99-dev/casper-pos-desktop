@@ -163,10 +163,22 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
 
         // 4. Treasury Reversal (if paid)
         if (Number(invoice.paidAmount) > 0) {
-            // Find default treasury for the branch
-            const treasury = await tx.treasury.findFirst({
-                where: { branchId: invoice.warehouse?.branchId || currentUser.branchId || undefined, isDefault: true }
-            }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+            // 🔍 Trace original treasury from payment transaction
+            const originalPaymentTx = await tx.transaction.findFirst({
+                where: {
+                    type: 'OUT',
+                    description: { contains: invoice.invoiceNumber || invoice.id.split('-')[0] },
+                    treasuryId: { not: null }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            // Find treasury matching original or default
+            const treasury = originalPaymentTx
+                ? await tx.treasury.findUnique({ where: { id: originalPaymentTx.treasuryId! } })
+                : await tx.treasury.findFirst({
+                    where: { branchId: invoice.warehouse?.branchId || currentUser.branchId || undefined, isDefault: true }
+                }) || await tx.treasury.findFirst({ where: { isDefault: true } });
 
             if (treasury) {
                 await tx.transaction.create({
@@ -333,9 +345,21 @@ export const partialReturnPurchase = secureAction(async (data: {
 
         // 5. Treasury Reversal (if cash back needed)
         if (cashReversal > 0) {
-            const treasury = await tx.treasury.findFirst({
-                where: { branchId: currentUser.branchId || undefined, isDefault: true }
-            }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+            // 🔍 Trace original treasury from payment transaction
+            const originalPaymentTx = await tx.transaction.findFirst({
+                where: {
+                    type: 'OUT',
+                    description: { contains: invoice.invoiceNumber || invoice.id.split('-')[0] },
+                    treasuryId: { not: null }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            const treasury = originalPaymentTx
+                ? await tx.treasury.findUnique({ where: { id: originalPaymentTx.treasuryId! } })
+                : await tx.treasury.findFirst({
+                    where: { branchId: currentUser.branchId || undefined, isDefault: true }
+                }) || await tx.treasury.findFirst({ where: { isDefault: true } });
 
             if (treasury) {
                 await tx.transaction.create({

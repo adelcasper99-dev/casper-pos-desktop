@@ -106,6 +106,14 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         return subtotal + del;
     }, [subtotal, deliveryCharge]);
 
+    // Ensure paid amount does not exceed total amount when items/delivery change
+    useEffect(() => {
+        const pAmount = parseFloat(paidAmount);
+        if (!isNaN(pAmount) && pAmount > totalAmount) {
+            setPaidAmount(totalAmount.toString());
+        }
+    }, [totalAmount, paidAmount]);
+
     // --- Persistence Logic ---
     const STORAGE_KEY = 'purchase_form_draft';
 

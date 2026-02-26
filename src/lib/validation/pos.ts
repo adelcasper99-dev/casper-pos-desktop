@@ -8,6 +8,8 @@ export const saleSchema = z.object({
     })).min(1, "Cart cannot be empty"),
     paymentMethod: z.enum(['CASH', 'VISA', 'CARD', 'WALLET', 'INSTAPAY', 'ACCOUNT', 'DEFERRED']),
     treasuryId: z.string().optional(),
+    discountAmount: z.number().min(0).optional(),
+    discountPercentage: z.number().min(0).max(100).optional(),
     totalAmount: z.number().min(0),
     payments: z.array(z.object({
         method: z.string(),

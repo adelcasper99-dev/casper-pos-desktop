@@ -30,7 +30,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const formatCurrency = useFormatCurrency();
     const t = useTranslations("POS");
     const router = useRouter();
-    const { items, getTotal, clearCart, customerName, customerPhone, customerBalance, customerId, tableId, tableName } = useCartStore();
+    const { items, getTotal, clearCart, customerName, customerPhone, customerBalance, customerId, tableId, tableName, discountAmount = 0, discountPercentage = 0 } = useCartStore();
     const { isOnline } = useNetworkStatus();
     const [loading, setLoading] = useState(false);
 
@@ -42,6 +42,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
     const [isDelivery, setIsDelivery] = useState(false);
     const [saleResult, setSaleResult] = useState<any>(null); // Store sale result for receipt
+    const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
 
     // Fetch Treasuries
     useEffect(() => {
@@ -51,8 +52,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         async function loadTreasuries() {
             setFetchingTreasuries(true);
             try {
-                const user = await getCurrentUser();
-                const res = await getBranchTreasuriesForDropdown(user?.branchId || null);
+                // Fetch all treasuries to ensure they appear even if branch IDs mismatch
+                const res = await getBranchTreasuriesForDropdown('all');
                 if (res.success && res.data && isMounted) {
                     setTreasuries(res.data);
                     // Auto-select the first default treasury if available
@@ -95,10 +96,12 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     }, [customerName, customerPhone, isOpen]);
 
     // ... (Calculations stay same)
+    // Recalculate Totals
     const subTotal = getTotal();
+    const effectiveSubTotal = Math.max(0, subTotal - discountAmount);
     const taxRate = Number(settings?.taxRate || 0);
-    const taxAmount = subTotal * (taxRate / 100);
-    const finalTotal = subTotal + taxAmount;
+    const taxAmount = effectiveSubTotal * (taxRate / 100);
+    const finalTotal = effectiveSubTotal + taxAmount;
 
     async function handleCheckout(formData: FormData, force = false) {
         setLoading(true);
@@ -131,6 +134,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
             paymentMethod: paymentMethod, // Keep for backward compatibility with reporting
             treasuryId: paymentMethod !== 'ACCOUNT' && paymentMethod !== 'DEFERRED' ? selectedTreasuryId : undefined,
             totalAmount: finalTotal, // Send Tax Inclusive Total
+            discountAmount: discountAmount,
+            discountPercentage: discountPercentage,
             customer: saleCustomerData,
             warranty: warrantyEnabled ? {
                 warrantyDays: warrantyDays,
@@ -157,6 +162,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                     totalAmount: finalTotal,
                     taxAmount: taxAmount,
                     subTotal: subTotal,
+                    discountAmount: discountAmount,
+                    discountPercentage: discountPercentage,
                     paymentMethod: paymentMethod,
                     customerName: saleCustomerData?.name,
                     customerPhone: saleCustomerData?.phone,
@@ -207,6 +214,10 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 saleId: result.saleId,
                 items: currentItems,
                 totalAmount: finalTotal, // Use calculated total from client or result
+                subTotal: subTotal,
+                discountAmount: discountAmount,
+                discountPercentage: discountPercentage,
+                taxAmount: taxAmount,
                 date: new Date(),
                 customer: saleCustomerData,
                 customerName: saleCustomerData?.name,
@@ -436,16 +447,59 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         <span>{t('subtotal')}</span>
                         <span>{formatCurrency(subTotal)}</span>
                     </div>
+
                     {taxRate > 0 && (
                         <div className="flex items-center justify-between text-cyan-400 text-sm">
                             <span>{t('tax')} ({taxRate}%)</span>
                             <span>{formatCurrency(taxAmount)}</span>
                         </div>
                     )}
-                    <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">{t('total')}</span>
-                        <span className="text-3xl font-bold text-cyan-400">{formatCurrency(finalTotal)}</span>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                        <span className="text-muted-foreground font-medium">{t('total')}</span>
+                        <div className="flex flex-col items-end">
+                            <span className="text-3xl font-bold text-cyan-400">{formatCurrency(finalTotal)}</span>
+                            {discountAmount > 0 && (
+                                <span className="text-[10px] text-green-400 font-bold">
+                                    خصم {formatCurrency(discountAmount)} -
+                                </span>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Quick Change Calculator (Visual Only) */}
+                    {(paymentMethod === 'CASH' || paymentMethod === 'WALLET') && (
+                        <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                            <h4 className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                                حاسبة الباقي (للمساعدة فقط)
+                                {receivedAmount !== '' && (
+                                    <button onClick={() => setReceivedAmount('')} className="text-[10px] text-zinc-500 hover:text-red-400 uppercase transition-colors">مسح</button>
+                                )}
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] text-zinc-500 font-bold uppercase italic">المبلغ المستلم</label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            value={receivedAmount}
+                                            onChange={(e) => setReceivedAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                            placeholder="0.00"
+                                            className="glass-input h-9 py-1 text-sm w-full pr-8"
+                                            min="0"
+                                            step="0.01"
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[10px] font-bold">ج.م</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] text-zinc-500 font-bold uppercase italic">الباقي للعميل</label>
+                                    <div className={`h-9 flex items-center justify-center rounded-lg border font-bold ${typeof receivedAmount === 'number' && receivedAmount < finalTotal ? 'text-xs text-red-400 bg-red-500/10 border-red-500/30' : 'text-lg'} transition-colors ${typeof receivedAmount === 'number' && receivedAmount >= finalTotal ? 'text-green-400 bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]' : typeof receivedAmount === 'number' && receivedAmount < finalTotal ? '' : 'text-zinc-500 bg-white/5 border-white/10'}`}>
+                                        {typeof receivedAmount === 'number' ? (receivedAmount >= finalTotal ? formatCurrency(receivedAmount - finalTotal) : 'مبلغ غير كافٍ') : '0.00'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Error Banner & Force Option */}
@@ -471,8 +525,13 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                 <button
                     onClick={() => isDelivery ? (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit() : handleCheckout(new FormData())}
-                    disabled={loading}
-                    className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,255,0.3)] transition-all"
+                    disabled={loading || (typeof receivedAmount === 'number' && receivedAmount < finalTotal)}
+                    className={clsx(
+                        "w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all",
+                        loading || (typeof receivedAmount === 'number' && receivedAmount < finalTotal)
+                            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                            : "bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,242,255,0.3)]"
+                    )}
                 >
                     {loading ? <Loader2 className="animate-spin" /> : <Banknote />}
                     {t('confirmPayment')}

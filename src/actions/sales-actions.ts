@@ -103,9 +103,11 @@ export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
 export const refundSale = secureAction(async (data: {
     saleId: string;
     reason?: string;
+    paymentMethod?: string;
+    treasuryId?: string;
     csrfToken?: string;
 }) => {
-    const { saleId, reason } = data;
+    const { saleId, reason, paymentMethod, treasuryId } = data;
     const currentUser = await getCurrentUser();
 
     if (!currentUser) {
@@ -133,23 +135,31 @@ export const refundSale = secureAction(async (data: {
         if (!sale) throw new Error("Sale not found");
         if (sale.status === 'REFUNDED') throw new Error("This sale has already been refunded");
 
-        // 🏦 Find appropriate treasury based on the sale's payment method
-        const treasury = await tx.treasury.findFirst({
-            where: {
-                branchId: currentUser.branchId || undefined,
-                paymentMethod: sale.paymentMethod,
-                isDefault: true
-            } as any
-        }) || await tx.treasury.findFirst({
-            where: { isDefault: true }
-        });
+        // 🏦 Find appropriate treasury
+        let treasury = null;
+        if (treasuryId) {
+            treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
+        }
 
-        // 2. Create negative Transaction in CURRENT shift
+        if (!treasury) {
+            treasury = await tx.treasury.findFirst({
+                where: {
+                    branchId: currentUser.branchId || undefined,
+                    paymentMethod: paymentMethod || sale.paymentMethod,
+                    isDefault: true
+                } as any
+            }) || await tx.treasury.findFirst({
+                where: { isDefault: true }
+            });
+        }
+
+        const finalPaymentMethod = paymentMethod || treasury?.paymentMethod || sale.paymentMethod;
+
         await tx.transaction.create({
             data: {
                 type: 'REFUND',
                 amount: new Decimal(sale.totalAmount).negated(),
-                paymentMethod: sale.paymentMethod,
+                paymentMethod: finalPaymentMethod,
                 description: `Refund for Sale #${sale.id.split('-')[0].toUpperCase()}${reason ? ` - ${reason}` : ''}`,
                 shiftId: currentShift.id,
                 treasuryId: treasury?.id || null
@@ -157,7 +167,7 @@ export const refundSale = secureAction(async (data: {
         });
 
         // 🏦 Update Treasury Balance
-        if (treasury && sale.paymentMethod !== 'ACCOUNT' && sale.paymentMethod !== 'DEFERRED') {
+        if (treasury && finalPaymentMethod !== 'ACCOUNT' && finalPaymentMethod !== 'DEFERRED') {
             await tx.treasury.update({
                 where: { id: treasury.id },
                 data: { balance: { decrement: sale.totalAmount } }
@@ -284,9 +294,11 @@ export const partialRefundSale = secureAction(async (data: {
     saleId: string;
     items: { itemId: string; quantity: number }[];
     reason?: string;
+    paymentMethod?: string;
+    treasuryId?: string;
     csrfToken?: string;
 }) => {
-    const { saleId, items: refundItems, reason } = data;
+    const { saleId, items: refundItems, reason, paymentMethod, treasuryId } = data;
 
     const { getTranslations } = await import('@/lib/i18n-mock');
     const t = await getTranslations('POS');
@@ -337,16 +349,24 @@ export const partialRefundSale = secureAction(async (data: {
         }
 
         // 3. Find treasury
-        const treasury = await tx.treasury.findFirst({
-            where: { branchId: currentUser.branchId || undefined, paymentMethod: sale.paymentMethod, isDefault: true } as any
-        }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+        let treasury = null;
+        if (treasuryId) {
+            treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
+        }
 
-        // 4. Create refund transaction
+        if (!treasury) {
+            treasury = await tx.treasury.findFirst({
+                where: { branchId: currentUser.branchId || undefined, paymentMethod: paymentMethod || sale.paymentMethod, isDefault: true } as any
+            }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+        }
+
+        const finalPaymentMethod = paymentMethod || treasury?.paymentMethod || sale.paymentMethod;
+
         await tx.transaction.create({
             data: {
                 type: 'REFUND',
                 amount: new Decimal(-refundTotal),
-                paymentMethod: sale.paymentMethod,
+                paymentMethod: finalPaymentMethod,
                 description: t('partialRefundNoteInternal', { ref: sale.id.split('-')[0].toUpperCase(), items: processedItems.map(p => `${p.item.product.name} x${p.refundQty}`).join('، '), reason: reason || '' }),
                 shiftId: currentShift.id,
                 treasuryId: treasury?.id || null
@@ -354,7 +374,7 @@ export const partialRefundSale = secureAction(async (data: {
         });
 
         // 5. Update treasury balance
-        if (treasury && sale.paymentMethod !== 'ACCOUNT' && sale.paymentMethod !== 'DEFERRED') {
+        if (treasury && finalPaymentMethod !== 'ACCOUNT' && finalPaymentMethod !== 'DEFERRED') {
             await tx.treasury.update({
                 where: { id: treasury.id },
                 data: { balance: { decrement: refundTotal } }

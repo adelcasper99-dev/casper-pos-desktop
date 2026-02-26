@@ -293,12 +293,18 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                 <div class="summary">
                     <div class="summary-row">
                         <span>المجموع الفرعي:</span>
-                        <span>${formatCurrency(baseTotal, currency)}</span>
+                        <span>${formatCurrency(saleData.subTotal || baseTotal, currency)}</span>
                     </div>
+                    ${(saleData.discountAmount && Number(saleData.discountAmount) > 0) ? `
+                        <div class="summary-row" style="color: #ef4444; font-weight: bold;">
+                            <span>الخصم:</span>
+                            <span>${formatCurrency(Number(saleData.discountAmount), currency)} -</span>
+                        </div>
+                    ` : ''}
                     ${taxRate > 0 ? `
                         <div class="summary-row">
                             <span>الضريبة (${taxRate}%):</span>
-                            <span>${formatCurrency(taxAmount, currency)}</span>
+                            <span>${formatCurrency(saleData.taxAmount || taxAmount, currency)}</span>
                         </div>
                     ` : ''}
                     <div class="summary-row total">

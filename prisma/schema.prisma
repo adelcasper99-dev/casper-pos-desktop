@@ -398,6 +398,8 @@ model Sale {
   refundReason       String?
   taxAmount          Decimal        @default(0.00)
   subTotal           Decimal        @default(0.00)
+  discountAmount     Decimal        @default(0.00)
+  discountPercentage Decimal?       @default(0.00)
   createdAt          DateTime       @default(now())
   shiftId            String?
   warrantyDays       Int?

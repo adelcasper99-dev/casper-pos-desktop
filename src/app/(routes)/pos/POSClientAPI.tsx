@@ -58,7 +58,8 @@ export default function POSClientAPI({ products, categories: initialCategories, 
         items, addToCart, removeFromCart, updateQuantity, getTotal, clearCart,
         holdCart, heldCarts, resumeCart, removeHeldCart,
         customerId, customerName, customerPhone, customerBalance, setCustomer,
-        tableId, tableName, setTable
+        tableId, tableName, setTable,
+        discountAmount, discountPercentage, setDiscount
     } = useCartStore();
 
     const [orderMode, setOrderMode] = useState<"takeaway" | "dine-in">("takeaway");
@@ -142,7 +143,9 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             customerPhone,
             date: new Date().toISOString(),
             invoiceNumber: "DRAFT",
-            totalAmount: getTotal() * (1 + (Number(settings?.taxRate || 0) / 100))
+            subTotal: subTotal,
+            discountAmount: discountAmount,
+            totalAmount: finalTotal
         });
         setIsSpeedPrintModalOpen(true);
     };
@@ -172,6 +175,12 @@ export default function POSClientAPI({ products, categories: initialCategories, 
         // Action is 'new' or no existing cart
         setTable(newTableId, newTableName);
     };
+
+    const subTotal = getTotal();
+    const effectiveSubTotal = Math.max(0, subTotal - discountAmount);
+    const taxRate = Number(settings?.taxRate || 0);
+    const taxAmount = effectiveSubTotal * (taxRate / 100);
+    const finalTotal = effectiveSubTotal + taxAmount;
 
     if (!isMounted) return null;
 
@@ -293,24 +302,79 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                         ))}
                     </div>
 
+                    {/* Discount Input in Cart */}
+                    {items.length > 0 && (
+                        <div className="px-4 py-3 bg-muted/20 border-t border-border">
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">{t('discount')}</span>
+                                    {(discountAmount > 0 || discountPercentage > 0) && (
+                                        <button
+                                            onClick={() => setDiscount(0, 0)}
+                                            className="text-zinc-500 hover:text-red-400 transition-all font-bold text-[10px] uppercase"
+                                        >
+                                            {t('clear')}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="relative">
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[10px] font-bold">ج.م</span>
+                                        <input
+                                            type="number"
+                                            value={discountAmount || ''}
+                                            onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                const cappedVal = Math.min(val, subTotal);
+                                                setDiscount(cappedVal, subTotal > 0 ? (cappedVal / subTotal) * 100 : 0);
+                                            }}
+                                            placeholder={t('amount')}
+                                            className="w-full bg-background border border-border rounded-lg h-9 text-sm px-3 pr-8 focus:outline-none focus:border-cyan-500/50 text-foreground"
+                                        />
+                                    </div>
+                                    <div className="relative">
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">%</span>
+                                        <input
+                                            type="number"
+                                            value={discountPercentage || ''}
+                                            onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                const cappedPct = Math.min(val, 100);
+                                                setDiscount(subTotal * (cappedPct / 100), cappedPct);
+                                            }}
+                                            placeholder={t('percentage')}
+                                            className="w-full bg-background border border-border rounded-lg h-9 text-sm px-3 pr-8 focus:outline-none focus:border-cyan-500/50 text-foreground"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Footer */}
                     <div className="p-5 border-t border-border bg-card shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-10">
                         {/* ... Footer content same as before ... */}
                         <div className="flex flex-col items-end mb-4 px-2 text-right">
                             <div className="flex justify-between w-full text-zinc-500 text-xs font-bold uppercase tracking-wider">
                                 <span>{t('subtotal')}</span>
-                                <span>{formatCurrency(getTotal())}</span>
+                                <span>{formatCurrency(subTotal)}</span>
                             </div>
-                            {settings?.taxRate > 0 && (
+                            {discountAmount > 0 && (
+                                <div className="flex justify-between w-full text-green-400 text-xs font-bold uppercase tracking-wider mt-1">
+                                    <span>{t('discount')}</span>
+                                    <span>- {formatCurrency(discountAmount)}</span>
+                                </div>
+                            )}
+                            {taxRate > 0 && (
                                 <div className="flex justify-between w-full text-cyan-400 text-xs font-bold uppercase tracking-wider mt-1">
-                                    <span>{t('tax')} ({Number(settings.taxRate)}%)</span>
-                                    <span>{formatCurrency(getTotal() * (Number(settings.taxRate) / 100))}</span>
+                                    <span>{t('tax')} ({taxRate}%)</span>
+                                    <span>{formatCurrency(taxAmount)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between w-full items-end mt-2">
                                 <span className="text-zinc-400 text-sm font-bold uppercase tracking-wider">{t('total')}</span>
                                 <span className="text-4xl font-black text-foreground tracking-tighter">
-                                    {formatCurrency(getTotal() * (1 + (Number(settings?.taxRate || 0) / 100)))}
+                                    {formatCurrency(finalTotal)}
                                 </span>
                             </div>
                         </div>

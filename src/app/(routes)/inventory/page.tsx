@@ -96,6 +96,13 @@ export default async function InventoryPage() {
     // const stockRequests = stockRequestsRes?.data || [];
     const stockRequests: any[] = [];
 
+    const settingsRaw = await prisma.storeSettings.findUnique({ where: { id: "settings" } });
+    const currency = settingsRaw?.currency || "EGP";
+    let features = {};
+    try {
+        features = JSON.parse(settingsRaw?.features || "{}");
+    } catch (e) { }
+
     return (
         <div className="space-y-6">
             <div>
@@ -104,11 +111,14 @@ export default async function InventoryPage() {
             </div>
 
             <ClientHelper
+                suppliers={suppliers}
                 categories={categories}
                 products={products}
                 warehouses={warehouses}
                 csrfToken={csrfToken || ''}
                 user={session?.user}
+                features={features}
+                currency={currency}
             />
         </div>
     );

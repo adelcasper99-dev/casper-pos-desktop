@@ -35,6 +35,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { DateRange } from "react-day-picker";
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import PartialRefundDialog from './PartialRefundDialog';
+import RefundSelectionDialog from './RefundSelectionDialog';
 import { getStoreSettings } from '@/actions/settings';
 import { printService } from '@/lib/print-service';
 import { formatArabicPrintText } from '@/lib/arabic-reshaper';
@@ -104,10 +105,16 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
         }
     }, [computedTotals.netTotal, computedTotals.count]);  // Intentionally omitting onTotalsChange to avoid unnecessary effect triggers
 
-    const handleRefund = async (saleId: string, reason?: string) => {
+    const handleRefund = async (saleId: string, data: { treasuryId: string, paymentMethod: string, reason?: string }) => {
         setLoading(saleId);
         try {
-            const res = await refundSale({ saleId, reason: reason || undefined, csrfToken });
+            const res = await refundSale({
+                saleId,
+                reason: data.reason || undefined,
+                treasuryId: data.treasuryId,
+                paymentMethod: data.paymentMethod,
+                csrfToken
+            });
             if (res.success) {
                 toast.success("تم تنفيذ المرتجع بنجاح");
 
@@ -123,7 +130,7 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
                     taxAmount: -originalSale.taxAmount,
                     subTotal: -originalSale.subTotal,
                     createdAt: new Date().toISOString(),
-                    refundReason: reason || 'مرتجع',
+                    refundReason: data.reason || 'مرتجع',
                     _isRefundEntry: true,
                 } : null;
 
@@ -222,6 +229,16 @@ body { font-family: Arial, sans-serif; width: ${paperWidthMm}mm; margin: 0 auto;
   <div>${formatArabicPrintText('العميل')}: ${formatArabicPrintText(sale.customerName || 'نقدي')}</div>
 </div>
 ${itemsHtml}
+<div class="item" style="border-top: 1px dashed #000; padding-top: 5px;">
+    <span>${Number(sale.subTotal || sale.totalAmount).toFixed(2)}</span>
+    <span>${formatArabicPrintText('المجموع الفرعي')}</span>
+</div>
+${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
+<div class="item" style="color: #000; font-weight: bold;">
+    <span>-${Number(sale.discountAmount).toFixed(2)}</span>
+    <span>${formatArabicPrintText('الخصم')}</span>
+</div>
+` : ''}
 <div class="total">
             <span>${Number(sale.totalAmount).toFixed(2)} ${formatArabicPrintText(settings?.currency || 'ج.م')}</span>
             <span>${formatArabicPrintText('الإجمالي')}</span>
@@ -405,7 +422,14 @@ ${itemsHtml}
                             </TableRow>
                         ) : (
                             filteredSales.map((sale) => (
-                                <tr key={sale.id} className={`border-white/5 hover:bg-white/5 transition-colors group ${sale._isRefundEntry ? 'bg-red-500/5 border-l-2 border-l-red-500/40' : ''}`}>
+                                <tr
+                                    key={sale.id}
+                                    className={cn(
+                                        "border-white/5 hover:bg-white/5 transition-colors group",
+                                        sale._isRefundEntry && "bg-red-500/5 border-l-2 border-l-red-500/40",
+                                        !sale._isRefundEntry && Number(sale.discountAmount) > 0 && "bg-amber-500/5 border-l-2 border-l-amber-500/40"
+                                    )}
+                                >
                                     <td className="py-2 px-4">
                                         <div className="flex flex-col gap-0.5">
                                             {sale._isRefundEntry && (
@@ -416,6 +440,9 @@ ${itemsHtml}
                                             <div className={`font-mono text-xs ${sale._isRefundEntry ? 'text-red-400/80' : 'text-cyan-500/80'}`}>
                                                 #{sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase()}
                                             </div>
+                                            {!sale._isRefundEntry && Number(sale.discountAmount) > 0 && (
+                                                <span className="text-[9px] font-bold text-amber-500 uppercase">مخفض %</span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="py-2 px-4 text-zinc-300 text-xs">
@@ -502,15 +529,16 @@ ${itemsHtml}
                 </Table>
             </div>
 
-            {/* Refund Reason Dialog */}
-            <ReasonDialog
+            {/* Full Refund Selection Dialog */}
+            <RefundSelectionDialog
                 isOpen={!!refundItem}
                 onClose={() => setRefundItem(null)}
-                onConfirm={(reason) => {
-                    if (refundItem) handleRefund(refundItem.id, reason);
+                sale={sales.find(s => s.id === refundItem?.id)}
+                loading={!!loading}
+                onConfirm={(data) => {
+                    if (refundItem) handleRefund(refundItem.id, data);
+                    setRefundItem(null);
                 }}
-                title="سبب الارتجاع"
-                placeholder="أدخل سبب الارتجاع (اختياري)..."
             />
 
             {/* Details Dialog */}
@@ -569,6 +597,22 @@ ${itemsHtml}
                                     {/* Totals */}
                                     <div className="mt-6 pt-4 border-t border-white/10 space-y-2">
                                         <div className="flex justify-between text-zinc-400 text-xs">
+                                            <span>المجموع الفرعي</span>
+                                            <span className="font-bold">{formatCurrency(selectedSale.subTotal)}</span>
+                                        </div>
+                                        {Number(selectedSale.discountAmount) > 0 && (
+                                            <div className="flex justify-between text-green-400 text-xs">
+                                                <span>الخصم</span>
+                                                <span className="font-bold">-{formatCurrency(selectedSale.discountAmount)}</span>
+                                            </div>
+                                        )}
+                                        {Number(selectedSale.taxAmount) > 0 && (
+                                            <div className="flex justify-between text-cyan-400 text-xs text-right">
+                                                <span>الضريبة</span>
+                                                <span className="font-bold">+{formatCurrency(selectedSale.taxAmount)}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between text-zinc-400 text-xs border-t border-white/5 pt-2">
                                             <span>طريقة الدفع</span>
                                             <span className="font-bold text-white">{selectedSale.paymentMethod}</span>
                                         </div>

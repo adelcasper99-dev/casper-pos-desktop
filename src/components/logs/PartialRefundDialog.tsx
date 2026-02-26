@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { partialRefundSale } from '@/actions/sales-actions';
 import { getStoreSettings } from '@/actions/settings';
+import { getBranchTreasuriesForDropdown } from '@/actions/treasury';
 import { printService } from '@/lib/print-service';
 import { formatArabicPrintText } from '@/lib/arabic-reshaper';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -29,7 +30,22 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
     const [loading, setLoading] = useState(false);
     const [refundDone, setRefundDone] = useState(false);
     const [refundSummary, setRefundSummary] = useState<{ total: number; items: any[] } | null>(null);
+    const [treasuries, setTreasuries] = useState<any[]>([]);
+    const [selectedTreasuryId, setSelectedTreasuryId] = useState<string>('');
     const receiptRef = useRef<HTMLDivElement>(null);
+
+    // Fetch treasuries
+    useEffect(() => {
+        if (isOpen) {
+            getBranchTreasuriesForDropdown().then(res => {
+                if (res.success) {
+                    setTreasuries(res.data);
+                    const def = res.data.find((t: any) => t.isDefault);
+                    if (def) setSelectedTreasuryId(def.id);
+                }
+            });
+        }
+    }, [isOpen]);
 
     const items = sale?.items || [];
 
@@ -82,10 +98,13 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
 
         setLoading(true);
         try {
+            const selectedTreasury = treasuries.find(t => t.id === selectedTreasuryId);
             const result = await partialRefundSale({
                 saleId: sale.id,
                 items: itemsToRefund,
                 reason: reason || undefined,
+                paymentMethod: selectedTreasury?.paymentMethod,
+                treasuryId: selectedTreasuryId,
                 csrfToken,
             });
 
@@ -281,13 +300,33 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                             })}
                         </div>
 
-                        {/* Reason */}
-                        <Input
-                            placeholder="سبب الإرجاع (اختياري)..."
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 h-12 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-red-500/30"
-                        />
+                        {/* Reason & Treasury */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase ml-1">وجهة المرتجع</span>
+                                <select
+                                    value={selectedTreasuryId}
+                                    onChange={(e) => setSelectedTreasuryId(e.target.value)}
+                                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 h-12 text-sm text-zinc-200 focus:outline-none focus:border-red-500/30 appearance-none cursor-pointer"
+                                >
+                                    {treasuries.map(t => (
+                                        <option key={t.id} value={t.id} className="bg-zinc-950">
+                                            {t.name} ({t.paymentMethod})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase ml-1">سبب الإرجاع</span>
+                                <Input
+                                    placeholder="سبب الإرجاع (اختياري)..."
+                                    value={reason}
+                                    onChange={(e) => setReason(e.target.value)}
+                                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 h-12 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-red-500/30"
+                                />
+                            </div>
+                        </div>
 
                         {/* Summary bar */}
                         {selectedCount > 0 && (

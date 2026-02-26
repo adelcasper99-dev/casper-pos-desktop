@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Edit2, Trash2, Truck, Phone, Mail, MapPin, Check, Search } from "lucide-react";
 import { createSupplier, updateSupplier, deleteSupplier, paySupplier } from "@/actions/inventory";
+import { formatCurrency } from "@/lib/utils";
 import GlassModal from "../ui/GlassModal";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 
-export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[], csrfToken?: string }) {
+export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }: { suppliers: any[], csrfToken?: string, currency?: string }) {
     const t = useTranslations('Purchasing.Suppliers');
     const tCommon = useTranslations('Common');
     const router = useRouter();
@@ -186,7 +187,7 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
                                 </td>
                                 <td className="p-3 text-end font-mono font-bold text-sm">
                                     <span className={s.balance > 0 ? 'text-red-500' : 'text-green-500'}>
-                                        ${Number(s.balance).toFixed(2)}
+                                        {formatCurrency(s.balance, currency)}
                                     </span>
                                 </td>
                                 <td className="p-3 text-end">
@@ -305,7 +306,7 @@ export default function SuppliersTab({ suppliers, csrfToken }: { suppliers: any[
                     <div className="bg-muted/50 p-4 rounded-xl text-center border border-border">
                         <div className="text-muted-foreground text-xs uppercase mb-1">{t('currentBalance')}</div>
                         <div className={`text-2xl font-mono font-bold ${selectedSupplierForPayment?.balance > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                            ${Number(selectedSupplierForPayment?.balance || 0).toFixed(2)}
+                            {formatCurrency(selectedSupplierForPayment?.balance || 0, currency)}
                         </div>
                     </div>
 

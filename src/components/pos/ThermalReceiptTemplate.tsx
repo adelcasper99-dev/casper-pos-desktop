@@ -12,7 +12,7 @@ interface ThermalReceiptTemplateProps {
  * based on the optimized design extracted from ELOS Accounting.
  */
 export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt' }: ThermalReceiptTemplateProps): string {
-  const { items = [], totalAmount = 0, date, invoiceNumber, paymentMethod, remaining = 0, paidAmount, tableName, customerName, customerBalance, customerPhone } = saleData;
+  const { items = [], totalAmount = 0, subTotal = 0, discountAmount = 0, date, invoiceNumber, paymentMethod, remaining = 0, paidAmount, tableName, customerName, customerBalance, customerPhone } = saleData;
 
   const isOrder = mode === 'order';
   const storeName = settings?.name ?? "CASPER POS";
@@ -184,7 +184,17 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
 
   ${!isOrder ? `
   <div class="total">
-    <div class="total-label">الإجمالي</div>
+    ${discountAmount > 0 ? `
+    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; margin-bottom: 2mm; padding-bottom: 2mm; border-bottom: 1px dashed rgba(255,255,255,0.3);">
+      <span>الإجمالي قبل الخصم</span>
+      <span>${formatCurrency(subTotal, currency)}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; margin-bottom: 3mm; color: #ffcccc;">
+      <span>الخصم</span>
+      <span>${formatCurrency(discountAmount, currency)} -</span>
+    </div>
+    ` : ""}
+    <div class="total-label">الصافي</div>
     <div class="total-amount">${formatCurrency(totalAmount, currency)}</div>
   </div>
 

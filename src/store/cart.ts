@@ -23,6 +23,8 @@ export interface HeldCart {
     customerBalance?: number; // 🆕 Added to HeldCart interface
     tableId?: string;
     tableName?: string;
+    discountAmount?: number;
+    discountPercentage?: number;
 }
 
 interface CartState {
@@ -33,6 +35,8 @@ interface CartState {
     customerBalance?: number; // 🆕 Added Customer Balance
     tableId?: string;
     tableName?: string;
+    discountAmount: number;
+    discountPercentage: number;
 
     addToCart: (product: CartProduct) => void;
     removeFromCart: (productId: string) => void;
@@ -40,6 +44,7 @@ interface CartState {
     clearCart: () => void;
     setCustomer: (name: string, phone: string, id?: string, balance?: number) => void;
     setTable: (id?: string, name?: string) => void;
+    setDiscount: (amount: number, percentage: number) => void;
 
     // Hold Cart Actions
     heldCarts: HeldCart[];
@@ -61,10 +66,13 @@ export const useCartStore = create<CartState>()(
             customerBalance: undefined,
             tableId: undefined,
             tableName: undefined,
+            discountAmount: 0,
+            discountPercentage: 0,
             heldCarts: [],
 
             setCustomer: (name, phone, id, balance) => set({ customerName: name, customerPhone: phone, customerId: id, customerBalance: balance }),
             setTable: (id, name) => set({ tableId: id, tableName: name }),
+            setDiscount: (amount, percentage) => set({ discountAmount: amount, discountPercentage: percentage }),
 
             addToCart: (product: any) => {
                 const items = get().items;
@@ -122,7 +130,7 @@ export const useCartStore = create<CartState>()(
                 });
             },
 
-            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined, tableId: undefined, tableName: undefined }),
+            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined, tableId: undefined, tableName: undefined, discountAmount: 0, discountPercentage: 0 }),
 
             holdCart: (cartName) => {
                 const { items, heldCarts, customerName, customerPhone } = get();
@@ -138,7 +146,9 @@ export const useCartStore = create<CartState>()(
                     customerId: get().customerId,
                     customerBalance: get().customerBalance,
                     tableId: get().tableId,
-                    tableName: get().tableName
+                    tableName: get().tableName,
+                    discountAmount: get().discountAmount,
+                    discountPercentage: get().discountPercentage
                 };
 
                 set({
@@ -149,7 +159,9 @@ export const useCartStore = create<CartState>()(
                     customerId: undefined,
                     customerBalance: undefined,
                     tableId: undefined,
-                    tableName: undefined
+                    tableName: undefined,
+                    discountAmount: 0,
+                    discountPercentage: 0
                 });
             },
 
@@ -166,6 +178,8 @@ export const useCartStore = create<CartState>()(
                         customerBalance: cartToResume.customerBalance, // Restore balance
                         tableId: cartToResume.tableId,
                         tableName: cartToResume.tableName,
+                        discountAmount: cartToResume.discountAmount || 0,
+                        discountPercentage: cartToResume.discountPercentage || 0,
                         heldCarts: heldCarts.filter(c => c.id !== cartId)
                     });
                 }

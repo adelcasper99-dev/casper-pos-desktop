@@ -164,6 +164,37 @@ export default function StoreConfig({ settings }: { settings: any }) {
                             <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
                         </label>
                     </div>
+
+                    <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
+                        <div className="space-y-0.5">
+                            <label className="text-sm font-medium text-white">إخفاء تبويب المواقع والمستودعات</label>
+                            <p className="text-xs text-zinc-400">إخفاء تبويب المستودعات من صفحة المخزون</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={(() => {
+                                    try {
+                                        const features = JSON.parse(form.features || "{}");
+                                        return !!features.hideLocationsTab;
+                                    } catch (e) {
+                                        return false;
+                                    }
+                                })()}
+                                onChange={(e) => {
+                                    try {
+                                        const features = JSON.parse(form.features || "{}");
+                                        features.hideLocationsTab = e.target.checked;
+                                        handleChange('features', JSON.stringify(features));
+                                    } catch (err) {
+                                        handleChange('features', JSON.stringify({ hideLocationsTab: e.target.checked }));
+                                    }
+                                }}
+                            />
+                            <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                        </label>
+                    </div>
                 </div>
 
                 <div className="border-t border-white/10 pt-4" />
