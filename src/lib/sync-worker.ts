@@ -1,6 +1,7 @@
 import { db } from './offline-db';
 import { processSale } from '@/actions/pos';
 import { LocalPersistenceService } from './local-persistence';
+import { logger } from './logger';
 
 export class SyncWorker {
     private static isRunning = false;
@@ -9,7 +10,7 @@ export class SyncWorker {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        console.log('[SyncWorker] Started.');
+        logger.info('[SyncWorker] Started.');
 
         // Sync interval (30s)
         setInterval(async () => {
@@ -18,7 +19,7 @@ export class SyncWorker {
 
         // Mirroring interval (5m) as per Constitution Pillar I
         setInterval(async () => {
-            console.log('[SyncWorker] Triggering periodic filesystem mirroring...');
+            logger.info('[SyncWorker] Triggering periodic filesystem mirroring...');
             await LocalPersistenceService.mirrorToSQLite();
             await LocalPersistenceService.backupToFilesystem();
         }, 5 * 60 * 1000);
@@ -35,7 +36,7 @@ export class SyncWorker {
 
             if (pendingSales.length === 0) return;
 
-            console.log(`[SyncWorker] Found ${pendingSales.length} pending sales. Syncing...`);
+            logger.info(`[SyncWorker] Found ${pendingSales.length} pending sales. Syncing...`);
 
             for (const sale of pendingSales) {
                 try {
@@ -55,14 +56,14 @@ export class SyncWorker {
 
                     if (result.success) {
                         await db.sales.update(sale.id, { syncStatus: 'SYNCED' });
-                        console.log(`[SyncWorker] Sale ${sale.id} synced successfully.`);
+                        logger.info(`[SyncWorker] Sale ${sale.id} synced successfully.`);
                     }
                 } catch (err) {
-                    console.error(`[SyncWorker] Failed to sync sale ${sale.id}:`, err);
+                    logger.error(`[SyncWorker] Failed to sync sale ${sale.id}`, err);
                 }
             }
         } catch (error) {
-            console.error('[SyncWorker] Error in sync process:', error);
+            logger.error('[SyncWorker] Error in sync process', error);
         }
     }
 }

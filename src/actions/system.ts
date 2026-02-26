@@ -1,11 +1,12 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 
 export async function resetAllData() {
     try {
-        console.log("Resetting transactional data...");
+        logger.info("Resetting transactional data...");
 
         // Transactional tables (Order matters due to foreign keys)
         // Delete child tables first
@@ -58,12 +59,12 @@ export async function resetAllData() {
         // await prisma.leaveRequest.deleteMany();
         // await prisma.employeeTransaction.deleteMany();
 
-        console.log("Transactional data reset complete.");
+        logger.info("Transactional data reset complete.");
         revalidatePath("/");
 
         return { success: true };
     } catch (error) {
-        console.error("Failed to reset data:", error);
-        return { success: false, error: error instanceof Error ? error.message : "Reset failed" };
+        logger.error("SYSTEM ERROR:", error);
+        return { success: false, error: "System operation failed" };
     }
 }

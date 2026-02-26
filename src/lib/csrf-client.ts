@@ -4,6 +4,7 @@
  * ✅ Client-Side Safe: Uses fetch, no server-only imports.
  * Call after sensitive operations or when token is missing.
  */
+import { logger } from './logger';
 export async function rotateCSRFToken(): Promise<string> {
     try {
         // ✅ PRODUCTION FIX: Use relative path (works in all environments)
@@ -24,12 +25,12 @@ export async function rotateCSRFToken(): Promise<string> {
         const data = await response.json();
 
         if (process.env.NODE_ENV === 'development') {
-            console.log('[CSRF] Token rotated successfully');
+            logger.info('[CSRF] Token rotated successfully');
         }
 
         return data.token;
     } catch (error) {
-        console.error('[CSRF] Token rotation failed:', error);
+        logger.error('[CSRF] Token rotation failed', error);
         throw error;
     }
 }

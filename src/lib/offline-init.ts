@@ -1,16 +1,17 @@
-import { offlineDB } from './offline-db';
+import { db } from './offline-db';
+import { logger } from './logger';
 import { ProductCacheService } from './product-cache';
 import { LocalPersistenceService } from './local-persistence';
 
 // 👤 USABILITY: Initialize offline DB and cache products on app load
 export async function initializeOfflineMode() {
     try {
-        console.log('🔄 Initializing offline mode...');
+        logger.info('🔄 Initializing offline mode...');
 
         // 1. Initialize IndexedDB
-        const dbInitialized = await offlineDB.open();
+        const dbInitialized = await db.open();
         if (!dbInitialized) {
-            console.error('❌ Failed to initialize IndexedDB');
+            logger.error('❌ Failed to initialize IndexedDB');
             return false;
         }
 
@@ -26,8 +27,9 @@ export async function initializeOfflineMode() {
         const needsSync = !lastSynced ||
             (now.getTime() - lastSynced.getTime()) > 24 * 60 * 60 * 1000;
 
-        if (needsSync && navigator.onLine) {
-            console.log('📥 Fetching products for offline cache...');
+        // 1. Fetch products if online
+        if (needsSync && typeof navigator !== 'undefined' && navigator.onLine) {
+            logger.info('📥 Fetching products for offline cache...');
 
             try {
                 // Fetch products from API
@@ -37,22 +39,22 @@ export async function initializeOfflineMode() {
 
                     // Cache products
                     await ProductCacheService.syncProducts(products);
-                    console.log(`✅ Cached ${products.length} products for offline use`);
+                    logger.info(`✅ Cached ${products.length} products for offline use`);
 
                     // Trigger a filesystem backup after fresh product sync
                     await LocalPersistenceService.backupToFilesystem();
                 }
             } catch (error) {
-                console.error('⚠️ Failed to cache products:', error);
+                logger.error('⚠️ Failed to cache products:', error);
                 // Continue anyway - offline mode will use existing cache
             }
-        } else {
-            console.log(`✅ Using cached products (${syncStatus.count} items)`);
+        } else if (syncStatus) {
+            logger.info(`✅ Using cached products (${syncStatus.count} items)`);
         }
 
         return true;
     } catch (error) {
-        console.error('❌ Offline mode initialization failed:', error);
+        logger.error('❌ Offline mode initialization failed:', error);
         return false;
     }
 }
@@ -67,13 +69,13 @@ export function setupOfflineMode() {
                     // Start periodic auto-backup to filesystem
                     LocalPersistenceService.startAutoBackup();
                 })
-                .catch(console.error);
+                .catch(logger.error);
         });
 
         // Re-sync when coming back online
-        window.addEventListener('online', () => {
-            console.log('🌐 Network restored - syncing data...');
-            initializeOfflineMode().catch(console.error);
+        window.addEventListener('online', async () => {
+            logger.info('🌐 Network restored - syncing data...');
+            initializeOfflineMode().catch(logger.error);
         });
     }
 }

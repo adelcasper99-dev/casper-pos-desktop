@@ -125,10 +125,31 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
         }
     };
 
+    const handleExportPDF = async () => {
+        if (!settings || isPrinting) return;
+
+        setIsPrinting(true);
+        const html = generateA4ReceiptHTML({ saleData, settings });
+        const filename = `Invoice_${saleData.invoiceNumber || 'Draft'}_${new Date().getTime()}.pdf`;
+
+        try {
+            const result = await printService.saveToPDF(html, filename);
+            if (result.success) {
+                toast.success(t('pdfExported') || "تم تصدير PDF بنجاح");
+            } else if (result.error !== 'Cancelled') {
+                toast.error(`PDF export failed: ${result.error}`);
+            }
+        } catch (e: any) {
+            toast.error(`Error: ${e.message}`);
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
     // ... (rest of the component)
     const items = saleData.items ?? [];
     const total = saleData.totalAmount ?? 0;
-    const currency = settings?.currency ?? 'SAR';
+    const currency = settings?.currency ?? 'EGP';
     const date = new Date(saleData.date || new Date());
     const dateStr = date.toLocaleDateString('ar-EG');
     const timeStr = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
@@ -234,7 +255,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                                     )}
                                     {saleData.customerBalance !== undefined && saleData.customerBalance !== null && (
                                         <div style={{ fontSize: '11px', fontWeight: 'bold', color: saleData.customerBalance > 0 ? '#b91c1c' : '#15803d' }}>
-                                            {t('balance') || "الرصيد"}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.currency || 'USD' }).format(saleData.customerBalance)}
+                                            {t('balance') || "الرصيد"}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.currency || 'EGP' }).format(saleData.customerBalance)}
                                         </div>
                                     )}
                                 </div>
@@ -320,26 +341,43 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 w-full max-w-[300px]">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 py-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-foreground font-bold"
-                        disabled={isPrinting}
-                    >
-                        {t('close') || 'إغلاق'}
-                    </button>
-                    <button
-                        onClick={handlePrint}
-                        disabled={!settings || isPrinting}
-                        className="flex-1 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {isPrinting ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <Printer className="w-4 h-4" />
-                        )}
-                        {isPrinting ? (t('printing') || 'جاري الطباعة...') : (t('print') || 'طباعة')}
-                    </button>
+                <div className="flex flex-col gap-3 w-full max-w-[300px]">
+                    <div className="flex gap-3 w-full">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-foreground font-bold"
+                            disabled={isPrinting}
+                        >
+                            {t('close') || 'إغلاق'}
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            disabled={!settings || isPrinting}
+                            className="flex-1 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isPrinting ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Printer className="w-4 h-4" />
+                            )}
+                            {isPrinting ? (t('printing') || 'جاري الطباعة...') : (t('print') || 'طباعة')}
+                        </button>
+                    </div>
+
+                    {receiptFormat === 'a4' && printService.isElectron() && (
+                        <button
+                            onClick={handleExportPDF}
+                            disabled={isPrinting}
+                            className="w-full py-3 rounded-xl bg-zinc-700 hover:bg-zinc-600 border border-white/5 text-white font-bold transition-all flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            {t('exportPDF') || 'تصدير كـ PDF'}
+                        </button>
+                    )}
                 </div>
             </div>
         </GlassModal>

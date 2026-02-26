@@ -1,5 +1,6 @@
 import { db, type OfflineSale } from './offline-db';
 import { PrismaClient } from '@prisma/client';
+import { logger } from './logger';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,7 @@ export class LocalPersistenceService {
 
             if (pendingSales.length === 0) return;
 
-            console.log(`[LocalPersistence] Mirroring ${pendingSales.length} sales to SQLite...`);
+            logger.info(`[LocalPersistence] Mirroring ${pendingSales.length} sales to SQLite...`);
 
             for (const sale of pendingSales) {
                 await prisma.sale.upsert({
@@ -46,9 +47,9 @@ export class LocalPersistenceService {
                 await db.sales.update(sale.id, { syncStatus: 'SYNCED' });
             }
 
-            console.log('[LocalPersistence] Mirroring complete.');
+            logger.info('[LocalPersistence] Mirroring complete.');
         } catch (error) {
-            console.error('[LocalPersistence] Mirroring failed:', error);
+            logger.error('[LocalPersistence] Mirroring failed', error);
         }
     }
 
@@ -68,11 +69,11 @@ export class LocalPersistenceService {
             try {
                 const data = await (window as any).electronAPI.storage.loadOfflineData();
                 if (data) {
-                    console.log('[LocalPersistence] Loaded offline data from filesystem backup');
+                    logger.info('[LocalPersistence] Loaded offline data from filesystem backup');
                     return data;
                 }
             } catch (error) {
-                console.error('[LocalPersistence] Failed to restore from filesystem backup', error);
+                logger.error('[LocalPersistence] Failed to restore from filesystem backup', error);
             }
         }
         return null; // NO-OP for web
@@ -81,10 +82,10 @@ export class LocalPersistenceService {
     static startAutoBackup() {
         if (typeof window === 'undefined') return;
 
-        console.log('[LocalPersistence] Auto-backup service started.');
+        logger.info('[LocalPersistence] Auto-backup service started.');
         // Run backup every 15 minutes (or whatever frequency makes sense)
         setInterval(() => {
-            this.backupToFilesystem().catch(console.error);
+            this.backupToFilesystem().catch(err => logger.error('[LocalPersistence] Auto-backup failed', err));
         }, 15 * 60 * 1000);
     }
 }

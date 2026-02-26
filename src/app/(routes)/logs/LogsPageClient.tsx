@@ -114,7 +114,7 @@ export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPage
 
                 <TabsContent value="purchases" className="mt-0 ring-0 focus-visible:ring-0">
                     <div className="animate-in fade-in zoom-in-95 duration-300">
-                        <PurchaseLog initialPurchases={purchases} onTotalsChange={setPurchaseTotals} />
+                        <PurchaseLog initialPurchases={purchases} csrfToken={csrfToken} onTotalsChange={setPurchaseTotals} />
                     </div>
                 </TabsContent>
             </Tabs>

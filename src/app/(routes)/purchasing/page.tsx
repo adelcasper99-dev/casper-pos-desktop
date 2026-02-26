@@ -18,17 +18,6 @@ export default async function PurchasingPage() {
     const branches = branchesResult.data || [];
     const isHQUser = branchesResult.isHQUser || false;
 
-    // DEBUG: Log branch and user info
-    console.log('=== PURCHASING PAGE DEBUG ===');
-    console.log('User:', {
-        id: user?.id,
-        role: user?.role,
-        branchId: user?.branchId,
-        branchType: user?.branchType
-    });
-    console.log('Branches:', branches.length, 'branches found');
-    console.log('isHQUser:', isHQUser);
-    console.log('============================');
 
     // 1. Suppliers
     const suppliersRaw = await prisma.supplier.findMany();

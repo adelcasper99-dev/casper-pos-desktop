@@ -92,7 +92,7 @@ export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
-export const paySupplier = secureAction(async (supplierId: string, amount: number, method: string = "CASH") => {
+export const paySupplier = secureAction(async (supplierId: string, amount: number, method: string = "CASH", data?: { csrfToken?: string }) => {
     // 0. Find Default Treasury for this branch (Critical for Treasury Tracking)
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
@@ -383,10 +383,11 @@ export const deleteCategory = secureAction(async (id: string) => {
 
 // --- Purchases ---
 
-export const createPurchase = secureAction(async (data: z.infer<typeof purchaseSchema>) => {
+export const createPurchase = secureAction(async (data: z.infer<typeof purchaseSchema> & { csrfToken?: string }) => {
     // 1. Pre-computation & Reads (Outside Transaction)
     const startTime = Date.now();
-    const validated = purchaseSchema.parse(data);
+    const { csrfToken: _csrf, ...purchaseData } = data;
+    const validated = purchaseSchema.parse(purchaseData);
     const { items, treasuryId, ...header } = validated;
 
     // Get User for audit/treasury
@@ -410,34 +411,16 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         : [];
     const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
 
-    // Prepare Warehouse ID
-    let warehouseId = header.warehouseId;
-    if (!warehouseId) {
-        // Try to find default without transaction first
-        const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-        if (main) warehouseId = main.id;
+    // Prepare Warehouse ID (Enforce Main Warehouse)
+    const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+    if (!main) {
+        throw new Error("Main warehouse not found. Please ensure a default warehouse exists.");
     }
+    const warehouseId = main.id;
 
     // 2. Transaction (Optimized Writes)
     await prisma.$transaction(async (tx) => {
-        // A. Ensure Warehouse Exists (Rare write, okay to be serial)
-        if (!warehouseId) {
-            let defaultBranch = await tx.branch.findFirst();
-            if (!defaultBranch) {
-                defaultBranch = await tx.branch.create({
-                    data: { name: "Main Store", code: "MAIN", type: "STORE" }
-                });
-            }
-            const main = await tx.warehouse.create({
-                data: {
-                    name: "Main Store",
-                    address: "Primary Location",
-                    isDefault: true,
-                    branchId: defaultBranch.id
-                }
-            });
-            warehouseId = main.id;
-        }
+        // A. Warehouse resolution (Already resolved outside transaction for efficiency)
 
         // B. Resolve Item IDs (Create missing products in parallel)
         const productsToCreate: any[] = [];
@@ -634,8 +617,6 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             )
         ]);
 
-        // BL-10 fix: Accounting is inside the transaction with tx client.
-        // Errors here will roll back inventory + supplier changes.
         await AccountingEngine.recordTransaction({
             description: `Purchase Invoice #${finalInvoiceNumber}`,
             reference: finalInvoiceNumber || 'PURCHASE',
@@ -644,7 +625,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
                 { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
             ]
-        }, tx); // ✅ tx passed: participates in same transaction
+        }, tx);
 
         if (paidAmount > 0) {
             const isCash = (header.paymentMethod || "CASH") === 'CASH';
@@ -657,13 +638,10 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                     { accountCode: '2000', debit: paidAmount, credit: 0, description: 'Accounts Payable' },
                     { accountCode: creditAccount, debit: 0, credit: paidAmount, description: isCash ? 'Cash' : 'Bank' }
                 ]
-            }, tx); // ✅ tx passed
+            }, tx);
         }
 
-    }, {
-        maxWait: 5000,
-        timeout: 20000 // Increased to 20s
-    });
+    }, { maxWait: 5000, timeout: 20000 });
 
     const duration = Date.now() - startTime;
     logger.info("Purchase Created", { duration, itemsCount: items.length });
@@ -672,93 +650,75 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     revalidatePath("/pos", 'page');
     revalidatePath("/logs", 'page');
     revalidatePath("/reports", 'page');
+    revalidateTag(CACHE_TAGS.INVENTORY);
     revalidateTag("dashboard");
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const updatePurchase = secureAction(async (id: string, data: z.infer<typeof purchaseSchema>) => {
-    // 1. Pre-computation & Reads (Outside Transaction)
+export const updatePurchase = secureAction(async (data: { id: string; data: z.infer<typeof purchaseSchema>; csrfToken?: string }) => {
     const startTime = Date.now();
-    const validated = purchaseSchema.parse(data);
+    const { id, data: purchaseData, csrfToken: _csrf } = data;
+    const validated = purchaseSchema.parse(purchaseData);
     const { items, treasuryId, ...header } = validated;
 
-    // Get User
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
 
-    // Prepare Products Lookup (Batch Read)
     const skusToCheck = items.filter(i => !i.productId && i.sku).map(i => i.sku as string);
     const existingProducts = skusToCheck.length > 0
         ? await prisma.product.findMany({ where: { sku: { in: skusToCheck } } })
         : [];
     const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
 
-    // Prepare Warehouse ID (Reads)
-    let warehouseId = header.warehouseId;
-    if (!warehouseId) {
-        const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-        if (main) warehouseId = main.id;
-    }
+    const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+    if (!main) throw new Error("Main warehouse not found.");
+    const warehouseId = main.id;
 
-    // 2. Transaction (Optimized Writes)
     await prisma.$transaction(async (tx) => {
-        // Fetch Old Data
         const oldInvoice = await tx.purchaseInvoice.findUnique({
             where: { id },
             include: { items: true }
         });
 
+        const { getTranslations } = await import('@/lib/i18n-mock');
         const t = await getTranslations('SystemMessages.Errors');
 
         if (!oldInvoice) throw new Error(t('notFound'));
         if (oldInvoice.status === 'VOIDED') throw new Error(t('voidedInvoice'));
 
-        // REVERT STOCK (Parallel)
-        // 1. Group by Product for Revert
-        const revertItems = oldInvoice.items;
+        // REVERT STOCK
         await Promise.all([
-            // Revert Global Stock
-            ...revertItems.map(item =>
+            ...oldInvoice.items.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
                     data: { stock: { decrement: item.quantity } }
                 })
             ),
-            // Revert Warehouse Stock
-            ...(oldInvoice.warehouseId ? revertItems.map(item =>
+            ...oldInvoice.items.map(item =>
                 tx.stock.update({
                     where: { productId_warehouseId: { productId: item.productId, warehouseId: oldInvoice.warehouseId! } },
                     data: { quantity: { decrement: item.quantity } }
                 })
-            ) : [])
+            )
         ]);
 
-        // Revert Supplier Balance
         const oldNet = oldInvoice.totalAmount.toNumber() - oldInvoice.paidAmount.toNumber();
         await tx.supplier.update({
             where: { id: oldInvoice.supplierId },
             data: { balance: { decrement: oldNet } }
         });
 
-        // Delete Old Items (Batch)
         await tx.purchaseItem.deleteMany({ where: { purchaseInvoiceId: id } });
 
-        // --- APPLY NEW ---
-
-        // B. Resolve New Item IDs (Create missing products in parallel)
+        // APPLY NEW
         const productsToCreate: any[] = [];
         const processedItems: any[] = [];
-
         for (const item of items) {
             let pid = item.productId;
             if (!pid && item.sku) {
                 const existing = existingProductMap.get(item.sku);
-                if (existing) {
-                    pid = existing.id;
-                } else {
-                    productsToCreate.push({ ...item });
-                    continue;
-                }
+                if (existing) pid = existing.id;
+                else productsToCreate.push({ ...item });
             }
             if (pid) processedItems.push({ ...item, productId: pid });
         }
@@ -778,33 +738,30 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
                     } as any
                 })
             ));
-
             createdProducts.forEach((p, idx) => {
                 processedItems.push({ ...productsToCreate[idx], productId: p.id });
             });
         }
 
-        // Calculate New Totals
         const subtotal = processedItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
-        const deliveryCharge = data.deliveryCharge || 0;
+        const deliveryCharge = header.deliveryCharge || 0;
         const totalAmount = subtotal + deliveryCharge;
-        const paidAmount = data.paidAmount || 0;
+        const paidAmount = header.paidAmount || 0;
         let status = "PENDING";
         if (paidAmount >= totalAmount) status = "PAID";
         else if (paidAmount > 0) status = "PARTIAL";
 
-        // Update Header & Create Items (Batch)
         await tx.purchaseInvoice.update({
             where: { id },
             data: {
-                supplierId: data.supplierId,
-                invoiceNumber: data.invoiceNumber,
-                warehouseId: warehouseId || data.warehouseId, // Use resolved or provided
+                supplierId: header.supplierId,
+                invoiceNumber: header.invoiceNumber,
+                warehouseId: warehouseId!,
                 totalAmount,
                 deliveryCharge,
                 paidAmount,
                 status,
-                paymentMethod: data.paymentMethod,
+                paymentMethod: header.paymentMethod,
                 items: {
                     createMany: {
                         data: processedItems.map(i => ({
@@ -817,100 +774,106 @@ export const updatePurchase = secureAction(async (id: string, data: z.infer<type
             }
         });
 
-        // E. Record Payment (Optimized)
-        // If paidAmount increased or we need to record a new payment
         if (paidAmount > oldInvoice.paidAmount.toNumber()) {
             const diffAmount = paidAmount - oldInvoice.paidAmount.toNumber();
-
             await tx.supplierPayment.create({
                 data: {
-                    supplierId: data.supplierId,
+                    supplierId: header.supplierId,
                     amount: diffAmount,
-                    method: data.paymentMethod || "CASH",
-                    notes: `Update Invoice Payment #${data.invoiceNumber || id}`
+                    method: header.paymentMethod || "CASH",
+                    notes: `Update Invoice Payment #${header.invoiceNumber || id}`
                 }
             });
 
-            // Treasury Logic
             if (user?.branchId || treasuryId) {
-                // If explicit treasury given, use it. Otherwise fallback to branch default
                 let treasury = null;
                 if (treasuryId) {
-                    treasury = await tx.treasury.findUnique({
-                        where: { id: treasuryId },
-                        select: { id: true }
-                    });
+                    treasury = await tx.treasury.findUnique({ where: { id: treasuryId }, select: { id: true } });
                 }
-
                 if (!treasury && user?.branchId) {
-                    treasury = await tx.treasury.findFirst({
-                        where: { branchId: user.branchId, isDefault: true },
-                        select: { id: true }
-                    });
+                    treasury = await tx.treasury.findFirst({ where: { branchId: user.branchId, isDefault: true }, select: { id: true } });
                 }
-
                 if (treasury) {
                     await tx.transaction.create({
                         data: {
                             type: 'OUT',
                             amount: new Decimal(diffAmount),
-                            description: `Supplier Payment: Update Invoice #${data.invoiceNumber || id}`,
-                            paymentMethod: data.paymentMethod || "CASH",
+                            description: `Supplier Payment: Update Invoice #${header.invoiceNumber || id}`,
+                            paymentMethod: header.paymentMethod || "CASH",
                             treasuryId: treasury.id
                         }
                     });
-
-                    await tx.treasury.update({
-                        where: { id: treasury.id },
-                        data: { balance: { decrement: diffAmount } }
-                    });
+                    await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: diffAmount } } });
                 }
             }
         }
 
-        // Update Supplier Balance
         await tx.supplier.update({
-            where: { id: data.supplierId },
+            where: { id: header.supplierId },
             data: { balance: { increment: totalAmount - paidAmount } }
         });
 
-        // Re-Apply Stock (Parallel)
         const sortedItems = [...processedItems].sort((a, b) => a.productId.localeCompare(b.productId));
-        const activeWhId = warehouseId || data.warehouseId || oldInvoice.warehouseId;
-
         await Promise.all([
-            // Global Stock
             ...sortedItems.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
-                    data: {
-                        stock: { increment: item.quantity },
-                        costPrice: item.unitCost,
-                        ...(item.sellPrice ? { sellPrice: item.sellPrice } : {})
-                    }
+                    data: { stock: { increment: item.quantity }, costPrice: item.unitCost }
                 })
             ),
-            // Warehouse Stock
-            ...(activeWhId ? sortedItems.map(item =>
+            ...sortedItems.map(item =>
                 tx.stock.upsert({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: activeWhId } },
+                    where: { productId_warehouseId: { productId: item.productId, warehouseId: warehouseId! } },
                     update: { quantity: { increment: item.quantity } },
-                    create: { productId: item.productId, warehouseId: activeWhId, quantity: item.quantity }
+                    create: { productId: item.productId, warehouseId: warehouseId!, quantity: item.quantity }
                 })
-            ) : [])
+            )
         ]);
 
+        await AccountingEngine.recordTransaction({
+            description: `Update Purchase Invoice #${header.invoiceNumber || id}`,
+            reference: header.invoiceNumber || id,
+            date: new Date(),
+            lines: [
+                { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
+                { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
+            ]
+        }, tx);
     });
+
     revalidatePath("/inventory", 'page');
-    revalidatePath("/pos", 'page');
     revalidatePath("/logs", 'page');
-    revalidatePath("/reports", 'page');
     revalidateTag(CACHE_TAGS.INVENTORY);
-    revalidateTag("dashboard");
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const refundPurchase = secureAction(async (id: string, reason?: string, force: boolean = false) => {
+export const deletePurchase = secureAction(async (data: { id: string; csrfToken?: string }) => {
+    const { id } = data;
+    const old = await prisma.purchaseInvoice.findUnique({ where: { id }, include: { items: true } });
+    if (!old) throw new Error("Invoice not found.");
+
+    await prisma.$transaction(async (tx) => {
+        for (const item of old.items) {
+            await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity } } });
+            await tx.stock.update({
+                where: { productId_warehouseId: { productId: item.productId, warehouseId: old.warehouseId! } },
+                data: { quantity: { decrement: item.quantity } }
+            });
+        }
+        const net = old.totalAmount.toNumber() - old.paidAmount.toNumber();
+        await tx.supplier.update({ where: { id: old.supplierId }, data: { balance: { decrement: net } } });
+        await tx.purchaseInvoice.update({ where: { id }, data: { status: 'VOIDED' } });
+    });
+
+    revalidatePath("/inventory", 'page');
+    revalidateTag(CACHE_TAGS.INVENTORY);
+    return { success: true };
+}, { permission: 'INVENTORY_MANAGE' });
+
+
+
+export const refundPurchase = secureAction(async (data: { id: string; reason?: string; force?: boolean; csrfToken?: string }) => {
+    const { id, reason, force = false } = data;
     // Get current user for audit trail
     const { getCurrentUser } = await import('@/actions/auth');
     const user = await getCurrentUser();
@@ -918,7 +881,12 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
     return await prisma.$transaction(async (tx) => {
         const invoice = await tx.purchaseInvoice.findUnique({
             where: { id },
-            include: { items: true }
+            include: {
+                items: true,
+                warehouse: {
+                    include: { branch: true }
+                }
+            }
         });
 
         if (!invoice) throw new Error("Invoice not found");
@@ -929,35 +897,61 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
         }
 
         // 🔴 CRITICAL FIX #2: Validate stock availability before voiding  
-        for (const item of invoice.items) {
-            const product = await tx.product.findUnique({
-                where: { id: item.productId },
-                select: { stock: true, name: true }
-            });
+        if (!force) {
+            for (const item of invoice.items) {
+                const product = await tx.product.findUnique({
+                    where: { id: item.productId },
+                    select: { stock: true, name: true }
+                });
 
-            if (!product || product.stock < item.quantity) {
-                const t = await getTranslations('SystemMessages.Errors');
-                throw new Error(t('insufficientStockWarehouse', { item: product?.name || 'Unknown' }));
+                if (!product || product.stock < item.quantity) {
+                    const t = await getTranslations('SystemMessages.Errors');
+                    throw new Error(t('insufficientStockWarehouse', { item: product?.name || 'Unknown' }));
+                }
             }
         }
 
-        // 🔴 CRITICAL FIX #3: Validate supplier balance to prevent negative balance
+        // 🔴 CRITICAL FIX #3: Revert Supplier Balance & Treasury
         const supplier = await tx.supplier.findUnique({
             where: { id: invoice.supplierId },
             select: { balance: true, name: true }
         });
 
-        const netBalance = invoice.totalAmount.toNumber() - invoice.paidAmount.toNumber();
+        // 1. Decrement full totalAmount from supplier balance (Creates credit if totalAmount > balance)
+        await tx.supplier.update({
+            where: { id: invoice.supplierId },
+            data: { balance: { decrement: invoice.totalAmount } }
+        });
 
-        if (supplier && supplier.balance.toNumber() < netBalance) {
-            throw new Error(
-                `Cannot void invoice: This would create a negative balance for ${supplier.name}. ` +
-                `Current balance: $${supplier.balance.toNumber().toFixed(2)}, ` +
-                `Attempting to deduct: $${netBalance.toFixed(2)}`
-            );
+        // 2. Treasury Reversal: If invoice was paid, return the money to treasury
+        if (invoice.paidAmount.toNumber() > 0) {
+            // Find default treasury for this branch
+            const treasury = await tx.treasury.findFirst({
+                where: { branchId: invoice.warehouse.branchId, isDefault: true },
+                select: { id: true }
+            });
+
+            if (treasury) {
+                // Return funds to treasury
+                await tx.treasury.update({
+                    where: { id: treasury.id },
+                    data: { balance: { increment: invoice.paidAmount } }
+                });
+
+                // Record the "IN" transaction
+                await tx.transaction.create({
+                    data: {
+                        type: 'IN',
+                        amount: invoice.paidAmount,
+                        description: `Voided Purchase Reversal: Invoice #${invoice.invoiceNumber || invoice.id.slice(0, 8)}`,
+                        paymentMethod: invoice.paymentMethod || "CASH",
+                        treasuryId: treasury.id
+                    }
+                });
+            }
         }
 
-        // 1. Revert Stock (Reverse the purchase)
+        // 3. Revert Stock (Reverse the purchase)
         for (const item of invoice.items) {
             const product = await tx.product.findUnique({
                 where: { id: item.productId },
@@ -968,8 +962,6 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
             const actualDecrementQty = force && product
                 ? Math.min(product.stock, item.quantity)
                 : item.quantity;
-
-            const stockDiscrepancy = item.quantity - actualDecrementQty;
 
             // Decrease global product stock
             await tx.product.update({
@@ -1004,6 +996,13 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
                 }
             }
 
+            // V-06 audit fix: ensure valid DB userId for StockMovement constraint
+            let performedById: string | null = user?.id || null;
+            if (performedById === 'super-admin') {
+                const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+                performedById = fallback?.id || null;
+            }
+
             // Log the reversal
             await tx.stockMovement.create({
                 data: {
@@ -1011,19 +1010,13 @@ export const refundPurchase = secureAction(async (id: string, reason?: string, f
                     productId: item.productId,
                     fromWarehouseId: invoice.warehouseId,
                     quantity: item.quantity,
-                    reason: `Purchase Invoice Voided #${invoice.invoiceNumber || invoice.id.slice(0, 8)}`
+                    reason: `Purchase Invoice Voided #${invoice.invoiceNumber || invoice.id.slice(0, 8)}`,
+                    performedById: performedById
                 }
             });
         }
 
-        // 2. Revert Supplier Balance
-        // netBalance already calculated above in validation
-        await tx.supplier.update({
-            where: { id: invoice.supplierId },
-            data: { balance: { decrement: netBalance } }
-        });
-
-        // 3. Mark Invoice as VOIDED (Keep record, don't delete)
+        // 4. Mark Invoice as VOIDED (Keep record, don't delete)
         await tx.purchaseInvoice.update({
             where: { id },
             data: {
@@ -1053,6 +1046,7 @@ export const transferStock = secureAction(async (data: {
     toWarehouseId: string;
     items: { productId: string; quantity: number }[];
     reason?: string;
+    csrfToken?: string;
 }) => {
     if (data.fromWarehouseId === data.toWarehouseId) {
         const t = await getTranslations('SystemMessages.Errors');
@@ -1524,6 +1518,21 @@ export const reportWastage = secureAction(async (data: {
             throw new Error(t('unauthorized'));
         }
 
+        // V-06 audit fix: handle required reportedBy for super-admin virtual ID
+        let reportedBy: string = user.id;
+        if (reportedBy === 'super-admin') {
+            const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+            if (fallback) {
+                reportedBy = fallback.id;
+            } else {
+                // If no users exist yet (fresh install), we might need a dummy user or allow it to fail, 
+                // but usually there's at least one admin. 
+                // Alternatively, we could create a system user. 
+                // For now, let's keep it as is or throw a better error.
+                throw new Error("Cannot report wastage as super-admin: No real users exist in the database for attribution.");
+            }
+        }
+
         // 3. Create wastage record
         const wastage = await tx.stockWastage.create({
             data: {
@@ -1532,7 +1541,7 @@ export const reportWastage = secureAction(async (data: {
                 quantity: data.quantity,
                 reason: data.reason,
                 notes: data.notes,
-                reportedBy: user.id,
+                reportedBy: reportedBy,
             },
             include: { product: true },
         });

@@ -136,7 +136,7 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                             <div className="text-xs text-zinc-500 font-mono mb-3">{item.sku}</div>
                             <div className="flex justify-between items-center pt-3 border-t border-white/5">
                                 <div className="text-cyan-500 font-bold font-mono">
-                                    {Number(item.sellPrice).toFixed(2)} <span className="text-[10px] text-zinc-500">SAR</span>
+                                    {Number(item.sellPrice).toFixed(2)} <span className="text-[10px] text-zinc-500">EGP</span>
                                 </div>
                                 <div className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-white/5 uppercase">
                                     {item.category?.name || 'بدون قسم'}

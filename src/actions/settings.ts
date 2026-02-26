@@ -20,7 +20,7 @@ export const getStoreSettings = secureAction(async () => {
             data: {
                 id: "settings",
                 name: "Casper Store",
-                currency: "SAR",
+                currency: "EGP",
                 taxRate: 0.0
             }
         });
@@ -91,6 +91,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             locationLat: validated.locationLat ?? undefined,
             locationLng: validated.locationLng ?? undefined,
             locationRadius: validated.locationRadius ?? undefined,
+            allowNegativeStock: validated.allowNegativeStock ?? undefined,
         },
         create: {
             id: "settings",
@@ -98,7 +99,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             phone: validated.phone || null,
             address: validated.address || null,
             taxRate: new Prisma.Decimal(validated.taxRate || 0),
-            currency: validated.currency || "SAR",
+            currency: validated.currency || "EGP",
             vatNumber: validated.vatNumber || null,
             receiptFooter: validated.receiptFooter || "Thank you for shopping with us!",
             logoUrl: validated.logoUrl || null,
@@ -109,6 +110,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             locationLat: validated.locationLat || 24.7136,
             locationLng: validated.locationLng || 46.6753,
             locationRadius: validated.locationRadius || 500,
+            allowNegativeStock: validated.allowNegativeStock || false,
         }
     });
 

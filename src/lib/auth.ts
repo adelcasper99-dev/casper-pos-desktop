@@ -84,15 +84,9 @@ export async function getSession() {
         }
     });
 
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`[AUTH DEBUG] Session from DB: ${session ? 'Found' : 'NOT FOUND'}`);
-    }
 
     // Handle expired or not found
     if (!session || session.expiresAt < new Date()) {
-        if (process.env.NODE_ENV === 'development') {
-            console.log(`[AUTH DEBUG] Session ${!session ? 'NOT FOUND' : 'EXPIRED'} - Clearing cookie`);
-        }
 
         // Use try-catch because cookies() might be unavailable in some contexts
         try {

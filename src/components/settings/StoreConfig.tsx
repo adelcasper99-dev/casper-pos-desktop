@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Store, Phone, MapPin, Receipt, Save } from "lucide-react";
+import { Store, Phone, MapPin, Receipt, Save, History } from "lucide-react";
 import { updateStoreSettings } from "@/actions/settings";
 import { toast } from "sonner"; // Assuming sonner is used for toasts, if not, I'll switch to alert for now. Wait, PrinterSettings used toast from sonner.
 
@@ -61,7 +61,7 @@ export default function StoreConfig({ settings }: { settings: any }) {
                         <label className="text-xs text-zinc-400 uppercase font-bold mb-1 block">{t('currency')}</label>
                         <input
                             className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
-                            value={form.currency || "SAR"}
+                            value={form.currency || "EGP"}
                             onChange={e => handleChange('currency', e.target.value)}
                         />
                     </div>
@@ -73,7 +73,7 @@ export default function StoreConfig({ settings }: { settings: any }) {
                                 className="w-full bg-black/40 border border-white/10 rounded-lg p-2 pl-10 text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
                                 value={form.phone || ""}
                                 onChange={e => handleChange('phone', e.target.value)}
-                                placeholder="05xxxxxxxx"
+                                placeholder="01xxxxxxxxx"
                             />
                         </div>
                     </div>
@@ -140,6 +140,30 @@ export default function StoreConfig({ settings }: { settings: any }) {
                             </div>
                         </div>
                     )}
+                </div>
+
+                <div className="border-t border-white/10 pt-4" />
+
+                <h3 className="font-bold flex items-center gap-2 text-lg text-white">
+                    <History className="w-5 h-5 text-orange-400" /> {t('inventoryPolicy', 'سياسة المخزون')}
+                </h3>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
+                        <div className="space-y-0.5">
+                            <label className="text-sm font-medium text-white">{t('allowNegativeStock')}</label>
+                            <p className="text-xs text-zinc-400">{t('allowNegativeStockDesc')}</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={form.allowNegativeStock || false}
+                                onChange={(e) => handleChange('allowNegativeStock', e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                        </label>
+                    </div>
                 </div>
 
                 <div className="border-t border-white/10 pt-4" />

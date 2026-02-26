@@ -1,6 +1,5 @@
-'use client';
-
 import { useState, useEffect, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 
 export interface NetworkStatus {
     isOnline: boolean;
@@ -51,13 +50,13 @@ export function useNetworkStatus() {
         };
 
         const handleOnline = () => {
-            console.log('🟢 Network: ONLINE');
+            logger.info('🟢 Network: ONLINE');
             setStatus(prev => ({ ...prev, isOnline: true, wasOffline: true }));
             updateStatus();
         };
 
         const handleOffline = () => {
-            console.log('🔴 Network: OFFLINE');
+            logger.warn('🔴 Network: OFFLINE');
             // Verify with ping before committing to offline state
             checkConnection().then(isActuallyOnline => {
                 setStatus(prev => ({ ...prev, isOnline: isActuallyOnline }));

@@ -109,7 +109,8 @@ export const getPurchase = secureAction(async (id: string) => {
 /**
  * Void a purchase (refund)
  */
-export const voidPurchase = secureAction(async (id: string, reason?: string) => {
+export const voidPurchase = secureAction(async (data: { id: string; reason?: string; csrfToken?: string }) => {
+    const { id, reason } = data;
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Authentication required");
 
@@ -117,7 +118,10 @@ export const voidPurchase = secureAction(async (id: string, reason?: string) => 
         // 1. Fetch original invoice
         const invoice = await tx.purchaseInvoice.findUnique({
             where: { id },
-            include: { items: true }
+            include: {
+                items: true,
+                warehouse: { include: { branch: true } }
+            }
         });
 
         if (!invoice) throw new Error("Invoice not found");
@@ -143,12 +147,14 @@ export const voidPurchase = secureAction(async (id: string, reason?: string) => 
                     toWarehouseId: null,
                     quantity: item.quantity,
                     reason: `Void: Purchase Invoice #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
-                    performedById: currentUser.id
+                    performedById: currentUser.id === 'super-admin' ? null : currentUser.id
                 }
             });
         }
 
         // 3. Supplier Balance Adjustment
+        // We decrement the unpaid portion to zero it out. 
+        // We DON'T block negative balance here (matches refundPurchase fix)
         const unpaid = new Decimal(invoice.totalAmount).minus(invoice.paidAmount);
         await tx.supplier.update({
             where: { id: invoice.supplierId },
@@ -159,7 +165,7 @@ export const voidPurchase = secureAction(async (id: string, reason?: string) => 
         if (Number(invoice.paidAmount) > 0) {
             // Find default treasury for the branch
             const treasury = await tx.treasury.findFirst({
-                where: { branchId: currentUser.branchId || undefined, isDefault: true }
+                where: { branchId: invoice.warehouse?.branchId || currentUser.branchId || undefined, isDefault: true }
             }) || await tx.treasury.findFirst({ where: { isDefault: true } });
 
             if (treasury) {
@@ -214,5 +220,201 @@ export const voidPurchase = secureAction(async (id: string, reason?: string) => 
         success: true,
         message: "Purchase voided successfully",
         data: result
+    };
+}, { permission: PERMISSIONS.INVENTORY_MANAGE });
+
+/**
+ * Partial Purchase Return — return specific items from a purchase invoice
+ */
+export const partialReturnPurchase = secureAction(async (data: {
+    purchaseId: string;
+    items: { itemId: string; quantity: number }[];
+    reason?: string;
+    csrfToken?: string;
+}) => {
+    const { purchaseId, items: returnItems, reason } = data;
+
+    if (!returnItems || returnItems.length === 0) {
+        throw new Error("يجب اختيار صنف واحد على الأقل للإرجاع");
+    }
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    const result = await prisma.$transaction(async (tx) => {
+        // 1. Fetch original invoice with items
+        const invoice = await tx.purchaseInvoice.findUnique({
+            where: { id: purchaseId },
+            include: { items: { include: { product: true } } }
+        });
+
+        if (!invoice) throw new Error("الفاتورة غير موجودة");
+        if (invoice.status === 'VOIDED') throw new Error("هذه الفاتورة ملغاة بالفعل");
+
+        // 2. Validate return quantities
+        let returnTotal = 0;
+        const processedItems: { item: any; returnQty: number; lineCost: number }[] = [];
+
+        for (const returnItem of returnItems) {
+            const originalItem = invoice.items.find(i => i.id === returnItem.itemId);
+            if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
+
+            const alreadyReturned = (originalItem as any).returnedQty || 0;
+            const availableQty = originalItem.quantity - alreadyReturned;
+
+            if (returnItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
+            if (returnItem.quantity > availableQty) {
+                throw new Error(`الكمية المتبقية للإرجاع هي (${availableQty}). لا يمكن إرجاع (${returnItem.quantity}) من "${originalItem.product.name}"`);
+            }
+
+            const lineCost = Number(originalItem.unitCost) * returnItem.quantity;
+            returnTotal += lineCost;
+            processedItems.push({ item: originalItem, returnQty: returnItem.quantity, lineCost });
+        }
+
+        // 3. Reverse inventory (decrement stock)
+        for (const { item, returnQty } of processedItems) {
+            await tx.product.update({
+                where: { id: item.productId },
+                data: { stock: { decrement: returnQty } }
+            });
+
+            await tx.stock.updateMany({
+                where: { productId: item.productId, warehouseId: invoice.warehouseId },
+                data: { quantity: { decrement: returnQty } }
+            });
+
+            await tx.stockMovement.create({
+                data: {
+                    type: 'RETURN',
+                    productId: item.productId,
+                    fromWarehouseId: invoice.warehouseId,
+                    toWarehouseId: null,
+                    quantity: returnQty,
+                    reason: `مرتجع مشتريات جزئي — فاتورة #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
+                    performedById: currentUser.id === 'super-admin' ? null : currentUser.id
+                }
+            });
+
+            // Update returnedQty on PurchaseItem
+            await tx.purchaseItem.update({
+                where: { id: item.id },
+                data: { returnedQty: { increment: returnQty } } as any
+            });
+        }
+
+        // 4. Supplier Balance Adjustment
+        // Note: For purchases, we deduct the returned amount from the total and paid amounts
+        // If the invoice was unpaid, we reduce the balance we owe.
+        // If it was paid, we technically get credit or cash back, but here we'll simplify 
+        // by reducing the debt or recording a reversal transaction if it was cash.
+
+        const unpaidBefore = new Decimal(invoice.totalAmount).minus(invoice.paidAmount);
+        const returnAmountDecimal = new Decimal(returnTotal);
+
+        let debtReduction = 0;
+        let cashReversal = 0;
+
+        if (unpaidBefore.gte(returnAmountDecimal)) {
+            // All return amount can be deducted from the debt
+            debtReduction = returnTotal;
+        } else {
+            // Return amount is more than debt, some cash/credit is needed
+            debtReduction = unpaidBefore.toNumber();
+            cashReversal = returnAmountDecimal.minus(unpaidBefore).toNumber();
+        }
+
+        if (debtReduction > 0) {
+            await tx.supplier.update({
+                where: { id: invoice.supplierId },
+                data: { balance: { decrement: debtReduction } }
+            });
+        }
+
+        // 5. Treasury Reversal (if cash back needed)
+        if (cashReversal > 0) {
+            const treasury = await tx.treasury.findFirst({
+                where: { branchId: currentUser.branchId || undefined, isDefault: true }
+            }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+
+            if (treasury) {
+                await tx.transaction.create({
+                    data: {
+                        type: 'IN', // Money coming back from supplier
+                        amount: new Decimal(cashReversal),
+                        description: `مرتجع مشتريات (استرداد نقدي) — فاتورة #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
+                        paymentMethod: invoice.paymentMethod,
+                        treasuryId: treasury.id
+                    }
+                });
+
+                await tx.treasury.update({
+                    where: { id: treasury.id },
+                    data: { balance: { increment: cashReversal } }
+                });
+            }
+        }
+
+        // 6. Update Invoice Status and Totals
+        const allItemsAfter = await tx.purchaseItem.findMany({ where: { purchaseInvoiceId: purchaseId } });
+        const allReturned = allItemsAfter.every(i => (i as any).returnedQty === i.quantity);
+
+        const newTotalAmount = Number(invoice.totalAmount) - returnTotal;
+        const newPaidAmount = Math.max(0, Number(invoice.paidAmount) - cashReversal);
+
+        await tx.purchaseInvoice.update({
+            where: { id: purchaseId },
+            data: {
+                status: allReturned ? 'VOIDED' : 'PARTIAL_RETURN',
+                totalAmount: newTotalAmount,
+                paidAmount: newPaidAmount,
+                voidReason: reason || 'مرتجع جزئي'
+            } as any
+        });
+
+        // 7. Accounting Reversal
+        await AccountingEngine.recordTransaction({
+            description: `Partial Purchase Return: ${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
+            reference: invoice.id,
+            purchaseId: invoice.id,
+            lines: [
+                { accountCode: '2000', debit: Number(returnTotal), credit: 0, description: 'AP Reduced (Purchase Return)' },
+                { accountCode: '1200', debit: 0, credit: Number(returnTotal), description: 'Inventory Asset Reduced' }
+            ]
+        }, tx);
+
+        // 8. Audit Log
+        await tx.auditLog.create({
+            data: {
+                entityType: 'PURCHASE',
+                entityId: purchaseId,
+                action: 'PARTIAL_RETURN',
+                previousData: JSON.stringify({ status: invoice.status, total: Number(invoice.totalAmount) }),
+                newData: JSON.stringify({ returnedItems: processedItems.map(p => ({ name: p.item.product.name, qty: p.returnQty, amount: p.lineCost })), returnTotal, newTotalAmount }),
+                reason: reason || 'مرتجع جزئي',
+                user: currentUser.id === 'super-admin' ? 'super-admin' : (currentUser.username || currentUser.name),
+                branchId: currentUser.branchId
+            }
+        });
+
+        return {
+            returnTotal,
+            allReturned,
+            itemCount: processedItems.length,
+            newTotalAmount
+        };
+    });
+
+    revalidatePath("/inventory");
+    revalidatePath("/logs");
+    revalidatePath("/reports");
+    revalidatePath("/purchasing");
+
+    return {
+        success: true,
+        message: `تم إرجاع ${result.itemCount} صنف بمبلغ ${result.returnTotal.toFixed(2)}`,
+        returnedAmount: result.returnTotal,
+        allReturned: result.allReturned,
+        newTotal: result.newTotalAmount
     };
 }, { permission: PERMISSIONS.INVENTORY_MANAGE });

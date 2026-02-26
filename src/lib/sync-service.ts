@@ -1,4 +1,5 @@
 import { offlineDB } from './offline-db';
+import { logger } from './logger';
 
 export class SyncService {
     // 🛡️ RELIABILITY: Retry logic with exponential backoff
@@ -26,14 +27,14 @@ export class SyncService {
 
     // ⚡ SPEED: Sync all pending data
     static async syncAll() {
-        console.log('🔄 Starting sync...');
+        logger.info('🔄 Starting sync...');
         const results = await Promise.allSettled([
             this.syncSales(),
             this.syncTickets()
         ]);
 
         const failures = results.filter(r => r.status === 'rejected');
-        console.log(`✅ Sync complete. ${failures.length} failures.`);
+        logger.info(`✅ Sync complete. ${failures.length} failures.`);
 
         return {
             success: failures.length === 0,
@@ -52,7 +53,7 @@ export class SyncService {
             return { synced: 0, failed: 0 };
         }
 
-        console.log(`📤 Syncing ${unsyncedSales.length} sales...`);
+        logger.info(`📤 Syncing ${unsyncedSales.length} sales...`);
 
         let synced = 0;
         let failed = 0;
@@ -82,7 +83,7 @@ export class SyncService {
                 synced++;
 
             } catch (error: any) {
-                console.error(`Failed to sync sale ${sale.id}:`, error);
+                logger.error(`Failed to sync sale ${sale.id}`, error);
 
                 // Update retry count and error
                 await offlineDB.sales.update(sale.id, {
@@ -93,7 +94,7 @@ export class SyncService {
             }
         }
 
-        console.log(`✅ Sales sync: ${synced} synced, ${failed} failed`);
+        logger.info(`✅ Sales sync: ${synced} synced, ${failed} failed`);
         return { synced, failed };
     }
 
@@ -108,7 +109,7 @@ export class SyncService {
             return { synced: 0, failed: 0 };
         }
 
-        console.log(`📤 Syncing ${unsyncedTickets.length} tickets...`);
+        logger.info(`📤 Syncing ${unsyncedTickets.length} tickets...`);
 
         let synced = 0;
         let failed = 0;
@@ -138,7 +139,7 @@ export class SyncService {
                 synced++;
 
             } catch (error: any) {
-                console.error(`Failed to sync ticket ${ticket.id}:`, error);
+                logger.error(`Failed to sync ticket ${ticket.id}`, error);
 
                 // Update retry count and error
                 await offlineDB.tickets.update(ticket.id, {
@@ -149,7 +150,7 @@ export class SyncService {
             }
         }
 
-        console.log(`✅ Tickets sync: ${synced} synced, ${failed} failed`);
+        logger.info(`✅ Tickets sync: ${synced} synced, ${failed} failed`);
         return { synced, failed };
     }
 
@@ -169,7 +170,7 @@ export class SyncService {
 
     // 👤 USABILITY: Manual sync trigger
     static async manualSync() {
-        console.log('🔄 Manual sync triggered');
+        logger.info('🔄 Manual sync triggered');
         return await this.syncAll();
     }
 }

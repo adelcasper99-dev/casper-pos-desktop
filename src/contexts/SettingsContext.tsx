@@ -13,11 +13,11 @@ interface SettingsContextType {
 }
 
 const SettingsContext = createContext<SettingsContextType>({
-    currency: 'SAR',
+    currency: 'EGP',
     taxRate: 0,
     settings: {},
     isLoading: true,
-    formatPrice: (amount) => formatCurrency(amount, 'SAR'),
+    formatPrice: (amount) => formatCurrency(amount, 'EGP'),
 });
 
 export function SettingsProvider({
@@ -41,7 +41,7 @@ export function SettingsProvider({
         }
     }, [initialSettings]);
 
-    const currency = settings.currency || 'SAR';
+    const currency = settings.currency || 'EGP';
     const taxRate = Number(settings.taxRate) || 0;
 
     const formatPrice = (amount: number | string) => {

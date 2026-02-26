@@ -17,14 +17,6 @@ export const getVisibleBranches = secureAction(async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error(t('unauthorized'));
 
-    // DEBUG: Log user info
-    console.log('=== getVisibleBranches DEBUG ===');
-    console.log('User:', {
-        id: user.id,
-        role: user.role,
-        branchId: user.branchId,
-        branchType: user.branchType
-    });
 
     // Check if user is HQ/Admin who can see all branches
     // We check role OR if their branch type is 'CENTER' (HQ)
@@ -32,8 +24,6 @@ export const getVisibleBranches = secureAction(async () => {
     const isHQUser = roleUpper === 'ADMIN' ||
         roleUpper === 'MANAGER' ||
         user.branchType === 'CENTER';
-
-    console.log('Computed isHQUser:', isHQUser);
 
     // Fix: If user has no branchId but is not HQ, return all branches
     // This handles the case where user.branchId is undefined/null
@@ -44,15 +34,10 @@ export const getVisibleBranches = secureAction(async () => {
     // If !isHQUser && !user.branchId, we return all branches (empty where clause)
     // This allows the user to select a branch
 
-    console.log('Where clause:', whereClause);
-
     const branches = await prisma.branch.findMany({
         where: whereClause,
         orderBy: { name: 'asc' }
     });
-
-    console.log('Branches found:', branches.length);
-    console.log('================================');
 
     return { success: true, data: branches, isHQUser };
 }, { requireCSRF: false });

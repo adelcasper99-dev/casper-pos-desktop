@@ -78,7 +78,7 @@ function PriceHistoryPopover({ productId, name }: { productId: string, name: str
                                         <div className="text-[9px] text-muted-foreground">{new Date(h.date).toLocaleDateString()}</div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="font-bold font-mono text-cyan-500">{h.unitCost.toFixed(2)} SAR</div>
+                                        <div className="font-bold font-mono text-cyan-500">{h.unitCost.toFixed(2)} EGP</div>
                                         <div className="text-[9px] text-muted-foreground">{h.invoiceNumber}</div>
                                     </div>
                                 </div>
@@ -95,7 +95,7 @@ export function PurchaseItemsTable({
     items,
     onRemoveItem,
     onUpdateItem,
-    currencySymbol = "SAR"
+    currencySymbol = "EGP"
 }: PurchaseItemsTableProps) {
     const t = useTranslations('Purchasing');
 

@@ -34,11 +34,11 @@ export function validateCommissionData(ticket: {
 
   // Validate amounts are non-negative
   if (repairPrice < 0) {
-    errors.push(`Repair price cannot be negative: SAR ${repairPrice}`);
+    errors.push(`Repair price cannot be negative: EGP ${repairPrice}`);
   }
 
   if (partsCost < 0) {
-    errors.push(`Parts cost cannot be negative: SAR ${partsCost}`);
+    errors.push(`Parts cost cannot be negative: EGP ${partsCost}`);
   }
 
   // Validate commission amount is reasonable
@@ -49,7 +49,7 @@ export function validateCommissionData(ticket: {
   // Allow small floating point differences (0.01)
   if (difference > 0.01) {
     errors.push(
-      `Commission amount mismatch. Expected: SAR ${expectedCommission.toFixed(2)}, Got: SAR ${commissionAmount.toFixed(2)}`
+      `Commission amount mismatch. Expected: EGP ${expectedCommission.toFixed(2)}, Got: EGP ${commissionAmount.toFixed(2)}`
     );
   }
 
@@ -117,8 +117,8 @@ export function formatCommissionBreakdown(data: {
   const netProfit = data.repairPrice - data.partsCost;
 
   return {
-    netProfit: `SAR ${netProfit.toFixed(2)}`,
+    netProfit: `EGP ${netProfit.toFixed(2)}`,
     commissionRate: `${data.commissionRate.toFixed(1)}%`,
-    commissionAmount: `SAR ${data.commissionAmount.toFixed(2)}`
+    commissionAmount: `EGP ${data.commissionAmount.toFixed(2)}`
   };
 }

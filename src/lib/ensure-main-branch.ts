@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/prisma';
 
 const MAIN_BRANCH_CODE = 'MAIN';
+let cachedMainBranchId: string | null = null; // V-08: In-memory cache for ultra-fast login
 
 // Payment method treasuries to auto-create
 const PAYMENT_TREASURIES = [
@@ -19,6 +20,10 @@ const PAYMENT_TREASURIES = [
 ];
 
 export async function ensureMainBranch(): Promise<string> {
+    // ── V-08: Extreme Fast Path (Memory) ──────────────────────────────────────────
+    if (cachedMainBranchId) return cachedMainBranchId;
+
+    // ── V-08: Regular Fast Path (DB Check) ───────────────────────────────────────
     // Get store name from settings
     const settings = await prisma.storeSettings.findUnique({
         where: { id: 'settings' },
@@ -27,9 +32,24 @@ export async function ensureMainBranch(): Promise<string> {
     const storeName = settings?.name || 'الفرع الرئيسي';
 
     // Try to find the existing main branch
-    let branch = await prisma.branch.findUnique({
+    const branch = await prisma.branch.findUnique({
         where: { code: MAIN_BRANCH_CODE }
     });
+
+    // If branch exists and name matches, skip heavy initialization
+    if (branch && branch.name === storeName) {
+        cachedMainBranchId = branch.id;
+        return branch.id;
+    }
+
+    // ── Slow Path (Initialization or Update) ────────────────────────────────────
+    const branchId = await initializeOrUpdateMainBranch(storeName, branch);
+    cachedMainBranchId = branchId;
+    return branchId;
+}
+
+async function initializeOrUpdateMainBranch(storeName: string, existingBranch: any): Promise<string> {
+    let branch = existingBranch;
 
     if (!branch) {
         branch = await prisma.branch.create({

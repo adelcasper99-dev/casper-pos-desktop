@@ -4,9 +4,13 @@ import { useState } from "react";
 import { Wallet, Receipt, Check, Loader2, CreditCard, Banknote, Building2 } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { paySupplier } from "@/actions/inventory";
+import { getStoreSettings } from "@/actions/settings";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n-mock";
+import { generateA4StatementHTML } from "./purchasing/A4StatementTemplate";
+import { printService } from "@/lib/print-service";
+import { useEffect } from "react";
 
 interface Transaction {
     id: string;
@@ -35,7 +39,8 @@ export default function SupplierActions({
     phone,
     email,
     address,
-    transactions
+    transactions,
+    csrfToken
 }: {
     supplierId: string,
     supplierName: string,
@@ -43,7 +48,8 @@ export default function SupplierActions({
     phone?: string | null,
     email?: string | null,
     address?: string | null,
-    transactions: Transaction[]
+    transactions: Transaction[],
+    csrfToken: string
 }) {
     const router = useRouter();
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -55,6 +61,13 @@ export default function SupplierActions({
     // Payment Form State
     const [amount, setAmount] = useState("");
     const [method, setMethod] = useState("CASH");
+    const [settings, setSettings] = useState<any>(null);
+
+    useEffect(() => {
+        getStoreSettings().then((res: any) => {
+            if (res.success) setSettings(res.data);
+        });
+    }, []);
 
     async function handlePayment() {
         if (!amount || isNaN(parseFloat(amount))) {
@@ -64,7 +77,7 @@ export default function SupplierActions({
 
         setLoading(true);
         try {
-            const res = await paySupplier(supplierId, parseFloat(amount), method);
+            const res = await paySupplier(supplierId, parseFloat(amount), method, { csrfToken });
             if (res?.success) {
                 toast.success(t('paymentModal.success'));
                 setIsPaymentModalOpen(false);
@@ -81,96 +94,35 @@ export default function SupplierActions({
         }
     }
 
-    const handlePrint = () => {
-        const printContent = `
-            <!DOCTYPE html>
-            <html dir="rtl">
-            <head>
-                <title>${t('print.statementTitle')} - ${supplierName}</title>
-                <style>
-                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #333; direction: rtl; }
-                    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
-                    .company-info h1 { margin: 0; color: #06b6d4; }
-                    .supplier-info h2 { margin: 0; }
-                    .info-grid { display: grid; grid-cols: 2; gap: 20px; margin-bottom: 30px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th, td { border: 1px solid #ddd; padding: 12px; text-align: right; }
-                    th { background-color: #f8f9fa; font-weight: bold; }
-                    .text-end { text-align: left; }
-                    .status-tag { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-                    .balance-card { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #ddd; display: inline-block; margin-top: 20px; }
-                    .total-amount { font-size: 24px; font-weight: bold; color: ${balance > 0 ? '#ef4444' : '#10b981'}; }
-                    @media print {
-                        body { padding: 0; }
-                        button { display: none; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="company-info">
-                        <h1>Casper ERP</h1>
-                        <p>${t('print.statementTitle')}</p>
-                    </div>
-                    <div class="text-end">
-                        <p>${t('print.date')}: ${new Date().toLocaleDateString()}</p>
-                    </div>
-                </div>
+    const handlePrint = async () => {
+        const supplierData = {
+            name: supplierName,
+            phone,
+            address,
+            balance
+        };
 
-                <div class="info-grid">
-                    <div class="supplier-info">
-                        <h2>${supplierName}</h2>
-                        ${phone ? `<p>${t('print.phone')}: ${phone}</p>` : ''}
-                        ${email ? `<p>${t('print.email')}: ${email}</p>` : ''}
-                        ${address ? `<p>${t('print.address')}: ${address}</p>` : ''}
-                    </div>
-                </div>
+        const html = generateA4StatementHTML({ supplierData, transactions, settings });
 
-                <div class="balance-card">
-                    <div style="font-size: 12px; text-transform: uppercase; color: #666; margin-bottom: 5px;">${t('currentBalance')}</div>
-                    <div class="total-amount">$${balance.toFixed(2)}</div>
-                    <p style="font-size: 12px; margin-top: 5px; color: #666;">
-                        ${balance > 0 ? t('print.outstandingDebt') : t('print.noOutstandingDebt')}
-                    </p>
-                </div>
+        try {
+            const registry = printService.getRegistry();
+            const printer = registry?.a4Printer && registry.a4Printer !== 'none' ? registry.a4Printer : undefined;
 
-                <h3>${t('transactionHistory')} (50)</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>${t('print.date')}</th>
-                            <th>${t('print.type')}</th>
-                            <th>${t('table.ref')}</th>
-                            <th>${t('print.method')}</th>
-                            <th class="text-end">${t('print.amount')}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${transactions.map(tx => `
-                            <tr>
-                                <td>${new Date(tx.date).toLocaleDateString()}</td>
-                                <td>${tx.type === 'INVOICE' ? t('table.purchaseInvoice') : t('table.paymentReceived')}</td>
-                                <td>${tx.reference}</td>
-                                <td>${tx.method || '-'}</td>
-                                <td class="text-end" style="color: ${tx.isCredit ? '#10b981' : '#ef4444'}">
-                                    ${tx.isCredit ? '-' : '+'}$${tx.amount.toFixed(2)}
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-
-                <div style="margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; text-align: center; color: #999; font-size: 12px;">
-                    ${t('print.automatedFooter')}
-                </div>
-            </body>
-            </html>
-        `;
-
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(printContent);
-            printWindow.document.close();
+            await toast.promise(
+                printService.printHTML(html, printer || '', { paperWidthMm: 210 }),
+                {
+                    loading: 'Preparing print...',
+                    success: 'Sent to printer',
+                    error: (err: any) => `Print failed: ${err?.message || 'Unknown error'}`
+                }
+            );
+        } catch (e) {
+            console.error("Print Error:", e);
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(html);
+                printWindow.document.close();
+            }
         }
     };
 

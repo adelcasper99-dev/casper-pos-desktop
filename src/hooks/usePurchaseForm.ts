@@ -24,11 +24,12 @@ interface UsePurchaseFormProps {
     isHQUser: boolean;
     userBranchId?: string;
     branches: any[];
+    warehouses: any[];
     csrfToken?: string;
     onSaveSuccess?: () => void;
 }
 
-export function usePurchaseForm({ products, isHQUser, userBranchId, branches, csrfToken, onSaveSuccess }: UsePurchaseFormProps) {
+export function usePurchaseForm({ products, isHQUser, userBranchId, branches, warehouses, csrfToken, onSaveSuccess }: UsePurchaseFormProps) {
     const t = useTranslations('Purchasing');
 
     // UI State
@@ -67,7 +68,10 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         if (!isHQUser && branches.length === 1) return branches[0].id;
         return "";
     });
-    const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
+    const [selectedWarehouseId, setSelectedWarehouseId] = useState(() => {
+        const main = warehouses.find(w => w.isDefault);
+        return main?.id || "";
+    });
     const [paymentMethod, setPaymentMethod] = useState("CASH");
     const [treasuryId, setTreasuryId] = useState<string>("");
 
@@ -346,7 +350,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, cs
         };
 
         if (editingInvoiceId) {
-            result = await updatePurchase(editingInvoiceId, payload);
+            result = await updatePurchase({ id: editingInvoiceId, data: payload, csrfToken: internalCsrfToken });
         } else {
             result = await createPurchase(payload);
         }

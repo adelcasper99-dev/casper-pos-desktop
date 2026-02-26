@@ -614,7 +614,7 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                                                         t.amount > 0 ? "text-emerald-400" : "text-rose-400"
                                                     )}>
                                                         {t.amount > 0 ? '+' : ''}{Math.abs(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                        <span className="text-[10px] mr-1 opacity-50 font-sans">SAR</span>
+                                                        <span className="text-[10px] mr-1 opacity-50 font-sans">EGP</span>
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-1.5">
@@ -849,7 +849,7 @@ function KPICard({ title, value, icon, trend, color, negative = false, accentCol
                     <p className="text-xs font-medium text-zinc-500 group-hover:text-zinc-400 transition-colors uppercase tracking-wider mt-2">{title}</p>
                     <h3 className="text-2xl font-bold text-zinc-100 mt-1 whitespace-nowrap">
                         {value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        <span className="text-xs ml-2 text-zinc-600 font-normal">SAR</span>
+                        <span className="text-xs ml-2 text-zinc-600 font-normal">EGP</span>
                     </h3>
                 </div>
                 {data && data.length > 0 && (

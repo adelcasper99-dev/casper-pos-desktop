@@ -31,6 +31,7 @@ interface ProcessSaleData extends z.infer<typeof saleSchema> {
         warrantyExpiryDate?: Date;
     };
     offlineFlag?: boolean;
+    csrfToken?: string;
 }
 
 export const processSale = secureAction(async (rawData: ProcessSaleData) => {
@@ -73,15 +74,20 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         }
         const mainWarehouseId = mainWarehouseRaw.id;
 
+        // 0b. Fetch Settings for Tax & Stock Policy
+        const settings = await tx.storeSettings.findUnique({ where: { id: "settings" } });
+        const taxRate = Number(settings?.taxRate || 0);
+        const globalAllowNegative = (settings as any)?.allowNegativeStock ?? false;
+        const effectiveForce = force || globalAllowNegative;
+
         // 🛡️ SHIFT FK GUARD: Ensure currentShift.id is valid
         const shiftExists = await tx.shift.findUnique({ where: { id: currentShift.id } });
         if (!shiftExists) {
-            throw new Error("Shift record not found or has been deleted.");
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            throw new Error(t('shiftNotFound'));
         }
 
-        // 0b. Fetch Settings for Tax
-        const settings = await tx.storeSettings.findUnique({ where: { id: "settings" } });
-        const taxRate = Number(settings?.taxRate || 0);
 
         // Recalculate Totals for Integrity
         const subTotal = data.items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
@@ -103,28 +109,34 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         const costPriceMap = new Map(products.map((p) => [p.id, Number(p.costPrice)]));
 
-        // 2. Create Sale Record (linked to shift, with warranty if provided)
-        const sale = await (tx.sale.create as any)({
+        // 2. Create Sale Record
+        // Audit: ensure valid DB userId
+        let creatorId: string | null = currentUser.id;
+        if (creatorId === 'super-admin') {
+            const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst({ where: { isGlobalAdmin: true } });
+            creatorId = fallback?.id || null;
+        }
+
+        const sale = await tx.sale.create({
             data: {
-                status: 'COMPLETED', // Explicitly mark as completed for dashboard visibility
-                paymentMethod: data.paymentMethod,
+                customerId: (data.customer?.id && data.customer.id.trim() !== "") ? data.customer.id : null,
+                warehouseId: mainWarehouseId,
                 totalAmount: new Decimal(totalAmount),
-                taxAmount: new Decimal(taxAmount),
                 subTotal: new Decimal(subTotal),
+                taxAmount: new Decimal(taxAmount),
+                paymentMethod: data.paymentMethod,
+                shiftId: currentShift.id,
+                userId: creatorId,
+                status: 'COMPLETED',
                 customerName: data.customer?.name,
                 customerPhone: data.customer?.phone,
-                customerId: (data.customer?.id && data.customer.id.trim() !== "") ? data.customer.id : null,
                 customerAddress: data.customer?.address,
-                warehouseId: mainWarehouseId,
-                shiftId: currentShift.id, // 🆕 Link to shift
-                // 🆕 Warranty Information
                 warrantyDays: warranty?.warrantyDays || null,
                 warrantyExpiryDate: warranty?.warrantyExpiryDate || null,
-                tableId: rawData.tableId || null,
                 tableName: rawData.tableName || null,
-                userId: currentUser.id === 'super-admin' ? currentShift.userId : (currentUser.id || null),
-                syncStatus: rawData.offlineFlag ? 'SYNCED' : 'PENDING',
+                tableId: rawData.tableId || null,
                 offlineFlag: rawData.offlineFlag || false,
+                syncStatus: rawData.offlineFlag ? 'SYNCED' : 'PENDING',
                 items: {
                     create: data.items.map((item) => ({
                         productId: item.id,
@@ -190,11 +202,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             });
 
             if (product && !product.trackStock) {
-                console.log(`[POS] Skipping stock deduction for product: ${item.id} (trackStock=false)`);
+                logger.info(`[POS] Skipping stock deduction for product: ${item.id} (trackStock=false)`);
                 continue;
             }
 
-            if (force) {
+            if (effectiveForce) {
                 // FORCE MODE: Blind Decrement (Allowed to go negative)
                 await tx.product.update({
                     where: { id: item.id },

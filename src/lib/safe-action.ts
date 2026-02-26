@@ -33,7 +33,7 @@ export function secureAction<T, A extends any[]>(
     return async (...args: A) => {
         try {
             // 1. Auth Check
-            // 1. Auth Check
+
             const session = await getSession();
             if (!session?.user) {
                 console.error("[SecureAction ERROR] Session or user missing:", {
@@ -54,8 +54,7 @@ export function secureAction<T, A extends any[]>(
                 let csrfToken: string | undefined;
 
                 if (args.length > 0) {
-                    // Search all arguments for the token
-                    console.log("[SecureAction] inspecting args:", JSON.stringify(args, null, 2));
+                    // Search all arguments for the CSRF token
                     for (const arg of args) {
                         if (arg instanceof FormData) {
                             const val = arg.get('csrfToken')?.toString();
@@ -73,7 +72,6 @@ export function secureAction<T, A extends any[]>(
                 const isValid = await verifyCSRFToken(csrfToken);
 
                 if (!isValid) {
-                    // Enhanced logging for debugging
                     logger.warn('CSRF validation failed', {
                         user: user.username,
                         userId: user.id,
@@ -121,9 +119,8 @@ export function secureAction<T, A extends any[]>(
             return serialize({ success: true, ...result }) as ActionResponse<T>;
 
         } catch (error: any) {
-            console.error("SecureAction Error:", error);
-
-            // Handle Known App Errors
+            logger.error("SecureAction Error", error);
+            // Handle AppError (expected errors)
             if (error instanceof AppError) {
                 return { success: false, error: error.message, code: error.code } as ActionResponse<T>;
             }

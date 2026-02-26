@@ -239,27 +239,63 @@ export const updateTransaction = secureAction(async (id: string, data: Prisma.Tr
     const existing = await prisma.transaction.findUnique({ where: { id } });
     if (!existing) throw new Error(t('notFound'));
 
-    await prisma.auditLog.create({
-        data: {
-            entityType: 'TRANSACTION',
-            entityId: id,
-            action: 'UPDATE',
-            previousData: JSON.stringify({
-                type: existing.type,
-                amount: Number(existing.amount),
-                description: existing.description
-            }),
-            newData: JSON.stringify(data),
-            reason: reason || 'Update transaction'
+    await prisma.$transaction(async (tx) => {
+        // 1. Create audit log
+        await tx.auditLog.create({
+            data: {
+                entityType: 'TRANSACTION',
+                entityId: id,
+                action: 'UPDATE',
+                previousData: JSON.stringify({
+                    type: existing.type,
+                    amount: Number(existing.amount),
+                    description: existing.description,
+                    treasuryId: existing.treasuryId
+                }),
+                newData: JSON.stringify(data),
+                reason: reason || 'Update transaction'
+            }
+        });
+
+        // 2. RECONCILE TREASURY BALANCE (BL-10 Fix)
+        const isPositive = (type: string) => ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(type);
+        const oldAmount = Number(existing.amount);
+        const newAmount = data.amount !== undefined ? Number(data.amount) : oldAmount;
+        const oldTreasuryId = existing.treasuryId;
+        const newTreasuryId = ((data as any).treasuryId as string) || oldTreasuryId;
+
+        // If amount or treasury changed, we need to adjust balances
+        if (oldAmount !== newAmount || oldTreasuryId !== newTreasuryId) {
+            // Reverse old impact
+            if (oldTreasuryId) {
+                const reversal = isPositive(existing.type) ? -oldAmount : oldAmount;
+                await tx.treasury.update({
+                    where: { id: oldTreasuryId },
+                    data: { balance: { increment: reversal } }
+                });
+            }
+
+            // Apply new impact
+            if (newTreasuryId) {
+                // We use existing.type unless data.type is provided (but usually type isn't editable)
+                const finalType = (data as any).type || existing.type;
+                const forwardImpact = isPositive(finalType) ? newAmount : -newAmount;
+                await tx.treasury.update({
+                    where: { id: newTreasuryId },
+                    data: { balance: { increment: forwardImpact } }
+                });
+            }
         }
+
+        // 3. Perform the update
+        await tx.transaction.update({
+            where: { id },
+            data
+        });
     });
 
-    await prisma.transaction.update({
-        where: { id },
-        data
-    });
     revalidatePath('/accounting', 'page');
-    return { success: true, message: "Transaction updated" };
+    return { success: true, message: "Transaction updated and treasury reconciled" };
 }, { permission: 'ACCOUNTING_MANAGE' });
 
 // Soft delete transaction
@@ -269,33 +305,48 @@ export const deleteTransaction = secureAction(async (id: string, reason?: string
     const existing = await prisma.transaction.findUnique({ where: { id } });
     if (!existing) throw new Error(t('notFound'));
 
-    await prisma.auditLog.create({
-        data: {
-            entityType: 'TRANSACTION',
-            entityId: id,
-            action: 'SOFT_DELETE',
-            previousData: JSON.stringify({
-                type: existing.type,
-                amount: Number(existing.amount),
-                description: existing.description
-            }),
-            reason: reason || 'Delete transaction',
-            user: currentUser?.username || 'system'
-        }
-    });
+    await prisma.$transaction(async (tx) => {
+        // 1. Audit Log
+        await tx.auditLog.create({
+            data: {
+                entityType: 'TRANSACTION',
+                entityId: id,
+                action: 'SOFT_DELETE',
+                previousData: JSON.stringify({
+                    type: existing.type,
+                    amount: Number(existing.amount),
+                    description: existing.description,
+                    treasuryId: existing.treasuryId
+                }),
+                reason: reason || 'Delete transaction',
+                user: currentUser?.username || 'system'
+            }
+        });
 
-    // Soft delete
-    await prisma.transaction.update({
-        where: { id },
-        data: {
-            deletedAt: new Date(),
-            deletedBy: currentUser?.username || 'system',
-            deletedReason: reason
+        // 2. REVERSE TREASURY IMPACT (BL-11 Fix)
+        if (existing.treasuryId && !existing.deletedAt) {
+            const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(existing.type);
+            const reversalAmount = isPositive ? -Number(existing.amount) : Number(existing.amount);
+
+            await tx.treasury.update({
+                where: { id: existing.treasuryId },
+                data: { balance: { increment: reversalAmount } }
+            });
         }
+
+        // 3. Performing soft delete
+        await tx.transaction.update({
+            where: { id },
+            data: {
+                deletedAt: new Date(),
+                deletedBy: currentUser?.username || 'system',
+                deletedReason: reason
+            }
+        });
     });
 
     revalidatePath('/accounting', 'page');
-    return { success: true, message: "Transaction deleted" };
+    return { success: true, message: "Transaction deleted and treasury reversed" };
 }, { permission: 'ACCOUNTING_MANAGE' });
 
 // Get real journal entries with filters

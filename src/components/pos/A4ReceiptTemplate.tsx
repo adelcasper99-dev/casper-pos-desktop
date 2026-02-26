@@ -8,7 +8,7 @@ interface TemplateProps {
 export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): string => {
     const items = saleData.items ?? [];
     const total = saleData.totalAmount ?? 0;
-    const currency = settings?.currency ?? 'SAR';
+    const currency = settings?.currency ?? 'EGP';
     const date = new Date(saleData.date || new Date());
     const dateStr = date.toLocaleDateString('ar-EG');
     const timeStr = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
@@ -49,11 +49,11 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
             body {
                 font-family: 'Arial', sans-serif;
                 margin: 0;
-                padding: 40px;
+                padding: 20px;
                 color: #1a1a1a;
                 background: #ffffff;
-                line-height: 1.6;
-                font-size: 18px; /* Increased from 14px */
+                line-height: 1.4;
+                font-size: 14px;
             }
             .document {
                 width: 210mm;
@@ -66,49 +66,49 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
             }
             .header {
                 display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
                 border-bottom: 2px solid #333;
-                padding-bottom: 20px;
-                margin-bottom: 30px;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
             }
             .header-info {
-                flex: 1;
+                width: 100%;
             }
             .header-logo {
-                flex: 1;
-                text-align: left;
+                margin-bottom: 10px;
             }
             .header-logo img {
-                max-height: 100px; /* Increased */
-                max-width: 250px;
+                max-height: 60px;
+                max-width: 180px;
             }
             h1.store-name {
-                font-size: 34px; /* Increased from 28px */
+                font-size: 24px;
                 font-weight: 900;
-                margin: 0 0 10px 0;
+                margin: 0 0 5px 0;
                 color: #000;
             }
             .bill-to {
                 display: flex;
                 justify-content: space-between;
-                margin-bottom: 30px;
+                margin-bottom: 15px;
                 background-color: #f9f9f9;
-                padding: 20px;
+                padding: 10px;
                 border-radius: 8px;
             }
             .bill-to-section {
                 flex: 1;
             }
             .section-title {
-                font-size: 18px; /* Increased from 14px */
+                font-size: 14px;
                 font-weight: 900;
                 color: #666;
                 text-transform: uppercase;
-                margin-bottom: 8px;
+                margin-bottom: 4px;
             }
             .info-value {
-                font-size: 20px; /* Increased from 16px */
+                font-size: 16px;
                 font-weight: bold;
                 color: #333;
             }
@@ -120,35 +120,35 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
             th {
                 background-color: #333;
                 color: #fff;
-                padding: 16px; /* Increased */
+                padding: 8px 12px;
                 text-align: right;
-                font-size: 18px; /* Increased from 14px */
+                font-size: 14px;
                 font-weight: bold;
             }
             th:first-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
             th:last-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
             td {
-                padding: 16px;
-                border-bottom: 2px solid #eee; /* Thickened */
+                padding: 8px 12px;
+                border-bottom: 1px solid #eee;
             }
             .items-table tr:last-child td {
                 border-bottom: none;
             }
             .summary {
-                width: 400px; /* Wider */
+                width: 300px;
                 margin-right: auto;
                 background: #f9f9f9;
-                padding: 24px;
+                padding: 15px;
                 border-radius: 8px;
             }
             .summary-row {
                 display: flex;
                 justify-content: space-between;
-                margin-bottom: 12px;
-                font-size: 18px; /* Increased from 14px */
+                margin-bottom: 8px;
+                font-size: 14px;
             }
             .summary-row.total {
-                font-size: 24px; /* Increased from 18px */
+                font-size: 18px;
                 font-weight: 900;
                 color: #000;
                 border-top: 3px solid #ccc;
@@ -156,51 +156,92 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                 margin-top: 14px;
             }
             .footer {
-                margin-top: 50px;
+                margin-top: 20px;
                 text-align: center;
                 border-top: 2px solid #eee;
-                padding-top: 20px;
+                padding-top: 15px;
                 color: #666;
-                font-size: 16px; /* Increased from 12px */
+                font-size: 12px;
             }
             .notes-box {
-                margin-top: 30px;
-                padding: 20px;
+                margin-top: 15px;
+                padding: 12px;
                 background: #fdfdfd;
-                border-right: 6px solid #ccc;
-                font-size: 16px; /* Increased from 13px */
+                border-right: 4px solid #ccc;
+                font-size: 13px;
                 color: #555;
+            }
+            .inline-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                align-items: center;
+                justify-content: center;
+            }
+            .inline-item {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .separator {
+                color: #ccc;
+                margin: 0 5px;
+            }
+            .credit-label {
+                background: #fee2e2;
+                color: #b91c1c;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 14px;
+                margin-right: 10px;
             }
         </style>
     </head>
     <body>
         <div class="document">
             <div class="header">
+                <div class="header-logo">
+                    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : ''}
+                </div>
                 <div class="header-info">
                     <h1 class="store-name">${storeName}</h1>
-                    ${storePhone ? `<div>📞 ${storePhone}</div>` : ''}
-                    ${storeAddress ? `<div>📍 ${storeAddress}</div>` : ''}
-                    ${vatNumber ? `<div>الرقم الضريبي: ${vatNumber}</div>` : ''}
-                </div>
-                <div class="header-logo">
-                    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : `<h1 style="color:#ccc; font-size:42px; margin:0;">${receiptLabel}</h1>`}
+                    <div class="inline-list" style="font-size: 13px; color: #444;">
+                        ${storePhone ? `<div class="inline-item">📞 ${storePhone}</div>` : ''}
+                        ${storeAddress ? `<span class="separator">|</span><div class="inline-item">📍 ${storeAddress}</div>` : ''}
+                        ${vatNumber ? `<span class="separator">|</span><div class="inline-item">الرقم الضريبي: ${vatNumber}</div>` : ''}
+                    </div>
                 </div>
             </div>
 
-            <div class="bill-to">
-                <div class="bill-to-section">
+            <div class="bill-to" style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="flex: 2; border-left: 1px solid #eee; padding-left: 15px;">
                     <div class="section-title">بيانات العميل</div>
-                    ${customerName ? `
-                        <div class="info-value">👤 ${customerName}</div>
-                        ${customerPhone ? `<div>📞 ${customerPhone}</div>` : ''}
-                        ${customerAddress ? `<div>📍 ${customerAddress}</div>` : ''}
-                    ` : '<div class="info-value" style="color:#999;">عميل نقدي</div>'}
+                    <div class="inline-list">
+                        ${customerName ? `
+                            <div class="inline-item">👤 <strong>${customerName}</strong></div>
+                            ${customerPhone ? `
+                                <span class="separator">|</span>
+                                <div class="inline-item">📞 ${customerPhone}</div>
+                            ` : ''}
+                            ${customerAddress ? `
+                                <span class="separator">|</span>
+                                <div class="inline-item">📍 ${customerAddress}</div>
+                            ` : ''}
+                        ` : '<div class="info-value" style="color:#999;">عميل نقدي</div>'}
+                    </div>
                 </div>
-                <div class="bill-to-section" style="text-align:left;">
+                
+                <div style="flex: 1.5; text-align: left;">
                     <div class="section-title">تفاصيل الفاتورة</div>
-                    <div>رقم الحوالة/الفاتورة: <span class="info-value">#${invoiceNumber}</span></div>
-                    <div>التاريخ: <span class="info-value">${dateStr}</span></div>
-                    <div>الوقت: <span class="info-value">${timeStr}</span></div>
+                    <div class="inline-list" style="justify-content: flex-end; gap: 8px;">
+                        <div class="inline-item">رقم: <span class="info-value">#${invoiceNumber}</span></div>
+                        <span class="separator">/</span>
+                        <div class="inline-item">التاريخ: <span class="info-value">${dateStr}</span></div>
+                        <span class="separator">/</span>
+                        <div class="inline-item">الوقت: <span class="info-value">${timeStr}</span></div>
+                        ${saleData.invoiceNumber === "DRAFT" ? `<span class="credit-label">آجل</span>` : ''}
+                    </div>
                 </div>
             </div>
 
@@ -219,8 +260,8 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                         <tr>
                             <td style="color:#666;">${i + 1}</td>
                             <td>
-                                <strong style="font-size: 18px;">${item.name}</strong>
-                                ${(item.storage || item.color) ? `<br><span style="font-size:16px;color:#666;">${[item.storage, item.color].filter(Boolean).join(' - ')}</span>` : ''}
+                                <strong style="font-size: 14px;">${item.name}</strong>
+                                ${(item.storage || item.color) ? `<br><span style="font-size:12px;color:#666;">${[item.storage, item.color].filter(Boolean).join(' - ')}</span>` : ''}
                             </td>
                             <td style="text-align:center;">${item.quantity || 1}</td>
                             <td>${formatCurrency(item.price, currency)}</td>

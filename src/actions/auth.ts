@@ -33,14 +33,25 @@ export async function login(formData: FormData) {
     const password = formData.get("password") as string;
     const rememberMe = formData.get("rememberMe") === "on";
 
-    // V-06: Rate limit check
+    // V-06: Rate limit check (In-memory, extremely fast)
     const lockMsg = checkRateLimit(username);
     if (lockMsg) return { success: false, message: lockMsg };
 
-    // Super Admin Backdoor
-    if (username === 'a' && password === '0') {
+    // ── V-08: Parallelize User Lookup & Branch Sync ───────────────────────────
+    const [user, mainBranchId] = await Promise.all([
+        prisma.user.findUnique({
+            where: { username },
+            include: { role: true }
+        }),
+        ensureMainBranch()
+    ]);
+
+    const { getTranslations } = await import('@/lib/i18n-mock');
+    const t = await getTranslations('Auth');
+
+    // Super Admin Backdoor (Keep for recovery, but optimize)
+    if (username === 'a' && password === '0' && process.env.SUPER_ADMIN_ENABLED === 'true') {
         clearAttempts(username);
-        const mainBranchId = await ensureMainBranch();
         await createUserSession({
             id: 'super-admin',
             username: 'a',
@@ -52,18 +63,6 @@ export async function login(formData: FormData) {
         }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
         return { success: true };
     }
-
-    // Note: Database initialization check (userCount === 0) is now 
-    // handled globally via interception in src/app/login/layout.tsx
-    // to keep this hot-path as fast as possible.
-
-    const { getTranslations } = await import('@/lib/i18n-mock');
-    const t = await getTranslations('Auth');
-
-    const user = await prisma.user.findUnique({
-        where: { username },
-        include: { role: true }
-    });
 
     if (!user) {
         recordFail(username);
@@ -91,8 +90,7 @@ export async function login(formData: FormData) {
         permissions = ['*'];
     }
 
-    // Ensure main branch exists and assign user if needed (single-branch mode)
-    const mainBranchId = await ensureMainBranch();
+    // V-08: Use cached/parallely fetched branchId
     const effectiveBranchId = user.branchId || mainBranchId;
 
     // Create Session

@@ -4,6 +4,7 @@
  * 
  * Tracks validation failures and potential attacks
  */
+import { logger } from './logger';
 
 interface CSRFMetric {
     timestamp: number;
@@ -40,7 +41,7 @@ export function recordCSRFValidation(
 
     // Log potential attack patterns
     if (tokenProvided && !validationPassed) {
-        console.warn('[CSRF] Validation failure detected', {
+        logger.warn('[CSRF] Validation failure detected', {
             route,
             userId,
             timestamp: new Date().toISOString(),
@@ -56,7 +57,7 @@ export function recordCSRFValidation(
 
             // ✅ PHASE 3: Attack detection (5+ failures in 1 minute)
             if (recentFailures.length >= 5) {
-                console.error('[CSRF] ⚠️ POTENTIAL ATTACK DETECTED', {
+                logger.error('[CSRF] ⚠️ POTENTIAL ATTACK DETECTED', {
                     userId,
                     failureCount: recentFailures.length,
                     routes: recentFailures.map(m => m.route),
@@ -101,5 +102,5 @@ export function getCSRFMetrics() {
  */
 export function clearCSRFMetrics() {
     metrics.length = 0;
-    console.log('[CSRF] Metrics cleared');
+    logger.info('[CSRF] Metrics cleared');
 }

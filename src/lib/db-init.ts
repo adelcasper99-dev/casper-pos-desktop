@@ -11,6 +11,7 @@
  */
 
 import { prisma } from './prisma';
+import { logger } from './logger';
 
 let initialized = false;
 
@@ -29,24 +30,24 @@ export async function initDatabase(): Promise<void> {
         await prisma.$executeRawUnsafe('PRAGMA synchronous=NORMAL;');
 
         // ── Database Health Check ────────────────────────────────────────
-        console.log('[DB] Running health check...');
+        logger.info('[DB] Running health check...');
         const integrityCheck = await prisma.$queryRawUnsafe('PRAGMA integrity_check;');
         if (Array.isArray(integrityCheck) && integrityCheck[0]?.integrity_check !== 'ok') {
-            console.error('[DB] Integrity check failed:', integrityCheck);
+            logger.error('[DB] Integrity check failed', integrityCheck);
             // In a real desktop app, we might trigger a recovery or alert here
         } else {
-            console.log('[DB] Integrity check passed.');
+            logger.info('[DB] Integrity check passed.');
         }
 
-        console.log('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
+        logger.info('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
 
         // ── Seed / Sync Chart of Accounts (BL-09 fix: ensures system accounts exist on every startup)
-        console.log('[DB] Ensuring system accounts exist...');
+        logger.info('[DB] Ensuring system accounts exist...');
         const { seedAccounts } = await import('./accounting/seed-accounts');
         await seedAccounts();
-        console.log('[DB] Chart of Accounts sync complete.');
+        logger.info('[DB] Chart of Accounts sync complete.');
     } catch (err) {
-        console.error('[DB] initDatabase failed:', err);
+        logger.error('[DB] initDatabase failed', err);
         // Non-fatal — app can still serve requests, just with reduced safety guarantees
     }
 }

@@ -3,16 +3,17 @@
 import { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import {
-    RotateCcw, Printer, Package, CheckSquare, Square,
-    MinusCircle, PlusCircle, AlertCircle
+    RotateCcw, Printer, Package, CheckCircle2,
+    Minus, Plus, AlertCircle, XCircle
 } from 'lucide-react';
 import { partialRefundSale } from '@/actions/sales-actions';
 import { getStoreSettings } from '@/actions/settings';
 import { printService } from '@/lib/print-service';
 import { formatArabicPrintText } from '@/lib/arabic-reshaper';
-import { formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 
 interface PartialRefundDialogProps {
     isOpen: boolean;
@@ -215,7 +216,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                         </div>
 
                         {/* Items list */}
-                        <div className="space-y-2 py-2">
+                        <div className="space-y-3 py-2">
                             {items.map((item: any) => {
                                 const sel = selectedItems[item.id];
                                 const isSelected = sel?.selected ?? false;
@@ -225,61 +226,54 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                 return (
                                     <div
                                         key={item.id}
-                                        className={`p-3 rounded-xl border transition-all ${isSelected
-                                            ? 'border-red-500/40 bg-red-500/5'
-                                            : 'border-white/5 bg-zinc-900/40'
-                                            }`}
+                                        className={cn(
+                                            "p-4 rounded-2xl border transition-all duration-200 flex items-center gap-4",
+                                            isSelected
+                                                ? "bg-red-500/5 border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.05)]"
+                                                : "bg-white/5 border-white/5 hover:border-white/10"
+                                        )}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <button onClick={() => toggleItem(item.id)} className="flex-shrink-0">
-                                                {isSelected
-                                                    ? <CheckSquare className="w-5 h-5 text-red-400" />
-                                                    : <Square className="w-5 h-5 text-zinc-500" />
-                                                }
-                                            </button>
+                                        <button
+                                            onClick={() => toggleItem(item.id)}
+                                            className="flex-shrink-0 active:scale-95 transition-transform"
+                                        >
+                                            {isSelected
+                                                ? <CheckCircle2 className="w-6 h-6 text-red-400" />
+                                                : <div className="w-6 h-6 rounded-full border-2 border-zinc-700" />
+                                            }
+                                        </button>
 
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-sm text-zinc-100 truncate">{productName}</div>
-                                                <div className="text-xs text-zinc-500">
-                                                    الكمية الأصلية: {item.quantity} |
-                                                    السعر: {Number(item.unitPrice).toFixed(2)}
-                                                </div>
+                                        <div className="flex-1 min-w-0" onClick={() => toggleItem(item.id)}>
+                                            <div className="font-bold text-sm text-zinc-100 truncate">{productName}</div>
+                                            <div className="text-[10px] text-zinc-500 font-mono tracking-tighter">
+                                                السعر: {Number(item.unitPrice).toFixed(2)} | الكمية: {item.quantity}
                                             </div>
-
-                                            {/* Qty Stepper */}
-                                            {isSelected && (
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <button
-                                                        onClick={() => setItemQty(item.id, qty - 1, item.quantity)}
-                                                        className="text-zinc-400 hover:text-white transition-colors"
-                                                    >
-                                                        <MinusCircle className="w-5 h-5" />
-                                                    </button>
-                                                    <input
-                                                        type="number"
-                                                        min={1}
-                                                        max={item.quantity}
-                                                        value={qty}
-                                                        onChange={(e) => setItemQty(item.id, parseInt(e.target.value) || 1, item.quantity)}
-                                                        className="w-12 text-center bg-zinc-900 border border-white/10 rounded-lg text-sm font-bold text-white py-1 focus:outline-none focus:border-red-500/40"
-                                                    />
-                                                    <button
-                                                        onClick={() => setItemQty(item.id, qty + 1, item.quantity)}
-                                                        className="text-zinc-400 hover:text-white transition-colors"
-                                                    >
-                                                        <PlusCircle className="w-5 h-5" />
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
 
-                                        {/* Line total */}
+                                        {/* Touch Optimized Stepper */}
                                         {isSelected && (
-                                            <div className="mt-2 pt-2 border-t border-white/5 flex justify-between text-xs">
-                                                <span className="text-zinc-500">إجمالي هذا الصنف</span>
-                                                <span className="text-red-400 font-bold">
-                                                    {(Number(item.unitPrice) * qty).toFixed(2)}
-                                                </span>
+                                            <div className="flex items-center bg-zinc-900 border border-white/10 rounded-xl p-1 shrink-0">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-10 w-10 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg active:scale-95 transition-transform"
+                                                    onClick={(e) => { e.stopPropagation(); setItemQty(item.id, qty - 1, item.quantity); }}
+                                                >
+                                                    <Minus className="w-4 h-4" />
+                                                </Button>
+
+                                                <div className="w-10 text-center font-mono font-bold text-lg select-none">
+                                                    {qty}
+                                                </div>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-10 w-10 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg active:scale-95 transition-transform"
+                                                    onClick={(e) => { e.stopPropagation(); setItemQty(item.id, qty + 1, item.quantity); }}
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </Button>
                                             </div>
                                         )}
                                     </div>
@@ -288,12 +282,11 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                         </div>
 
                         {/* Reason */}
-                        <input
-                            type="text"
+                        <Input
                             placeholder="سبب الإرجاع (اختياري)..."
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
-                            className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-red-500/30"
+                            className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 h-12 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-red-500/30"
                         />
 
                         {/* Summary bar */}
@@ -309,14 +302,14 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                             </div>
                         )}
 
-                        <DialogFooter className="gap-2 flex-row">
-                            <Button variant="ghost" onClick={handleClose} className="flex-1 text-zinc-400">
+                        <DialogFooter className="gap-2 flex-row pt-4">
+                            <Button variant="ghost" onClick={handleClose} className="flex-1 h-12 text-zinc-400">
                                 إلغاء
                             </Button>
                             <Button
                                 onClick={handleRefund}
                                 disabled={loading || selectedCount === 0}
-                                className="flex-1 bg-red-500 hover:bg-red-400 text-white font-bold gap-2"
+                                className="flex-1 h-12 bg-red-500 hover:bg-red-400 text-white font-bold gap-2 active:scale-95 transition-all"
                             >
                                 <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                                 {loading ? 'جارى التنفيذ...' : `تأكيد المرتجع`}

@@ -16,4 +16,5 @@ export const settingsSchema = z.object({
     locationLat: z.coerce.number().optional(),
     locationLng: z.coerce.number().optional(),
     locationRadius: z.coerce.number().optional(),
+    allowNegativeStock: z.boolean().optional(),
 });

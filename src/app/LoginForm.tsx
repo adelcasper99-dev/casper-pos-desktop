@@ -10,7 +10,7 @@ export default function LoginForm() {
     const t = useTranslations('Auth');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [username, setUsername] = useState("a");
+    const [username, setUsername] = useState("");
     const [rememberMe, setRememberMe] = useState(false);
 
     const router = useRouter();
@@ -28,14 +28,14 @@ export default function LoginForm() {
         setLoading(true);
         setError("");
 
-        const res = await login(formData);
+        try {
+            const res = await login(formData);
 
-        if (res?.success === false) {
-            setError(res.message);
-            setLoading(false);
-        } else {
-            // Store rememberMe preference for session monitoring
-            try {
+            if (res?.success === false) {
+                setError(res.message);
+                setLoading(false);
+            } else {
+                // Store rememberMe preference for session monitoring
                 localStorage.setItem('rememberMe', rememberMe.toString());
                 localStorage.setItem('sessionStart', Date.now().toString());
                 if (rememberMe) {
@@ -43,12 +43,15 @@ export default function LoginForm() {
                 } else {
                     localStorage.removeItem('rememberedAccount');
                 }
-            } catch (error) {
-                console.warn('Failed to store session data:', error);
+
+                // V-08: Success! Redirect immediately
+                // We refresh first to ensure the new auth cookie is picked up by middleware/layouts
+                router.refresh();
+                router.push('/dashboard');
             }
-            // Navigate to dashboard using SPA routing for instant load
-            router.push('/dashboard');
-            router.refresh(); // Tells Next.js to re-fetch Server Components with the new auth cookie
+        } catch (err: any) {
+            setError(err.message || "An unexpected error occurred");
+            setLoading(false);
         }
     };
 
@@ -91,7 +94,6 @@ export default function LoginForm() {
                         <input
                             type="password"
                             name="password"
-                            defaultValue="0"
                             className="glass-input w-full"
                             required
                             autoComplete="off"

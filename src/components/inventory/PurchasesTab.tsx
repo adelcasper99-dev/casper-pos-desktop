@@ -12,13 +12,16 @@ import {
 } from "lucide-react";
 import {
     startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
-    startOfMonth, endOfMonth, isWithinInterval
+    startOfMonth, endOfMonth, isWithinInterval, format
 } from 'date-fns';
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import { PurchaseHeader } from "@/components/inventory/purchasing/PurchaseHeader";
 import { PurchaseItemEntry } from "@/components/inventory/purchasing/PurchaseItemEntry";
 import { PurchaseItemsTable } from "@/components/inventory/purchasing/PurchaseItemsTable";
 import { BulkUploadDialog } from "@/components/inventory/purchasing/BulkUploadDialog";
+import { generateA4PurchaseHTML } from "./purchasing/A4PurchaseTemplate";
+import { printService } from "@/lib/print-service";
+import { getStoreSettings } from "@/actions/settings";
 import clsx from "clsx";
 import BarcodeListener from "./BarcodeListener";
 import { useTranslations } from "@/lib/i18n-mock";
@@ -26,6 +29,7 @@ import { usePurchaseForm } from "@/hooks/usePurchaseForm";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 import { toast } from "sonner";
 import { safeRandomUUID } from "@/lib/utils";
+import { ReasonDialog } from "@/components/ui/ReasonDialog";
 
 interface Product {
     id: string;
@@ -41,6 +45,8 @@ interface Product {
 interface Supplier {
     id: string;
     name: string;
+    phone?: string | null;
+    address?: string | null;
 }
 
 interface CartItem extends InvoiceItem { }
@@ -130,6 +136,14 @@ export default function PurchasesTab({
     const [dateFilter, setDateFilter] = useState("all");
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
+    const [refundInvoice, setRefundInvoice] = useState<{ id: string } | null>(null);
+
+    useEffect(() => {
+        getStoreSettings().then(res => {
+            if (res.success) setSettings(res.data);
+        });
+    }, []);
 
     const queryClient = useQueryClient();
 
@@ -138,6 +152,7 @@ export default function PurchasesTab({
         isHQUser,
         userBranchId,
         branches,
+        warehouses,
         csrfToken,
         onSaveSuccess: () => {
             // Invalidate query to refetch immediately
@@ -259,14 +274,11 @@ export default function PurchasesTab({
         }
     };
 
-    const handleRefund = async (id: string) => {
-        const reason = prompt(t('voidReasonPrompt') || "Reason for voiding (optional):");
-        if (reason === null) return;
-
+    const handleRefund = async (id: string, reason?: string) => {
         if (!confirm(t('confirmRefund'))) return;
 
         setLoading(true);
-        const res = await refundPurchase(id, reason || undefined);
+        const res = await refundPurchase({ id, reason: reason || undefined, csrfToken });
         setLoading(false);
 
         if (!res.success) {
@@ -291,87 +303,62 @@ export default function PurchasesTab({
     };
 
     // Print Logic
-    const handlePrint = () => {
+    const handlePrint = async () => {
+        if (cart.length === 0) {
+            toast.error(t('emptyCartPrint') || "Cannot print an empty invoice");
+            return;
+        }
+
         const supplier = suppliers.find(s => s.id === selectedSupplierId);
 
-        const printContent = `
-             <!DOCTYPE html>
-             <html dir="${document.dir || 'ltr'}">
-             <head>
-                 <title>${t('Print.title')}</title>
-                 <style>
-                     @media print { @page { margin: 0.5in; } }
-                     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
-                     h1 { text-align: center; margin-bottom: 20px; }
-                     .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 15px; }
-                     .info { margin: 5px 0; }
-                     table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                     th, td { border: 1px solid #ddd; padding: 10px; text-align: start; }
-                     th { background-color: #f0f0f0; font-weight: bold; }
-                     .totals { text-align: end; font-size: 18px; font-weight: bold; margin-top: 20px; }
-                     .text-end { text-align: end; } 
-                 </style>
-             </head>
-             <body>
-                 <h1>${t('Print.title')}</h1>
-                 <div class="header">
-                     <div>
-                         <div class="info"><strong>${t('Print.supplier')}</strong> ${supplier?.name || 'N/A'}</div>
-                         <div class="info"><strong>${t('Print.date')}</strong> ${new Date().toLocaleDateString()}</div>
-                     </div>
-                     <div>
-                         <div class="info"><strong>${t('Print.payment')}</strong> ${paymentMethod}</div>
-                         <div class="info"><strong>${t('Print.status')}</strong> ${parseFloat(paidAmount || '0') >= totalAmount ? 'PAID' : parseFloat(paidAmount || '0') > 0 ? 'PARTIAL' : 'PENDING'}</div>
-                     </div>
-                 </div>
-                 <table>
-                     <thead>
-                         <tr>
-                             <th>${t('Print.item')}</th>
-                             <th>${t('Print.sku')}</th>
-                             <th class="text-end">${t('Print.qty')}</th>
-                             <th class="text-end">${t('Print.cost')}</th>
-                             <th class="text-end">${t('Print.total')}</th>
-                         </tr>
-                     </thead>
-                     <tbody>
-                         ${cart.map(item => `
-                             <tr>
-                                 <td>${item.name}</td>
-                                 <td>${item.sku}</td>
-                                 <td class="text-end">${item.quantity}</td>
-                                 <td class="text-end">$${item.unitCost.toFixed(2)}</td>
-                                 <td class="text-end">$${(item.quantity * item.unitCost).toFixed(2)}</td>
-                             </tr>
-                         `).join('')}
-                     </tbody>
-                 </table>
-                 <div class="totals">
-                     <div>${t('Print.totalAmount')} $${totalAmount.toFixed(2)}</div>
-                     <div>${t('Print.paidAmount')} $${parseFloat(paidAmount || '0').toFixed(2)}</div>
-                     <div style="color: ${totalAmount - parseFloat(paidAmount || '0') > 0 ? 'red' : 'green'};">
-                          ${t('Print.balance')} $${(totalAmount - parseFloat(paidAmount || '0')).toFixed(2)}
-                     </div>
-                 </div>
-             </body>
-             </html>
-         `;
+        // Prepare data for the A4 template
+        const purchaseData = {
+            invoiceNumber: editingInvoiceId ? activeInvoices.find((inv: any) => inv.id === editingInvoiceId)?.invoiceNumber : "Auto",
+            supplierName: supplier?.name || "N/A",
+            supplierPhone: supplier?.phone || "",
+            supplierAddress: supplier?.address || "",
+            date: new Date(),
+            status: parseFloat(paidAmount || '0') >= totalAmount ? 'PAID' : parseFloat(paidAmount || '0') > 0 ? 'PARTIAL' : 'PENDING',
+            items: cart,
+            totalAmount: totalAmount,
+            paidAmount: parseFloat(paidAmount || '0'),
+            deliveryCharge: parseFloat(deliveryCharge || '0')
+        };
 
-        const printWindow = window.open('', '', 'width=800,height=600');
-        if (printWindow) {
-            printWindow.document.write(printContent);
-            printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 250);
+        const html = generateA4PurchaseHTML({ purchaseData, settings });
+
+        // Use printService for professional output (handles PDF/Electron/Browser)
+        try {
+            const registry = printService.getRegistry();
+            const printer = registry?.a4Printer && registry.a4Printer !== 'none' ? registry.a4Printer : undefined;
+
+            await toast.promise(
+                printService.printHTML(html, printer || '', { paperWidthMm: 210 }),
+                {
+                    loading: tPOS('printing') || 'Printing...',
+                    success: tPOS('sentToPrinter') || 'Sent to printer',
+                    error: (err: any) => `Print failed: ${err?.message || 'Unknown error'}`
+                }
+            );
+        } catch (e) {
+            console.error("Print Error:", e);
+            // Fallback for non-electron environments if printHTML fails
+            const printWindow = window.open('', '', 'width=800,height=600');
+            if (printWindow) {
+                printWindow.document.write(html);
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => {
+                    printWindow.print();
+                    printWindow.close();
+                }, 250);
+            }
         }
     };
 
 
     const filteredProducts = itemSearch
-        ? products.filter(p =>
+        ? products.filter((p: Product) =>
             p.name.toLowerCase().includes(itemSearch.toLowerCase()) ||
             p.sku.toLowerCase().includes(itemSearch.toLowerCase())
         ).slice(0, 50)
@@ -514,7 +501,7 @@ export default function PurchasesTab({
                     </div>
 
                     <FlatpickrRangePicker
-                        onRangeChange={(dates) => {
+                        onRangeChange={(dates: Date[]) => {
                             if (dates.length === 2) {
                                 setDateRange({ from: dates[0], to: dates[1] });
                                 setDateFilter("custom");
@@ -604,10 +591,12 @@ export default function PurchasesTab({
                                     "hover:bg-muted/30 transition-colors group",
                                     inv.status === 'VOIDED' && "opacity-50 bg-muted/10"
                                 )}>
-                                    <div className="flex items-center gap-2" suppressHydrationWarning>
-                                        <Calendar className="w-3 h-3" />
-                                        {new Date(inv.purchaseDate).toLocaleDateString()}
-                                    </div>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-2 text-zinc-400">
+                                            <Calendar className="w-3 h-3" />
+                                            {format(new Date(inv.purchaseDate), 'yyyy/MM/dd')}
+                                        </div>
+                                    </td>
                                     <td className="p-4 font-mono text-xs text-muted-foreground">
                                         {inv.invoiceNumber || <span className="text-muted-foreground/50 italic">Auto</span>}
                                     </td>
@@ -652,7 +641,7 @@ export default function PurchasesTab({
                                                 <Pencil className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => handleRefund(inv.id)}
+                                                onClick={() => setRefundInvoice({ id: inv.id })}
                                                 disabled={inv.status === 'VOIDED'}
                                                 className={clsx(
                                                     "p-2 rounded-lg transition-colors",
@@ -672,6 +661,17 @@ export default function PurchasesTab({
                     </table>
                 </div>
             )}
+
+            {/* Void Reason Dialog */}
+            <ReasonDialog
+                isOpen={!!refundInvoice}
+                onClose={() => setRefundInvoice(null)}
+                onConfirm={(reason) => {
+                    if (refundInvoice) handleRefund(refundInvoice.id, reason);
+                }}
+                title={t('voidInvoice') || "إلغاء الفاتورة"}
+                placeholder={t('voidReasonPrompt') || "سبب الإلغاء (اختياري)..."}
+            />
 
             {isNewPurchaseOpen && (
                 <div
@@ -765,7 +765,7 @@ export default function PurchasesTab({
                             <div className="flex flex-col gap-1">
                                 <div className="text-xs text-muted-foreground uppercase">{t('total')}</div>
                                 <div className="text-2xl font-bold font-mono text-cyan-500">
-                                    {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-sm text-muted-foreground">SAR</span>
+                                    {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-sm text-muted-foreground">EGP</span>
                                 </div>
                                 <div className="text-xs text-muted-foreground">{t('itemsCount', { count: cart.length })}</div>
                             </div>
@@ -784,7 +784,7 @@ export default function PurchasesTab({
                                         type="number"
                                         value={deliveryCharge}
                                         onChange={e => setDeliveryCharge(e.target.value)}
-                                        className="bg-background border border-border px-3 py-2 rounded-lg w-32 font-mono focus:border-cyan-500 outline-none transition-colors"
+                                        className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-32 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors"
                                         placeholder="0.00"
                                     />
                                 </div>
@@ -812,11 +812,13 @@ export default function PurchasesTab({
                                                 setPaymentMethod(selectedT.paymentMethod || 'CASH');
                                             }
                                         }}
-                                        className="bg-background border border-border px-3 py-2 rounded-lg w-48 font-mono focus:border-cyan-500 outline-none transition-colors h-[42px] [&>option]:text-black"
+                                        className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-48 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors h-[42px] [&>option]:bg-zinc-900 [&>option]:text-zinc-100"
                                     >
-                                        <option value="">-- Select Treasury --</option>
+                                        <option value="" className="bg-zinc-900">-- Select Treasury --</option>
                                         {treasuries.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name} ({t.paymentMethod})</option>
+                                            <option key={t.id} value={t.id} className="bg-zinc-900">
+                                                {t.name} ({t.paymentMethod})
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -828,8 +830,8 @@ export default function PurchasesTab({
                                         value={paidAmount}
                                         onChange={e => setPaidAmount(e.target.value)}
                                         className={clsx(
-                                            "bg-background border px-3 py-2 rounded-lg w-32 font-mono focus:border-cyan-500 outline-none transition-colors h-[42px]",
-                                            parseFloat(paidAmount || '0') >= totalAmount ? "border-green-500 text-green-500" : "border-border"
+                                            "bg-zinc-900 border px-3 py-2 rounded-lg w-32 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors h-[42px]",
+                                            parseFloat(paidAmount || '0') >= totalAmount ? "border-green-500 text-green-500" : "border-white/10"
                                         )}
                                         placeholder="0.00"
                                     />

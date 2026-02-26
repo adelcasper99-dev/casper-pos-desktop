@@ -195,6 +195,13 @@ export const refundSale = secureAction(async (data: {
                 data: { quantity: { increment: item.quantity } }
             });
 
+            // V-07 audit fix: ensure valid DB userId for StockMovement constraint
+            let performedById: string | undefined = currentUser.id;
+            if (performedById === 'super-admin') {
+                const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+                performedById = fallback?.id || undefined;
+            }
+
             await tx.stockMovement.create({
                 data: {
                     type: 'REFUND',
@@ -202,7 +209,7 @@ export const refundSale = secureAction(async (data: {
                     toWarehouseId: sale.warehouseId,
                     quantity: item.quantity,
                     reason: `Refund: Sale #${sale.id.split('-')[0]}`,
-                    performedById: currentUser.id
+                    performedById: performedById
                 }
             });
         }
@@ -281,8 +288,11 @@ export const partialRefundSale = secureAction(async (data: {
 }) => {
     const { saleId, items: refundItems, reason } = data;
 
+    const { getTranslations } = await import('@/lib/i18n-mock');
+    const t = await getTranslations('POS');
+
     if (!refundItems || refundItems.length === 0) {
-        throw new Error("يجب اختيار صنف واحد على الأقل للإرجاع");
+        throw new Error(t('atLeastOneItem'));
     }
 
     const currentUser = await getCurrentUser();
@@ -290,7 +300,7 @@ export const partialRefundSale = secureAction(async (data: {
 
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
     if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error("لا يوجد وردية مفتوحة. يرجى فتح وردية أولاً");
+        throw new Error(t('noActiveShift'));
     }
     const currentShift = shiftResult.shift;
 
@@ -301,8 +311,8 @@ export const partialRefundSale = secureAction(async (data: {
             include: { items: { include: { product: true } } }
         });
 
-        if (!sale) throw new Error("الفاتورة غير موجودة");
-        if (sale.status === 'REFUNDED') throw new Error("تم إرجاع هذه الفاتورة بالكامل مسبقاً");
+        if (!sale) throw new Error(t('notFound'));
+        if (sale.status === 'REFUNDED') throw new Error(t('alreadyRefundedFull'));
 
         // 2. Validate refund quantities against original items
         let refundTotal = 0;
@@ -316,9 +326,9 @@ export const partialRefundSale = secureAction(async (data: {
             const alreadyRefunded = (originalItem as any).refundedQty || 0;
             const availableQty = (originalItem as any).quantity - alreadyRefunded;
 
-            if (refundItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
+            if (refundItem.quantity <= 0) throw new Error(t('qtyPositive'));
             if (refundItem.quantity > availableQty) {
-                throw new Error(`الكمية المتبقية للإرجاع هي (${availableQty}). لا يمكن إرجاع (${refundItem.quantity}) من "${originalItem.product.name}"`);
+                throw new Error(t('partialRefundQtyError', { qty: availableQty, name: originalItem.product.name }));
             }
 
             const lineTotal = Number(originalItem.unitPrice) * refundItem.quantity;
@@ -337,7 +347,7 @@ export const partialRefundSale = secureAction(async (data: {
                 type: 'REFUND',
                 amount: new Decimal(-refundTotal),
                 paymentMethod: sale.paymentMethod,
-                description: `مرتجع جزئي للفاتورة #${sale.id.split('-')[0].toUpperCase()} — ${processedItems.map(p => `${p.item.product.name} x${p.refundQty}`).join('، ')}${reason ? ` (${reason})` : ''}`,
+                description: t('partialRefundNoteInternal', { ref: sale.id.split('-')[0].toUpperCase(), items: processedItems.map(p => `${p.item.product.name} x${p.refundQty}`).join('، '), reason: reason || '' }),
                 shiftId: currentShift.id,
                 treasuryId: treasury?.id || null
             }
@@ -361,14 +371,22 @@ export const partialRefundSale = secureAction(async (data: {
                 where: { productId: item.productId, warehouseId: sale.warehouseId },
                 data: { quantity: { increment: refundQty } }
             });
+
+            // Audit fix: ensure valid DB userId
+            let performedById: string | undefined = currentUser.id;
+            if (performedById === 'super-admin') {
+                const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+                performedById = fallback?.id || undefined;
+            }
+
             await tx.stockMovement.create({
                 data: {
                     type: 'REFUND',
                     productId: item.productId,
                     toWarehouseId: sale.warehouseId,
                     quantity: refundQty,
-                    reason: `مرتجع جزئي — فاتورة #${sale.id.split('-')[0]}`,
-                    performedById: currentUser.id
+                    reason: t('partialRefundMovement', { ref: sale.id.split('-')[0] }),
+                    performedById: performedById
                 }
             });
         }
@@ -404,7 +422,7 @@ export const partialRefundSale = secureAction(async (data: {
                 subTotal: newSubTotal,
                 taxAmount: taxAmount,
                 totalAmount: newTotal,
-                refundReason: reason || 'مرتجع جزئي'
+                refundReason: reason || t('partialRefundReason')
             } as any
         });
 
@@ -433,7 +451,7 @@ export const partialRefundSale = secureAction(async (data: {
                 action: 'PARTIAL_REFUND',
                 previousData: JSON.stringify({ status: sale.status, total: Number(sale.totalAmount) }),
                 newData: JSON.stringify({ refundedItems: processedItems.map(p => ({ name: p.item.product.name, qty: p.refundQty, amount: p.lineTotal })), refundTotal, newTotal }),
-                reason: reason || 'مرتجع جزئي',
+                reason: reason || t('partialRefundReason'),
                 user: currentUser.username || currentUser.name,
                 branchId: currentUser.branchId
             }
@@ -460,7 +478,7 @@ export const partialRefundSale = secureAction(async (data: {
 
     return {
         success: true,
-        message: `تم إرجاع ${result.itemCount} صنف بمبلغ ${result.refundTotal.toFixed(2)}`,
+        message: t('partialRefundSuccess', { count: result.itemCount, amount: result.refundTotal.toFixed(2) }),
         refundedAmount: result.refundTotal,
         allReturned: result.allReturned,
         newTotal: result.newTotal,

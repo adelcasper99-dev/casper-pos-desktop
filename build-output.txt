@@ -1,0 +1,65 @@
+﻿  Γû▓ Next.js 14.2.3
+  - Environments: .env
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully
+   Linting and checking validity of types ...
+node.exe : Failed to 
+compile.
+At line:1 char:1
++ & "C:\Program Files\
+nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (Failed to    
+ compile.:String)     
+[], RemoteExcepti    
+on
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+
+./src/hooks/usePurchas
+eForm.ts:353:61
+Type error: Expected 
+1 arguments, but got 
+2.
+
+[0m [90m 351 
+|[39m[0m
+[0m [90m 352 |[39m 
+        [36mif[39m 
+(editingInvoiceId) 
+{[0m
+[0m[31m[1m>[22m[3
+9m[90m 353 |[39m    
+         result 
+[33m=[39m 
+[36mawait[39m update
+Purchase(editingInvoic
+eId[33m,[39m payload
+)[33m;[39m[0m
+[0m [90m     |[39m 
+                      
+                      
+                [31m
+[1m^[22m[39m[0m
+[0m [90m 354 |[39m 
+        } 
+[36melse[39m {[0m
+[0m [90m 355 |[39m 
+            result 
+[33m=[39m 
+[36mawait[39m create
+Purchase(payload)[33m
+;[39m[0m
+[0m [90m 356 |[39m 
+        }[0m

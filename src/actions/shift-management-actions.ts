@@ -26,21 +26,20 @@ import { serialize } from "@/lib/serialization";
  * Default to UTC if branch timezone not set
  */
 async function getBranchTimezone(userId?: string): Promise<string> {
+    // 🛡️ PRODUCTION TODO: In multi-branch deployment, fetch timezone from Branch model.
+    // For local desktop deployments, typically system timezone is used.
     if (userId) {
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            // include: { branch: true } // Comment out if causing issues
         });
-        // In future, add timezone field to Branch model
-        // For now, use store settings or default
+        // Add branch-specific timezone lookup here if needed.
     }
 
     const settings = await prisma.storeSettings.findUnique({
         where: { id: "settings" }
     });
 
-    // TODO: Add timezone to StoreSettings if needed
-    return "UTC"; // Default for now
+    return (settings as any)?.timezone || "UTC";
 }
 
 /**
@@ -337,7 +336,7 @@ export const closeShift = secureAction(async (data: {
             ? `⚠️ Shift closed with COUNT DISCREPANCIES (auto-corrected). Check audit log.`
             : cashVariance.equals(0)
                 ? "Shift closed successfully - Perfect balance!"
-                : `Shift closed with ${cashVariance.greaterThan(0) ? 'overage' : 'shortage'} of $${Math.abs(cashVariance.toNumber())}`
+                : `Shift closed with ${cashVariance.greaterThan(0) ? 'overage' : 'shortage'} of ${Math.abs(cashVariance.toNumber()).toFixed(2)}`
     });
 }, { permission: "SHIFT_MANAGE", requireCSRF: true });
 
@@ -686,8 +685,8 @@ export const handoffShift = secureAction(async (data: {
             userId: data.newUserId,
             cashierName: newUser.name || newUser.username,
             notes: shift.notes
-                ? `${shift.notes}\n[Handoff at ${new Date().toLocaleTimeString()}]`
-                : `[Handoff at ${new Date().toLocaleTimeString()}]`
+                ? `${shift.notes}\n[Handoff at ${new Date().toISOString()}]`
+                : `[Handoff at ${new Date().toISOString()}]`
         }
     });
 

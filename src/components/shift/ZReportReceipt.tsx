@@ -1,68 +1,69 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { printService } from "@/lib/print-service";
 import { toast } from "sonner";
 import { formatArabicPrintText } from "@/lib/arabic-reshaper";
+import { generateZReportThermalHTML, generateZReportA4HTML } from "./ZReportTemplates";
+import { FileText, Printer, FileDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ZReportReceiptProps {
     shift: any;
 }
 
 export default function ZReportReceipt({ shift }: ZReportReceiptProps) {
-    const printRef = useRef<HTMLDivElement>(null);
-
     const [isPrinting, setIsPrinting] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
+
+    useEffect(() => {
+        const registry = printService.getRegistry();
+        if (registry?.receiptFormat) {
+            setReceiptFormat(registry.receiptFormat as 'thermal' | 'a4');
+        }
+    }, []);
+
+    const processArabicHtml = (html: string) => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+
+        let node;
+        while ((node = walker.nextNode())) {
+            if (node.nodeValue && node.nodeValue.trim() !== '') {
+                node.nodeValue = formatArabicPrintText(node.nodeValue);
+            }
+        }
+        return doc.documentElement.outerHTML;
+    };
 
     const handlePrint = async () => {
-        if (!printRef.current || isPrinting) return;
+        if (isPrinting) return;
         setIsPrinting(true);
 
         try {
-            const rawContent = printRef.current.innerHTML;
+            // Get store settings for the template (can be passed from parent or fetched)
+            // For now, we'll use empty settings which fall back to defaults in template
+            const settings = {};
 
-            // Safely reshape Arabic text without destroying HTML markup
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(rawContent, 'text/html');
-            const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+            let htmlContent = receiptFormat === 'a4'
+                ? generateZReportA4HTML({ shift, settings })
+                : generateZReportThermalHTML({ shift, settings });
 
-            let node;
-            while ((node = walker.nextNode())) {
-                if (node.nodeValue && node.nodeValue.trim() !== '') {
-                    node.nodeValue = formatArabicPrintText(node.nodeValue);
-                }
-            }
+            // Process Arabic text
+            htmlContent = processArabicHtml(htmlContent);
 
-            const printContent = doc.body.innerHTML;
+            const registry = printService.getRegistry();
+            const targetPrinter = receiptFormat === 'a4'
+                ? registry?.a4Printer
+                : registry?.thermalPrinter;
 
-            const htmlContent = `
-            <!DOCTYPE html>
-            <html dir="ltr">
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body { font-family: monospace; font-size: 10px; margin: 0; padding: 2mm; width: 80mm; background: white; color: black; box-sizing: border-box; direction: ltr; text-align: right; }
-                    .center { text-align: center; }
-                    .line { border-bottom: 1px dashed #000; margin: 5px 0; }
-                    .double-line { border-bottom: 2px solid #000; margin: 5px 0; }
-                    .row { display: flex; justify-content: space-between; flex-direction: row-reverse; margin: 2px 0; }
-                    .bold { font-weight: bold; }
-                    .large { font-size: 14px; }
-                    .section { margin: 10px 0; }
-                    .text-green-600 { color: #16a34a; }
-                    .text-red-600 { color: #dc2626; }
-                    .text-xs { font-size: 9px; }
-                </style>
-            </head>
-            <body>
-                ${printContent}
-            </body>
-            </html>
-            `;
+            await printService.printHTML(htmlContent, targetPrinter, {
+                paperWidthMm: receiptFormat === 'a4' ? 210 : 80
+            });
 
-            const receiptPrinter = localStorage.getItem('casper_receipt_printer');
-            await printService.printHTML(htmlContent, receiptPrinter || undefined, { paperWidthMm: 80 });
-            toast.success("Z-Report sent to printer");
+            toast.success(`Z-Report sent to ${receiptFormat.toUpperCase()} printer`);
         } catch (error) {
             console.error("Z-Report print failed:", error);
             toast.error("Failed to print Z-Report");
@@ -71,154 +72,80 @@ export default function ZReportReceipt({ shift }: ZReportReceiptProps) {
         }
     };
 
-    const expectedCash = (
-        Number(shift.startCash) +
-        Number(shift.totalCashSales || 0) -
-        Number(shift.totalExpenses || 0) +
-        Number(shift.crossShiftRefundsReceived || 0) -
-        Number(shift.crossShiftRefundsIssued || 0)
-    ).toFixed(2);
+    const handleExportPDF = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
 
-    const variance = (Number(shift.actualCash || 0) - Number(expectedCash)).toFixed(2);
-    const totalSales = (
-        Number(shift.totalCashSales || 0) +
-        Number(shift.totalCardSales || 0) +
-        Number(shift.totalWalletSales || 0) +
-        Number(shift.totalInstapay || 0)
-    ).toFixed(2);
+        try {
+            const settings = {};
+            let htmlContent = generateZReportA4HTML({ shift, settings });
+            htmlContent = processArabicHtml(htmlContent);
+
+            const filename = `Z-Report-${shift.id.slice(0, 8)}-${new Date().toISOString().split('T')[0]}.pdf`;
+            const result = await printService.saveToPDF(htmlContent, filename);
+
+            if (result.success) {
+                toast.success("Z-Report exported as PDF successfully");
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            console.error("PDF export failed:", error);
+            toast.error("Failed to export PDF: " + (error.message || "Unknown error"));
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow max-w-md">
-            <button
-                onClick={handlePrint}
-                disabled={isPrinting}
-                className="mb-4 w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-                {isPrinting ? "🖨️ Printing..." : "🖨️ Print Z-Report"}
-            </button>
+        <div className="bg-white/5 border border-white/10 p-6 rounded-xl shadow-2xl max-w-md w-full backdrop-blur-md">
+            <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-cyan-400" />
+                Shift Report (Z-Report)
+            </h3>
 
-            <div ref={printRef} className="font-mono text-sm" style={{ maxWidth: '400px' }}>
-                <div className="center double-line pb-2">
-                    <div className="large bold">DAILY CLOSING REPORT</div>
-                    <div>(Z-REPORT)</div>
-                </div>
-
-                <div className="section">
-                    <div className="row"><span>Shift ID:</span> <span>#{shift.id.slice(0, 8).toUpperCase()}</span></div>
-                    {shift.registerName && (
-                        <div className="row"><span>🆕 Register:</span> <span>{shift.registerName}</span></div>
+            <div className="space-y-3">
+                <Button
+                    onClick={handlePrint}
+                    disabled={isPrinting}
+                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center gap-2 h-12 text-base shadow-lg shadow-cyan-900/20"
+                >
+                    {isPrinting ? (
+                        <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            Printing...
+                        </span>
+                    ) : (
+                        <>
+                            <Printer className="w-5 h-5" />
+                            Print to {receiptFormat.toUpperCase()}
+                        </>
                     )}
-                    <div className="row"><span>Cashier:</span> <span>{shift.cashierName || 'N/A'}</span></div>
-                    <div className="row"><span>Date:</span> <span>{new Date(shift.openedAt).toLocaleDateString()}</span></div>
-                    <div className="row"><span>Opened:</span> <span>{new Date(shift.openedAt).toLocaleTimeString()}</span></div>
-                    <div className="row"><span>Closed:</span> <span>{shift.closedAt ? new Date(shift.closedAt).toLocaleTimeString() : 'Open'}</span></div>
-                    {shift.timezone && shift.timezone !== 'UTC' && (
-                        <div className="row"><span>🆕 Timezone:</span> <span>{shift.timezone}</span></div>
+                </Button>
+
+                <Button
+                    variant="outline"
+                    onClick={handleExportPDF}
+                    disabled={isExporting}
+                    className="w-full border-white/20 text-white hover:bg-white/5 flex items-center justify-center gap-2 h-12 text-base"
+                >
+                    {isExporting ? (
+                        <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            Exporting...
+                        </span>
+                    ) : (
+                        <>
+                            <FileDown className="w-5 h-5" />
+                            Export as PDF
+                        </>
                     )}
-                </div>
+                </Button>
 
-                <div className="line"></div>
-
-                <div className="section">
-                    <div className="center bold">💰 CASH RECONCILIATION</div>
-                    <div className="line"></div>
-                    <div className="row"><span>Opening Cash:</span> <span>${Number(shift.startCash).toFixed(2)}</span></div>
-                    <div className="row"><span>+ Cash Sales:</span> <span>${Number(shift.totalCashSales || 0).toFixed(2)}</span></div>
-                    <div className="row"><span>- Cash Expenses:</span> <span>${Number(shift.totalExpenses || 0).toFixed(2)}</span></div>
-                    {Number(shift.crossShiftRefundsReceived || 0) > 0 && (
-                        <div className="row"><span>🆕 + Cross-Shift Refunds:</span> <span>${Number(shift.crossShiftRefundsReceived).toFixed(2)}</span></div>
-                    )}
-                    {Number(shift.crossShiftRefundsIssued || 0) > 0 && (
-                        <div className="row"><span>🆕 - Refunds Issued:</span> <span>${Number(shift.crossShiftRefundsIssued).toFixed(2)}</span></div>
-                    )}
-                    <div className="line"></div>
-                    <div className="row bold"><span>= Expected Cash:</span> <span>${expectedCash}</span></div>
-                    <div className="row"><span>Actual Counted:</span> <span>${Number(shift.actualCash || 0).toFixed(2)}</span></div>
-                    <div className="line"></div>
-                    <div className={`row bold large ${Number(variance) === 0 ? '' : Number(variance) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        <span>VARIANCE:</span>
-                        <span>{Number(variance) > 0 ? '+' : ''}${variance}</span>
-                    </div>
-                    {Number(variance) !== 0 && (
-                        <div className="center text-xs">
-                            ({Number(variance) > 0 ? 'Overage' : 'Shortage'})
-                        </div>
-                    )}
-                </div>
-
-                <div className="double-line"></div>
-
-                <div className="section">
-                    <div className="center bold">📊 SALES BREAKDOWN</div>
-                    <div className="line"></div>
-                    <div className="row"><span>Cash:</span> <span>${Number(shift.totalCashSales || 0).toFixed(2)}</span></div>
-                    <div className="row"><span>Card:</span> <span>${Number(shift.totalCardSales || 0).toFixed(2)}</span></div>
-                    {Number(shift.totalWalletSales || 0) > 0 && (
-                        <div className="row"><span>🆕 Mobile Wallet:</span> <span>${Number(shift.totalWalletSales).toFixed(2)}</span></div>
-                    )}
-                    {Number(shift.totalInstapay || 0) > 0 && (
-                        <div className="row"><span>🆕 InstaPay:</span> <span>${Number(shift.totalInstapay).toFixed(2)}</span></div>
-                    )}
-                    {shift.totalSplitPayments > 0 && (
-                        <div className="row"><span>🆕 Split Payments:</span> <span>({shift.totalSplitPayments})</span></div>
-                    )}
-                    <div className="line"></div>
-                    <div className="row bold"><span>Total Sales:</span> <span>${totalSales}</span></div>
-                    <div className="row"><span>Total Tickets:</span> <span>{shift.totalTickets || 0}</span></div>
-                    <div className="row"><span>Total Refunds:</span> <span>-${Number(shift.totalRefunds || 0).toFixed(2)}</span></div>
-                    <div className="line"></div>
-                    <div className="row bold"><span>Net Revenue:</span> <span>${(Number(totalSales) - Number(shift.totalRefunds || 0)).toFixed(2)}</span></div>
-                </div>
-
-                <div className="double-line"></div>
-
-                <div className="section">
-                    <div className="center bold">📝 EXPENSES</div>
-                    <div className="line"></div>
-                    <div className="row bold"><span>Total:</span> <span>${Number(shift.totalExpenses || 0).toFixed(2)}</span></div>
-                </div>
-
-                {shift.hasAdjustments && shift.adjustments?.length > 0 && (
-                    <>
-                        <div className="double-line"></div>
-                        <div className="section">
-                            <div className="center bold">🆕 ⚠️ ADJUSTMENTS</div>
-                            <div className="line"></div>
-                            {shift.adjustments.map((adj: any, idx: number) => (
-                                <div key={adj.id} className="mb-2">
-                                    <div className="row"><span>#{idx + 1}:</span> <span>${Number(adj.amount).toFixed(2)}</span></div>
-                                    <div className="text-xs ml-4">{adj.reason}</div>
-                                    <div className="text-xs ml-4">Approved: {adj.approvedBy}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
-
-                {shift.notes && (
-                    <>
-                        <div className="line"></div>
-                        <div className="section">
-                            <div className="bold">Notes:</div>
-                            <div className="text-xs">{shift.notes}</div>
-                        </div>
-                    </>
-                )}
-
-                <div className="line"></div>
-                <div className="row"><span>🆕 Status:</span> <span>{shift.status}</span></div>
-                {shift.forceClosed && (
-                    <div className="row text-red-600"><span>🆕 Force Closed:</span> <span>Yes</span></div>
-                )}
-
-                <div className="double-line"></div>
-
-                <div className="section">
-                    <div className="row"><span>Generated:</span> <span>{new Date().toLocaleString()}</span></div>
-                    <div className="center mt-4">Signature: _______________</div>
-                </div>
-
-                <div className="double-line mt-4"></div>
+                <p className="text-[10px] text-zinc-500 text-center mt-2">
+                    Default format: <span className="text-cyan-400 uppercase font-bold">{receiptFormat}</span>.
+                    Change in printer settings.
+                </p>
             </div>
         </div>
     );

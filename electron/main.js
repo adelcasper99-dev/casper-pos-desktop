@@ -198,8 +198,14 @@ const startServer = () => {
                 if (!isReady) reject(new Error(`Server crashed immediately with exit code ${code}. Check casper-boot.log.`));
             });
 
-            // Actively poll the port until Next.js is ready
+            let pollCount = 0;
+            const MAX_POLL = 120; // 60 seconds at 500ms intervals
             const poll = setInterval(() => {
+                if (++pollCount > MAX_POLL) {
+                    clearInterval(poll);
+                    reject(new Error('Server failed to start within 60 seconds. Checkout casper-boot.log.'));
+                    return;
+                }
                 const socket = new net.Socket();
                 socket.on('connect', () => {
                     isReady = true;
@@ -278,135 +284,192 @@ ipcMain.handle('printers:list', async () => {
 });
 
 /**
- * Shared Silent Print Logic
+ * Dedicated Handler for Standard (A4/Office) Printing
  */
-const handlePrintSilent = async (event, html, printerName, options) => {
+const handleStandardPrint = async (event, html, printerName, options) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
     const printWindow = new BrowserWindow({
         show: false,
-        width: 1024, // Explicit width for headless rendering
+        width: 1024,
         height: 1024,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true
-        }
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
-    const tempFilePath = path.join(os.tmpdir(), `casper_print_${Date.now()}.html`);
+    const tempFilePath = path.join(os.tmpdir(), `casper_a4_${Date.now()}.html`);
 
     try {
         fs.writeFileSync(tempFilePath, html, 'utf8');
         await printWindow.loadFile(tempFilePath);
 
-        // Hardened Rendering: Wait for content and fonts to be 100% ready
+        // Wait for fonts & content
         await printWindow.webContents.executeJavaScript(`
-            new Promise((resolve) => {
-                if (document.readyState === 'complete') {
-                    document.fonts.ready.then(resolve);
-                } else {
-                    window.addEventListener('load', () => {
-                        document.fonts.ready.then(resolve);
-                    });
-                }
+            new Promise(r => {
+                if (document.readyState === 'complete') document.fonts.ready.then(r);
+                else window.addEventListener('load', () => document.fonts.ready.then(r));
             })
         `);
+        await new Promise(r => setTimeout(r, 2000));
 
-        // Extra buffer for any dynamic adjustments or image decodes
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const printOptions = {
+            silent: true,
+            deviceName: printerName && printerName !== 'none' ? printerName : '',
+            printBackground: true,
+            color: true,
+            margins: { marginType: 'none' }, // Precision CSS margins
+            pageSize: 'A4',
+            ...options
+        };
 
-        const isThermal = options?.paperWidthMm && options.paperWidthMm < 200;
-
-        // --- STRICT SEPARATION LOGIC ---
-        // We branch the options completely to ensure A4 fixes never break Thermal and vice-versa.
-        let printOptions;
-
-        if (isThermal) {
-            // THERMAL BRANCH: Focused on 80mm/58mm roll paper
-            printOptions = {
-                silent: true,
-                deviceName: printerName && printerName !== 'none' ? printerName : '',
-                printBackground: true,
-                color: false, // Thermal is always B&W
-                margins: { marginType: 'default' }, // Good for thermal alignment
-                pageSize: {
-                    width: Math.round((options?.paperWidthMm || 80) * 1000),
-                    height: 297000 // Vertical max
-                }
-            };
-        } else {
-            // OFFICE/A4 BRANCH: Focused on standard document printing
-            printOptions = {
-                silent: true,
-                deviceName: printerName && printerName !== 'none' ? printerName : '',
-                printBackground: true,
-                color: true, // A4 supports color
-                margins: { marginType: 'none' }, // Let CSS handle margins for precision
-                pageSize: 'A4'
-            };
-        }
-
-        // Apply incoming options (like deviceName) but PRESERVE our strict format rules
-        const incomingPageSize = options?.pageSize;
-        Object.assign(printOptions, options);
-
-        // RE-ENFORCE A4 RULES: Never let A4 be overwritten by thermal hints
-        if (!isThermal) {
-            printOptions.pageSize = 'A4';
-            printOptions.margins = { marginType: 'none' };
-            printOptions.color = true;
-        }
-
-        log(`Print: Starting silent print to [${printerName}]`);
+        log(`Print [Standard/A4]: Sending to [${printerName}]`);
 
         return new Promise((resolve) => {
             const timeout = setTimeout(() => {
-                log('Print: Timeout reached');
                 if (!printWindow.isDestroyed()) printWindow.destroy();
-                resolve({ success: false, error: 'Printing timeout (Spooler busy?)' });
+                resolve({ success: false, error: 'A4 print timeout' });
+            }, 25000);
+
+            printWindow.webContents.print(printOptions, (success, errorType) => {
+                clearTimeout(timeout);
+                try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
+                if (!printWindow.isDestroyed()) printWindow.destroy();
+                resolve({ success, error: errorType });
+            });
+        });
+    } catch (error) {
+        log(`Print [Standard/A4] Fatal Error: ${error.message}`);
+        if (!printWindow.isDestroyed()) printWindow.destroy();
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Dedicated Handler for Thermal (Roll/Receipt) Printing
+ */
+const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
+    if (!mainWindow) return { success: false, error: 'Main window not found' };
+
+    const widthPx = Math.round((paperWidthMm || 80) * 3.78);
+    const printWindow = new BrowserWindow({
+        show: false,
+        width: widthPx,
+        height: 1024,
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    const tempFilePath = path.join(os.tmpdir(), `casper_thermal_${Date.now()}.html`);
+
+    try {
+        fs.writeFileSync(tempFilePath, html, 'utf8');
+        await printWindow.loadFile(tempFilePath);
+
+        // Wait for fonts & content
+        await printWindow.webContents.executeJavaScript(`
+            new Promise(r => {
+                if (document.readyState === 'complete') document.fonts.ready.then(r);
+                else window.addEventListener('load', () => document.fonts.ready.then(r));
+            })
+        `);
+        await new Promise(r => setTimeout(r, 1000));
+
+
+        log(`Print [Thermal] Requested: HTML Length [${html?.length}], Printer [${printerName}], Width [${paperWidthMm}mm]`);
+
+        const printOptions = {
+            silent: true,
+            deviceName: (printerName && printerName !== 'none' && printerName !== 'undefined') ? printerName : '',
+            printBackground: true,
+            color: false, // Thermal is B&W
+            margins: { marginType: 'default' }, // Hardware margins
+            pageSize: {
+                width: Math.round((paperWidthMm || 80) * 1000),
+                height: 297000
+            }
+        };
+
+        log(`Print [Thermal] Options: ${JSON.stringify(printOptions)}`);
+
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                if (!printWindow.isDestroyed()) printWindow.destroy();
+                resolve({ success: false, error: 'Thermal print timeout' });
             }, 15000);
 
             printWindow.webContents.print(printOptions, (success, errorType) => {
                 clearTimeout(timeout);
                 try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
                 if (!printWindow.isDestroyed()) printWindow.destroy();
-
-                if (success) {
-                    log('Print: Success');
-                    resolve({ success: true });
-                } else {
-                    log(`Print: Failed (${errorType})`);
-                    resolve({ success: false, error: errorType });
-                }
+                resolve({ success, error: errorType });
             });
         });
-    } catch (err) {
-        log(`Print error: ${err.message}`);
-        if (fs.existsSync(tempFilePath)) try { fs.unlinkSync(tempFilePath); } catch (e) { }
+    } catch (error) {
+        log(`Print [Thermal] Fatal Error: ${error.message}`);
         if (!printWindow.isDestroyed()) printWindow.destroy();
-        return { success: false, error: err.message };
+        return { success: false, error: error.message };
     }
 };
 
-ipcMain.handle('print:silent', handlePrintSilent);
+ipcMain.handle('print:to-pdf', async (event, html, filename) => {
+    if (!mainWindow) return { success: false, error: 'Main window not found' };
 
-/**
- * Legacy/Speed channel for thermal receipts
- */
-ipcMain.handle('app:print-thermal-receipt', async (event, layout) => {
-    log('Print: Speed Print triggered');
+    const printWindow = new BrowserWindow({
+        show: false,
+        width: 1024,
+        height: 1024,
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    const tempFilePath = path.join(os.tmpdir(), `casper_pdf_${Date.now()}.html`);
+
     try {
-        return await handlePrintSilent(event, layout.html, layout.printerName || '', {
-            silent: true,
-            pageSize: {
-                width: Math.round((layout.paperWidthMm || 80) * 1000),
-                height: 297000
-            }
+        fs.writeFileSync(tempFilePath, html, 'utf8');
+        await printWindow.loadFile(tempFilePath);
+
+        await printWindow.webContents.executeJavaScript(`
+            new Promise(r => {
+                if (document.readyState === 'complete') document.fonts.ready.then(r);
+                else window.addEventListener('load', () => document.fonts.ready.then(r));
+            })
+        `);
+        await new Promise(r => setTimeout(r, 2000));
+
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: 'Export PDF',
+            defaultPath: path.join(os.homedir(), filename || `invoice_${Date.now()}.pdf`),
+            filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
         });
-    } catch (err) {
-        log(`Print: Speed Print failed: ${err.message}`);
-        return { success: false, error: err.message };
+
+        if (canceled || !filePath) {
+            if (!printWindow.isDestroyed()) printWindow.destroy();
+            return { success: false, error: 'Cancelled' };
+        }
+
+        const data = await printWindow.webContents.printToPDF({
+            margins: { marginType: 'none' },
+            pageSize: 'A4',
+            printBackground: true
+        });
+
+        fs.writeFileSync(filePath, data);
+        if (!printWindow.isDestroyed()) printWindow.destroy();
+        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
+
+        return { success: true, path: filePath };
+    } catch (error) {
+        log(`PDF Export Fatal Error: ${error.message}`);
+        if (!printWindow.isDestroyed()) printWindow.destroy();
+        return { success: false, error: error.message };
     }
+});
+
+ipcMain.handle('print:standard', handleStandardPrint);
+ipcMain.handle('print:thermal', async (event, html, printerName, paperWidthMm) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm);
+});
+// Legacy support
+ipcMain.handle('print:silent', handleStandardPrint);
+ipcMain.handle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 
 // --- NEW CONFIG AND SETUP IPC HANDLERS ---

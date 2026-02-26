@@ -119,7 +119,14 @@
         "speedPrintPreview": "معاينة الطباعة السريعة",
         "thermalRoll": "رول حراري (80mm)",
         "standardA4": "فاتورة مكتبية (A4)",
-        "addCategory": "إضافة فئة"
+        "partialRefundNote": "تم استرداد جزئي (الكمية: {qty})",
+        "partialRefundReason": "مرتجع العميل",
+        "atLeastOneItem": "يجب اختيار صنف واحد على الأقل للإرجاع",
+        "alreadyRefundedFull": "تم إرجاع هذه الفاتورة بالكامل مسبقاً",
+        "partialRefundQtyError": "الكمية المتبقية للإرجاع هي ({qty}). لا يمكن إرجاع ({count}) من \"{name}\"",
+        "partialRefundNoteInternal": "مرتجع جزئي للفاتورة #{ref} — {items} {reason}",
+        "partialRefundMovement": "مرتجع جزئي — فاتورة #{ref}",
+        "partialRefundSuccess": "تم إرجاع {count} صنف بمبلغ {amount}"
     },
     "Shift": {
         "openShift": "فتح وردية",
@@ -775,7 +782,9 @@
         "save": "حفظ الإعدادات",
         "saving": "جاري الحفظ...",
         "success": "تم حفظ إعدادات المتجر بنجاح!",
-        "error": "فشل حفظ الإعدادات"
+        "error": "فشل حفظ الإعدادات",
+        "allowNegativeStock": "السماح بالبيع بالسالب",
+        "allowNegativeStockDesc": "تمكين إتمام عمليات البيع حتى في حالة عدم توفر مخزون كافي (سيظهر المخزون بالسالب)"
     },
     "Customers": {
         "title": "إدارة حسابات العملاء",

@@ -2,6 +2,7 @@ import { copyFile, unlink, stat, mkdir } from 'fs/promises';
 import path from 'path';
 import { encryptFile, decryptFile, calculateChecksum } from './encryption';
 import { prisma } from '@/lib/prisma';
+import { logger } from '../logger';
 
 const BACKUPS_DIR = path.join(process.cwd(), 'backups');
 const DB_PATH = path.join(process.cwd(), 'prisma/local.db'); // Adjust if db location differs
@@ -43,19 +44,19 @@ export async function createBackup(userId: string) {
 
   try {
     const startTime = Date.now();
-    console.log('📦 Starting backup creation...');
+    logger.info('📦 Starting backup creation...');
 
     // Step 1: Copy DB
-    console.log('🔄 Copying database file...');
+    logger.info('🔄 Copying database file...');
     await copyFile(DB_PATH, backupPath);
 
     // Step 2: Encrypt
-    console.log('🔄 Encrypting...');
+    logger.info('🔄 Encrypting...');
     await encryptFile(backupPath, encPath);
     const encStats = await stat(encPath);
 
     // Step 3: Checksum
-    console.log('🔄 Calculating checksum...');
+    logger.info('🔄 Calculating checksum...');
     const checksum = await calculateChecksum(encPath);
 
     // Step 4: Log to database
@@ -75,9 +76,9 @@ export async function createBackup(userId: string) {
       },
     });
 
-    console.log('✅ Backup created successfully');
-    console.log(`⏱️  Total time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
-    console.log(`📁 Location: ${encPath}`);
+    logger.info('✅ Backup created successfully');
+    logger.info(`⏱️  Total time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+    logger.info(`📁 Location: ${encPath}`);
 
     // Cleanup intermediate file (unencrypted)
     await unlink(backupPath);
@@ -85,7 +86,7 @@ export async function createBackup(userId: string) {
     return backupLog;
 
   } catch (error) {
-    console.error('❌ Backup failed:', error);
+    logger.error('❌ Backup failed', error);
 
     // Cleanup on error
     try { await unlink(backupPath); } catch { }
@@ -110,12 +111,12 @@ export async function validateBackup(backupId: string): Promise<boolean> {
   try {
     const currentChecksum = await calculateChecksum(backup.filePath);
     if (currentChecksum !== backup.checksum) {
-      console.error(`❌ Checksum mismatch for ${backup.filename}`);
+      logger.error(`❌ Checksum mismatch for ${backup.filename}`);
       return false;
     }
     return true;
   } catch (error) {
-    console.error(`❌ Validation failed for ${backup.filename}:`, error);
+    logger.error(`❌ Validation failed for ${backup.filename}`, error);
     return false;
   }
 }
@@ -144,7 +145,7 @@ export async function deleteBackup(backupId: string) {
   try {
     await unlink(backup.filePath);
   } catch (error) {
-    console.warn(`Could not delete file ${backup.filePath}:`, error);
+    logger.warn(`Could not delete file ${backup.filePath}`, error);
   }
 
   await prisma.backupLog.delete({

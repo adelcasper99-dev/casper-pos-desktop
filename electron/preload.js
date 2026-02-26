@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
-console.log('[PRELOAD] electronAPI bridging to renderer...');
+
 
 contextBridge.exposeInMainWorld('electronAPI', {
     /**
@@ -15,22 +15,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getPrinters: () => ipcRenderer.invoke('printers:list'),
 
     /**
-     * Silently print an HTML string to the named printer.
-     * The main process writes HTML to a temp file, loads it in a hidden window,
-     * waits for load + CSS settle, then calls webContents.print({ silent: true }).
-     *
-     * @param {string} html         - Self-contained HTML (inline styles required)
-     * @param {string} printerName  - Exact printer name from getPrinters(), or '' for default
-     * @param {object} [options]    - Optional overrides: { paperWidth, paperHeight } in microns
-     * @returns Promise<{ success: true }>
+     * Standard silent print (A4 / Document)
      */
-    print: (html, printerName, options) =>
-        ipcRenderer.invoke('print:silent', html, printerName, options),
+    printStandard: (html, printerName, options) =>
+        ipcRenderer.invoke('print:standard', html, printerName, options),
 
     /**
-     * High-speed thermal receipt printing (bypass generic PDF generation)
+     * Thermal silent print (Roll / Receipt)
      */
-    printThermalReceipt: (html, printerName, paperWidthMm) => ipcRenderer.invoke('app:print-thermal-receipt', { html, printerName, paperWidthMm }),
+    printThermal: (html, printerName, paperWidthMm) =>
+        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
+
+    saveToPDF: (html, filename) =>
+        ipcRenderer.invoke('print:to-pdf', html, filename),
+
+    /**
+     * Legacy generic print (mapped to standard)
+     */
+    print: (html, printerName, options) =>
+        ipcRenderer.invoke('print:standard', html, printerName, options),
+
+    /**
+     * High-speed thermal receipt printing (alias for printThermal)
+     */
+    printThermalReceipt: (html, printerName, paperWidthMm) =>
+        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
 
     /**
      * Custom window controls (used by TitleBar component).
@@ -54,9 +63,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
         // ── Zoom: use webFrame directly — runs in the renderer process, ──
         // ── no IPC round-trip needed, can't be blocked by drag region.  ──
-        zoomIn: () => { const z = Math.min(webFrame.getZoomFactor() + 0.1, 3.0); webFrame.setZoomFactor(z); console.log('[zoom] in ->', z.toFixed(2)); },
-        zoomOut: () => { const z = Math.max(webFrame.getZoomFactor() - 0.1, 0.5); webFrame.setZoomFactor(z); console.log('[zoom] out ->', z.toFixed(2)); },
-        zoomReset: () => { webFrame.setZoomFactor(1.0); console.log('[zoom] reset'); },
+        zoomIn: () => { const z = Math.min(webFrame.getZoomFactor() + 0.1, 3.0); webFrame.setZoomFactor(z); },
+        zoomOut: () => { const z = Math.max(webFrame.getZoomFactor() - 0.1, 0.5); webFrame.setZoomFactor(z); },
+        zoomReset: () => { webFrame.setZoomFactor(1.0); },
     },
 
     /**
@@ -76,7 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         loadOfflineData: () => ipcRenderer.invoke('app:load-offline-data'),
         exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
         vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
-        printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),
+
     }
 });
 

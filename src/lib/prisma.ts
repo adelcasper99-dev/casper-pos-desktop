@@ -15,10 +15,15 @@ function getDynamicDbUrl() {
         const configPath = path.join(homeDir, 'casper-pos-desktop', 'casper-config.json');
 
         if (fs.existsSync(configPath)) {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            if (config.dbPath) {
-                const normalizedDbPath = path.join(config.dbPath, 'local.db').replace(/\\/g, '/');
-                return `file:${normalizedDbPath}`;
+            const rawConfig = fs.readFileSync(configPath, 'utf8');
+            try {
+                const config = JSON.parse(rawConfig);
+                if (config.dbPath) {
+                    const normalizedDbPath = path.join(config.dbPath, 'local.db').replace(/\\/g, '/');
+                    return `file:${normalizedDbPath}`;
+                }
+            } catch (jsonError) {
+                console.warn('Malformed casper-config.json:', jsonError);
             }
         }
     } catch (error) {
@@ -38,4 +43,4 @@ export const prisma =
         },
     });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+globalForPrisma.prisma = prisma;

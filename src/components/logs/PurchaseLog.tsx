@@ -7,7 +7,7 @@ import {
     ChevronLeft, ChevronRight, FileText,
     CheckCircle2, XCircle, AlertCircle,
     Package, ArrowUpRight, ChevronDown,
-    Calendar as CalendarIcon
+    Calendar as CalendarIcon, RotateCcw
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -33,19 +33,24 @@ import {
 import { voidPurchase } from '@/actions/purchase-actions';
 import { cn } from '@/lib/utils';
 import { DateRange } from "react-day-picker"
+import PartialReturnPurchaseDialog from './PartialReturnPurchaseDialog';
+import { ReasonDialog } from '@/components/ui/ReasonDialog';
 
 interface PurchaseLogProps {
     initialPurchases: any[];
+    csrfToken?: string;
     onTotalsChange?: (totals: { actualTotal: number; remaining: number }) => void;
 }
 
-export default function PurchaseLog({ initialPurchases, onTotalsChange }: PurchaseLogProps) {
+export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChange }: PurchaseLogProps) {
     const [purchases, setPurchases] = useState(initialPurchases);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [dateFilter, setDateFilter] = useState<string>("all");
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [loading, setLoading] = useState<string | null>(null);
+    const [partialReturnPurchase, setPartialReturnPurchase] = useState<any>(null);
+    const [voidItem, setVoidItem] = useState<{ id: string } | null>(null);
 
     const filteredPurchases = purchases.filter(p => {
         const matchesSearch =
@@ -87,15 +92,12 @@ export default function PurchaseLog({ initialPurchases, onTotalsChange }: Purcha
         }
     }, [computedTotals.actualTotal, computedTotals.remaining]);
 
-    const handleVoid = async (id: string) => {
-        const reason = prompt("سبب الإلغاء/المرتجع (اختياري):");
-        if (reason === null) return;
-
+    const handleVoid = async (id: string, reason?: string) => {
         if (!confirm("هل أنت متأكد من إلغاء هذه الفاتورة؟ سيتم سحب الكميات من المخزن وتعديل مديونية المورد.")) return;
 
         setLoading(id);
         try {
-            const res = await voidPurchase(id, reason || undefined);
+            const res = await voidPurchase({ id, reason: reason || undefined, csrfToken });
             if (res.success) {
                 toast.success("تم إلغاء الفاتورة بنجاح");
                 setPurchases(purchases.map(p => p.id === id ? { ...p, status: 'VOIDED' } : p));
@@ -109,10 +111,29 @@ export default function PurchaseLog({ initialPurchases, onTotalsChange }: Purcha
         }
     };
 
+    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
+        setPurchases(prev => prev.map(p => {
+            if (p.id !== purchaseId) return p;
+            return {
+                ...p,
+                status: allReturned ? 'VOIDED' : 'PARTIAL_RETURN',
+                totalAmount: newTotal,
+                items: updatedItems
+            };
+        }));
+        setPartialReturnPurchase(null);
+    };
+
     const getStatusBadge = (status: string, total: number, paid: number) => {
         if (status === 'VOIDED') return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
-                <XCircle className="w-3 h-3" /> ملغاة
+                <XCircle className="w-3 h-3" /> مرتجع كامل
+            </span>
+        );
+
+        if (status === 'PARTIAL_RETURN') return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 uppercase">
+                <RotateCcw className="w-3 h-3" /> مرتجع جزئي
             </span>
         );
 
@@ -313,6 +334,15 @@ export default function PurchaseLog({ initialPurchases, onTotalsChange }: Purcha
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
+                                                        className="h-8 w-8 text-orange-400 hover:bg-orange-400/10"
+                                                        title="مرتجع جزئي"
+                                                        onClick={() => setPartialReturnPurchase(inv)}
+                                                    >
+                                                        <RotateCcw className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
                                                         className="h-8 w-8 text-cyan-400 hover:bg-cyan-400/10"
                                                         title="تعديل"
                                                         onClick={() => {
@@ -327,9 +357,9 @@ export default function PurchaseLog({ initialPurchases, onTotalsChange }: Purcha
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-8 w-8 text-rose-400 hover:bg-rose-400/10"
-                                                        title="إلغاء / مرتجع"
+                                                        title="إلغاء كامل"
                                                         disabled={loading === inv.id}
-                                                        onClick={() => handleVoid(inv.id)}
+                                                        onClick={() => setVoidItem({ id: inv.id })}
                                                     >
                                                         {loading === inv.id ? (
                                                             <div className="w-4 h-4 border-2 border-rose-400/30 border-t-rose-400 rounded-full animate-spin" />
@@ -347,6 +377,26 @@ export default function PurchaseLog({ initialPurchases, onTotalsChange }: Purcha
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Void Reason Dialog */}
+            <ReasonDialog
+                isOpen={!!voidItem}
+                onClose={() => setVoidItem(null)}
+                onConfirm={(reason) => {
+                    if (voidItem) handleVoid(voidItem.id, reason);
+                }}
+                title="سبب إلغاء فاتورة المشتريات"
+                placeholder="أدخل سبب الإلغاء (اختياري)..."
+            />
+
+            {/* Partial Return Dialog */}
+            <PartialReturnPurchaseDialog
+                isOpen={!!partialReturnPurchase}
+                onClose={() => setPartialReturnPurchase(null)}
+                purchase={partialReturnPurchase}
+                onReturnDone={handlePartialReturnDone}
+                csrfToken={csrfToken}
+            />
         </div>
     );
 }

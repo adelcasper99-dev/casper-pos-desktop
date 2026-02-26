@@ -18,7 +18,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   const storeName = settings?.name ?? "CASPER POS";
   const address = settings?.address ?? "";
   const phone = settings?.phone ?? "";
-  const currency = settings?.currency ?? "SAR";
+  const currency = settings?.currency ?? "EGP";
   const footer = settings?.receiptFooter ?? "شكراً لزيارتكم";
   const paperSize = settings?.paperSize ?? "80mm";
 
@@ -58,10 +58,10 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
     
     body {
       font-family: Arial, Tahoma, sans-serif;
-      width: ${paperWidth};
-      max-width: ${paperWidth};
-      margin: 0 auto;
-      padding: 3mm 13mm 3mm 0mm;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 3mm 1mm 3mm 1mm;
       background: #fff;
       color: #000;
       font-size: 12px;
@@ -208,6 +208,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   <div class="footer">
     <div class="footer-msg">${isOrder ? "إيصال طلب - يتم المحاسبة عند الكاشير" : footer}</div>
     ${!isOrder ? `
+    <div style="margin-top: 1mm; font-size: 9px; color: #555;">Powered by Casper POS</div>
     <div style="margin-top: 2mm;">
         ${generateBarcodeSVG(invoiceNumber?.replace(/[^A-Z0-9]/gi, "").slice(-12) || "000000000000")}
     </div>

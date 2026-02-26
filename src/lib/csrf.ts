@@ -3,6 +3,9 @@ import { cookies } from 'next/headers';
 const CSRF_COOKIE_NAME = 'csrf-token';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
+import { logger } from './logger';
+import { timingSafeEqual } from 'crypto';
+
 /**
  * Generate a new CSRF token via API route
  * 
@@ -49,6 +52,7 @@ export async function verifyCSRFToken(token: string | undefined): Promise<boolea
   if (!storedToken) {
     if (process.env.NODE_ENV === 'development') {
       console.warn('[CSRF] Token validation failed: No stored token in cookies');
+      logger.warn('[CSRF] Token validation failed: No stored token in cookies');
     }
     return false;
   }
@@ -56,7 +60,7 @@ export async function verifyCSRFToken(token: string | undefined): Promise<boolea
   // ✅ SECURITY: Timing-safe comparison to prevent timing attacks (Phase 1)
   try {
     // Import timing-safe comparison from Node.js crypto
-    const { timingSafeEqual } = await import('crypto');
+    // const { timingSafeEqual } = await import('crypto'); // This line is replaced by the top-level import
 
     const tokenBuffer = Buffer.from(token, 'utf-8');
     const storedBuffer = Buffer.from(storedToken, 'utf-8');
@@ -139,7 +143,7 @@ export async function rotateCSRFToken(): Promise<string> {
 
     return data.token;
   } catch (error) {
-    console.error('[CSRF] Token rotation failed:', error);
+    logger.error('[CSRF] Token rotation failed', error);
     throw error;
   }
 }
@@ -159,5 +163,5 @@ export function getTokenExpiryTime(maxAge: number = 60 * 60 * 24): number {
 export async function deleteCSRFToken(): Promise<void> {
   // This would need a DELETE endpoint at /api/csrf/generate
   // For now, the cookie will expire naturally after 24 hours
-  console.warn('CSRF token deletion must be done via API route in Next.js 16+');
+  // ✅ SILENCED FOR PRODUCTION: console.warn('CSRF token deletion must be done via API route in Next.js 16+');
 }

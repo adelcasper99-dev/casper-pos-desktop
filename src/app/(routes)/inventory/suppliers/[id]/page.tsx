@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/actions/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { getTranslations } from "@/lib/i18n-mock";
+import { getCSRFToken } from "@/lib/csrf";
 import { ArrowLeft, Phone, Mail, MapPin, Wallet, TrendingUp, History, Receipt, CreditCard } from "lucide-react";
 import Link from "next/link";
 import SupplierHistoryTable from "@/components/inventory/SupplierHistoryTable";
@@ -149,6 +150,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             : 0
     };
 
+    const csrfToken = await getCSRFToken();
     const tSuppliers = await getTranslations('Inventory.Suppliers');
 
     return (
@@ -246,6 +248,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         email={supplier.email}
                         address={supplier.address}
                         transactions={transactionsWithBalance}
+                        csrfToken={csrfToken || ''}
                     />
                 </div>
 

@@ -10,6 +10,7 @@
 import type { LabelProduct, LabelTemplate } from './label-commands';
 import { PRINTER_REGISTRY_KEY, type PrinterRegistry } from '@/types/printer-config';
 import { safeRandomUUID } from './utils';
+import { logger } from './logger';
 
 // ─────────────────────────────────────────────
 // Type augmentation for the Electron bridge
@@ -19,8 +20,11 @@ declare global {
     electronAPI?: {
       isElectron: true;
       getPrinters: () => Promise<{ name: string; isDefault: boolean; status: number }[]>;
-      print: (html: string, printerName: string, options?: any) => Promise<{ success: true }>;
+      printStandard: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
+      printThermal: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
+      print: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
       printThermalReceipt: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
+      saveToPDF: (html: string, filename?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
       /** Custom frameless window controls – exposed by TitleBar */
       windowControls?: {
         minimize: () => void;
@@ -77,8 +81,12 @@ class ElectronPrintChannel {
     return def?.name ?? (printers[0]?.name ?? null);
   }
 
-  async print(html: string, printerName: string, options?: any): Promise<void> {
-    await window.electronAPI!.print(html, printerName, options ?? {});
+  async print(html: string, printerName: string, options?: any): Promise<{ success: boolean; error?: string }> {
+    return await window.electronAPI!.printStandard(html, printerName, options ?? {});
+  }
+
+  async printThermal(html: string, printerName: string, paperWidthMm: number): Promise<{ success: boolean; error?: string }> {
+    return await window.electronAPI!.printThermal(html, printerName, paperWidthMm);
   }
 }
 
@@ -119,6 +127,18 @@ class CasperAgentClient {
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Agent print failed');
+    }
+  }
+
+  async printThermal(html: string, printerName: string) {
+    const res = await fetch(`${AGENT_URL}/print/thermal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ printerName, html })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Agent thermal print failed');
     }
   }
 }
@@ -171,7 +191,7 @@ class PrintService {
           updatedAt: Date.now()
         };
         this.saveRegistry();
-        console.log('✓ Migrated legacy printer settings to Registry v2');
+        logger.info('✓ Migrated legacy printer settings to Registry v2');
       }
     }
   }
@@ -299,7 +319,7 @@ class PrintService {
         const widthMm = template?.page?.width ?? 58;
         const success = await this.printSilentHTML(html, targetPrinter, { paperWidthMm: widthMm });
         if (success) {
-          console.log(`✓ [Electron] Printed ${labels.length} label(s) to "${targetPrinter}"`);
+          logger.info(`✓ [Electron] Printed ${labels.length} label(s) to "${targetPrinter}"`);
           return;
         }
       } catch (err) {
@@ -316,7 +336,7 @@ class PrintService {
       const { generateMultipleLabelCommands } = await import('./label-commands');
       const commands = generateMultipleLabelCommands(labels, template);
       await service.printESCPOS(targetPrinter, commands);
-      console.log(`✓ [QZ] Printed ${labels.length} label(s) to "${targetPrinter}"`);
+      logger.info(`✓ [QZ] Printed ${labels.length} label(s) to "${targetPrinter}"`);
     } catch (error: any) {
       if (error.message === 'QZ_TRAY_OFFLINE') throw error;
       throw new Error(`Print error: ${error.message}`);
@@ -331,7 +351,7 @@ class PrintService {
       const { generateTestLabel } = await import('./label-commands');
       const commands = generateTestLabel();
       await service.printESCPOS(targetPrinter, commands);
-      console.log(`✓ Test print sent to ${targetPrinter}`);
+      logger.info(`✓ Test print sent to ${targetPrinter}`);
     } catch (error: any) {
       throw new Error(`Test print failed: ${error.message}`);
     }
@@ -354,10 +374,12 @@ class PrintService {
   async printThermal(html: string, printerName: string, paperWidthMm: number = 80): Promise<boolean> {
     if (this.isElectron()) {
       try {
-        const result = await window.electronAPI!.printThermalReceipt(html, printerName, paperWidthMm);
-        if (result.success) {
-          console.log(`✓ [Electron-Thermal] Printed to "${printerName}"`);
+        const result = await electronChannel.printThermal(html, printerName, paperWidthMm);
+        if (result?.success) {
+          logger.info(`✓ [Electron-Thermal] Printed to "${printerName}"`);
           return true;
+        } else {
+          console.warn('[PrintService] Electron thermal reported failure:', result?.error);
         }
       } catch (err) {
         console.warn('[PrintService] Electron thermal channel failed', err);
@@ -380,18 +402,16 @@ class PrintService {
     // 1. Electron (best path — zero dependencies, truly silent)
     if (electronChannel.isAvailable()) {
       try {
-        if (!window.electronAPI?.print) {
-          console.warn('[PrintService] electronAPI.print is MISSING from bridge');
+        if (!window.electronAPI?.printStandard) {
+          console.warn('[PrintService] electronAPI.printStandard is MISSING from bridge');
         } else {
-          const widthMicrons = Math.round((options?.paperWidthMm || 80) * 1000);
-          await electronChannel.print(html, printerName, {
-            pageSize: {
-              width: widthMicrons,
-              height: 2970000 // large max height so receipt isn't clipped
-            }
-          });
-          console.log(`✓ [Electron] Printed to "${printerName}"`);
-          return true;
+          const result = await electronChannel.print(html, printerName, options);
+          if (result?.success) {
+            logger.info(`✓ [Electron] Printed to "${printerName}"`);
+            return true;
+          } else {
+            console.warn('[PrintService] Electron standard reported failure:', result?.error);
+          }
         }
       } catch (err) {
         console.warn('[PrintService] Electron silent print failed, trying Agent...', err);
@@ -403,7 +423,7 @@ class PrintService {
       const isAgentAvailable = await agentClient.isAvailable();
       if (isAgentAvailable) {
         await agentClient.printHTML(html, printerName);
-        console.log(`✓ [Agent] Printed to "${printerName}"`);
+        logger.info(`✓ [Agent] Printed to "${printerName}"`);
         return true;
       }
     } catch (e) {
@@ -420,7 +440,7 @@ class PrintService {
           data: [{ type: 'html', format: 'plain', data: html } as any],
           options: { flavor: 'html' }
         });
-        console.log(`✓ [QZ] Printed to "${printerName}"`);
+        logger.info(`✓ [QZ] Printed to "${printerName}"`);
         return true;
       }
     } catch (e) {
@@ -428,6 +448,13 @@ class PrintService {
     }
 
     return false;
+  }
+
+  async saveToPDF(html: string, filename?: string): Promise<{ success: boolean; path?: string; error?: string }> {
+    if (!this.isElectron()) {
+      return { success: false, error: 'PDF export is only available in Desktop version' };
+    }
+    return await window.electronAPI!.saveToPDF(html, filename);
   }
 
   /**
