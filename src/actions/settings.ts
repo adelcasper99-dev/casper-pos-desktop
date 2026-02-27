@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { secureAction } from "@/lib/safe-action";
 
 import { settingsSchema } from "@/lib/validation/settings";
-import { ensureMainBranch, syncMainBranchName } from "@/lib/ensure-main-branch";
+import { ensureMainBranch, syncMainBranchDetails } from "@/lib/ensure-main-branch";
 
 import { getSession } from "@/lib/auth";
 
@@ -114,10 +114,12 @@ export const updateStoreSettings = secureAction(async (data: any) => {
         }
     });
 
-    // Sync main branch name with store name (single-branch mode)
-    if (validated.name) {
-        await syncMainBranchName(validated.name);
-    }
+    // Sync main branch details with store settings (single-branch mode)
+    await syncMainBranchDetails({
+        name: validated.name,
+        phone: validated.phone,
+        address: validated.address
+    });
 
     revalidatePath("/settings");
     revalidatePath("/pos");

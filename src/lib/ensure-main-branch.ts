@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 
 const MAIN_BRANCH_CODE = 'MAIN';
 let cachedMainBranchId: string | null = null; // V-08: In-memory cache for ultra-fast login
+let migrationChecked = false; // Ensure migration logic runs at least once per process
 
 // Payment method treasuries to auto-create
 const PAYMENT_TREASURIES = [
@@ -20,52 +21,94 @@ const PAYMENT_TREASURIES = [
 ];
 
 export async function ensureMainBranch(): Promise<string> {
+    // ── Migration Check (MAIN-001 -> MAIN) ──
+    if (!migrationChecked) {
+        const legacyBranch = await prisma.branch.findUnique({ where: { code: 'MAIN-001' } });
+        if (legacyBranch) {
+            const mainBranch = await prisma.branch.findUnique({ where: { code: MAIN_BRANCH_CODE } });
+            if (mainBranch) {
+                // Collision: user doesn't need current database data. 
+                // Move users to MAIN so they can still log in, but clear other records to avoid conflicts.
+                await prisma.$transaction([
+                    prisma.user.updateMany({ where: { branchId: legacyBranch.id }, data: { branchId: mainBranch.id } }),
+                    prisma.treasury.deleteMany({ where: { branchId: legacyBranch.id } }),
+                    prisma.warehouse.deleteMany({ where: { branchId: legacyBranch.id } }),
+                    prisma.stockRequest.deleteMany({ where: { branchId: legacyBranch.id } }),
+                    prisma.branch.delete({ where: { id: legacyBranch.id } })
+                ]).catch(async () => {
+                    // Fallback: If transaction fails (e.g. more complex FKs), just rename it to avoid code conflict
+                    await prisma.branch.update({ where: { id: legacyBranch.id }, data: { code: `OLD-${legacyBranch.id.slice(0, 4)}` } });
+                });
+            } else {
+                // Safe to rename
+                await prisma.branch.update({ where: { id: legacyBranch.id }, data: { code: MAIN_BRANCH_CODE } });
+            }
+        }
+        migrationChecked = true;
+    }
+
     // ── V-08: Extreme Fast Path (Memory) ──────────────────────────────────────────
     if (cachedMainBranchId) return cachedMainBranchId;
 
     // ── V-08: Regular Fast Path (DB Check) ───────────────────────────────────────
-    // Get store name from settings
+    // Get store info from settings
     const settings = await prisma.storeSettings.findUnique({
         where: { id: 'settings' },
-        select: { name: true }
+        select: { name: true, phone: true, address: true }
     });
-    const storeName = settings?.name || 'الفرع الرئيسي';
+
+    const storeInfo = {
+        name: settings?.name || 'الفرع الرئيسي',
+        phone: settings?.phone || null,
+        address: settings?.address || null
+    };
 
     // Try to find the existing main branch
     const branch = await prisma.branch.findUnique({
         where: { code: MAIN_BRANCH_CODE }
     });
 
-    // If branch exists and name matches, skip heavy initialization
-    if (branch && branch.name === storeName) {
+    // If branch exists and all info matches, skip heavy initialization
+    if (branch &&
+        branch.name === storeInfo.name &&
+        branch.phone === storeInfo.phone &&
+        branch.address === storeInfo.address) {
         cachedMainBranchId = branch.id;
         return branch.id;
     }
 
     // ── Slow Path (Initialization or Update) ────────────────────────────────────
-    const branchId = await initializeOrUpdateMainBranch(storeName, branch);
+    const branchId = await initializeOrUpdateMainBranch(storeInfo, branch);
     cachedMainBranchId = branchId;
     return branchId;
 }
 
-async function initializeOrUpdateMainBranch(storeName: string, existingBranch: any): Promise<string> {
+async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: string | null, address: string | null }, existingBranch: any): Promise<string> {
     let branch = existingBranch;
 
     if (!branch) {
         branch = await prisma.branch.create({
             data: {
-                name: storeName,
+                name: storeInfo.name,
                 code: MAIN_BRANCH_CODE,
                 type: 'STORE',
+                phone: storeInfo.phone,
+                address: storeInfo.address,
                 sortOrder: 0
             }
         });
-    } else if (branch.name !== storeName) {
+    } else if (branch.name !== storeInfo.name || branch.phone !== storeInfo.phone || branch.address !== storeInfo.address) {
         branch = await prisma.branch.update({
             where: { code: MAIN_BRANCH_CODE },
-            data: { name: storeName }
+            data: {
+                name: storeInfo.name,
+                phone: storeInfo.phone,
+                address: storeInfo.address
+            }
         });
     }
+
+    const storeName = storeInfo.name;
 
     // Always ensure a default warehouse exists for this branch
     const existingDefaultWarehouse = await prisma.warehouse.findFirst({
@@ -79,33 +122,47 @@ async function initializeOrUpdateMainBranch(storeName: string, existingBranch: a
         if (anyWarehouse) {
             await prisma.warehouse.update({
                 where: { id: anyWarehouse.id },
-                data: { isDefault: true }
+                data: { isDefault: true, name: storeName }
             });
         } else {
             await prisma.warehouse.create({
                 data: { name: storeName, branchId: branch.id, isDefault: true }
             });
         }
+    } else if (existingDefaultWarehouse.name !== storeName) {
+        await prisma.warehouse.update({
+            where: { id: existingDefaultWarehouse.id },
+            data: { name: storeName }
+        });
     }
 
     // Ensure all 4 payment-method treasuries exist
     for (const t of PAYMENT_TREASURIES) {
         const existing = await prisma.treasury.findFirst({
-            where: { branchId: branch.id, paymentMethod: t.paymentMethod, deletedAt: null }
+            where: {
+                branchId: branch.id,
+                OR: [
+                    { paymentMethod: t.paymentMethod },
+                    { name: t.name }
+                ]
+            }
         });
+
         if (!existing) {
-            // Check if name already taken (edge case: manually created with same name)
-            const nameTaken = await prisma.treasury.findFirst({
-                where: { branchId: branch.id, name: t.name }
-            });
             await prisma.treasury.create({
                 data: {
-                    name: nameTaken ? `${t.name} (${t.paymentMethod})` : t.name,
+                    name: t.name,
                     branchId: branch.id,
                     isDefault: t.isDefault,
                     paymentMethod: t.paymentMethod,
                     balance: 0
                 }
+            });
+        } else if (!existing.paymentMethod && t.paymentMethod) {
+            // Found by name but paymentMethod was null? Update it.
+            await prisma.treasury.update({
+                where: { id: existing.id },
+                data: { paymentMethod: t.paymentMethod }
             });
         }
     }
@@ -142,15 +199,33 @@ async function initializeOrUpdateMainBranch(storeName: string, existingBranch: a
 
 
 /**
- * Sync the main branch name with the store name.
- * Call this after updating StoreSettings.name.
+ * Sync the main branch details with the store settings.
+ * Call this after updating StoreSettings (name, phone, address).
  */
-export async function syncMainBranchName(storeName: string): Promise<void> {
+export async function syncMainBranchDetails(details: { name?: string; phone?: string | null; address?: string | null }): Promise<void> {
     try {
         await prisma.branch.update({
             where: { code: MAIN_BRANCH_CODE },
-            data: { name: storeName }
+            data: {
+                name: details.name ?? undefined,
+                phone: details.phone === undefined ? undefined : details.phone,
+                address: details.address === undefined ? undefined : details.address
+            }
         });
+
+        // Also sync default warehouse name if store name changed
+        if (details.name) {
+            const branch = await prisma.branch.findUnique({ where: { code: MAIN_BRANCH_CODE } });
+            if (branch) {
+                await prisma.warehouse.updateMany({
+                    where: { branchId: branch.id, isDefault: true },
+                    data: { name: details.name }
+                });
+            }
+        }
+
+        // Clear cache so next ensureMainBranch call gets fresh data
+        cachedMainBranchId = null;
     } catch {
         // Branch might not exist yet – not a critical error
     }

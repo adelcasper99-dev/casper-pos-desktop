@@ -58,31 +58,35 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
     
     body {
       font-family: Arial, Tahoma, sans-serif;
-      width: 100%;
-      max-width: 100%;
-      margin: 0;
-      padding: 3mm 1mm 3mm 1mm;
+      width: ${pageSize === "58" ? "48mm" : "70mm"};
+      margin: 0 auto 0 ${pageSize === "58" ? "-2mm" : "-2mm"}; /* Nudged another 1mm left (Total 7mm left from center) */
+      padding: 3mm 4mm 3mm 2mm; /* Nudged right-side text (RTL start) 2mm left */
       background: #fff;
       color: #000;
       font-size: 12px;
       line-height: 1.4;
       font-weight: 600;
+      word-break: break-word;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     
     .header {
+      width: 100%;
       text-align: center;
       padding-bottom: 3mm;
       border-bottom: 0.5mm solid #000;
       margin-bottom: 2mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-    .shop-name { font-size: 16px; font-weight: 700; letter-spacing: 0.5mm; }
+    .shop-name { font-size: 16px; font-weight: 700; letter-spacing: 0.5mm; width: 100%; }
     
     .info {
       display: flex;
       justify-content: space-between;
-      padding: 2mm 0;
+      padding: 2mm 1mm;
       font-size: 11px;
       font-weight: 600;
       color: #000;
@@ -100,6 +104,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
       display: flex;
       justify-content: space-between;
       align-items: center;
+      padding: 0 1mm;
       font-weight: 700;
       font-size: 14px;
       color: #000;
@@ -121,9 +126,11 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
     .total {
       background: #000;
       color: #fff;
-      margin: 3mm -2mm;
+      margin: 4mm 0;
       padding: 4mm 2mm;
       text-align: center;
+      border-radius: 2mm;
+      width: 100%;
     }
     .total-label {
       font-size: 10px;
@@ -198,17 +205,17 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
     <div class="total-amount">${formatCurrency(totalAmount, currency)}</div>
   </div>
 
-  <div class="payment" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; padding: 2mm 0; color: #000;">
+  <div class="payment" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; padding: 2mm 0; border-top: 1px dashed #ccc; color: #000;">
     <span>طريقة الدفع:</span>
     <span>${paymentMethod || "نقداً"}</span>
   </div>
 
   ${remaining > 0 ? `
-  <div style="background: #ddd; margin: 0 -3mm; padding: 2mm 3mm; display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #000;">
+  <div style="background: #eee; margin: 2mm 0; padding: 2mm; display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #000; border-radius: 1mm;">
     <span>المدفوع</span>
     <span>${formatCurrency(paidAmount || 0, currency)}</span>
   </div>
-  <div style="background: #000; color: #fff; margin: 0 -3mm; padding: 3mm; display: flex; justify-content: space-between; font-size: 13px; font-weight: 700;">
+  <div style="background: #000; color: #fff; margin: 1mm 0; padding: 3mm; display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; border-radius: 1mm;">
     <span>المتبقي</span>
     <span>${formatCurrency(remaining, currency)}</span>
   </div>

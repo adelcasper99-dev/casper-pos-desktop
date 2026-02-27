@@ -34,11 +34,11 @@ export async function performSetup(data: {
 
     await prisma.$transaction(async (tx) => {
         // 2. Create Branch
-        // NOTE: Branch has no isDefault column — identity is by code: "MAIN-001"
+        // NOTE: Branch has no isDefault column — identity is by code: "MAIN"
         const branch = await tx.branch.create({
             data: {
                 name: data.branch.name,
-                code: "MAIN-001",
+                code: "MAIN",
                 type: data.branch.type,
                 address: "Main Office"
             }
