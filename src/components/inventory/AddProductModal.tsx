@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, Trash2, Loader2, Save, Wand2, Package, Box, Infinity as InfinityIcon, X } from "lucide-react";
 import { createProduct, generateNextSku, seedBundleCategory } from "@/actions/inventory";
 import GlassModal from "../ui/GlassModal";
+import { Combobox } from "@/components/ui/combobox";
 
 interface Category {
     id: string;
@@ -43,9 +44,9 @@ const EMPTY_FORM = {
     sellPrice2: 0,
     sellPrice3: 0,
     stock: 0,
-    minStock: 5,
-    trackStock: true,
-    isBundle: false,
+    minStock: 0,
+    trackStock: false,
+    isBundle: true,
     description: "",
 };
 
@@ -75,10 +76,19 @@ export default function AddProductModal({
 
     // Keep costPrice in sync with bundle components
     useEffect(() => {
-        if (form.isBundle) {
-            setForm(f => ({ ...f, costPrice: computedBundleCost }));
+        setForm(f => ({ ...f, costPrice: computedBundleCost }));
+    }, [computedBundleCost]);
+
+    // Ensure category exists and auto-select
+    useEffect(() => {
+        if (isOpen) {
+            seedBundleCategory({ csrfToken } as any).catch(() => {});
+            const bundleCat = categories.find(c => c.name === "العروض والباقات");
+            if (bundleCat && form.categoryId === "") {
+                setForm(f => ({ ...f, categoryId: bundleCat.id }));
+            }
         }
-    }, [computedBundleCost, form.isBundle]);
+    }, [isOpen, categories, form.categoryId, csrfToken]);
 
     const handleAutoSku = async () => {
         setGeneratingSku(true);
@@ -101,16 +111,7 @@ export default function AddProductModal({
         ));
     };
 
-    const handleBundleToggle = async (checked: boolean) => {
-        setForm(f => ({ ...f, isBundle: checked, trackStock: !checked, stock: 0 }));
-        if (checked) {
-            // Ensure the bundle category exists
-            try { await seedBundleCategory({ csrfToken } as any); } catch (_) { /* not critical */ }
-            // Auto-select it if found
-            const bundleCat = categories.find(c => c.name === "العروض والباقات");
-            if (bundleCat) setForm(f => ({ ...f, isBundle: true, categoryId: bundleCat.id, trackStock: false, stock: 0 }));
-        }
-    };
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -119,12 +120,9 @@ export default function AddProductModal({
         if (!form.sku.trim()) { setError("SKU مطلوب"); return; }
         if (!form.name.trim()) { setError("اسم المنتج مطلوب"); return; }
         if (!form.categoryId) { setError("يرجى اختيار تصنيف"); return; }
-        if (form.isBundle && bundleItems.length === 0) { setError("أضف منتجاً واحداً على الأقل للباقة"); return; }
-        if (form.isBundle && bundleItems.some(b => !b.componentProductId)) {
+        if (bundleItems.length === 0) { setError("أضف منتجاً واحداً على الأقل للباقة"); return; }
+        if (bundleItems.some(b => !b.componentProductId)) {
             setError("يرجى اختيار منتج لكل عنصر في الباقة"); return;
-        }
-        if (!form.isBundle && form.sellPrice < form.costPrice) {
-            setError("سعر البيع يجب أن يكون أكبر من أو يساوي سعر التكلفة"); return;
         }
 
         setLoading(true);
@@ -133,18 +131,18 @@ export default function AddProductModal({
                 sku: form.sku.trim(),
                 name: form.name.trim(),
                 categoryId: form.categoryId || undefined,
-                costPrice: form.isBundle ? computedBundleCost : Number(form.costPrice),
+                costPrice: computedBundleCost,
                 sellPrice: Number(form.sellPrice),
                 sellPrice2: Number(form.sellPrice2) || 0,
                 sellPrice3: Number(form.sellPrice3) || 0,
-                stock: form.isBundle ? 0 : Number(form.stock),
-                minStock: Number(form.minStock) || 5,
-                trackStock: form.isBundle ? false : form.trackStock,
-                isBundle: form.isBundle,
-                bundleItems: form.isBundle ? bundleItems.map(b => ({
+                stock: 0,
+                minStock: 0,
+                trackStock: false,
+                isBundle: true,
+                bundleItems: bundleItems.map(b => ({
                     componentProductId: b.componentProductId,
                     quantityIncluded: Number(b.quantityIncluded),
-                })) : undefined,
+                })),
                 csrfToken,
             } as any);
 
@@ -171,30 +169,8 @@ export default function AddProductModal({
     };
 
     return (
-        <GlassModal isOpen={isOpen} onClose={handleClose} title="إضافة منتج جديد">
+        <GlassModal isOpen={isOpen} onClose={handleClose} title="إضافة باقة / عرض جديد">
             <form onSubmit={handleSubmit} className="space-y-5 max-h-[80vh] overflow-y-auto pr-1">
-
-                {/* Bundle Toggle */}
-                <div
-                    onClick={() => handleBundleToggle(!form.isBundle)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all select-none ${
-                        form.isBundle
-                            ? "border-amber-400/60 bg-amber-500/10"
-                            : "border-border bg-muted/20 hover:bg-muted/40"
-                    }`}
-                >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        form.isBundle ? "bg-amber-500 border-amber-500" : "border-border"
-                    }`}>
-                        {form.isBundle && <span className="text-white text-xs font-bold">✓</span>}
-                    </div>
-                    <Package className={`w-4 h-4 ${form.isBundle ? "text-amber-400" : "text-muted-foreground"}`} />
-                    <div>
-                        <div className="font-bold text-sm">هذا المنتج باقة / عرض</div>
-                        <div className="text-xs text-muted-foreground">المخزون يُحسب من مكونات الباقة</div>
-                    </div>
-                </div>
-
                 {/* SKU + Name */}
                 <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -246,12 +222,11 @@ export default function AddProductModal({
                         <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">التكلفة</label>
                         <input
                             type="number"
-                            className={`glass-input w-full ${form.isBundle ? "opacity-60 cursor-not-allowed" : ""}`}
-                            value={form.isBundle ? computedBundleCost.toFixed(2) : form.costPrice}
-                            readOnly={form.isBundle}
-                            onChange={e => !form.isBundle && setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))}
+                            className="glass-input w-full opacity-60 cursor-not-allowed"
+                            value={computedBundleCost.toFixed(2)}
+                            readOnly
                         />
-                        {form.isBundle && <div className="text-[10px] text-amber-400 mt-0.5">محسوب تلقائياً</div>}
+                        <div className="text-[10px] text-amber-400 mt-0.5">محسوب تلقائياً من المكونات</div>
                     </div>
                     <div>
                         <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">سعر البيع</label>
@@ -270,37 +245,9 @@ export default function AddProductModal({
                     </div>
                 </div>
 
-                {/* Stock (hidden for bundles) */}
-                {!form.isBundle && (
-                    <div className="grid grid-cols-3 gap-3">
-                        <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">المخزون</label>
-                            <input type="number" className="glass-input w-full" value={form.stock}
-                                onChange={e => setForm(f => ({ ...f, stock: parseInt(e.target.value) || 0 }))} />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">حد أدنى</label>
-                            <input type="number" className="glass-input w-full" value={form.minStock}
-                                onChange={e => setForm(f => ({ ...f, minStock: parseInt(e.target.value) || 5 }))} />
-                        </div>
-                        <div className="flex items-end pb-1">
-                            <div
-                                onClick={() => setForm(f => ({ ...f, trackStock: !f.trackStock }))}
-                                className="flex items-center gap-2 p-3 bg-muted/20 rounded-xl border border-border cursor-pointer w-full"
-                            >
-                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${form.trackStock ? "bg-cyan-500 border-cyan-500" : "border-border"}`}>
-                                    {form.trackStock && <span className="text-white text-[10px] font-bold">✓</span>}
-                                </div>
-                                {form.trackStock ? <Box className="w-4 h-4 text-zinc-400" /> : <InfinityIcon className="w-4 h-4 text-cyan-400" />}
-                                <span className="text-xs font-bold">{form.trackStock ? "تتبع المخزون" : "لا محدود"}</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {/* Bundle Components Table */}
-                {form.isBundle && (
-                    <div className="space-y-3">
+                <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <label className="text-xs text-amber-400 uppercase font-bold">مكونات الباقة</label>
                             <button
@@ -322,18 +269,17 @@ export default function AddProductModal({
                             const selectedComp = componentCandidates.find(p => p.id === row.componentProductId);
                             return (
                                 <div key={idx} className="flex items-center gap-2 p-3 bg-muted/20 rounded-xl border border-border">
-                                    <select
-                                        className="glass-input flex-1 [&>option]:text-black text-sm"
-                                        value={row.componentProductId}
-                                        onChange={e => handleComponentChange(idx, "componentProductId", e.target.value)}
-                                    >
-                                        <option value="">اختر منتجاً</option>
-                                        {componentCandidates.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name} — مخزون: {p.stock}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="flex-1">
+                                        <Combobox
+                                            options={componentCandidates.map(p => ({
+                                                label: `${p.name} — مخزون: ${p.stock}`,
+                                                value: p.id
+                                            }))}
+                                            value={row.componentProductId}
+                                            onChange={(val: string) => handleComponentChange(idx, "componentProductId", val)}
+                                            placeholder="اختر منتجاً..."
+                                        />
+                                    </div>
                                     <div className="flex items-center gap-1">
                                         <label className="text-xs text-muted-foreground whitespace-nowrap">الكمية:</label>
                                         <input
@@ -367,7 +313,6 @@ export default function AddProductModal({
                             </div>
                         )}
                     </div>
-                )}
 
                 {/* Error */}
                 {error && (
@@ -384,11 +329,7 @@ export default function AddProductModal({
                         إلغاء
                     </button>
                     <button type="submit" disabled={loading}
-                        className={`flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-colors ${
-                            form.isBundle
-                                ? "bg-amber-500 hover:bg-amber-400 text-black"
-                                : "bg-cyan-500 hover:bg-cyan-400 text-black"
-                        }`}>
+                        className="flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-colors bg-amber-500 hover:bg-amber-400 text-black">
                         {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
                         حفظ المنتج
                     </button>

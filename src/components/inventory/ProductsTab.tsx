@@ -194,10 +194,10 @@ export default function ProductsTab({
                 {canManage && (
                     <button
                         onClick={() => setAddProductOpen(true)}
-                        className="px-5 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg flex items-center gap-2 transition-colors shrink-0"
+                        className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg flex items-center gap-2 transition-colors shrink-0"
                     >
                         <Plus className="w-4 h-4" />
-                        إضافة منتج
+                        إضافة باقة / عرض
                     </button>
                 )}
 

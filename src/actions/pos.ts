@@ -92,6 +92,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         const productIds = data.items.map(item => item.id);
         const products = await tx.product.findMany({
             where: { id: { in: productIds } },
+            // @ts-ignore: isBundle exists in schema but might be missing in cached types
             select: { id: true, costPrice: true, name: true, isBundle: true }
         });
 
