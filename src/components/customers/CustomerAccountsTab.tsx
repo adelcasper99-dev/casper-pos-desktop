@@ -64,8 +64,10 @@ export default function CustomerAccountsTab() {
                 search: query,
                 hasBalance: hasBalanceOnly
             });
-            if (result?.customers) {
+            if (result.success && Array.isArray(result.customers)) {
                 setCustomers(result.customers);
+            } else if (result.error) {
+                toast.error(result.error);
             }
         } catch (error) {
             toast.error("Failed to load customers");
@@ -100,8 +102,10 @@ export default function CustomerAccountsTab() {
         setLoading(true);
         try {
             const result = await getCustomerDetails(customer.id);
-            if (result?.id) {
+            if (result.success && result.id) {
                 setCustomerDetails(result);
+            } else if (result.error) {
+                toast.error(result.error);
             }
         } catch (error) {
             toast.error('Failed to load details');
@@ -149,6 +153,8 @@ export default function CustomerAccountsTab() {
                     toast.success(t('creditModal.success'));
                     setShowLimitModal(false);
                     loadCustomers();
+                } else if (res?.error) {
+                    toast.error(res.error);
                 }
             } catch (error) {
                 toast.error('Failed to update limit');
