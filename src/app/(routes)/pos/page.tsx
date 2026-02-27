@@ -29,7 +29,8 @@ export default async function POSPage() {
         sellPrice: p.sellPrice.toNumber(),
         sellPrice3: p.sellPrice3?.toNumber() || 0,
         minStock: p.minStock,
-        trackStock: (p as any).trackStock ?? true
+        trackStock: (p as any).trackStock ?? true,
+        isBundle: !!(p as any).isBundle,
     }));
     const categories = await prisma.category.findMany();
 

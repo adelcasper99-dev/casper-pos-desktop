@@ -88,11 +88,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         const taxAmount = subTotal * (taxRate / 100);
         const totalAmount = subTotal + taxAmount;
 
-        // 1. Fetch product costPrices for COGS snapshot (Phase 2 fix)
+        // 1. Fetch product details for COGS snapshot and bundle detection
         const productIds = data.items.map(item => item.id);
         const products = await tx.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, costPrice: true, name: true }
+            select: { id: true, costPrice: true, name: true, isBundle: true }
         });
 
         // 🛡️ FK GUARD: Ensure all products exist
@@ -101,7 +101,35 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             throw new Error(`Invalid Product IDs detected: ${missingIds.join(', ')}`);
         }
 
-        const costPriceMap = new Map(products.map((p) => [p.id, Number(p.costPrice)]));
+        // Pre-fetch bundle components for any bundle items in the cart
+        const bundleProductIds = products.filter((p: any) => p.isBundle).map(p => p.id);
+        const bundleComponentsMap = new Map<string, any[]>();
+        for (const bid of bundleProductIds) {
+            const comps = await (tx as any).bundleItem.findMany({
+                where: { bundleProductId: bid },
+                include: {
+                    componentProduct: {
+                        select: { id: true, costPrice: true, trackStock: true, stock: true }
+                    }
+                }
+            });
+            bundleComponentsMap.set(bid, comps);
+        }
+
+        // Build cost map — for bundles, sum component costs live
+        const costPriceMap = new Map<string, number>();
+        for (const p of products) {
+            if ((p as any).isBundle) {
+                const comps = bundleComponentsMap.get(p.id) || [];
+                const bundleCost = comps.reduce(
+                    (sum: number, c: any) => sum + (Number(c.componentProduct.costPrice) * c.quantityIncluded),
+                    0
+                );
+                costPriceMap.set(p.id, bundleCost);
+            } else {
+                costPriceMap.set(p.id, Number(p.costPrice));
+            }
+        }
 
         // 2. Create Sale Record (linked to shift, with warranty if provided)
         const sale = await (tx.sale.create as any)({
@@ -181,47 +209,71 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             }
         }
 
-        // 2b. Deduct Stock (With Manager Override Support)
+        // 2b. Deduct Stock — bundles deduct from components, not themselves
+        const productInfoMap = new Map(products.map(p => [p.id, p]));
         for (const item of data.items) {
-            // Check if product requires stock tracking
-            const product = await tx.product.findUnique({
-                where: { id: item.id },
-                select: { trackStock: true }
-            });
+            const productInfo = productInfoMap.get(item.id) as any;
 
-            if (product && !product.trackStock) {
-                console.log(`[POS] Skipping stock deduction for product: ${item.id} (trackStock=false)`);
-                continue;
-            }
-
-            if (force) {
-                // FORCE MODE: Blind Decrement (Allowed to go negative)
-                await tx.product.update({
-                    where: { id: item.id },
-                    data: { stock: { decrement: item.quantity } }
-                });
-
-                // Warehouse (Upsert to ensure record exists, then decrement)
-                await tx.stock.upsert({
-                    where: { productId_warehouseId: { productId: item.id, warehouseId: mainWarehouseId } },
-                    update: { quantity: { decrement: item.quantity } },
-                    create: { productId: item.id, warehouseId: mainWarehouseId, quantity: -item.quantity }
-                });
-
-                // Audit Log for Forced Sale
-                await tx.stockMovement.create({
-                    data: {
-                        type: 'SALE_FORCE',
-                        productId: item.id,
-                        fromWarehouseId: mainWarehouseId,
-                        toWarehouseId: null,
-                        quantity: item.quantity,
-                        reason: `Forced Sale #${sale.id.slice(0, 8)} (Override)`
+            if ((productInfo as any)?.isBundle) {
+                // BUNDLE: deduct from each component
+                const components = bundleComponentsMap.get(item.id) || [];
+                for (const comp of components) {
+                    if (!comp.componentProduct.trackStock) continue;
+                    if (force) {
+                        await tx.product.update({
+                            where: { id: comp.componentProductId },
+                            data: { stock: { decrement: item.quantity * comp.quantityIncluded } }
+                        });
+                        await tx.stock.upsert({
+                            where: { productId_warehouseId: { productId: comp.componentProductId, warehouseId: mainWarehouseId } },
+                            update: { quantity: { decrement: item.quantity * comp.quantityIncluded } },
+                            create: { productId: comp.componentProductId, warehouseId: mainWarehouseId, quantity: -(item.quantity * comp.quantityIncluded) }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                type: 'SALE_FORCE',
+                                productId: comp.componentProductId,
+                                fromWarehouseId: mainWarehouseId,
+                                toWarehouseId: null,
+                                quantity: item.quantity * comp.quantityIncluded,
+                                reason: `Bundle Sale (Force) #${sale.id.slice(0, 8)} — component of ${item.id.slice(0, 8)}`
+                            }
+                        });
+                    } else {
+                        await decrementWarehouseStock(tx, comp.componentProductId, mainWarehouseId, item.quantity * comp.quantityIncluded);
                     }
-                });
+                }
             } else {
-                // SAFE MODE: BL-06/BL-07 fix — use shared atomic helper.
-                await decrementWarehouseStock(tx, item.id, mainWarehouseId, item.quantity);
+                // REGULAR product: existing logic
+                const product = productInfo;
+                if (product && !(product as any).trackStock) {
+                    console.log(`[POS] Skipping stock deduction for product: ${item.id} (trackStock=false)`);
+                    continue;
+                }
+
+                if (force) {
+                    await tx.product.update({
+                        where: { id: item.id },
+                        data: { stock: { decrement: item.quantity } }
+                    });
+                    await tx.stock.upsert({
+                        where: { productId_warehouseId: { productId: item.id, warehouseId: mainWarehouseId } },
+                        update: { quantity: { decrement: item.quantity } },
+                        create: { productId: item.id, warehouseId: mainWarehouseId, quantity: -item.quantity }
+                    });
+                    await tx.stockMovement.create({
+                        data: {
+                            type: 'SALE_FORCE',
+                            productId: item.id,
+                            fromWarehouseId: mainWarehouseId,
+                            toWarehouseId: null,
+                            quantity: item.quantity,
+                            reason: `Forced Sale #${sale.id.slice(0, 8)} (Override)`
+                        }
+                    });
+                } else {
+                    await decrementWarehouseStock(tx, item.id, mainWarehouseId, item.quantity);
+                }
             }
         }
 

@@ -13,8 +13,13 @@ import {
     ArrowDownRight,
     Search,
     Calendar as CalendarIcon,
-    Printer
+    Printer,
+    BarChart2,
+    Package,
+    Tag,
+    Download
 } from "lucide-react"
+import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,15 +64,21 @@ import { cn } from "@/lib/utils"
 interface ReportPageProps {
     initialData: any
     branches: any[]
+    categories?: any[]
+    products?: any[]
     shifts?: any[]
+    salesByProduct?: any[]
+    salesByCategory?: any[]
     filters: {
         startDate?: string
         endDate?: string
         branchId?: string
+        categoryId?: string
+        productId?: string
     }
 }
 
-export default function ReportPage({ initialData, branches, shifts = [], filters }: ReportPageProps) {
+export default function ReportPage({ initialData, branches, categories = [], products = [], shifts = [], salesByProduct = [], salesByCategory = [], filters }: ReportPageProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -126,49 +137,87 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
         setSwipeState({ id: '', startX: 0 })
     }
 
-    const exportToCSV = () => {
+    const exportToExcel = () => {
         setIsExporting(true);
         setTimeout(() => {
-            const headers = ["التاريخ", "النوع", "الفرع", "طريقة الدفع", "المبلغ", "الحالة"];
-            const csvRows = [headers.join(",")];
-
-            transactions.forEach((t: any) => {
-                const type = t.type === 'SALE' ? 'بيع' : t.type === 'PURCHASE' ? 'شراء' : 'مصروف';
-                csvRows.push(`${format(new Date(t.date), 'yyyy-MM-dd HH:mm')},${type},${t.branch || ''},${t.method || ''},${t.amount},مكتمل`);
-            });
-
-            const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `casper_financial_report_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const data = transactions.map((t: any) => ({
+                "التاريخ": format(new Date(t.date), 'yyyy-MM-dd HH:mm'),
+                "النوع": t.type === 'SALE' ? 'بيع' : t.type === 'PURCHASE' ? 'شراء' : 'مصروف',
+                "الفرع": t.branch || '',
+                "طريقة الدفع": t.method || '',
+                "المبلغ": t.amount,
+                "الحالة": "مكتمل"
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "المعاملات المالية");
+            XLSX.writeFile(wb, `casper_financial_report_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
             setIsExporting(false);
         }, 500);
     }
 
-    const exportShiftsToCSV = () => {
+    const exportShiftsToExcel = () => {
         setIsExporting(true);
         setTimeout(() => {
-            const headers = ["معرف الوردية", "تاريخ الفتح", "تاريخ الإغلاق", "الكاشير", "حالة الوردية", "مبلغ العهدة", "إجمالي المبيعات", "المبلغ الفعلي", "العجز/الزيادة"];
-            const csvRows = [headers.join(",")];
+            const data = shifts.map((s: any) => ({
+                "معرف الوردية": s.id,
+                "تاريخ الفتح": format(new Date(s.openedAt), 'yyyy-MM-dd HH:mm'),
+                "تاريخ الإغلاق": s.closedAt ? format(new Date(s.closedAt), 'yyyy-MM-dd HH:mm') : '-',
+                "الكاشير": s.cashierName || s.user?.name || s.user?.username || 'غير معروف',
+                "حالة الوردية": s.status === 'CLOSED' ? 'مغلقة' : s.status === 'FORCE_CLOSED' ? 'إغلاق إجباري' : 'مفتوحة',
+                "مبلغ العهدة": s.startCash,
+                "إجمالي المبيعات": s.totalCashSales,
+                "المبلغ الفعلي": s.actualCash,
+                "العجز/الزيادة": s.cashVariance
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "الورديات");
+            XLSX.writeFile(wb, `casper_shifts_report_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+            setIsExporting(false);
+        }, 500);
+    }
 
-            shifts.forEach((s: any) => {
-                const openedAt = format(new Date(s.openedAt), 'yyyy-MM-dd HH:mm');
-                const closedAt = s.closedAt ? format(new Date(s.closedAt), 'yyyy-MM-dd HH:mm') : '-';
-                csvRows.push(`${s.id},${openedAt},${closedAt},${s.cashierName || s.user?.name || s.user?.username || 'غير معروف'},${s.status},${s.startCash},${s.totalCashSales},${s.actualCash},${s.cashVariance}`);
+    const exportSalesByCategoryToExcel = () => {
+        setIsExporting(true);
+        setTimeout(() => {
+            const data = salesByCategory.map((c: any) => {
+                const profit = c.totalRevenue - c.totalCost;
+                const margin = c.totalRevenue > 0 ? ((profit / c.totalRevenue) * 100).toFixed(1) : '0';
+                return {
+                    "الفئة": c.categoryName,
+                    "عدد الأصناف": c.productCount,
+                    "الكمية المباعة": c.totalQty,
+                    "الإيرادات": c.totalRevenue,
+                    "التكلفة": c.totalCost,
+                    "الربح": profit,
+                    "هامش الربح %": margin
+                };
             });
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "المبيعات حسب الفئة");
+            XLSX.writeFile(wb, `casper_sales_by_category_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+            setIsExporting(false);
+        }, 500);
+    }
 
-            const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `casper_shifts_report_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+    const exportSalesByProductToExcel = () => {
+        setIsExporting(true);
+        setTimeout(() => {
+            const data = salesByProduct.map((p: any) => ({
+                "الصنف": p.name,
+                "SKU": p.sku,
+                "الفئة": p.categoryName,
+                "الكمية": p.totalQty,
+                "الإيرادات": p.totalRevenue,
+                "التكلفة": p.totalCost,
+                "الربح": p.totalRevenue - p.totalCost
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "المبيعات حسب الصنف");
+            XLSX.writeFile(wb, `casper_sales_by_product_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
             setIsExporting(false);
         }, 500);
     }
@@ -195,7 +244,7 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                 <Button
                     variant="outline"
                     className="mt-2 border-white/10 hover:bg-zinc-900"
-                    onClick={() => updateFilters({ startDate: "", endDate: "", branchId: "" })}
+                    onClick={() => updateFilters({ startDate: "", endDate: "", branchId: "", categoryId: "", productId: "" })}
                 >
                     إعادة تعيين الفلاتر
                 </Button>
@@ -249,13 +298,47 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                             value={filters.branchId || "all"}
                             onValueChange={(val) => updateFilters({ branchId: val === "all" ? "" : val })}
                         >
-                            <SelectTrigger className="w-[160px] bg-transparent border-none text-zinc-300 focus:ring-0">
+                            <SelectTrigger className="w-[140px] bg-transparent border-none text-zinc-300 focus:ring-0">
                                 <SelectValue placeholder="كل الفروع" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-white/10 text-zinc-300">
                                 <SelectItem value="all">كل الفروع</SelectItem>
                                 {branches.map((b: any) => (
                                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        
+                        <div className="w-px h-5 bg-white/10 mx-1" />
+                        
+                        <Select
+                            value={filters.categoryId || "all"}
+                            onValueChange={(val) => updateFilters({ categoryId: val === "all" ? "" : val })}
+                        >
+                            <SelectTrigger className="w-[140px] bg-transparent border-none text-zinc-300 focus:ring-0">
+                                <SelectValue placeholder="كل الفئات" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-900 border-white/10 text-zinc-300">
+                                <SelectItem value="all">كل الفئات</SelectItem>
+                                {categories.map((c: any) => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <div className="w-px h-5 bg-white/10 mx-1" />
+
+                        <Select
+                            value={filters.productId || "all"}
+                            onValueChange={(val) => updateFilters({ productId: val === "all" ? "" : val })}
+                        >
+                            <SelectTrigger className="w-[140px] bg-transparent border-none text-zinc-300 focus:ring-0">
+                                <SelectValue placeholder="كل الأصناف" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-900 border-white/10 text-zinc-300 max-h-[300px]">
+                                <SelectItem value="all">كل الأصناف</SelectItem>
+                                {products.map((p: any) => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name} <span className="text-zinc-500 text-[10px] ml-1">({p.sku})</span></SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -286,7 +369,7 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
             </div>
 
             {/* Active Filter Chips */}
-            {(filters.startDate || filters.branchId || searchParams.get('q')) && (
+            {(filters.startDate || filters.branchId || filters.categoryId || filters.productId || searchParams.get('q')) && (
                 <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-white/10">
                     <span className="text-xs text-zinc-500 flex items-center gap-1"><Filter className="w-3 h-3" /> الفلاتر النشطة:</span>
                     {filters.startDate && (
@@ -299,6 +382,18 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                         <Badge variant="secondary" className="bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-xs px-2 py-0.5 rounded cursor-pointer transition-colors border border-amber-500/20"
                             onClick={() => updateFilters({ branchId: "" })}>
                             {branches.find((b: any) => b.id === filters.branchId)?.name || 'فرع'} <span className="ml-2 font-bold text-amber-500 hover:text-white">✕</span>
+                        </Badge>
+                    )}
+                    {filters.categoryId && (
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs px-2 py-0.5 rounded cursor-pointer transition-colors border border-emerald-500/20"
+                            onClick={() => updateFilters({ categoryId: "" })}>
+                            {categories.find((c: any) => c.id === filters.categoryId)?.name || 'فئة'} <span className="ml-2 font-bold text-emerald-500 hover:text-white">✕</span>
+                        </Badge>
+                    )}
+                    {filters.productId && (
+                        <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 text-xs px-2 py-0.5 rounded cursor-pointer transition-colors border border-blue-500/20"
+                            onClick={() => updateFilters({ productId: "" })}>
+                            {products.find((p: any) => p.id === filters.productId)?.name || 'صنف'} <span className="ml-2 font-bold text-blue-500 hover:text-white">✕</span>
                         </Badge>
                     )}
                     {searchParams.get('q') && (
@@ -314,6 +409,10 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                 <TabsList className="bg-zinc-900 border border-white/10 w-full md:w-auto inline-flex p-1 rounded-xl print:hidden">
                     <TabsTrigger value="financial" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-black text-zinc-400 font-bold tracking-wide w-full md:w-48 rounded-lg transition-all duration-300">
                         المالية والمبيعات
+                    </TabsTrigger>
+                    <TabsTrigger value="salesbyitem" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white text-zinc-400 font-bold tracking-wide w-full md:w-48 rounded-lg transition-all duration-300">
+                        <BarChart2 className="w-4 h-4 ml-2" />
+                        بالصنف والفئة
                     </TabsTrigger>
                     <TabsTrigger value="shifts" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-zinc-400 font-bold tracking-wide w-full md:w-48 rounded-lg transition-all duration-300">
                         سجل الورديات
@@ -556,8 +655,9 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                                     <Printer className="w-4 h-4 mr-2" />
                                     طباعة
                                 </Button>
-                                <Button variant="outline" size="sm" className="h-9 border-white/10 bg-zinc-950/30 text-xs" onClick={exportToCSV} disabled={isExporting}>
-                                    {isExporting ? 'جاري التصدير...' : 'تصدير CSV'}
+                                <Button variant="outline" size="sm" className="h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs transition-all" onClick={exportToExcel} disabled={isExporting}>
+                                    <Download className="w-4 h-4 mr-2" />
+                                    {isExporting ? 'جاري التصدير...' : 'تصدير Excel'}
                                 </Button>
                             </div>
                         </CardHeader>
@@ -688,6 +788,139 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                     </Card>
                 </TabsContent>
 
+                {/* === TAB: Sales by Product & Category === */}
+                <TabsContent value="salesbyitem" className="space-y-6 mt-0 border-none p-0 outline-none">
+
+                    {/* By Category */}
+                    <Card className="bg-zinc-900/30 border-white/5 shadow-2xl backdrop-blur-xl overflow-hidden">
+                        <CardHeader className="border-b border-white/5 bg-white/[0.01] flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 px-6">
+                            <div>
+                                <CardTitle className="text-lg font-medium text-emerald-400 flex items-center gap-2">
+                                    <div className="p-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                                        <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                                    </div>
+                                    المبيعات حسب الفئة
+                                </CardTitle>
+                                <p className="text-xs text-zinc-500 mt-1">إجمالي المبيعات والأرباح مجمعة لكل فئة منتجات</p>
+                            </div>
+                            <Button variant="outline" size="sm" className="h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs print:hidden" onClick={exportSalesByCategoryToExcel} disabled={isExporting}>
+                                <Download className="w-4 h-4 mr-2" />
+                                {isExporting ? 'جاري التصدير...' : 'تصدير Excel للفئات'}
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader className="bg-zinc-950/50">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-[48px]">
+                                            <TableHead className="text-right text-zinc-500 font-medium">الفئة</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">عدد الأصناف</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الكمية المباعة</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الإيرادات</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">التكلفة</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الربح</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">هامش الربح</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {salesByCategory.length > 0 ? salesByCategory.map((cat: any) => {
+                                            const profit = cat.totalRevenue - cat.totalCost;
+                                            const margin = cat.totalRevenue > 0 ? ((profit / cat.totalRevenue) * 100).toFixed(1) : '0';
+                                            return (
+                                                <TableRow key={cat.categoryName} className="border-white/5 hover:bg-white/[0.03] transition-colors">
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.categoryColor ?? '#555' }} />
+                                                            <span className="font-semibold text-zinc-200 text-sm">{cat.categoryName}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-zinc-400 text-sm">{cat.productCount}</TableCell>
+                                                    <TableCell className="text-right text-zinc-300 font-bold">{cat.totalQty.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right text-emerald-400 font-mono font-bold">{cat.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right text-rose-400 font-mono">{cat.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right font-mono font-bold" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Badge variant="outline" className={cn("text-[10px] px-2 py-0", Number(margin) >= 20 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : Number(margin) >= 10 ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-rose-500/30 bg-rose-500/10 text-rose-400")}>
+                                                            {margin}%
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        }) : (
+                                            <TableRow><TableCell colSpan={7} className="h-24 text-center text-zinc-600 italic text-sm">لا توجد بيانات مبيعات في هذه الفترة</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* By Product */}
+                    <Card className="bg-zinc-900/30 border-white/5 shadow-2xl backdrop-blur-xl overflow-hidden">
+                        <CardHeader className="border-b border-white/5 bg-white/[0.01] flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 px-6">
+                            <div>
+                                <CardTitle className="text-lg font-medium text-cyan-400 flex items-center gap-2">
+                                    <div className="p-1.5 rounded-md bg-cyan-500/10 border border-cyan-500/20">
+                                        <Package className="w-3.5 h-3.5 text-cyan-400" />
+                                    </div>
+                                    المبيعات حسب الصنف
+                                </CardTitle>
+                                <p className="text-xs text-zinc-500 mt-1">تفصيلي لكل منتج — الكمية والإيرادات والربح مرتبة تنازلياً</p>
+                            </div>
+                            <Button variant="outline" size="sm" className="h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs print:hidden" onClick={exportSalesByProductToExcel} disabled={isExporting}>
+                                <Download className="w-4 h-4 mr-2" />
+                                {isExporting ? 'جاري التصدير...' : 'تصدير Excel للأصناف'}
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader className="bg-zinc-950/50">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-[48px]">
+                                            <TableHead className="text-right text-zinc-500 font-medium w-10">#</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الصنف</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الفئة</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الكمية</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الإيرادات</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">التكلفة</TableHead>
+                                            <TableHead className="text-right text-zinc-500 font-medium">الربح</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {salesByProduct.length > 0 ? salesByProduct.map((p: any, idx: number) => {
+                                            const profit = p.totalRevenue - p.totalCost;
+                                            return (
+                                                <TableRow key={p.productId} className="border-white/5 hover:bg-white/[0.03] transition-colors">
+                                                    <TableCell className="text-center text-zinc-600 text-xs font-mono">{idx + 1}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div>
+                                                            <div className="font-semibold text-zinc-200 text-sm">{p.name}</div>
+                                                            <div className="text-[10px] text-zinc-600 font-mono">{p.sku}</div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.categoryColor ?? '#555' }} />
+                                                            <span className="text-xs text-zinc-400">{p.categoryName}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-zinc-200">{p.totalQty.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right text-emerald-400 font-mono font-bold">{p.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right text-rose-400 font-mono">{p.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right font-mono font-bold" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                </TableRow>
+                                            );
+                                        }) : (
+                                            <TableRow><TableCell colSpan={7} className="h-24 text-center text-zinc-600 italic text-sm">لا توجد بيانات مبيعات في هذه الفترة</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                </TabsContent>
+
                 <TabsContent value="shifts" className="space-y-6 mt-0 border-none p-0 outline-none">
                     <Card className="bg-zinc-900/30 border-white/5 shadow-2xl backdrop-blur-xl overflow-hidden mt-2">
                         <CardHeader className="border-b border-white/5 bg-white/[0.01] flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 px-6">
@@ -703,8 +936,9 @@ export default function ReportPage({ initialData, branches, shifts = [], filters
                                     <Printer className="w-4 h-4 mr-2" />
                                     طباعة القائمة
                                 </Button>
-                                <Button variant="outline" size="sm" className="h-9 border-white/10 bg-zinc-950/30 text-xs text-zinc-300 hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/30 transition-all" onClick={exportShiftsToCSV} disabled={isExporting}>
-                                    {isExporting ? 'جاري التصدير...' : 'تصدير CSV للورديات'}
+                                <Button variant="outline" size="sm" className="h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs transition-all" onClick={exportShiftsToExcel} disabled={isExporting}>
+                                    <Download className="w-4 h-4 mr-2" />
+                                    {isExporting ? 'جاري التصدير...' : 'تصدير Excel'}
                                 </Button>
                             </div>
                         </CardHeader>

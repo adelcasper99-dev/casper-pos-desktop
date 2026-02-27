@@ -250,6 +250,7 @@ model Product {
   stock             Int                @default(0)
   minStock          Int                @default(5)
   trackStock        Boolean            @default(true)
+  isBundle          Boolean            @default(false)
   categoryId        String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -264,6 +265,23 @@ model Product {
   stockMovements    StockMovement[]
   stockRequestItems StockRequestItem[]
   wastages          StockWastage[]
+  // Bundle relations
+  bundleItems       BundleItem[]       @relation("BundleProduct")
+  componentOf       BundleItem[]       @relation("ComponentProduct")
+}
+
+// Bundle / Package composed products
+model BundleItem {
+  id                 String  @id @default(uuid())
+  bundleProductId    String
+  componentProductId String
+  quantityIncluded   Int     @default(1)
+
+  bundleProduct     Product @relation("BundleProduct", fields: [bundleProductId], references: [id], onDelete: Cascade)
+  componentProduct  Product @relation("ComponentProduct", fields: [componentProductId], references: [id])
+
+  @@unique([bundleProductId, componentProductId])
+  @@index([bundleProductId])
 }
 
 model Stock {

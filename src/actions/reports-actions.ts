@@ -8,6 +8,8 @@ interface ReportFilters {
     startDate?: string;
     endDate?: string;
     branchId?: string;
+    categoryId?: string;
+    productId?: string;
 }
 
 export async function getReportData(filters?: ReportFilters): Promise<{ success: boolean; data?: any; error?: string }> {
@@ -184,5 +186,136 @@ export async function getBranchesForFilter(): Promise<{ success: boolean; branch
     } catch (error: any) {
         console.error('[getBranchesForFilter] Error:', error);
         return { success: false, branches: [] };
+    }
+}
+
+export async function getSalesByProductAndCategory(
+    filters?: ReportFilters
+): Promise<{ success: boolean; byProduct?: any[]; byCategory?: any[]; error?: string }> {
+    try {
+        const now = new Date();
+        const defaultStart = subDays(now, 30);
+
+        const startDate = filters?.startDate
+            ? startOfDay(new Date(filters.startDate))
+            : startOfDay(defaultStart);
+        const endDate = filters?.endDate
+            ? endOfDay(new Date(filters.endDate))
+            : endOfDay(now);
+
+        const branchFilter = filters?.branchId ? { branchId: filters.branchId } : {};
+
+        // Fetch all SaleItems in range (non-refunded sales only)
+        const saleItems = await prisma.saleItem.findMany({
+            where: {
+                sale: {
+                    createdAt: { gte: startDate, lte: endDate },
+                    status: { not: 'REFUNDED' },
+                    ...branchFilter
+                },
+                ...(filters?.productId ? { productId: filters.productId } : {}),
+                ...(filters?.categoryId ? { product: { categoryId: filters.categoryId } } : {})
+            },
+            include: {
+                product: {
+                    include: {
+                        category: { select: { id: true, name: true, color: true } }
+                    }
+                }
+            }
+        });
+
+        // Aggregate by Product
+        const productMap = new Map<string, {
+            productId: string; name: string; sku: string;
+            categoryName: string; categoryColor: string;
+            totalQty: number; totalRevenue: number; totalCost: number;
+        }>();
+
+        for (const item of saleItems) {
+            const key = item.productId;
+            const existing = productMap.get(key);
+            const rev = Number(item.unitPrice) * item.quantity;
+            const cost = Number(item.unitCost) * item.quantity;
+            if (existing) {
+                existing.totalQty += item.quantity;
+                existing.totalRevenue += rev;
+                existing.totalCost += cost;
+            } else {
+                productMap.set(key, {
+                    productId: item.productId,
+                    name: item.product.name,
+                    sku: item.product.sku,
+                    categoryName: item.product.category?.name ?? 'بدون فئة',
+                    categoryColor: item.product.category?.color ?? '#555',
+                    totalQty: item.quantity,
+                    totalRevenue: rev,
+                    totalCost: cost,
+                });
+            }
+        }
+
+        const byProduct = Array.from(productMap.values())
+            .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+        // Aggregate by Category
+        const categoryMap = new Map<string, {
+            categoryName: string; categoryColor: string;
+            totalQty: number; totalRevenue: number; totalCost: number; productCount: number;
+        }>();
+
+        for (const row of byProduct) {
+            const key = row.categoryName;
+            const existing = categoryMap.get(key);
+            if (existing) {
+                existing.totalQty += row.totalQty;
+                existing.totalRevenue += row.totalRevenue;
+                existing.totalCost += row.totalCost;
+                existing.productCount += 1;
+            } else {
+                categoryMap.set(key, {
+                    categoryName: row.categoryName,
+                    categoryColor: row.categoryColor,
+                    totalQty: row.totalQty,
+                    totalRevenue: row.totalRevenue,
+                    totalCost: row.totalCost,
+                    productCount: 1,
+                });
+            }
+        }
+
+        const byCategory = Array.from(categoryMap.values())
+            .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+        return { success: true, byProduct, byCategory };
+    } catch (error: any) {
+        console.error('[getSalesByProductAndCategory] Error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getCategoriesForFilter(): Promise<{ success: boolean; categories: any[] }> {
+    try {
+        const categories = await prisma.category.findMany({
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' }
+        });
+        return { success: true, categories };
+    } catch (error: any) {
+        console.error('[getCategoriesForFilter] Error:', error);
+        return { success: false, categories: [] };
+    }
+}
+
+export async function getProductsForFilter(): Promise<{ success: boolean; products: any[] }> {
+    try {
+        const products = await prisma.product.findMany({
+            select: { id: true, name: true, sku: true },
+            orderBy: { name: 'asc' }
+        });
+        return { success: true, products };
+    } catch (error: any) {
+        console.error('[getProductsForFilter] Error:', error);
+        return { success: false, products: [] };
     }
 }

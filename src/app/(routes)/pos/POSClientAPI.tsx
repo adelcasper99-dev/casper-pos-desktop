@@ -16,6 +16,7 @@ import { generateThermalReceiptHTML } from "@/components/pos/ThermalReceiptTempl
 import { toast } from "sonner";
 import { printService } from "@/lib/print-service";
 import { formatArabicPrintText } from "@/lib/arabic-reshaper";
+import { getBundleComponents } from "@/actions/inventory";
 
 import { VirtuosoGrid } from 'react-virtuoso';
 import { DesktopStatus } from "@/components/pos/DesktopStatus";
@@ -147,6 +148,31 @@ export default function POSClientAPI({ products, categories: initialCategories, 
         setIsSpeedPrintModalOpen(true);
     };
 
+    // Handle adding a product — fetches bundle components if needed
+    const handleAddProduct = async (p: any) => {
+        if (p.isBundle) {
+            try {
+                const res = await getBundleComponents(p.id);
+                const components = (res as any)?.components || [];
+                // Add to cart with components attached
+                const cartProduct = {
+                    ...p,
+                    bundleComponents: components.map((c: any) => ({
+                        id: c.componentProductId,
+                        name: c.name,
+                        quantityIncluded: c.quantityIncluded
+                    }))
+                };
+                addToCart(cartProduct);
+            } catch {
+                // Fallback: add without components
+                addToCart(p);
+            }
+        } else {
+            addToCart(p);
+        }
+    };
+
     const handleSelectTable = (newTableId: string, newTableName: string, action: 'resume' | 'new' = 'resume') => {
         if (tableId === newTableId && action !== 'new') {
             setIsTableModalOpen(false);
@@ -272,23 +298,42 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             </div>
                         )}
                         {items.map((item) => (
-                            <div key={item.id} className="relative bg-muted/30 border border-border p-4 rounded-2xl flex justify-between items-center group overflow-hidden shadow-lg mb-3">
+                            <div key={item.id} className="relative bg-muted/30 border border-border p-4 rounded-2xl group overflow-hidden shadow-lg mb-3">
                                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-                                <div className="relative z-10">
-                                    <div className="font-black text-lg text-foreground mb-1 truncate max-w-[180px]">{item.name}</div>
-                                    <div className="flex items-baseline gap-2">
-                                        <div className="text-cyan-400 font-black text-base font-mono">{formatCurrency(item.price)}</div>
-                                        <div className="text-zinc-500 text-xs font-bold">x {item.quantity}</div>
+                                {/* Bundle header row */}
+                                <div className="relative z-10 flex justify-between items-center">
+                                    <div>
+                                        <div className="font-black text-lg text-foreground mb-1 truncate max-w-[180px]">
+                                            {item.isBundle ? '📦 ' : ''}{item.name}
+                                        </div>
+                                        <div className="flex items-baseline gap-2">
+                                            <div className="text-cyan-400 font-black text-base font-mono">{formatCurrency(item.price)}</div>
+                                            <div className="text-zinc-500 text-xs font-bold">x {item.quantity}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2 bg-background/50 rounded-xl p-1.5 border border-border shadow-inner">
+                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5"><Minus className="w-4 h-4" /></button>
+                                            <span className="w-8 text-center text-lg font-black font-mono text-white tracking-tight">{item.quantity}</span>
+                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)]"><Plus className="w-4 h-4" /></button>
+                                        </div>
+                                        <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 flex items-center justify-center border border-red-500/20 transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5" /></button>
                                     </div>
                                 </div>
-                                <div className="relative z-10 flex items-center gap-4">
-                                    <div className="flex items-center gap-2 bg-background/50 rounded-xl p-1.5 border border-border shadow-inner">
-                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5"><Minus className="w-4 h-4" /></button>
-                                        <span className="w-8 text-center text-lg font-black font-mono text-white tracking-tight">{item.quantity}</span>
-                                        <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)]"><Plus className="w-4 h-4" /></button>
+                                {/* Bundle components listed below */}
+                                {item.bundleComponents && item.bundleComponents.length > 0 && (
+                                    <div className="relative z-10 mt-2 pt-2 border-t border-border/50 space-y-0.5">
+                                        {item.bundleComponents.map((c) => (
+                                            <div key={c.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                <span className="text-amber-400">‣</span>
+                                                <span>{c.name}</span>
+                                                {c.quantityIncluded > 1 && (
+                                                    <span className="text-zinc-600">x{c.quantityIncluded}</span>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
-                                    <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 flex items-center justify-center border border-red-500/20 transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5" /></button>
-                                </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -446,7 +491,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             itemContent={(index, p) => (
                                 <button
                                     key={p.id}
-                                    onClick={() => addToCart(p)}
+                                    onClick={() => handleAddProduct(p)}
                                     className="h-[140px] w-full bg-card hover:bg-muted/50 p-4 rounded-2xl flex flex-col items-start gap-2 transition-all text-left group relative overflow-hidden shadow-sm border border-border"
                                 >
                                     <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">

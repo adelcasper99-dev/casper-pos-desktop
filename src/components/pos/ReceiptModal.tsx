@@ -3,7 +3,7 @@
 import GlassModal from "@/components/ui/GlassModal";
 import { Printer, CheckCircle, Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { getStoreSettings } from "@/actions/settings";
 import { printService } from "@/lib/print-service";
 import { toast } from "sonner";
@@ -222,7 +222,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                             {items.map((item: any, i: number) => (
                                 <div key={i} style={{ padding: '6px 0', borderBottom: '1px solid #000000' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '12px' }}>
-                                        <span>{item.name}</span>
+                                        <span>{item.name}{Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0 ? ' 📦' : ''}</span>
                                         <span>{formatCurrency(item.price * (item.quantity || 1), currency)}</span>
                                     </div>
                                     {(item.storage || item.color) && (
@@ -231,9 +231,42 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                                     {item.quantity > 1 && (
                                         <div style={{ fontSize: '10px' }}>الكمية: {item.quantity} x {formatCurrency(item.price, currency)}</div>
                                     )}
+                                    {Array.isArray(item.bundleComponents) && item.bundleComponents.map((c: any, ci: number) => (
+                                        <div key={ci} style={{ fontSize: '10px', color: '#444', paddingRight: '8px', marginTop: '2px', fontWeight: 500 }}>
+                                            › {c.name}{c.quantityIncluded > 1 ? ` (x${c.quantityIncluded})` : ''}
+                                        </div>
+                                    ))}
                                 </div>
                             ))}
                         </div>
+
+                        {/* Consolidated Items Summary */}
+                        {(() => {
+                            const map = new Map<string, number>();
+                            for (const item of items) {
+                                const qty = item.quantity || 1;
+                                if (Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0) {
+                                    for (const c of item.bundleComponents) {
+                                        map.set(c.name, (map.get(c.name) || 0) + (c.quantityIncluded || 1) * qty);
+                                    }
+                                } else {
+                                    map.set(item.name, (map.get(item.name) || 0) + qty);
+                                }
+                            }
+                            const hasBundle = items.some((i: any) => Array.isArray(i.bundleComponents) && i.bundleComponents.length > 0);
+                            if (!hasBundle) return null;
+                            return (
+                                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px dashed #000' }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 900, textAlign: 'center', marginBottom: '4px', letterSpacing: '1px' }}>إجمالي الأصناف</div>
+                                    {Array.from(map.entries()).map(([name, qty]) => (
+                                        <div key={name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, padding: '2px 0' }}>
+                                            <span>{name}</span>
+                                            <span style={{ fontWeight: 700 }}>{qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
 
                         {/* Total Box */}
                         <div style={{ background: '#000000', color: '#ffffff', margin: '12px -12px', padding: '12px', textAlign: 'center' }}>

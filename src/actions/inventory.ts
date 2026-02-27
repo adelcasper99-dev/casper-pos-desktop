@@ -176,23 +176,6 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
     const startTime = Date.now();
     const validated = productSchema.parse(data);
 
-    // 1. Validate supplier exists
-    // NOTE: This logic seems to be misplaced here. It refers to 'invoice.supplier' which is not defined in createProduct.
-    // It might be intended for a 'bulkImportPurchases' function.
-    // For now, it's commented out to maintain syntactical correctness.
-    /*
-    const supplier = await prisma.supplier.findFirst({
-        where: { name: { equals: invoice.supplier } }
-    });
-
-    if (!supplier) {
-        throw new Error(`Supplier "${invoice.supplier}" not found. Please create it first.`);
-    }
-    */
-
-    // 2. Get or create default warehouse
-    // NOTE: The original instruction had a malformed line here: "warehouseductData } = validated;"
-    // It's corrected to "const { categoryId, ...productData } = validated;" which is the existing correct line.
     // Check SKU uniqueness
     const existing = await prisma.product.findUnique({
         where: { sku: data.sku }
@@ -204,27 +187,41 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
         throw new AppError(ErrorCodes.VALIDATION_ERROR, t('skuExists'));
     }
 
-    const { categoryId, ...productData } = validated;
+    const { categoryId, bundleItems, isBundle, ...productData } = validated;
 
-    // TRANSACTION: Ensure Product + Stock are created together
+    // Bundles don't carry their own physical stock
+    const effectiveStock = isBundle ? 0 : (productData.stock ?? 0);
+    const effectiveTrackStock = isBundle ? false : (productData.trackStock ?? true);
+
+    // TRANSACTION: Ensure Product + Stock + BundleItems are created together
     const product = await prisma.$transaction(async (tx) => {
         // 1. Create Product
-        const newProduct = await tx.product.create({
+        const newProduct = await (tx.product.create as any)({
             data: {
                 ...productData,
-                trackStock: validated.trackStock ?? true,
+                stock: effectiveStock,
+                trackStock: effectiveTrackStock,
+                isBundle: isBundle ?? false,
                 ...(categoryId ? { category: { connect: { id: categoryId } } } : {})
-            } as any
+            }
         });
 
-        // 2. Initial Stock Logic
-        // If stock > 0, we MUST assign it to a warehouse (Default)
-        if (productData.stock > 0) {
-            // Find or Create Default Warehouse
+        // 2. Bundle Items — create component links
+        if (isBundle && bundleItems && bundleItems.length > 0) {
+            await (tx as any).bundleItem.createMany({
+                data: bundleItems.map((bi: any) => ({
+                    bundleProductId: newProduct.id,
+                    componentProductId: bi.componentProductId,
+                    quantityIncluded: bi.quantityIncluded,
+                }))
+            });
+        }
+
+        // 3. Initial Stock Logic (non-bundle only)
+        if (!isBundle && effectiveStock > 0) {
             let mainWarehouse = await tx.warehouse.findFirst({ where: { isDefault: true } });
 
             if (!mainWarehouse) {
-                // Auto-seed default warehouse if missing (Critical fallback)
                 let defaultBranch = await tx.branch.findFirst();
                 if (!defaultBranch) {
                     defaultBranch = await tx.branch.create({
@@ -241,22 +238,20 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
                 });
             }
 
-            // Create Stock Record
             await tx.stock.create({
                 data: {
                     productId: newProduct.id,
                     warehouseId: mainWarehouse.id,
-                    quantity: productData.stock
+                    quantity: effectiveStock
                 }
             });
 
-            // Optional: Log Movement for audit trail
             await tx.stockMovement.create({
                 data: {
                     type: 'ADJUSTMENT',
                     productId: newProduct.id,
                     toWarehouseId: mainWarehouse.id,
-                    quantity: productData.stock,
+                    quantity: effectiveStock,
                     reason: 'Initial Stock'
                 }
             });
@@ -276,6 +271,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
             productId: product.id,
             sku: product.sku,
             name: product.name,
+            isBundle: isBundle ?? false,
             duration: Date.now() - startTime,
         });
     }
@@ -286,15 +282,38 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
 export const updateProduct = secureAction(async (id: string, data: z.infer<typeof productSchema>) => {
     const startTime = Date.now();
     const validated = productSchema.parse(data);
+    const { bundleItems, isBundle, ...productFields } = validated;
 
-    await prisma.product.update({
-        where: { id },
-        data: {
-            ...validated,
-            trackStock: validated.trackStock,
-            // Handle potential undefineds if generic schema allows optional
+    const effectiveTrackStock = isBundle ? false : (productFields.trackStock ?? true);
+    const effectiveStock = isBundle ? 0 : (productFields.stock ?? 0);
+
+    await prisma.$transaction(async (tx) => {
+        // Update core product fields
+        await (tx.product.update as any)({
+            where: { id },
+            data: {
+                ...productFields,
+                stock: effectiveStock,
+                trackStock: effectiveTrackStock,
+                isBundle: isBundle ?? false,
+            }
+        });
+
+        // Replace bundle items atomically (delete old, insert new)
+        if (isBundle) {
+            await (tx as any).bundleItem.deleteMany({ where: { bundleProductId: id } });
+            if (bundleItems && bundleItems.length > 0) {
+                await (tx as any).bundleItem.createMany({
+                    data: bundleItems.map((bi: any) => ({
+                        bundleProductId: id,
+                        componentProductId: bi.componentProductId,
+                        quantityIncluded: bi.quantityIncluded,
+                    }))
+                });
+            }
         }
     });
+
     revalidatePath("/inventory", 'page');
     revalidatePath("/pos", 'page');
     revalidateTag(CACHE_TAGS.PRODUCTS);
@@ -305,6 +324,11 @@ export const updateProduct = secureAction(async (id: string, data: z.infer<typeo
 export const deleteProduct = secureAction(async (id: string) => {
     try {
         await prisma.$transaction(async (tx) => {
+            // Delete Bundle Items first (cascade handles this but being explicit)
+            await (tx as any).bundleItem.deleteMany({
+                where: { OR: [{ bundleProductId: id }, { componentProductId: id }] }
+            });
+
             // Delete related Stock records first
             await tx.stock.deleteMany({
                 where: { productId: id }
@@ -314,8 +338,6 @@ export const deleteProduct = secureAction(async (id: string) => {
             await tx.stockMovement.deleteMany({
                 where: { productId: id }
             });
-
-
 
             // Delete related StockWastage records
             await tx.stockWastage.deleteMany({
@@ -341,6 +363,82 @@ export const deleteProduct = secureAction(async (id: string) => {
         throw e;
     }
 }, { permission: 'INVENTORY_MANAGE' });
+
+/**
+ * Idempotently ensures the "العروض والباقات" bundle category exists.
+ * Safe to call on every app startup or from the setup flow.
+ */
+export const seedBundleCategory = secureAction(async (data?: { csrfToken?: string }) => {
+    const existing = await prisma.category.findFirst({
+        where: { name: 'العروض والباقات' }
+    });
+    if (existing) return { success: true, category: existing };
+
+    const category = await prisma.category.create({
+        data: { name: 'العروض والباقات', color: '#f59e0b' }
+    });
+    revalidatePath('/inventory', 'page');
+    revalidateTag(CACHE_TAGS.CATEGORIES);
+    return { success: true, category };
+}, { permission: 'INVENTORY_MANAGE' });
+
+/**
+ * Fetches components for a bundle product with their current stock levels.
+ * Used by POS to attach component data to cart items for receipt printing
+ * and by the bundle availability calculation.
+ */
+export async function getBundleComponents(bundleProductId: string) {
+    try {
+        const items = await (prisma as any).bundleItem.findMany({
+            where: { bundleProductId },
+            include: {
+                componentProduct: {
+                    select: {
+                        id: true,
+                        name: true,
+                        sku: true,
+                        costPrice: true,
+                        stock: true,
+                        trackStock: true,
+                    }
+                }
+            }
+        });
+
+        return {
+            success: true,
+            components: items.map((item: any) => ({
+                id: item.id,
+                componentProductId: item.componentProductId,
+                quantityIncluded: item.quantityIncluded,
+                name: item.componentProduct.name,
+                sku: item.componentProduct.sku,
+                costPrice: Number(item.componentProduct.costPrice),
+                stock: item.componentProduct.stock,
+                trackStock: item.componentProduct.trackStock,
+                // How many bundles can be made from this component's stock
+                availableBundles: item.componentProduct.trackStock
+                    ? Math.floor(item.componentProduct.stock / item.quantityIncluded)
+                    : Infinity,
+            }))
+        };
+    } catch (error: any) {
+        console.error('[getBundleComponents] Error:', error);
+        return { success: false, components: [] };
+    }
+}
+
+/**
+ * Computes the maximum number of bundles available based on
+ * the minimum available quantity across all components.
+ */
+export async function getBundleAvailability(bundleProductId: string): Promise<number> {
+    const result = await getBundleComponents(bundleProductId);
+    if (!result.success || result.components.length === 0) return 0;
+    const availabilities = result.components.map((c: any) => c.availableBundles);
+    const finite = availabilities.filter((a: number) => isFinite(a));
+    return finite.length === 0 ? Infinity : Math.min(...finite);
+}
 
 // --- Categories ---
 

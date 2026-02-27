@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+export const bundleItemSchema = z.object({
+    componentProductId: z.string().min(1),
+    quantityIncluded: z.coerce.number().int().min(1),
+});
+
 export const productSchema = z.object({
     name: z.string().min(1),
     sku: z.string().min(1),
@@ -11,6 +16,8 @@ export const productSchema = z.object({
     minStock: z.coerce.number().int().default(5),
     categoryId: z.string().optional(),
     trackStock: z.boolean().default(true),
+    isBundle: z.boolean().default(false),
+    bundleItems: z.array(bundleItemSchema).optional(),
 });
 
 export const supplierSchema = z.object({
