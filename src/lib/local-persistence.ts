@@ -57,9 +57,14 @@ export class LocalPersistenceService {
    * Forces a full filesystem backup via Electron IPC.
    * (This is the "mirroring browser cache to local filesystem" referred to in Constitution)
    */
-    static async backupToFilesystem() {
+    static async backupToFilesystem(isManual = false) {
         if (typeof window !== 'undefined' && (window as any).electronAPI) {
-            return await (window as any).electronAPI.storage.saveOfflineData({});
+            const result = await (window as any).electronAPI.storage.saveOfflineData({ isManual });
+            if (result && result.success === false) {
+                if (isManual) throw new Error(result.error);
+                else console.warn(`[LocalPersistence] Auto-backup skipped/failed: ${result.error}`);
+            }
+            return result;
         }
         return { success: false, error: 'Not in Electron environment' };
     }
@@ -79,13 +84,30 @@ export class LocalPersistenceService {
         return null; // NO-OP for web
     }
 
-    static startAutoBackup() {
+    static async startAutoBackup() {
         if (typeof window === 'undefined') return;
 
-        logger.info('[LocalPersistence] Auto-backup service started.');
-        // Run backup every 15 minutes (or whatever frequency makes sense)
-        setInterval(() => {
+        let intervalMinutes = 15; // default
+        if ((window as any).electronAPI?.config?.getConfig) {
+            try {
+                const config = await (window as any).electronAPI.config.getConfig();
+                if (config.backupInterval) {
+                    intervalMinutes = parseInt(config.backupInterval, 10) || 15;
+                }
+            } catch (e) {
+                logger.warn('[LocalPersistence] Failed to fetch config for backup interval. Defaulting to 15m.');
+            }
+        }
+
+        logger.info(`[LocalPersistence] Auto-backup service started. Interval: ${intervalMinutes} minutes.`);
+
+        // Clear any existing interval if we're restarting it
+        if ((window as any)._casperBackupTimer) {
+            clearInterval((window as any)._casperBackupTimer);
+        }
+
+        (window as any)._casperBackupTimer = setInterval(() => {
             this.backupToFilesystem().catch(err => logger.error('[LocalPersistence] Auto-backup failed', err));
-        }, 15 * 60 * 1000);
+        }, Math.max(1, intervalMinutes) * 60 * 1000);
     }
 }

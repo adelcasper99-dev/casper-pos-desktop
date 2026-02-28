@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Box, Edit, Loader2, Save, Wand2, Trash2, ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon } from "lucide-react";
+import { Search, Box, Edit, Loader2, Save, Wand2, Trash2, ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon, Plus } from "lucide-react";
 import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
 import { ThermalPrintLabel } from "./ThermalPrintLabel";
+import AddProductModal from "./AddProductModal";
 import { updateProduct, generateNextSku, deleteProduct, getProducts } from "@/actions/inventory";
 import GlassModal from "../ui/GlassModal";
 import clsx from "clsx";
@@ -76,6 +77,7 @@ export default function ProductsTab({
     // Wastage Dialog State
     const [wastageProduct, setWastageProduct] = useState<Product | null>(null);
     const [quickPrintProduct, setQuickPrintProduct] = useState<Product | null>(null);
+    const [addProductOpen, setAddProductOpen] = useState(false);
 
     // React Query for Pagination & Search
     const { data: queryData, isLoading: isQueryLoading, refetch } = useQuery({
@@ -192,6 +194,16 @@ export default function ProductsTab({
                     {isQueryLoading && <div className="absolute end-4 top-3"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>}
                 </div>
 
+                {canManage && (
+                    <button
+                        onClick={() => setAddProductOpen(true)}
+                        className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg flex items-center gap-2 transition-colors shrink-0"
+                    >
+                        <Plus className="w-4 h-4" />
+                        إضافة باقة / عرض
+                    </button>
+                )}
+
                 {selectedProducts.size > 0 && (
                     <button
                         onClick={() => setShowPrintDialog(true)}
@@ -202,6 +214,16 @@ export default function ProductsTab({
                     </button>
                 )}
             </div>
+
+            {/* Add Product Modal */}
+            <AddProductModal
+                isOpen={addProductOpen}
+                onClose={() => setAddProductOpen(false)}
+                categories={categories}
+                allProducts={products}
+                csrfToken={csrfToken}
+                onSuccess={() => { refetch(); }}
+            />
 
             {/* Old search bar removed - integrated above */}
             <div className="hidden">

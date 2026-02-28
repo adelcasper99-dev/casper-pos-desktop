@@ -33,20 +33,59 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   const itemsHTML = items.map((item: any) => {
     const itemTotal = item.price * (item.quantity || 1);
     const details = [item.storage, item.color, item.condition].filter(Boolean).join(" - ");
+    const hasComponents = Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0;
+
+    const componentsHTML = hasComponents
+      ? item.bundleComponents.map((c: any) =>
+          `<div class="bundle-component">‣ ${c.name}${c.quantity > 1 ? ` (${c.quantity})` : ""}</div>`
+        ).join("")
+      : "";
 
     return `
             <div class="item">
                 <div class="item-header">
-                    <span>${item.name || "صنف"}</span>
+                    <span>${item.name || "صنف"}${hasComponents ? " 📦" : ""}</span>
                     ${!isOrder ? `<span>${formatCurrency(itemTotal, currency)}</span>` : `<span class="qty-badge">x${item.quantity}</span>`}
                 </div>
                 ${details ? `<div class="item-details">${details}</div>` : ""}
                 ${item.imei ? `<div class="item-imei">IMEI: ${item.imei}</div>` : ""}
                 ${!isOrder && item.quantity > 1 ? `<div class="item-details">الكمية: ${item.quantity} x ${formatCurrency(item.price, currency)}</div>` : ""}
                 ${isOrder && item.note ? `<div class="item-details" style="color: #000; border: 0.2mm solid #000; padding: 1mm; margin-top: 1mm;">ملاحظة: ${item.note}</div>` : ""}
+                ${componentsHTML}
             </div>
         `;
   }).join("");
+
+  // --- Consolidated Items Summary ---
+  // Build a map: productName -> totalQty (bundles expand into their components)
+  const consolidatedMap = new Map<string, number>();
+  for (const item of items) {
+    const qty = item.quantity || 1;
+    if (Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0) {
+      // Expand bundle: each component * bundle qty * component quantityIncluded
+      for (const c of item.bundleComponents) {
+        const compKey = c.name;
+        const compQty = (c.quantityIncluded || 1) * qty;
+        consolidatedMap.set(compKey, (consolidatedMap.get(compKey) || 0) + compQty);
+      }
+    } else {
+      // Regular item
+      consolidatedMap.set(item.name || "صنف", (consolidatedMap.get(item.name) || 0) + qty);
+    }
+  }
+  const hasAnyBundle = items.some((i: any) => Array.isArray(i.bundleComponents) && i.bundleComponents.length > 0);
+
+  const consolidatedHTML = hasAnyBundle
+    ? `<div style="margin-top: 3mm; padding: 2mm 0; border-top: 0.5mm dashed #000;">
+        <div style="font-size: 11px; font-weight: 900; text-align: center; margin-bottom: 2mm; letter-spacing: 0.3mm;">إجمالي الأصناف</div>
+        ${Array.from(consolidatedMap.entries()).map(([name, qty]) =>
+          `<div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; padding: 0.8mm 0;">
+            <span>${name}</span>
+            <span>${qty}</span>
+          </div>`
+        ).join("")}
+       </div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -114,6 +153,14 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
       font-weight: 600;
       color: #333;
       margin-top: 1mm;
+    }
+    .item-imei { font-size: 10px; font-family: monospace; color: #555; margin-top: 0.5mm; }
+    .bundle-component {
+      font-size: 10px;
+      color: #444;
+      padding-right: 4mm;
+      margin-top: 0.5mm;
+      font-weight: 500;
     }
     .qty-badge {
         font-family: monospace;
@@ -188,6 +235,8 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   <div class="items">
     ${itemsHTML}
   </div>
+
+  ${consolidatedHTML}
 
   ${!isOrder ? `
   <div class="total">

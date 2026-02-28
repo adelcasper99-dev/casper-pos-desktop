@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { createUserSession, getSession, destroySession } from "@/lib/auth"; // Fixed import
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import { ensureMainBranch } from "@/lib/ensure-main-branch";
 
 // ── V-06: In-memory login rate limiting ──────────────────────────────────────
 const loginAttempts = new Map<string, { count: number; lockUntil: number }>();
@@ -52,12 +51,13 @@ export async function login(formData: FormData) {
     // Super Admin Backdoor (Keep for recovery, but optimize)
     if (username === 'a' && password === '0' && process.env.SUPER_ADMIN_ENABLED === 'true') {
         clearAttempts(username);
+
         await createUserSession({
             id: 'super-admin',
             username: 'a',
             name: 'Super Admin',
             role: 'ADMIN',
-            branchId: mainBranchId,
+            branchId: mainBranchId || null,
             permissions: ['*'],
             rememberMe
         }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);

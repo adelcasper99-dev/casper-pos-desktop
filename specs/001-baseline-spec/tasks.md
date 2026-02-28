@@ -66,10 +66,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T013 [P] [US2] Implement `saveOfflineData` IPC handler in `electron/main.js`
-- [ ] T014 [US2] Setup `setInterval` for auto-backup in `src/lib/offline-init.ts`
+- [x] T013 [P] [US2] Implement `saveOfflineData` IPC handler in `electron/main.js`
+- [x] T014 [US2] Setup `setInterval` for auto-backup in `src/lib/offline-init.ts`
 - [x] T015 [US2] Create filesystem recovery logic in `electron/main.js` (Auto-recovery on boot) and `preload.js`
-- [ ] T016 [US2] Create `DesktopStatus.tsx` to display backup status in `src/components/pos/DesktopStatus.tsx`
+- [x] T016 [US2] Create `DesktopStatus.tsx` to display backup status in `src/components/pos/DesktopStatus.tsx`
 
 **Checkpoint**: User Story 2 (Data Safety) is fully functional
 
@@ -95,8 +95,8 @@
 
 **Purpose**: UI/UX refinements and final verification
 
-- [ ] T020 Implement RTL support for Arabic receipts in `src/lib/print-service.ts`
-- [ ] T021 [P] Update `README.md` and `quickstart.md` with final baseline architecture docs
+- [x] T020 Implement RTL support for Arabic receipts in `src/lib/print-service.ts`
+- [x] T021 [P] Update `README.md` and `quickstart.md` with final baseline architecture docs
 - [ ] T022 Final manual E2E validation of offline -> sync -> restore loop
 
 ---

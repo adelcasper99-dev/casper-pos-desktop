@@ -1,289 +1,332 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, UploadCloud, RefreshCw, Trash2, FolderOpen, Save, HardDrive, Download, History, AlertTriangle } from "lucide-react";
+import { Database, FolderOpen, Save, RefreshCw, AlertTriangle, Clock, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import {
-    getBackups,
-    createManualBackup,
-    restoreBackup,
-    removeBackup,
-    getBackupStats,
-    downloadBackup
-} from "@/actions/backup";
-import { updateSystemConfig, getSystemConfig } from "@/actions/system-config";
-import { resetAllData } from "@/actions/system";
-import { testGoogleDrive, uploadToDrive } from "@/actions/google-drive";
+import { format } from "date-fns";
+import { LocalPersistenceService } from "@/lib/local-persistence";
 
 export default function BackupManager() {
+    const [backupPath, setBackupPath] = useState<string>('');
+    const [backupInterval, setBackupInterval] = useState<string>('15');
+    const [maxBackups, setMaxBackups] = useState<string>('30');
     const [backups, setBackups] = useState<any[]>([]);
-    const [stats, setStats] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
-    const [config, setConfig] = useState<any>({});
-    const [driveStatus, setDriveStatus] = useState<any>(null);
-    const [restoring, setRestoring] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isRestoring, setIsRestoring] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
     const { useTranslations } = require('@/lib/i18n-mock');
     const t = useTranslations('BackupManager');
 
     useEffect(() => {
-        loadData();
+        loadConfig();
+        fetchBackups();
     }, []);
 
-    const loadData = async () => {
-        setLoading(true);
+    const loadConfig = async () => {
+        setIsLoading(true);
         try {
-            const [b, s, c, d] = await Promise.all([
-                getBackups(),
-                getBackupStats(),
-                getSystemConfig(),
-                testGoogleDrive()
-            ]);
-
-            if (b.success && b.backups) setBackups(b.backups);
-            if (s.success) setStats(s.stats);
-            if (c.success) setConfig(c);
-            setDriveStatus(d);
-
+            if (window.electronAPI?.config?.getConfig) {
+                const config = await window.electronAPI.config.getConfig();
+                if (config.backupPath) {
+                    setBackupPath(config.backupPath);
+                }
+                if (config.backupInterval) {
+                    setBackupInterval(config.backupInterval.toString());
+                }
+                if (config.maxBackups) {
+                    setMaxBackups(config.maxBackups.toString());
+                }
+            }
         } catch (error) {
-            console.error(error);
-            toast.error(t('loadError'));
+            console.error("Failed to load config", error);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const handleCreateBackup = async () => {
-        setLoading(true);
-        toast.info(t('creating'));
+    const fetchBackups = async () => {
         try {
-            const res = await createManualBackup();
-            if (res.success) {
-                toast.success(t('createSuccess'));
-                loadData();
-            } else {
-                toast.error(t('createError') + res.error);
-            }
-        } catch (e: any) {
-            toast.error("Error: " + e.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleRestore = async (id: string) => {
-        if (!confirm(t('restoreConfirm'))) return;
-
-        setRestoring(true);
-        toast.loading(t('restoring'));
-        try {
-            const res = await restoreBackup({ backupId: id });
-            if (res.success) {
-                toast.dismiss();
-                toast.success(t('restoreSuccess'));
-                setTimeout(() => window.location.reload(), 2000);
-            } else {
-                toast.dismiss();
-                toast.error(t('restoreError') + res.error);
-                if (res.error?.includes("locked")) {
-                    alert(t('dbLocked'));
+            if (window.electronAPI?.storage?.getAvailableBackups) {
+                const result = await window.electronAPI.storage.getAvailableBackups();
+                if (result.success) {
+                    setBackups(result.backups || []);
+                } else {
+                    toast.error(`Failed to load backups: ${result.error}`);
                 }
             }
-        } catch (e: any) {
-            toast.error("Error: " + e.message);
-        } finally {
-            setRestoring(false);
+        } catch (error) {
+            console.error("Failed to fetch backups", error);
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm(t('deleteConfirm'))) return;
-        try {
-            await removeBackup({ backupId: id });
-            toast.success(t('deleteSuccess'));
-            loadData();
-        } catch (e) {
-            toast.error(t('deleteError'));
+    const handleSelectFolder = async () => {
+        if (!window.electronAPI?.config?.selectBackupFolder) {
+            toast.error("This feature is only available in the Desktop App.");
+            return;
+        }
+        const folder = await window.electronAPI.config.selectBackupFolder();
+        if (folder) {
+            setBackupPath(folder);
         }
     };
 
-    const handleDownload = async (id: string) => {
+    const handleSaveConfig = async () => {
+        if (!window.electronAPI?.config?.saveBackupConfig) return;
+        setIsSaving(true);
         try {
-            const res = await downloadBackup({ backupId: id });
-            if (res.success && res.downloadData) {
-                // Decode base64 (browser compatible)
-                const binaryString = window.atob(res.downloadData);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const blob = new Blob([bytes], { type: 'application/x-sqlite3' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = res.filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
+            const result = await window.electronAPI.config.saveBackupConfig({
+                backupPath,
+                backupInterval: parseInt(backupInterval),
+                maxBackups: parseInt(maxBackups)
+            });
+            if (result.success) {
+                toast.success("Backup settings saved and applied.");
+                fetchBackups();
+                // Restart the timer immediately with new interval
+                LocalPersistenceService.startAutoBackup();
+            } else {
+                toast.error(`Error saving limit: ${result.error}`);
             }
-        } catch (e) {
-            toast.error(t('downloadError'));
+        } catch (error) {
+            toast.error("An unexpected error occurred.");
+        } finally {
+            setIsSaving(false);
         }
     };
 
-    const handleResetSystem = async () => {
-        const confirm1 = confirm(t('resetConfirm1'));
-        if (!confirm1) return;
+    const handleManualBackup = async () => {
+        setIsSaving(true);
+        const toastId = toast.loading("Creating manual backup...");
+        try {
+            await LocalPersistenceService.backupToFilesystem(true);
+            toast.success("Backup created successfully.", { id: toastId });
+            fetchBackups();
+        } catch (error: any) {
+            toast.error(error.message || "Manual backup failed.", { id: toastId });
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
-        const confirm2 = confirm(t('resetConfirm2'));
-        if (confirm2) { // Allow any input for now since prompt isn't easy in react without UI. Just confirm twice.
-            // Actually native prompt is fine
-            // const input = prompt("Type DELETE"); if (input !== 'DELETE') return;
-        } else {
+    const handleDelete = async (backupFilePath: string) => {
+        if (!window.electronAPI?.storage?.deleteBackup) return;
+        if (!confirm("Are you sure you want to delete this backup file? This cannot be undone.")) {
             return;
         }
 
-        setLoading(true);
+        setIsSaving(true);
         try {
-            const res = await resetAllData();
-            if (res.success) {
-                toast.success(t('resetSuccess'));
-                window.location.reload();
+            const result = await window.electronAPI.storage.deleteBackup(backupFilePath);
+            if (result.success) {
+                toast.success("Backup deleted successfully.");
+                fetchBackups();
             } else {
-                toast.error(t('resetError') + res.error);
+                toast.error(`Failed to delete backup: ${result.error}`);
             }
-        } catch (e: any) {
-            toast.error("Error: " + e.message);
+        } catch (error) {
+            toast.error("An unexpected error occurred while deleting.");
         } finally {
-            setLoading(false);
+            setIsSaving(false);
         }
     };
 
-    const handleSavePath = async () => {
-        try {
-            await updateSystemConfig({ backupPath: config.backupPath });
-            toast.success(t('pathUpdated'));
-            loadData();
-        } catch (error) {
-            toast.error(t('pathError'));
+    const handleRestore = async (backupFilePath: string) => {
+        if (!window.electronAPI?.storage?.restoreFromBackup) return;
+        if (!confirm("CRITICAL WARNING: Restoring this backup will overwrite ALL current data created AFTER this backup Date/Time. The application will restart immediately. Are you absolutely sure?")) {
+            return;
         }
+
+        setIsRestoring(true);
+        try {
+            const result = await window.electronAPI.storage.restoreFromBackup(backupFilePath);
+            if (!result.success) {
+                toast.error(`Restore failed: ${result.error}`);
+                setIsRestoring(false);
+            }
+            // If success, the app restarts
+        } catch (error) {
+            toast.error("Restore failed unexpectedly.");
+            setIsRestoring(false);
+        }
+    };
+
+    const formatSize = (bytes: number) => {
+        const mb = bytes / (1024 * 1024);
+        return `${mb.toFixed(2)} MB`;
     };
 
     return (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 text-white">
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Stats Card */}
-                <Card className="glass-card bg-transparent border-white/10 text-white">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-zinc-400">{t('totalBackups')}</CardTitle>
-                        <div className="text-2xl font-bold">{stats?.totalBackups || 0}</div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-xs text-zinc-500">
-                            {t('totalSize', { size: stats?.totalSizeMB || 0 })}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Drive Status */}
-                <Card className="glass-card bg-transparent border-white/10 text-white">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-zinc-400">{t('googleDrive')}</CardTitle>
-                        <div className="flex items-center gap-2">
-                            {driveStatus?.success ? (
-                                <span className="text-green-400 flex items-center gap-1 text-sm font-bold"><UploadCloud className="w-4 h-4" /> {t('connected')}</span>
-                            ) : (
-                                <span className="text-zinc-500 flex items-center gap-1 text-sm"><UploadCloud className="w-4 h-4" /> {t('notConfigured')}</span>
-                            )}
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-xs text-zinc-500">
-                            {driveStatus?.message || t('installDrive')}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-4">
-                <Button onClick={handleCreateBackup} disabled={loading} className="bg-cyan-600 hover:bg-cyan-500 text-white">
-                    <Save className="w-4 h-4 mr-2" />
-                    {t('createBackup')}
-                </Button>
-
-                <Button variant="destructive" onClick={handleResetSystem} className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border-red-500/20">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {t('resetData')}
-                </Button>
-            </div>
-
-            {/* Backup List */}
+            {/* CONFIGURATION CARD */}
             <Card className="glass-card bg-transparent border-white/10 text-white">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <History className="w-5 h-5 text-purple-400" />
-                        {t('historyTitle')}
+                        <Database className="w-5 h-5 text-blue-400" />
+                        Local Fast Backups
                     </CardTitle>
                     <CardDescription className="text-zinc-400">
-                        {t('historyDesc')}
+                        Configure automated data safety. Casper POS can automatically backup your data at regular intervals.
+                        Select an external USB drive or a synced folder (like Dropbox) below.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Frequency */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-zinc-300">
+                                Backup Frequency
+                            </label>
+                            <select
+                                value={backupInterval}
+                                onChange={(e) => setBackupInterval(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-cyan-500/50"
+                            >
+                                <option value="15" className="bg-zinc-900">Every 15 Minutes</option>
+                                <option value="60" className="bg-zinc-900">Every 1 Hour</option>
+                                <option value="360" className="bg-zinc-900">Every 6 Hours</option>
+                                <option value="1440" className="bg-zinc-900">Daily</option>
+                            </select>
+                        </div>
+
+                        {/* Max Backups */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-zinc-300">
+                                Keep Local Backups
+                            </label>
+                            <select
+                                value={maxBackups}
+                                onChange={(e) => setMaxBackups(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-cyan-500/50"
+                            >
+                                <option value="10" className="bg-zinc-900">10 Most Recent</option>
+                                <option value="30" className="bg-zinc-900">30 Most Recent</option>
+                                <option value="50" className="bg-zinc-900">50 Most Recent</option>
+                                <option value="100" className="bg-zinc-900">100 Most Recent</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                    {/* Destination */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-zinc-300">
+                            Backup Destination
+                        </label>
+                        <div className="flex gap-2">
+                            <Input
+                                readOnly
+                                value={backupPath || 'Internal Storage'}
+                                className="bg-black/20 border-white/10 font-mono text-sm text-zinc-300 flex-1 truncate"
+                            />
+                            <Button variant="secondary" onClick={handleSelectFolder} disabled={isLoading || isSaving}>
+                                <FolderOpen className="w-4 h-4 mr-2" />
+                                Browse
+                            </Button>
+                        </div>
+                    </div>
+
+                    <p className="text-xs text-zinc-500">
+                        A folder named "Casper Backups" will be created at the destination. Old backups are automatically pruned based on your retention limit to save disk space.
+                    </p>
+
+                    <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+                        <Button
+                            variant="outline"
+                            onClick={handleManualBackup}
+                            disabled={isSaving || !backupPath}
+                            className="border-cyan-600/50 text-cyan-400 hover:bg-cyan-600/10 hover:text-cyan-300"
+                        >
+                            <Save className="w-4 h-4 mr-2" />
+                            {isSaving ? '...' : 'Create Backup Now'}
+                        </Button>
+                        <Button
+                            onClick={handleSaveConfig}
+                            disabled={isSaving || !backupPath}
+                            className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                        >
+                            <Save className="w-4 h-4 mr-2" />
+                            {isSaving ? 'Saving...' : 'Apply Configuration'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* RESTORE CARD */}
+            <Card className="glass-card bg-transparent border-white/10 text-white">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-400">
+                        <AlertTriangle className="w-5 h-5" />
+                        Disaster Recovery
+                    </CardTitle>
+                    <CardDescription className="text-orange-200/70">
+                        Restoring a backup will instantly replace your current active database with the historical version.
+                        <strong> All changes made after the backup's timestamp will be permanently lost.</strong>
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {/* Config Path */}
-                        <div className="flex items-end gap-2 mb-6">
-                            <div className="flex-1 space-y-2">
-                                <Label>{t('backupDir')}</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        value={config.backupPath || ""}
-                                        onChange={(e) => setConfig({ ...config, backupPath: e.target.value })}
-                                        className="bg-black/20 border-white/10"
-                                    />
-                                    <Button variant="outline" onClick={handleSavePath} title="Save Path">
-                                        <Save className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                                <p className="text-[10px] text-zinc-500">
-                                    {t('backupDirHint')}
-                                </p>
-                            </div>
+                    <div className="rounded-md border border-white/10 bg-black/20 overflow-hidden">
+                        <div className="grid grid-cols-12 gap-4 border-b border-white/10 bg-black/40 p-3 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                            <div className="col-span-6">Backup Timestamp</div>
+                            <div className="col-span-3 text-center">Size</div>
+                            <div className="col-span-3 text-right">Action</div>
                         </div>
 
-                        <div className="border rounded-lg border-white/10 divide-y divide-white/5">
-                            {backups.length === 0 && (
-                                <div className="p-8 text-center text-zinc-500">
-                                    {t('noBackups')}
+                        <div className="max-h-[400px] overflow-y-auto">
+                            {!backupPath && (
+                                <div className="p-8 text-center text-zinc-500 flex flex-col items-center justify-center">
+                                    <Database className="w-8 h-8 opacity-20 mb-2" />
+                                    <p>No custom backup destination configured.</p>
                                 </div>
                             )}
-                            {backups.map((backup) => (
-                                <div key={backup.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
-                                            <Database className="w-5 h-5" />
+                            {backupPath && backups.length === 0 && (
+                                <div className="p-8 text-center text-zinc-500">
+                                    No backups found in the configured destination.
+                                </div>
+                            )}
+                            {backups.map((backup, index) => (
+                                <div key={backup.filename} className="grid grid-cols-12 gap-4 p-3 border-b border-white/5 items-center hover:bg-white/5 transition-colors">
+                                    <div className="col-span-6 flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                                            <Clock className="w-4 h-4" />
                                         </div>
-                                        <div>
-                                            <div className="font-medium text-sm text-white">{backup.filename}</div>
-                                            <div className="text-xs text-zinc-500">
-                                                {(backup.fileSize / 1024 / 1024).toFixed(2)} MB • {new Date(backup.createdAt).toLocaleString()}
-                                            </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-medium text-zinc-200">
+                                                {format(new Date(backup.createdAt), "MMM d, yyyy")}
+                                            </span>
+                                            <span className="text-xs text-zinc-500">
+                                                {format(new Date(backup.createdAt), "hh:mm:ss a")}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <Button size="sm" variant="outline" onClick={() => handleDownload(backup.id)} title={t('download')} className="h-8 w-8 p-0 border-white/10 hover:bg-white/10 text-zinc-300">
-                                            <Download className="w-4 h-4" />
+                                    <div className="col-span-3 text-center text-zinc-400 font-mono text-sm">
+                                        {formatSize(backup.sizeBytes)}
+                                    </div>
+                                    <div className="col-span-3 text-right flex items-center justify-end gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDelete(backup.path)}
+                                            disabled={isRestoring || isSaving}
+                                            className="text-red-500 hover:text-red-400 hover:bg-red-500/10 h-8 w-8 p-0"
+                                            title="Delete Backup"
+                                            type="button"
+                                        >
+                                            <Trash className="w-4 h-4" />
                                         </Button>
-                                        <Button size="sm" variant="outline" onClick={() => handleRestore(backup.id)} disabled={restoring} title={t('restore')} className="h-8 w-8 p-0 border-white/10 hover:bg-cyan-500/20 hover:text-cyan-400 text-zinc-300">
-                                            <RefreshCw className={`w-4 h-4 ${restoring ? 'animate-spin' : ''}`} />
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => handleDelete(backup.id)} title={t('delete')} className="h-8 w-8 p-0 border-white/10 hover:bg-red-500/20 hover:text-red-400 text-zinc-300">
-                                            <Trash2 className="w-4 h-4" />
+                                        <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => handleRestore(backup.path)}
+                                            disabled={isRestoring || isSaving}
+                                            className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-900 hover:border-red-600 h-8 text-xs"
+                                        >
+                                            <RefreshCw className={`w-3 h-3 mr-2 ${isRestoring ? 'animate-spin' : ''}`} />
+                                            {isRestoring ? '...' : 'Restore'}
                                         </Button>
                                     </div>
                                 </div>
@@ -292,6 +335,6 @@ export default function BackupManager() {
                     </div>
                 </CardContent>
             </Card>
-        </div>
+        </div >
     );
 }

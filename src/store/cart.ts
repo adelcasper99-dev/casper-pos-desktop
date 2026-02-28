@@ -10,6 +10,8 @@ export interface CartItem {
     quantity: number;
     maxQuantity: number; // Added for Stock Protection
     trackStock?: boolean;
+    isBundle?: boolean;
+    bundleComponents?: { id: string; name: string; quantityIncluded: number }[];
 }
 
 export interface HeldCart {
@@ -103,7 +105,9 @@ export const useCartStore = create<CartState>()(
                                 price: Number(product.sellPrice),
                                 quantity: 1,
                                 maxQuantity: product.stock,
-                                trackStock: product.trackStock
+                                trackStock: product.trackStock,
+                                isBundle: !!(product as any).isBundle,
+                                bundleComponents: (product as any).bundleComponents || undefined,
                             },
                         ],
                     });

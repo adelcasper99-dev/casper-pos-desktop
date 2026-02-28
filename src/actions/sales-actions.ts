@@ -124,10 +124,14 @@ export const refundSale = secureAction(async (data: {
     // Execute atomic refund transaction
     const result = await prisma.$transaction(async (tx) => {
         // 1. Fetch original sale
-        const sale = await tx.sale.findUnique({
+        const sale = await (tx.sale.findUnique as any)({
             where: { id: saleId },
             include: {
-                items: true,
+                items: {
+                    include: {
+                        product: { select: { id: true, isBundle: true } }
+                    }
+                },
                 payments: true
             }
         });
@@ -195,15 +199,7 @@ export const refundSale = secureAction(async (data: {
 
         // 4. Reverse inventory
         for (const item of sale.items) {
-            await tx.product.update({
-                where: { id: item.productId },
-                data: { stock: { increment: item.quantity } }
-            });
-
-            await tx.stock.updateMany({
-                where: { productId: item.productId, warehouseId: sale.warehouseId },
-                data: { quantity: { increment: item.quantity } }
-            });
+            const isBundle = (item as any).product?.isBundle;
 
             // V-07 audit fix: ensure valid DB userId for StockMovement constraint
             let performedById: string | undefined = currentUser.id;
@@ -212,16 +208,57 @@ export const refundSale = secureAction(async (data: {
                 performedById = fallback?.id || undefined;
             }
 
-            await tx.stockMovement.create({
-                data: {
-                    type: 'REFUND',
-                    productId: item.productId,
-                    toWarehouseId: sale.warehouseId,
-                    quantity: item.quantity,
-                    reason: `Refund: Sale #${sale.id.split('-')[0]}`,
-                    performedById: performedById
+            if (isBundle) {
+                // BUNDLE: restore each component's stock
+                const components = await (tx as any).bundleItem.findMany({
+                    where: { bundleProductId: item.productId },
+                    include: {
+                        componentProduct: { select: { id: true, trackStock: true } }
+                    }
+                });
+                for (const comp of components) {
+                    if (!comp.componentProduct.trackStock) continue;
+                    const restoreQty = item.quantity * comp.quantityIncluded;
+                    await tx.product.update({
+                        where: { id: comp.componentProductId },
+                        data: { stock: { increment: restoreQty } }
+                    });
+                    await tx.stock.updateMany({
+                        where: { productId: comp.componentProductId, warehouseId: sale.warehouseId },
+                        data: { quantity: { increment: restoreQty } }
+                    });
+                    await tx.stockMovement.create({
+                        data: {
+                            type: 'REFUND',
+                            productId: comp.componentProductId,
+                            toWarehouseId: sale.warehouseId,
+                            quantity: restoreQty,
+                            reason: `Bundle Refund: Sale #${sale.id.split('-')[0]} — component of bundle ${item.productId.slice(0, 8)}`,
+                            performedById: performedById
+                        }
+                    });
                 }
-            });
+            } else {
+                // REGULAR product
+                await tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { increment: item.quantity } }
+                });
+                await tx.stock.updateMany({
+                    where: { productId: item.productId, warehouseId: sale.warehouseId },
+                    data: { quantity: { increment: item.quantity } }
+                });
+                await tx.stockMovement.create({
+                    data: {
+                        type: 'REFUND',
+                        productId: item.productId,
+                        toWarehouseId: sale.warehouseId,
+                        quantity: item.quantity,
+                        reason: `Refund: Sale #${sale.id.split('-')[0]}`,
+                        performedById: performedById
+                    }
+                });
+            }
         }
 
         // 5. Update sale status
@@ -318,9 +355,15 @@ export const partialRefundSale = secureAction(async (data: {
 
     const result = await prisma.$transaction(async (tx) => {
         // 1. Fetch original sale with items
-        const sale = await tx.sale.findUnique({
+        const sale = await (tx.sale.findUnique as any)({
             where: { id: saleId },
-            include: { items: { include: { product: true } } }
+            include: {
+                items: {
+                    include: {
+                        product: { select: { id: true, name: true, isBundle: true } }
+                    }
+                }
+            }
         });
 
         if (!sale) throw new Error(t('notFound'));
@@ -331,7 +374,7 @@ export const partialRefundSale = secureAction(async (data: {
         const processedItems: { item: any; refundQty: number; lineTotal: number }[] = [];
 
         for (const refundItem of refundItems) {
-            const originalItem = sale.items.find(i => i.id === refundItem.itemId);
+            const originalItem = (sale.items as any[]).find((i: any) => i.id === refundItem.itemId);
             if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
 
             // V-07 fix: Check against available quantity (original - already refunded)
@@ -383,32 +426,63 @@ export const partialRefundSale = secureAction(async (data: {
 
         // 6. Reverse stock for returned items
         for (const { item, refundQty } of processedItems) {
-            await tx.product.update({
-                where: { id: item.productId },
-                data: { stock: { increment: refundQty } }
-            });
-            await tx.stock.updateMany({
-                where: { productId: item.productId, warehouseId: sale.warehouseId },
-                data: { quantity: { increment: refundQty } }
-            });
-
             // Audit fix: ensure valid DB userId
             let performedById: string | undefined = currentUser.id;
             if (performedById === 'super-admin') {
                 const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
                 performedById = fallback?.id || undefined;
             }
+            
+            const isBundle = (item as any).product?.isBundle;
 
-            await tx.stockMovement.create({
-                data: {
-                    type: 'REFUND',
-                    productId: item.productId,
-                    toWarehouseId: sale.warehouseId,
-                    quantity: refundQty,
-                    reason: t('partialRefundMovement', { ref: sale.id.split('-')[0] }),
-                    performedById: performedById
+            if (isBundle) {
+                // BUNDLE: restore each component's stock proportionally
+                const components = await (tx as any).bundleItem.findMany({
+                    where: { bundleProductId: item.productId },
+                    include: { componentProduct: { select: { id: true, trackStock: true } } }
+                });
+                for (const comp of components) {
+                    if (!comp.componentProduct.trackStock) continue;
+                    const restoreQty = refundQty * comp.quantityIncluded;
+                    await tx.product.update({
+                        where: { id: comp.componentProductId },
+                        data: { stock: { increment: restoreQty } }
+                    });
+                    await tx.stock.updateMany({
+                        where: { productId: comp.componentProductId, warehouseId: sale.warehouseId },
+                        data: { quantity: { increment: restoreQty } }
+                    });
+                    await tx.stockMovement.create({
+                        data: {
+                            type: 'REFUND',
+                            productId: comp.componentProductId,
+                            toWarehouseId: sale.warehouseId,
+                            quantity: restoreQty,
+                            reason: `مرتجع جزئي (باقة) — فاتورة #${sale.id.split('-')[0]}`,
+                            performedById: performedById
+                        }
+                    });
                 }
-            });
+            } else {
+                await tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { increment: refundQty } }
+                });
+                await tx.stock.updateMany({
+                    where: { productId: item.productId, warehouseId: sale.warehouseId },
+                    data: { quantity: { increment: refundQty } }
+                });
+                await tx.stockMovement.create({
+                    data: {
+                        type: 'REFUND',
+                        productId: item.productId,
+                        toWarehouseId: sale.warehouseId,
+                        quantity: refundQty,
+                        reason: `مرتجع جزئي — فاتورة #${sale.id.split('-')[0]}`,
+                        performedById: performedById
+                    }
+                });
+            }
         }
 
         // 6b. V-07: Update SaleItem refundedQty — do NOT delete or decrement original quantity

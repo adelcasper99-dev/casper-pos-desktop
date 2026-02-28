@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import {
     Search, Filter, Eye, RotateCcw,
     FileText, AlertCircle,
-    ChevronDown, Package, Printer
+    ChevronDown, Package, Printer, Download
 } from 'lucide-react';
+import * as XLSX from "xlsx";
 import {
     DropdownMenu, DropdownMenuContent,
     DropdownMenuItem, DropdownMenuLabel,
@@ -149,6 +150,22 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
         } finally {
             setLoading(null);
         }
+    };
+
+    const exportToExcel = () => {
+        const data = filteredSales.map(sale => ({
+            "رقم الفاتورة": sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase(),
+            "التاريخ": format(new Date(sale.createdAt), 'yyyy/MM/dd HH:mm'),
+            "العميل": sale.customerName || "عميل نقدي",
+            "الإجمالي": sale.totalAmount,
+            "طريقة الدفع": sale.paymentMethod,
+            "الحالة": sale.status === 'REFUNDED' ? 'مرتجع كامل' : sale.status === 'PARTIAL_REFUND' ? 'مرتجع جزئي' : 'مدفوع'
+        }));
+        
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "سجل المبيعات");
+        XLSX.writeFile(wb, `casper_sales_log_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
     };
 
     const handlePartialRefundDone = (saleId: string, refundedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
@@ -397,6 +414,15 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         حذف الكل
                     </Button>
                 )}
+
+                <Button 
+                    variant="outline" 
+                    className="border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 gap-2 h-10 px-4"
+                    onClick={exportToExcel}
+                >
+                    <Download className="w-4 h-4" />
+                    <span>تصدير Excel</span>
+                </Button>
             </div>
 
             {/* Main Table */}
