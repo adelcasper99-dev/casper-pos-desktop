@@ -573,10 +573,6 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     try {
         const userDataPath = app.getPath('userData');
         const configPath = path.join(userDataPath, 'casper-config.json');
-<<<<<<< HEAD
-        fs.writeFileSync(configPath, JSON.stringify({ dbPath: newDbFolder }, null, 2), 'utf8');
-=======
-
         const existingConfig = loadConfig();
         const newConfig = { ...existingConfig, dbPath: newDbFolder };
 
@@ -584,7 +580,6 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
         log(`Saved new config path: ${newDbFolder}. Restarting...`);
 
         // Relaunch the application and exit
->>>>>>> 001-baseline-spec
         app.relaunch();
         app.quit();
         return true;
@@ -594,8 +589,6 @@ ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     }
 });
 
-<<<<<<< HEAD
-=======
 ipcMain.handle('app:save-backup-config', async (event, configData) => {
     try {
         const userDataPath = app.getPath('userData');
@@ -615,16 +608,11 @@ ipcMain.handle('app:save-backup-config', async (event, configData) => {
 
 // --- OFFLINE DATA PERSISTENCE & MAINTENANCE ---
 
->>>>>>> 001-baseline-spec
+
 ipcMain.handle('app:save-offline-data', async (event, data) => {
     try {
         const dbPath = getDatabasePath();
         const userDataPath = app.getPath('userData');
-<<<<<<< HEAD
-        const backupPath = path.join(userDataPath, 'local_mirror.db');
-        if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
-        if (data && Object.keys(data).length > 0) {
-=======
         const hiddenMirrorPath = path.join(userDataPath, 'local_mirror.db');
 
         // 1. Always create the hidden fail-safe mirror
@@ -679,14 +667,11 @@ ipcMain.handle('app:save-offline-data', async (event, data) => {
 
         // 3. Save frontend offline json metadata if provided
         if (data && Object.keys(data).length > 0 && !data.isManual) {
->>>>>>> 001-baseline-spec
             const jsonPath = path.join(userDataPath, 'offline_backup.json');
             fs.writeFileSync(jsonPath, JSON.stringify(data), 'utf8');
         }
         return { success: true };
     } catch (err) {
-<<<<<<< HEAD
-=======
         log(`Failed to save offline data: ${err.message}`);
         // Do not crash the app, return gracefully
         return { success: false, error: err.message };
@@ -778,7 +763,6 @@ ipcMain.handle('app:restore-from-backup', async (event, backupFilePath) => {
         return { success: true };
     } catch (err) {
         log(`RESTORE FATAL ERROR: ${err.message}`);
->>>>>>> 001-baseline-spec
         return { success: false, error: err.message };
     }
 });

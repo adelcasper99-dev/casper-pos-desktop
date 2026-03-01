@@ -91,9 +91,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         restoreFromBackup: (filePath) => ipcRenderer.invoke('app:restore-from-backup', filePath),
         exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
         vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
-<<<<<<< HEAD
-
-=======
         printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),
     },
 
@@ -122,7 +119,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return () => ipcRenderer.removeListener('updater:error', handler);
         },
         installUpdate: () => ipcRenderer.invoke('app:install-update')
->>>>>>> 001-baseline-spec
     }
 });
 

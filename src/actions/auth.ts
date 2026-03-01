@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { createUserSession, getSession, destroySession } from "@/lib/auth"; // Fixed import
 import { redirect } from "next/navigation";
+import { ensureMainBranch } from "@/lib/ensure-main-branch";
 import bcrypt from "bcryptjs";
 
 // ── V-06: In-memory login rate limiting ──────────────────────────────────────
