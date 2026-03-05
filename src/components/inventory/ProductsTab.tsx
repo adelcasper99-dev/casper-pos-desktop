@@ -137,7 +137,8 @@ export default function ProductsTab({
 
         setLoading(true);
 
-        const result = await updateProduct(editingProduct.id, {
+        const result = await updateProduct({
+            id: editingProduct.id,
             name: editingProduct.name,
             sku: editingProduct.sku,
             categoryId: editingProduct.categoryId || undefined,
@@ -147,7 +148,8 @@ export default function ProductsTab({
             costPrice: Number(editingProduct.costPrice),
             stock: Number(editingProduct.stock),
             minStock: 5,
-            trackStock: editingProduct.trackStock
+            trackStock: editingProduct.trackStock,
+            csrfToken
         } as any);
 
         setLoading(false);
@@ -164,7 +166,7 @@ export default function ProductsTab({
         if (!confirm(t('deleteConfirm'))) return;
 
         setDeletingId(id);
-        const result = await deleteProduct(id);
+        const result = await deleteProduct({ id, csrfToken });
         setDeletingId(null);
 
         if (!result.success) {

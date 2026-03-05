@@ -13,7 +13,7 @@ export default function CategoriesTab({ categories, csrfToken }: { categories: a
 
     async function handleDelete(id: string) {
         if (confirm(t('deleteConfirm'))) {
-            await deleteCategory(id);
+            await deleteCategory({ id, csrfToken });
         }
     }
 

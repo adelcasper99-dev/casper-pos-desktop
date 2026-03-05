@@ -60,7 +60,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setLoading(true);
 
         const res = editingWarehouse
-            ? await updateWarehouse(editingWarehouse.id, { name, address })
+            ? await updateWarehouse({ id: editingWarehouse.id, name, address, csrfToken })
             : await createWarehouse({ name, address, csrfToken, branchId });
 
         setLoading(false);
@@ -80,7 +80,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
 
         setIsDeleting(true);
         setDeletingId(id);
-        const res = await deleteWarehouse(id);
+        const res = await deleteWarehouse({ id, csrfToken });
         setIsDeleting(false);
         setDeletingId(null);
 

@@ -58,7 +58,7 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
 
         let res;
         if (editingId) {
-            res = await updateSupplier(editingId, data);
+            res = await updateSupplier({ id: editingId, ...data });
         } else {
             res = await createSupplier(data);
         }
@@ -111,7 +111,7 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     async function handlePayment() {
         if (!selectedSupplierForPayment || !paymentAmount) return;
         setLoading(true);
-        await paySupplier(selectedSupplierForPayment.id, parseFloat(paymentAmount));
+        await paySupplier({ supplierId: selectedSupplierForPayment.id, amount: parseFloat(paymentAmount), csrfToken });
         setLoading(false);
         setIsPaymentModalOpen(false);
         setSelectedSupplierForPayment(null);

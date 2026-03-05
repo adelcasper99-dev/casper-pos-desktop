@@ -54,8 +54,9 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
     return { success: true, supplier };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const updateSupplier = secureAction(async (id: string, data: z.infer<typeof supplierSchema>) => {
-    const validated = supplierSchema.parse(data);
+export const updateSupplier = secureAction(async (data: { id: string } & z.infer<typeof supplierSchema> & { csrfToken?: string }) => {
+    const { id, ...updateData } = data;
+    const validated = supplierSchema.parse(updateData);
 
     if (validated.phone) {
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
@@ -92,7 +93,8 @@ export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
-export const paySupplier = secureAction(async (supplierId: string, amount: number, method: string = "CASH", data?: { csrfToken?: string }) => {
+export const paySupplier = secureAction(async (data: { supplierId: string, amount: number, method?: string, csrfToken?: string }) => {
+    const { supplierId, amount, method = "CASH" } = data;
     // 0. Find Default Treasury for this branch (Critical for Treasury Tracking)
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
@@ -279,9 +281,10 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
     return product;
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const updateProduct = secureAction(async (id: string, data: z.infer<typeof productSchema>) => {
+export const updateProduct = secureAction(async (data: { id: string } & z.infer<typeof productSchema> & { csrfToken?: string }) => {
     const startTime = Date.now();
-    const validated = productSchema.parse(data);
+    const { id, ...productData } = data;
+    const validated = productSchema.parse(productData);
     const { bundleItems, isBundle, ...productFields } = validated;
 
     const effectiveTrackStock = isBundle ? false : (productFields.trackStock ?? true);
@@ -321,7 +324,8 @@ export const updateProduct = secureAction(async (id: string, data: z.infer<typeo
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const deleteProduct = secureAction(async (id: string) => {
+export const deleteProduct = secureAction(async (data: { id: string; csrfToken?: string }) => {
+    const { id } = data;
     try {
         await prisma.$transaction(async (tx) => {
             // Delete Bundle Items first (cascade handles this but being explicit)
@@ -457,8 +461,9 @@ export const createCategory = secureAction(async (data: z.infer<typeof categoryS
     return { success: true, category };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const updateCategory = secureAction(async (id: string, data: z.infer<typeof categorySchema>) => {
-    const validated = categorySchema.parse(data);
+export const updateCategory = secureAction(async (data: { id: string } & z.infer<typeof categorySchema> & { csrfToken?: string }) => {
+    const { id, ...categoryData } = data;
+    const validated = categorySchema.parse(categoryData);
     await prisma.category.update({
         where: { id },
         data: validated
@@ -470,7 +475,8 @@ export const updateCategory = secureAction(async (id: string, data: z.infer<type
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const deleteCategory = secureAction(async (id: string) => {
+export const deleteCategory = secureAction(async (data: { id: string; csrfToken?: string }) => {
+    const { id } = data;
     await prisma.category.delete({ where: { id } });
     revalidatePath('/inventory', 'page');
     revalidatePath('/pos', 'page');
@@ -1351,8 +1357,9 @@ export const createWarehouse = secureAction(async (data: { name: string; address
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const updateWarehouse = secureAction(async (id: string, data: z.infer<typeof warehouseSchema>) => {
-    const validated = warehouseSchema.parse(data);
+export const updateWarehouse = secureAction(async (data: { id: string } & z.infer<typeof warehouseSchema> & { csrfToken?: string }) => {
+    const { id, ...warehouseData } = data;
+    const validated = warehouseSchema.parse(warehouseData);
 
     const warehouse = await prisma.warehouse.update({
         where: { id },
@@ -1367,7 +1374,8 @@ export const updateWarehouse = secureAction(async (id: string, data: z.infer<typ
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
-export const deleteWarehouse = secureAction(async (id: string) => {
+export const deleteWarehouse = secureAction(async (data: { id: string; csrfToken?: string }) => {
+    const { id } = data;
     const t = await getTranslations('Inventory.warehouses');
 
     // 1. Check for stock availability
