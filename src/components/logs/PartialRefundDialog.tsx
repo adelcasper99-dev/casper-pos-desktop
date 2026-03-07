@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import {
     RotateCcw, Printer, Package, CheckCircle2,
-    Minus, Plus, AlertCircle, XCircle
+    Minus, Plus, AlertCircle, XCircle, UserCheck
 } from 'lucide-react';
 import { partialRefundSale } from '@/actions/sales-actions';
 import { getStoreSettings } from '@/actions/settings';
@@ -15,6 +15,9 @@ import { getBranchTreasuriesForDropdown } from '@/actions/treasury';
 import { printService } from '@/lib/print-service';
 import { formatArabicPrintText } from '@/lib/arabic-reshaper';
 import { cn, formatCurrency } from '@/lib/utils';
+
+// Virtual ID — deduct from customer credit balance without touching any treasury
+const ACCOUNT_VIRTUAL_ID = '__ACCOUNT__';
 
 interface PartialRefundDialogProps {
     isOpen: boolean;
@@ -37,15 +40,21 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
     // Fetch treasuries
     useEffect(() => {
         if (isOpen) {
+            const isCredit = sale?.paymentMethod === 'ACCOUNT' || sale?.paymentMethod === 'DEFERRED';
             getBranchTreasuriesForDropdown().then(res => {
                 if (res.success) {
                     setTreasuries(res.data);
-                    const def = res.data.find((t: any) => t.isDefault);
-                    if (def) setSelectedTreasuryId(def.id);
+                    if (isCredit) {
+                        // Default to account deduction for credit sales
+                        setSelectedTreasuryId(ACCOUNT_VIRTUAL_ID);
+                    } else {
+                        const def = res.data.find((t: any) => t.isDefault);
+                        if (def) setSelectedTreasuryId(def.id);
+                    }
                 }
             });
         }
-    }, [isOpen]);
+    }, [isOpen, sale?.paymentMethod]);
 
     const items = sale?.items || [];
 
@@ -75,6 +84,12 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
         return sum + (Number(item.unitPrice) * sel.quantity);
     }, 0);
 
+    // How much cash the customer actually paid (relevant for DEFERRED validation)
+    const originalPaidCash: number = (sale?.payments || [])
+        .filter((p: any) => p.method !== 'ACCOUNT' && p.method !== 'DEFERRED')
+        .reduce((s: number, p: any) => s + Number(p.amount), 0);
+    const isCredit = sale?.paymentMethod === 'ACCOUNT' || sale?.paymentMethod === 'DEFERRED';
+
     const handleSelectAll = () => {
         const allSelected = items.every((i: any) => selectedItems[i.id]?.selected);
         if (allSelected) {
@@ -96,6 +111,16 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
             return;
         }
 
+        const isAccountOption = selectedTreasuryId === ACCOUNT_VIRTUAL_ID;
+
+        // Validate: if paying back cash on a DEFERRED invoice, cap at what was paid
+        if (!isAccountOption && isCredit && sale?.paymentMethod === 'DEFERRED') {
+            if (refundTotal > originalPaidCash) {
+                toast.error(`المبلغ المسترد (${refundTotal.toFixed(2)}) يتجاوز ما دفعه العميل نقداً (${originalPaidCash.toFixed(2)}). اختر "حساب العميل" أو قلل الكمية.`);
+                return;
+            }
+        }
+
         setLoading(true);
         try {
             const selectedTreasury = treasuries.find(t => t.id === selectedTreasuryId);
@@ -103,8 +128,8 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                 saleId: sale.id,
                 items: itemsToRefund,
                 reason: reason || undefined,
-                paymentMethod: selectedTreasury?.paymentMethod,
-                treasuryId: selectedTreasuryId,
+                paymentMethod: isAccountOption ? 'ACCOUNT' : selectedTreasury?.paymentMethod,
+                treasuryId: isAccountOption ? undefined : selectedTreasuryId,
                 csrfToken,
             });
 
@@ -309,12 +334,25 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                     onChange={(e) => setSelectedTreasuryId(e.target.value)}
                                     className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 h-12 text-sm text-zinc-200 focus:outline-none focus:border-red-500/30 appearance-none cursor-pointer"
                                 >
+                                    {/* Account option for credit sales */}
+                                    {isCredit && (
+                                        <option value={ACCOUNT_VIRTUAL_ID} className="bg-zinc-950">
+                                            ⊖ خصم من حساب العميل (آجل)
+                                        </option>
+                                    )}
                                     {treasuries.map(t => (
                                         <option key={t.id} value={t.id} className="bg-zinc-950">
                                             {t.name} ({t.paymentMethod})
                                         </option>
                                     ))}
                                 </select>
+                                {/* Validation warning for DEFERRED — cash exceeds paid amount */}
+                                {selectedTreasuryId !== ACCOUNT_VIRTUAL_ID && isCredit && sale?.paymentMethod === 'DEFERRED' && refundTotal > originalPaidCash && selectedCount > 0 && (
+                                    <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3" />
+                                        المبلغ أكبر من المدفوع نقداً ({originalPaidCash.toFixed(2)})
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-1">

@@ -498,11 +498,15 @@ model Shift {
   totalCashSales             Decimal           @default(0.00)
   totalExpenses              Decimal           @default(0.00)
   totalInstapay              Decimal           @default(0.00)
+  totalWalletSales           Decimal           @default(0.00)
+  totalAccountSales          Decimal           @default(0.00)
+  
   totalRefunds               Decimal           @default(0.00)
+  totalCashRefunds           Decimal           @default(0.00)
+  totalAccountRefunds        Decimal           @default(0.00)
   totalSales                 Int               @default(0)
   totalSplitPayments         Int               @default(0)
   totalTickets               Int               @default(0)
-  totalWalletSales           Decimal           @default(0.00)
   updatedAt                  DateTime          @updatedAt
   userId                     String
   totalTicketRevenueCard     Decimal           @default(0.00)

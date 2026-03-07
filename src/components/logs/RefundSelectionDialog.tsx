@@ -7,14 +7,18 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RotateCcw, Wallet, Landmark, CreditCard, AlertCircle } from 'lucide-react';
+import { RotateCcw, Wallet, Landmark, CreditCard, AlertCircle, UserCheck } from 'lucide-react';
 import { getBranchTreasuriesForDropdown } from '@/actions/treasury';
 import { cn } from '@/lib/utils';
+
+// Virtual ID to represent "deduct from customer account balance" (no physical treasury)
+const ACCOUNT_VIRTUAL_ID = '__ACCOUNT__';
 
 interface RefundSelectionDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (data: { treasuryId: string, paymentMethod: string, reason: string }) => void;
+    /** treasuryId will be an empty string when the account option is selected */
+    onConfirm: (data: { treasuryId: string; paymentMethod: string; reason: string }) => void;
     sale: any;
     loading?: boolean;
 }
@@ -25,25 +29,34 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
     const [selectedTreasuryId, setSelectedTreasuryId] = useState<string>('');
     const [fetching, setFetching] = useState(false);
 
+    // True when original sale was on credit (pure account or deferred/mixed)
+    const isAccountSale = sale?.paymentMethod === 'ACCOUNT' || sale?.paymentMethod === 'DEFERRED';
+
     useEffect(() => {
         if (isOpen) {
             setFetching(true);
             getBranchTreasuriesForDropdown().then(res => {
                 if (res.success) {
                     setTreasuries(res.data);
-                    const def = res.data.find((t: any) => t.isDefault) || res.data[0];
-                    if (def) setSelectedTreasuryId(def.id);
+                    // Default to "account" option for credit sales, otherwise first treasury
+                    if (isAccountSale) {
+                        setSelectedTreasuryId(ACCOUNT_VIRTUAL_ID);
+                    } else {
+                        const def = res.data.find((t: any) => t.isDefault) || res.data[0];
+                        if (def) setSelectedTreasuryId(def.id);
+                    }
                 }
                 setFetching(false);
             });
         }
-    }, [isOpen]);
+    }, [isOpen, isAccountSale]);
 
     const handleConfirm = () => {
+        const isAccountOption = selectedTreasuryId === ACCOUNT_VIRTUAL_ID;
         const treasury = treasuries.find(t => t.id === selectedTreasuryId);
         onConfirm({
-            treasuryId: selectedTreasuryId,
-            paymentMethod: treasury?.paymentMethod || 'CASH',
+            treasuryId: isAccountOption ? '' : selectedTreasuryId,
+            paymentMethod: isAccountOption ? 'ACCOUNT' : (treasury?.paymentMethod || 'CASH'),
             reason
         });
     };
@@ -52,9 +65,15 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
         switch (method) {
             case 'CASH': return <Wallet className="w-4 h-4" />;
             case 'VISA': return <CreditCard className="w-4 h-4" />;
+            case 'ACCOUNT': return <UserCheck className="w-4 h-4" />;
             default: return <Landmark className="w-4 h-4" />;
         }
     };
+
+    const selectedTreasuryName =
+        selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+            ? 'حساب العميل (آجل)'
+            : treasuries.find(t => t.id === selectedTreasuryId)?.name || '...';
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -79,34 +98,67 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
                             {fetching ? (
                                 <div className="h-20 bg-white/5 animate-pulse rounded-xl" />
                             ) : (
-                                treasuries.map((t) => (
-                                    <button
-                                        key={t.id}
-                                        onClick={() => setSelectedTreasuryId(t.id)}
-                                        className={cn(
-                                            "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
-                                            selectedTreasuryId === t.id
-                                                ? "bg-red-500/10 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
-                                                : "bg-white/5 border-white/5 hover:bg-white/10"
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={cn(
-                                                "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                selectedTreasuryId === t.id ? "bg-red-500 text-white" : "bg-zinc-800 text-zinc-400"
-                                            )}>
-                                                {getIcon(t.paymentMethod)}
+                                <>
+                                    {/* ── Account option for credit sales ── */}
+                                    {isAccountSale && (
+                                        <button
+                                            key={ACCOUNT_VIRTUAL_ID}
+                                            onClick={() => setSelectedTreasuryId(ACCOUNT_VIRTUAL_ID)}
+                                            className={cn(
+                                                "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
+                                                selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+                                                    ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+                                                    : "bg-white/5 border-white/5 hover:bg-white/10"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn(
+                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                    selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "bg-amber-500 text-white" : "bg-zinc-800 text-zinc-400"
+                                                )}>
+                                                    <UserCheck className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold">خصم من حساب العميل (آجل)</div>
+                                                    <div className="text-[10px] text-zinc-500 uppercase">ACCOUNT — لا يمس الخزنة</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div className="text-sm font-bold">{t.name}</div>
-                                                <div className="text-[10px] text-zinc-500 uppercase">{t.paymentMethod}</div>
+                                            {selectedTreasuryId === ACCOUNT_VIRTUAL_ID && (
+                                                <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_10px_#f59e0b]" />
+                                            )}
+                                        </button>
+                                    )}
+
+                                    {/* ── Physical treasuries ── */}
+                                    {treasuries.map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setSelectedTreasuryId(t.id)}
+                                            className={cn(
+                                                "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
+                                                selectedTreasuryId === t.id
+                                                    ? "bg-red-500/10 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                                                    : "bg-white/5 border-white/5 hover:bg-white/10"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn(
+                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                    selectedTreasuryId === t.id ? "bg-red-500 text-white" : "bg-zinc-800 text-zinc-400"
+                                                )}>
+                                                    {getIcon(t.paymentMethod)}
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold">{t.name}</div>
+                                                    <div className="text-[10px] text-zinc-500 uppercase">{t.paymentMethod}</div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {selectedTreasuryId === t.id && (
-                                            <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
-                                        )}
-                                    </button>
-                                ))
+                                            {selectedTreasuryId === t.id && (
+                                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </>
                             )}
                         </div>
                     </div>
@@ -124,10 +176,18 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
                         />
                     </div>
 
-                    <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl flex items-start gap-3">
-                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <div className={cn(
+                        "p-3 border rounded-xl flex items-start gap-3",
+                        selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+                            ? "bg-amber-500/5 border-amber-500/20"
+                            : "bg-red-500/5 border-red-500/20"
+                    )}>
+                        <AlertCircle className={cn("w-4 h-4 shrink-0 mt-0.5", selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "text-amber-400" : "text-red-400")} />
                         <p className="text-[10px] text-zinc-400 leading-relaxed">
-                            سيتم خصم مبلغ <b>{sale?.totalAmount.toLocaleString()}</b> من خزينة <b>{treasuries.find(t => t.id === selectedTreasuryId)?.name || '...'}</b> وسيتم تغيير حالة الفاتورة إلى مرتجع.
+                            {selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+                                ? <>سيتم تخفيض رصيد العميل بمبلغ <b>{sale?.totalAmount.toLocaleString()}</b> — لن تتأثر أي خزنة نقدية.</>
+                                : <>سيتم خصم مبلغ <b>{sale?.totalAmount.toLocaleString()}</b> من خزينة <b>{selectedTreasuryName}</b> وسيتم تغيير حالة الفاتورة إلى مرتجع.</>
+                            }
                         </p>
                     </div>
                 </div>

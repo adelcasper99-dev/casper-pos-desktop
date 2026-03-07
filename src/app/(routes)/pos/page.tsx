@@ -4,7 +4,6 @@ import { getTranslations } from "@/lib/i18n-mock";
 import { getCSRFToken } from "@/lib/csrf";
 import { getCurrentShift } from "@/actions/shift-management-actions";
 import ShiftStatusIndicator from "@/components/shift/ShiftStatusIndicator";
-import PrinterStatusIndicator from "@/components/pos/PrinterStatusIndicator";
 import { getEffectiveStoreSettings } from "@/actions/settings";
 import { getSession } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
@@ -74,14 +73,9 @@ export default async function POSPage() {
 
     return (
         <div className="flex flex-col h-screen overflow-hidden">
-            {/* Top Bar: Shift & Printer Status */}
-            <div className="shrink-0 p-4 pb-0 flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-                <div className="flex-1">
-                    <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
-                </div>
-                <div className="shrink-0">
-                    <PrinterStatusIndicator />
-                </div>
+            {/* Top Bar: Shift Status */}
+            <div className="shrink-0 p-4 pb-0">
+                <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
             </div>
 
             {/* POS Interface - fills remaining height */}

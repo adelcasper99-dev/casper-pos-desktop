@@ -62,6 +62,20 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
+const translateMethod = (method: string) => {
+    if (!method) return "نقداً";
+    switch (method.toUpperCase()) {
+        case 'CASH': return 'كاش';
+        case 'VISA':
+        case 'CARD': return 'فيزا';
+        case 'WALLET': return 'محفظة';
+        case 'INSTAPAY': return 'انستاباي';
+        case 'ACCOUNT':
+        case 'DEFERRED': return 'آجل';
+        default: return method;
+    }
+};
+
 interface ReportPageProps {
     initialData: any
     branches: any[]
@@ -146,7 +160,7 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                 "التاريخ": format(new Date(t.date), 'yyyy-MM-dd HH:mm'),
                 "النوع": t.type === 'SALE' ? 'بيع' : t.type === 'PURCHASE' ? 'شراء' : 'مصروف',
                 "الفرع": t.branch || '',
-                "طريقة الدفع": t.method || '',
+                "طريقة الدفع": translateMethod(t.method),
                 "المبلغ": t.amount,
                 "الحالة": "مكتمل"
             }));
@@ -278,14 +292,14 @@ export default function ReportPage({ initialData, branches, categories = [], pro
             match = match && (
                 t.id.toLowerCase().includes(activeSearchQuery) ||
                 (t.description && t.description.toLowerCase().includes(activeSearchQuery)) ||
-                (t.method && t.method.toLowerCase().includes(activeSearchQuery))
+                (t.method && translateMethod(t.method).toLowerCase().includes(activeSearchQuery))
             );
         }
         if (activeTypeFilter !== 'all') {
             match = match && t.type === activeTypeFilter;
         }
         if (activeMethodFilter !== 'all') {
-            match = match && t.method === activeMethodFilter;
+            match = match && translateMethod(t.method) === activeMethodFilter;
         }
         return match;
     });
@@ -728,7 +742,7 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <Badge variant="outline" className="text-[10px] border-white/5 bg-zinc-900 text-zinc-500 px-2 py-0">
-                                                            {t.method || 'نقداً'}
+                                                            {translateMethod(t.method)}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className={cn(

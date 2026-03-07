@@ -428,7 +428,7 @@ export default function TreasuryDashboard({
             const dateStr = format(new Date(tx.createdAt), 'yyyy-MM-dd HH:mm');
             const typeStr = TYPE_LABELS[tx.type] || tx.type;
             const treasuryStr = tx.treasuryName || "-";
-            const methodStr = tx.paymentMethod;
+            const methodStr = METHODS.find(m => m.key === tx.paymentMethod)?.label || (tx.paymentMethod === 'ACCOUNT' ? 'آجل' : tx.paymentMethod);
             const descStr = (tx.description || "-").replace(/,/g, " "); // Basic CSV escaping
             const amountStr = (POSITIVE_TYPES.includes(tx.type) ? tx.amount : -tx.amount).toFixed(2);
 
@@ -628,7 +628,7 @@ export default function TreasuryDashboard({
                                             </td>
                                             <td className="p-4">
                                                 <span className="px-2 py-1 rounded bg-muted text-xs font-mono border border-border">
-                                                    {tx.paymentMethod}
+                                                    {METHODS.find(m => m.key === tx.paymentMethod)?.label || (tx.paymentMethod === 'ACCOUNT' ? 'آجل' : tx.paymentMethod)}
                                                 </span>
                                             </td>
                                             <td className="p-4 font-medium text-foreground">

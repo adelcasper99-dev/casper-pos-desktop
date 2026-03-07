@@ -14,6 +14,11 @@ import { AccountingEngine } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
 import { PERMISSIONS } from '@/lib/permissions';
+import {
+    splitDeferredRefund,
+    calculateProratedRefundValue,
+    calculateCogsReversal
+} from '@/utils/refund-calculations';
 
 interface SalesHistoryFilters {
     startDate?: string;
@@ -140,26 +145,38 @@ export const refundSale = secureAction(async (data: {
         if (!sale) throw new Error("Sale not found");
         if (sale.status === 'REFUNDED') throw new Error("This sale has already been refunded");
 
-        // 🏦 Find appropriate treasury
+        // 🏦 Find treasury when the refund needs to touch physical cash
         let treasury = null;
         if (treasuryId) {
             treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
         }
-
-        if (!treasury) {
+        if (!treasury && paymentMethod !== 'ACCOUNT') {
             treasury = await tx.treasury.findFirst({
                 where: {
                     branchId: currentUser.branchId || undefined,
                     paymentMethod: paymentMethod || sale.paymentMethod,
                     isDefault: true
                 } as any
-            }) || await tx.treasury.findFirst({
-                where: { isDefault: true }
-            });
+            }) || await tx.treasury.findFirst({ where: { isDefault: true } });
         }
 
-        const finalPaymentMethod = paymentMethod || treasury?.paymentMethod || sale.paymentMethod;
+        // 📊 Determine how much cash was physically paid on this invoice
+        const originalPaidCash: number = (sale.payments as any[]).filter(
+            (p: any) => p.method !== 'ACCOUNT' && p.method !== 'DEFERRED'
+        ).reduce((s: number, p: any) => s + Number(p.amount), 0);
 
+        // 🔀 DEFERRED split: cap cash portion at what was actually paid
+        const { amountToCash, amountToAccount } = splitDeferredRefund(
+            paymentMethod || sale.paymentMethod,
+            Number(sale.totalAmount),
+            originalPaidCash
+        );
+
+        const finalPaymentMethod = amountToCash > 0
+            ? (paymentMethod || treasury?.paymentMethod || sale.paymentMethod)
+            : 'ACCOUNT';
+
+        // ─── REFUND transaction record ───
         await tx.transaction.create({
             data: {
                 type: 'REFUND',
@@ -167,26 +184,26 @@ export const refundSale = secureAction(async (data: {
                 paymentMethod: finalPaymentMethod,
                 description: `Refund for Sale #${sale.id.split('-')[0].toUpperCase()}${reason ? ` - ${reason}` : ''}`,
                 shiftId: currentShift.id,
-                treasuryId: treasury?.id || null
+                treasuryId: amountToCash > 0 ? (treasury?.id || null) : null
             }
         });
 
-        // 🏦 Update Treasury Balance
-        if (treasury && finalPaymentMethod !== 'ACCOUNT' && finalPaymentMethod !== 'DEFERRED') {
+        // 🏦 Deduct physical cash from treasury (only the cash portion)
+        if (treasury && amountToCash > 0) {
             await tx.treasury.update({
                 where: { id: treasury.id },
-                data: { balance: { decrement: sale.totalAmount } }
+                data: { balance: { decrement: amountToCash } }
             });
         }
 
-        // 3. Handle Customer Account Reversal (If customer sale on credit)
-        if (sale.customerId && (sale.paymentMethod === 'ACCOUNT' || sale.paymentMethod === 'DEFERRED')) {
+        // 3. Handle Customer Account Reversal (credit portion or full ACCOUNT sale)
+        if (sale.customerId && amountToAccount > 0) {
             await tx.customerTransaction.create({
                 data: {
                     customerId: sale.customerId,
                     type: 'CREDIT',
-                    amount: new Decimal(sale.totalAmount).negated(),
-                    description: `Refund for Sale #${sale.id.split('-')[0]}`,
+                    amount: new Decimal(-amountToAccount),
+                    description: `Refund (account portion) for Sale #${sale.id.split('-')[0]}`,
                     reference: sale.id,
                     createdBy: currentUser.id
                 }
@@ -194,7 +211,7 @@ export const refundSale = secureAction(async (data: {
 
             await tx.customer.update({
                 where: { id: sale.customerId },
-                data: { balance: { decrement: sale.totalAmount } }
+                data: { balance: { decrement: amountToAccount } }
             });
         }
 
@@ -285,8 +302,8 @@ export const refundSale = secureAction(async (data: {
             }
         });
 
-        // 7. Reversing Journal Entry
-        const isDeferred = sale.paymentMethod === 'DEFERRED' || sale.paymentMethod === 'ACCOUNT';
+        // 7. Reversing Journal Entry (Sales Revenue + AR/Cash)
+        const isDeferred = amountToAccount > 0;
         await AccountingEngine.recordTransaction({
             description: `Refund: Sale #${saleId.split('-')[0]}`,
             reference: saleId,
@@ -302,10 +319,32 @@ export const refundSale = secureAction(async (data: {
             ]
         }, tx);
 
-        // 8. Update shift refund tracking
+        // 7b. COGS Reversal — restore inventory value and cancel out cost
+        const totalCogsReversal = calculateCogsReversal(
+            sale.items.map((i: any) => ({ unitCost: Number(i.unitCost), refundQty: i.quantity }))
+        );
+        if (totalCogsReversal > 0) {
+            await AccountingEngine.recordTransaction({
+                description: `COGS Reversal: Refund Sale #${saleId.split('-')[0]}`,
+                reference: saleId,
+                saleId: saleId,
+                lines: [
+                    { accountCode: '1300', debit: totalCogsReversal, credit: 0, description: 'Inventory Value Restored' },
+                    { accountCode: '5000', debit: 0, credit: totalCogsReversal, description: 'COGS Reversed' }
+                ]
+            }, tx);
+        }
+
+        // 8. Update shift refund tracking — only the CASH portion affects the physical drawer
         await tx.shift.update({
             where: { id: currentShift.id },
-            data: { totalRefunds: { increment: sale.totalAmount } }
+            data: {
+                totalRefunds: { increment: amountToCash > 0 ? amountToCash : sale.totalAmount },
+                // @ts-ignore
+                totalCashRefunds: { increment: amountToCash },
+                // @ts-ignore
+                totalAccountRefunds: { increment: amountToAccount }
+            }
         });
 
         return {
@@ -355,7 +394,7 @@ export const partialRefundSale = secureAction(async (data: {
     const currentShift = shiftResult.shift;
 
     const result = await prisma.$transaction(async (tx) => {
-        // 1. Fetch original sale with items
+        // 1. Fetch original sale with items AND payments (needed for DEFERRED split-logic)
         const sale = await (tx.sale.findUnique as any)({
             where: { id: saleId },
             include: {
@@ -363,14 +402,15 @@ export const partialRefundSale = secureAction(async (data: {
                     include: {
                         product: { select: { id: true, name: true, isBundle: true } }
                     }
-                }
+                },
+                payments: true  // ← required to compute originalPaidCash for DEFERRED invoices
             }
         });
 
         if (!sale) throw new Error(t('notFound'));
         if (sale.status === 'REFUNDED') throw new Error(t('alreadyRefundedFull'));
 
-        // 2. Validate refund quantities against original items
+        // 2. Validate refund quantities + compute prorated item totals
         let refundTotal = 0;
         const processedItems: { item: any; refundQty: number; lineTotal: number }[] = [];
 
@@ -387,24 +427,50 @@ export const partialRefundSale = secureAction(async (data: {
                 throw new Error(t('partialRefundQtyError', { qty: availableQty, name: originalItem.product.name }));
             }
 
-            const lineTotal = Number(originalItem.unitPrice) * refundItem.quantity;
+            // 📊 Use prorated value: absorbs global discount + tax proportionally.
+            // Guard: use the ORIGINAL item-level subtotal (not the already-reduced sale.subTotal)
+            // to ensure multiple partial refunds each get the correct weight ratio.
+            const originalItemsSubTotal = (sale.items as any[]).reduce(
+                (s: number, i: any) => s + Number(i.unitPrice) * i.quantity,
+                0
+            );
+            const lineTotal = calculateProratedRefundValue(
+                Number(originalItem.unitPrice),
+                refundItem.quantity,
+                originalItemsSubTotal > 0 ? originalItemsSubTotal : Number(sale.subTotal),
+                Number(sale.discountAmount),
+                Number(sale.taxAmount)
+            );
             refundTotal += lineTotal;
             processedItems.push({ item: originalItem, refundQty: refundItem.quantity, lineTotal });
         }
 
-        // 3. Find treasury
+        // 3. Find treasury (skip for pure ACCOUNT refund)
         let treasury = null;
         if (treasuryId) {
             treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
         }
-
-        if (!treasury) {
+        if (!treasury && paymentMethod !== 'ACCOUNT') {
             treasury = await tx.treasury.findFirst({
                 where: { branchId: currentUser.branchId || undefined, paymentMethod: paymentMethod || sale.paymentMethod, isDefault: true } as any
             }) || await tx.treasury.findFirst({ where: { isDefault: true } });
         }
 
-        const finalPaymentMethod = paymentMethod || treasury?.paymentMethod || sale.paymentMethod;
+        // 📊 How much cash was originally paid (for DEFERRED split)
+        const originalPaidCash: number = (sale.payments || []).filter(
+            (p: any) => p.method !== 'ACCOUNT' && p.method !== 'DEFERRED'
+        ).reduce((s: number, p: any) => s + Number(p.amount), 0);
+
+        // 🔀 Split the refund between cash-back and account-deduction
+        const { amountToCash, amountToAccount } = splitDeferredRefund(
+            paymentMethod || sale.paymentMethod,
+            refundTotal,
+            originalPaidCash
+        );
+
+        const finalPaymentMethod = amountToCash > 0
+            ? (paymentMethod || treasury?.paymentMethod || sale.paymentMethod)
+            : 'ACCOUNT';
 
         await tx.transaction.create({
             data: {
@@ -413,15 +479,33 @@ export const partialRefundSale = secureAction(async (data: {
                 paymentMethod: finalPaymentMethod,
                 description: t('partialRefundNoteInternal', { ref: sale.id.split('-')[0].toUpperCase(), items: processedItems.map(p => `${p.item.product.name} x${p.refundQty}`).join('، '), reason: reason || '' }),
                 shiftId: currentShift.id,
-                treasuryId: treasury?.id || null
+                treasuryId: amountToCash > 0 ? (treasury?.id || null) : null
             }
         });
 
-        // 5. Update treasury balance
-        if (treasury && finalPaymentMethod !== 'ACCOUNT' && finalPaymentMethod !== 'DEFERRED') {
+        // 5. Update treasury balance (cash portion only)
+        if (treasury && amountToCash > 0) {
             await tx.treasury.update({
                 where: { id: treasury.id },
-                data: { balance: { decrement: refundTotal } }
+                data: { balance: { decrement: amountToCash } }
+            });
+        }
+
+        // 5b. Account balance reversal (credit portion)
+        if (sale.customerId && amountToAccount > 0) {
+            await tx.customerTransaction.create({
+                data: {
+                    customerId: sale.customerId,
+                    type: 'CREDIT',
+                    amount: new Decimal(-amountToAccount),
+                    description: `مرتجع جزئي (حساب) — فاتورة #${sale.id.split('-')[0]}`,
+                    reference: saleId,
+                    createdBy: currentUser.id
+                }
+            });
+            await tx.customer.update({
+                where: { id: sale.customerId },
+                data: { balance: { decrement: amountToAccount } }
             });
         }
 
@@ -521,8 +605,8 @@ export const partialRefundSale = secureAction(async (data: {
             } as any
         });
 
-        // 7.5 Record Accounting Journal Entry for the Refund
-        const isDeferred = sale.paymentMethod === 'DEFERRED' || sale.paymentMethod === 'ACCOUNT';
+        // 7.5 Record Accounting Journal Entry (Revenue Reversal)
+        const isDeferred = amountToAccount > 0;
         await AccountingEngine.recordTransaction({
             description: `Partial Refund: Sale #${saleId.split('-')[0]}`,
             reference: saleId,
@@ -538,6 +622,22 @@ export const partialRefundSale = secureAction(async (data: {
             ]
         }, tx);
 
+        // 7.6 COGS Reversal — restore inventory value for returned items
+        const totalCogsReversal = calculateCogsReversal(
+            processedItems.map(p => ({ unitCost: Number(p.item.unitCost), refundQty: p.refundQty }))
+        );
+        if (totalCogsReversal > 0) {
+            await AccountingEngine.recordTransaction({
+                description: `COGS Reversal: Partial Refund Sale #${saleId.split('-')[0]}`,
+                reference: saleId,
+                saleId: saleId,
+                lines: [
+                    { accountCode: '1300', debit: totalCogsReversal, credit: 0, description: 'Inventory Value Restored (Partial)' },
+                    { accountCode: '5000', debit: 0, credit: totalCogsReversal, description: 'COGS Reversed (Partial)' }
+                ]
+            }, tx);
+        }
+
         // 8. Audit log
         await tx.auditLog.create({
             data: {
@@ -549,6 +649,18 @@ export const partialRefundSale = secureAction(async (data: {
                 reason: reason || t('partialRefundReason'),
                 user: currentUser.username || currentUser.name,
                 branchId: currentUser.branchId
+            }
+        });
+
+        // 9. Update shift refund tracking — track cash portion only
+        await tx.shift.update({
+            where: { id: currentShift.id },
+            data: {
+                totalRefunds: { increment: amountToCash > 0 ? amountToCash : refundTotal },
+                // @ts-ignore
+                totalCashRefunds: { increment: amountToCash },
+                // @ts-ignore
+                totalAccountRefunds: { increment: amountToAccount }
             }
         });
 

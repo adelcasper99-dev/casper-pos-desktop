@@ -3,21 +3,24 @@ import { formatArabicPrintText } from "@/lib/arabic-reshaper";
 
 export async function printZReport(shift: any) {
     try {
+        const totalSales = (
+            Number(shift.totalCashSales || 0) +
+            Number(shift.totalCardSales || 0) +
+            Number(shift.totalWalletSales || 0) +
+            Number(shift.totalInstapay || 0) +
+            Number(shift.totalAccountSales || 0)
+        ).toFixed(2);
+
         const expectedCash = (
             Number(shift.startCash) +
             Number(shift.totalCashSales || 0) -
-            Number(shift.totalExpenses || 0) +
+            Number(shift.totalExpenses || 0) -
+            Number(shift.totalCashRefunds || 0) +
             Number(shift.crossShiftRefundsReceived || 0) -
             Number(shift.crossShiftRefundsIssued || 0)
         ).toFixed(2);
 
         const variance = (Number(shift.actualCash || 0) - Number(expectedCash)).toFixed(2);
-        const totalSales = (
-            Number(shift.totalCashSales || 0) +
-            Number(shift.totalCardSales || 0) +
-            Number(shift.totalWalletSales || 0) +
-            Number(shift.totalInstapay || 0)
-        ).toFixed(2);
 
         // Pre-reshape any static Arabic strings we might use
         const titleText = formatArabicPrintText("تقرير الإغلاق اليومي");
@@ -46,6 +49,7 @@ export async function printZReport(shift: any) {
                 <div class="row"><span>Opening Cash:</span> <span>$${Number(shift.startCash).toFixed(2)}</span></div>
                 <div class="row"><span>+ Cash Sales:</span> <span>$${Number(shift.totalCashSales || 0).toFixed(2)}</span></div>
                 <div class="row"><span>- Cash Expenses:</span> <span>$${Number(shift.totalExpenses || 0).toFixed(2)}</span></div>
+                <div class="row"><span>- Cash Refunds:</span> <span>$${Number(shift.totalCashRefunds || 0).toFixed(2)}</span></div>
                 <div class="line"></div>
                 <div class="row bold"><span>= Expected Cash:</span> <span>$${expectedCash}</span></div>
                 <div class="row"><span>Actual Counted:</span> <span>$${Number(shift.actualCash || 0).toFixed(2)}</span></div>
@@ -64,14 +68,17 @@ export async function printZReport(shift: any) {
                 <div class="line"></div>
                 <div class="row"><span>Cash:</span> <span>$${Number(shift.totalCashSales || 0).toFixed(2)}</span></div>
                 <div class="row"><span>Card:</span> <span>$${Number(shift.totalCardSales || 0).toFixed(2)}</span></div>
+                ${Number(shift.totalAccountSales || 0) > 0 ? `<div class="row"><span>Credit (Acc):</span> <span>$${Number(shift.totalAccountSales).toFixed(2)}</span></div>` : ''}
                 ${Number(shift.totalWalletSales || 0) > 0 ? `<div class="row"><span>Mobile Wallet:</span> <span>$${Number(shift.totalWalletSales).toFixed(2)}</span></div>` : ''}
                 ${Number(shift.totalInstapay || 0) > 0 ? `<div class="row"><span>InstaPay:</span> <span>$${Number(shift.totalInstapay).toFixed(2)}</span></div>` : ''}
                 <div class="line"></div>
-                <div class="row bold"><span>Total Sales:</span> <span>$${totalSales}</span></div>
+                <div class="row bold"><span>Gross Sales:</span> <span>$${totalSales}</span></div>
                 <div class="row"><span>Total Tickets:</span> <span>${shift.totalTickets || 0}</span></div>
-                <div class="row"><span>Total Refunds:</span> <span>-$${Number(shift.totalRefunds || 0).toFixed(2)}</span></div>
                 <div class="line"></div>
-                <div class="row bold"><span>Net Revenue:</span> <span>$${(Number(totalSales) - Number(shift.totalRefunds || 0)).toFixed(2)}</span></div>
+                <div class="row"><span>Cash Refunds:</span> <span>-$${Number(shift.totalCashRefunds || 0).toFixed(2)}</span></div>
+                <div class="row"><span>Credit Refunds:</span> <span>-$${Number(shift.totalAccountRefunds || 0).toFixed(2)}</span></div>
+                <div class="line"></div>
+                <div class="row bold"><span>Net Revenue:</span> <span>$${(Number(totalSales) - Number(shift.totalCashRefunds || 0) - Number(shift.totalAccountRefunds || 0)).toFixed(2)}</span></div>
             </div>
 
             <div class="double-line"></div>

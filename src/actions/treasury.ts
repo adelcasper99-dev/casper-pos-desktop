@@ -211,30 +211,57 @@ export async function updateTreasuryTransaction(
   }
 }
 
-// ─── Delete Transaction (Soft) ─────────────────────────────────────────────────
+// ─── Delete Transaction (Soft + Balance Reversal) ──────────────────────────────
 export async function deleteTreasuryTransaction(id: string, reason: string) {
   try {
     const existing = await prisma.transaction.findUnique({ where: { id } });
     if (!existing) return { success: false, error: "Transaction not found" };
     if (existing.deletedAt) return { success: false, error: "Already deleted" };
 
-    await prisma.auditLog.create({
-      data: {
-        entityType: "TRANSACTION",
-        entityId: id,
-        action: "SOFT_DELETE",
-        previousData: JSON.stringify({
-          type: existing.type,
-          amount: Number(existing.amount),
-          description: existing.description,
-        }),
-        reason,
-      },
-    });
+    // Determine whether deleting this transaction should add or remove money from the treasury.
+    // "Income" types (IN, SALE, CAPITAL, CUSTOMER_PAYMENT, SAFE_DROP, TRANSFER_IN)
+    // originally INCREASED the balance → deleting them must DECREASE it back.
+    // "Expense" types (OUT, EXPENSE, REFUND, TRANSFER_OUT) originally DECREASED it → add back.
+    const IN_TYPES = new Set([
+      'IN', 'SALE', 'CAPITAL', 'CUSTOMER_PAYMENT', 'SAFE_DROP', 'TRANSFER_IN',
+    ]);
+    const absAmount = Math.abs(Number(existing.amount));
+    const isIncome = IN_TYPES.has(existing.type) && Number(existing.amount) > 0;
 
-    await prisma.transaction.update({
-      where: { id },
-      data: { deletedAt: new Date(), deletedReason: reason },
+    await prisma.$transaction(async (tx) => {
+      // 1. Audit trail
+      await tx.auditLog.create({
+        data: {
+          entityType: "TRANSACTION",
+          entityId: id,
+          action: "SOFT_DELETE",
+          previousData: JSON.stringify({
+            type: existing.type,
+            amount: Number(existing.amount),
+            treasuryId: existing.treasuryId,
+            description: existing.description,
+          }),
+          reason,
+        },
+      });
+
+      // 2. Soft-delete the record
+      await tx.transaction.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedReason: reason },
+      });
+
+      // 3. Reverse the physical balance if the transaction belongs to a treasury
+      if (existing.treasuryId && absAmount > 0) {
+        await tx.treasury.update({
+          where: { id: existing.treasuryId },
+          data: {
+            balance: isIncome
+              ? { decrement: absAmount }  // Was income → remove it
+              : { increment: absAmount }, // Was expense → add it back
+          },
+        });
+      }
     });
 
     revalidatePath("/treasury");

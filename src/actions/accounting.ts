@@ -150,26 +150,70 @@ export const updateExpense = secureAction(async (id: string, data: {
 // Delete expense with audit trail
 export const deleteExpense = secureAction(async (id: string, reason?: string) => {
     const t = await getTranslations('SystemMessages.Errors');
-    const existing = await prisma.expense.findUnique({ where: { id } });
+    const existing = await prisma.expense.findUnique({
+        where: { id },
+        include: { shift: true }
+    });
     if (!existing) throw new Error(t('notFound'));
 
-    await prisma.auditLog.create({
-        data: {
-            entityType: 'EXPENSE',
-            entityId: id,
-            action: 'DELETE',
-            previousData: JSON.stringify({
-                description: existing.description,
-                amount: Number(existing.amount),
-                category: existing.category
-            }),
-            reason: reason || 'Delete expense'
+    await prisma.$transaction(async (tx) => {
+        // 1. Audit trail
+        await tx.auditLog.create({
+            data: {
+                entityType: 'EXPENSE',
+                entityId: id,
+                action: 'DELETE',
+                previousData: JSON.stringify({
+                    description: existing.description,
+                    amount: Number(existing.amount),
+                    category: existing.category,
+                    shiftId: existing.shiftId
+                }),
+                reason: reason || 'Delete expense'
+            }
+        });
+
+        // 2. Find and reverse the associated treasury transaction(s)
+        // Since createExpense creates a transaction with type: 'EXPENSE' and description containing the expense description
+        // we can reverse any transactions created at the exact same moment or just do a generic search.
+        const linkedTransactions = await tx.transaction.findMany({
+            where: {
+                type: 'EXPENSE',
+                amount: existing.amount,
+                description: `Expense: ${existing.description}`
+            }
+        });
+
+        for (const txn of linkedTransactions) {
+            if (txn.treasuryId && !txn.deletedAt) {
+                // Reverse the physical cash deduction
+                await tx.treasury.update({
+                    where: { id: txn.treasuryId },
+                    data: { balance: { increment: existing.amount } }
+                });
+
+                // Soft delete the connected treasury transaction
+                await tx.transaction.update({
+                    where: { id: txn.id },
+                    data: { deletedAt: new Date(), deletedReason: reason || 'Parent expense deleted' }
+                });
+            }
         }
+
+        // 3. Reverse shift totalExpenses if active
+        if (existing.shiftId && existing.shift?.status === 'OPEN') {
+            await tx.shift.update({
+                where: { id: existing.shiftId },
+                data: { totalExpenses: { decrement: existing.amount } }
+            });
+        }
+
+        // 4. Finally, hard delete the expense (accounting journals cascade or can be orphaned)
+        await tx.expense.delete({ where: { id } });
     });
 
-    await prisma.expense.delete({ where: { id } });
-
     revalidatePath('/accounting', 'page');
+    revalidatePath('/pos', 'page');
     return { success: true };
 }, { permission: 'ACCOUNTING_MANAGE' });
 

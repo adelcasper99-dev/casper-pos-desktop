@@ -227,64 +227,107 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const expectedCashValue = (
         Number(shift.startCash) +
         Number(shift.totalCashSales || 0) -
-        Number(shift.totalExpenses || 0)
+        Number(shift.totalExpenses || 0) -
+        // @ts-ignore
+        Number(shift.totalCashRefunds || 0)
     );
     const actualCashNum = actualCash !== "" ? Number(actualCash) : 0;
     const varianceValue = actualCashNum - expectedCashValue;
 
+    // @ts-ignore
+    const totalCashRefunds = Number(shift.totalCashRefunds || 0);
+    // @ts-ignore
+    const totalAccountRefunds = Number(shift.totalAccountRefunds || 0);
+    // @ts-ignore
+    const totalAccountSales = Number(shift.totalAccountSales || 0);
+
     return (
-        <>
-            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white px-6 py-3 rounded-lg flex items-center justify-between shadow-lg">
-                <div className="flex items-center gap-4">
-                    {/* Close Shift Button on far left */}
-                    <button
-                        onClick={() => setShowCloseModal(true)}
-                        className="bg-white/20 hover:bg-red-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105 font-semibold"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {t('closeShift')}
-                    </button>
-                    <div className="h-6 w-px bg-green-300/50"></div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                        <span className="font-semibold">{t('activeShift')}</span>
-                    </div>
-                    <div className="h-5 w-px bg-green-300"></div>
-                    <span className="text-green-100 text-sm">
-                        {shift.cashierName} {isMounted && `• ${hours}h ${mins}m`}
-                    </span>
-                    {shift.registerName && (
-                        <>
-                            <div className="h-5 w-px bg-green-300"></div>
-                            <span className="text-green-100 text-sm">{shift.registerName}</span>
-                        </>
-                    )}
+        <div className="flex flex-col md:flex-row gap-3 items-stretch">
+            {/* Close Shift Button - Far Left & Large */}
+            <div className="shrink-0 flex flex-col gap-1.5">
+                <button
+                    onClick={() => setShowCloseModal(true)}
+                    className="flex-1 bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black text-sm px-4 py-2 rounded-xl shadow-lg border border-red-500/50 transition-all flex flex-col items-center justify-center gap-1 min-w-[100px]"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>إغلاق الوردية</span>
+                </button>
+                <div className="bg-slate-800/50 rounded-lg px-2 py-1 flex items-center justify-center gap-2 border border-slate-700">
+                    <span className="text-[10px] font-bold text-slate-300">{shift.cashierName}</span>
+                    <span className="w-px h-2 bg-slate-600" />
+                    <span className="text-[10px] font-bold text-cyan-400">{isMounted && `${hours}س ${mins}د`}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="text-right">
-                        <div className="text-xs text-green-100">💰 Cash / كاش</div>
-                        <div className="font-bold text-white">${Number(shift.totalCashSales || 0).toFixed(2)}</div>
+            </div>
+
+            {/* Main Shift Summary Grid */}
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+
+                {/* BOX 1: Cash & Card (Ordinary Flow) */}
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white p-3 rounded-xl shadow-lg border border-emerald-400 overflow-hidden relative">
+                    <div className="absolute top-0 right-0 p-1 opacity-10">
+                        <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z" /></svg>
                     </div>
-                    <div className="h-8 w-px bg-green-400/50"></div>
-                    <div className="text-right">
-                        <div className="text-xs text-green-100">💳 Visa / فيزا</div>
-                        <div className="font-bold text-white">${Number(shift.totalCardSales || 0).toFixed(2)}</div>
+
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="bg-white/20 p-1 rounded-lg text-sm">💵</span>
+                        <h4 className="font-bold text-xs tracking-wide">المبيعات والدرج</h4>
                     </div>
-                    <div className="h-8 w-px bg-green-400/50"></div>
-                    <div className="text-right">
-                        <div className="text-xs text-red-100">⬅️ Returns</div>
-                        <div className="font-bold text-red-100">${Number(shift.totalRefunds || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="h-8 w-px bg-green-400/50"></div>
-                    <div className="text-right bg-green-800/50 px-3 py-1 rounded-lg">
-                        <div className="text-xs text-green-200">الدرج المتوقع</div>
-                        <div className="font-bold text-lg text-white">
-                            ${expectedCashValue.toFixed(2)}
+
+                    <div className="grid grid-cols-3 gap-1">
+                        <div className="text-center">
+                            <div className="text-[9px] text-emerald-100 mb-0.5">كاش</div>
+                            <div className="font-bold text-sm">${Number(shift.totalCashSales || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="text-center border-x border-white/20">
+                            <div className="text-[9px] text-emerald-100 mb-0.5">فيزا</div>
+                            <div className="font-bold text-sm">${Number(shift.totalCardSales || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-[9px] text-emerald-100 mb-0.5">الصافي</div>
+                            <div className="font-bold text-sm text-yellow-300">
+                                ${(Number(shift.totalCashSales || 0) + Number(shift.totalCardSales || 0) + Number(shift.totalWalletSales || 0) + Number(shift.totalInstapay || 0) - totalCashRefunds).toFixed(2)}
+                            </div>
                         </div>
                     </div>
+
+                    <div className="mt-2 pt-2 border-t border-white/20 flex justify-between items-center bg-black/10 -mx-3 px-3 py-1.5">
+                        <div className="text-[10px] text-emerald-100 font-medium">العهدة المتوقعة بالدرج</div>
+                        <div className="text-lg font-black text-white drop-shadow-sm">${expectedCashValue.toFixed(2)}</div>
+                    </div>
                 </div>
+
+                {/* BOX 2: Credit & Returns (Audit/Credit Zone) */}
+                <div className="bg-gradient-to-r from-slate-700 to-slate-800 text-white p-3 rounded-xl shadow-lg border border-slate-600 overflow-hidden relative">
+                    <div className="absolute top-0 right-0 p-1 opacity-10 font-bold text-3xl">!</div>
+
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="bg-white/10 p-1 rounded-lg text-sm">📝</span>
+                        <h4 className="font-bold text-xs tracking-wide">الآجل والمرتجع</h4>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1">
+                        <div className="text-center">
+                            <div className="text-[9px] text-slate-400 mb-0.5">بيع آجل</div>
+                            <div className="font-bold text-sm text-blue-300">${totalAccountSales.toFixed(2)}</div>
+                        </div>
+                        <div className="text-center border-l border-white/10">
+                            <div className="text-[9px] text-slate-400 mb-0.5">مرتجع كاش</div>
+                            <div className="font-bold text-sm text-orange-400">-${totalCashRefunds.toFixed(2)}</div>
+                        </div>
+                        <div className="text-center border-l border-white/10">
+                            <div className="text-[9px] text-slate-400 mb-0.5">مرتجع آجل</div>
+                            <div className="font-bold text-sm text-purple-400">-${totalAccountRefunds.toFixed(2)}</div>
+                        </div>
+                    </div>
+
+                    <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center bg-black/20 -mx-3 px-3 py-1.5">
+                        <div className="text-[9px] text-slate-500 font-medium">إجمالي المرتجعات</div>
+                        <div className="text-sm font-bold text-white italic">${(totalCashRefunds + totalAccountRefunds).toFixed(2)}</div>
+                    </div>
+                </div>
+
             </div>
 
             {/* Close Shift Modal */}
@@ -379,6 +422,6 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

@@ -8,11 +8,15 @@ import {
     Wand2,
     Wifi,
     WifiOff,
-    RefreshCw
+    RefreshCw,
+    Printer,
+    AlertCircle
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { LocalPersistenceService } from '@/lib/local-persistence';
+import { qzTrayService } from "@/lib/qz-tray-service";
+import clsx from "clsx";
 
 export const DesktopStatus: React.FC = () => {
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -20,6 +24,19 @@ export const DesktopStatus: React.FC = () => {
     const [isActionInProgress, setIsActionInProgress] = useState(false);
     const [updateReady, setUpdateReady] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+
+    // Printer Status State
+    const [printerStatus, setPrinterStatus] = useState<'connected' | 'offline' | 'checking'>('checking');
+    const [isRetryingPrinter, setIsRetryingPrinter] = useState(false);
+
+    const checkPrinterStatus = async () => {
+        try {
+            const isConnected = await qzTrayService.isIdeallyConnected();
+            setPrinterStatus(isConnected ? 'connected' : 'offline');
+        } catch (error) {
+            setPrinterStatus('offline');
+        }
+    };
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -30,6 +47,10 @@ export const DesktopStatus: React.FC = () => {
 
         const stored = localStorage.getItem('casper_last_fs_backup');
         if (stored) setLastBackup(stored);
+
+        // Initial Printer Check
+        checkPrinterStatus();
+        const printerInterval = setInterval(checkPrinterStatus, 10000);
 
         // Auto Updater Listeners
         let unsubProgress = () => { };
@@ -48,10 +69,30 @@ export const DesktopStatus: React.FC = () => {
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            clearInterval(printerInterval);
             unsubProgress();
             unsubDownloaded();
         };
     }, []);
+
+    const handleReconnectPrinter = async () => {
+        setIsRetryingPrinter(true);
+        setPrinterStatus('checking');
+        try {
+            await qzTrayService.connect();
+            await checkPrinterStatus();
+            if (await qzTrayService.isIdeallyConnected()) {
+                toast.success("تم الاتصال بالطابعة بنجاح");
+            } else {
+                toast.error("فشل الاتصال بالطابعة");
+            }
+        } catch (error) {
+            setPrinterStatus('offline');
+            toast.error("خطأ في الاتصال بالطابعة");
+        } finally {
+            setIsRetryingPrinter(false);
+        }
+    };
 
     const handleManualBackup = async () => {
         setIsActionInProgress(true);
@@ -111,19 +152,39 @@ export const DesktopStatus: React.FC = () => {
     };
 
     return (
-        <div className="flex items-center gap-4 bg-muted/30 px-3 py-1.5 rounded-full border border-border text-xs">
+        <div className="flex items-center gap-3 bg-muted/20 px-3 py-1.5 rounded-full border border-border shadow-sm">
             {/* Network Status */}
-            <div className="flex items-center gap-1.5 px-1">
+            <div className="flex items-center gap-1.5 px-1 shrink-0">
                 {isOnline ? (
                     <>
-                        <Wifi className="w-3.5 h-3.5 text-green-500" />
-                        <span className="text-muted-foreground font-medium">Online</span>
+                        <Wifi className="w-3 h-3 text-emerald-500" />
+                        <span className="text-emerald-500 font-bold text-[10px] uppercase">Online</span>
                     </>
                 ) : (
                     <>
-                        <WifiOff className="w-3.5 h-3.5 text-orange-500" />
-                        <span className="text-orange-600 font-bold">Offline Mode</span>
+                        <WifiOff className="w-3 h-3 text-red-500" />
+                        <span className="text-red-500 font-bold text-[10px] uppercase">Offline</span>
                     </>
+                )}
+            </div>
+
+            <div className="w-px h-3 bg-border" />
+
+            {/* Printer Status - Compact */}
+            <div
+                className={clsx(
+                    "flex items-center gap-1.5 px-1 cursor-pointer transition-colors group shrink-0",
+                    printerStatus === 'connected' ? "text-emerald-500" : "text-red-500"
+                )}
+                onClick={printerStatus === 'offline' ? handleReconnectPrinter : undefined}
+                title={printerStatus === 'connected' ? "الطابعة متصلة" : "الطابعة غير متصلة - اضغط لإعادة الاتصال"}
+            >
+                <Printer className={clsx("w-3 h-3", isRetryingPrinter && "animate-spin")} />
+                <span className="font-bold text-[10px] uppercase">
+                    {printerStatus === 'connected' ? "Printer" : "Offline"}
+                </span>
+                {printerStatus === 'offline' && (lastBackup || true) && (
+                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
                 )}
             </div>
 
@@ -131,51 +192,40 @@ export const DesktopStatus: React.FC = () => {
 
             {/* Database Info */}
             <div
-                className="flex items-center gap-1.5 cursor-pointer hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 cursor-pointer hover:text-blue-400 transition-colors shrink-0"
                 title="Configure Backups in Settings"
                 onClick={() => window.location.hash = '#/settings'}
             >
-                <Database className="w-3.5 h-3.5 text-blue-500" />
-                <span className="text-muted-foreground font-medium border-b border-dashed border-blue-500/50">
-                    {lastBackup ? `Backed up: ${lastBackup}` : 'No local backup'}
+                <Database className="w-3 h-3 text-blue-500" />
+                <span className="text-muted-foreground font-bold text-[10px] uppercase">
+                    {lastBackup ? `Backup OK` : 'No Backup'}
                 </span>
             </div>
 
             <div className="w-px h-3 bg-border" />
 
             {/* Maintenance Actions */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-5 w-5 hover:bg-white/10"
                     onClick={handleManualBackup}
                     disabled={isActionInProgress}
-                    title="Manual Backup to Filesystem"
+                    title="Manual Backup"
                 >
-                    <Save className="w-3.5 h-3.5" />
+                    <Save className="w-3 h-3 text-zinc-400" />
                 </Button>
 
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-5 w-5 hover:bg-white/10"
                     onClick={handleVacuum}
                     disabled={isActionInProgress}
-                    title="Optimize Database (Vacuum)"
+                    title="Optimize"
                 >
-                    <Wand2 className="w-3.5 h-3.5" />
-                </Button>
-
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={handleExportBundle}
-                    disabled={isActionInProgress}
-                    title="Export Support Bundle"
-                >
-                    <Download className="w-3.5 h-3.5" />
+                    <Wand2 className="w-3 h-3 text-zinc-400" />
                 </Button>
             </div>
 
@@ -185,18 +235,16 @@ export const DesktopStatus: React.FC = () => {
                     <div className="w-px h-3 bg-border" />
                     <div className="flex items-center gap-1.5 px-1">
                         {updateReady ? (
-                            <Button
-                                variant="default"
-                                size="sm"
-                                className="h-6 text-[10px] bg-cyan-600 hover:bg-cyan-500 text-white leading-none px-2"
+                            <button
+                                className="h-5 text-[9px] bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-2 rounded-full flex items-center gap-1 transition-all"
                                 onClick={() => window.electronAPI?.updater?.installUpdate()}
                             >
-                                <RefreshCw className="w-3 h-3 mr-1" />
-                                Restart to Update
-                            </Button>
+                                <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
+                                UPDATE
+                            </button>
                         ) : (
-                            <span className="text-muted-foreground animate-pulse whitespace-nowrap">
-                                Downloading Update: {downloadProgress}%
+                            <span className="text-muted-foreground text-[9px] font-bold animate-pulse whitespace-nowrap uppercase">
+                                DL: {downloadProgress}%
                             </span>
                         )}
                     </div>

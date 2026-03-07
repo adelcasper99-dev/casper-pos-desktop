@@ -308,6 +308,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         let cardIncrement = 0;
         let walletIncrement = 0;
         let instapayIncrement = 0;
+        let accountIncrement = 0;
 
         // Iterate over the payments we just prepared for creation
         // Note: We use data.payments if available, otherwise fallback to single method
@@ -321,6 +322,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 case 'CARD': cardIncrement += amt; break;
                 case 'WALLET': walletIncrement += amt; break;
                 case 'INSTAPAY': instapayIncrement += amt; break;
+                case 'ACCOUNT':
+                case 'DEFERRED': accountIncrement += amt; break;
             }
         }
 
@@ -332,6 +335,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 totalCardSales: { increment: cardIncrement },
                 totalWalletSales: { increment: walletIncrement },
                 totalInstapay: { increment: instapayIncrement },
+                // @ts-ignore
+                totalAccountSales: { increment: accountIncrement },
                 lastHeartbeat: new Date()
             }
         });

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPurchase, refundPurchase, getPurchaseInvoices } from "@/actions/inventory";
+import { getPurchase, getPurchaseInvoices } from "@/actions/inventory";
+import { voidPurchase } from "@/actions/purchase-actions";
 import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
 import {
     Loader2, Edit, Pencil, Plus, ShoppingCart, FileText,
@@ -276,7 +277,7 @@ export default function PurchasesTab({
         if (!confirm(t('confirmRefund'))) return;
 
         setLoading(true);
-        const res = await refundPurchase({ id, reason: reason || undefined, csrfToken });
+        const res = await voidPurchase({ id, reason: reason || undefined, csrfToken });
         setLoading(false);
 
         if (!res.success) {

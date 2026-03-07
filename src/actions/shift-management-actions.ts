@@ -164,9 +164,15 @@ export const closeShift = secureAction(async (data: {
             sales: {
                 include: { payments: true }
             },
-            expenses: true
-            // tickets: true // REMOVED
-            // tickets: true // REMOVED
+            expenses: true,
+            // Fetch REFUND transactions to subtract cash refunds from expectedCash
+            transactions: {
+                where: {
+                    type: 'REFUND',
+                    paymentMethod: 'CASH',
+                    deletedAt: null
+                }
+            }
         }
     });
 
@@ -188,6 +194,12 @@ export const closeShift = secureAction(async (data: {
     const totalCardSales = shift.totalCardSales;
     const totalWalletSales = shift.totalWalletSales;
     const totalInstapay = shift.totalInstapay;
+    // @ts-ignore
+    const totalAccountSales = shift.totalAccountSales || new Decimal(0);
+    // @ts-ignore
+    const totalCashRefundsAccumulated = shift.totalCashRefunds || new Decimal(0);
+    // @ts-ignore
+    const totalAccountRefundsAccumulated = shift.totalAccountRefunds || new Decimal(0);
 
     // Only count split payments (doesn't affect money totals)
     let splitPaymentCount = 0;
@@ -209,10 +221,15 @@ export const closeShift = secureAction(async (data: {
         new Decimal(0)
     );
 
-    // Calculate expected cash: Start + Cash Sales - Cash Expenses
+    // ✅ FIX: Subtract CASH refunds issued during this shift from expectedCash
+    // Use the accumulated value from real-time tracking
+    const totalCashRefundsToUse = totalCashRefundsAccumulated;
+
+    // Calculate expected cash: Start + Cash Sales - Cash Expenses - Cash Refunds
     const expectedCash = shift.startCash
         .add(totalCashSales)
-        .minus(totalCashExpenses);
+        .minus(totalCashExpenses)
+        .minus(totalCashRefundsToUse);
 
     const actualCashDecimal = new Decimal(data.actualCash);
     const cashVariance = actualCashDecimal.minus(expectedCash);
@@ -292,6 +309,12 @@ export const closeShift = secureAction(async (data: {
             totalCardSales,
             totalWalletSales,
             totalInstapay,
+            // @ts-ignore
+            totalAccountSales,
+            // @ts-ignore
+            totalCashRefunds: totalCashRefundsAccumulated,
+            // @ts-ignore
+            totalAccountRefunds: totalAccountRefundsAccumulated,
             totalSplitPayments: splitPaymentCount,
             totalExpenses: totalAllExpenses,
             totalSales: finalSalesCount,      // ✅ Verified
@@ -600,8 +623,9 @@ export const forceCloseShift = secureAction(async (data: {
     // recalculating from sales/expenses causes data loss if records are soft-deleted or shifted.
     const totalCashSales = shift.totalCashSales;
     const totalExpenses = shift.totalExpenses;
+    const totalCashRefunds = shift.totalRefunds;
 
-    const estimatedCash = shift.startCash.add(totalCashSales).minus(totalExpenses);
+    const estimatedCash = shift.startCash.add(totalCashSales).minus(totalExpenses).minus(totalCashRefunds);
 
     const closedShift = await prisma.shift.update({
         where: { id: data.shiftId },

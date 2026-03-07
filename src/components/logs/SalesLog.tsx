@@ -62,6 +62,29 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
     const [partialRefundSale, setPartialRefundSale] = useState<any>(null);
     const [refundItem, setRefundItem] = useState<{ id: string } | null>(null);
 
+    const getPaymentMethodLabel = (method: string) => {
+        switch (method?.toUpperCase()) {
+            case 'CASH': return 'كاش';
+            case 'ACCOUNT': return 'آجل';
+            case 'VISA': return 'فيزا';
+            default: return method;
+        }
+    };
+
+    const getStatusLabel = (status: string, paymentMethod: string) => {
+        if (status === 'REFUNDED') return 'مرتجع كامل';
+        if (status === 'PARTIAL_REFUND') return 'مرتجع جزئي';
+        if (paymentMethod === 'ACCOUNT') return 'آجل';
+        return 'مدفوع';
+    };
+
+    const getStatusStyles = (status: string, paymentMethod: string) => {
+        if (status === 'REFUNDED') return 'bg-red-500/10 text-red-400 border border-red-500/20';
+        if (status === 'PARTIAL_REFUND') return 'bg-orange-500/10 text-orange-400 border border-orange-500/20';
+        if (paymentMethod === 'ACCOUNT') return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+        return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    };
+
     const filteredSales = sales.filter(sale => {
         const matchesSearch =
             (sale.customerName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -158,8 +181,8 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
             "التاريخ": format(new Date(sale.createdAt), 'yyyy/MM/dd HH:mm'),
             "العميل": sale.customerName || "عميل نقدي",
             "الإجمالي": sale.totalAmount,
-            "طريقة الدفع": sale.paymentMethod,
-            "الحالة": sale.status === 'REFUNDED' ? 'مرتجع كامل' : sale.status === 'PARTIAL_REFUND' ? 'مرتجع جزئي' : 'مدفوع'
+            "طريقة الدفع": getPaymentMethodLabel(sale.paymentMethod),
+            "الحالة": getStatusLabel(sale.status, sale.paymentMethod)
         }));
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -395,6 +418,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         <DropdownMenuItem onClick={() => setPaymentFilter("all")} className={paymentFilter === "all" ? "bg-white/10" : ""}>الكل</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setPaymentFilter("CASH")} className={paymentFilter === "CASH" ? "bg-white/10" : ""}>كاش</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setPaymentFilter("VISA")} className={paymentFilter === "VISA" ? "bg-white/10" : ""}>فيزا</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setPaymentFilter("ACCOUNT")} className={paymentFilter === "ACCOUNT" ? "bg-white/10" : ""}>آجل</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -482,19 +506,12 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                     </td>
                                     <td className="py-2 px-4">
                                         <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 font-bold uppercase">
-                                            {sale.paymentMethod}
+                                            {getPaymentMethodLabel(sale.paymentMethod)}
                                         </Badge>
                                     </td>
                                     <td className="py-2 px-4">
-                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${sale.status === 'REFUNDED'
-                                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                            : sale.status === 'PARTIAL_REFUND'
-                                                ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                            }`}>
-                                            {sale.status === 'REFUNDED' ? 'مرتجع كامل'
-                                                : sale.status === 'PARTIAL_REFUND' ? 'مرتجع جزئي'
-                                                    : 'مدفوع'}
+                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyles(sale.status, sale.paymentMethod)}`}>
+                                            {getStatusLabel(sale.status, sale.paymentMethod)}
                                         </span>
                                     </td>
 
@@ -640,7 +657,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                         )}
                                         <div className="flex justify-between text-zinc-400 text-xs border-t border-white/5 pt-2">
                                             <span>طريقة الدفع</span>
-                                            <span className="font-bold text-white">{selectedSale.paymentMethod}</span>
+                                            <span className="font-bold text-white">{getPaymentMethodLabel(selectedSale.paymentMethod)}</span>
                                         </div>
                                         <div className="flex justify-between items-center pt-2">
                                             <span className="text-lg font-bold">الإجمالي النهائي</span>

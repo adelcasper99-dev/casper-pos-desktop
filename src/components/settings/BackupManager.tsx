@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, FolderOpen, Save, RefreshCw, AlertTriangle, Clock, Trash } from "lucide-react";
+import { Database, FolderOpen, Save, RefreshCw, AlertTriangle, Clock, Trash, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { LocalPersistenceService } from "@/lib/local-persistence";
+import { resetDatabase } from "@/actions/database-reset";
 
 export default function BackupManager() {
     const [backupPath, setBackupPath] = useState<string>('');
@@ -17,6 +18,8 @@ export default function BackupManager() {
     const [isSaving, setIsSaving] = useState(false);
     const [isRestoring, setIsRestoring] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [resetConfirmText, setResetConfirmText] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
 
     const { useTranslations } = require('@/lib/i18n-mock');
     const t = useTranslations('BackupManager');
@@ -151,6 +154,35 @@ export default function BackupManager() {
         } catch (error) {
             toast.error("Restore failed unexpectedly.");
             setIsRestoring(false);
+        }
+    };
+
+    const handleDatabaseReset = async () => {
+        if (resetConfirmText !== 'RESET') {
+            toast.error("Please type 'RESET' to confirm.");
+            return;
+        }
+
+        if (!confirm(t('resetConfirm1') || "هل أنت متأكد من مسح جميع البيانات؟")) {
+            return;
+        }
+
+        setIsResetting(true);
+        const toastId = toast.loading(t('resetting') || "Resetting database...");
+        try {
+            const result = await resetDatabase();
+            if (result.success) {
+                toast.success(result.message || t('resetSuccess'), { id: toastId });
+                setResetConfirmText('');
+                // Optional: redirect or reload
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                toast.error(result.error || t('resetError'), { id: toastId });
+            }
+        } catch (error: any) {
+            toast.error(error.message || t('resetError'), { id: toastId });
+        } finally {
+            setIsResetting(false);
         }
     };
 
@@ -331,6 +363,43 @@ export default function BackupManager() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* DANGER ZONE CARD */}
+            <Card className="glass-card bg-transparent border-red-500/20 text-white overflow-hidden">
+                <div className="bg-red-500/10 border-b border-red-500/20 p-4">
+                    <CardTitle className="flex items-center gap-2 text-red-500">
+                        <AlertTriangle className="w-5 h-5" />
+                        {t('dangerZone') || "منطقة الخطر"}
+                    </CardTitle>
+                    <CardDescription className="text-red-200/50 mt-1">
+                        {t('factoryResetDesc') || "سيتم حذف جميع المبيعات والمشتريات والمصروفات وحركات المخزون والورديات. سيتم تصفير الأرصدة وكميات المخزون. سيتم الاحتفاظ بالمنتجات والعملاء والموردين والإعدادات."}
+                    </CardDescription>
+                </div>
+                <CardContent className="p-6 space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-zinc-300">
+                            {t('resetConfirm2') || "يرجى كتابة 'RESET' للتأكيد:"}
+                        </label>
+                        <div className="flex gap-2">
+                            <Input
+                                value={resetConfirmText}
+                                onChange={(e) => setResetConfirmText(e.target.value.toUpperCase())}
+                                placeholder="RESET"
+                                className="bg-black/20 border-red-500/20 focus:border-red-500/50 text-red-400 font-bold tracking-widest"
+                            />
+                            <Button
+                                variant="destructive"
+                                onClick={handleDatabaseReset}
+                                disabled={isResetting || resetConfirmText !== 'RESET'}
+                                className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20"
+                            >
+                                <RotateCcw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} />
+                                {isResetting ? (t('resetting') || 'Resetting...') : (t('resetButton') || 'تنفيذ إعادة الضبط')}
+                            </Button>
                         </div>
                     </div>
                 </CardContent>
