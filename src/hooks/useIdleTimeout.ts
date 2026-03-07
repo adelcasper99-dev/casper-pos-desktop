@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes (PCI-DSS compliant)
 const WARNING_THRESHOLD = 12 * 60 * 1000; // 12 minutes - warn 3 min before logout
@@ -49,13 +50,13 @@ export function useIdleTimeout() {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      
+
       // Set new timer - only update after DEBOUNCE_DELAY of inactivity
       debounceTimerRef.current = setTimeout(() => {
         const now = Date.now();
         lastActivityRef.current = now;
         safeLocalStorage.setItem('lastActivity', now.toString());
-        
+
         // Clear warning if user becomes active
         if (showWarning) {
           setShowWarning(false);
@@ -65,7 +66,7 @@ export function useIdleTimeout() {
 
     // Track user activity with passive listeners (better performance)
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const;
-    
+
     events.forEach(event => {
       window.addEventListener(event, updateActivity, { passive: true });
     });
@@ -92,13 +93,13 @@ export function useIdleTimeout() {
             method: 'GET',
             cache: 'no-store'
           });
-          
+
           if (shiftCheck.ok) {
             const { hasOpenShift } = await shiftCheck.json();
-            
+
             if (hasOpenShift) {
               // User has open shift - show warning but don't force logout
-              alert('You have an open shift. Please close your shift before the session expires.');
+              toast.warning('You have an open shift. Please close your shift before the session expires.', { duration: 10000 });
               // Reset timer to give them time to close shift
               const now = Date.now();
               lastActivityRef.current = now;
@@ -121,10 +122,10 @@ export function useIdleTimeout() {
 
           // User idle for too long - force logout
           safeLocalStorage.setItem('sessionInvalidated', 'true');
-          
+
           // Clean up
           safeLocalStorage.setItem('lastActivity', '0');
-          
+
           router.push('/login?reason=idle');
         } catch (error) {
           console.error('Error during idle timeout:', error);
@@ -146,9 +147,9 @@ export function useIdleTimeout() {
       events.forEach(event => {
         window.removeEventListener(event, updateActivity);
       });
-      
+
       clearInterval(interval);
-      
+
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }

@@ -7,6 +7,7 @@ import { transferStock, adjustStock, getWarehouseStock } from "@/actions/invento
 import clsx from "clsx";
 import { useTranslations } from "@/lib/i18n-mock";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Branch {
     id: string;
@@ -134,7 +135,7 @@ export default function WarehouseOperations({
         });
         setLoading(false);
         if (res.success) {
-            alert(t('transferSuccess', { defaultValue: "Transfer Successful!" }));
+            toast.success(t('transferSuccess', { defaultValue: "Transfer Successful!" }));
             setTransferItems([]);
             // Refresh stock
             const stockRes = await getWarehouseStock(fromId);
@@ -144,7 +145,7 @@ export default function WarehouseOperations({
                 setSourceStock(map);
             }
         } else {
-            alert(res.message);
+            toast.error(res.message);
         }
     };
 
@@ -160,11 +161,11 @@ export default function WarehouseOperations({
         });
         setLoading(false);
         if (res.success) {
-            alert(t('adjustmentSuccess', { defaultValue: "Adjustment Successful!" }));
+            toast.success(t('adjustmentSuccess', { defaultValue: "Adjustment Successful!" }));
             setAdjNewQty("");
             setAdjReason("");
         } else {
-            alert(res.message);
+            toast.error(res.message);
         }
     };
 

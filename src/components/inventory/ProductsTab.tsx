@@ -15,6 +15,7 @@ import { useDebounce } from "use-debounce";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { useTranslations } from "@/lib/i18n-mock";
 import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Product {
     id: string;
@@ -112,7 +113,7 @@ export default function ProductsTab({
         if (!editingProduct.name) missing.push("Name");
 
         if (missing.length > 0) {
-            alert(t('validationError', { fields: missing.join(", ") }));
+            toast.error(t('validationError', { fields: missing.join(", ") }));
             return;
         }
 
@@ -123,15 +124,15 @@ export default function ProductsTab({
         const sell3 = Number(editingProduct.sellPrice3 || 0);
 
         if (sell1 < cost) {
-            alert(t('priceError', { price: 1, val: sell1, cost: cost }));
+            toast.error(t('priceError', { price: 1, val: sell1, cost: cost }));
             return;
         }
         if (sell2 > 0 && sell2 < cost) {
-            alert(t('priceError', { price: 2, val: sell2, cost: cost }));
+            toast.error(t('priceError', { price: 2, val: sell2, cost: cost }));
             return;
         }
         if (sell3 > 0 && sell3 < cost) {
-            alert(t('priceError', { price: 3, val: sell3, cost: cost }));
+            toast.error(t('priceError', { price: 3, val: sell3, cost: cost }));
             return;
         }
 
@@ -157,7 +158,7 @@ export default function ProductsTab({
             setEditingProduct(null);
             refetch(); // usage of invalidateQueries is better but refetch works locally
         } else {
-            alert(result.message);
+            toast.error(result.message);
         }
     };
 
@@ -170,7 +171,7 @@ export default function ProductsTab({
         setDeletingId(null);
 
         if (!result.success) {
-            alert(result.message);
+            toast.error(result.message);
         } else {
             refetch();
         }

@@ -36,7 +36,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
         const cashValue = startCash === "" ? 0 : parseFloat(startCash);
 
         if (isNaN(cashValue) || cashValue < 0) {
-            alert("Please enter valid starting cash amount");
+            toast.error("Please enter valid starting cash amount");
             return;
         }
 
@@ -54,10 +54,10 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 setStartCash("");
                 router.refresh();
             } else {
-                alert(result.error || result.message || "Failed to open shift");
+                toast.error(result.error || result.message || "Failed to open shift");
             }
         } catch (error: any) {
-            alert(error.message || "Failed to open shift");
+            toast.error(error.message || "Failed to open shift");
         } finally {
             setIsLoading(false);
         }
@@ -65,12 +65,12 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
     const handleCloseShift = async () => {
         if (!actualCash || parseFloat(actualCash) < 0) {
-            alert("Please enter valid actual cash amount");
+            toast.error("Please enter valid actual cash amount");
             return;
         }
 
         if (!shift?.id) {
-            alert("No active shift to close");
+            toast.error("No active shift to close");
             return;
         }
 
@@ -102,11 +102,11 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 router.refresh();
             } else {
                 // Display the actual error message
-                alert(result.message || result.error || "Failed to close shift");
+                toast.error(result.message || result.error || "Failed to close shift");
             }
         } catch (error: any) {
             console.error('[ERROR] Close shift failed:', error);
-            alert(error.message || "Failed to close shift");
+            toast.error(error.message || "Failed to close shift");
         } finally {
             setIsLoading(false);
         }

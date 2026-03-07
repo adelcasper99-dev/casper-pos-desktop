@@ -8,6 +8,7 @@ import { useTranslations } from '@/lib/i18n-mock'
 import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 type UserType = {
     id: string
@@ -84,7 +85,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
             router.refresh()
         } else {
             const errorKey = editingUser ? 'errors.updateError' : 'errors.createError';
-            alert(res.error || t(errorKey))
+            toast.error(res.error || t(errorKey))
         }
     }
 
@@ -96,7 +97,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
         if (res.success) {
             router.refresh()
         } else {
-            alert(res.error || t('errors.deleteError'))
+            toast.error(res.error || t('errors.deleteError'))
             setDeletingId(null)
         }
     }

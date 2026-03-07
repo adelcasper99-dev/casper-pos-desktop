@@ -73,6 +73,10 @@ export default function CustomerSearch() {
         setQuery(customer.name);
         setIsOpen(false);
         setShowAddForm(false);
+        // Explicitly blur the input to release focus
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
     };
 
     const handleClear = () => {
@@ -85,6 +89,10 @@ export default function CustomerSearch() {
         setNewPhone("");
         setCreateError("");
         setDuplicateCustomer(null);
+        // Explicitly blur the input to release focus
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
     };
 
     const openAddForm = () => {

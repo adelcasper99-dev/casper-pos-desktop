@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { openShift, closeShift } from "@/actions/shift-management-actions";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface ShiftManagerProps {
     currentShift?: any;
@@ -25,7 +26,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
         const cashValue = startCash === "" ? 0 : parseFloat(startCash);
 
         if (isNaN(cashValue) || cashValue < 0) {
-            alert("Please enter valid starting cash amount");
+            toast.error("Please enter valid starting cash amount");
             return;
         }
 
@@ -38,15 +39,15 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
             });
 
             if (result.success) {
-                alert(result.message || "Shift opened successfully!");
+                toast.success(result.message || "Shift opened successfully!");
                 setShowOpenModal(false);
                 setStartCash("");
                 router.refresh();
             } else {
-                alert(result.error || result.message || "Failed to open shift");
+                toast.error(result.error || result.message || "Failed to open shift");
             }
         } catch (error: any) {
-            alert(error.message || "Failed to open shift");
+            toast.error(error.message || "Failed to open shift");
         } finally {
             setIsLoading(false);
         }
@@ -54,12 +55,12 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
 
     const handleCloseShift = async () => {
         if (!actualCash || parseFloat(actualCash) < 0) {
-            alert("Please enter valid actual cash amount");
+            toast.error("Please enter valid actual cash amount");
             return;
         }
 
         if (!currentShift?.id) {
-            alert("No active shift to close");
+            toast.error("No active shift to close");
             return;
         }
 
@@ -72,16 +73,16 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
             });
 
             if (result.success) {
-                alert(result.message || "Shift closed successfully!");
+                toast.success(result.message || "Shift closed successfully!");
                 setShowCloseModal(false);
                 setActualCash("");
                 setNotes("");
                 router.refresh();
             } else {
-                alert(result.error || result.message || "Failed to close shift");
+                toast.error(result.error || result.message || "Failed to close shift");
             }
         } catch (error: any) {
-            alert(error.message || "Failed to close shift");
+            toast.error(error.message || "Failed to close shift");
         } finally {
             setIsLoading(false);
         }

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
 import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2, ZoomIn, ZoomOut } from "lucide-react";
@@ -56,10 +56,62 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
     const [orderMode, setOrderMode] = useState<"takeaway" | "dine-in">("takeaway");
     const [isMounted, setIsMounted] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    // Global Key Listener for Focus Restoration and State Clearing
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            // Focus Search/Barcode Input: Ctrl+F or just allow barcodes to flow
+            // But specifically for fixing the "freeze":
+            if (e.key === 'Escape') {
+                // Clear overlays in a specific priority
+                if (isCheckoutOpen) setIsCheckoutOpen(false);
+                else if (isTableModalOpen) setIsTableModalOpen(false);
+                else if (showHeldCarts) setShowHeldCarts(false);
+                else if (isCategoryModalOpen) {
+                    setIsCategoryModalOpen(false);
+                    setCategoryToEdit(null);
+                }
+                else if (isSpeedPrintModalOpen) setIsSpeedPrintModalOpen(false);
+
+                // Always try to restore focus to main search after Escape
+                setTimeout(() => {
+                    searchInputRef.current?.focus();
+                }, 100);
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [isCheckoutOpen, isTableModalOpen, showHeldCarts, isCategoryModalOpen, isSpeedPrintModalOpen]);
+
+    // Focus Search Input on Mount and after Modals Close (Auto-restoration)
+    useEffect(() => {
+        const restoreFocus = () => {
+            if (!isCheckoutOpen && !isTableModalOpen && !isCategoryModalOpen && !showHeldCarts && isMounted) {
+                // Use requestAnimationFrame for smoother timing with OS window transitions
+                requestAnimationFrame(() => {
+                    searchInputRef.current?.focus();
+                });
+            }
+        };
+
+        // Restore focus on window focus (regaining focus from another app/desktop)
+        window.addEventListener('focus', restoreFocus);
+
+        // Initial focus and periodic fallback
+        restoreFocus();
+        const timer = setTimeout(restoreFocus, 300);
+
+        return () => {
+            window.removeEventListener('focus', restoreFocus);
+            clearTimeout(timer);
+        };
+    }, [isCheckoutOpen, isTableModalOpen, isCategoryModalOpen, showHeldCarts, isMounted]);
 
     // Sync orderMode with held carts that might have a table selected
     useEffect(() => {
@@ -511,7 +563,15 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             />
 
             {/* RIGHT SIDE: Product Grid */}
-            <div className="flex-1 flex bg-muted/10">
+            <div
+                className="flex-1 flex bg-muted/10"
+                onClick={(e) => {
+                    // Redirect clicks on the container background to the search input
+                    if (e.target === e.currentTarget && !isCheckoutOpen && !isTableModalOpen) {
+                        searchInputRef.current?.focus();
+                    }
+                }}
+            >
                 {/* Categories */}
                 <div className="w-40 border-r border-border bg-card/50 backdrop-blur-2xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full">
                     <button onClick={() => setSelectedCategory(null)} className={clsx("w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0", selectedCategory === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground")}>{t('allCategories')}</button>
@@ -555,7 +615,13 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                         <div className="flex gap-3">
                             <div className="bg-card rounded-xl flex items-center gap-3 py-3 px-4 flex-[2] border border-border transition-all focus-within:border-cyan-500/50">
                                 <Search className="w-5 h-5 text-muted-foreground" />
-                                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('searchPlaceholder')} className="bg-transparent outline-none w-full placeholder:text-muted-foreground text-foreground" />
+                                <input
+                                    ref={searchInputRef}
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder={t('searchPlaceholder')}
+                                    className="bg-transparent outline-none w-full placeholder:text-muted-foreground text-foreground"
+                                />
                             </div>
 
                             {/* New Customer Search Component */}

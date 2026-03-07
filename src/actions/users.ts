@@ -160,7 +160,8 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
     const session = await getSession();
     if (!session?.user) throw new Error("Unauthorized");
 
-    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount } = data;
+    const validatedData = userSchema.parse(data);
+    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount } = validatedData;
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId);
@@ -220,9 +221,7 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
             managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : "[]",
             isGlobalAdmin: isGlobalAdmin || false,
             phone: phone || null,
-            // @ts-ignore
             maxDiscount: maxDiscount ?? 0.00,
-            // @ts-ignore
             maxDiscountAmount: maxDiscountAmount ?? 0.00
         }
     })
@@ -241,8 +240,9 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
     const session = await getSession();
     if (!session?.user) throw new Error("Unauthorized");
 
+    const validatedData = userSchema.parse(data);
     // Note: password is optional in update
-    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount } = data;
+    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount } = validatedData;
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId, id);
@@ -271,9 +271,7 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
         managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : undefined,
         isGlobalAdmin: isGlobalAdmin ?? undefined,
         phone: phone || null,
-        // @ts-ignore
         maxDiscount: maxDiscount ?? 0.00,
-        // @ts-ignore
         maxDiscountAmount: maxDiscountAmount ?? 0.00
     }
 

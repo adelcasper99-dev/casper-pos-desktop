@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslations } from "@/lib/i18n-mock";
 import GlassModal from "../ui/GlassModal";
 import { Banknote, CreditCard, Clock, Truck, Loader2, Store, User, Smartphone, ArrowRightLeft, XCircle, Shield, CalendarCheck, UserCircle, Printer, CheckCircle } from "lucide-react";
@@ -87,6 +87,36 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
     const [error, setError] = useState<string | null>(null);
     const [canForce, setCanForce] = useState(false);
+    const errorRef = useRef<HTMLDivElement>(null);
+    const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+    // Auto-focus error area or close button to capture keyboard events
+    useEffect(() => {
+        if (error) {
+            // Give the DOM a moment to render the error banner
+            setTimeout(() => {
+                errorRef.current?.focus();
+            }, 100);
+        } else if (isOpen) {
+            // Return focus to a safe button when error cleared or modal opened
+            setTimeout(() => {
+                closeBtnRef.current?.focus();
+            }, 100);
+        }
+    }, [error, isOpen]);
+
+    // Handle Escape key to dismiss errors
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && error) {
+                setError(null);
+                setCanForce(false);
+                e.stopPropagation();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [error]);
 
     // Sync local state with store when modal opens or store changes
     useEffect(() => {
@@ -448,7 +478,11 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                 {/* Error Banner & Force Option */}
                 {error && (
-                    <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl flex items-center gap-3 animate-shake justify-between">
+                    <div
+                        ref={errorRef}
+                        tabIndex={-1}
+                        className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl flex items-center gap-3 animate-shake justify-between outline-none focus:ring-2 focus:ring-red-500/50"
+                    >
                         <div className="flex items-start gap-3">
                             <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
                             <div>
@@ -456,14 +490,22 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 <p className="text-red-400 text-xs">{error}</p>
                             </div>
                         </div>
-                        {canForce && (
+                        <div className="flex items-center gap-2">
+                            {canForce && (
+                                <button
+                                    onClick={() => handleCheckout(new FormData(), true)}
+                                    className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-lg whitespace-nowrap"
+                                >
+                                    {t('forceSale')}
+                                </button>
+                            )}
                             <button
-                                onClick={() => handleCheckout(new FormData(), true)}
-                                className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-lg whitespace-nowrap"
+                                onClick={() => { setError(null); setCanForce(false); }}
+                                className="p-1 hover:bg-red-500/20 rounded-md text-red-400 transition-colors"
                             >
-                                {t('forceSale')}
+                                <XCircle className="w-4 h-4 opacity-70" />
                             </button>
-                        )}
+                        </div>
                     </div>
                 )}
 

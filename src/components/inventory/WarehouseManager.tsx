@@ -6,6 +6,7 @@ import GlassModal from "../ui/GlassModal";
 import { createWarehouse, updateWarehouse, deleteWarehouse, getWarehouseStock } from "@/actions/inventory";
 import clsx from "clsx";
 import { useTranslations } from "@/lib/i18n-mock";
+import { toast } from "sonner";
 
 interface Warehouse {
     id: string;
@@ -71,7 +72,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
             setAddress("");
             setEditingWarehouse(null);
         } else {
-            alert(res.error || (editingWarehouse ? t('failUpdate') : t('failCreate')));
+            toast.error(res.error || (editingWarehouse ? t('failUpdate') : t('failCreate')));
         }
     };
 
@@ -85,7 +86,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setDeletingId(null);
 
         if (!res.success) {
-            alert(res.error || t('failDelete'));
+            toast.error(res.error || t('failDelete'));
         }
     };
 

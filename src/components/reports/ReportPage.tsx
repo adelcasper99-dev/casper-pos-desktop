@@ -145,9 +145,9 @@ export default function ReportPage({ initialData, branches, categories = [], pro
         const diff = endX - swipeState.startX
         if (swipeState.id === id) {
             if (diff > 50) {
-                alert("🖨️ طباعة سريعة للعملية: " + id)
+                toast.info("🖨️ طباعة سريعة للعملية: " + id)
             } else if (diff < -50) {
-                alert("📄 عرض تفاصيل العملية: " + id)
+                toast.info("📄 عرض تفاصيل العملية: " + id)
             }
         }
         setSwipeState({ id: '', startX: 0 })

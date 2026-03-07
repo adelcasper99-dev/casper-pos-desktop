@@ -27,6 +27,7 @@ import {
     transferBetweenTreasuries,
 } from "@/actions/treasury";
 import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Transaction {
@@ -342,7 +343,7 @@ export default function TreasuryDashboard({
             if (viewTreasuryId === deletingTreasuryId) setViewTreasuryId(null);
             await refresh();
         } else {
-            alert(res.error);
+            toast.error(res.error);
         }
     };
 

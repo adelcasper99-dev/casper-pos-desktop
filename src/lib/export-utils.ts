@@ -1,10 +1,11 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 // CSV Export
 export function exportToCSV(data: any[], filename: string) {
   if (!data || data.length === 0) {
-    alert('No data to export');
+    toast.error('No data to export');
     return;
   }
 
@@ -12,7 +13,7 @@ export function exportToCSV(data: any[], filename: string) {
   const headers = Object.keys(data[0]);
   const csvContent = [
     headers.join(','),
-    ...data.map(row => 
+    ...data.map(row =>
       headers.map(h => {
         const value = row[h];
         // Escape quotes and wrap in quotes if contains comma
@@ -58,16 +59,16 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
   paymentMethod?: string;
 }) {
   const doc = new jsPDF();
-  
+
   // Header
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.text('Treasury Report', 14, 20);
-  
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
-  
+
   // Add filter information if applied
   let yPosition = 35;
   if (filters?.startDate || filters?.endDate || filters?.paymentMethod) {
@@ -75,7 +76,7 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
     doc.setTextColor(100);
     doc.text('Filters Applied:', 14, yPosition);
     yPosition += 5;
-    
+
     if (filters.startDate) {
       doc.text(`  Start Date: ${new Date(filters.startDate).toLocaleDateString()}`, 14, yPosition);
       yPosition += 5;
@@ -90,25 +91,25 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
     }
     yPosition += 5;
   }
-  
+
   doc.setTextColor(0);
-  
+
   // Summary Section
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('Balance Summary', 14, yPosition);
   yPosition += 8;
-  
+
   const summaryData = [
     ['Cash', `$${data.byMethod.CASH.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
     ['Visa', `$${data.byMethod.VISA.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
     ['Wallet', `$${data.byMethod.WALLET.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
     ['InstaPay', `$${data.byMethod.INSTAPAY.toLocaleString('en-US', { minimumFractionDigits: 2 })}`]
   ];
-  
+
   const totalBalance = Object.values(data.byMethod).reduce((sum, val) => sum + val, 0);
   summaryData.push(['Total Balance', `$${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`]);
-  
+
   autoTable(doc, {
     startY: yPosition,
     head: [['Payment Method', 'Balance']],
@@ -117,13 +118,13 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
     headStyles: { fillColor: [99, 102, 241] }, // Indigo
     footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: 'bold' }
   });
-  
+
   // Transactions Section
   const transactionsY = (doc as any).lastAutoTable.finalY + 15;
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('Transactions', 14, transactionsY);
-  
+
   if (data.transactions.length === 0) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
@@ -140,7 +141,7 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
         `${isPositive ? '+' : '-'}$${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
       ];
     });
-    
+
     autoTable(doc, {
       startY: transactionsY + 5,
       head: [['Date', 'Type', 'Method', 'Description', 'Amount']],
@@ -156,7 +157,7 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
       }
     });
   }
-  
+
   // Footer
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
@@ -170,7 +171,7 @@ export function exportTreasuryToPDF(data: TreasuryData, filename: string, filter
       { align: 'center' }
     );
   }
-  
+
   doc.save(filename);
 }
 
@@ -183,6 +184,6 @@ export function exportTransactionsToCSV(transactions: TreasuryTransaction[], fil
     Description: t.description || '-',
     Amount: t.amount
   }));
-  
+
   exportToCSV(csvData, filename);
 }

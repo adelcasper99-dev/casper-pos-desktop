@@ -6,6 +6,7 @@ import { PERMISSION_GROUPS, PERMISSION_DEPENDENCIES, SYSTEM_ROLES } from "@/lib/
 import { Loader2, Plus, Trash2, Edit, Shield, Check, Lock } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Role {
     id: string;
@@ -136,7 +137,7 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
             setIsModalOpen(false);
             loadRoles();
         } else {
-            alert(res.message);
+            toast.error(res.message);
         }
     };
 
@@ -148,7 +149,7 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
         if (res.success) {
             loadRoles();
         } else {
-            alert(res.message);
+            toast.error(res.message);
         }
     };
 
