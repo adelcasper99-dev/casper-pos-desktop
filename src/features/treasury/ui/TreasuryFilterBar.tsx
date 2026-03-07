@@ -27,7 +27,7 @@ interface TreasuryFilterBarProps {
 
 export function TreasuryFilterBar({ filters, onFilterChange }: TreasuryFilterBarProps) {
     return (
-        <div className="relative z-50 flex flex-wrap items-center gap-4 bg-zinc-900/50 p-4 rounded-xl border border-white/5 backdrop-blur-md mb-6">
+        <div className="relative z-10 flex flex-wrap items-center gap-4 bg-zinc-900/50 p-4 rounded-xl border border-white/5 backdrop-blur-md mb-6">
             {/* Category Combobox */}
             <div className="flex items-center gap-2 min-w-[200px]">
                 <Tag className="h-4 w-4 text-zinc-500" />
