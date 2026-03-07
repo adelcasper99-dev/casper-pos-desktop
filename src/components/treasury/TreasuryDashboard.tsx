@@ -5,14 +5,18 @@ import {
     Plus, Minus, Landmark, CreditCard, Smartphone, Banknote,
     ArrowUpCircle, ArrowDownCircle, Loader2, Edit, Trash2,
     Filter, X, Calendar, PlusCircle, RefreshCw, ArrowLeftRight,
-    Calendar as CalendarIcon, Printer, FileDown, Download
+    Calendar as CalendarIcon, Printer, FileDown, Download, History
 } from "lucide-react";
+import Link from "next/link";
 import {
     startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
     startOfMonth, endOfMonth, format
 } from 'date-fns';
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import GlassModal from "@/components/ui/GlassModal";
+import { TreasuryLogFilters } from "@/features/treasury/types";
+import { TreasuryFilterBar } from "@/features/treasury/ui/TreasuryFilterBar";
+import { DepositModal } from "@/components/treasury/DepositModal";
 import {
     addTreasuryTransaction,
     updateTreasuryTransaction,
@@ -22,6 +26,7 @@ import {
     getTreasuryData,
     transferBetweenTreasuries,
 } from "@/actions/treasury";
+import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Transaction {
@@ -234,11 +239,15 @@ export default function TreasuryDashboard({
     const [isTransferOpen, setIsTransferOpen] = useState(false);
 
     // Transaction form state
-    const [transType, setTransType] = useState<"CAPITAL" | "OUT">("CAPITAL");
+    const [transType, setTransType] = useState<"OUT">("OUT");
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
     const [method, setMethod] = useState("CASH");
     const [selectedTreasuryId, setSelectedTreasuryId] = useState("");
+    const [expenseCategory, setExpenseCategory] = useState("");
+
+    // Deposit Modal state
+    const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
     // Edit / delete state
     const [reason, setReason] = useState("");
@@ -248,30 +257,56 @@ export default function TreasuryDashboard({
     const [deletingTreasuryId, setDeletingTreasuryId] = useState<string | null>(null);
 
     // Filter state
-    const [showFilters, setShowFilters] = useState(false);
-    const [dateFilter, setDateFilter] = useState("all");
-    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
+    const [filters, setFilters] = useState<TreasuryLogFilters>({
+        startDate: undefined,
+        endDate: undefined,
+        direction: 'ALL',
+        search: '',
+        category: 'ALL'
+    });
     const [methodFilter, setMethodFilter] = useState("ALL");
 
-    const refresh = async (range?: typeof dateRange, meth?: string) => {
+    const refresh = async (currentFilters?: TreasuryLogFilters, meth?: string) => {
         setLoading(true);
-        const activeRange = range !== undefined ? range : dateRange;
+        const activeFilters = currentFilters !== undefined ? currentFilters : filters;
         const activeMethod = meth !== undefined ? meth : methodFilter;
 
         const res = await getTreasuryData({
-            startDate: activeRange?.from?.toISOString(),
-            endDate: activeRange?.to?.toISOString(),
+            startDate: activeFilters.startDate,
+            endDate: activeFilters.endDate,
             paymentMethod: activeMethod !== "ALL" ? activeMethod : undefined,
         });
         if (res.success && res.data) setData(res.data as TreasuryData);
         setLoading(false);
     };
 
+    const handleFilterChange = (newFilters: TreasuryLogFilters) => {
+        setFilters(newFilters);
+        if (newFilters.startDate !== filters.startDate || newFilters.endDate !== filters.endDate) {
+            refresh(newFilters, methodFilter);
+        }
+    };
+
     const resetForm = () => {
-        setAmount(""); setDescription(""); setMethod("CASH");
+        setAmount(""); setDescription(""); setMethod("CASH"); setExpenseCategory("");
         setEditingId(null); setReason("");
         const def = data.treasuries?.find(t => t.isDefault);
         setSelectedTreasuryId(def?.id || "");
+    };
+
+    const handleDepositSubmit = async (data: any) => {
+        setLoading(true);
+        await addTreasuryTransaction(
+            "CAPITAL", // We pass CAPITAL to bypass UI logic, backend handles true category
+            data.amount,
+            data.description,
+            data.paymentMethod,
+            data.treasuryId,
+            undefined, // no expense category
+            data.incomingCategoryId
+        );
+        setLoading(false);
+        await refresh();
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -280,7 +315,7 @@ export default function TreasuryDashboard({
         if (editingId) {
             await updateTreasuryTransaction(editingId, { type: transType, amount: parseFloat(amount), description, paymentMethod: method }, reason);
         } else {
-            await addTreasuryTransaction(transType, parseFloat(amount), description, method, selectedTreasuryId || undefined);
+            await addTreasuryTransaction(transType, parseFloat(amount), description, method, selectedTreasuryId || undefined, expenseCategory || undefined);
         }
         setLoading(false);
         setIsModalOpen(false);
@@ -315,16 +350,60 @@ export default function TreasuryDashboard({
         setAmount(tx.amount.toString());
         setDescription(tx.description || "");
         setMethod(tx.paymentMethod);
-        setTransType(tx.type as "CAPITAL" | "OUT");
+        if (tx.type !== "OUT") {
+            // Basic handle for dynamic edits since old CAPITAL type might be fixed
+            setTransType("OUT");
+        } else {
+            setTransType("OUT");
+        }
         setEditingId(tx.id);
         setSelectedTreasuryId(tx.treasuryId || "");
         setReason("");
         setIsModalOpen(true);
     };
 
-    const displayedTx = viewTreasuryId
-        ? data.transactions.filter(t => t.treasuryId === viewTreasuryId)
-        : data.transactions;
+    const displayedTx = data.transactions.filter(t => {
+        if (viewTreasuryId && t.treasuryId !== viewTreasuryId) return false;
+
+        // Direction Filter
+        const isPos = POSITIVE_TYPES.includes(t.type);
+        if (filters.direction === 'IN' && !isPos) return false;
+        if (filters.direction === 'OUT' && isPos) return false;
+
+        // Search Filter
+        if (filters.search) {
+            const searchLower = filters.search.toLowerCase();
+            const desc = t.description?.toLowerCase() || "";
+            const ref = TYPE_LABELS[t.type]?.toLowerCase() || "";
+            if (!desc.includes(searchLower) && !ref.includes(searchLower)) {
+                return false;
+            }
+        }
+
+        // Category Filter
+        if (filters.category && filters.category !== 'ALL') {
+            let cat = "متنوع";
+            const desc = t.description || "";
+            if (isPos) {
+                if (t.type === "SALE") cat = "مبيعات";
+                else if (t.type === "CUSTOMER_PAYMENT") cat = "سداد عميل";
+                else if (t.type === "CAPITAL" || desc.includes("إيداع")) cat = "إيداع نقدي";
+                else if (t.type === "TRANSFER_IN") cat = "تحويل وارد";
+            } else {
+                if (desc.includes("مشتريات") || t.type === "PURCHASE") cat = "مشتريات";
+                else if (t.type === "OUT") cat = "مصاريف عامة";
+                else if (t.type === "TRANSFER_OUT") cat = "تحويل صادر";
+                else if (desc.includes("سحب")) cat = "سحب نقدي";
+            }
+            if (filters.category === "مصاريف عامة" && cat.startsWith("مصاريف")) {
+                // allow
+            } else if (cat !== filters.category) {
+                return false;
+            }
+        }
+
+        return true;
+    });
 
     const METHODS = [
         { key: "CASH", label: "نقداً", icon: Banknote, color: "text-green-400 bg-green-500/10 border-green-500/30" },
@@ -430,13 +509,9 @@ export default function TreasuryDashboard({
             )}
 
             {/* ── Toolbar ──────────────────────────────── */}
-            <div className="glass-card p-4 rounded-2xl space-y-4">
+            <div className="glass-card p-4 rounded-2xl space-y-4 relative z-[60]">
                 <div className="flex flex-wrap gap-3 items-center justify-between no-print">
                     <div className="flex gap-2">
-                        <button onClick={() => setShowFilters(v => !v)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-medium text-sm">
-                            <Filter className="w-4 h-4" />
-                            {showFilters ? "إخفاء الفلاتر" : "فلتر"}
-                        </button>
                         <button onClick={() => refresh()} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-medium text-sm">
                             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                         </button>
@@ -448,6 +523,12 @@ export default function TreasuryDashboard({
                             <FileDown className="w-4 h-4" />
                             تصدير
                         </button>
+                        <Link href="/treasury/log">
+                            <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 font-medium text-sm transition-all hover:scale-[1.02]">
+                                <History className="w-4 h-4" />
+                                سجل الخزينة
+                            </button>
+                        </Link>
                     </div>
                     <div className="flex gap-2">
                         <button onClick={() => setIsCreateTreasuryOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50 font-bold text-sm">
@@ -459,118 +540,49 @@ export default function TreasuryDashboard({
                         <button onClick={() => { resetForm(); setTransType("OUT"); setIsModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 font-bold text-sm">
                             <Minus className="w-4 h-4" /> سحب / صرف
                         </button>
-                        <button onClick={() => { resetForm(); setTransType("CAPITAL"); setIsModalOpen(true); }} className="flex items-center gap-2 px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_15px_rgba(6,182,212,0.35)] text-sm">
+                        <button onClick={() => setIsDepositModalOpen(true)} className="flex items-center gap-2 px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_15px_rgba(6,182,212,0.35)] text-sm">
                             <Plus className="w-4 h-4" /> إيداع
                         </button>
                     </div>
                 </div>
 
-                {showFilters && (
-                    <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-4 no-print">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-1 bg-background/50 p-1 rounded-lg border border-border/50">
-                                <button
-                                    onClick={() => {
-                                        setDateFilter("today");
-                                        const range = { from: startOfDay(new Date()), to: endOfDay(new Date()) };
-                                        setDateRange(range);
-                                        refresh(range);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"}`}
-                                >
-                                    اليوم
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        const yesterday = subDays(new Date(), 1);
-                                        setDateFilter("yesterday");
-                                        const range = { from: startOfDay(yesterday), to: endOfDay(yesterday) };
-                                        setDateRange(range);
-                                        refresh(range);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"}`}
-                                >
-                                    أمس
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDateFilter("week");
-                                        const range = { from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) };
-                                        setDateRange(range);
-                                        refresh(range);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"}`}
-                                >
-                                    الأسبوع
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDateFilter("month");
-                                        const range = { from: startOfMonth(new Date()), to: endOfMonth(new Date()) };
-                                        setDateRange(range);
-                                        refresh(range);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"}`}
-                                >
-                                    الشهر
-                                </button>
-                            </div>
+                <div className="no-print space-y-4">
+                    <TreasuryFilterBar filters={filters} onFilterChange={handleFilterChange} />
 
-                            <div className="h-4 w-px bg-white/10" />
+                    <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/30 rounded-xl border border-border w-fit">
+                        <CreditCard className="w-4 h-4 text-muted-foreground" />
+                        <select
+                            value={methodFilter}
+                            onChange={e => {
+                                setMethodFilter(e.target.value);
+                                refresh(filters, e.target.value);
+                            }}
+                            className="glass-input h-9 text-xs py-0 min-w-[120px] [&>option]:text-black"
+                        >
+                            <option value="ALL">كل طرق الدفع</option>
+                            {METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                        </select>
 
-                            <FlatpickrRangePicker
-                                onRangeChange={(dates) => {
-                                    if (dates.length === 2) {
-                                        const range = { from: dates[0], to: dates[1] };
-                                        setDateRange(range);
-                                        setDateFilter("custom");
-                                        refresh(range);
-                                    } else if (dates.length === 0) {
-                                        setDateRange(undefined);
-                                        setDateFilter("all");
-                                        refresh(undefined);
-                                    }
-                                }}
-                                onClear={() => {
-                                    setDateRange(undefined);
-                                    setDateFilter("all");
-                                    refresh(undefined);
-                                }}
-                                initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                                className="w-64"
-                            />
+                        <div className="h-4 w-px bg-white/10 mx-2" />
 
-                            <div className="h-4 w-px bg-white/10" />
-
-                            <div className="flex items-center gap-2">
-                                <CreditCard className="w-4 h-4 text-muted-foreground" />
-                                <select
-                                    value={methodFilter}
-                                    onChange={e => {
-                                        setMethodFilter(e.target.value);
-                                        refresh(dateRange, e.target.value);
-                                    }}
-                                    className="glass-input h-9 text-xs py-0 min-w-[120px] [&>option]:text-black"
-                                >
-                                    <option value="ALL">كل طرق الدفع</option>
-                                    {METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-                                </select>
-                            </div>
-
-                            <button
-                                onClick={() => {
-                                    setDateRange(undefined);
-                                    setDateFilter("all");
-                                    setMethodFilter("ALL");
-                                    refresh(undefined, "ALL");
-                                }}
-                                className="ms-auto flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 font-bold text-xs transition-all"
-                            >
-                                <X className="w-3 h-3" /> مسح الفلاتر
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => {
+                                handleFilterChange({
+                                    startDate: undefined,
+                                    endDate: undefined,
+                                    direction: 'ALL',
+                                    search: '',
+                                    category: 'ALL'
+                                });
+                                setMethodFilter("ALL");
+                                refresh(undefined, "ALL");
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 font-bold text-xs transition-all"
+                        >
+                            <X className="w-3 h-3" /> مسح الفلاتر
+                        </button>
                     </div>
-                )}
+                </div>
             </div>
 
             {/* ── Transactions Table ───────────────────── */}
@@ -649,19 +661,24 @@ export default function TreasuryDashboard({
 
             {/* ── Add / Edit Transaction Modal ─────────── */}
             <div className="no-print">
+                <DepositModal
+                    isOpen={isDepositModalOpen}
+                    onClose={() => setIsDepositModalOpen(false)}
+                    treasuries={data.treasuries}
+                    onSubmit={handleDepositSubmit}
+                />
+
                 <GlassModal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    title={editingId ? "تعديل الحركة" : transType === "CAPITAL" ? "إيداع / إضافة رصيد" : "سحب / صرف"}
+                    title={editingId ? "تعديل الحركة" : "سحب / صرف"}
                 >
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        {editingId && (
+                        {editingId && transType === "OUT" && (
                             <div className="flex gap-2 p-2 bg-muted/30 rounded-xl">
-                                {(["CAPITAL", "OUT"] as const).map(tp => (
-                                    <button key={tp} type="button" onClick={() => setTransType(tp)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${transType === tp ? (tp === "CAPITAL" ? "bg-green-500 text-black" : "bg-red-500 text-white") : "text-muted-foreground hover:bg-muted"}`}>
-                                        {tp === "CAPITAL" ? "إيداع" : "سحب"}
-                                    </button>
-                                ))}
+                                <button type="button" className="flex-1 py-2 text-xs font-bold rounded-lg transition-colors bg-red-500 text-white">
+                                    سحب
+                                </button>
                             </div>
                         )}
 
@@ -688,9 +705,21 @@ export default function TreasuryDashboard({
                             </div>
                         </div>
 
+                        {transType === "OUT" && !editingId && (
+                            <div>
+                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">تصنيف المصروف</label>
+                                <select className="glass-input w-full" value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)}>
+                                    <option value="" className="text-black">عام / غير مصنف</option>
+                                    {Object.entries(EXPENSE_CATEGORY_MAP).map(([key, map]) => (
+                                        <option key={key} value={key} className="text-black">{map.labelAr}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
                         <div>
                             <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">البيان</label>
-                            <input className="glass-input w-full" placeholder={transType === "CAPITAL" ? "مثال: رأس مال أولي..." : "مثال: مصاريف شراء..."} value={description} onChange={e => setDescription(e.target.value)} required />
+                            <input className="glass-input w-full" placeholder="مثال: مصاريف شراء..." value={description} onChange={e => setDescription(e.target.value)} required />
                         </div>
 
                         <div>
@@ -705,9 +734,9 @@ export default function TreasuryDashboard({
                             </div>
                         )}
 
-                        <button type="submit" disabled={loading} className={`w-full font-bold py-3 rounded-xl mt-2 flex justify-center items-center gap-2 ${transType === "CAPITAL" ? "bg-green-500 hover:bg-green-400 text-black" : "bg-red-500 hover:bg-red-400 text-white"}`}>
-                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : transType === "CAPITAL" ? <Plus className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-                            {editingId ? "حفظ التعديل" : transType === "CAPITAL" ? "تأكيد الإيداع" : "تأكيد السحب"}
+                        <button type="submit" disabled={loading} className="w-full font-bold py-3 rounded-xl mt-2 flex justify-center items-center gap-2 bg-red-500 hover:bg-red-400 text-white">
+                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                            {editingId ? "حفظ التعديل" : "تأكيد السحب"}
                         </button>
                     </form>
                 </GlassModal>

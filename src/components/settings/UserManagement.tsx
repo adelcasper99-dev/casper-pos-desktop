@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, User as UserIcon, Shield, ShieldAlert, Loader2, Edit, Eye, EyeOff } from 'lucide-react'
+import { Plus, Trash2, User as UserIcon, Shield, ShieldAlert, Loader2, Edit, Eye, EyeOff, Lock } from 'lucide-react'
 import { createUser, deleteUser, updateUser } from '@/actions/users'
 import GlassModal from '@/components/ui/GlassModal'
 import { useTranslations } from '@/lib/i18n-mock'
@@ -17,10 +17,13 @@ type UserType = {
     role?: { id: string, name: string } | null
     branch?: { id: string, name: string } | null
     salary?: number | string
+    maxDiscount?: number | string | null
+    maxDiscountAmount?: number | string | null
     createdAt: Date | string
+    isGlobalAdmin?: boolean
 }
 
-export default function UserManagement({ users, roles, branches, branchId }: { users: any[], roles: any[], branches: any[], branchId?: string }) {
+export default function UserManagement({ users, roles, branches, branchId, currentUser }: { users: any[], roles: any[], branches: any[], branchId?: string, currentUser: any }) {
     const t = useTranslations('UserManagement')
     const router = useRouter()
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -28,6 +31,34 @@ export default function UserManagement({ users, roles, branches, branchId }: { u
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [editingUser, setEditingUser] = useState<any | null>(null)
     const [showPassword, setShowPassword] = useState(false)
+
+    if (!currentUser) return null;
+
+    const isAdminCheck = (roleStr: string) => roleStr === 'ADMIN' || roleStr === 'مدير النظام' || roleStr === 'المالك';
+    const isUserAdmin = isAdminCheck(currentUser.role) || (currentUser.permissions && currentUser.permissions.includes('*'));
+
+    const filteredRoles = isUserAdmin
+        ? roles
+        : roles.filter(role => {
+            const roleName = role.name.toUpperCase();
+            // Non-admins cannot see/assign Admin role
+            if (roleName === 'ADMIN' || roleName === 'ADMINISTRATOR' || roleName === 'مدير النظام' || roleName === 'المالك') return false;
+
+            // Non-admins can only assign roles whose permissions are a subset of their own
+            let rolePerms: string[] = [];
+            try {
+                rolePerms = typeof role.permissions === 'string' ? JSON.parse(role.permissions || '[]') : role.permissions || [];
+            } catch (e) {
+                rolePerms = [];
+            }
+
+            // Explicitly block system configuration permissions for non-admins
+            const forbiddenPerms = ['MANAGE_SETTINGS', 'MANAGE_ROLES'];
+            if (forbiddenPerms.some(p => rolePerms.includes(p))) return false;
+
+            const userPerms = currentUser.permissions || [];
+            return rolePerms.every(p => userPerms.includes(p));
+        });
 
     async function handleSubmit(formData: FormData) {
         setLoading(true)
@@ -105,12 +136,32 @@ export default function UserManagement({ users, roles, branches, branchId }: { u
                             <th className="p-4">{t('username')}</th>
                             <th className="p-4">{t('role')}</th>
                             <th className="p-4">{t('branch')}</th>
+                            <th className="p-4 text-center">Max Discount (%)</th>
+                            <th className="p-4 text-center">Max Amount</th>
                             <th className="p-4 text-right">{t('actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                         {users.map((user: any) => {
-                            const isAdmin = user.roleStr === 'ADMIN' || user.role?.name === 'Admin';
+                            const isAdmin = isAdminCheck(user.roleStr) || isAdminCheck(user.role?.name) || user.isGlobalAdmin;
+                            const forbiddenPerms = ['MANAGE_SETTINGS', 'MANAGE_ROLES'];
+
+                            let targetPerms: string[] = [];
+                            try {
+                                targetPerms = typeof user.role?.permissions === 'string' ? JSON.parse(user.role?.permissions || '[]') : user.role?.permissions || [];
+                            } catch (e) {
+                                targetPerms = [];
+                            }
+
+                            const userPerms = currentUser.permissions || [];
+                            const isSubset = targetPerms.every(p => userPerms.includes(p));
+                            const hasForbidden = targetPerms.some(p => forbiddenPerms.includes(p));
+
+                            // Managers can only modify users who are NOT admins, 
+                            // whose permissions are a subset of their own,
+                            // AND who don't have forbidden system permissions.
+                            const canModify = isUserAdmin || (!isAdmin && isSubset && !hasForbidden);
+
                             const rawRoleName = user.role?.name || user.roleStr;
 
                             // Safe translation with fallback
@@ -135,27 +186,41 @@ export default function UserManagement({ users, roles, branches, branchId }: { u
                                         </span>
                                     </td>
                                     <td className="p-4 text-sm text-zinc-400">{branchName}</td>
+                                    <td className="p-4 text-center text-sm font-bold text-cyan-400">
+                                        {user.maxDiscount ? `${user.maxDiscount}%` : '0%'}
+                                    </td>
+                                    <td className="p-4 text-center text-sm font-bold text-green-400">
+                                        {user.maxDiscountAmount ? `$${user.maxDiscountAmount}` : '$0'}
+                                    </td>
                                     <td className="p-4 text-right flex justify-end gap-2">
-                                        <button
-                                            onClick={() => openEditModal(user)}
-                                            className="text-cyan-400 hover:bg-cyan-500/10 p-2 rounded-lg transition-colors"
-                                        >
-                                            <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(user.id)}
-                                            disabled={deletingId === user.id}
-                                            className="text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors disabled:opacity-50"
-                                        >
-                                            {deletingId === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                        </button>
+                                        {canModify ? (
+                                            <>
+                                                <button
+                                                    onClick={() => openEditModal(user)}
+                                                    className="text-cyan-400 hover:bg-cyan-500/10 p-2 rounded-lg transition-colors"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(user.id)}
+                                                    disabled={deletingId === user.id}
+                                                    className="text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors disabled:opacity-50"
+                                                >
+                                                    {deletingId === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <div className="p-2 text-zinc-500 opacity-50 cursor-not-allowed" title="System Administrator Locked">
+                                                <Lock className="w-4 h-4" />
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             )
                         })}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                                <td colSpan={6} className="p-8 text-center text-muted-foreground">
                                     {t('noUsers')}
                                 </td>
                             </tr>
@@ -218,7 +283,7 @@ export default function UserManagement({ users, roles, branches, branchId }: { u
                                 <SelectValue placeholder={t('selectRole') || "Select Role"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {roles.map((role: any) => {
+                                {filteredRoles.map((role: any) => {
                                     const roleKey = `roles.${role.name.toUpperCase()}`;
                                     const translated = t(roleKey);
                                     const roleName = translated === roleKey ? role.name : translated;
@@ -252,6 +317,35 @@ export default function UserManagement({ users, roles, branches, branchId }: { u
                             </Select>
                         </div>
                     )}
+
+                    <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">Max Discount (%)</label>
+                        <input
+                            name="maxDiscount"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            className="w-full glass-input"
+                            placeholder="e.g. 10"
+                            defaultValue={editingUser?.maxDiscount ?? ''}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Maximum discount percentage this user can apply in POS (0 to 100).</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">Max Discount (Amount)</label>
+                        <input
+                            name="maxDiscountAmount"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="w-full glass-input"
+                            placeholder="e.g. 50"
+                            defaultValue={editingUser?.maxDiscountAmount ?? ''}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Maximum fixed discount amount this user can apply in POS.</p>
+                    </div>
 
                     <button
                         type="submit"

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -249,6 +249,16 @@ const createSplashWindow = () => {
 
 const createWindow = async () => {
     createSplashWindow();
+
+    // Auto-open folder after download completes
+    session.defaultSession.on('will-download', (event, item, webContents) => {
+        item.once('done', (event, state) => {
+            if (state === 'completed') {
+                const savePath = item.getSavePath();
+                if (savePath) shell.showItemInFolder(savePath);
+            }
+        });
+    });
 
     const iconPath = path.join(__dirname, '..', 'public', 'assets', 'icon.png');
     mainWindow = new BrowserWindow({
@@ -501,6 +511,9 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
         fs.writeFileSync(filePath, data);
         if (!printWindow.isDestroyed()) printWindow.destroy();
         try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) { }
+
+        // Open location
+        shell.showItemInFolder(filePath);
 
         return { success: true, path: filePath };
     } catch (error) {
@@ -790,6 +803,10 @@ ipcMain.handle('app:export-support-bundle', async () => {
         const dbPath = getDatabasePath();
         if (fs.existsSync(dbPath)) fsExtra.copySync(dbPath, path.join(exportDir, 'local.db'));
         if (fs.existsSync(debugLog)) fsExtra.copySync(debugLog, path.join(exportDir, 'boot.log'));
+
+        // Open folder (exportDir is a directory, not a file, so it opens the directory itself)
+        shell.openPath(exportDir);
+
         return { success: true, path: exportDir };
     } catch (err) { return { success: false, error: err.message }; }
 });

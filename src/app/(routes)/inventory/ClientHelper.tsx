@@ -18,7 +18,8 @@ export default function InventoryTabs({
     csrfToken,
     user,
     features,
-    currency = "EGP"
+    currency = "EGP",
+    permissions = { canManageCategories: true, canViewSuppliers: true }
 }: any) {
     const t = useTranslations('Inventory');
     const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES' | 'SUPPLIERS'>('STOCK');
@@ -47,15 +48,17 @@ export default function InventoryTabs({
                         {t('tabs.locations')}
                     </button>
                 )}
-                <button
-                    onClick={() => setActiveSection('SUPPLIERS')}
-                    className={clsx(
-                        "px-4 py-2 font-bold rounded-lg transition-all",
-                        activeSection === 'SUPPLIERS' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "hover:bg-white/5 text-zinc-400"
-                    )}
-                >
-                    {t('tabs.suppliers') || "الموردين"}
-                </button>
+                {permissions.canViewSuppliers && (
+                    <button
+                        onClick={() => setActiveSection('SUPPLIERS')}
+                        className={clsx(
+                            "px-4 py-2 font-bold rounded-lg transition-all",
+                            activeSection === 'SUPPLIERS' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "hover:bg-white/5 text-zinc-400"
+                        )}
+                    >
+                        {t('tabs.suppliers') || "الموردين"}
+                    </button>
+                )}
             </div>
 
             {/* Sub Tabs (Only for Stock) */}
@@ -72,16 +75,18 @@ export default function InventoryTabs({
                             <Package className="w-4 h-4" />
                             {t('tabs.products')}
                         </button>
-                        <button
-                            onClick={() => setStockTab('CATEGORIES')}
-                            className={clsx(
-                                "px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all whitespace-nowrap",
-                                stockTab === 'CATEGORIES' ? "bg-primary text-primary-foreground shadow-md" : "text-zinc-400 hover:text-white hover:bg-white/5"
-                            )}
-                        >
-                            <Palette className="w-4 h-4" />
-                            {t('tabs.categories')}
-                        </button>
+                        {permissions.canManageCategories && (
+                            <button
+                                onClick={() => setStockTab('CATEGORIES')}
+                                className={clsx(
+                                    "px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all whitespace-nowrap",
+                                    stockTab === 'CATEGORIES' ? "bg-primary text-primary-foreground shadow-md" : "text-zinc-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                <Palette className="w-4 h-4" />
+                                {t('tabs.categories')}
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

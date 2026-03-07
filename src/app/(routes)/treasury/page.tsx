@@ -2,10 +2,14 @@ import { getTreasuryData } from "@/actions/treasury";
 import { prisma } from "@/lib/prisma";
 import TreasuryDashboard from "@/components/treasury/TreasuryDashboard";
 import { Landmark } from "lucide-react";
+import { requirePermission } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function TreasuryPage() {
+    await requirePermission(PERMISSIONS.TREASURY_VIEW);
+
     const [dataResult, branches] = await Promise.all([
         getTreasuryData(),
         prisma.branch.findMany({ where: { deletedAt: null }, select: { id: true, name: true } }),

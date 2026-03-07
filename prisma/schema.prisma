@@ -53,6 +53,8 @@ model User {
   phone                String?               @unique
   isGlobalAdmin        Boolean               @default(false)
   managedHQIds         String?               // Stored as JSON string for SQLite
+  maxDiscount          Decimal?              @default(0.00) // Maximum allowed discount % in POS
+  maxDiscountAmount    Decimal?              @default(0.00) // Maximum allowed discount amount in POS
   
   // Relations
   actionLogs           ActionLog[]

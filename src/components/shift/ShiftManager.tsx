@@ -22,7 +22,9 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
 
     const handleOpenShift = async () => {
-        if (!startCash || parseFloat(startCash) < 0) {
+        const cashValue = startCash === "" ? 0 : parseFloat(startCash);
+
+        if (isNaN(cashValue) || cashValue < 0) {
             alert("Please enter valid starting cash amount");
             return;
         }
@@ -30,7 +32,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
         setIsLoading(true);
         try {
             const result = await openShift({
-                startCash: parseFloat(startCash),
+                startCash: cashValue,
                 registerId: selectedRegister || undefined,
                 registerName: registers.find(r => r.id === selectedRegister)?.name
             });

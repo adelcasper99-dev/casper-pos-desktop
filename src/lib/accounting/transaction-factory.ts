@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Account, JournalEntry } from '@prisma/client';
+import { validateDoubleEntryBalance } from './validation';
 
 // ── BL-08: Use Decimal throughout to prevent floating-point accumulation ──────
 // Previously: sum + line.debit (JS number → 0.1 + 0.2 = 0.30000000004)
@@ -60,14 +61,10 @@ export class AccountingEngine {
     }, tx?: any) {
         const db = tx || prisma;
 
-        // ── BL-08: Decimal balance validation ──────────────────────────────
-        const totalDebit = data.lines.reduce((s, l) => s.add(new Decimal(l.debit)), new Decimal(0));
-        const totalCredit = data.lines.reduce((s, l) => s.add(new Decimal(l.credit)), new Decimal(0));
-
-        if (!totalDebit.equals(totalCredit)) {
-            throw new Error(
-                `Transaction Unbalanced: Debit ${totalDebit.toFixed(2)} ≠ Credit ${totalCredit.toFixed(2)}`
-            );
+        // ── Phase 1.2: Refactored Balance Validation ───────────────────
+        const validation = validateDoubleEntryBalance(data.lines);
+        if (!validation.isValid) {
+            throw new Error(validation.error);
         }
 
         // ── Resolve Account IDs from GL codes ───────────────────────────────
@@ -109,21 +106,16 @@ export class AccountingEngine {
         });
     }
 
-    /**
-     * BL-02: Record a Sale with full payment breakdown.
-     * Accepts an array of SalePaymentInput so split payments produce the
-     * correct debit lines (Cash Dr + Visa Dr = Revenue Cr).
-     *
-     * Previously: only handled CASH vs DEFERRED — all card payments went to Cash 1000 (wrong).
-     *
-     * @param tx  MUST be passed when called inside prisma.$transaction (BL-01 fix)
-     */
     static async recordSale(
         saleId: string,
         payments: SalePaymentInput[],
+        discountAmount: number = 0,
+        cogsAmount: number = 0,
         tx?: any
     ) {
-        const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
+        // Gross revenue is net paid + discount
+        const netRevenue = payments.reduce((s, p) => s + p.amount, 0);
+        const grossRevenue = netRevenue + discountAmount;
 
         const debitLines: TransactionLineInput[] = payments.map(p => ({
             accountCode: PAYMENT_ACCOUNT_MAP[p.method] ?? '1000',
@@ -132,14 +124,59 @@ export class AccountingEngine {
             description: `${p.method} received`,
         }));
 
+        const lines: TransactionLineInput[] = [
+            ...debitLines,
+            { accountCode: '4000', debit: 0, credit: grossRevenue, description: 'Sales Revenue' }
+        ];
+
+        // ── Phase 2.1: Add Discounts ──
+        if (discountAmount > 0) {
+            lines.push({ accountCode: '4300', debit: discountAmount, credit: 0, description: 'Sales Discounts' });
+        }
+
+        // ── Phase 2.1: Add COGS and Inventory Deduction ──
+        if (cogsAmount > 0) {
+            lines.push({ accountCode: '5000', debit: cogsAmount, credit: 0, description: 'Cost of Goods Sold' });
+            lines.push({ accountCode: '1200', debit: 0, credit: cogsAmount, description: 'Inventory Asset (Out)' });
+        }
+
         return this.recordTransaction({
             description: `Sale #${saleId}`,
             reference: saleId,
             saleId,
-            lines: [
-                ...debitLines,
-                { accountCode: '4000', debit: 0, credit: totalRevenue, description: 'Sales Revenue' }
-            ]
+            lines
+        }, tx);
+    }
+
+    /**
+     * Phase 2.2: Implement Purchasing & Accounts Payable Logic
+     */
+    static async recordPurchase(
+        purchaseId: string,
+        invoiceNumber: string,
+        totalInvoiceValue: number,
+        paidAmount: number,
+        tx?: any
+    ) {
+        const deferredAmount = totalInvoiceValue - paidAmount;
+
+        const lines: TransactionLineInput[] = [
+            { accountCode: '1200', debit: totalInvoiceValue, credit: 0, description: 'Inventory Asset (In)' }
+        ];
+
+        if (paidAmount > 0) {
+            lines.push({ accountCode: '1000', debit: 0, credit: paidAmount, description: 'Cash Paid' });
+        }
+
+        if (deferredAmount > 0) {
+            lines.push({ accountCode: '2000', debit: 0, credit: deferredAmount, description: 'Accounts Payable' });
+        }
+
+        return this.recordTransaction({
+            description: `Purchase Invoice #${invoiceNumber}`,
+            reference: invoiceNumber,
+            purchaseId,
+            lines
         }, tx);
     }
 

@@ -19,6 +19,18 @@
  * Organized by feature module for better maintainability
  */
 export const PERMISSION_REGISTRY = {
+  /** Dashboard */
+  DASHBOARD: {
+    /** View main dashboard */
+    VIEW: 'DASHBOARD_VIEW',
+  },
+
+  /** Activity Logs */
+  LOGS: {
+    /** View system activity logs */
+    VIEW: 'LOGS_VIEW',
+  },
+
   /** Point of Sale */
   POS: {
     /** Access POS interface */
@@ -27,6 +39,16 @@ export const PERMISSION_REGISTRY = {
     DISCOUNT: 'POS_DISCOUNT',
     /** Process refunds */
     REFUND: 'POS_REFUND',
+    /** Process payments & checkout */
+    CHECKOUT: 'POS_CHECKOUT',
+    /** Hold and resume carts */
+    HOLD_CART: 'POS_HOLD_CART',
+    /** Manage dine-in tables */
+    DINE_IN: 'POS_DINE_IN',
+    /** Print and speed print receipts */
+    PRINT_RECEIPT: 'POS_PRINT_RECEIPT',
+    /** Override default product prices */
+    CHANGE_PRICE: 'POS_CHANGE_PRICE',
   },
 
   /** Inventory Management */
@@ -35,6 +57,8 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'INVENTORY_VIEW',
     /** Create and edit products */
     MANAGE: 'INVENTORY_MANAGE',
+    /** Create and edit categories */
+    MANAGE_CATEGORIES: 'INVENTORY_MANAGE_CATEGORIES',
     /** Manual stock adjustments */
     ADJUST: 'INVENTORY_ADJUST',
     /** View Cost Price */
@@ -97,6 +121,14 @@ export const PERMISSION_REGISTRY = {
     CREATE: 'LOGISTICS_CREATE',
     /** Receive and process logistics */
     RECEIVE: 'LOGISTICS_RECEIVE',
+  },
+
+  /** Suppliers */
+  SUPPLIER: {
+    /** View suppliers list */
+    VIEW: 'SUPPLIER_VIEW',
+    /** Add, edit, and delete suppliers */
+    MANAGE: 'SUPPLIER_MANAGE',
   },
 
   /** Ticket Management */
@@ -213,14 +245,26 @@ export const PERMISSION_REGISTRY = {
  */
 function flattenRegistry() {
   return {
+    // DASHBOARD
+    DASHBOARD_VIEW: PERMISSION_REGISTRY.DASHBOARD.VIEW,
+
+    // LOGS
+    LOGS_VIEW: PERMISSION_REGISTRY.LOGS.VIEW,
+
     // POS
     POS_ACCESS: PERMISSION_REGISTRY.POS.ACCESS,
     POS_DISCOUNT: PERMISSION_REGISTRY.POS.DISCOUNT,
     POS_REFUND: PERMISSION_REGISTRY.POS.REFUND,
+    POS_CHECKOUT: PERMISSION_REGISTRY.POS.CHECKOUT,
+    POS_HOLD_CART: PERMISSION_REGISTRY.POS.HOLD_CART,
+    POS_DINE_IN: PERMISSION_REGISTRY.POS.DINE_IN,
+    POS_PRINT_RECEIPT: PERMISSION_REGISTRY.POS.PRINT_RECEIPT,
+    POS_CHANGE_PRICE: PERMISSION_REGISTRY.POS.CHANGE_PRICE,
 
     // INVENTORY
     INVENTORY_VIEW: PERMISSION_REGISTRY.INVENTORY.VIEW,
     INVENTORY_MANAGE: PERMISSION_REGISTRY.INVENTORY.MANAGE,
+    INVENTORY_MANAGE_CATEGORIES: PERMISSION_REGISTRY.INVENTORY.MANAGE_CATEGORIES,
     INVENTORY_ADJUST: PERMISSION_REGISTRY.INVENTORY.ADJUST,
     INVENTORY_VIEW_COST: PERMISSION_REGISTRY.INVENTORY.VIEW_COST,
     INVENTORY_VIEW_PRICE_1: PERMISSION_REGISTRY.INVENTORY.VIEW_PRICE_1,
@@ -252,6 +296,10 @@ function flattenRegistry() {
     // LOGISTICS
     LOGISTICS_CREATE: PERMISSION_REGISTRY.LOGISTICS.CREATE,
     LOGISTICS_RECEIVE: PERMISSION_REGISTRY.LOGISTICS.RECEIVE,
+
+    // SUPPLIER
+    SUPPLIER_VIEW: PERMISSION_REGISTRY.SUPPLIER.VIEW,
+    SUPPLIER_MANAGE: PERMISSION_REGISTRY.SUPPLIER.MANAGE,
 
     // TICKET
     TICKET_VIEW: PERMISSION_REGISTRY.TICKET.VIEW,

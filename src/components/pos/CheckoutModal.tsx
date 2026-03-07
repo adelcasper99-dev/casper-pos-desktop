@@ -11,9 +11,9 @@ import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
 import { getCurrentUser } from "@/actions/auth";
 import clsx from "clsx";
 import ReceiptModal from "./ReceiptModal";
-import { db as offlineDB } from "@/lib/offline-db";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { safeRandomUUID } from "@/lib/utils";
+
+
 import { useFormatCurrency } from "@/contexts/SettingsContext";
 
 import { useRouter } from "next/navigation";
@@ -31,7 +31,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const t = useTranslations("POS");
     const router = useRouter();
     const { items, getTotal, clearCart, customerName, customerPhone, customerBalance, customerId, tableId, tableName, discountAmount = 0, discountPercentage = 0 } = useCartStore();
-    const { isOnline } = useNetworkStatus();
+    const { isOnline } = useNetworkStatus(); // Used for UI status indicator only
+
     const [loading, setLoading] = useState(false);
 
     // Treasury States
@@ -147,64 +148,6 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
             csrfToken
         };
 
-        // 🛡️ OFFLINE HANDLING
-        if (!isOnline) {
-            try {
-                // Construct offline sale object matching OfflineSale interface
-                const offlineSale: any = {
-                    id: safeRandomUUID(),
-                    items: currentItems.map(i => ({
-                        productId: i.id,
-                        productName: i.name,
-                        quantity: i.quantity,
-                        unitPrice: i.price,
-                    })),
-                    totalAmount: finalTotal,
-                    taxAmount: taxAmount,
-                    subTotal: subTotal,
-                    discountAmount: discountAmount,
-                    discountPercentage: discountPercentage,
-                    paymentMethod: paymentMethod,
-                    customerName: saleCustomerData?.name,
-                    customerPhone: saleCustomerData?.phone,
-                    customerAddress: saleCustomerData?.address,
-                    warehouseId: 'default', // Fallback for offline
-                    createdAt: Date.now(),
-                    syncStatus: 'PENDING',
-                    offlineFlag: true
-                };
-
-                await offlineDB.sales.add(offlineSale);
-
-                // Optimistic Success
-                setSaleResult({
-                    saleId: offlineSale.id, // Temporary ID
-                    items: currentItems,
-                    totalAmount: finalTotal,
-                    date: new Date(),
-                    customer: saleCustomerData,
-                    customerName: saleCustomerData?.name,
-                    customerPhone: saleCustomerData?.phone,
-                    customerBalance: customerBalance,
-                    paymentMethod: paymentMethod,
-                    warranty: warrantyEnabled ? {
-                        warrantyDays: warrantyDays,
-                        warrantyExpiryDate: new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000)
-                    } : null,
-                    isOffline: true // Flag for receipt
-                });
-                clearCart();
-                setLoading(false);
-                return;
-
-            } catch (err) {
-                console.error("Offline Save Error:", err);
-                setError("Failed to save offline sale. Please try again.");
-                setLoading(false);
-                return;
-            }
-        }
-
         const result = await processSale(payload);
 
         setLoading(false);
@@ -212,6 +155,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         if (result.success) {
             setSaleResult({
                 saleId: result.saleId,
+                invoiceNumber: result.saleId ? `S-${result.saleId.split('-')[0].toUpperCase()}` : undefined,
                 items: currentItems,
                 totalAmount: finalTotal, // Use calculated total from client or result
                 subTotal: subTotal,
@@ -256,7 +200,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                     <div className="space-y-2">
                         <h2 className="text-2xl font-bold text-white">{t('orderConfirmed') || "Order Confirmed!"}</h2>
-                        <p className="text-zinc-400 text-sm">{t('saleId')}: {saleResult.saleId}</p>
+                        <p className="text-zinc-400 text-sm">{t('saleId')}: {saleResult.invoiceNumber}</p>
                     </div>
 
                     <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">

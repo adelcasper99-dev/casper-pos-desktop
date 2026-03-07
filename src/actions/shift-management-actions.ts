@@ -13,6 +13,7 @@ import { z } from "zod";
 import { getCurrentUser } from "./auth";
 import { secureAction } from "@/lib/safe-action";
 import { getTranslations } from "@/lib/i18n-mock";
+import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 
 import { Decimal } from "@prisma/client/runtime/library";
 import { serialize } from "@/lib/serialization";
@@ -60,7 +61,7 @@ function getBusinessDate(timezone: string = "UTC"): string {
  * Validates that no other shift is open for this user on this register
  */
 export const openShift = secureAction(async (data: {
-    startCash: number;
+    startCash?: number;
     userId?: string;
     registerId?: string;
     registerName?: string;
@@ -126,7 +127,7 @@ export const openShift = secureAction(async (data: {
             userId: actualUserId,
             registerId: data.registerId,
             registerName: data.registerName,
-            startCash: new Decimal(data.startCash),
+            startCash: new Decimal(data.startCash ?? 0),
             cashierName: actualCashierName,
             timezone,
             businessDate,
@@ -140,7 +141,7 @@ export const openShift = secureAction(async (data: {
     return serialize({
         success: true,
         shift: shift,
-        message: `Shift opened successfully with $${data.startCash} starting cash`
+        message: `Shift opened successfully with $${data.startCash ?? 0} starting cash`
     });
 }, { permission: "SHIFT_MANAGE", requireCSRF: true });
 
@@ -302,9 +303,9 @@ export const closeShift = secureAction(async (data: {
         }
     });
 
-    // Handle Safe Drop (Treasury Transfer)
-    if (data.safeDropAmount && data.safeDropAmount > 0 && data.safeDropTreasuryId) {
-        await prisma.$transaction(async (tx) => {
+    // Handle Safe Drop (Treasury Transfer) AND Accounting Entries
+    await prisma.$transaction(async (tx) => {
+        if (data.safeDropAmount && data.safeDropAmount > 0 && data.safeDropTreasuryId) {
             await tx.transaction.create({
                 data: {
                     type: 'SAFE_DROP',
@@ -319,8 +320,40 @@ export const closeShift = secureAction(async (data: {
                 where: { id: data.safeDropTreasuryId },
                 data: { balance: { increment: data.safeDropAmount } }
             });
-        });
-    }
+
+            // ── Phase 4: Z-Report Safe Drop Journal Entry ──
+            await AccountingEngine.recordTransaction({
+                description: `Z-Report Safe Drop - Shift #${shift.id.slice(0, 8)}`,
+                reference: shift.id,
+                date: new Date(),
+                lines: [
+                    { accountCode: '1020', debit: data.safeDropAmount, credit: 0, description: "Safe Drop - To Treasury" }, // Assuming Safe/Treasury is 1020
+                    { accountCode: '1000', debit: 0, credit: data.safeDropAmount, description: "Safe Drop - From Cash Drawer" }
+                ]
+            }, tx);
+        }
+
+        // ── Phase 4: Z-Report Cash Variance (Over/Short) Journal Entry ──
+        if (!cashVariance.isZero()) {
+            const varianceAmt = Math.abs(cashVariance.toNumber());
+            const isShortage = cashVariance.isNegative(); // If negative, we have less cash than expected
+
+            await AccountingEngine.recordTransaction({
+                description: `Z-Report Cash Variance - Shift #${shift.id.slice(0, 8)}`,
+                reference: shift.id,
+                date: new Date(),
+                lines: isShortage ? [
+                    // Shortage: Expense (DR) / Cash Out (CR)
+                    { accountCode: '5500', debit: varianceAmt, credit: 0, description: "Cash Shortage (Loss)" },
+                    { accountCode: '1000', debit: 0, credit: varianceAmt, description: "Cash Register Adjustment" }
+                ] : [
+                    // Overage: Cash In (DR) / Contra-Expense or Income (CR)
+                    { accountCode: '1000', debit: varianceAmt, credit: 0, description: "Cash Register Adjustment" },
+                    { accountCode: '5500', debit: 0, credit: varianceAmt, description: "Cash Overage (Gain)" }
+                ]
+            }, tx);
+        }
+    });
 
     revalidatePath("/pos");
     revalidatePath("/");

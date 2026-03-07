@@ -30,14 +30,17 @@ import { PERMISSIONS, PERMISSION_REGISTRY } from './permissions/registry';
  * Organized by feature module
  */
 export const PERMISSION_GROUPS = {
+    "Dashboard": Object.values(PERMISSION_REGISTRY.DASHBOARD),
     "Point of Sale": Object.values(PERMISSION_REGISTRY.POS),
     "Inventory": Object.values(PERMISSION_REGISTRY.INVENTORY),
+    "Suppliers": Object.values(PERMISSION_REGISTRY.SUPPLIER),
     "Purchasing": Object.values(PERMISSION_REGISTRY.PURCHASING),
     "Warehouse": Object.values(PERMISSION_REGISTRY.WAREHOUSE),
     "Accounting": [PERMISSIONS.ACCOUNTING_VIEW],
     "Treasury": Object.values(PERMISSION_REGISTRY.TREASURY),
     "Expenses": [PERMISSIONS.EXPENSES_MANAGE],
     "Reports": Object.values(PERMISSION_REGISTRY.REPORTS),
+    "System Logs": Object.values(PERMISSION_REGISTRY.LOGS),
     "Logistics": Object.values(PERMISSION_REGISTRY.LOGISTICS),
     "Tickets": Object.values(PERMISSION_REGISTRY.TICKET),
     "Customers": Object.values(PERMISSION_REGISTRY.CUSTOMER),
@@ -49,14 +52,17 @@ export const PERMISSION_GROUPS = {
 
 // System/Default roles that should be protected from deletion
 export const SYSTEM_ROLES = [
-    "Admin",
-    "Branch Manager",
-    "Cashier",
-    "Technician",
-    "Logistics",
-    "Inventory Manager",
-    "HR Manager",
-    "Accountant"
+    "مدير النظام",
+    "مدير فرع",
+    "كاشير",
+    "فني",
+    "مسؤول توصيل",
+    "مدير مخازن",
+    "مدير موارد بشرية",
+    "محاسب",
+    "المالك",
+    "مساعد مبيعات",
+    "عامل مخازن"
 ] as const;
 
 // Permission dependencies - permissions that require other permissions
@@ -69,6 +75,8 @@ export const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
     [PERMISSIONS.CUSTOMER_MANAGE]: [PERMISSIONS.CUSTOMER_VIEW],
     [PERMISSIONS.INVENTORY_MANAGE]: [PERMISSIONS.INVENTORY_VIEW],
     [PERMISSIONS.INVENTORY_ADJUST]: [PERMISSIONS.INVENTORY_VIEW],
+    [PERMISSIONS.INVENTORY_MANAGE_CATEGORIES]: [PERMISSIONS.INVENTORY_VIEW],
+    [PERMISSIONS.SUPPLIER_MANAGE]: [PERMISSIONS.SUPPLIER_VIEW],
     [PERMISSIONS.WAREHOUSE_MANAGE]: [PERMISSIONS.WAREHOUSE_VIEW],
     [PERMISSIONS.PURCHASING_MANAGE]: [PERMISSIONS.PURCHASING_VIEW],
     [PERMISSIONS.TREASURY_MANAGE]: [PERMISSIONS.TREASURY_VIEW],
@@ -84,6 +92,11 @@ export const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
     // POS features require POS access
     [PERMISSIONS.POS_DISCOUNT]: [PERMISSIONS.POS_ACCESS],
     [PERMISSIONS.POS_REFUND]: [PERMISSIONS.POS_ACCESS],
+    [PERMISSIONS.POS_CHECKOUT]: [PERMISSIONS.POS_ACCESS],
+    [PERMISSIONS.POS_HOLD_CART]: [PERMISSIONS.POS_ACCESS],
+    [PERMISSIONS.POS_DINE_IN]: [PERMISSIONS.POS_ACCESS],
+    [PERMISSIONS.POS_PRINT_RECEIPT]: [PERMISSIONS.POS_ACCESS],
+    [PERMISSIONS.POS_CHANGE_PRICE]: [PERMISSIONS.POS_ACCESS],
 
     // HQ
     [PERMISSIONS.HQ_MANAGE]: [PERMISSIONS.HQ_VIEW],

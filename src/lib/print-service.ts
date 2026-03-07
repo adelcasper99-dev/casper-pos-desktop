@@ -498,7 +498,7 @@ class PrintService {
     return new Promise((resolve, reject) => {
       try {
         const iframe = document.createElement('iframe');
-        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+        iframe.style.cssText = 'position:absolute;top:-10000px;left:-10000px;width:1px;height:1px;visibility:hidden;pointer-events:none;';
         iframe.src = 'about:blank';
         document.body.appendChild(iframe);
 

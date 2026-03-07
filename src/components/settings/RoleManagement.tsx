@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { getRoles, createRole, updateRole, deleteRole } from "@/actions/roles";
 import { PERMISSION_GROUPS, PERMISSION_DEPENDENCIES, SYSTEM_ROLES } from "@/lib/permissions";
-import { Loader2, Plus, Trash2, Edit, Shield, Check } from "lucide-react";
+import { Loader2, Plus, Trash2, Edit, Shield, Check, Lock } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { cn } from "@/lib/utils";
 
@@ -14,11 +14,47 @@ interface Role {
     _count?: { users: number };
 }
 
-interface RoleManagementProps {
-    initialRoles?: Role[];
+interface UserSession {
+    id: string;
+    role: string;
+    permissions?: string[];
+    [key: string]: any;
 }
 
-export default function RoleManagement({ initialRoles = [] }: RoleManagementProps) {
+interface RoleManagementProps {
+    initialRoles?: Role[];
+    currentUser?: UserSession;
+}
+
+export default function RoleManagement({ initialRoles = [], currentUser }: RoleManagementProps) {
+    const isAdminCheck = (role: string | undefined) => role === 'ADMIN' || role === 'مدير النظام' || role === 'المالك';
+    const isUserAdmin = isAdminCheck(currentUser?.role) || currentUser?.permissions?.includes('*');
+    const forbiddenPerms = ['MANAGE_SETTINGS', 'MANAGE_ROLES'];
+
+    const getRolePerms = (role: Role): string[] => {
+        try {
+            return JSON.parse(role.permissions || '[]');
+        } catch (e) {
+            return [];
+        }
+    };
+
+    const canManageRole = (role: Role) => {
+        if (isUserAdmin) return true;
+
+        const roleName = role.name.toUpperCase();
+        if (roleName === 'ADMIN' || roleName === 'ADMINISTRATOR' || roleName === 'مدير النظام' || roleName === 'المالك') return false;
+
+        const rolePerms = getRolePerms(role);
+
+        // Cannot manage roles with forbidden permissions
+        if (forbiddenPerms.some(p => rolePerms.includes(p))) return false;
+
+        // Cannot manage roles with permissions the user doesn't have
+        const userPerms = currentUser?.permissions || [];
+        return rolePerms.every(p => userPerms.includes(p));
+    };
+
     const [roles, setRoles] = useState<Role[]>(initialRoles);
     const [loading, setLoading] = useState(initialRoles.length === 0);
     const [error, setError] = useState("");
@@ -159,17 +195,25 @@ export default function RoleManagement({ initialRoles = [] }: RoleManagementProp
                                     </p>
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => handleOpenModal(role)} className="p-1.5 hover:bg-muted rounded-lg transition-colors">
-                                        <Edit className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(role.id)}
-                                        className="p-1.5 hover:bg-red-500/20 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                        disabled={isSystemRole}
-                                        title={isSystemRole ? "System roles cannot be deleted" : "Delete role"}
-                                    >
-                                        <Trash2 className="w-4 h-4 text-red-400" />
-                                    </button>
+                                    {canManageRole(role) ? (
+                                        <>
+                                            <button onClick={() => handleOpenModal(role)} className="p-1.5 hover:bg-muted rounded-lg transition-colors">
+                                                <Edit className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(role.id)}
+                                                className="p-1.5 hover:bg-red-500/20 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                disabled={isSystemRole}
+                                                title={isSystemRole ? "System roles cannot be deleted" : "Delete role"}
+                                            >
+                                                <Trash2 className="w-4 h-4 text-red-400" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="p-1.5 text-zinc-500" title="You do not have permission to manage this role">
+                                            <Lock className="w-4 h-4" />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="flex gap-2 text-xs">
@@ -203,7 +247,14 @@ export default function RoleManagement({ initialRoles = [] }: RoleManagementProp
                     </div>
 
                     <div className="max-h-[60vh] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                        {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => {
+                        {Object.entries(PERMISSION_GROUPS).map(([group, allPerms]) => {
+                            // Filter permissions based on user privileges
+                            const perms = isUserAdmin
+                                ? allPerms
+                                : allPerms.filter(p => !forbiddenPerms.includes(p) && (currentUser?.permissions || []).includes(p));
+
+                            if (perms.length === 0) return null;
+
                             const allSelected = perms.every(p => selectedPermissions.includes(p));
                             const someSelected = perms.some(p => selectedPermissions.includes(p)) && !allSelected;
 

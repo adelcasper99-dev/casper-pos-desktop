@@ -1,14 +1,18 @@
 import { getReportData, getBranchesForFilter, getSalesByProductAndCategory, getCategoriesForFilter, getProductsForFilter } from "@/actions/reports-actions";
 import { getShiftHistory } from "@/actions/shift-management-actions";
 import ReportPage from "@/components/reports/ReportPage";
+import { requirePermission } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage({
     searchParams,
 }: {
-    searchParams: { startDate?: string; endDate?: string; branchId?: string; categoryId?: string; productId?: string };
+    searchParams: { startDate?: string; endDate?: string; branchId?: string; categoryId?: string; productId?: string; tab?: string; sortBy?: string };
 }) {
+    await requirePermission(PERMISSIONS.REPORTS_VIEW);
+
     const params = await searchParams;
 
     const [reportRes, branchesRes, categoriesRes, productsRes, shiftsRes, salesByProductRes] = await Promise.all([
@@ -17,7 +21,14 @@ export default async function ReportsPage({
         getCategoriesForFilter(),
         getProductsForFilter(),
         getShiftHistory({ startDate: params.startDate, endDate: params.endDate, limit: 100 }),
-        getSalesByProductAndCategory({ startDate: params.startDate, endDate: params.endDate, branchId: params.branchId, categoryId: params.categoryId, productId: params.productId }),
+        getSalesByProductAndCategory({
+            startDate: params.startDate,
+            endDate: params.endDate,
+            branchId: params.branchId,
+            categoryId: params.categoryId,
+            productId: params.productId,
+            sortBy: params.sortBy
+        }),
     ]);
 
     return (
@@ -35,6 +46,7 @@ export default async function ReportsPage({
                 branchId: params.branchId,
                 categoryId: params.categoryId,
                 productId: params.productId,
+                sortBy: params.sortBy,
             }}
         />
     );

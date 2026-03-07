@@ -1,89 +1,72 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '@/lib/logger';
 
 export interface NetworkStatus {
     isOnline: boolean;
     wasOffline: boolean;
-    effectiveType?: string; // '4g', '3g', '2g', 'slow-2g'
-    downlink?: number; // Mbps
-    rtt?: number; // Round-trip time in ms
 }
 
+/**
+ * Checks reachability of the LOCAL Next.js server, not the internet.
+ * In Electron, the server runs on 127.0.0.1 — WAN internet state is irrelevant.
+ * isOnline = true  → local server is responding normally
+ * isOnline = false → local server process has crashed or is unreachable
+ */
 export function useNetworkStatus() {
     const [status, setStatus] = useState<NetworkStatus>({
-        isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
+        isOnline: true, // Optimistic default — server is local, assume reachable
         wasOffline: false,
     });
+    const wasOfflineRef = useRef(false);
 
-    // 👤 USABILITY: Reset "wasOffline" flag after user acknowledges
     const acknowledgeReconnection = useCallback(() => {
         setStatus(prev => ({ ...prev, wasOffline: false }));
+        wasOfflineRef.current = false;
     }, []);
 
-    // 🛡️ RELIABILITY: Ping check to verify actual connection (overcoming navigator.onLine false negatives)
-    const checkConnection = useCallback(async () => {
+    const checkLocalServer = useCallback(async (): Promise<boolean> => {
         try {
-            // Use a lightweight endpoint or a known reliable resource
-            // Adding timestamp to prevent caching
-            const res = await fetch('/api/health?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
-            if (res.ok) {
-                return true;
-            }
-        } catch (e) {
-            // Still offline
+            const res = await fetch('/api/health?t=' + Date.now(), {
+                method: 'HEAD',
+                cache: 'no-store',
+            });
+            return res.ok;
+        } catch {
+            return false;
         }
-        return false;
     }, []);
 
     useEffect(() => {
-        // Initial setup
-        const connection = (navigator as any).connection;
+        let mounted = true;
 
-        const updateStatus = () => {
-            setStatus(prev => ({
-                ...prev,
-                isOnline: navigator.onLine,
-                effectiveType: connection?.effectiveType,
-                downlink: connection?.downlink,
-                rtt: connection?.rtt,
-            }));
-        };
+        const poll = async () => {
+            if (!mounted) return;
+            const serverUp = await checkLocalServer();
 
-        const handleOnline = () => {
-            logger.info('🟢 Network: ONLINE');
-            setStatus(prev => ({ ...prev, isOnline: true, wasOffline: true }));
-            updateStatus();
-        };
+            if (!mounted) return;
 
-        const handleOffline = () => {
-            logger.warn('🔴 Network: OFFLINE');
-            // Verify with ping before committing to offline state
-            checkConnection().then(isActuallyOnline => {
-                setStatus(prev => ({ ...prev, isOnline: isActuallyOnline }));
-            });
-        };
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-        connection?.addEventListener('change', updateStatus);
-
-        // 🛡️ POLLING: Less aggressive polling
-        const intervalId = setInterval(async () => {
-            if (!navigator.onLine || !status.isOnline) {
-                const isActuallyOnline = await checkConnection();
-                if (isActuallyOnline && !status.isOnline) {
-                    setStatus(prev => ({ ...prev, isOnline: true, wasOffline: true }));
-                }
+            if (!serverUp && status.isOnline) {
+                logger.warn('🔴 Local server unreachable');
+                wasOfflineRef.current = true;
+                setStatus({ isOnline: false, wasOffline: false });
+            } else if (serverUp && !status.isOnline) {
+                logger.info('🟢 Local server back online');
+                setStatus({ isOnline: true, wasOffline: true });
+                wasOfflineRef.current = false;
             }
-        }, 10000); // 10 seconds (less aggressive)
+        };
+
+        // Initial check
+        poll();
+
+        // Poll every 15 seconds — server is local so this is very cheap
+        const intervalId = setInterval(poll, 15000);
 
         return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-            connection?.removeEventListener('change', updateStatus);
+            mounted = false;
             clearInterval(intervalId);
         };
-    }, [checkConnection]); // Removed [status.isOnline] which caused unnecessary effect resets
+    }, [checkLocalServer, status.isOnline]);
 
     return { ...status, acknowledgeReconnection };
 }

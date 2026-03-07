@@ -15,12 +15,15 @@ export class ProductCacheService {
         const offlineProducts: OfflineProduct[] = smartProducts.map(p => ({
             id: p.id,
             name: p.name,
+            sku: p.sku || '',
             barcode: p.barcode || '',
-            price: Number(p.price),
+            price: Number(p.sellPrice ?? p.price ?? 0), // sellPrice is the correct POS field
             stock: p.stock || 0,
             categoryId: p.categoryId,
             categoryName: p.category?.name || 'Uncategorized',
             costPrice: Number(p.costPrice || 0),
+            trackStock: p.trackStock ?? true,
+            isBundle: !!p.isBundle,
             image: p.image,
             lastSynced: new Date(),
             syncPriority: topProductIds.includes(p.id) ? 10 : 1

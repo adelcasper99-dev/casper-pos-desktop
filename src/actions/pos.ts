@@ -398,11 +398,20 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             }
         }
 
+        // Calculate total COGS for Phase 2.1
+        let totalCOGS = 0;
+        for (const item of data.items) {
+            const cost = costPriceMap.get(item.id) || 0;
+            totalCOGS += (cost * item.quantity);
+        }
+
         // BL-01 fix: Accounting is inside the transaction.
         // If journal entry fails, the entire sale rolls back automatically.
         await AccountingEngine.recordSale(
             sale.id,
             paymentsToProcess.map(p => ({ method: p.method, amount: Number(p.amount) })),
+            discountAmount,
+            totalCOGS,
             tx
         );
 

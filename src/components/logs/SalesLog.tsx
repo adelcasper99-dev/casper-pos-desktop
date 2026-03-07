@@ -154,14 +154,14 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
 
     const exportToExcel = () => {
         const data = filteredSales.map(sale => ({
-            "رقم الفاتورة": sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase(),
+            "رقم الفاتورة": sale.invoiceNumber || (sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase()),
             "التاريخ": format(new Date(sale.createdAt), 'yyyy/MM/dd HH:mm'),
             "العميل": sale.customerName || "عميل نقدي",
             "الإجمالي": sale.totalAmount,
             "طريقة الدفع": sale.paymentMethod,
             "الحالة": sale.status === 'REFUNDED' ? 'مرتجع كامل' : sale.status === 'PARTIAL_REFUND' ? 'مرتجع جزئي' : 'مدفوع'
         }));
-        
+
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "سجل المبيعات");
@@ -241,7 +241,7 @@ body { font-family: Arial, sans-serif; width: ${paperWidthMm}mm; margin: 0 auto;
 <div class="header">
 <div class="store-name">${formatArabicPrintText(settings?.name || 'CASPER ERP')}</div>
   <div>${formatArabicPrintText(settings?.address || '')}</div>
-  <div>${formatArabicPrintText('فاتورة')} #${sale.id.slice(0, 8).toUpperCase()}</div>
+  <div>${formatArabicPrintText('فاتورة')} #${sale.invoiceNumber || sale.id.slice(0, 8).toUpperCase()}</div>
   <div>${new Date(sale.createdAt).toLocaleString('ar-EG')}</div>
   <div>${formatArabicPrintText('العميل')}: ${formatArabicPrintText(sale.customerName || 'نقدي')}</div>
 </div>
@@ -415,8 +415,8 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                     </Button>
                 )}
 
-                <Button 
-                    variant="outline" 
+                <Button
+                    variant="outline"
                     className="border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 gap-2 h-10 px-4"
                     onClick={exportToExcel}
                 >
@@ -464,7 +464,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                                 </span>
                                             )}
                                             <div className={`font-mono text-xs ${sale._isRefundEntry ? 'text-red-400/80' : 'text-cyan-500/80'}`}>
-                                                #{sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase()}
+                                                #{sale.invoiceNumber || (sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase())}
                                             </div>
                                             {!sale._isRefundEntry && Number(sale.discountAmount) > 0 && (
                                                 <span className="text-[9px] font-bold text-amber-500 uppercase">مخفض %</span>
@@ -580,7 +580,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             تفاصيل الفاتورة
                                         </span>
                                         <Badge variant="outline" className="border-white/10 text-xs">
-                                            #{selectedSale.id.slice(0, 8).toUpperCase()}
+                                            #{selectedSale.invoiceNumber || selectedSale.id.slice(0, 8).toUpperCase()}
                                         </Badge>
                                     </DialogTitle>
                                 </DialogHeader>

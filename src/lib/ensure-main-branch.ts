@@ -12,12 +12,24 @@ const MAIN_BRANCH_CODE = 'MAIN';
 let cachedMainBranchId: string | null = null; // V-08: In-memory cache for ultra-fast login
 let migrationChecked = false; // Ensure migration logic runs at least once per process
 
+/**
+ * Resets the in-memory caches so the next call to ensureMainBranch() and
+ * initDatabase() will run the full initialization path again.
+ * MUST be called before wiping the database (e.g. during setup reset).
+ */
+export function resetBranchCache(): void {
+    cachedMainBranchId = null;
+    migrationChecked = false;
+    // Also reset the db-init flag so initDatabase() re-runs on next request
+    const g = globalThis as unknown as { dbInitialized?: boolean };
+    g.dbInitialized = false;
+}
+
 // Payment method treasuries to auto-create
+// Only CASH is created by default. Other payment methods (VISA, WALLET, INSTAPAY)
+// can be added manually by the user from the Treasury settings page.
 const PAYMENT_TREASURIES = [
     { paymentMethod: 'CASH', name: 'الخزنة النقدية', isDefault: true },
-    { paymentMethod: 'VISA', name: 'خزنة الفيزا / البطاقة', isDefault: false },
-    { paymentMethod: 'WALLET', name: 'خزنة فودافون كاش', isDefault: false },
-    { paymentMethod: 'INSTAPAY', name: 'خزنة انستاباي', isDefault: false },
 ];
 
 export async function ensureMainBranch(): Promise<string> {

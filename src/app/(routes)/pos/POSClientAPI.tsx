@@ -1,9 +1,9 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2 } from "lucide-react";
-import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+
 import { useCartStore } from "@/store/cart";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
 import clsx from "clsx";
@@ -23,7 +23,7 @@ import { DesktopStatus } from "@/components/pos/DesktopStatus";
 
 // ... (other imports remain, remove unused if any)
 
-export default function POSClientAPI({ products, categories: initialCategories, settings, csrfToken, floors = [] }: any) {
+export default function POSClientAPI({ products, categories: initialCategories, settings, csrfToken, floors = [], permissions = { canCheckout: true, canHoldCart: true, canDineIn: true, canPrintReceipt: true, canChangePrice: true, canDiscount: true, canViewCost: false, maxDiscount: 0, maxDiscountAmount: 0 } }: any) {
     const t = useTranslations("POS");
     const router = useRouter();
     const formatCurrency = useFormatCurrency();
@@ -37,20 +37,11 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     // Local categories state for instant UI updates after create/edit
     const [localCategories, setLocalCategories] = useState<{ id: string; name: string; color: string }[]>(initialCategories || []);
     const [isPrinting, setIsPrinting] = useState(false);
+    const [gridCols, setGridCols] = useState(5); // Default grid columns
 
-    // 🛡️ OFFLINE HANDLING
-    const { isOnline } = useNetworkStatus();
-    const [cachedProducts, setCachedProducts] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (!isOnline) {
-            import('@/lib/product-cache').then(({ ProductCacheService }) => {
-                ProductCacheService.getProducts().then(setCachedProducts);
-            });
-        }
-    }, [isOnline]);
-
-    const displayProducts = isOnline ? products : cachedProducts;
+    // Always use SSR products — the Next.js server is local (127.0.0.1 in Electron),
+    // so navigator.onLine (WAN internet) must never gate access to DB data.
+    const displayProducts = products;
 
     const [isSpeedPrintModalOpen, setIsSpeedPrintModalOpen] = useState(false);
     const [speedPrintData, setSpeedPrintData] = useState<any>(null);
@@ -232,7 +223,8 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                     setOrderMode('dine-in');
                                     if (!tableId) setIsTableModalOpen(true);
                                 }}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${orderMode === 'dine-in' || tableId ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-500 hover:text-white'}`}
+                                disabled={!permissions.canDineIn}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${orderMode === 'dine-in' || tableId ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-500 hover:text-white'}`}
                             >
                                 {t('dineIn') || 'Dine-In'}
                             </button>
@@ -348,7 +340,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                     </div>
 
                     {/* Discount Input in Cart */}
-                    {items.length > 0 && (
+                    {items.length > 0 && permissions.canDiscount && (
                         <div className="px-4 py-3 bg-muted/20 border-t border-border">
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center justify-between">
@@ -370,7 +362,20 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                             value={discountAmount || ''}
                                             onChange={(e) => {
                                                 const val = parseFloat(e.target.value) || 0;
-                                                const cappedVal = Math.min(val, subTotal);
+                                                const maxAllowedFromPct = subTotal * ((permissions.maxDiscount || 0) / 100);
+                                                const maxAllowedFixed = permissions.maxDiscountAmount || 0;
+
+                                                // The absolute maximum allowed amount is the *lower* of the two limits
+                                                const actualMaxAllowed = Math.min(
+                                                    maxAllowedFromPct > 0 ? maxAllowedFromPct : Number.POSITIVE_INFINITY,
+                                                    maxAllowedFixed > 0 ? maxAllowedFixed : Number.POSITIVE_INFINITY
+                                                );
+
+                                                let cappedVal = Math.min(val, subTotal);
+                                                if (actualMaxAllowed !== Number.POSITIVE_INFINITY && cappedVal > actualMaxAllowed) {
+                                                    cappedVal = actualMaxAllowed;
+                                                    toast.error(`Discount limit reached (Max Amount: ${maxAllowedFixed}, Max %: ${permissions.maxDiscount}%)`);
+                                                }
                                                 setDiscount(cappedVal, subTotal > 0 ? (cappedVal / subTotal) * 100 : 0);
                                             }}
                                             placeholder={t('amount')}
@@ -384,7 +389,21 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                             value={discountPercentage || ''}
                                             onChange={(e) => {
                                                 const val = parseFloat(e.target.value) || 0;
-                                                const cappedPct = Math.min(val, 100);
+                                                const limitPct = permissions.maxDiscount || 0;
+                                                const limitFixed = permissions.maxDiscountAmount || 0;
+
+                                                const maxAllowedFromFixedAsPct = subTotal > 0 && limitFixed > 0 ? (limitFixed / subTotal) * 100 : Number.POSITIVE_INFINITY;
+
+                                                const actualMaxPct = Math.min(
+                                                    limitPct > 0 ? limitPct : Number.POSITIVE_INFINITY,
+                                                    maxAllowedFromFixedAsPct
+                                                );
+
+                                                let cappedPct = Math.min(val, 100);
+                                                if (actualMaxPct !== Number.POSITIVE_INFINITY && cappedPct > actualMaxPct) {
+                                                    cappedPct = actualMaxPct;
+                                                    toast.error(`Discount limit reached (Max %: ${limitPct}%, Max Amount: ${limitFixed})`);
+                                                }
                                                 setDiscount(subTotal * (cappedPct / 100), cappedPct);
                                             }}
                                             placeholder={t('percentage')}
@@ -428,18 +447,18 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             <div className="flex gap-2 h-14 w-full">
                                 <button
                                     onClick={handleSpeedPrint}
-                                    disabled={items.length === 0 || isPrinting}
+                                    disabled={items.length === 0 || isPrinting || !permissions.canPrintReceipt}
                                     className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                     title={t('speedPrint') || "Speed Print"}
                                 >
                                     {isPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-6 h-6" />}
                                 </button>
-                                <button onClick={() => holdCart()} disabled={items.length === 0 || isPrinting} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart">
+                                <button onClick={() => holdCart()} disabled={items.length === 0 || isPrinting || !permissions.canHoldCart} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart">
                                     <PauseCircle className="w-6 h-6" />
                                 </button>
                                 <button
                                     onClick={() => setIsCheckoutOpen(true)}
-                                    disabled={items.length === 0 || isPrinting}
+                                    disabled={items.length === 0 || isPrinting || !permissions.canCheckout}
                                     className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                                 >
                                     <Banknote className="w-6 h-6" />{t('checkout')}
@@ -543,6 +562,27 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             <div className="flex-[2]">
                                 <CustomerSearch />
                             </div>
+
+                            {/* Zoom Controls */}
+                            <div className="flex bg-card border border-border rounded-xl overflow-hidden shadow-sm shrink-0 items-center">
+                                <button
+                                    onClick={() => setGridCols(prev => Math.min(8, prev + 1))}
+                                    disabled={gridCols >= 8}
+                                    title="Zoom Out (Smaller Items)"
+                                    className="p-3 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ZoomOut className="w-5 h-5" />
+                                </button>
+                                <div className="w-px h-6 bg-border mx-1"></div>
+                                <button
+                                    onClick={() => setGridCols(prev => Math.max(2, prev - 1))}
+                                    disabled={gridCols <= 2}
+                                    title="Zoom In (Larger Items)"
+                                    className="p-3 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ZoomIn className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -551,12 +591,23 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                         <VirtuosoGrid
                             style={{ height: '100%', width: '100%' }}
                             data={filteredProducts}
-                            listClassName="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-20"
+                            listClassName={`grid gap-3 pb-20`}
+                            components={{
+                                List: React.forwardRef<HTMLDivElement, any>((props, ref) => (
+                                    <div
+                                        {...props}
+                                        ref={ref}
+                                        className="grid gap-3 pb-20"
+                                        style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+                                    />
+                                ))
+                            }}
                             itemContent={(index, p) => (
                                 <button
                                     key={p.id}
                                     onClick={() => handleAddProduct(p)}
-                                    className="h-[140px] w-full bg-card hover:bg-muted/50 p-4 rounded-2xl flex flex-col items-start gap-2 transition-all text-left group relative overflow-hidden shadow-sm border border-border"
+                                    style={{ height: `${Math.max(120, 180 - gridCols * 10)}px` }}
+                                    className="w-full bg-card hover:bg-muted/50 p-4 rounded-2xl flex flex-col items-start gap-2 transition-all text-left group relative overflow-hidden shadow-sm border border-border"
                                 >
                                     <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <Plus className="w-5 h-5 text-cyan-400 bg-black/50 rounded-full" />
@@ -581,9 +632,14 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                         )}
                                     </div>
 
-                                    <div>
-                                        <div className="font-bold text-sm line-clamp-2 text-foreground group-hover:text-primary transition-colors">{p.name}</div>
-                                        <div className="text-cyan-400 font-mono text-sm">{formatCurrency(p.sellPrice)}</div>
+                                    <div className="mt-auto w-full">
+                                        <div className={`font-bold line-clamp-2 text-foreground group-hover:text-primary transition-colors ${gridCols >= 6 ? 'text-xs' : 'text-sm'}`}>{p.name}</div>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <div className="text-cyan-400 font-mono text-sm">{formatCurrency(p.sellPrice)}</div>
+                                            {permissions.canViewCost && p.costPrice > 0 && (
+                                                <div className="text-muted-foreground opacity-60 text-[10px] font-mono" title={t('costPrice') || "Cost"}>{formatCurrency(p.costPrice)}</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </button>
                             )}

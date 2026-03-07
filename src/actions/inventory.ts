@@ -721,29 +721,15 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             )
         ]);
 
-        await AccountingEngine.recordTransaction({
-            description: `Purchase Invoice #${finalInvoiceNumber}`,
-            reference: finalInvoiceNumber || 'PURCHASE',
-            date: new Date(),
-            lines: [
-                { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
-                { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
-            ]
-        }, tx);
+        // H. Record Purchasing Accounting (Phase 2.2)
+        await AccountingEngine.recordPurchase(
+            invoice.id,
+            finalInvoiceNumber || 'PURCHASE',
+            totalAmount,
+            paidAmount,
+            tx
+        );
 
-        if (paidAmount > 0) {
-            const isCash = (header.paymentMethod || "CASH") === 'CASH';
-            const creditAccount = isCash ? '1000' : '1010';
-            await AccountingEngine.recordTransaction({
-                description: `Payment for Invoice #${finalInvoiceNumber}`,
-                reference: finalInvoiceNumber || 'PAYMENT',
-                date: new Date(),
-                lines: [
-                    { accountCode: '2000', debit: paidAmount, credit: 0, description: 'Accounts Payable' },
-                    { accountCode: creditAccount, debit: 0, credit: paidAmount, description: isCash ? 'Cash' : 'Bank' }
-                ]
-            }, tx);
-        }
 
     }, { maxWait: 5000, timeout: 20000 });
 
@@ -937,6 +923,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         await AccountingEngine.recordTransaction({
             description: `Update Purchase Invoice #${header.invoiceNumber || id}`,
             reference: header.invoiceNumber || id,
+            purchaseId: id,
             date: new Date(),
             lines: [
                 { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },

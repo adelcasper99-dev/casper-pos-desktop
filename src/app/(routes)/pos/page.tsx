@@ -6,12 +6,29 @@ import { getCurrentShift } from "@/actions/shift-management-actions";
 import ShiftStatusIndicator from "@/components/shift/ShiftStatusIndicator";
 import PrinterStatusIndicator from "@/components/pos/PrinterStatusIndicator";
 import { getEffectiveStoreSettings } from "@/actions/settings";
+import { getSession } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export const dynamic = 'force-dynamic';
 
 export default async function POSPage() {
     const csrfToken = await getCSRFToken();
+    const session = await getSession();
 
+    // Evaluate permissions tightly for the client controls
+    const userPerms = session?.user?.permissions || [];
+    const isSuperAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'Admin';
+    const permissions = {
+        canCheckout: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHECKOUT),
+        canHoldCart: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_HOLD_CART),
+        canDineIn: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DINE_IN),
+        canPrintReceipt: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_PRINT_RECEIPT),
+        canChangePrice: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHANGE_PRICE),
+        canDiscount: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DISCOUNT),
+        canViewCost: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_VIEW_COST),
+        maxDiscount: session?.user?.maxDiscount ?? 0,
+        maxDiscountAmount: session?.user?.maxDiscountAmount ?? 0,
+    };
 
     // Fetch current shift
     const shiftResult = await getCurrentShift();
@@ -69,7 +86,14 @@ export default async function POSPage() {
 
             {/* POS Interface - fills remaining height */}
             <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden p-4 animate-fly-in">
-                <POSClientAPI products={products} categories={categories} settings={settings} csrfToken={csrfToken || ''} floors={floors} />
+                <POSClientAPI
+                    products={products}
+                    categories={categories}
+                    settings={settings}
+                    csrfToken={csrfToken || ''}
+                    floors={floors}
+                    permissions={permissions}
+                />
             </div>
         </div>
     );

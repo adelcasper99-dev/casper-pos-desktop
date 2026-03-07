@@ -10,4 +10,6 @@ export const userSchema = z.object({
     branchId: z.string().min(1, "Branch is required"),
     managedHQIds: z.array(z.string()).optional(),
     isGlobalAdmin: z.boolean().optional(),
+    maxDiscount: z.coerce.number().min(0).max(100).optional().nullable(),
+    maxDiscountAmount: z.coerce.number().min(0).optional().nullable(),
 });

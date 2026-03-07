@@ -49,7 +49,7 @@ export default function CategoryModal({ isOpen, onClose, category, csrfToken, on
         try {
             if (category) {
                 // Edit existing category
-                const result = await updateCategory(category.id, { name, color, csrfToken } as any);
+                const result = await updateCategory({ id: category.id, name, color, csrfToken } as any);
                 if (!result.success) {
                     toast.error(result.error || (t("categoryError") || "Failed to save category"));
                     return;

@@ -80,6 +80,7 @@ export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
             pageSize,
             sales: sales.map(s => ({
                 ...s,
+                invoiceNumber: `S-${s.id.split('-')[0].toUpperCase()}`,
                 totalAmount: Number(s.totalAmount),
                 taxAmount: Number(s.taxAmount),
                 subTotal: Number(s.subTotal),
@@ -432,7 +433,7 @@ export const partialRefundSale = secureAction(async (data: {
                 const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
                 performedById = fallback?.id || undefined;
             }
-            
+
             const isBundle = (item as any).product?.isBundle;
 
             if (isBundle) {

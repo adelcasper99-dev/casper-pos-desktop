@@ -3,12 +3,15 @@ import Dexie, { type EntityTable } from 'dexie';
 export interface OfflineProduct {
     id: string;
     name: string;
+    sku: string;
     barcode: string;
-    price: number;
+    price: number;       // maps to sellPrice
     stock: number;
     categoryId?: string | null;
     categoryName: string;
     costPrice: number;
+    trackStock: boolean;
+    isBundle: boolean;
     image?: string | null;
     lastSynced: Date;
     syncPriority: number;

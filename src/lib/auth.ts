@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { RedirectType, redirect } from "next/navigation";
+import { hasPermission } from "@/lib/permissions";
 
 export type UserSession = {
     id: string;
@@ -13,6 +14,8 @@ export type UserSession = {
     permissions?: string[];
     rememberMe?: boolean;
     deviceFingerprint?: string;
+    maxDiscount?: number | null;
+    maxDiscountAmount?: number | null;
 };
 
 export async function createUserSession(userData: UserSession, maxAge: number = 31536000): Promise<string> {
@@ -67,7 +70,9 @@ export async function getSession() {
                 name: 'Super Admin',
                 role: 'ADMIN',
                 branchId: null, // or fetch main branch
-                permissions: ['*']
+                permissions: ['*'],
+                maxDiscount: 100,
+                maxDiscountAmount: 9999999
             } as UserSession
         };
     }
@@ -110,7 +115,7 @@ export async function getSession() {
         } catch (e) {
             console.error("Failed to parse permissions", e);
         }
-    } else if (user.roleStr === 'ADMIN') {
+    } else if (user.roleStr === 'ADMIN' || user.roleStr === 'مدير النظام' || user.roleStr === 'المالك') {
         permissions = ['*'];
     }
 
@@ -125,7 +130,9 @@ export async function getSession() {
             name: user.name,
             role: user.roleStr,
             branchId: user.branchId,
-            permissions: permissions
+            permissions: permissions,
+            maxDiscount: (user.roleStr === 'ADMIN' || user.roleStr === 'مدير النظام' || user.roleStr === 'المالك') ? 100 : ((user as any).maxDiscount ? Number((user as any).maxDiscount) : 0),
+            maxDiscountAmount: (user.roleStr === 'ADMIN' || user.roleStr === 'مدير النظام' || user.roleStr === 'المالك') ? 9999999 : ((user as any).maxDiscountAmount ? Number((user as any).maxDiscountAmount) : 0)
         } as UserSession
     };
 }
@@ -154,4 +161,29 @@ export async function invalidateUserSessions(userId: string) {
     await prisma.session.deleteMany({
         where: { userId }
     });
+}
+
+/**
+ * Server-side permission check. 
+ * Redirects to /unauthorized or /login if the user doesn't have the required permission.
+ * Returns the user object on success.
+ */
+export async function requirePermission(permission: string, fallbackRoute: string = "/unauthorized") {
+    const session = await getSession();
+    if (!session || !session.user) {
+        redirect("/login");
+    }
+
+    const { user } = session;
+
+    // Admins bypass permission checks
+    if (user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك') {
+        return user;
+    }
+
+    if (!hasPermission(user.permissions, permission)) {
+        redirect(fallbackRoute);
+    }
+
+    return user;
 }

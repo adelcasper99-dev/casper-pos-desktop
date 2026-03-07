@@ -33,7 +33,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     }, []);
 
     const handleOpenShift = async () => {
-        if (!startCash || parseFloat(startCash) < 0) {
+        const cashValue = startCash === "" ? 0 : parseFloat(startCash);
+
+        if (isNaN(cashValue) || cashValue < 0) {
             alert("Please enter valid starting cash amount");
             return;
         }
@@ -41,7 +43,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
         setIsLoading(true);
         try {
             const result = await openShift({
-                startCash: parseFloat(startCash),
+                startCash: cashValue,
                 registerId: selectedRegister || undefined,
                 registerName: registers.find(r => r.id === selectedRegister)?.name,
                 csrfToken
@@ -222,6 +224,14 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const hours = Math.floor(duration / 60);
     const mins = duration % 60;
 
+    const expectedCashValue = (
+        Number(shift.startCash) +
+        Number(shift.totalCashSales || 0) -
+        Number(shift.totalExpenses || 0)
+    );
+    const actualCashNum = actualCash !== "" ? Number(actualCash) : 0;
+    const varianceValue = actualCashNum - expectedCashValue;
+
     return (
         <>
             <div className="bg-gradient-to-r from-green-600 to-green-500 text-white px-6 py-3 rounded-lg flex items-center justify-between shadow-lg">
@@ -271,11 +281,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                     <div className="text-right bg-green-800/50 px-3 py-1 rounded-lg">
                         <div className="text-xs text-green-200">الدرج المتوقع</div>
                         <div className="font-bold text-lg text-white">
-                            ${(
-                                Number(shift.startCash) +
-                                Number(shift.totalCashSales || 0) -
-                                Number(shift.totalExpenses || 0)
-                            ).toFixed(2)}
+                            ${expectedCashValue.toFixed(2)}
                         </div>
                     </div>
                 </div>
@@ -292,8 +298,29 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 </svg>
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-white">{t('closeModalTitle')}</h3>
-                                <p className="text-sm text-gray-400">{t('closeModalSubtitle')}</p>
+                                <h3 className="text-xl font-bold text-white">{t('closeModalTitle') || "إغلاق الوردية"}</h3>
+                                <p className="text-sm text-gray-400">{t('closeModalSubtitle') || "مراجعة العهدة وإغلاق اليومية"}</p>
+                            </div>
+                        </div>
+
+                        {/* Live Reconciliation Display */}
+                        <div className="mb-6 bg-gray-800/80 p-4 rounded-xl border border-gray-700 shadow-inner">
+                            <div className="flex justify-between text-sm mb-2">
+                                <span className="text-gray-400">الرصيد المتوقع بالدرج (Expected):</span>
+                                <span className="text-white font-medium">${expectedCashValue.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm mb-2">
+                                <span className="text-gray-400">الرصيد الفعلي المدخل (Actual):</span>
+                                <span className="text-white font-medium">${actualCash === "" ? "0.00" : actualCashNum.toFixed(2)}</span>
+                            </div>
+                            <div className="w-full h-px bg-gray-600/50 my-3"></div>
+                            <div className="flex justify-between font-bold text-lg">
+                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-gray-300"}>
+                                    {varianceValue < 0 ? "عجز بالدرج (Shortage):" : varianceValue > 0 ? "زيادة بالدرج (Surplus):" : "متطابق (Matched):"}
+                                </span>
+                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-white"}>
+                                    {varianceValue > 0 ? "+" : ""}{varianceValue.toFixed(2)}
+                                </span>
                             </div>
                         </div>
 
@@ -333,9 +360,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                             <button
                                 onClick={handleCloseShift}
                                 disabled={isLoading}
-                                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-lg shadow-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all animate-pulse hover:animate-none"
+                                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-lg shadow-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
                             >
-                                {isLoading ? tVal('required') : "إنهاء الوردية (Blind Close)"}
+                                {isLoading ? tVal('required') : "إنهاء الوردية (Close Shift)"}
                             </button>
                             <button
                                 onClick={() => {

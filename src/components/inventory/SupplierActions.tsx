@@ -77,7 +77,7 @@ export default function SupplierActions({
 
         setLoading(true);
         try {
-            const res = await paySupplier(supplierId, parseFloat(amount), method, { csrfToken });
+            const res = await paySupplier({ supplierId, amount: parseFloat(amount), method, csrfToken });
             if (res?.success) {
                 toast.success(t('paymentModal.success'));
                 setIsPaymentModalOpen(false);

@@ -5,15 +5,19 @@ import { revalidatePath } from "next/cache";
 import { PERMISSIONS } from "@/lib/permissions";
 import { validatePermissions, resolvePermissionDependencies } from "@/lib/permission-validation";
 import { invalidateRoleCache } from "@/lib/permission-cache";
-import { invalidateUserSessions } from "@/lib/auth";
+import { invalidateUserSessions, getSession } from "@/lib/auth";
 
 const DEFAULT_ROLES = [
     {
-        name: "Admin",
+        name: "مدير النظام",
         permissions: Object.values(PERMISSIONS) // All permissions
     },
     {
-        name: "Branch Manager",
+        name: "المالك",
+        permissions: ['*'] // Full ownership
+    },
+    {
+        name: "مدير فرع",
         permissions: [
             // POS
             PERMISSIONS.POS_ACCESS,
@@ -65,7 +69,7 @@ const DEFAULT_ROLES = [
         ]
     },
     {
-        name: "Cashier",
+        name: "كاشير",
         permissions: [
             PERMISSIONS.POS_ACCESS,
             PERMISSIONS.POS_DISCOUNT,
@@ -83,7 +87,17 @@ const DEFAULT_ROLES = [
         ]
     },
     {
-        name: "Technician",
+        name: "مساعد مبيعات",
+        permissions: [
+            PERMISSIONS.POS_ACCESS,
+            PERMISSIONS.POS_DISCOUNT,
+            PERMISSIONS.TICKET_VIEW,
+            PERMISSIONS.CUSTOMER_VIEW,
+            PERMISSIONS.SHIFT_VIEW
+        ]
+    },
+    {
+        name: "فني",
         permissions: [
             PERMISSIONS.INVENTORY_VIEW,
             PERMISSIONS.TICKET_VIEW,
@@ -95,7 +109,7 @@ const DEFAULT_ROLES = [
         ]
     },
     {
-        name: "Logistics",
+        name: "مسؤول توصيل",
         permissions: [
             PERMISSIONS.INVENTORY_VIEW,
             PERMISSIONS.WAREHOUSE_VIEW,
@@ -105,7 +119,7 @@ const DEFAULT_ROLES = [
         ]
     },
     {
-        name: "Inventory Manager",
+        name: "مدير مخازن",
         permissions: [
             PERMISSIONS.INVENTORY_VIEW,
             PERMISSIONS.INVENTORY_MANAGE,
@@ -124,7 +138,16 @@ const DEFAULT_ROLES = [
         ]
     },
     {
-        name: "HR Manager",
+        name: "عامل مخازن",
+        permissions: [
+            PERMISSIONS.INVENTORY_VIEW,
+            PERMISSIONS.WAREHOUSE_VIEW,
+            PERMISSIONS.LOGISTICS_RECEIVE,
+            PERMISSIONS.INVENTORY_ADJUST
+        ]
+    },
+    {
+        name: "مدير موارد بشرية",
         permissions: [
             PERMISSIONS.HR_VIEW_ATTENDANCE,
             PERMISSIONS.HR_MANAGE_ATTENDANCE,
@@ -137,7 +160,7 @@ const DEFAULT_ROLES = [
         ]
     },
     {
-        name: "Accountant",
+        name: "محاسب",
         permissions: [
             PERMISSIONS.ACCOUNTING_VIEW,
             PERMISSIONS.TREASURY_VIEW,
@@ -156,12 +179,103 @@ const DEFAULT_ROLES = [
     }
 ];
 
+/**
+ * Validates that the active user has sufficient privileges to create/modify/delete
+ * a target role.
+ */
+async function checkRolePrivilegeEscalation(
+    sessionUser: any,
+    roleId?: string,
+    newPermissions?: string[]
+) {
+    // 1. Admins and super-admins bypass all checks
+    if (sessionUser.role === 'ADMIN' || sessionUser.permissions?.includes('*')) {
+        return;
+    }
+
+    const forbiddenPerms = ['MANAGE_SETTINGS', 'MANAGE_ROLES'];
+
+    // 2. Protect existing roles with sensitive permissions
+    if (roleId) {
+        const targetRole = await prisma.role.findUnique({ where: { id: roleId } });
+        if (targetRole) {
+            const targetRoleName = targetRole.name.toUpperCase();
+            if (targetRoleName === 'ADMIN' || targetRoleName === 'ADMINISTRATOR' || targetRoleName === 'مدير النظام' || targetRoleName === 'المالك') {
+                throw new Error("Forbidden: You cannot modify or delete system administrator roles.");
+            }
+
+            let existingPerms: string[] = [];
+            try {
+                existingPerms = JSON.parse(targetRole.permissions || '[]');
+            } catch (e) {
+                existingPerms = [];
+            }
+
+            if (forbiddenPerms.some(p => existingPerms.includes(p))) {
+                throw new Error("Forbidden: You cannot modify roles that contain system configuration permissions.");
+            }
+
+            // Subset Check: Cannot modify roles with more or different privileges than your own
+            const userPerms = sessionUser.permissions || [];
+            if (!existingPerms.every(p => userPerms.includes(p))) {
+                throw new Error("Forbidden: You cannot modify a role that has privileges that you do not possess.");
+            }
+        }
+    }
+
+    // 3. Prevent privilege escalation via new permissions
+    if (newPermissions) {
+        if (forbiddenPerms.some(p => newPermissions.includes(p))) {
+            throw new Error("Forbidden: You cannot assign system configuration permissions (Settings/Roles) to roles.");
+        }
+
+        const userPerms = sessionUser.permissions || [];
+        const missingPerms = newPermissions.filter(p => !userPerms.includes(p));
+
+        if (missingPerms.length > 0) {
+            throw new Error("Forbidden: You cannot create or update a role with more privileges than your own.");
+        }
+    }
+}
+
 async function ensureDefaultRoles() {
+    // Migration: Rename old English system roles to the new Arabic ones
+    const renameMap: Record<string, string> = {
+        "Admin": "مدير النظام",
+        "Administrator": "مدير النظام",
+        "Branch Manager": "مدير فرع",
+        "Cashier": "كاشير",
+        "Technician": "فني",
+        "Logistics": "مسؤول توصيل",
+        "Inventory Manager": "مدير مخازن",
+        "HR Manager": "مدير موارد بشرية",
+        "Accountant": "محاسب"
+    };
+
+    for (const [oldName, newName] of Object.entries(renameMap)) {
+        const oldRole = await prisma.role.findUnique({ where: { name: oldName } });
+        if (oldRole) {
+            console.log(`🔄 Migrating role: ${oldName} -> ${newName}`);
+            // Check if new role already exists before renaming to avoid unique constraint error
+            const newRoleExists = await prisma.role.findUnique({ where: { name: newName } });
+            if (!newRoleExists) {
+                await prisma.role.update({
+                    where: { id: oldRole.id },
+                    data: { name: newName }
+                });
+            } else {
+                // If it already exists, we might want to consolidate users to the new role
+                // For simplicity in this run, we'll just log it.
+                console.log(`⚠️ Destination role ${newName} already exists. Consider manual user migration if users remain on ${oldName}.`);
+            }
+        }
+    }
+
+    // Now ensure all default roles exist
     for (const roleDef of DEFAULT_ROLES) {
         const existing = await prisma.role.findUnique({ where: { name: roleDef.name } });
 
         if (!existing) {
-            // Only CREATE if role doesn't exist - never update existing roles
             console.log(`🆕 Creating default role: ${roleDef.name}`);
             await prisma.role.create({
                 data: {
@@ -169,17 +283,13 @@ async function ensureDefaultRoles() {
                     permissions: JSON.stringify(roleDef.permissions)
                 }
             });
-        } else {
-            // Role exists - DO NOT update to preserve manual customizations
-            // If you need to update default roles, do it via the UI or a migration script
-            console.log(`✓ Role already exists: ${roleDef.name} (not updating to preserve customizations)`);
         }
     }
 }
 
 export async function getRoles() {
     try {
-        await ensureDefaultRoles(); // Lazy seed
+        await ensureDefaultRoles();
         const roles = await prisma.role.findMany({
             include: { _count: { select: { users: true } } }
         });
@@ -192,18 +302,24 @@ export async function getRoles() {
 
 export async function createRole(name: string, permissions: string[]) {
     try {
+        const session = await getSession();
+        if (!session?.user) throw new Error("Unauthorized");
+
+        // Privilege Escalation Check
+        await checkRolePrivilegeEscalation(session.user, undefined, permissions);
+
         // Auto-resolve dependencies
         const resolvedPermissions = resolvePermissionDependencies(permissions);
-        
+
         // Validate permissions
         const validation = validatePermissions(resolvedPermissions);
         if (!validation.valid) {
-            return { 
-                success: false, 
+            return {
+                success: false,
                 message: "Invalid permissions: " + validation.errors.join(', ')
             };
         }
-        
+
         await prisma.role.create({
             data: {
                 name,
@@ -212,28 +328,32 @@ export async function createRole(name: string, permissions: string[]) {
         });
         revalidatePath("/settings");
         return { success: true };
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
-        return { success: false, message: "Failed to create role (Name must be unique)" };
+        return { success: false, message: e.message || "Failed to create role (Name must be unique)" };
     }
 }
 
-
-
 export async function updateRole(id: string, name: string, permissions: string[]) {
     try {
+        const session = await getSession();
+        if (!session?.user) throw new Error("Unauthorized");
+
+        // Privilege Escalation Check
+        await checkRolePrivilegeEscalation(session.user, id, permissions);
+
         // Auto-resolve dependencies
         const resolvedPermissions = resolvePermissionDependencies(permissions);
-        
+
         // Validate permissions
         const validation = validatePermissions(resolvedPermissions);
         if (!validation.valid) {
-            return { 
-                success: false, 
+            return {
+                success: false,
                 message: "Invalid permissions: " + validation.errors.join(', ')
             };
         }
-        
+
         await prisma.role.update({
             where: { id },
             data: {
@@ -241,33 +361,32 @@ export async function updateRole(id: string, name: string, permissions: string[]
                 permissions: JSON.stringify(resolvedPermissions)
             }
         });
-        
-        // Invalidate permission cache for all users with this role
+
         invalidateRoleCache(id);
 
-        // Invalidate active sessions for all users with this role
-        // This ensures they re-login and get fresh permissions immediately
         const usersWithRole = await prisma.user.findMany({
             where: { roleId: id },
             select: { id: true }
         });
 
-        // Process invalidations in parallel but don't block response too long if many users
-        // Use Promise.all with a map
         await Promise.all(usersWithRole.map(user => invalidateUserSessions(user.id)));
-        
+
         revalidatePath("/settings");
         return { success: true };
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
-        return { success: false, message: "Failed to update role" };
+        return { success: false, message: e.message || "Failed to update role" };
     }
 }
 
 export async function deleteRole(id: string) {
     try {
-        // Prevent deleting if users assigned?
-        // Check first
+        const session = await getSession();
+        if (!session?.user) throw new Error("Unauthorized");
+
+        // Privilege Escalation Check
+        await checkRolePrivilegeEscalation(session.user, id);
+
         const count = await prisma.user.count({ where: { roleId: id } });
         if (count > 0) {
             return { success: false, message: `Cannot delete role: Assigned to ${count} users.` };
@@ -276,8 +395,8 @@ export async function deleteRole(id: string) {
         await prisma.role.delete({ where: { id } });
         revalidatePath("/settings");
         return { success: true };
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
-        return { success: false, message: "Failed to delete role" };
+        return { success: false, message: e.message || "Failed to delete role" };
     }
 }

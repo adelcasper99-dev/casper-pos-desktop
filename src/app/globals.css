@@ -374,15 +374,15 @@ body {
 
 @media print {
 
-  /* Hide everything by default */
-  body * {
-    visibility: hidden;
+  /* Hide elements marked as no-print */
+  .no-print {
+    display: none !important;
   }
 
-  /* Show payslip (existing functionality) */
+  /* Show specific printable components if they exist on page */
   #printable-payslip,
   #printable-payslip * {
-    visibility: visible;
+    visibility: visible !important;
   }
 
   #printable-payslip {

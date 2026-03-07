@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { AccountingEngine } from "@/lib/accounting/transaction-factory";
+import { EXPENSE_CATEGORY_MAP, INCOMING_CATEGORIES } from "@/shared/constants/accounting-mappings";
 
 // ─── Get Treasury Data ────────────────────────────────────────────────────────
 export async function getTreasuryData(filters?: {
@@ -85,16 +87,31 @@ export async function addTreasuryTransaction(
   amount: number,
   description: string,
   paymentMethod: string,
-  treasuryId?: string
+  treasuryId?: string,
+  expenseCategory?: string, // Added for Phase 3
+  incomingCategoryId?: string // Added for Phase 1 deposits
 ) {
   try {
     const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT"];
-    const isPositive = POSITIVE_TYPES.includes(type);
+
+    // Determine exact type if incoming category is provided
+    let finalType = type;
+    let creditAccount = '3000'; // Default Capital for fallback
+
+    if (incomingCategoryId) {
+      const category = INCOMING_CATEGORIES.find((c: any) => c.id === incomingCategoryId);
+      if (category) {
+        finalType = category.actionType;
+        creditAccount = category.creditAccountId;
+      }
+    }
+
+    const isPositive = POSITIVE_TYPES.includes(finalType);
     const numericAmount = Number(amount);
 
     await prisma.$transaction(async (tx) => {
-      await tx.transaction.create({
-        data: { type, amount: numericAmount, description, paymentMethod, treasuryId },
+      const dbTx = await tx.transaction.create({
+        data: { type: finalType, amount: numericAmount, description, paymentMethod, treasuryId },
       });
 
       if (treasuryId) {
@@ -107,14 +124,49 @@ export async function addTreasuryTransaction(
           },
         });
       }
+
+      // ── Accounting Integration ──
+      const debitAccount = paymentMethod === 'CASH' ? '1000' : '1010'; // Basic Mapping
+
+      if (finalType === 'OUT') {
+        // Expense/Withdrawal
+        const glCode = (expenseCategory && EXPENSE_CATEGORY_MAP[expenseCategory])
+          ? EXPENSE_CATEGORY_MAP[expenseCategory].glCode
+          : '5200'; // Default General Expenses
+
+        await AccountingEngine.recordTransaction({
+          description: `Treasury Out: ${description}`,
+          reference: dbTx.id,
+          date: new Date(),
+          lines: [
+            { accountCode: glCode, debit: numericAmount, credit: 0, description },
+            { accountCode: debitAccount, debit: 0, credit: numericAmount, description: `${paymentMethod} Withdrawal` }
+          ]
+        }, tx);
+      } else if (isPositive) {
+        // Dynamic "Cash In" workflow
+        const categoryUI = INCOMING_CATEGORIES.find((c: any) => c.id === incomingCategoryId)?.uiLabel || 'Deposit';
+
+        await AccountingEngine.recordTransaction({
+          description: `Treasury In: ${description}`,
+          reference: dbTx.id,
+          date: new Date(),
+          lines: [
+            { accountCode: debitAccount, debit: numericAmount, credit: 0, description: `${paymentMethod} Deposit` },
+            { accountCode: creditAccount, debit: 0, credit: numericAmount, description: categoryUI }
+          ]
+        }, tx);
+      }
     });
 
     revalidatePath("/treasury");
     return { success: true };
   } catch (error) {
+    console.error("Treasury Transaction Error:", error);
     return { success: false, error: "Failed to add transaction" };
   }
 }
+
 
 // ─── Update Transaction ───────────────────────────────────────────────────────
 export async function updateTreasuryTransaction(

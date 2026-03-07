@@ -9,7 +9,29 @@
 
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { revalidatePath } from "next/cache";
+
+/**
+ * Wipes all application data so setup can run on a clean slate.
+ */
+async function resetForSetup(): Promise<void> {
+    // Reset in-memory caches before any DB wipe
+    const { resetBranchCache } = await import('@/lib/ensure-main-branch');
+    resetBranchCache();
+
+    await prisma.$executeRawUnsafe('PRAGMA foreign_keys=OFF;');
+    try {
+        await prisma.session.deleteMany({});
+        await prisma.user.deleteMany({});
+        await prisma.auditLog.deleteMany({});
+        await prisma.treasury.deleteMany({});
+        await prisma.warehouse.deleteMany({});
+        await prisma.branch.deleteMany({});
+        await prisma.storeSettings.deleteMany({});
+        await prisma.account.deleteMany({});
+    } finally {
+        await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
+    }
+}
 
 export async function performSetup(data: {
     admin: {
@@ -26,50 +48,49 @@ export async function performSetup(data: {
         currency: string;
     }
 }) {
-    // 1. Double check users don't exist
-    const userCount = await prisma.user.count();
-    if (userCount > 0) {
-        throw new Error("System already set up");
-    }
+    await resetForSetup();
+
+    // Store Settings (read by ensureMainBranch to name warehouse correctly)
+    await prisma.storeSettings.create({
+        data: {
+            id: "settings",
+            name: data.branch.name,
+            taxRate: data.settings.taxRate,
+            currency: data.settings.currency,
+        }
+    });
 
     await prisma.$transaction(async (tx) => {
-        // 2. Create Branch
-        // NOTE: Branch has no isDefault column — identity is by code: "MAIN"
+        // 1. Branch
         const branch = await tx.branch.create({
             data: {
                 name: data.branch.name,
                 code: "MAIN",
                 type: data.branch.type,
-                address: "Main Office"
             }
         });
 
-        // 3. Create Treasuries for the branch
-        const paymentMethods = ["CASH", "VISA", "WALLET", "INSTAPAY"];
-
-        for (const method of paymentMethods) {
-            await tx.treasury.create({
-                data: {
-                    name: `${method.charAt(0) + method.slice(1).toLowerCase()} Treasury`,
-                    paymentMethod: method,
-                    branchId: branch.id,
-                    isDefault: method === "CASH",
-                    balance: 0
-                }
-            });
-        }
-
-        // 4. Create Main Warehouse
+        // 2. Default Warehouse (always created with setup)
         await tx.warehouse.create({
             data: {
-                name: "Main Warehouse",
+                name: data.branch.name,
                 branchId: branch.id,
                 isDefault: true,
-                address: "Main Office"
             }
         });
 
-        // 5. Create Admin User
+        // 3. Default CASH Treasury
+        await tx.treasury.create({
+            data: {
+                name: 'الخزنة النقدية',
+                paymentMethod: 'CASH',
+                branchId: branch.id,
+                isDefault: true,
+                balance: 0,
+            }
+        });
+
+        // 4. Admin User
         const hashedPassword = await bcrypt.hash(data.admin.password, 10);
         await tx.user.create({
             data: {
@@ -80,32 +101,11 @@ export async function performSetup(data: {
                 branchId: branch.id
             }
         });
-
-        // 6. Set Store Settings
-        await tx.storeSettings.upsert({
-            where: { id: "settings" },
-            update: {
-                name: data.branch.name,
-                taxRate: data.settings.taxRate,
-                currency: data.settings.currency,
-            },
-            create: {
-                id: "settings",
-                name: data.branch.name,
-                taxRate: data.settings.taxRate,
-                currency: data.settings.currency,
-            }
-        });
     });
 
-    // BL-09 fix: seedAccounts uses global prisma — MUST run outside the transaction
-    // so a rollback doesn't leave accounts in an inconsistent state.
-    const accountCount = await prisma.account.count();
-    if (accountCount === 0) {
-        const { seedAccounts } = await import('@/lib/accounting/seed-accounts');
-        await seedAccounts();
-    }
+    // Seed Chart of Accounts (outside transaction — BL-09 fix)
+    const { seedAccounts } = await import('@/lib/accounting/seed-accounts');
+    await seedAccounts();
 
-    revalidatePath("/");
     return { success: true };
 }

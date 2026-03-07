@@ -38,13 +38,13 @@ import { ModeToggle } from "@/components/mode-toggle";
 import StaffProfileBadge from "@/components/staff/StaffProfileBadge";
 
 const MENU_ITEMS = [
-    { key: "dashboard", href: "/dashboard", icon: LayoutDashboard, permission: null },
+    { key: "dashboard", href: "/dashboard", icon: LayoutDashboard, permission: PERMISSIONS.DASHBOARD_VIEW },
     { key: "pos", href: "/pos", icon: ShoppingCart, permission: PERMISSIONS.POS_ACCESS },
     { key: "inventory", href: "/inventory", icon: Box, permission: PERMISSIONS.INVENTORY_VIEW },
     { key: "customers", href: "/customers", icon: Users, permission: PERMISSIONS.CUSTOMER_VIEW },
     { key: "purchasing", href: "/purchasing", icon: Truck, permission: PERMISSIONS.PURCHASING_VIEW },
     { key: "treasury", href: "/treasury", icon: Landmark, permission: PERMISSIONS.TREASURY_VIEW },
-    { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSIONS.POS_ACCESS },
+    { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSIONS.LOGS_VIEW },
     { key: "reports", href: "/reports", icon: BarChart3, permission: PERMISSIONS.REPORTS_VIEW },
 ];
 
@@ -131,7 +131,7 @@ function Sidebar({ user }: { user: any }) {
                     <ModeToggle />
                 </div>
 
-                {(isAdmin || hasPermission(user?.permissions, PERMISSIONS.MANAGE_SETTINGS)) && (
+                {(isAdmin || hasPermission(user?.permissions, PERMISSIONS.MANAGE_SETTINGS) || hasPermission(user?.permissions, PERMISSIONS.MANAGE_USERS)) && (
                     <Link
                         href="/settings"
                         className={cn(

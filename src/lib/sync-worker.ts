@@ -26,7 +26,8 @@ export class SyncWorker {
     }
 
     private static async syncPendingSales() {
-        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        // Note: navigator.onLine is NOT checked here because this is an Electron app.
+        // processSale is a server action on 127.0.0.1, always reachable locally.
 
         try {
             const pendingSales = await db.sales

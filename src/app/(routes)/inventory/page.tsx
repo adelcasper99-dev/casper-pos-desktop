@@ -6,6 +6,7 @@ import { getCSRFToken } from "@/lib/csrf";
 import { getSession } from "@/lib/auth";
 import { getVisibleBranches } from "@/actions/branch-actions";
 import { getCurrentUser } from "@/actions/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +104,13 @@ export default async function InventoryPage() {
         features = JSON.parse(settingsRaw?.features || "{}");
     } catch (e) { }
 
+    const userPerms = session?.user?.permissions || [];
+    const isSuperAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'Admin';
+    const permissions = {
+        canManageCategories: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_MANAGE_CATEGORIES),
+        canViewSuppliers: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.SUPPLIER_VIEW),
+    };
+
     return (
         <div className="space-y-6">
             <div>
@@ -119,6 +127,7 @@ export default async function InventoryPage() {
                 user={session?.user}
                 features={features}
                 currency={currency}
+                permissions={permissions}
             />
         </div>
     );

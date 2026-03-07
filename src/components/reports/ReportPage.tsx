@@ -56,6 +56,7 @@ import {
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs"
+import { Combobox } from "@/components/ui/combobox"
 import { printZReport } from "@/lib/print-zreport"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -75,6 +76,7 @@ interface ReportPageProps {
         branchId?: string
         categoryId?: string
         productId?: string
+        sortBy?: string
     }
 }
 
@@ -224,6 +226,12 @@ export default function ReportPage({ initialData, branches, categories = [], pro
 
     const updateFilters = (newFilters: any) => {
         const params = new URLSearchParams(searchParams.toString())
+
+        // Ensure the current tab is preserved when updating filters
+        if (activeTab && !newFilters.tab) {
+            params.set('tab', activeTab)
+        }
+
         Object.entries(newFilters).forEach(([key, value]) => {
             if (value) {
                 params.set(key, value as string)
@@ -232,6 +240,11 @@ export default function ReportPage({ initialData, branches, categories = [], pro
             }
         })
         router.push(`${pathname}?${params.toString()}`)
+    }
+
+    const activeTab = searchParams.get('tab') || "financial";
+    const onTabChange = (val: string) => {
+        updateFilters({ tab: val })
     }
 
     if (!initialData) {
@@ -308,38 +321,47 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                                 ))}
                             </SelectContent>
                         </Select>
-                        
+
                         <div className="w-px h-5 bg-white/10 mx-1" />
-                        
-                        <Select
+
+                        <Combobox
+                            options={[
+                                { label: "كل الفئات", value: "all" },
+                                ...categories.map(c => ({ label: c.name, value: c.id }))
+                            ]}
                             value={filters.categoryId || "all"}
-                            onValueChange={(val) => updateFilters({ categoryId: val === "all" ? "" : val })}
+                            onChange={(val) => updateFilters({ categoryId: val === "all" ? "" : val })}
+                            placeholder="كل الفئات"
+                            className="w-[160px] bg-transparent border-none text-zinc-300 ring-0 focus:ring-0"
+                        />
+
+                        <div className="w-px h-5 bg-white/10 mx-1" />
+
+                        <Combobox
+                            options={[
+                                { label: "كل الأصناف", value: "all" },
+                                ...products.map(p => ({ label: `${p.name} (${p.sku})`, value: p.id }))
+                            ]}
+                            value={filters.productId || "all"}
+                            onChange={(val) => updateFilters({ productId: val === "all" ? "" : val })}
+                            placeholder="كل الأصناف"
+                            className="w-[180px] bg-transparent border-none text-zinc-300 ring-0 focus:ring-0"
+                        />
+
+                        <div className="w-px h-5 bg-white/10 mx-1" />
+
+                        <Select
+                            value={filters.sortBy || "revenue"}
+                            onValueChange={(val) => updateFilters({ sortBy: val })}
                         >
-                            <SelectTrigger className="w-[140px] bg-transparent border-none text-zinc-300 focus:ring-0">
-                                <SelectValue placeholder="كل الفئات" />
+                            <SelectTrigger className="w-[130px] bg-transparent border-none text-cyan-400 focus:ring-0 font-medium">
+                                <SelectValue placeholder="ترتيب حسب" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-white/10 text-zinc-300">
-                                <SelectItem value="all">كل الفئات</SelectItem>
-                                {categories.map((c: any) => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <div className="w-px h-5 bg-white/10 mx-1" />
-
-                        <Select
-                            value={filters.productId || "all"}
-                            onValueChange={(val) => updateFilters({ productId: val === "all" ? "" : val })}
-                        >
-                            <SelectTrigger className="w-[140px] bg-transparent border-none text-zinc-300 focus:ring-0">
-                                <SelectValue placeholder="كل الأصناف" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-zinc-900 border-white/10 text-zinc-300 max-h-[300px]">
-                                <SelectItem value="all">كل الأصناف</SelectItem>
-                                {products.map((p: any) => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name} <span className="text-zinc-500 text-[10px] ml-1">({p.sku})</span></SelectItem>
-                                ))}
+                                <SelectItem value="revenue">أعلى إيراد</SelectItem>
+                                <SelectItem value="qty">أكثر كمية</SelectItem>
+                                <SelectItem value="profit">أعلى ربح</SelectItem>
+                                <SelectItem value="name">الاسم</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -405,7 +427,7 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                 </div>
             )}
 
-            <Tabs defaultValue="financial" className="w-full space-y-6">
+            <Tabs defaultValue="financial" value={activeTab} onValueChange={onTabChange} className="w-full space-y-6">
                 <TabsList className="bg-zinc-900 border border-white/10 w-full md:w-auto inline-flex p-1 rounded-xl print:hidden">
                     <TabsTrigger value="financial" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-black text-zinc-400 font-bold tracking-wide w-full md:w-48 rounded-lg transition-all duration-300">
                         المالية والمبيعات
