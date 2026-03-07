@@ -66,6 +66,12 @@ model User {
   role                 Role?                 @relation(fields: [roleId], references: [id])
   branch               Branch?               @relation(fields: [branchId], references: [id])
   sessions             Session[]
+
+  // Ticket Module Relations
+  technician           Technician?
+  employeeTransactions EmployeeTransaction[]
+  clientTickets        Ticket[]              @relation("ClientUser")
+  addedTicketParts     TicketPart[]          @relation("PartAddedBy")
 }
 
 model Role {
@@ -110,6 +116,11 @@ model Branch {
   users             User[]
   treasuries        Treasury[]
   stockRequests     StockRequest[]   @relation("RequestedByBranch")
+
+  // Ticket Module Relations
+  currentTickets    Ticket[]         @relation("CurrentLocation")
+  movementsFrom      DeviceMovement[] @relation("FromBranch")
+  movementsTo        DeviceMovement[] @relation("ToBranch")
 }
 
 model Warehouse {
@@ -130,7 +141,10 @@ model Warehouse {
   movementsTo         StockMovement[]   @relation("ToWarehouse")
   fulfillmentRequests StockRequest[]    @relation("FulfillingWarehouse")
   wastages            StockWastage[]
+  
+  // Ticket Module Relations
   technicians         Technician[]
+  ticketParts         TicketPart[]
 }
 
 // Accounting
@@ -147,6 +161,7 @@ model Customer {
   
   sales           Sale[]
   transactions    CustomerTransaction[]
+  tickets         Ticket[]
 }
 
 model CustomerTransaction {
@@ -175,6 +190,7 @@ model Supplier {
   
   invoices      PurchaseInvoice[]
   payments      SupplierPayment[]
+  clientTickets Ticket[]          @relation("ClientSupplier")
 }
 
 model SupplierPayment {
@@ -273,6 +289,9 @@ model Product {
   // Bundle relations
   bundleItems       BundleItem[]       @relation("BundleProduct")
   componentOf       BundleItem[]       @relation("ComponentProduct")
+
+  // Ticket Module Relations
+  ticketParts       TicketPart[]
 }
 
 // Bundle / Package composed products
@@ -519,6 +538,7 @@ model Shift {
   user                       User              @relation("ShiftOwner", fields: [userId], references: [id])
   adjustments                ShiftAdjustment[]
   transactions               Transaction[]
+  tickets                    Ticket[]          @relation("ShiftTickets")
 
   @@index([userId, status])
   @@index([registerId, status])
@@ -600,11 +620,227 @@ model ActionLog {
   user      User?    @relation(fields: [userId], references: [id])
 }
 
-// Technician placeholder if referenced
 model Technician {
-  id          String    @id @default(uuid())
-  warehouseId String
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  id                    String                 @id @default(uuid())
+  userId                String                 @unique
+  name                  String
+  phone                 String?
+  email                 String?
+  skills                String?
+  commissionRate        Decimal                @default(0.00)
+  lossRate              Decimal                @default(70.00)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  warehouseId           String?
+  deletedAt             DateTime?
+  user                  User                   @relation(fields: [userId], references: [id])
+  warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
+  TechnicianPerformance TechnicianPerformance?
+  completedTickets      Ticket[]               @relation("CompletedBy")
+  tickets               Ticket[]
+  collaborations        TicketCollaborator[]
+}
+
+model TicketPreset {
+  id        String   @id @default(uuid())
+  type      String
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([type, name])
+}
+
+model DevicePreset {
+  id        String   @id @default(uuid())
+  brand     String
+  model     String
+  createdAt DateTime @default(now())
+
+  @@unique([brand, model])
+}
+
+model Ticket {
+  id                 String            @id @default(uuid())
+  barcode            String            @unique
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  customerId         String?
+  deviceBrand        String
+  deviceModel        String
+  deviceImei         String?
+  deviceColor        String?
+  securityCode       String?
+  patternData        String?
+  issueDescription   String
+  conditionNotes     String?
+  warrantyExpiry     DateTime?
+  status             String            @default("NEW")
+  currentBranchId    String
+  movementId         String?
+  technicianId       String?
+  completedById      String?
+  initialQuote       Decimal           @default(0.00)
+  repairPrice        Decimal           @default(0.00)
+  partsCost          Decimal           @default(0.00)
+  deposit            Decimal           @default(0.00)
+  commissionRate     Decimal           @default(0.00)
+  commissionAmount   Decimal           @default(0.00)
+  netProfit          Decimal           @default(0.00)
+  paymentStatus      String            @default("unpaid")
+  paymentMethod      String?
+  amountPaid         Decimal           @default(0.00)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+  version            Int               @default(1)
+  completedAt        DateTime?
+  deliveredAt        DateTime?
+  commissionClawback Decimal           @default(0.00)
+  lastReturnedAt     DateTime?
+  originalTechId     String?
+  returnCount        Int               @default(0)
+  returnReason       String?
+  shiftId            String?
+  warrantyExpiryDate DateTime?
+  expectedDuration   Int?
+  startedAt          DateTime?
+  feedback           Feedback?
+  logs               NotificationLog[]
+  payments           RepairPayment[]
+  completedBy        Technician?       @relation("CompletedBy", fields: [completedById], references: [id])
+  currentBranch      Branch            @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  customer           Customer?         @relation(fields: [customerId], references: [id])
+  movement           DeviceMovement?   @relation(fields: [movementId], references: [id])
+  shift              Shift?            @relation("ShiftTickets", fields: [shiftId], references: [id])
+  technician         Technician?       @relation(fields: [technicianId], references: [id])
+  clientUser         User?             @relation("ClientUser", fields: [clientUserId], references: [id])
+  clientUserId       String?
+  clientSupplier     Supplier?         @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
+  clientSupplierId   String?
+  notes              TicketNote[]
+  parts              TicketPart[]
+  collaborators      TicketCollaborator[]
+
+  @@index([barcode])
+  @@index([status, createdAt])
+  @@index([customerPhone])
+  @@index([currentBranchId])
+  @@index([technicianId])
+  @@index([clientUserId])
+  @@index([clientSupplierId])
+}
+
+model NotificationLog {
+  id       String   @id @default(uuid())
+  ticketId String
+  type     String
+  status   String
+  message  String?
+  sentAt   DateTime @default(now())
+  ticket   Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model TicketPart {
+  id          String     @id @default(uuid())
+  ticketId    String
+  productId   String?
+  name        String?
+  quantity    Int        @default(1)
+  cost        Decimal    @default(0.00)
+  price       Decimal    @default(0.00)
+  createdAt   DateTime   @default(now())
+  warehouseId String?
+  addedById   String?
+  product     Product?   @relation(fields: [productId], references: [id])
+  ticket      Ticket     @relation(fields: [ticketId], references: [id])
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  addedBy     User?      @relation("PartAddedBy", fields: [addedById], references: [id])
+}
+
+model TicketCollaborator {
+  id               String     @id @default(uuid())
+  ticketId         String
+  technicianId     String
+  role             String     @default("ASSISTANT") // LEAD, ASSISTANT
+  commissionRate   Decimal    @default(0.00)
+  commissionAmount Decimal    @default(0.00)
+  createdAt        DateTime   @default(now())
+  ticket           Ticket     @relation(fields: [ticketId], references: [id])
+  technician     Technician @relation(fields: [technicianId], references: [id])
+
+  @@unique([ticketId, technicianId])
+}
+
+model TicketNote {
+  id         String   @id @default(uuid())
+  ticketId   String
+  text       String
+  author     String
+  isInternal Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model RepairPayment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  amount     Decimal
+  method     String
+  reference  String?
+  recordedBy String?
+  recordedAt DateTime @default(now())
+  type       String   @default("PAYMENT")
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model TechnicianPerformance {
+  id                String     @id @default(uuid())
+  technicianId      String     @unique
+  repairCount       Int        @default(0)
+  avgRepairTime     Float      @default(0.0)
+  satisfactionScore Decimal    @default(0.0)
+  updatedAt         DateTime   @updatedAt
+  technician        Technician @relation(fields: [technicianId], references: [id])
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  ticketId  String   @unique
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model DeviceMovement {
+  id           String    @id @default(uuid())
+  fromBranchId String
+  toBranchId   String
+  status       String    @default("IN_TRANSIT")
+  driverName   String?
+  notes        String?
+  shippedAt    DateTime  @default(now())
+  receivedAt   DateTime?
+  createdById  String
+  receivedById String?
+  fromBranch   Branch    @relation("FromBranch", fields: [fromBranchId], references: [id])
+  toBranch     Branch    @relation("ToBranch", fields: [toBranchId], references: [id])
+  tickets      Ticket[]
+}
+
+model EmployeeTransaction {
+  id            String   @id @default(uuid())
+  userId        String
+  type          String
+  amount        Decimal
+  description   String?
+  referenceId   String?
+  referenceType String?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model AuditLog {

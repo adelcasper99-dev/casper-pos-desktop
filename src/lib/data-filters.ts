@@ -24,7 +24,7 @@ import { UserSession } from './auth';
  */
 export function getBranchFilter(user: UserSession | null) {
   // Admin sees all data across all branches
-  if (!user || user.role === "Admin") {
+  if (!user || user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك') {
     return {};
   }
 
@@ -41,7 +41,7 @@ export function getBranchFilter(user: UserSession | null) {
  * Returns a filter for models that use 'branchId' instead of 'currentBranchId'
  */
 export function getBranchFilterAlt(user: UserSession | null) {
-  if (!user || user.role === "Admin") {
+  if (!user || user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك') {
     return {};
   }
 
@@ -57,7 +57,7 @@ export function getBranchFilterAlt(user: UserSession | null) {
  */
 export function canAccessBranch(user: UserSession | null, branchId: string): boolean {
   if (!user) return false;
-  if (user.role === "Admin") return true;
+  if (user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك') return true;
   return user.branchId === branchId;
 }
 
@@ -66,6 +66,6 @@ export function canAccessBranch(user: UserSession | null, branchId: string): boo
  */
 export function getAccessibleBranches(user: UserSession | null): string[] | 'all' {
   if (!user) return [];
-  if (user.role === "Admin") return 'all';
+  if (user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك') return 'all';
   return user.branchId ? [user.branchId] : [];
 }

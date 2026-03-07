@@ -1,6 +1,5 @@
 import React from 'react';
 import Barcode from 'react-barcode';
-import { formatArabicPrintText } from '@/lib/arabic-reshaper';
 
 interface TicketStickerLabelProps {
     ticket: {
@@ -25,12 +24,8 @@ interface TicketStickerLabelProps {
 /**
  * Ticket Sticker Label
  * Optimized for ~50x30mm thermal labels
- * Mirror-Layout: LTR container, RTL text alignment
  */
 export default function TicketStickerLabel({ ticket, storeName = "CASPER POS", translations }: TicketStickerLabelProps) {
-
-    const formatText = (text: string) => formatArabicPrintText(text || "");
-
     return (
         <table style={{
             width: '50mm',
@@ -39,33 +34,33 @@ export default function TicketStickerLabel({ ticket, storeName = "CASPER POS", t
             fontFamily: 'Arial, sans-serif',
             backgroundColor: 'transparent',
             color: 'black',
-            direction: 'ltr', // Mirror-Layout
+            direction: 'rtl',
             tableLayout: 'fixed'
         }}>
             <tbody>
                 {/* Header / Store Name */}
                 <tr>
                     <td style={{ height: '15%', textAlign: 'center', verticalAlign: 'top', paddingTop: '1mm' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 'bold' }}>{formatText(storeName)}</div>
+                        <div style={{ fontSize: '10px', fontWeight: 'bold' }}>{storeName}</div>
                     </td>
                 </tr>
 
                 {/* Content Row - Ticket Info */}
                 <tr>
-                    <td style={{ verticalAlign: 'top', padding: '0 1mm', textAlign: 'right' }}>
+                    <td style={{ verticalAlign: 'top', padding: '0 1mm', textAlign: 'center' }}>
                         {/* Top: Customer & Device */}
                         <div style={{ borderBottom: '1px solid black', paddingBottom: '2px', marginBottom: '1px' }}>
                             <div style={{ fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {formatText(ticket.customerName.substring(0, 18))}
+                                {ticket.customerName.substring(0, 18)}
                             </div>
                             {ticket.customerPhone && (
-                                <div style={{ fontSize: '9px', direction: 'ltr' }}>{ticket.customerPhone}</div>
+                                <div style={{ fontSize: '9px' }}>{ticket.customerPhone}</div>
                             )}
                             <div style={{ fontSize: '8px', marginTop: '1px' }}>
-                                {formatText(`${ticket.deviceBrand} ${ticket.deviceModel}`)}
+                                {ticket.deviceBrand} {ticket.deviceModel}
                             </div>
                             {ticket.deviceImei && (
-                                <div style={{ fontSize: '8px', direction: 'ltr' }}>IMEI: {ticket.deviceImei.substring(ticket.deviceImei.length - 6)}..</div>
+                                <div style={{ fontSize: '8px' }}>IMEI: {ticket.deviceImei.substring(ticket.deviceImei.length - 6)}..</div>
                             )}
                         </div>
 
@@ -79,38 +74,36 @@ export default function TicketStickerLabel({ ticket, storeName = "CASPER POS", t
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis'
                                 }}>
-                                    {formatText(ticket.issueDescription)}
+                                    {ticket.issueDescription}
                                 </div>
                             )}
 
                             {(ticket.expectedDuration !== undefined && ticket.expectedDuration !== null && ticket.expectedDuration !== 0) ? (
-                                <div style={{ fontSize: '8px', fontWeight: '900', borderTop: '0.5mm solid transparent', display: 'flex', justifyContent: 'flex-end', gap: '2px' }}>
-                                    <span>
-                                        {Number(ticket.expectedDuration) >= 60
-                                            ? formatText(`${(Number(ticket.expectedDuration) / 60).toFixed(1)} ساعة`)
-                                            : formatText(`${ticket.expectedDuration} دقيقة`)
-                                        }
-                                    </span>
-                                    <span>{formatText(translations?.expectedTime || "الوقت")}: </span>
+                                <div style={{ fontSize: '8px', fontWeight: '900', borderTop: '0.5mm solid transparent' }}>
+                                    <span>{translations?.expectedTime || "الوقت المتوقع"}: </span>
+                                    {Number(ticket.expectedDuration) >= 60
+                                        ? `${(Number(ticket.expectedDuration) / 60).toFixed(1)} hour`
+                                        : `${ticket.expectedDuration} min`
+                                    }
                                 </div>
                             ) : null}
 
                             {ticket.securityCode && (
-                                <div style={{ fontSize: '8px', fontWeight: '900', marginTop: '1px', display: 'flex', justifyContent: 'flex-end', gap: '2px' }}>
+                                <div style={{ fontSize: '8px', fontWeight: '900', marginTop: '1px' }}>
+                                    <span>{translations?.security || "رمز"}: </span>
                                     <span>{ticket.securityCode}</span>
-                                    <span>{formatText(translations?.security || "رمز")}: </span>
                                 </div>
                             )}
 
                             {ticket.patternData && (
-                                <div style={{ fontSize: '8px', fontWeight: '900', marginTop: '1px', display: 'flex', justifyContent: 'flex-end', gap: '2px' }}>
-                                    <span style={{ direction: 'ltr' }}>
+                                <div style={{ fontSize: '8px', fontWeight: '900', marginTop: '1px' }}>
+                                    <span>{translations?.pattern || "نمط"}: </span>
+                                    <span>
                                         {ticket.patternData.split(',').map(n => {
                                             const num = parseInt(n.trim());
                                             return isNaN(num) ? n : (num + 1).toString();
                                         }).join('-')}
                                     </span>
-                                    <span>{formatText(translations?.pattern || "نمط")}: </span>
                                 </div>
                             )}
                         </div>

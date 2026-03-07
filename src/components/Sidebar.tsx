@@ -4,7 +4,7 @@ import { useState, useMemo, memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "@/lib/i18n-mock";
+import { useTranslations, useLocale } from "@/lib/i18n-mock";
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -46,6 +46,8 @@ const MENU_ITEMS = [
     { key: "treasury", href: "/treasury", icon: Landmark, permission: PERMISSIONS.TREASURY_VIEW },
     { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSIONS.LOGS_VIEW },
     { key: "reports", href: "/reports", icon: BarChart3, permission: PERMISSIONS.REPORTS_VIEW },
+    { key: "maintenance_dashboard", href: "/maintenance/dashboard", icon: Activity, permission: PERMISSIONS.REPORTS_VIEW },
+    { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSIONS.TICKET_VIEW },
 ];
 
 function Sidebar({ user }: { user: any }) {
@@ -54,8 +56,9 @@ function Sidebar({ user }: { user: any }) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const router = useRouter();
+    const locale = useLocale();
 
-    const isSettingsActive = pathname === "/settings" || pathname.includes("/settings/");
+    const isSettingsActive = pathname === `/${locale}/settings` || pathname.includes("/settings/");
     const isAdmin = user?.role === 'ADMIN' || user?.role === 'Admin';
 
     const filteredItems = useMemo(() => {
@@ -104,7 +107,7 @@ function Sidebar({ user }: { user: any }) {
                     return (
                         <Link
                             key={item.key}
-                            href={item.href}
+                            href={item.href.startsWith('/maintenance') ? `/${locale}${item.href}` : item.href}
                             className={cn(
                                 "relative flex items-center gap-4 p-4 rounded-xl transition-all duration-300 group overflow-hidden border border-border/50 shadow-md",
                                 isActive
@@ -133,7 +136,7 @@ function Sidebar({ user }: { user: any }) {
 
                 {(isAdmin || hasPermission(user?.permissions, PERMISSIONS.MANAGE_SETTINGS) || hasPermission(user?.permissions, PERMISSIONS.MANAGE_USERS)) && (
                     <Link
-                        href="/settings"
+                        href={`/${locale}/settings`}
                         className={cn(
                             "relative flex items-center gap-4 p-3 rounded-xl w-full transition-all duration-300 group overflow-hidden border border-white/5 shadow-md",
                             isSettingsActive

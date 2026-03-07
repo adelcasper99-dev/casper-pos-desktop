@@ -5,8 +5,15 @@ import { ThemeProvider } from "next-themes";
 import { useState, useEffect } from "react";
 import { SyncWorker } from "@/lib/sync-worker";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { CSRFProvider } from "@/contexts/CSRFContext";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export default function Providers({
+    children,
+    initialToken
+}: {
+    children: React.ReactNode,
+    initialToken: string | null
+}) {
     const [queryClient] = useState(() => new QueryClient({
         defaultOptions: {
             queries: {
@@ -22,11 +29,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <SettingsProvider>
-                <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                    {children}
-                </ThemeProvider>
-            </SettingsProvider>
+            <CSRFProvider initialToken={initialToken}>
+                <SettingsProvider>
+                    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+                        {children}
+                    </ThemeProvider>
+                </SettingsProvider>
+            </CSRFProvider>
         </QueryClientProvider>
     );
 }

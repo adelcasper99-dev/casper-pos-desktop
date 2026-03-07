@@ -9,7 +9,9 @@
         "treasury": "الخزينة",
         "logs": "السجلات",
         "reports": "التقارير",
-        "settings": "الإعدادات"
+        "settings": "الإعدادات",
+        "maintenance_dashboard": "لوحة صيانة HQ",
+        "maintenance": "تذاكر الصيانة"
     },
     "Auth": {
         "title": "دخول الموظفين",
@@ -906,16 +908,108 @@
         "pathError": "فشل حفظ المسار",
         "loadError": "فشل تحميل بيانات النسخ الاحتياطي"
     },
+    "Tickets": {
+        "workflow": {
+            "actions": {
+                "sendToCenter": "إرسال إلى المركز",
+                "markCompleted": "تحديد كمكتمل",
+                "receiveAtCenter": "استلام في المركز",
+                "startDiagnosis": "بدء التشخيص",
+                "submitQuote": "تقديم عرض السعر",
+                "startRepair": "بدء الإصلاح",
+                "waitForParts": "في انتظار قطع الغيار",
+                "finishSendToQC": "إنهاء وإرسال للجودة",
+                "logPartsPassQC": "تسجيل القطع وتجاوز الجودة",
+                "shipToStore": "شحن للفرع",
+                "receiveAtStore": "استلام في الفرع",
+                "markDelivered": "تحديد كمسلم",
+                "returnForReRepair": "إرجاع للإصلاح",
+                "startQuickFix": "بدء إصلاح سريع",
+                "reject": "رفض / غير قابل للإصلاح",
+                "returnRejected": "جاهز للاستلام (مرفوض)"
+            },
+            "statusUpdated": "تم تحديث الحالة بنجاح",
+            "updateFailed": "فشل تحديث الحالة",
+            "completed": "اكتمل الإصلاح",
+            "paidDelivered": "مدفوع ومسلم",
+            "noActions": "لا توجد إجراءات متاحة"
+        },
+        "title": "تذاكر الصيانة",
+        "subtitle": "إدارة إصلاحات الأجهزة وتعيينات الفنيين",
+        "newTicket": "تذكرة جديدة",
+        "tabs": {
+            "allTickets": "جميع التذاكر",
+            "engineers": "الفنيون",
+            "custody": "العهدة"
+        },
+        "search": {
+            "placeholder": "ابحث بالباركود، الهاتف، الاسم...",
+            "loading": "جاري تحميل التذاكر...",
+            "noResults": "لا توجد تذاكر تطابق معايير البحث.",
+            "adjustFilters": "حاول تعديل الفلاتر أو شروط البحث",
+            "filtering": "جاري التصفية..."
+        },
+        "filters": {
+            "all": "الكل",
+            "new": "جديدة",
+            "inProgress": "قيد التنفيذ",
+            "completed": "مكتملة",
+            "delivered": "مُسلّمة",
+            "warranty": "الضمان",
+            "returns": "المرتجعات",
+            "stale": "⚠️ متقادمة (30+ يوم)"
+        },
+        "status": {
+            "new": "جديدة",
+            "inTransitToCenter": "في الطريق (للمركز)",
+            "atCenter": "في المركز",
+            "diagnosing": "تحت التشخيص",
+            "pendingApproval": "في انتظار الموافقة",
+            "inProgress": "قيد التنفيذ",
+            "qcPending": "في انتظار المراجعة",
+            "waitingForParts": "في انتظار القطع",
+            "completed": "مكتملة",
+            "inTransitToBranch": "في الطريق (للفرع)",
+            "readyAtBranch": "جاهزة في الفرع",
+            "delivered": "مُسلّمة",
+            "pickedUp": "تم الاستلام",
+            "cancelled": "ملغية",
+            "returnedForRefix": "مرتجع للإصلاح",
+            "paidDelivered": "مدفوع ومسلم",
+            "rejected": "مرفوض"
+        },
+        "table": {
+            "status": "الحالة",
+            "ticketInfo": "معلومات التذكرة",
+            "customer": "العميل",
+            "device": "الجهاز",
+            "issue": "المشكلة",
+            "technician": "الفني",
+            "timeToFix": "وقت الإصلاح",
+            "urgency": "الأهمية",
+            "date": "التاريخ",
+            "gap": "الفجوة",
+            "risk": "المخاطر",
+            "successRatio": "نسبة النجاح",
+            "overdue": "متأخر بـ {min} دقيقة",
+            "dueIn": "خلال {min} دقيقة"
+        },
+        "list": {
+            "clearDates": "مسح التواريخ",
+            "to": "إلى",
+            "openMenu": "فتح القائمة",
+            "actions": "الإجراءات",
+            "editDetails": "تعديل التفاصيل",
+            "deleteTicket": "حذف التذكرة",
+            "viewDetails": "عرض التفاصيل"
+        }
+    },
     "Ticket": {
         "newTicket": "تسجيل جهاز جديد",
         "customerInfo": "بيانات العميل",
         "deviceDetails": "تفاصيل الجهاز",
         "issuesCondition": "المشاكل والحالة",
         "ticketSummary": "ملخص التذكرة",
-        "savePrint": "حفظ وطباعة",
-        "createTicket": "إنشاء تذكرة",
-        "cancel": "إلغاء",
-        "quickLookup": "بحث سريع",
         "brand": "الماركة",
         "model": "الموديل",
         "imei": "IMEI / سيريال",
@@ -924,15 +1018,11 @@
         "pattern": "النمط",
         "estimatedCost": "التكلفة التقديرية",
         "expectedDuration": "الوقت المتوقع (دقائق)",
-        "plus1h": "+1 ساعة",
-        "plus1d": "+1 يوم",
         "issueDescription": "وصف المشكلة",
         "conditionNotes": "ملاحظات الحالة",
         "toastCreated": "تم إنشاء التذكرة بنجاح",
-        "toastOffline": "تم حفظ التذكرة محلياً",
         "name": "الاسم",
-        "phone": "موبايل",
-        "email": "بريد إلكتروني",
+        "phone": "موبييل",
         "customerLabel": "العميل",
         "deviceLabel": "الجهاز",
         "issueLabel": "المشكلة",
@@ -945,6 +1035,65 @@
             "printLabel": "طباعة الملصق",
             "invoiceDescription": "فاتورة العميل مع التفاصيل والتوزيع",
             "barcodeDescription": "ملصق الباركود للجهاز"
+        },
+        "workflowHeader": "سير العمل",
+        "statusActions": "الحالة والإجراءات",
+        "assignedEngineer": "الفني المسؤول",
+        "securityHeader": "الأمان والوصول",
+        "repairLogHeader": "سجل الإصلاح والملاحظات",
+        "notesTab": "ملاحظات",
+        "partsTab": "قطع الغيار",
+        "returnCount": "عدد مرات الإرجاع: {count}",
+        "issueRefund": "إصدار استرداد",
+        "returnForRepair": "إرجاع للإصلاح",
+        "payment": {
+            "paymentSuccess": "تم الدفع بنجاح",
+            "paymentError": "خطأ في الدفع",
+            "confirmPayment": "تأكيد الدفع",
+            "balanceDue": "المبلغ المستحق",
+            "paymentAmount": "مبلغ الدفعة"
+        },
+        "quickEdit": {
+            "title": "تعديل سريع للتذكرة #{barcode}",
+            "saveChanges": "حفظ التغييرات",
+            "cancel": "إلغاء"
+        },
+        "deleteDialog": {
+            "title": "حذف التذكرة #{barcode}",
+            "confirmDelete": "تأكيد الحذف",
+            "cancel": "إلغاء",
+            "reasonRequired": "السبب (مطلوب)"
+        },
+        "PartsManager": {
+            "title": "قطع الغيار والاستهلاك",
+            "add": "إضافة عنصر",
+            "quantity": "الكمية",
+            "totalconsumption": "إجمالي الاستهلاك:",
+            "inStock": "متوفر: {count}"
+        }
+    },
+    "Engineers": {
+        "title": "إدارة الفنيين",
+        "stats": {
+            "total": "إجمالي الفنيين",
+            "activeTickets": "تذاكر نشطة",
+            "completed": "وظائف مكتملة",
+            "avgTime": "متوسط وقت الإصلاح",
+            "avgCommission": "متوسط العمولة"
+        },
+        "form": {
+            "name": "الاسم الكامل",
+            "phone": "رقم الهاتف",
+            "branch": "الفرع المعين",
+            "commission": "نسبة العمولة (%)",
+            "skills": "المهارات",
+            "save": "حفظ الفني",
+            "cancel": "إلغاء"
+        },
+        "details": {
+            "totalCommission": "إجمالي العمولة",
+            "unpaidBalance": "الرصيد غير المدفوع",
+            "personalStock": "المخزون الشخصي"
         }
     },
     "SpareParts": {
@@ -953,15 +1102,22 @@
         "searchPlaceholder": "ابحث عن قطعة غيار...",
         "brand": "الماركة",
         "productName": "اسم المنتج",
-        "selectBrand": "اختر الماركة",
-        "allBrands": "جميع الماركات",
         "quantity": "الكمية",
         "costPrice": "التكلفة",
         "sellPrice": "سعر البيع",
-        "resultsCount": "{count} قطعة",
-        "noResults": "لا توجد نتائج",
-        "actions": "الإجراءات",
         "save": "حفظ",
         "cancel": "إلغاء"
+    },
+    "returns": {
+        "tabTitle": "الأجهزة المرتجعة",
+        "count": "{count} جهاز تم إرجاعه للإصلاح",
+        "noReturns": "لا توجد مرتجعات",
+        "table": {
+            "device": "الجهاز",
+            "customer": "العميل",
+            "returnedAt": "تاريخ الإرجاع",
+            "reason": "سبب الإرجاع",
+            "status": "الحالة"
+        }
     }
 }

@@ -49,7 +49,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
 
             {/* ── Customer ── */}
             <div className="mb-4">
-                <div className="text-xs font-bold border-b border-black mb-1">{t.customerHeader || "معلومات العميل"}</div>
+                <div className="text-xs font-bold border-b border-black mb-1">{t.customerInfo || "معلومات العميل"}</div>
                 <div className="flex justify-between items-center">
                     <span>{t.name || "الاسم"}</span>
                     <span className="font-bold">{ticket.customerName}</span>
@@ -63,7 +63,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
 
             {/* ── Device ── */}
             <div className="mb-4">
-                <div className="text-xs font-bold border-b border-black mb-1">{t.deviceHeader || "تفاصيل الجهاز"}</div>
+                <div className="text-xs font-bold border-b border-black mb-1">{t.deviceDetails || "تفاصيل الجهاز"}</div>
                 <div className="flex justify-between items-center">
                     <span>{t.device || "الجهاز"}</span>
                     <span className="font-bold">{`${ticket.deviceBrand} ${ticket.deviceModel}`}</span>
@@ -104,7 +104,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
 
             {/* ── Issue ── */}
             <div className="mb-4">
-                <div className="text-xs font-bold border-b border-black mb-1">{t.issueHeader || "المشكلة"}</div>
+                <div className="text-xs font-bold border-b border-black mb-1">{t.issueLabel || "المشكلة"}</div>
                 <div className="p-1 text-sm">
                     {ticket.issueDescription}
                 </div>
@@ -114,7 +114,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
             {(ticket.repairPrice > 0 || ticket.amountPaid > 0) && (
                 <div className="mb-4">
                     <div className="text-xs font-bold border-b border-black mb-1">
-                        {t.financialHeader || "التفاصيل المالية"}
+                        {t.financialsHeader || "التفاصيل المالية"}
                     </div>
 
                     {/* Total */}
@@ -134,7 +134,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
 
                     {/* Due */}
                     <div className="flex justify-between items-center text-base font-black border-t border-black/20 mt-1 pt-1">
-                        <span>{t.due || "المتبقي"}</span>
+                        <span>{t.balanceDue || "المتبقي"}</span>
                         <span dir="ltr">
                             {formatCurrency(Math.max(0, (ticket.repairPrice || 0) - (ticket.amountPaid || 0)), settings.currency)}
                         </span>
