@@ -1,0 +1,1 @@
+const Database = require('better-sqlite3'); const db = new Database('./prisma/dev.db', { readonly: true }); const rows = db.prepare('SELECT id, name, isDefault, branchId FROM Warehouse').all(); console.log(JSON.stringify(rows, null, 2));

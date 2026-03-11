@@ -32,7 +32,7 @@ export default async function InventoryPage() {
 
     // Filter warehouses
     const isHQ = user?.role === 'ADMIN' || user?.role === 'Manager' || user?.branchType === 'CENTER';
-    const warehouseWhere = isHQ ? {} : { branchId: user?.branchId || '' };
+    const warehouseWhere = isHQ ? { deletedAt: null } : { branchId: user?.branchId || '', deletedAt: null };
 
     const warehousesRaw = await prisma.warehouse.findMany({
         where: warehouseWhere,

@@ -24,6 +24,7 @@ const buttonVariants = cva(
                 sm: "h-10 rounded-md px-4 text-xs", // Bumping up for touch (was h-9)
                 lg: "h-13 rounded-md px-8 text-lg", // Larger
                 icon: "h-12 w-12", // Larger touch target (was h-11)
+                xs: "h-7 px-2 text-[10px] uppercase tracking-wider font-bold",
             },
         },
         defaultVariants: {

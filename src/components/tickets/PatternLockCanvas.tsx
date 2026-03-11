@@ -12,10 +12,10 @@ interface PatternLockCanvasProps {
     className?: string;
 }
 
-// 3x3 grid node positions (0-8)
-// 0 1 2
-// 3 4 5
-// 6 7 8
+// 3x3 grid node positions (1-9)
+// 1 2 3
+// 4 5 6
+// 7 8 9
 
 export default function PatternLockCanvas({
     value = '',
@@ -35,7 +35,8 @@ export default function PatternLockCanvas({
     const padding = size * 0.2;
     const spacing = (size - 2 * padding) / 2;
 
-    const getNodePosition = useCallback((index: number) => {
+    const getNodePosition = useCallback((id: number) => {
+        const index = id - 1; // Convert 1-9 to 0-8 for math
         const row = Math.floor(index / 3);
         const col = index % 3;
         return {
@@ -66,7 +67,7 @@ export default function PatternLockCanvas({
         ctx.clearRect(0, 0, size, size);
 
         // Draw grid dots
-        for (let i = 0; i < 9; i++) {
+        for (let i = 1; i <= 9; i++) {
             const pos = getNodePosition(i);
             const isSelected = selectedNodes.includes(i);
 
@@ -95,7 +96,7 @@ export default function PatternLockCanvas({
                 ctx.font = 'bold 12px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(String(i + 1), pos.x, pos.y);
+                ctx.fillText(String(i), pos.x, pos.y);
             }
         }
 
@@ -134,7 +135,7 @@ export default function PatternLockCanvas({
     }, [selectedNodes, isDrawing, currentPos, size, nodeRadius, disabled, showNumbers, getNodePosition]);
 
     const getNodeAtPosition = useCallback((x: number, y: number): number | null => {
-        for (let i = 0; i < 9; i++) {
+        for (let i = 1; i <= 9; i++) {
             const pos = getNodePosition(i);
             const distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
             if (distance <= nodeRadius * 1.5) {
@@ -250,7 +251,7 @@ export default function PatternLockCanvas({
             {/* Pattern preview text */}
             {selectedNodes.length > 0 && (
                 <div className="mt-2 text-xs text-center text-zinc-500 font-mono">
-                    Pattern: {selectedNodes.map(n => n + 1).join(' → ')}
+                    Pattern: {selectedNodes.join(' → ')}
                 </div>
             )}
         </div>

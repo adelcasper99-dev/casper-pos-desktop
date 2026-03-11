@@ -40,6 +40,14 @@ export default function SimpleWorkflowActions({ ticket, user, onUpdate, csrfToke
 
     // 2. Action Handlers
     const handleTransition = async (targetStatus: string, stepName: string) => {
+        // Intercept: If trying to start repair but no engineer is assigned
+        if (targetStatus === 'IN_PROGRESS' && !ticket.technicianId) {
+            toast.error("يجب تعيين مهندس أولاً לבدء الإصلاح");
+            // Optionally, we could pop open the modal here if we passed it down, 
+            // but for SimpleWorkflowActions we'll just block it with a clear message since it's a simplified view.
+            return;
+        }
+
         setLoading(stepName);
         try {
             // Special Case: Saving Duration before starting repair

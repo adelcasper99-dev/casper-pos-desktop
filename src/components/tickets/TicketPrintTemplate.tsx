@@ -43,7 +43,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
                 </div>
                 {/* Date string — always LTR */}
                 <p className="text-xs mt-2 text-zinc-600" dir="ltr">
-                    {new Date(ticket.createdAt).toLocaleString('en-GB')}
+                    {new Date(ticket.createdAt).toLocaleString('ar-EG')}
                 </p>
             </div>
 
@@ -70,7 +70,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
                 </div>
                 {ticket.deviceImei && (
                     <div className="flex justify-between items-center">
-                        <span>IMEI</span>
+                        <span>{t.imei || "سيريال"}</span>
                         {/* IMEI is always LTR digits */}
                         <span className="font-bold" dir="ltr">{ticket.deviceImei}</span>
                     </div>
@@ -79,6 +79,24 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
                     <span>{t.detail || "اللون"}</span>
                     <span className="font-bold">{ticket.deviceColor || '-'}</span>
                 </div>
+
+                {/* Security Code */}
+                {ticket.securityCode && (
+                    <div className="flex justify-between items-center mt-1">
+                        <span>{t.security || "رمز القفل"}</span>
+                        <span className="font-bold" dir="ltr">{ticket.securityCode}</span>
+                    </div>
+                )}
+
+                {/* Pattern Lock */}
+                {ticket.patternData && (
+                    <div className="flex justify-between items-center mt-1">
+                        <span>{t.pattern || "نمط القفل"}</span>
+                        <span className="font-bold" dir="ltr">
+                            {ticket.patternData.split(',').map((n: string) => n.trim()).filter((n: string) => n).join('→')}
+                        </span>
+                    </div>
+                )}
 
                 {/* Condition */}
                 {ticket.conditionNotes && (

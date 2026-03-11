@@ -1,8 +1,8 @@
 'use server';
 
 import { prisma } from "@/lib/prisma";
-import { Decimal } from "@prisma/client/runtime/library";
 import { startOfDay, endOfDay, subDays, eachDayOfInterval, format } from 'date-fns';
+
 
 interface ReportFilters {
     startDate?: string;
@@ -29,9 +29,11 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
         const branchFilter = filters?.branchId ? { branchId: filters.branchId } : {};
         const categoryFilter = filters?.categoryId ? { product: { categoryId: filters.categoryId } } : {};
         const productFilter = filters?.productId ? { productId: filters.productId } : {};
+        const ticketBranchFilter = filters?.branchId ? { currentBranchId: filters.branchId } : {};
 
-        // 📊 REVENUE: Sales Aggregation
-        // If we have category or product filters, we must calculate from SaleItems
+        // ─────────────────────────────────────────────────────────────────────
+        // 📦 POS REVENUE: Sales
+        // ─────────────────────────────────────────────────────────────────────
         let totalSalesRevenue = 0;
         let totalCOGS = 0;
         let saleCount = 0;
@@ -54,6 +56,30 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             date: { gte: startDate, lte: endDate }
         };
 
+        // ─────────────────────────────────────────────────────────────────────
+        // 🔧 MAINTENANCE REVENUE: Tickets (DELIVERED or PAID_DELIVERED)
+        // ─────────────────────────────────────────────────────────────────────
+        const tickets = await prisma.ticket.findMany({
+            where: {
+                createdAt: { gte: startDate, lte: endDate },
+                status: { in: ['DELIVERED', 'PAID_DELIVERED', 'CLOSED'] },
+                deletedAt: null,
+                ...ticketBranchFilter
+            },
+            select: {
+                id: true,
+                repairPrice: true,
+                partsCost: true,
+                createdAt: true,
+                currentBranchId: true,
+                currentBranch: { select: { name: true } }
+            }
+        });
+
+        const totalTicketRevenue = tickets.reduce((sum, t) => sum + Number(t.repairPrice), 0);
+        const totalTicketPartsCost = tickets.reduce((sum, t) => sum + Number(t.partsCost || 0), 0);
+        const ticketCount = tickets.length;
+
         if (filters?.categoryId || filters?.productId) {
             // -------------------------------------------------------------
             // ITEM AGGREGATION FALLBACK (if Category or Product Filtered)
@@ -71,19 +97,12 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             totalCOGS = filteredItems.reduce((sum, item) => sum + (Number(item.unitCost) * item.quantity), 0);
             saleCount = new Set(filteredItems.map(i => i.saleId)).size;
 
-            // For Expenses, just use Expense table since filters don't apply to them anyway (but we still need a number)
             const expensesAgg = await prisma.expense.aggregate({
                 where: { date: { gte: startDate, lte: endDate } },
                 _sum: { amount: true }
             });
             totalExpenses = Number(expensesAgg._sum.amount || 0);
 
-            // Purchases fallback
-            const purchaseWhere: any = {
-                purchaseDate: { gte: startDate, lte: endDate },
-                status: { not: 'VOIDED' },
-                warehouse: branchFilter.branchId ? { branchId: branchFilter.branchId } : undefined
-            };
             const filteredPurchaseItems = await prisma.purchaseItem.findMany({
                 where: {
                     invoice: purchaseWhere,
@@ -100,14 +119,10 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             // -------------------------------------------------------------
             const baseJournalEntryWhere = {
                 date: { gte: startDate, lte: endDate },
-                // If branch filter is applied, we need entries tied to that branch.
-                // This is complex as it spans sales/purchases/misc. For now, strict branch filtering via Journal might need improvement if used heavily.
-                // We'll apply it loosely based on sale/purchase relations if possible, or omit for pure ledger.
                 ...(branchFilter.branchId ? {
                     OR: [
                         { sale: { warehouse: { branchId: branchFilter.branchId } } },
                         { purchase: { warehouse: { branchId: branchFilter.branchId } } },
-                        // For pure ledger entries, branch tying might be missing unless added structurally.
                     ]
                 } : {})
             };
@@ -119,14 +134,13 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             });
             totalSalesRevenue = Number(salesAgg._sum.credit || 0);
 
-            // Count sales (still need to hit Sale table for simple count unfortunately, or count distinct journal entries with saleId)
             const saleCountAgg = await prisma.sale.aggregate({
                 where: saleWhere,
                 _count: { id: true }
             });
             saleCount = Number(saleCountAgg._count.id || 0);
 
-            // COGS (5000)
+            // COGS (5000) — POS only
             const cogsSum = await prisma.journalLine.aggregate({
                 where: { account: { code: '5000' }, journalEntry: baseJournalEntryWhere },
                 _sum: { debit: true }
@@ -140,7 +154,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             });
             totalExpenses = Number(expensesAgg._sum.debit || 0);
 
-            // Purchases (1200) where tied to a purchaseId
+            // Purchases (1200)
             const purchasesAgg = await prisma.journalLine.aggregate({
                 where: {
                     account: { code: '1200' },
@@ -151,10 +165,15 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             totalPurchases = Number(purchasesAgg._sum.debit || 0);
         }
 
-        const totalRevenue = totalSalesRevenue;
-        const netProfit = totalRevenue - totalExpenses - totalCOGS;
+        // ─────────────────────────────────────────────────────────────────────
+        // 🎯 COMBINED KPIs
+        // ─────────────────────────────────────────────────────────────────────
+        const totalRevenue = totalSalesRevenue + totalTicketRevenue;
+        const netProfit = totalRevenue - totalExpenses - totalCOGS - totalTicketPartsCost;
 
-        // 📈 TREND DATA: Daily Revenue
+        // ─────────────────────────────────────────────────────────────────────
+        // 📈 TREND DATA: Daily Revenue (POS + Maintenance)
+        // ─────────────────────────────────────────────────────────────────────
         let trendData: any[] = [];
         const daysInRange = eachDayOfInterval({ start: startDate, end: endDate });
 
@@ -171,13 +190,15 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             trendData = daysInRange.map(day => {
                 const dayStart = startOfDay(day);
                 const dayEnd = endOfDay(day);
-                const dayRev = filteredItemsForTrend
+                const dayPOS = filteredItemsForTrend
                     .filter(item => item.sale.createdAt >= dayStart && item.sale.createdAt <= dayEnd)
                     .reduce((sum, item) => sum + (Number(item.unitPrice) * item.quantity), 0);
-                return { date: format(day, 'yyyy-MM-dd'), revenue: dayRev };
+                const dayMaint = tickets
+                    .filter(t => t.createdAt >= dayStart && t.createdAt <= dayEnd)
+                    .reduce((sum, t) => sum + Number(t.repairPrice), 0);
+                return { date: format(day, 'yyyy-MM-dd'), revenue: dayPOS + dayMaint, posRevenue: dayPOS, maintenanceRevenue: dayMaint };
             });
         } else {
-            // LEDGER AGGREGATION FOR TREND
             const baseJournalEntryWhereForTrend = {
                 date: { gte: startDate, lte: endDate },
                 ...(branchFilter.branchId ? {
@@ -199,38 +220,35 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             trendData = daysInRange.map(day => {
                 const dayStart = startOfDay(day);
                 const dayEnd = endOfDay(day);
-                const dayRevenue = journalLinesForTrend
+                const dayPOS = journalLinesForTrend
                     .filter(line => line.journalEntry.date >= dayStart && line.journalEntry.date <= dayEnd)
                     .reduce((sum, line) => sum + Number(line.credit || 0), 0);
-                return { date: format(day, 'yyyy-MM-dd'), revenue: dayRevenue };
+                const dayMaint = tickets
+                    .filter(t => t.createdAt >= dayStart && t.createdAt <= dayEnd)
+                    .reduce((sum, t) => sum + Number(t.repairPrice), 0);
+                return { date: format(day, 'yyyy-MM-dd'), revenue: dayPOS + dayMaint, posRevenue: dayPOS, maintenanceRevenue: dayMaint };
             });
         }
 
-        // 📋 DETAILED TRANSACTIONS
+        // ─────────────────────────────────────────────────────────────────────
+        // 📋 DETAILED TRANSACTIONS (POS + Maintenance)
+        // ─────────────────────────────────────────────────────────────────────
         const TAKE_LIMIT = 50;
         let transactions: any[] = [];
 
         if (filters?.categoryId || filters?.productId) {
-            // FALLBACK TO ITEM-BASED TRANSACTION LIST
-            let recentSales: any[] = [];
             const saleIdsWithItems = await prisma.saleItem.findMany({
-                where: {
-                    sale: saleWhere,
-                    ...categoryFilter,
-                    ...productFilter
-                },
+                where: { sale: saleWhere, ...categoryFilter, ...productFilter },
                 select: { saleId: true },
                 distinct: ['saleId'],
                 take: TAKE_LIMIT
             });
-
-            recentSales = await prisma.sale.findMany({
+            const recentSales = await prisma.sale.findMany({
                 where: { id: { in: saleIdsWithItems.map(i => i.saleId) } },
                 include: { warehouse: { include: { branch: true } } },
                 orderBy: { createdAt: 'desc' }
             });
 
-            let recentPurchases: any[] = [];
             const purchaseIdsWithItems = await prisma.purchaseItem.findMany({
                 where: {
                     invoice: purchaseWhere,
@@ -241,50 +259,21 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 distinct: ['purchaseInvoiceId'],
                 take: TAKE_LIMIT
             });
-
-            recentPurchases = await prisma.purchaseInvoice.findMany({
+            const recentPurchases = await prisma.purchaseInvoice.findMany({
                 where: { id: { in: purchaseIdsWithItems.map(i => i.purchaseInvoiceId) } },
                 include: { warehouse: { include: { branch: true } } },
                 orderBy: { purchaseDate: 'desc' }
             });
-
-            const recentExpenses = await prisma.expense.findMany({
-                where: expenseWhere,
-                orderBy: { date: 'desc' },
-                take: TAKE_LIMIT
-            });
+            const recentExpenses = await prisma.expense.findMany({ where: expenseWhere, orderBy: { date: 'desc' }, take: TAKE_LIMIT });
 
             transactions = [
-                ...recentSales.map(s => ({
-                    id: s.id,
-                    date: s.createdAt.toISOString(),
-                    type: 'SALE',
-                    amount: Number(s.totalAmount),
-                    branch: s.warehouse?.branch?.name ?? 'الفرع الرئيسي',
-                    method: s.paymentMethod
-                })),
-                ...recentPurchases.map(p => ({
-                    id: p.id,
-                    date: p.purchaseDate.toISOString(),
-                    type: 'PURCHASE',
-                    amount: -Number(p.totalAmount),
-                    branch: p.warehouse?.branch?.name ?? 'الفرع الرئيسي',
-                    method: p.paymentMethod
-                })),
-                ...recentExpenses.map(e => ({
-                    id: e.id,
-                    date: e.date.toISOString(),
-                    type: 'EXPENSE',
-                    amount: -Number(e.amount),
-                    description: e.description,
-                    category: e.category,
-                    method: e.paymentMethod
-                }))
-            ]
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .slice(0, TAKE_LIMIT);
+                ...recentSales.map(s => ({ id: s.id, date: s.createdAt.toISOString(), type: 'SALE', amount: Number(s.totalAmount), branch: s.warehouse?.branch?.name ?? 'الفرع الرئيسي', method: s.paymentMethod })),
+                ...recentPurchases.map(p => ({ id: p.id, date: p.purchaseDate.toISOString(), type: 'PURCHASE', amount: -Number(p.totalAmount), branch: p.warehouse?.branch?.name ?? 'الفرع الرئيسي', method: p.paymentMethod })),
+                ...recentExpenses.map(e => ({ id: e.id, date: e.date.toISOString(), type: 'EXPENSE', amount: -Number(e.amount), description: e.description, category: e.category, method: e.paymentMethod })),
+                ...tickets.slice(0, TAKE_LIMIT).map(t => ({ id: t.id, date: t.createdAt.toISOString(), type: 'MAINTENANCE', amount: Number(t.repairPrice), branch: t.currentBranch?.name ?? 'الفرع الرئيسي', method: 'صيانة' }))
+            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, TAKE_LIMIT);
+
         } else {
-            // LEDGER DIRECT TRANSACTION LIST
             const baseJournalEntryWhereForList = {
                 date: { gte: startDate, lte: endDate },
                 ...(branchFilter.branchId ? {
@@ -306,51 +295,37 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 take: TAKE_LIMIT
             });
 
-            transactions = recentEntries.map(entry => {
-                // Determine primary type
-                let type = 'JOURNAL';
-                let amount = 0;
-                let branch = 'الفرع الرئيسي';
-                let method = 'دفتر القيود';
-                let description = entry.description;
-
+            const ledgerTx = recentEntries.map(entry => {
+                let type = 'JOURNAL', amount = 0, branch = 'الفرع الرئيسي', method = 'دفتر القيود', description = entry.description;
                 if (entry.sale) {
-                    type = 'SALE';
-                    branch = entry.sale.warehouse?.branch?.name ?? branch;
-                    method = entry.sale.paymentMethod;
-                    // For a sale, amount is the credit to 4000
+                    type = 'SALE'; branch = entry.sale.warehouse?.branch?.name ?? branch; method = entry.sale.paymentMethod;
                     amount = Number(entry.lines.find(l => l.accountId === '4000')?.credit || entry.sale.totalAmount);
                 } else if (entry.purchase) {
-                    type = 'PURCHASE';
-                    branch = entry.purchase.warehouse?.branch?.name ?? branch;
-                    method = entry.purchase.paymentMethod;
-                    // For a purchase, amount is debit to 1200 (shown as negative expense in UI conventionally)
+                    type = 'PURCHASE'; branch = entry.purchase.warehouse?.branch?.name ?? branch; method = entry.purchase.paymentMethod;
                     amount = -Number(entry.lines.find(l => l.accountId === '1200')?.debit || entry.purchase.totalAmount);
                 } else {
-                    // Try to guess based on accounts
                     if (entry.lines.some(l => ['5100', '5200', '5300', '5400'].includes(l.accountId) && l.debit.greaterThan(0))) {
-                        type = 'EXPENSE';
-                        amount = -Number(entry.lines.find(l => ['5100', '5200', '5300', '5400'].includes(l.accountId))?.debit || 0);
-                    } else if (entry.lines.some(l => ['3000', '3100'].includes(l.accountId) && l.credit.greaterThan(0))) {
-                        type = 'CAPITAL';
-                        amount = Number(entry.lines.find(l => ['3000', '3100'].includes(l.accountId))?.credit || 0);
+                        type = 'EXPENSE'; amount = -Number(entry.lines.find(l => ['5100', '5200', '5300', '5400'].includes(l.accountId))?.debit || 0);
                     } else {
-                        // Default generic journal entry amount (typically sum of debits)
                         amount = entry.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
                     }
                 }
-
-                return {
-                    id: entry.id,
-                    date: entry.date.toISOString(),
-                    type,
-                    amount,
-                    branch,
-                    method,
-                    description,
-                    reference: entry.reference
-                };
+                return { id: entry.id, date: entry.date.toISOString(), type, amount, branch, method, description, reference: entry.reference };
             });
+
+            const maintenanceTx = tickets.slice(0, TAKE_LIMIT).map(t => ({
+                id: t.id,
+                date: t.createdAt.toISOString(),
+                type: 'MAINTENANCE',
+                amount: Number(t.repairPrice),
+                branch: t.currentBranch?.name ?? 'الفرع الرئيسي',
+                method: 'صيانة',
+                description: `تذكرة صيانة`
+            }));
+
+            transactions = [...ledgerTx, ...maintenanceTx]
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .slice(0, TAKE_LIMIT);
         }
 
         const recentAuditLogs = await prisma.auditLog.findMany({
@@ -363,11 +338,18 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             success: true,
             data: {
                 kpis: {
+                    // Combined
                     totalRevenue,
+                    netProfit,
                     totalExpenses,
                     totalPurchases,
-                    netProfit,
-                    count: saleCount
+                    count: saleCount + ticketCount,
+                    // Separated
+                    posRevenue: totalSalesRevenue,
+                    maintenanceRevenue: totalTicketRevenue,
+                    maintenancePartsCost: totalTicketPartsCost,
+                    posCount: saleCount,
+                    maintenanceCount: ticketCount,
                 },
                 trendData,
                 transactions,
@@ -385,6 +367,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
         return { success: false, error: error.message };
     }
 }
+
 
 export async function getBranchesForFilter(): Promise<{ success: boolean; branches: any[] }> {
     try {

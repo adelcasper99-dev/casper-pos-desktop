@@ -34,6 +34,8 @@ import { getEngineerStock } from "@/actions/engineer-actions";
 import { transferStock } from "@/actions/inventory-transfer";
 import GlassModal from "@/components/ui/GlassModal";
 
+import { useTranslations } from '@/lib/i18n-mock';
+
 type EntityType = 'ENGINEER' | 'WAREHOUSE';
 
 export type TransferEntity = {
@@ -72,6 +74,7 @@ export default function TransferConsole({
     onTransferComplete,
     csrfToken
 }: TransferConsoleProps) {
+    const t = useTranslations('Tickets.engineers.transfer');
     const [sourceId, setSourceId] = useState<string>(initialSourceId || '');
     const [destinationId, setDestinationId] = useState<string>('');
     const [sourceItems, setSourceItems] = useState<any[]>([]);
@@ -110,12 +113,12 @@ export default function TransferConsole({
             if (res.success && res.data) {
                 setSourceItems(res.data);
             } else {
-                toast.error("Failed to load inventory");
+                toast.error(t('errors.loadFailed'));
                 setSourceItems([]);
             }
         } catch (error) {
             console.error("Error loading stock:", error);
-            toast.error("Error loading stock");
+            toast.error(t('errors.loadFailed'));
         } finally {
             setLoadingSource(false);
         }
@@ -137,7 +140,7 @@ export default function TransferConsole({
                 if (existing.transferQty < existing.availableQty) {
                     return prev.map(p => p.id === item.id ? { ...p, transferQty: p.transferQty + 1 } : p);
                 }
-                toast.error(`Max quantity reached (${existing.availableQty})`);
+                toast.error(t('errors.maxReached', { max: existing.availableQty }));
                 return prev;
             }
             return [...prev, {
@@ -168,11 +171,11 @@ export default function TransferConsole({
 
     const handleConfirmTransfer = async () => {
         if (!sourceId || !destinationId) {
-            toast.error("Select Source and Destination");
+            toast.error(t('errors.selectRequired'));
             return;
         }
         if (stagingItems.length === 0) {
-            toast.error("No items selected");
+            toast.error(t('errors.noItemsSelected'));
             return;
         }
 
@@ -181,7 +184,7 @@ export default function TransferConsole({
 
         if (!source || !dest) return;
         if (source.id === dest.id) {
-            toast.error("Cannot transfer to same entity");
+            toast.error(t('errors.sameEntity'));
             return;
         }
 
@@ -204,11 +207,11 @@ export default function TransferConsole({
                 onTransferComplete();
                 onClose();
             } else {
-                toast.error(res?.message || "Transfer failed");
+                toast.error(t('errors.failed'));
             }
         } catch (error: any) {
             console.error("Transfer Error:", error);
-            toast.error(error.message || "Failed to transfer");
+            toast.error(t('errors.failed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -225,17 +228,17 @@ export default function TransferConsole({
         >
             <div className="flex flex-col md:flex-row items-center p-6 border-b border-white/10 bg-zinc-900/50 gap-6">
                 <div className="flex-1 w-full">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">From (Source)</label>
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">{t('from')}</label>
                     <Select value={sourceId} onValueChange={setSourceId}>
                         <SelectTrigger className="h-14 bg-black/40 border-white/10 text-white text-lg rounded-xl">
-                            <SelectValue placeholder="Select Source..." />
+                            <SelectValue placeholder={t('selectSource')} />
                         </SelectTrigger>
                         <SelectContent className="bg-zinc-900 border-zinc-800 text-white max-h-[400px]">
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase">Technicians</div>
+                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase">{t('technicians')}</div>
                             {availableSources?.filter(s => s.type === 'ENGINEER').map(s => (
                                 <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
                             ))}
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase border-t border-white/10 mt-2 pt-2">Warehouses</div>
+                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase border-t border-white/10 mt-2 pt-2">{t('warehouses')}</div>
                             {availableSources?.filter(s => s.type === 'WAREHOUSE').map(s => (
                                 <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
                             ))}
@@ -244,24 +247,24 @@ export default function TransferConsole({
                 </div>
 
                 <div className="hidden md:block text-zinc-600">
-                    <ArrowRight className="w-8 h-8" />
+                    <ArrowRight className="w-8 h-8 rtl:rotate-180" />
                 </div>
                 <div className="md:hidden text-zinc-600">
                     <ArrowDown className="w-8 h-8" />
                 </div>
 
                 <div className="flex-1 w-full">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">To (Destination)</label>
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">{t('to')}</label>
                     <Select value={destinationId} onValueChange={setDestinationId}>
                         <SelectTrigger className="h-14 bg-black/40 border-white/10 text-white text-lg rounded-xl">
-                            <SelectValue placeholder="Select Destination..." />
+                            <SelectValue placeholder={t('selectDestination')} />
                         </SelectTrigger>
                         <SelectContent className="bg-zinc-900 border-zinc-800 text-white max-h-[400px]">
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase">Technicians</div>
+                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase">{t('technicians')}</div>
                             {availableDestinations?.filter(s => s.type === 'ENGINEER').map(s => (
                                 <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
                             ))}
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase border-t border-white/10 mt-2 pt-2">Warehouses</div>
+                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase border-t border-white/10 mt-2 pt-2">{t('warehouses')}</div>
                             {availableDestinations?.filter(s => s.type === 'WAREHOUSE').map(s => (
                                 <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
                             ))}
@@ -274,10 +277,10 @@ export default function TransferConsole({
                 <div className="flex-1 flex flex-col border-r border-white/10 bg-black/20">
                     <div className="p-4 border-b border-white/10">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 rtl:left-auto rtl:right-3" />
                             <Input
-                                placeholder="Search products..."
-                                className="pl-10 bg-black/20 border-white/10 h-12 text-lg text-white rounded-lg"
+                                placeholder={t('search')}
+                                className="pl-10 bg-black/20 border-white/10 h-12 text-lg text-white rounded-lg rtl:pl-4 rtl:pr-10"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
@@ -288,9 +291,9 @@ export default function TransferConsole({
                         <Table>
                             <TableHeader className="bg-zinc-900/50 sticky top-0 z-10">
                                 <TableRow className="hover:bg-transparent border-white/5">
-                                    <TableHead className="text-zinc-400">Product</TableHead>
+                                    <TableHead className="text-zinc-400">{t('product')}</TableHead>
                                     <TableHead className="text-zinc-400 w-[100px]">SKU</TableHead>
-                                    <TableHead className="text-right text-zinc-400 w-[100px]">Avail</TableHead>
+                                    <TableHead className="text-right text-zinc-400 w-[100px]">{t('avail')}</TableHead>
                                     <TableHead className="w-[100px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -299,14 +302,14 @@ export default function TransferConsole({
                                     <TableRow>
                                         <TableCell colSpan={4} className="h-40 text-center text-zinc-500">
                                             <div className="flex items-center justify-center gap-2">
-                                                <Loader2 className="w-5 h-5 animate-spin" /> Loading stock...
+                                                <Loader2 className="w-5 h-5 animate-spin" /> {t('loading')}
                                             </div>
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredItems.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="h-40 text-center text-zinc-500">
-                                            {sourceId ? "No items found" : "Select a source to view stock"}
+                                            {sourceId ? t('noResults') : t('selectToView')}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -350,7 +353,7 @@ export default function TransferConsole({
                     <div className="p-4 border-b border-white/10 bg-zinc-900 flex justify-between items-center">
                         <div className="flex items-center gap-2 text-white font-bold">
                             <Package className="w-5 h-5 text-purple-400" />
-                            Transfer List
+                            {t('transferList')}
                         </div>
                         <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded text-xs font-mono">
                             {stagingItems.length}
@@ -394,7 +397,7 @@ export default function TransferConsole({
                         {stagingItems.length === 0 && (
                             <div className="h-full flex flex-col items-center justify-center text-zinc-600 opacity-50">
                                 <ArrowRightLeft className="w-12 h-12 mb-3" />
-                                <p>No items selected</p>
+                                <p>{t('noItems')}</p>
                             </div>
                         )}
                     </div>
@@ -410,10 +413,10 @@ export default function TransferConsole({
                         >
                             {isSubmitting ? (
                                 <div className="flex items-center gap-2">
-                                    <Loader2 className="w-5 h-5 animate-spin" /> Transferring...
+                                    <Loader2 className="w-5 h-5 animate-spin" /> {t('transferring')}
                                 </div>
                             ) : (
-                                `Confirm (${totalItems})`
+                                t('confirm', { count: totalItems })
                             )}
                         </Button>
                     </div>
@@ -422,3 +425,5 @@ export default function TransferConsole({
         </GlassModal>
     );
 }
+
+

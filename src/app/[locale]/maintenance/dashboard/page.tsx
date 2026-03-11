@@ -4,10 +4,13 @@ import { getHQMaintenanceStats } from "@/actions/hq-maintenance-actions";
 import { getVisibleBranches } from "@/actions/branch-actions";
 import { redirect } from "next/navigation";
 import { subDays } from "date-fns";
+import { getTranslations } from "@/lib/i18n-mock";
 
 export default async function MaintenanceDashboardPage() {
     const user = await getCurrentUser();
     if (!user) redirect("/login");
+
+    const t = await getTranslations("MaintenanceHQ");
 
     // Fetch initial data for SSR
     const statsResult = await getHQMaintenanceStats({
@@ -28,11 +31,11 @@ export default async function MaintenanceDashboardPage() {
     return (
         <div className="container mx-auto py-8 px-4">
             <div className="flex flex-col gap-1 mb-8">
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-                    Maintenance HQ Dashboard
+                <h1 className="text-3xl font-extrabold tracking-tight text-white">
+                    {t('title')}
                 </h1>
-                <p className="text-slate-500 text-sm">
-                    Real-time specialized analytics for repairs, success ratios, and technician performance.
+                <p className="text-muted-foreground text-sm font-medium">
+                    {t('subtitle')}
                 </p>
             </div>
 

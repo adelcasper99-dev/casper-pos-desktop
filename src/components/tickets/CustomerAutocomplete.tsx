@@ -84,7 +84,7 @@ export function CustomerAutocomplete({ onSelect, placeholder = "Search existing 
             </div>
 
             {open && results.length > 0 && (
-                <div className="absolute top-full mt-3 w-full z-50 glass-card border-cyan-500/20 shadow-2xl shadow-cyan-900/60 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300">
+                <div className="absolute top-full mt-3 w-full z-[100] glass-card border-cyan-500/20 shadow-2xl shadow-cyan-900/60 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300">
                     <div className="p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
                         <div className="px-4 py-3 border-b border-white/5 mb-1">
                             <p className="text-[11px] font-black text-cyan-500 uppercase tracking-[0.3em]">

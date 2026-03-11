@@ -128,9 +128,11 @@ model Warehouse {
   name                String
   address             String?
   isDefault           Boolean           @default(false)
+  isMaintenanceDefault Boolean          @default(false)
   createdAt           DateTime          @default(now())
   branchId            String
   deletedAt           DateTime?
+
   
   // Relations
   branch              Branch            @relation(fields: [branchId], references: [id])
@@ -434,6 +436,7 @@ model Sale {
   totalAmount        Decimal
   paymentMethod      String
   status             String         @default("NEW")
+  previousStatus     String?
   refundReason       String?
   taxAmount          Decimal        @default(0.00)
   subTotal           Decimal        @default(0.00)
@@ -676,6 +679,7 @@ model Ticket {
   conditionNotes     String?
   warrantyExpiry     DateTime?
   status             String            @default("NEW")
+  previousStatus     String?
   currentBranchId    String
   movementId         String?
   technicianId       String?

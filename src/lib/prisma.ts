@@ -41,6 +41,11 @@ export const prisma =
                 url: getDynamicDbUrl(),
             },
         },
+        // @ts-ignore - Transaction configuration for interactive transactions
+        transactionOptions: {
+            maxWait: 5000, // 5s to wait for a connection
+            timeout: 30000, // 30s for the transaction to complete
+        },
     });
 
 globalForPrisma.prisma = prisma;

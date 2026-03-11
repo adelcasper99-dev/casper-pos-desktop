@@ -10,6 +10,7 @@ import UserManagement from "@/components/settings/UserManagement";
 import RoleManagement from "@/components/settings/RoleManagement";
 import TablesManagement from "@/components/settings/TablesManagement";
 import OpeningBalanceWizard from "@/components/setup/OpeningBalanceWizard";
+import WarehouseSettings from "@/components/settings/WarehouseSettings";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -33,13 +34,20 @@ export default async function SettingsPage() {
     }
 
     // Parallel data fetching
-    const [settingsRes, users, rolesRes, branches] = await Promise.all([
+    const [settingsRes, users, rolesRes, branches, warehouses] = await Promise.all([
         getStoreSettings(),
         getUsersForPage().catch(() => []), // Fail gracefully if permission denied
         getRoles(),
         prisma.branch.findMany({
             select: { id: true, name: true },
             where: { deletedAt: null }
+        }),
+        prisma.warehouse.findMany({
+            where: { 
+                deletedAt: null,
+                branchId: session.user.branchId || undefined
+            },
+            orderBy: { name: 'asc' }
         })
     ]);
 
@@ -82,6 +90,11 @@ export default async function SettingsPage() {
                         <TabsTrigger value="users" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
                             <Users className="w-4 h-4" /> Users & Roles
                         </TabsTrigger>
+                        {canManageSettings && (
+                            <TabsTrigger value="warehouses" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
+                                <Database className="w-4 h-4" /> المستودعات
+                            </TabsTrigger>
+                        )}
                         {canManageSettings && (
                             <>
                                 <TabsTrigger value="tables" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
@@ -168,6 +181,15 @@ export default async function SettingsPage() {
                             )}
                         </Tabs>
                     </TabsContent>
+
+                    {canManageSettings && (
+                        <TabsContent value="warehouses" className="outline-none">
+                            <WarehouseSettings 
+                                warehouses={warehouses as any} 
+                                currentBranchId={session.user.branchId || undefined}
+                            />
+                        </TabsContent>
+                    )}
 
                     {canManageSettings && (
                         <>

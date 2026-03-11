@@ -79,7 +79,27 @@ export async function getFinancialDashboardMetrics(
         });
         const periodSales = Number(salesLines._sum.credit || 0);
 
-        // Purchases: Account 1200 (Debit sum) where purchaseId is not null
+        // Maintenance Revenue: Delivered/Closed Tickets in the period
+        const maintenanceTickets = await prisma.ticket.findMany({
+            where: {
+                status: { in: ['DELIVERED', 'PAID_DELIVERED', 'CLOSED'] },
+                deletedAt: null,
+                createdAt: {
+                    ...(effectiveStartDate ? { gte: effectiveStartDate } : {}),
+                    lte: effectiveEndDate
+                }
+            },
+            select: {
+                repairPrice: true,
+                partsCost: true
+            }
+        });
+
+        const maintenanceRevenue = maintenanceTickets.reduce((sum, t) => sum + Number(t.repairPrice), 0);
+        const maintenancePartsCost = maintenanceTickets.reduce((sum, t) => sum + Number(t.partsCost || 0), 0);
+        const maintenanceCount = maintenanceTickets.length;
+
+
         const purchasesLines = await prisma.journalLine.aggregate({
             _sum: { debit: true },
             where: {
@@ -113,8 +133,8 @@ export async function getFinancialDashboardMetrics(
         });
         const cogs = Number(cogsLines._sum.debit || 0);
 
-        // Net Profit = Sales - COGS - Expenses
-        const netProfit = periodSales - cogs - periodExpenses;
+        // Net Profit = (POS Sales + Maintenance Revenue) - COGS - Maintenance Parts Cost - Expenses
+        const netProfit = (periodSales + maintenanceRevenue) - cogs - maintenancePartsCost - periodExpenses;
 
 
         return {
@@ -122,9 +142,16 @@ export async function getFinancialDashboardMetrics(
             data: {
                 totalAssets,
                 currentCapital,
+                // POS
                 periodSales,
                 periodPurchases,
                 periodExpenses,
+                // Maintenance
+                maintenanceRevenue,
+                maintenancePartsCost,
+                maintenanceCount,
+                // Combined
+                totalRevenue: periodSales + maintenanceRevenue,
                 netProfit
             }
         };

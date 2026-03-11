@@ -1,4 +1,9 @@
-import { Inter } from "next/font/google";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+import "@fontsource/inter/800.css";
+import "@fontsource/inter/900.css";
 import "@/app/globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import Providers from "@/components/Providers";
@@ -7,8 +12,6 @@ import Sidebar from "@/components/Sidebar";
 import { getCurrentUser } from "@/actions/auth";
 import { initDatabase } from "@/lib/db-init";
 import LayoutContent from "./LayoutContent";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
     title: "Casper POS Desktop",
@@ -27,7 +30,7 @@ export default async function RootLayout({
 
     return (
         <html lang="ar" dir="rtl" suppressHydrationWarning>
-            <body className={inter.className}>
+            <body className="antialiased">
                 <Providers initialToken={csrfToken}>
                     <LayoutWrapper user={user}>
                         {children}

@@ -25,7 +25,7 @@ import { Edit, Trash2, PlusCircle } from "lucide-react";
 import GlassModal from "@/components/ui/GlassModal";
 
 export default function NewTicketPage() {
-    const t = useTranslations('Tickets');
+    const t = useTranslations('Tickets.details');
     const tCommon = useTranslations('Common');
     const tVal = useTranslations('Validation');
     const locale = useLocale();
@@ -119,6 +119,7 @@ export default function NewTicketPage() {
     }
 
     const [isExistingCustomer, setIsExistingCustomer] = useState(false);
+    const [showPattern, setShowPattern] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
@@ -248,22 +249,22 @@ export default function NewTicketPage() {
             <form id="ticket-form" onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
 
                 {/* LEFT COLUMN: SCROLLABLE INPUTS */}
-                <div className="lg:col-span-2 overflow-y-auto pr-2 space-y-6 pb-32 scrollbar-hide">
+                <div className="lg:col-span-2 overflow-y-auto pr-1 space-y-3 pb-10 scrollbar-hide">
 
                     {/* Header */}
-                    <div className="flex items-center gap-4 mb-2">
-                        <Button variant="ghost" type="button" onClick={() => router.back()} className="text-zinc-400 hover:text-white hover:bg-white/5">
-                            <ArrowLeft className="h-4 w-4 mr-2" /> {tCommon('back')}
+                    <div className="flex items-center gap-3 mb-1">
+                        <Button variant="ghost" type="button" onClick={() => router.back()} className="h-10 px-4 text-zinc-300 hover:text-white hover:bg-white/10 flex items-center gap-2">
+                            <ArrowLeft className="h-4 w-4" /> <span className="text-sm font-bold">{tCommon('back')}</span>
                         </Button>
-                        <h1 className="text-2xl font-bold text-white">{t('newTicket')}</h1>
+                        <h1 className="text-xl font-black text-white tracking-tight">{t('newTicket')}</h1>
                     </div>
 
                     {/* Customer Info */}
-                    <Card className="glass-card shadow-none bg-transparent overflow-hidden">
-                        <CardHeader className="pb-3 bg-white/5 border-b border-white/10">
-                            <CardTitle className="flex items-center justify-between text-white">
+                    <Card className="shadow-none bg-cyan-500/[0.03] border-2 border-cyan-500/40 mb-2 relative z-20">
+                        <CardHeader className="py-1 px-3 bg-cyan-500/5 border-b border-cyan-500/20">
+                            <CardTitle className="flex items-center justify-between text-cyan-400 text-sm font-black uppercase tracking-tighter">
                                 <div className="flex items-center gap-2">
-                                    <User className="h-5 w-5 text-cyan-400" />
+                                    <User className="h-4 w-4" />
                                     {t('customerInfo')}
                                 </div>
                                 {isExistingCustomer && (
@@ -273,11 +274,11 @@ export default function NewTicketPage() {
                                 )}
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="p-4 bg-cyan-500/5 border border-cyan-500/10 rounded-xl space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-bold text-cyan-500 uppercase tracking-widest">{t('quickLookup')}</label>
-                                    <Search className="h-3 w-3 text-cyan-500/50" />
+                        <CardContent className="p-3 space-y-3">
+                            <div className="p-2 bg-cyan-500/5 border border-cyan-500/10 rounded-xl space-y-1">
+                                <div className="flex items-center justify-between px-1">
+                                    <label className="text-[10px] font-black text-zinc-200 uppercase tracking-widest leading-none">{t('quickLookup')}</label>
+                                    <Search className="h-2.5 w-2.5 text-cyan-400" />
                                 </div>
                                 <CustomerAutocomplete
                                     onSelect={(customer) => {
@@ -294,22 +295,22 @@ export default function NewTicketPage() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-400">{t('name')} <span className="text-red-500">*</span></label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-zinc-100 ml-1">{t('name')} <span className="text-red-500">*</span></label>
                                     <Input
-                                        className="glass-input bg-transparent border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500 h-12"
+                                        className="glass-input bg-zinc-900/50 border-white/20 text-white placeholder:text-zinc-400 focus:border-cyan-500/50 h-10 text-sm font-bold"
                                         name="customerName"
                                         required
                                         value={formData.customerName}
                                         onChange={handleChange}
-                                        placeholder="John Doe"
+                                        placeholder={t('name')}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-400">{t('phone')} <span className="text-red-500">*</span></label>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-zinc-100 ml-1">{t('phone')} <span className="text-red-500">*</span></label>
                                     <Input
-                                        className="glass-input bg-transparent border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500 h-12 font-mono tracking-wider"
+                                        className="glass-input bg-zinc-900/50 border-white/20 text-white placeholder:text-zinc-400 focus:border-cyan-500/50 h-10 text-sm font-bold tracking-wider"
                                         name="customerPhone"
                                         required
                                         value={formData.customerPhone}
@@ -323,34 +324,61 @@ export default function NewTicketPage() {
                                         minLength={11}
                                     />
                                 </div>
-                                <div className="space-y-2 md:col-span-2">
-                                    <label className="text-sm font-medium text-zinc-400">{t('email')}</label>
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-xs font-bold text-zinc-100">{t('pin')}</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPattern(!showPattern)}
+                                            className={cn(
+                                                "text-[10px] uppercase font-bold tracking-widest transition-colors",
+                                                showPattern ? "text-yellow-500" : "text-zinc-500 hover:text-white"
+                                            )}
+                                        >
+                                            {showPattern ? t('hidePattern') : t('usePattern')}
+                                        </button>
+                                    </div>
                                     <Input
-                                        className="glass-input bg-transparent border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500 h-12"
-                                        name="customerEmail"
-                                        type="email"
-                                        value={formData.customerEmail}
+                                        className="glass-input bg-zinc-900/50 border-white/20 text-white placeholder:text-zinc-400 focus:border-cyan-500/50 h-10 text-sm font-bold tracking-widest"
+                                        name="securityCode"
+                                        value={formData.securityCode}
                                         onChange={handleChange}
-                                        placeholder="john@example.com"
+                                        placeholder={t('pinPlaceholder')}
+                                        maxLength={20}
                                     />
                                 </div>
                             </div>
+
+                            {showPattern && (
+                                <div className="mt-3 p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-xl flex items-center justify-center animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">{t('pattern')}</label>
+                                        <div className="bg-black/40 p-2 rounded-lg border border-yellow-500/10">
+                                            <PatternLockCanvas
+                                                value={formData.patternData}
+                                                onChange={(pattern) => setFormData(prev => ({ ...prev, patternData: pattern }))}
+                                                size={140}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* Device Info */}
-                    <Card className="glass-card shadow-none bg-transparent">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-white">
-                                <Smartphone className="h-5 w-5 text-cyan-400" />
+                    <Card className="shadow-none bg-cyan-500/[0.03] border-2 border-cyan-500/40 mb-2">
+                        <CardHeader className="py-1 px-3 bg-cyan-500/5 border-b border-cyan-500/20">
+                            <CardTitle className="flex items-center gap-2 text-cyan-400 text-sm font-black uppercase tracking-tighter">
+                                <Smartphone className="h-4 w-4" />
                                 {t('deviceDetails')}
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="p-3 space-y-3">
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-300">{t('brand')} <span className="text-red-500">*</span></label>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-zinc-100 ml-1">{t('brand')} <span className="text-red-500">*</span></label>
                                     <SearchableSelect
                                         options={uniqueBrands}
                                         value={formData.deviceBrand}
@@ -359,80 +387,71 @@ export default function NewTicketPage() {
                                                 setFormData(prev => ({ ...prev, deviceBrand: val, deviceModel: '' }));
                                             }
                                         }}
-                                        onAdd={(newBrand) => {
-                                            setFormData(prev => ({ ...prev, deviceBrand: newBrand }))
-                                        }}
-                                        placeholder="Select or Type Brand..."
+                                        onAdd={(val) => setFormData(prev => ({ ...prev, deviceBrand: val }))}
+                                        placeholder={t('selectBrand')}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-300">{t('model')} <span className="text-red-500">*</span></label>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-zinc-200 uppercase tracking-widest ml-1">{t('model')} <span className="text-red-500">*</span></label>
                                     <SearchableSelect
                                         options={modelsForSelectedBrand}
                                         value={formData.deviceModel}
                                         onChange={(val) => setFormData(prev => ({ ...prev, deviceModel: val }))}
-                                        onAdd={(newModel) => setFormData(prev => ({ ...prev, deviceModel: newModel }))}
-                                        placeholder={formData.deviceBrand ? `Select ${formData.deviceBrand} Model...` : "Select Brand First..."}
+                                        onAdd={(val) => setFormData(prev => ({ ...prev, deviceModel: val }))}
+                                        placeholder={formData.deviceBrand ? `Select ${formData.deviceBrand} Model...` : t('selectModel')}
                                         disabled={!formData.deviceBrand}
                                     />
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-300">{t('imei')}</label>
-                                    <Input className="glass-input bg-transparent border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500" name="deviceImei" value={formData.deviceImei} onChange={handleChange} placeholder="352..." />
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-zinc-100 ml-1">{t('imei')}</label>
+                                    <Input className="glass-input bg-zinc-900/50 border-white/20 text-white placeholder:text-zinc-400 focus:border-cyan-500/50 h-10 text-sm font-bold" name="deviceImei" value={formData.deviceImei} onChange={handleChange} placeholder="352..." />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-zinc-300">{t('color')}</label>
-                                    <Input className="glass-input bg-transparent border-white/10 text-white placeholder:text-zinc-600" name="deviceColor" value={formData.deviceColor} onChange={handleChange} placeholder="Space Gray" />
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-zinc-100 ml-1">{t('color')}</label>
+                                    <Input className="glass-input bg-zinc-900/50 border-white/20 text-white placeholder:text-zinc-400 focus:border-cyan-500/50 h-10 text-sm font-bold" name="deviceColor" value={formData.deviceColor} onChange={handleChange} placeholder={t('color')} />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-yellow-500">{t('pin')}</label>
-                                    <Input
-                                        className="glass-input bg-transparent border-yellow-500/50 text-yellow-100 placeholder:text-yellow-500/30 focus:border-yellow-500 text-lg tracking-widest font-mono"
-                                        name="securityCode"
-                                        value={formData.securityCode}
-                                        onChange={handleChange}
-                                        placeholder="1234"
-                                        maxLength={20}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-yellow-500">{t('pattern')}</label>
-                                    <PatternLockCanvas
-                                        value={formData.patternData}
-                                        onChange={(pattern) => setFormData(prev => ({ ...prev, patternData: pattern }))}
-                                        size={150}
-                                    />
-                                </div>
-                            </div>
                         </CardContent>
                     </Card>
 
                     {/* Issue & Condition */}
-                    <Card className="glass-card shadow-none bg-transparent">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-white">
-                                <Wrench className="h-5 w-5 text-cyan-400" />
+                    <Card className="shadow-none bg-yellow-500/[0.03] border-2 border-yellow-600/40">
+                        <CardHeader className="py-1 px-3 bg-yellow-500/5 border-b border-yellow-500/20">
+                            <CardTitle className="flex items-center gap-2 text-yellow-500 text-sm font-black uppercase tracking-tighter">
+                                <Wrench className="h-4 w-4" />
                                 {t('issuesCondition')}
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-sm font-medium text-zinc-300">{t('issueDescription')}</label>
-                                    <button type="button" onClick={() => setIsEditingPresets("ISSUE")} className="text-xs flex items-center gap-1 text-cyan-400 hover:text-cyan-300">
-                                        <Edit className="w-3 h-3" /> {t('editPresets')}
+                        <CardContent className="p-3 space-y-2">
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={() => setIsEditingPresets("ISSUE")} className="h-9 px-3 flex items-center gap-2 text-[10px] text-cyan-400 hover:text-cyan-300 uppercase font-black tracking-widest bg-cyan-500/10 border border-cyan-500/20 rounded-lg shrink-0 transition-colors">
+                                        <Edit className="w-2.5 h-2.5" /> {t('editPresets')}
                                     </button>
+                                    <div className="flex-1">
+                                        <SearchableSelect
+                                            options={issuesList.map(i => i.name).filter(name => !formData.selectedIssues.includes(name))}
+                                            value=""
+                                            onChange={(val) => {
+                                                if (val && !formData.selectedIssues.includes(val)) {
+                                                    const newIssues = [...formData.selectedIssues, val];
+                                                    setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
+                                                }
+                                            }}
+                                            onAdd={(newIssue) => {
+                                                const newIssues = [...formData.selectedIssues, newIssue];
+                                                setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
+                                            }}
+                                            placeholder={t('searchIssuePlaceholder')}
+                                        />
+                                    </div>
+                                    <label className="text-xs font-bold text-zinc-100 shrink-0">{t('issueDescription')}</label>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 mb-2 min-h-[30px]">
+                                <div className="flex flex-wrap gap-1.5 mb-1 min-h-0">
                                     {formData.selectedIssues.map((issue, idx) => (
-                                        <div key={idx} className="flex items-center gap-1 bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 px-3 py-1 rounded-full text-sm">
+                                        <div key={idx} className="flex items-center gap-1.5 bg-cyan-500/20 border border-cyan-500/40 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-lg animate-in zoom-in-95 duration-200">
                                             <span>{issue}</span>
                                             <button
                                                 type="button"
@@ -440,7 +459,7 @@ export default function NewTicketPage() {
                                                     const newIssues = formData.selectedIssues.filter((_, i) => i !== idx);
                                                     setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
                                                 }}
-                                                className="hover:text-white"
+                                                className="hover:text-red-400 transition-colors"
                                             >
                                                 <X className="h-3 w-3" />
                                             </button>
@@ -460,32 +479,16 @@ export default function NewTicketPage() {
                                                 }
                                             }}
                                             className={cn(
-                                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                                                "px-4 py-2 rounded-xl text-xs font-black transition-all border-2",
                                                 formData.selectedIssues.includes(issue.name)
-                                                    ? "bg-cyan-500 text-black border-cyan-400"
-                                                    : "bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white"
+                                                    ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                                                    : "bg-cyan-500/5 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/10 hover:border-cyan-500/40"
                                             )}
                                         >
-                                            {formData.selectedIssues.includes(issue.name) ? "✓ " : "+ "}{issue.name}
+                                            {issue.name}
                                         </button>
                                     ))}
                                 </div>
-
-                                <SearchableSelect
-                                    options={issuesList.map(i => i.name).filter(name => !formData.selectedIssues.includes(name))}
-                                    value=""
-                                    onChange={(val) => {
-                                        if (val && !formData.selectedIssues.includes(val)) {
-                                            const newIssues = [...formData.selectedIssues, val];
-                                            setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
-                                        }
-                                    }}
-                                    onAdd={(newIssue) => {
-                                        const newIssues = [...formData.selectedIssues, newIssue];
-                                        setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
-                                    }}
-                                    placeholder={t('searchIssuePlaceholder')}
-                                />
 
                                 <Textarea
                                     name="issueDescription"
@@ -493,21 +496,36 @@ export default function NewTicketPage() {
                                     onChange={(e) => setFormData(prev => ({ ...prev, issueDescription: e.target.value }))}
                                     placeholder={t('additionalNotesPlaceholder')}
                                     rows={2}
-                                    className="resize-none glass-input bg-transparent border-white/10 text-white mt-2"
+                                    className="resize-none glass-input bg-zinc-900/50 border-white/20 text-white mt-2 font-bold placeholder:text-zinc-400"
                                 />
                             </div>
 
-                            <div className="space-y-3 pt-4 border-t border-white/10">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-base font-semibold text-white">{t('conditionNotes')}</label>
-                                    <button type="button" onClick={() => setIsEditingPresets("CONDITION")} className="text-xs flex items-center gap-1 text-cyan-400 hover:text-cyan-300">
-                                        <Edit className="w-3 h-3" /> {t('editPresets')}
+                            <div className="space-y-2 pt-2 border-t border-white/5">
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={() => setIsEditingPresets("CONDITION")} className="h-9 px-3 flex items-center gap-2 text-[10px] text-yellow-500 hover:text-yellow-400 uppercase font-black tracking-widest bg-yellow-500/10 border border-yellow-500/20 rounded-lg shrink-0 transition-colors">
+                                        <Edit className="w-2.5 h-2.5" /> {t('editPresets')}
                                     </button>
+                                    <div className="flex-1">
+                                        <SearchableSelect
+                                            options={conditionsList.map(c => c.name).filter(name => !formData.selectedConditions.includes(name))}
+                                            value=""
+                                            onChange={(val) => {
+                                                if (val && !formData.selectedConditions.includes(val)) {
+                                                    setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, val] }));
+                                                }
+                                            }}
+                                            onAdd={(newCond) => {
+                                                setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, newCond] }));
+                                            }}
+                                            placeholder={t('searchConditionPlaceholder')}
+                                        />
+                                    </div>
+                                    <label className="text-xs font-bold text-zinc-100 shrink-0">{t('conditionNotes')}</label>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 mb-2 min-h-[30px]">
+                                <div className="flex flex-wrap gap-1.5 mb-1 min-h-0">
                                     {formData.selectedConditions.map((cond, idx) => (
-                                        <div key={idx} className="flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 px-3 py-1 rounded-full text-sm">
+                                        <div key={idx} className="flex items-center gap-1.5 bg-yellow-500/20 border border-yellow-500/40 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold shadow-lg animate-in zoom-in-95 duration-200">
                                             <span>{cond}</span>
                                             <button
                                                 type="button"
@@ -515,7 +533,7 @@ export default function NewTicketPage() {
                                                     const newConds = formData.selectedConditions.filter((_, i) => i !== idx);
                                                     setFormData(prev => ({ ...prev, selectedConditions: newConds }));
                                                 }}
-                                                className="hover:text-white"
+                                                className="hover:text-red-400 transition-colors"
                                             >
                                                 <X className="h-3 w-3" />
                                             </button>
@@ -534,56 +552,17 @@ export default function NewTicketPage() {
                                                 }
                                             }}
                                             className={cn(
-                                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                                                "px-4 py-2 rounded-xl text-xs font-black transition-all border-2",
                                                 formData.selectedConditions.includes(cond.name)
-                                                    ? "bg-yellow-500 text-black border-yellow-400"
-                                                    : "bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white"
+                                                    ? "bg-yellow-500 text-black border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
+                                                    : "bg-yellow-500/5 text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/10 hover:border-yellow-500/40"
                                             )}
                                         >
-                                            {formData.selectedConditions.includes(cond.name) ? "✓ " : "+ "}{cond.name}
+                                            {cond.name}
                                         </button>
                                     ))}
                                 </div>
 
-                                <SearchableSelect
-                                    options={conditionsList.map(c => c.name).filter(name => !formData.selectedConditions.includes(name))}
-                                    value=""
-                                    onChange={(val) => {
-                                        if (val && !formData.selectedConditions.includes(val)) {
-                                            setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, val] }));
-                                        }
-                                    }}
-                                    onAdd={(newCond) => {
-                                        setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, newCond] }));
-                                    }}
-                                    placeholder={t('searchConditionPlaceholder')}
-                                />
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                                    {[
-                                        { key: 'cameraWorking', label: 'الكاميرا' },
-                                        { key: 'speakerWorking', label: 'السماعة' },
-                                        { key: 'microphoneWorking', label: 'الميكروفون' },
-                                        { key: 'chargingPortWorking', label: 'الشحن' },
-                                    ].map((item) => (
-                                        <div
-                                            key={item.key}
-                                            className={cn(
-                                                "flex items-center justify-between border p-2 rounded cursor-pointer transition-colors",
-                                                formData[item.key as keyof typeof formData]
-                                                    ? "bg-green-500/10 border-green-500/30"
-                                                    : "bg-red-500/10 border-red-500/30"
-                                            )}
-                                            onClick={() => toggleCheck(item.key)}
-                                        >
-                                            <span className="text-sm text-zinc-300">{item.label}</span>
-                                            {formData[item.key as keyof typeof formData]
-                                                ? <Check className="h-4 w-4 text-green-500" />
-                                                : <X className="h-4 w-4 text-red-500" />
-                                            }
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -591,50 +570,50 @@ export default function NewTicketPage() {
                 </div>
 
                 {/* RIGHT COLUMN: STICKY SUMMARY */}
-                <div className="lg:col-span-1 h-full flex flex-col pb-32">
-                    <Card className="flex-1 flex flex-col glass-card border-cyan-500/20 shadow-lg bg-black/40">
-                        <CardHeader className="bg-white/5 border-b border-white/10">
-                            <CardTitle className="flex items-center gap-2 text-white">
-                                <FileText className="h-5 w-5 text-cyan-400" />
+                <div className="lg:col-span-1 h-full flex flex-col pb-20">
+                    <Card className="flex-1 flex flex-col glass-card border-white/5 shadow-2xl bg-zinc-950/80 backdrop-blur-xl">
+                        <CardHeader className="py-3 px-4 bg-white/5 border-b border-white/10">
+                            <CardTitle className="flex items-center gap-2 text-cyan-400 text-base font-black uppercase tracking-tighter">
+                                <FileText className="h-4 w-4" />
                                 {t('ticketSummary')}
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="flex-1 p-6 space-y-6 overflow-y-auto">
+                        <CardContent className="flex-1 p-3 space-y-3 overflow-y-auto">
 
                             {/* Customer Summary */}
-                            <div className="space-y-1">
-                                <div className="text-sm text-zinc-500">{t('customer')}</div>
-                                <div className="font-semibold text-lg text-white">{formData.customerName || '-'}</div>
-                                <div className="text-sm text-cyan-400">{formData.customerPhone || '-'}</div>
+                            <div className="space-y-0.5">
+                                <div className="text-[10px] text-zinc-200 uppercase font-black tracking-widest">{t('customerLabel')}</div>
+                                <div className="font-bold text-white leading-tight">{formData.customerName || '-'}</div>
+                                <div className="text-xs text-cyan-400/80 font-mono">{formData.customerPhone || '-'}</div>
                             </div>
 
-                            <div className="border-t border-white/10" />
+                            <div className="border-t border-white/5" />
 
                             {/* Device Summary */}
-                            <div className="space-y-1">
-                                <div className="text-sm text-zinc-500">{t('device')}</div>
-                                <div className="font-semibold text-white">{formData.deviceBrand} {formData.deviceModel}</div>
-                                <div className="text-xs text-zinc-500 font-mono">{formData.deviceImei}</div>
+                            <div className="space-y-0.5">
+                                <div className="text-[10px] text-zinc-200 uppercase font-black tracking-widest">{t('deviceLabel')}</div>
+                                <div className="font-bold text-white leading-tight">{formData.deviceBrand} {formData.deviceModel}</div>
+                                <div className="text-[10px] text-zinc-500 font-mono opacity-60">{formData.deviceImei}</div>
                             </div>
 
-                            <div className="border-t border-white/10" />
+                            <div className="border-t border-white/5" />
 
                             {/* Issue Summary */}
-                            <div className="space-y-1">
-                                <div className="text-sm text-zinc-500">{t('issue')}</div>
-                                <div className="text-sm text-white whitespace-pre-wrap">{formData.issueDescription || '-'}</div>
+                            <div className="space-y-0.5">
+                                <div className="text-[10px] text-zinc-200 uppercase font-black tracking-widest">{t('issueLabel')}</div>
+                                <div className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{formData.issueDescription || '-'}</div>
                             </div>
 
-                            <div className="border-t border-white/10" />
+                            <div className="border-t border-white/5" />
 
-                            <div className="space-y-2 bg-white/5 p-4 rounded-lg border border-white/10">
-                                <label className="text-sm text-zinc-400">{t('estimatedCost')}</label>
+                            <div className="space-y-1.5 p-3 bg-white/5 rounded-xl border border-white/5">
+                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('repairCost')}</label>
                                 <div className="relative">
-                                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                                    <DollarSign className="absolute left-3 top-2.5 h-3.5 w-3.5 text-cyan-500" />
                                     <Input
                                         type="number"
                                         name="repairPrice"
-                                        className="pl-12 text-lg font-bold bg-black/50 border-white/10 text-white focus:border-cyan-500"
+                                        className="pl-10 text-xl font-black bg-black/40 border-white/5 text-white focus:border-cyan-500/50 h-10"
                                         value={formData.repairPrice}
                                         onChange={handleChange}
                                         placeholder="0.00"
@@ -642,18 +621,40 @@ export default function NewTicketPage() {
                                 </div>
                             </div>
 
-                            <div className="space-y-2 bg-white/5 p-4 rounded-lg border border-white/10">
-                                <label className="text-sm text-zinc-400">{t('expectedDuration')}</label>
+                            <div className="space-y-1.5 p-3 bg-white/5 rounded-xl border border-white/5">
+                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('expectedDuration')}</label>
                                 <div className="relative">
-                                    <Clock className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                                    <Clock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500/50" />
                                     <Input
                                         type="number"
                                         name="expectedDuration"
-                                        className="pl-12 text-lg font-bold bg-black/50 border-white/10 text-white focus:border-cyan-500"
+                                        className="pl-10 text-xl font-black bg-black/40 border-white/5 text-white focus:border-cyan-500/50 h-10"
                                         value={formData.expectedDuration}
                                         onChange={handleChange}
                                         placeholder="60"
                                     />
+                                </div>
+                                <div className="grid grid-cols-5 gap-1 pt-1">
+                                    {[
+                                        { label: '30M', val: '30' },
+                                        { label: '1H', val: '60' },
+                                        { label: '2H', val: '120' },
+                                        { label: '1D', val: '1440' },
+                                        { label: '3D', val: '4320' },
+                                    ].map(d => (
+                                        <Button
+                                            key={d.val}
+                                            type="button"
+                                            variant="outline"
+                                            className={cn(
+                                                "flex-1 h-12 text-sm font-black border-zinc-700/50 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300 transition-all",
+                                                formData.expectedDuration === d.val && "bg-cyan-500/20 border-cyan-500/50 text-cyan-400 scale-[1.02] shadow-[0_0_15px_rgba(6,182,212,0.15)]"
+                                            )}
+                                            onClick={() => setFormData(prev => ({ ...prev, expectedDuration: d.val }))}
+                                        >
+                                            {d.label}
+                                        </Button>
+                                    ))}
                                 </div>
                             </div>
 
@@ -661,11 +662,11 @@ export default function NewTicketPage() {
 
                         <div className="p-4 bg-white/5 border-t border-white/10">
                             <Button
-                                className="w-full h-12 text-lg gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-900/20"
+                                className="w-full h-20 text-2xl font-black uppercase tracking-widest gap-4 bg-gradient-to-r from-cyan-600 via-blue-600 to-cyan-600 hover:from-cyan-500 hover:via-blue-500 hover:to-cyan-500 text-white shadow-[0_10px_40px_rgba(6,182,212,0.4)] border-t border-white/30 active:scale-[0.98] transition-all rounded-2xl"
                                 onClick={handleSubmit}
                                 disabled={submitting}
                             >
-                                {submitting ? <Loader2 className="animate-spin" /> : <Save className="h-5 w-5" />}
+                                {submitting ? <Loader2 className="h-8 w-8 animate-spin" /> : <Save className="h-8 w-8" />}
                                 {t('saveTicket')}
                             </Button>
                         </div>

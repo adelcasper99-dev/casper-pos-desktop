@@ -32,6 +32,7 @@ export interface Ticket {
 
     // Status
     status: string;
+    previousStatus: string | null;
 
     // Location
     currentBranchId: string;
@@ -77,6 +78,16 @@ export interface Ticket {
     shiftId: string | null;
     movementId: string | null;
     version: number;
+    notes?: TicketNote[];
+}
+
+export interface TicketNote {
+    id: string;
+    ticketId: string;
+    text: string;
+    author: string;
+    isInternal: boolean;
+    createdAt: Date;
 }
 
 /**
@@ -90,6 +101,12 @@ export interface WorkflowTicket {
     deviceBrand: string;
     deviceModel: string;
     customerName: string;
+    customerPhone: string;
+    customerId?: string | null;
     technicianId: string | null;
+    repairPrice: number;
+    amountPaid: number;
     expectedDuration: number | null;
+    notes?: TicketNote[];
+    previousStatus?: string | null;
 }

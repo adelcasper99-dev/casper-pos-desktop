@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle, Clock, TrendingUp } from "lucide-react";
 import { DrillDownType } from "@/actions/hq-drilldown-actions";
+import { useTranslations } from "@/lib/i18n-mock";
 
 interface LiveStatusBoardProps {
     stats: {
@@ -11,12 +12,14 @@ interface LiveStatusBoardProps {
         criticalAging: number;
         delivered: number;
         successRate: string;
+        bounceRate: string;
     } | null;
     loading: boolean;
     onDrillDown?: (type: DrillDownType, title: string) => void;
 }
 
 export function LiveStatusBoard({ stats, loading, onDrillDown }: LiveStatusBoardProps) {
+    const t = useTranslations("MaintenanceHQ.stats");
     if (loading) {
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
@@ -32,7 +35,7 @@ export function LiveStatusBoard({ stats, loading, onDrillDown }: LiveStatusBoard
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Pending */}
             <Card
                 className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
@@ -40,14 +43,14 @@ export function LiveStatusBoard({ stats, loading, onDrillDown }: LiveStatusBoard
             >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Pending Repair
+                        {t('pending')}
                     </CardTitle>
                     <Clock className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{stats?.pending ?? 0}</div>
+                    <div className="text-2xl font-bold text-blue-500">{stats?.pending ?? 0}</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                        Active tickets in workflow
+                        {t('pendingDesc')}
                     </p>
                 </CardContent>
             </Card>
@@ -59,14 +62,14 @@ export function LiveStatusBoard({ stats, loading, onDrillDown }: LiveStatusBoard
             >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Critical Aging (&gt;48h)
+                        {t('critical')}
                     </CardTitle>
                     <AlertTriangle className="h-4 w-4 text-red-500" />
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold text-red-600">{stats?.criticalAging ?? 0}</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                        Tickets overdue for turnover
+                        {t('criticalDesc')}
                     </p>
                 </CardContent>
             </Card>
@@ -78,31 +81,31 @@ export function LiveStatusBoard({ stats, loading, onDrillDown }: LiveStatusBoard
             >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Delivered
+                        {t('delivered')}
                     </CardTitle>
                     <CheckCircle className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold text-green-600">{stats?.delivered ?? 0}</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                        Successfully returned to customer
+                        {t('deliveredDesc')}
                     </p>
                 </CardContent>
             </Card>
 
             {/* Success Rate */}
             <Card
-                className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
+                className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
                 onClick={() => handleClick('REPAIRED', 'Repaired Tickets (Success)')}
             >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Success Ratio
+                        {t('successRatio')}
                     </CardTitle>
-                    <TrendingUp className="h-4 w-4 text-purple-500" />
+                    <TrendingUp className="h-4 w-4 text-emerald-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold text-purple-600">
+                    <div className="text-2xl font-bold text-emerald-500">
                         {stats?.successRate ?? '0.0'}%
                     </div>
                     <Progress
@@ -110,7 +113,31 @@ export function LiveStatusBoard({ stats, loading, onDrillDown }: LiveStatusBoard
                         className="h-2 mt-2"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                        Repaired vs. Total Closed
+                        {t('successRatioDesc')}
+                    </p>
+                </CardContent>
+            </Card>
+
+            {/* Bounce Rate */}
+            <Card
+                className="border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-95"
+            >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                        {t('bounceRate')}
+                    </CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">
+                        {stats?.bounceRate ?? '0.0'}%
+                    </div>
+                    <Progress
+                        value={parseFloat(stats?.bounceRate ?? '0')}
+                        className="h-2 mt-2 bg-slate-100"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {t('bounceRateDesc')}
                     </p>
                 </CardContent>
             </Card>

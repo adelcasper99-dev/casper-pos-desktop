@@ -13,6 +13,9 @@ interface Warehouse {
     name: string;
     address: string | null;
     isDefault: boolean;
+    branch?: {
+        name: string;
+    } | null;
 }
 
 interface StockItem {
@@ -165,6 +168,11 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                             </div>
 
                             <h4 className="font-bold text-lg text-foreground mb-1 truncate">{w.name}</h4>
+                            {w.branch && (
+                                <p className="text-[10px] text-zinc-400 font-bold mb-1 uppercase tracking-wider">
+                                    الفرع: {w.branch.name}
+                                </p>
+                            )}
 
                             {w.address ? (
                                 <p className="text-xs text-muted-foreground flex items-center gap-1">

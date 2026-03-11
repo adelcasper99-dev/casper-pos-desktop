@@ -1248,18 +1248,53 @@ export const getWarehouses = secureAction(async () => {
         user.role === 'Manager' ||
         user.branchType === 'CENTER';
 
+    // --- Self-Healing: Deduplicate MAIN warehouses if any phantom ones exist ---
+    const allBranches = await prisma.branch.findMany({ select: { id: true } });
+    for (const b of allBranches) {
+        const defaultWarehouses = await prisma.warehouse.findMany({
+            where: { branchId: b.id, isDefault: true, deletedAt: null },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        if (defaultWarehouses.length > 1) {
+            for (let i = 1; i < defaultWarehouses.length; i++) {
+                const duplicateWh = defaultWarehouses[i];
+                
+                // Soft-delete the phantom duplicate
+                await prisma.warehouse.update({
+                    where: { id: duplicateWh.id },
+                    data: { 
+                        isDefault: false, 
+                        deletedAt: new Date(),
+                        name: `${duplicateWh.name} (Deleted)` 
+                    }
+                });
+            }
+        }
+    }
+    // --------------------------------------------------------------------------
+
     const warehouses = await prisma.warehouse.findMany({
-        where: isHQUser ? {} : { branchId: user.branchId || '' },
+        where: isHQUser ? { deletedAt: null } : { branchId: user.branchId || '', deletedAt: null },
         include: { branch: true },
         orderBy: { isDefault: 'desc' }
     });
+
+    try {
+        const fs = require('fs');
+        const dbState = {
+            allBranches: await prisma.branch.findMany(),
+            allWarehouses: warehouses,
+        };
+        fs.writeFileSync('C:\\Users\\ozza\\.gemini\\antigravity\\brain\\47ae2f5f-ec29-4607-84f9-2ac1dbec6764\\db_dump.json', JSON.parse(JSON.stringify(dbState, (k, v) => typeof v === 'bigint' ? v.toString() : v)));
+    } catch (e) {}
 
     return { data: warehouses, isHQUser };
 }, { requireCSRF: false });
 
 export const getWarehousesByBranch = secureAction(async (branchId: string) => {
     const warehouses = await prisma.warehouse.findMany({
-        where: { branchId },
+        where: { branchId, deletedAt: null },
         include: { branch: true },
         orderBy: { name: 'asc' }
     });
@@ -1330,9 +1365,22 @@ export const createWarehouse = secureAction(async (data: { name: string; address
         targetBranchId = firstBranch.id;
     }
 
+    // ── Duplicate name check ──────────────────────────────────────────
+    const existing = await prisma.warehouse.findFirst({
+        where: {
+            branchId: targetBranchId,
+            name: { equals: data.name.trim() },
+            deletedAt: null
+        }
+    });
+    if (existing) {
+        return { success: false, error: `يوجد مخزن بنفس الاسم "${data.name}" في هذا الفرع بالفعل.` };
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     await prisma.warehouse.create({
         data: {
-            name: data.name,
+            name: data.name.trim(),
             address: data.address || null,
             branchId: targetBranchId,
             isDefault: false
@@ -1513,17 +1561,39 @@ export const generateNextSku = secureAction(async (options?: {
     return { success: true, sku: newSku };
 }, { requireCSRF: false }); // No permission required - safe read-only operation
 
-export const getProducts = secureAction(async (params: { search?: string; page?: number; limit?: number } = {}) => {
+export const getProducts = secureAction(async (params: { search?: string; page?: number; limit?: number; categoryId?: string; stockStatus?: string } = {}) => {
     const page = params.page || 1;
     const limit = params.limit || 50;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductWhereInput = {};
+    const where: Prisma.ProductWhereInput = {
+        deletedAt: null
+    };
+
     if (params.search) {
         where.OR = [
             { name: { contains: params.search } },
             { sku: { contains: params.search } }
         ];
+    }
+
+    if (params.categoryId) {
+        where.categoryId = params.categoryId;
+    }
+
+    if (params.stockStatus) {
+        if (params.stockStatus === 'in_stock') {
+            where.stock = { gte: 5 };
+            where.trackStock = true;
+        } else if (params.stockStatus === 'low_stock') {
+            where.stock = { gt: 0, lt: 5 };
+            where.trackStock = true;
+        } else if (params.stockStatus === 'out_of_stock') {
+            where.stock = { lte: 0 };
+            where.trackStock = true;
+        } else if (params.stockStatus === 'services') {
+            where.trackStock = false;
+        }
     }
 
     const [products, total] = await Promise.all([
@@ -1542,8 +1612,8 @@ export const getProducts = secureAction(async (params: { search?: string; page?:
             ...p,
             costPrice: p.costPrice.toNumber(),
             sellPrice: p.sellPrice.toNumber(),
-            sellPrice2: p.sellPrice2.toNumber(),
-            sellPrice3: p.sellPrice3.toNumber(),
+            sellPrice2: p.sellPrice2?.toNumber() || 0,
+            sellPrice3: p.sellPrice3?.toNumber() || 0,
             createdAt: p.createdAt.toISOString(),
             updatedAt: p.updatedAt.toISOString(),
             deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
@@ -2013,3 +2083,47 @@ export const getProductPriceHistory = secureAction(async (productId: string) => 
         }))
     };
 }, { permission: 'INVENTORY_VIEW' });
+
+export const setDefaultWarehouse = secureAction(async (data: { warehouseId: string; branchId?: string; type?: 'pos' | 'maintenance'; csrfToken?: string }) => {
+    const { warehouseId, branchId, type = 'pos' } = data;
+
+    await prisma.$transaction(async (tx) => {
+        if (type === 'maintenance') {
+            // Unset existing maintenance default for this branch
+            await tx.warehouse.updateMany({
+                where: {
+                    branchId: branchId || undefined,
+                    isMaintenanceDefault: true
+                },
+                data: { isMaintenanceDefault: false }
+            });
+            // Set new maintenance default
+            await tx.warehouse.update({
+                where: { id: warehouseId },
+                data: { isMaintenanceDefault: true }
+            });
+        } else {
+            // Unset existing POS default for this branch
+            await tx.warehouse.updateMany({
+                where: {
+                    branchId: branchId || undefined,
+                    isDefault: true
+                },
+                data: { isDefault: false }
+            });
+            // Set new POS default
+            await tx.warehouse.update({
+                where: { id: warehouseId },
+                data: { isDefault: true }
+            });
+        }
+    });
+
+    revalidatePath('/inventory', 'page');
+    revalidatePath('/pos', 'page');
+    revalidatePath('/settings', 'page');
+    revalidatePath('/maintenance', 'page');
+
+    return { success: true };
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
+

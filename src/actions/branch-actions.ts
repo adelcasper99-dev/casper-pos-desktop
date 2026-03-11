@@ -64,7 +64,7 @@ export const getWarehousesByBranch = secureAction(async (branchId: string) => {
     }
 
     const warehouses = await prisma.warehouse.findMany({
-        where: { branchId },
+        where: { branchId, deletedAt: null },
         include: { branch: true },
         orderBy: { isDefault: 'desc' }
     });
@@ -85,9 +85,9 @@ export const getAllWarehouses = secureAction(async () => {
         roleUpper === 'MANAGER' ||
         user.branchType === 'CENTER';
 
-    let where: Prisma.WarehouseWhereInput = {};
+    let where: Prisma.WarehouseWhereInput = { deletedAt: null };
     if (!isHQUser && user.branchId) {
-        where = { branchId: user.branchId };
+        where = { branchId: user.branchId, deletedAt: null };
     }
 
     const warehouses = await prisma.warehouse.findMany({

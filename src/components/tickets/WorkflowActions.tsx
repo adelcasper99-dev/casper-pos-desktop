@@ -1,13 +1,30 @@
+'use client';
+
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowRight, XCircle, CheckCircle, Truck, Wrench, Search } from "lucide-react";
+import {
+    Loader2, ArrowRight, XCircle, CheckCircle, Truck, Wrench, Search,
+    ChevronDown, Settings2, MoreHorizontal, RotateCcw
+} from "lucide-react";
 import { canTransition } from "@/lib/workflow";
 import { TicketStatus } from "@/lib/constants";
-import { updateTicketStatus } from "@/actions/ticket-actions";
+import { updateTicketStatus, undoTicketStatus } from "@/actions/ticket-actions";
 import { toast } from "sonner";
 import type { WorkflowTicket } from '@/types/ticket';
 import type { UserSession } from '@/lib/auth';
 import { useTranslations } from '@/lib/i18n-mock';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { useCSRF } from "@/contexts/CSRFContext";
+import TicketPaymentModal from "./TicketPaymentModal";
+import EstimationModal from "./EstimationModal";
+import TechnicianAssignmentModal from "./TechnicianAssignmentModal";
+
 
 interface WorkflowActionsProps {
     ticket: WorkflowTicket;
@@ -16,27 +33,31 @@ interface WorkflowActionsProps {
     csrfToken?: string;
 }
 
-export default function WorkflowActions({ ticket, user, onUpdate, csrfToken }: WorkflowActionsProps) {
+export default function WorkflowActions({ ticket, user, onUpdate }: Omit<WorkflowActionsProps, 'csrfToken'>) {
     const t = useTranslations('Tickets.workflow');
+    const { token: csrfToken } = useCSRF();
     const [loading, setLoading] = useState<string | null>(null);
     const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [showEstimationModal, setShowEstimationModal] = useState(false);
+    const [showTechModal, setShowTechModal] = useState(false);
+
 
     if (!ticket || !user) return null;
 
-    // Get Allowed Transitions (use optimistic status if set)
+    // Get Allowed Transitions
     const currentStatus = optimisticStatus || ticket.status;
-    const branchType = user.branchType || "STORE"; // Default to STORE for safety in UI
-
+    const branchType = user.branchType || "STORE";
     const transitions = canTransition(currentStatus, user.permissions || [], ticket, branchType, user.role);
 
     const getActionLabel = (label: string) => {
-        // Map English labels to translation keys
         switch (label) {
             case "Send to Center": return t('actions.sendToCenter');
             case "Mark Completed": return t('actions.markCompleted');
             case "Receive at Center": return t('actions.receiveAtCenter');
             case "Start Diagnosis": return t('actions.startDiagnosis');
             case "Submit Quote": return t('actions.submitQuote');
+            case "Pending Approval": return t('actions.pendingApproval');
             case "Start Repair": return t('actions.startRepair');
             case "Wait for Parts": return t('actions.waitForParts');
             case "Finish & Send to QC": return t('actions.finishSendToQC');
@@ -48,98 +69,230 @@ export default function WorkflowActions({ ticket, user, onUpdate, csrfToken }: W
             case "Start Quick Fix": return t('actions.startQuickFix');
             case "Reject / Unrepairable": return t('actions.reject');
             case "Ready for Pickup": return t('actions.returnRejected');
+            case "Close Ticket": return t('actions.closeTicket');
             default: return label;
         }
     };
 
-    const getReasonLabel = (reason: string) => {
-        if (reason === "Insufficient Permissions") return t('errors.insufficientPermissions');
-        if (reason === "Action only available at Main Center") return t('errors.centerOnly');
-        return reason;
-    }
+    const getIcon = (label: string, className?: string) => {
+        const baseClass = cn("w-5 h-5", className);
+        if (label.includes("Ship") || label.includes("Send")) return <Truck className={baseClass} />;
+        if (label.includes("Repair") || label.includes("Fix")) return <Wrench className={baseClass} />;
+        if (label.includes("Diagnosis") || label.includes("Search")) return <Search className={baseClass} />;
+        if (label.includes("Complete") || label.includes("Close") || label.includes("Pass QC")) return <CheckCircle className={baseClass} />;
+        if (label.includes("Receive")) return <ArrowRight className={baseClass} />;
+        return <ArrowRight className={baseClass} />;
+    };
 
-    const handleTransition = async (targetStatus: string) => {
-        // Optimistic update - instant UI feedback
-        setOptimisticStatus(targetStatus);
-        setLoading(targetStatus);
-
+    const performStatusUpdate = async (targetStatus: string) => {
         try {
-            const res = await updateTicketStatus({ ticketId: ticket.id, status: targetStatus, csrfToken });
-
+            const res = await updateTicketStatus({ ticketId: ticket.id, status: targetStatus, csrfToken: csrfToken ?? undefined });
             if (res.success) {
                 toast.success(t('statusUpdated'));
                 onUpdate();
             } else {
-                // Rollback on error
-                setOptimisticStatus(null);
                 toast.error(res.error || t('updateFailed'));
             }
         } catch (error) {
-            // Rollback on exception
-            setOptimisticStatus(null);
             toast.error(t('networkError'));
-        } finally {
-            setLoading(null);
         }
     };
 
+    const handleUndo = async () => {
+        setLoading('undo');
+        try {
+            const res = await undoTicketStatus({ ticketId: ticket.id, csrfToken: csrfToken ?? undefined });
+            if (res.success) {
+                toast.success(t('statusUpdated'));
+                onUpdate();
+            } else {
+                toast.error(res.error || t('updateFailed'));
+            }
+        } catch (error) {
+            toast.error(t('networkError'));
+        }
+        setLoading(null);
+    };
+
+    const handleTransition = async (targetStatus: string) => {
+        // Intercept: NEW → DIAGNOSING — capture cost & duration first
+        if (targetStatus === TicketStatus.DIAGNOSING) {
+            setShowEstimationModal(true);
+            return;
+        }
+
+        // Intercept: DIAGNOSING → AT_CENTER — assign a technician first
+        // Also: Starting Repair without a technician
+        if (targetStatus === TicketStatus.AT_CENTER || (targetStatus === TicketStatus.IN_PROGRESS && !ticket.technicianId)) {
+            setShowTechModal(true);
+            return;
+        }
+
+        // Intercept Payment status
+        if (targetStatus === TicketStatus.PICKED_UP) {
+            setShowPaymentModal(true);
+            return;
+        }
+
+        setOptimisticStatus(targetStatus);
+        setLoading(targetStatus);
+        await performStatusUpdate(targetStatus);
+        setLoading(null);
+    };
+
     if (transitions.length === 0) {
-        // If completed or no actions allowed
         if (ticket.status === TicketStatus.COMPLETED) {
-            return <div className="text-green-400 font-bold flex items-center gap-2"><CheckCircle className="w-6 h-6" /> {t('completed')}</div>;
+            return <div className="text-green-400 font-bold flex items-center gap-2"><CheckCircle className="w-5 h-5" /> {t('completed')}</div>;
         }
         if (ticket.status === TicketStatus.PAID_DELIVERED) {
-            return <div className="text-blue-400 font-bold flex items-center gap-2"><CheckCircle className="w-6 h-6" /> {t('paidDelivered')}</div>;
+            return <div className="text-blue-400 font-bold flex items-center gap-2"><CheckCircle className="w-5 h-5" /> {t('paidDelivered')}</div>;
         }
         return <span className="text-zinc-500 text-sm">{t('noActions')}</span>;
     }
 
-    // Helper to get Icon (touch-safe sizing)
-    const getIcon = (label: string) => {
-        if (label.includes("Ship")) return <Truck className="w-6 h-6 mr-2" />;
-        if (label.includes("Repair")) return <Wrench className="w-6 h-6 mr-2" />;
-        if (label.includes("Diagnosis")) return <Search className="w-6 h-6 mr-2" />;
-        if (label.includes("Complete")) return <CheckCircle className="w-6 h-6 mr-2" />;
-        return <ArrowRight className="w-6 h-6 mr-2" />;
-    };
+    // Logic to select the "Primary" action
+    // Usually the first allowed transition, but we can prioritize based on common flows
+    const allowedActions = transitions.filter(tr => tr.allowed);
+    const blockedActions = transitions.filter(tr => !tr.allowed);
+
+    // In NEW state, prioritize "Start Repair" as primary if available
+    let primaryAction = allowedActions[0];
+    if (ticket.status === TicketStatus.NEW) {
+        primaryAction = allowedActions.find(a => a.actionLabel === "Start Repair") ||
+            allowedActions.find(a => a.actionLabel === "Send to Center") ||
+            allowedActions[0];
+    }
+
+    const secondaryActions = transitions.filter(tr => tr !== primaryAction);
 
     return (
-        <div className="flex gap-3 flex-wrap justify-end items-center">
-            {/* Optimistic syncing indicator */}
-            {optimisticStatus && loading && (
-                <div className="text-xs text-cyan-400 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    {t('syncing')}
-                </div>
+        <div className="flex items-center gap-2 w-full justify-end">
+            {ticket.previousStatus && (user.role === 'ADMIN' || user.role === 'MANAGER' || user.role === 'مدير النظام' || user.role === 'المالك') && (
+                <Button
+                    variant="outline"
+                    onClick={handleUndo}
+                    disabled={!!loading}
+                    className="border-orange-500/20 text-orange-500 hover:bg-orange-500/10 h-12 rounded-xl px-4 flex gap-2 font-black text-[11px] uppercase tracking-wider"
+                >
+                    <RotateCcw className="w-4 h-4" />
+                    تراجع
+                </Button>
             )}
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {transitions.map((tAction: any) => (
-                <div key={tAction.target} className="relative group">
+            {primaryAction ? (
+                <div className="flex items-stretch shadow-lg shadow-cyan-500/10 rounded-xl overflow-hidden border border-cyan-500/20">
                     <Button
-                        onClick={() => handleTransition(tAction.target)}
-                        disabled={!tAction.allowed || !!loading}
-                        variant={tAction.allowed ? "default" : "outline"}
-                        size="lg"
-                        className={`min-h-[48px] px-6 ${!tAction.allowed
-                            ? "opacity-50 cursor-not-allowed border-red-500/20 text-red-400 hover:text-red-400 hover:bg-transparent"
-                            : "bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-lg shadow-cyan-500/20"
-                            }`}
+                        onClick={() => handleTransition(primaryAction.target)}
+                        disabled={!!loading}
+                        className="bg-cyan-500 hover:bg-cyan-400 text-black font-black px-6 h-12 rounded-none border-r border-black/10 flex items-center gap-2"
                     >
-                        {loading === tAction.target ? <Loader2 className="w-6 h-6 mr-2 animate-spin" /> : getIcon(tAction.actionLabel || '')}
-                        {getActionLabel(tAction.actionLabel || '')}
+                        {loading === primaryAction.target ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            getIcon(primaryAction.actionLabel || '')
+                        )}
+                        <span className="whitespace-nowrap">{getActionLabel(primaryAction.actionLabel || '')}</span>
                     </Button>
 
-                    {/* Tooltip for Reason */}
-                    {!tAction.allowed && tAction.reason && (
-                        <div className="absolute bottom-full mb-2 right-0 w-48 bg-black/90 text-white text-xs p-2 rounded border border-white/10 shadow-xl z-50 pointer-events-none">
-                            <div className="flex items-center gap-1 text-red-400 mb-1 font-bold">
-                                <XCircle className="w-3 h-3" /> {t('blocked')}
-                            </div>
-                            {getReasonLabel(tAction.reason)}
-                        </div>
+                    {secondaryActions.length > 0 && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    disabled={!!loading}
+                                    className="bg-cyan-500 hover:bg-cyan-400 text-black px-3 h-12 rounded-none focus-visible:ring-0"
+                                >
+                                    <ChevronDown className="w-5 h-5" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white min-w-[200px] p-2 rounded-xl">
+                                {secondaryActions.map((action) => (
+                                    <DropdownMenuItem
+                                        key={action.target}
+                                        disabled={!action.allowed || !!loading}
+                                        onClick={() => handleTransition(action.target)}
+                                        className={cn(
+                                            "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors focus:bg-white/10",
+                                            !action.allowed && "opacity-50 grayscale cursor-not-allowed"
+                                        )}
+                                    >
+                                        {getIcon(action.actionLabel || '', action.allowed ? "text-cyan-400" : "text-zinc-500")}
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-sm">{getActionLabel(action.actionLabel || '')}</span>
+                                            {!action.allowed && action.reason && (
+                                                <span className="text-[10px] text-red-400 font-medium">
+                                                    {action.reason === "Insufficient Permissions" ? t('errors.insufficientPermissions') :
+                                                        action.reason === "Action only available at Main Center" ? t('errors.centerOnly') :
+                                                            action.reason}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     )}
                 </div>
-            ))}
+            ) : (
+                // If NO actions are allowed (all blocked)
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="border-red-500/20 text-red-400 h-12 rounded-xl px-4 flex gap-2 font-bold">
+                            <Settings2 className="w-5 h-5" />
+                            {t('blocked')}
+                            <ChevronDown className="w-4 h-4 ml-1" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white min-w-[220px] p-2 rounded-xl">
+                        {blockedActions.map((action) => (
+                            <DropdownMenuItem key={action.target} disabled className="flex items-center gap-3 p-3 opacity-50">
+                                <XCircle className="w-5 h-5 text-red-500" />
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-sm text-zinc-400">{getActionLabel(action.actionLabel || '')}</span>
+                                    <span className="text-[10px] text-red-400">
+                                        {action.reason === "Insufficient Permissions" ? t('errors.insufficientPermissions') :
+                                            action.reason === "Action only available at Main Center" ? t('errors.centerOnly') :
+                                                action.reason}
+                                    </span>
+                                </div>
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
+
+            <TicketPaymentModal
+                isOpen={showPaymentModal}
+                onClose={() => setShowPaymentModal(false)}
+                ticket={ticket}
+                onSuccess={() => {
+                    setShowPaymentModal(false);
+                    performStatusUpdate(TicketStatus.PICKED_UP);
+                }}
+            />
+
+            <EstimationModal
+                isOpen={showEstimationModal}
+                onClose={() => setShowEstimationModal(false)}
+                ticket={{
+                    id: ticket.id,
+                    barcode: ticket.barcode,
+                    repairPrice: ticket.repairPrice as number | undefined,
+                    expectedDuration: ticket.expectedDuration as number | undefined,
+                }}
+                onSuccess={onUpdate}
+            />
+
+            <TechnicianAssignmentModal
+                isOpen={showTechModal}
+                onClose={() => setShowTechModal(false)}
+                ticket={{
+                    id: ticket.id,
+                    barcode: ticket.barcode,
+                    technicianId: ticket.technicianId as string | null | undefined,
+                    deviceBrand: ticket.deviceBrand as string | undefined,
+                    deviceModel: ticket.deviceModel as string | undefined,
+                }}
+                onSuccess={onUpdate}
+            />
         </div>
     );
 }

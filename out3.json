@@ -1,0 +1,95 @@
+[
+  {
+    "id": "d6d47c47-3f57-4ab1-956c-0cdc94c9e5da",
+    "name": "1325",
+    "address": "Main Office",
+    "isDefault": true,
+    "createdAt": "2026-02-22T23:26:56.771Z",
+    "branchId": "c4fe444f-a781-4a3d-ba8b-726d8f6fa5ea",
+    "deletedAt": null,
+    "branch": {
+      "id": "c4fe444f-a781-4a3d-ba8b-726d8f6fa5ea",
+      "name": "1325",
+      "code": "MAIN",
+      "address": "el togary ",
+      "phone": "01018189010",
+      "type": "STORE",
+      "createdAt": "2026-02-22T23:27:02.893Z",
+      "updatedAt": "2026-03-04T12:16:19.366Z",
+      "deletedAt": null,
+      "parentBranchId": null,
+      "region": null,
+      "sortOrder": 0,
+      "territoryCode": null
+    },
+    "_count": {
+      "stocks": 3,
+      "purchases": 0,
+      "sales": 3,
+      "movementsFrom": 0,
+      "movementsTo": 3
+    }
+  },
+  {
+    "id": "91cb2210-3b7f-4fe2-b16a-9a92f433ca93",
+    "name": "1325",
+    "address": null,
+    "isDefault": true,
+    "createdAt": "2026-02-22T23:27:02.939Z",
+    "branchId": "c4fe444f-a781-4a3d-ba8b-726d8f6fa5ea",
+    "deletedAt": null,
+    "branch": {
+      "id": "c4fe444f-a781-4a3d-ba8b-726d8f6fa5ea",
+      "name": "1325",
+      "code": "MAIN",
+      "address": "el togary ",
+      "phone": "01018189010",
+      "type": "STORE",
+      "createdAt": "2026-02-22T23:27:02.893Z",
+      "updatedAt": "2026-03-04T12:16:19.366Z",
+      "deletedAt": null,
+      "parentBranchId": null,
+      "region": null,
+      "sortOrder": 0,
+      "territoryCode": null
+    },
+    "_count": {
+      "stocks": 0,
+      "purchases": 0,
+      "sales": 0,
+      "movementsFrom": 0,
+      "movementsTo": 0
+    }
+  },
+  {
+    "id": "1cb4ae0a-355c-45cf-9a43-700b1007b6fb",
+    "name": "ade's Stock",
+    "address": null,
+    "isDefault": false,
+    "createdAt": "2026-03-07T22:11:35.872Z",
+    "branchId": "c4fe444f-a781-4a3d-ba8b-726d8f6fa5ea",
+    "deletedAt": null,
+    "branch": {
+      "id": "c4fe444f-a781-4a3d-ba8b-726d8f6fa5ea",
+      "name": "1325",
+      "code": "MAIN",
+      "address": "el togary ",
+      "phone": "01018189010",
+      "type": "STORE",
+      "createdAt": "2026-02-22T23:27:02.893Z",
+      "updatedAt": "2026-03-04T12:16:19.366Z",
+      "deletedAt": null,
+      "parentBranchId": null,
+      "region": null,
+      "sortOrder": 0,
+      "territoryCode": null
+    },
+    "_count": {
+      "stocks": 0,
+      "purchases": 0,
+      "sales": 0,
+      "movementsFrom": 0,
+      "movementsTo": 0
+    }
+  }
+]

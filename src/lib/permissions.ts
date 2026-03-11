@@ -72,6 +72,7 @@ export const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
     [PERMISSIONS.TICKET_DELETE]: [PERMISSIONS.TICKET_VIEW],
     [PERMISSIONS.TICKET_COMPLETE]: [PERMISSIONS.TICKET_VIEW],
     [PERMISSIONS.TICKET_ASSIGN]: [PERMISSIONS.TICKET_VIEW],
+    [PERMISSIONS.TICKET_WORKFLOW]: [PERMISSIONS.TICKET_VIEW],
     [PERMISSIONS.CUSTOMER_MANAGE]: [PERMISSIONS.CUSTOMER_VIEW],
     [PERMISSIONS.INVENTORY_MANAGE]: [PERMISSIONS.INVENTORY_VIEW],
     [PERMISSIONS.INVENTORY_ADJUST]: [PERMISSIONS.INVENTORY_VIEW],
@@ -115,10 +116,14 @@ export function hasPermission(userPermissions: string[] | string | undefined | n
     if (Array.isArray(userPermissions)) {
         perms = userPermissions;
     } else if (typeof userPermissions === 'string') {
+        // Handle plain '*' wildcard string directly
+        if (userPermissions === '*') return true;
+
         try {
             perms = JSON.parse(userPermissions);
         } catch (e) {
-            return false;
+            // If not JSON, check if it's the specific required permission string
+            return userPermissions === required;
         }
     }
 

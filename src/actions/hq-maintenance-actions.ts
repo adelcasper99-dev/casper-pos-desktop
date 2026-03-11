@@ -121,6 +121,32 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
         const totalClosed = repairedCount + rejectedCount;
         const successRate = totalClosed > 0 ? (repairedCount / totalClosed) * 100 : 0;
 
+        // Global Bounce Rate (Tickets with returns / Total Closed)
+        const closedTicketsWithReturns = await prisma.ticket.count({
+            where: {
+                ...where,
+                returnCount: { gt: 0 },
+                status: {
+                    in: [
+                        TicketStatus.COMPLETED,
+                        TicketStatus.DELIVERED,
+                        TicketStatus.PAID_DELIVERED,
+                        TicketStatus.PICKED_UP,
+                        TicketStatus.READY_AT_BRANCH,
+                        TicketStatus.REJECTED
+                    ]
+                }
+            }
+        });
+        const bounceRate = totalClosed > 0 ? (closedTicketsWithReturns / totalClosed) * 100 : 0;
+
+        // Status Distribution (All tickets in filter)
+        const allTicketsCount = await prisma.ticket.groupBy({
+            by: ['status'],
+            where: { ...where },
+            _count: { id: true }
+        });
+
         // 2. Aging Analysis (Buckets)
         const twentyFourHoursAgo = subHours(new Date(), 24);
 
@@ -278,8 +304,13 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                 pending: pendingCount,
                 criticalAging: criticalAgingCount,
                 delivered: deliveredCount,
-                successRate: successRate.toFixed(1)
+                successRate: successRate.toFixed(1),
+                bounceRate: bounceRate.toFixed(1)
             },
+            statusDistribution: Object.entries(TicketStatus).map(([key, value]) => {
+                const count = allTicketsCount.find(s => s.status === value)?._count.id || 0;
+                return { name: value, value: count };
+            }).filter(item => item.value > 0),
             agingAnalysis: {
                 under24h,
                 between24and48h,
@@ -293,4 +324,4 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
         console.error("Error fetching HQ maintenance stats:", error);
         throw new Error("Failed to fetch dashboard data");
     }
-}, { permission: PERMISSIONS.REPORTS_VIEW, requireCSRF: false });
+}, { permission: PERMISSIONS.TICKET_WORKFLOW, requireCSRF: false });

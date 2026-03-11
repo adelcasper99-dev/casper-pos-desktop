@@ -163,14 +163,10 @@ export default function TicketsList() {
     }
 
     const getRiskInfo = (ticket: any) => {
-        const urgency = getUrgencyInfo(ticket);
-        const isOverdue = urgency?.status === 'overdue';
-        const hasReturns = ticket.returnCount > 1;
+        const level = ticket.riskLevel || 'low';
 
-        if (isOverdue || hasReturns) return { level: 'high', color: 'text-red-500', icon: AlertCircle };
-        if (urgency?.status === 'due_soon' || (Date.now() - new Date(ticket.updatedAt).getTime() > 3 * 24 * 60 * 60 * 1000)) {
-            return { level: 'medium', color: 'text-orange-500', icon: AlertTriangle };
-        }
+        if (level === 'high') return { level: 'high', color: 'text-red-500', icon: AlertCircle };
+        if (level === 'medium') return { level: 'medium', color: 'text-orange-500', icon: AlertTriangle };
         return { level: 'low', color: 'text-emerald-500', icon: Clock };
     }
 

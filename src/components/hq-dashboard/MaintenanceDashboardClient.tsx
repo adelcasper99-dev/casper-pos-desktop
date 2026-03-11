@@ -7,6 +7,7 @@ import { LiveStatusBoard } from "./LiveStatusBoard";
 import { AgingAnalysis } from "./AgingAnalysis";
 import { BranchPerformanceMatrix } from "./BranchPerformanceMatrix";
 import { TechnicianLeaderboard } from "./TechnicianLeaderboard";
+import { StatusDistributionChart } from "./StatusDistributionChart";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import {
     Select,
@@ -17,9 +18,11 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { RefreshCcw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { subDays } from "date-fns";
 import { DrillDownModal } from "./DrillDownModal";
 import { getHQDrilldownData, DrillDownType } from "@/actions/hq-drilldown-actions";
+import { useTranslations } from "@/lib/i18n-mock";
 
 interface MaintenanceDashboardClientProps {
     initialData: any;
@@ -27,6 +30,7 @@ interface MaintenanceDashboardClientProps {
 }
 
 export function MaintenanceDashboardClient({ initialData, branches }: MaintenanceDashboardClientProps) {
+    const t = useTranslations("MaintenanceHQ");
     const [branchId, setBranchId] = useState<string>("ALL");
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
         from: subDays(new Date(), 30),
@@ -89,15 +93,18 @@ export function MaintenanceDashboardClient({ initialData, branches }: Maintenanc
     return (
         <div className="space-y-6">
             {/* Filters & Controls */}
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white p-4 rounded-xl border shadow-sm">
-                <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-                    <div className="w-full md:w-[200px]">
-                        <Select value={branchId} onValueChange={setBranchId}>
-                            <SelectTrigger className="bg-slate-50 border-none shadow-none focus:ring-1 focus:ring-blue-500">
-                                <SelectValue placeholder="Select Branch" />
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-zinc-900/50 backdrop-blur-sm border border-border/50 rounded-2xl mb-8 shadow-xl">
+                <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                    <div className="w-full md:w-64">
+                        <Select
+                            value={branchId}
+                            onValueChange={setBranchId}
+                        >
+                            <SelectTrigger className="bg-zinc-900 border-border/50 text-white h-11 rounded-xl focus:ring-cyan-500/20">
+                                <SelectValue placeholder={t('selectBranch')} />
                             </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">All Branches</SelectItem>
+                            <SelectContent className="bg-zinc-900 border-border text-white">
+                                <SelectItem value="ALL">{t('allBranches')}</SelectItem>
                                 {branches.map(branch => (
                                     <SelectItem key={branch.id} value={branch.id}>
                                         {branch.name}
@@ -112,21 +119,26 @@ export function MaintenanceDashboardClient({ initialData, branches }: Maintenanc
                             from={dateRange.from}
                             to={dateRange.to}
                             onSelect={(from, to) => setDateRange({ from, to })}
-                            className="bg-slate-50 border-none shadow-none"
+                            className="bg-zinc-900 border-border/50 text-white h-11 rounded-xl"
                         />
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 font-mono hidden md:inline-block">
-                        AUTO-SYNC: 60S
+                <div className="flex items-center gap-3 pr-2">
+                    <span className="text-[10px] text-zinc-500 font-mono hidden md:inline-block tracking-widest uppercase opacity-70">
+                        {t('autoRefresh')}
                     </span>
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => refetch()}
                         disabled={isRefetching}
-                        className={isRefetching ? "animate-spin text-blue-500" : "text-slate-400 hover:text-blue-500"}
+                        className={cn(
+                            "h-10 w-10 rounded-xl transition-all",
+                            isRefetching
+                                ? "animate-spin text-cyan-500"
+                                : "text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800"
+                        )}
                     >
                         <RefreshCcw className="h-4 w-4" />
                     </Button>
@@ -140,7 +152,11 @@ export function MaintenanceDashboardClient({ initialData, branches }: Maintenanc
                 onDrillDown={handleDrillDown}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <StatusDistributionChart
+                    data={data?.statusDistribution || initialData?.statusDistribution}
+                    loading={isLoading}
+                />
                 <AgingAnalysis
                     data={data?.agingAnalysis || initialData?.agingAnalysis}
                     loading={isLoading}

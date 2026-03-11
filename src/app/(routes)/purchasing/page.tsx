@@ -68,7 +68,7 @@ export default async function PurchasingPage() {
     // 5. Warehouses
     // Filter warehouses for non-HQ users server-side as well for initial load
     const isHQ = (user?.role?.toUpperCase() === 'ADMIN') || (user?.role?.toUpperCase() === 'MANAGER') || user?.branchType === 'CENTER';
-    const warehouseWhere = isHQ ? {} : { branchId: user?.branchId || '' };
+    const warehouseWhere = isHQ ? { deletedAt: null } : { branchId: user?.branchId || '', deletedAt: null };
 
     const warehousesRaw = await prisma.warehouse.findMany({
         where: warehouseWhere,

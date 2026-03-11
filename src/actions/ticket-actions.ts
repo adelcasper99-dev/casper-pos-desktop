@@ -54,6 +54,22 @@ async function getNextTicketNumber() {
 }
 
 /**
+ * Helper to check if a ticket is locked (Delivered, Picked Up, etc.)
+ * Returns true if the ticket is LOCKED.
+ * Admins can always bypass the lock.
+ */
+function checkTicketLock(ticket: { status: string }, user: { role: string }) {
+    if (!ticket || !user) return false;
+    const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
+    if (isAdmin) return false;
+
+    if (ticket.status === 'RETURNED_FOR_REFIX') return false;
+
+    const lockedStatuses = ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED'];
+    return lockedStatuses.includes(ticket.status);
+}
+
+/**
  * Get tickets for the main list
  */
 export const getTickets = secureAction(async (filters?: {
@@ -72,8 +88,11 @@ export const getTickets = secureAction(async (filters?: {
         ...branchFilter // 🔒 Branch-level isolation
     };
 
-    if (filters?.status && filters.status !== 'ALL') {
-        where.status = filters.status;
+    if (filters?.status) {
+        const normalizedStatus = filters.status.toUpperCase();
+        if (normalizedStatus !== 'ALL') {
+            where.status = normalizedStatus;
+        }
     }
 
     if (filters?.technicianId && filters.technicianId !== 'unassigned') {
@@ -133,7 +152,14 @@ export const getTickets = secureAction(async (filters?: {
         // Calculate Gap: Time since last update
         const lastUpdate = new Date(t.updatedAt).getTime();
         const now = Date.now();
-        const gapMinutes = Math.floor((now - lastUpdate) / 60000);
+        const diffMs = now - lastUpdate;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+        let gap = "";
+        if (diffDays > 0) gap = `${diffDays}d ${diffHours}h`;
+        else if (diffHours > 0) gap = `${diffHours}h`;
+        else gap = `${Math.floor(diffMs / 60000)}m`;
 
         // Calculate Risk Level (Simplified server-side version)
         let riskLevel = 'low';
@@ -143,6 +169,8 @@ export const getTickets = secureAction(async (filters?: {
             const dueTime = created + (t.expectedDuration * 60000);
             isOverdue = now > dueTime;
         }
+
+        const gapMinutes = Math.floor(diffMs / 60000);
 
         if (isOverdue || (t as any).returnCount > 1) {
             riskLevel = 'high';
@@ -156,7 +184,7 @@ export const getTickets = secureAction(async (filters?: {
             repairPrice: Number(t.repairPrice),
             amountPaid: Number(t.amountPaid),
             deposit: Number(t.deposit),
-            gapMinutes,
+            gap, // Rename to gap for UI consistency
             riskLevel,
             isOverdue
         };
@@ -225,7 +253,7 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
             }))
         }
     };
-}, { permission: PERMISSIONS.TICKET_VIEW });
+}, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
 /**
  * Create a new repair ticket
@@ -511,8 +539,24 @@ export const updateTicketStatus = secureAction(async (data: {
 
     if (!existingTicket) throw new Error("Ticket not found");
 
+    // NEW VALIDATION: Cannot transition to IN_PROGRESS without a technician assigned
+    if (status === 'IN_PROGRESS' && !existingTicket.technicianId && !technicianId) {
+        throw new Error("لا يمكن بدء الإصلاح قبل تعيين مهندس للتذكرة");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
-        const updateData: Prisma.TicketUpdateInput = { status };
+        // Workflow Validation: Prevent illogical transitions
+        if (existingTicket.status === 'DELIVERED' && status !== 'RETURNED_FOR_REFIX') {
+            throw new Error("Delivered tickets can only be changed to 'RETURNED_FOR_REFIX'");
+        }
+        if (existingTicket.status === 'PAID_DELIVERED' && status !== 'RETURNED_FOR_REFIX') {
+            throw new Error("Finalized tickets can only be changed to 'RETURNED_FOR_REFIX'");
+        }
+
+        const updateData: Prisma.TicketUpdateInput = {
+            status,
+            previousStatus: existingTicket.status
+        };
 
         if (status === 'COMPLETED') {
             updateData.completedAt = new Date();
@@ -562,7 +606,53 @@ export const updateTicketStatus = secureAction(async (data: {
     revalidateTag("dashboard");
 
     return { success: true, ticket: result };
-}, { permission: PERMISSIONS.TICKET_COMPLETE });
+}, { permission: PERMISSIONS.TICKET_WORKFLOW });
+
+/**
+ * Undo the last status change for a ticket
+ */
+export const undoTicketStatus = secureAction(async (data: {
+    ticketId: string;
+    csrfToken?: string;
+}) => {
+    const { ticketId } = data;
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    if (!ticket.previousStatus) throw new Error("No previous status found to undo");
+
+    const result = await prisma.$transaction(async (tx) => {
+        const updatedTicket = await tx.ticket.update({
+            where: { id: ticketId },
+            data: {
+                status: ticket.previousStatus!,
+                previousStatus: null // Clear previous status after undo to prevent infinite loops/confusion
+            }
+        });
+
+        await tx.ticketNote.create({
+            data: {
+                ticketId,
+                text: `🔄 Undo: Status reverted from ${ticket.status} to ${ticket.previousStatus}`,
+                author: user.name || user.username || "System",
+                isInternal: true
+            }
+        });
+
+        return updatedTicket;
+    });
+
+    revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
+    revalidatePath("/ar/maintenance/tickets");
+    revalidateTag("dashboard");
+
+    return { success: true, ticket: result };
+}, { permission: PERMISSIONS.TICKET_WORKFLOW });
 
 /**
  * Add a note to a ticket
@@ -576,6 +666,13 @@ export const addTicketNote = secureAction(async (data: {
     const { ticketId, text, isInternal = true } = data;
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
+
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId }
+    });
+    if (ticket && checkTicketLock(ticket, user)) {
+        throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
+    }
 
     const note = await prisma.ticketNote.create({
         data: {
@@ -835,7 +932,7 @@ export const getCustomersWithBalance = secureAction(async (filters?: {
             balance: Number(c.balance),
         }))
     };
-}, { permission: PERMISSIONS.TICKET_VIEW });
+}, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
 /**
  * Apply customer credit to a ticket
@@ -862,6 +959,10 @@ export const applyCustomerCredit = secureAction(async (data: {
             where: { OR: [{ id: ticketId }, { barcode: ticketId }] }
         });
         if (!ticket) throw new Error("Ticket not found");
+
+        if (checkTicketLock(ticket, user)) {
+            throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
+        }
 
         const repairPrice = Number(ticket.repairPrice);
         const amountPaid = Number(ticket.amountPaid);
@@ -917,13 +1018,17 @@ export const applyCustomerCredit = secureAction(async (data: {
 /**
  * Add a part to a ticket
  */
-export const addTicketPart = secureAction(async (ticketId: string, data: {
+export const addTicketPart = secureAction(async (data: {
+    ticketId: string,
     productId?: string,
     name?: string,
     quantity: number,
     warehouseId?: string,
-    price?: number
+    price?: number,
+    csrfToken?: string
 }) => {
+    const { ticketId } = data;
+
     const user = await getCurrentUser();
     if (!user) throw new Error("Authentication required");
 
@@ -934,11 +1039,8 @@ export const addTicketPart = secureAction(async (ticketId: string, data: {
 
     if (!ticket) throw new Error("Ticket not found");
 
-    if (['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED'].includes(ticket.status)) {
-        const canEditClosed = user.role === 'ADMIN' || user.role === 'MANAGER' || user.role === 'مدير النظام' || user.role === 'المالك';
-        if (!canEditClosed) {
-            throw new Error("This ticket is closed and can only be edited by an Admin or Manager.");
-        }
+    if (checkTicketLock(ticket, user)) {
+        throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
     }
 
     let cost = 0;
@@ -955,8 +1057,19 @@ export const addTicketPart = secureAction(async (ticketId: string, data: {
 
         let sourceWarehouseId = data.warehouseId;
         if (!sourceWarehouseId) {
-            if (ticket.technician?.warehouseId) {
+            // Priority 1: isMaintenanceDefault (Dedicated Maintenance Warehouse)
+            const maintenanceWh = await prisma.warehouse.findFirst({
+                where: {
+                    isMaintenanceDefault: true,
+                    deletedAt: null
+                }
+            });
+            if (maintenanceWh) {
+                sourceWarehouseId = maintenanceWh.id;
+            // Priority 2: Technician's assigned warehouse
+            } else if (ticket.technician?.warehouseId) {
                 sourceWarehouseId = ticket.technician.warehouseId;
+            // Priority 3: Global default warehouse
             } else {
                 const defaultWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
                 sourceWarehouseId = defaultWh?.id;
@@ -1010,7 +1123,7 @@ export const addTicketPart = secureAction(async (ticketId: string, data: {
             quantity: data.quantity,
             cost: new Decimal(cost),
             price: new Decimal(price),
-            warehouseId: data.productId ? (data.warehouseId || undefined) : undefined
+            warehouseId: data.productId ? (sourceWarehouseId || undefined) : undefined
         }
     });
 
@@ -1048,7 +1161,13 @@ export const addTicketPart = secureAction(async (ticketId: string, data: {
 /**
  * Remove a part from a ticket
  */
-export const removeTicketPart = secureAction(async (partId: string, warehouseId?: string) => {
+export const removeTicketPart = secureAction(async (data: {
+    partId: string,
+    warehouseId?: string,
+    csrfToken?: string
+}) => {
+    const { partId, warehouseId } = data;
+
     const part = await prisma.ticketPart.findUnique({
         where: { id: partId },
         include: { product: true, ticket: true }
@@ -1150,6 +1269,12 @@ export const removeTicketPart = secureAction(async (partId: string, warehouseId?
  * Get products for selection in parts manager
  */
 export const getProductsForSelector = secureAction(async (warehouseId?: string) => {
+    let targetWarehouseId = warehouseId;
+    if (warehouseId === 'MAIN') {
+        const mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        targetWarehouseId = mainWh?.id || undefined;
+    }
+
     const products = await prisma.product.findMany({
         orderBy: { name: 'asc' },
         include: {
@@ -1159,10 +1284,12 @@ export const getProductsForSelector = secureAction(async (warehouseId?: string) 
 
     const data = products.map(p => {
         let stock = p.stock;
-        if (warehouseId) {
-            const st = p.stocks.find(s => s.warehouseId === warehouseId);
+        if (targetWarehouseId) {
+            const st = p.stocks.find(s => s.warehouseId === targetWarehouseId);
             stock = st ? st.quantity : 0;
         }
+
+        const trackStock = (p as any).trackStock !== false;
 
         return {
             id: p.id,
@@ -1173,10 +1300,12 @@ export const getProductsForSelector = secureAction(async (warehouseId?: string) 
             sellPrice: Number(p.sellPrice),
             sellPrice2: Number(p.sellPrice2),
             sellPrice3: Number(p.sellPrice3),
+            trackStock
         };
-    });
+    }).filter(p => !p.trackStock || p.stock > 0);
+
     return { success: true, data };
-}, { permission: PERMISSIONS.TICKET_VIEW });
+}, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
 /**
  * Process a payment for a ticket
@@ -1203,6 +1332,10 @@ export const processTicketPayment = secureAction(async (data: {
 
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Authentication required");
+
+    if (checkTicketLock(ticket, currentUser)) {
+        throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
+    }
 
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
     if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
@@ -1438,7 +1571,7 @@ export const getOrCreateCustomer = secureAction(async (data: {
         balance: Number(customer.balance),
         creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null
     };
-}, { permission: PERMISSIONS.TICKET_VIEW });
+}, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
 /**
  * Add a collaborator (assistant engineer) to a ticket

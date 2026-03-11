@@ -143,7 +143,7 @@ export function SearchableSelect({
             </div>
 
             {isOpen && !disabled && (
-                <div className="absolute z-50 w-full mt-1 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
+                <div className="absolute z-50 w-full bottom-full mb-1 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
                     {filteredOptions.length === 0 && !onAdd && (
                         <div className="p-3 text-sm text-zinc-500 text-center">{t('noOptions')}</div>
                     )}

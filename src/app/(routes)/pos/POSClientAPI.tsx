@@ -120,6 +120,10 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
     const filteredProducts = useMemo(() => {
         return displayProducts.filter((p: any) => {
+            // Hide items with 0 stock unless they are services (trackStock === false)
+            if (p.trackStock !== false && p.stock <= 0) {
+                return false;
+            }
             const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.includes(search)) || (p.barcode && p.barcode.includes(search));
             const matchesCategory = selectedCategory ? p.categoryId === selectedCategory : true;
             return matchesSearch && matchesCategory;

@@ -60,7 +60,7 @@ export default function TicketStickerLabel({ ticket, storeName = "CASPER POS", t
                                 {ticket.deviceBrand} {ticket.deviceModel}
                             </div>
                             {ticket.deviceImei && (
-                                <div style={{ fontSize: '8px' }}>IMEI: {ticket.deviceImei.substring(ticket.deviceImei.length - 6)}..</div>
+                                <div style={{ fontSize: '8px' }}>{translations?.imei || "سيريال"}: {ticket.deviceImei.substring(ticket.deviceImei.length - 6)}..</div>
                             )}
                         </div>
 
@@ -82,8 +82,8 @@ export default function TicketStickerLabel({ ticket, storeName = "CASPER POS", t
                                 <div style={{ fontSize: '8px', fontWeight: '900', borderTop: '0.5mm solid transparent' }}>
                                     <span>{translations?.expectedTime || "الوقت المتوقع"}: </span>
                                     {Number(ticket.expectedDuration) >= 60
-                                        ? `${(Number(ticket.expectedDuration) / 60).toFixed(1)} hour`
-                                        : `${ticket.expectedDuration} min`
+                                        ? `${(Number(ticket.expectedDuration) / 60).toFixed(1)} ${translations?.hour || "ساعة"}`
+                                        : `${ticket.expectedDuration} ${translations?.min || "دقيقة"}`
                                     }
                                 </div>
                             ) : null}
@@ -99,10 +99,7 @@ export default function TicketStickerLabel({ ticket, storeName = "CASPER POS", t
                                 <div style={{ fontSize: '8px', fontWeight: '900', marginTop: '1px' }}>
                                     <span>{translations?.pattern || "نمط"}: </span>
                                     <span>
-                                        {ticket.patternData.split(',').map(n => {
-                                            const num = parseInt(n.trim());
-                                            return isNaN(num) ? n : (num + 1).toString();
-                                        }).join('-')}
+                                        {ticket.patternData.split(',').map(n => n.trim()).filter(n => n).join('→')}
                                     </span>
                                 </div>
                             )}

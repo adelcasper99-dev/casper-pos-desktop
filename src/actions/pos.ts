@@ -66,11 +66,20 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     const result = await prisma.$transaction(async (tx) => {
         // 0. Ensure Main Warehouse exists/get it
-        const mainWarehouseRaw = await tx.warehouse.findFirst({ where: { isDefault: true } });
+        // 🆕 Updated logic: Look for default warehouse of the current branch, or the global default
+        const mainWarehouseRaw = await tx.warehouse.findFirst({
+            where: {
+                branchId: currentUser.branchId || undefined,
+                isDefault: true
+            }
+        }) || await tx.warehouse.findFirst({
+            where: { isDefault: true }
+        });
+
         if (!mainWarehouseRaw) {
             const { getTranslations } = await import('@/lib/i18n-mock');
             const t = await getTranslations('SystemMessages.Errors');
-            throw new Error(t('mainWarehouseMissing'));
+            throw new Error(t('mainWarehouseMissing') || "Main warehouse missing");
         }
         const mainWarehouseId = mainWarehouseRaw.id;
 

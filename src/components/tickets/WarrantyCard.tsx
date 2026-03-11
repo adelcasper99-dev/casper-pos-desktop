@@ -1,17 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useTranslations } from '@/lib/i18n-mock'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { ShieldCheck, Calendar as CalendarIcon, Edit2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
-import { format, addDays, isAfter, isBefore, startOfDay } from "date-fns"
-import { cn } from "@/lib/utils"
+import { ShieldCheck, Calendar as CalendarIcon, Edit2 } from "lucide-react"
+import { addDays, isBefore, startOfDay } from "date-fns"
 import { updateTicketDetails } from "@/actions/ticket-actions"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 interface WarrantyCardProps {
     ticket: any
@@ -19,21 +17,16 @@ interface WarrantyCardProps {
 }
 
 export default function WarrantyCard({ ticket, onUpdate }: WarrantyCardProps) {
-    // Note: useTranslations('Tickets') might need valid JSON in messages
-    // Falling back to manual labels if translations fail
     const [date, setDate] = useState<Date | undefined>(
         ticket.warrantyExpiryDate ? new Date(ticket.warrantyExpiryDate) : undefined
     )
     const [loading, setLoading] = useState(false)
     const [isOpen, setIsOpen] = useState(false)
 
-    // Sync state with props
     useEffect(() => {
         setDate(ticket.warrantyExpiryDate ? new Date(ticket.warrantyExpiryDate) : undefined)
     }, [ticket.warrantyExpiryDate])
 
-
-    // Calculate Status
     const hasWarranty = !!ticket.warrantyExpiryDate
     const isExpired = hasWarranty && isBefore(new Date(ticket.warrantyExpiryDate), startOfDay(new Date()))
     const isActive = hasWarranty && !isExpired
@@ -41,127 +34,70 @@ export default function WarrantyCard({ ticket, onUpdate }: WarrantyCardProps) {
     const handleSave = async (newDate: Date | undefined) => {
         setLoading(true)
         try {
-            // Pass null if undefined to clear it
             await updateTicketDetails(ticket.id, {
-                // @ts-ignore - Action expects null|Date|undefined, here we use null to clear
+                // @ts-ignore
                 warrantyExpiryDate: newDate === undefined ? null : newDate
             })
-            // Optimistic update
             setDate(newDate)
             onUpdate()
             setIsOpen(false)
-            toast.success(newDate ? "Warranty updated" : "Warranty cleared")
+            toast.success(newDate ? "تم تحديث الضمان" : "تم إلغاء الضمان")
         } catch (error) {
-            toast.error("Failed to update warranty")
-            // Revert on error
-            setDate(ticket.warrantyExpiryDate ? new Date(ticket.warrantyExpiryDate) : undefined)
+            toast.error("فشل تحديث الضمان")
         } finally {
             setLoading(false)
         }
     }
 
     const setWarrantyDays = (days: number) => {
-        const newDate = addDays(new Date(), days)
-        // updateTicketDetails expects Date object
-        handleSave(newDate)
-    }
-
-    const clearWarranty = () => {
-        handleSave(undefined)
+        handleSave(addDays(new Date(), days))
     }
 
     return (
-        <Card className={cn(
-            "glass-card shadow-none bg-transparent border-t-4",
-            isActive ? "border-t-green-500" : isExpired ? "border-t-red-500" : "border-t-zinc-600"
-        )}>
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-white">
-                    <div className="flex items-center gap-2">
-                        <ShieldCheck className={cn("h-5 w-5",
-                            isActive ? "text-green-400" : isExpired ? "text-red-400" : "text-zinc-500"
-                        )} />
-                        <span>Warranty Status</span>
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">تاريخ انتهاء الضمان</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <ShieldCheck className={cn("w-3.5 h-3.5", isExpired ? "text-red-500" : "text-emerald-500")} />
+                        <span className={cn("text-[11px] font-bold", isExpired ? "text-red-400" : "text-emerald-400")}>
+                            {ticket.warrantyExpiryDate ? new Date(ticket.warrantyExpiryDate).toLocaleDateString('ar-EG') : 'بدون ضمان'}
+                        </span>
                     </div>
-                    {isActive && (
-                        <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20">
-                            Active
-                        </Badge>
-                    )}
-                    {isExpired && (
-                        <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">
-                            Expired
-                        </Badge>
-                    )}
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="text-sm">
-                        <div className="text-zinc-400 mb-1">Expiry Date</div>
-                        <div className="font-mono text-lg text-white font-medium flex items-center gap-2">
-                            {hasWarranty ? (
-                                <>
-                                    <CalendarIcon className="w-4 h-4 text-zinc-500" />
-                                    {format(new Date(ticket.warrantyExpiryDate), 'dd/MM/yyyy')}
-                                </>
-                            ) : (
-                                <span className="text-zinc-500 italic">No warranty set</span>
-                            )}
-                        </div>
-                    </div>
-
+                </div>
+                <div className="flex items-center gap-2">
+                    <Badge className={cn(
+                        "px-2 py-0.5 h-5 text-[8px] font-black uppercase tracking-wider rounded-md border",
+                        isExpired ? "bg-red-500/20 text-red-500 border-red-500/30" : "bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
+                    )}>
+                        {isExpired ? 'منتهي' : isActive ? 'ساري' : 'غير محدد'}
+                    </Badge>
                     <Popover open={isOpen} onOpenChange={setIsOpen}>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5">
-                                <Edit2 className="w-4 h-4 mr-2" />
-                                Edit
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg border border-white/5 hover:border-white/10 transition-all">
+                                <Edit2 className="w-3 h-3" />
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800" align="end">
-                            <div className="p-4 border-b border-white/10 space-y-2">
-                                <h4 className="font-medium text-white mb-2">Quick Presets</h4>
+                        <PopoverContent className="w-auto p-0 bg-zinc-900 border-white/10 rounded-2xl shadow-2xl overflow-hidden" align="center">
+                            <div className="p-4 border-b border-white/5 space-y-4 text-right" dir="rtl">
+                                <h4 className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">اختصارات زمنية</h4>
                                 <div className="grid grid-cols-3 gap-2">
-                                    <Button size="sm" variant="outline" onClick={() => setWarrantyDays(30)} className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700">30 Days</Button>
-                                    <Button size="sm" variant="outline" onClick={() => setWarrantyDays(60)} className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700">60 Days</Button>
-                                    <Button size="sm" variant="outline" onClick={() => setWarrantyDays(90)} className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700">90 Days</Button>
-                                    <Button size="sm" variant="destructive" onClick={clearWarranty} className="col-span-3 mt-1 h-7 text-xs">Clear Warranty</Button>
+                                    {[30, 60, 90].map(d => (
+                                        <Button key={d} size="sm" variant="outline" onClick={() => setWarrantyDays(d)} className="bg-white/5 border-white/5 hover:bg-emerald-500/20 h-10 rounded-xl text-xs font-bold">{d} يوم</Button>
+                                    ))}
+                                    <Button size="sm" variant="destructive" onClick={() => handleSave(undefined)} className="col-span-3 mt-1 h-10 rounded-xl text-[10px] font-black uppercase bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border-red-500/20">إلغاء الضمان</Button>
                                 </div>
                             </div>
                             <Calendar
                                 mode="single"
                                 selected={date}
-                                onSelect={(d) => {
-                                    setDate(d)
-                                    if (d) handleSave(d)
-                                }}
-                                initialFocus
-                                className="p-3 pointer-events-auto"
+                                onSelect={(d) => { setDate(d); if (d) handleSave(d); }}
+                                className="p-4 bg-transparent text-white"
                             />
                         </PopoverContent>
                     </Popover>
                 </div>
-
-                {/* Contextual Status Message */}
-                <div className="text-xs">
-                    {isActive ? (
-                        <div className="flex items-center gap-2 text-green-400/80 bg-green-900/10 p-2 rounded">
-                            <CheckCircle className="w-3 h-3" />
-                            Ticket is covered under warranty
-                        </div>
-                    ) : isExpired ? (
-                        <div className="flex items-center gap-2 text-red-400/80 bg-red-900/10 p-2 rounded">
-                            <AlertCircle className="w-3 h-3" />
-                            Warranty period has ended
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-zinc-500 bg-zinc-800/30 p-2 rounded">
-                            <AlertCircle className="w-3 h-3" />
-                            Standard repair warranty applies after delivery
-                        </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    )
+            </div>
+        </div>
+    );
 }

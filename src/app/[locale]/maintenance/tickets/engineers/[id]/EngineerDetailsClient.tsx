@@ -96,7 +96,7 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
     }
 
     if (!engineer) {
-        return <div className="p-8 text-center text-white">Engineer not found</div>
+        return <div className="p-8 text-center text-white">{t('details.notFound')}</div>
     }
 
     return (
@@ -104,7 +104,7 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" asChild className="text-zinc-400 hover:text-white hover:bg-white/10">
-                    <Link href="/maintenance/tickets?tab=engineers">
+                    <Link href={`/ar/maintenance/tickets?tab=engineers`}>
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
                 </Button>
@@ -241,7 +241,7 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                                 onClick={() => setIsTransferConsoleOpen(true)}
                                 disabled={stock.length === 0}
                             >
-                                <ArrowRightLeft className="w-4 h-4 mr-2" /> Handover
+                                <ArrowRightLeft className="w-4 h-4 mr-2" /> {t('details.handover')}
                             </Button>
                         </div>
 

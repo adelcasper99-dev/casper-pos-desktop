@@ -1,5 +1,5 @@
 import { TicketStatus } from "./constants";
-import { PERMISSIONS } from "./permissions";
+import { PERMISSIONS, hasPermission } from "./permissions";
 
 type TransitionRule = {
     from: string[];
@@ -15,149 +15,69 @@ type TransitionRule = {
 // Define the strict flow
 // This is the "Truth" of the business process.
 export const TICKET_TRANSITIONS: TransitionRule[] = [
-    // 1. Branch/Store Flow
+    // 1. استلام (Reception) -> تحديد التكلفة والوقت (Estimation)
     {
         from: [TicketStatus.NEW],
-        to: TicketStatus.IN_TRANSIT_TO_CENTER, // Simplified: Direct to Transit
-        requiredPermission: PERMISSIONS.LOGISTICS_CREATE,
-        description: "Send device to Center",
-        actionLabel: "Send to Center"
-    },
-    {
-        from: [TicketStatus.NEW, TicketStatus.READY_AT_BRANCH, TicketStatus.IN_PROGRESS],
-        to: TicketStatus.COMPLETED,
-        requiredPermission: PERMISSIONS.TICKET_COMPLETE, // Quick fix scenario or direct finish
-        description: "Quick Fix / Direct Finish",
-        actionLabel: "Mark Completed"
-    },
-
-    // 2. Logistics Flow
-    {
-        from: [TicketStatus.IN_TRANSIT_TO_CENTER, TicketStatus.NEW],
-        to: TicketStatus.AT_CENTER,
-        requiredPermission: PERMISSIONS.LOGISTICS_RECEIVE,
-        description: "Device Arrived at Center",
-        actionLabel: "Receive at Center"
-    },
-
-    // 3. Center/Technician Flow
-    {
-        from: [TicketStatus.AT_CENTER],
         to: TicketStatus.DIAGNOSING,
-        requiredPermission: PERMISSIONS.TICKET_ASSIGN,
-        description: "Technician starts inspection",
-        actionLabel: "Start Diagnosis"
+        requiredPermission: PERMISSIONS.TICKET_EDIT,
+        description: "Start Diagnosis / Estimate Cost & Time",
+        actionLabel: "تحديد التكلفة والوقت"
     },
+    // 2. تحديد التكلفة والوقت -> تعيين مهندس (Assign Engineer)
     {
         from: [TicketStatus.DIAGNOSING],
+        to: TicketStatus.AT_CENTER, // Using AT_CENTER as "Assigned/Ready for Technician"
+        requiredPermission: PERMISSIONS.TICKET_ASSIGN,
+        description: "Assign Technician",
+        actionLabel: "تعيين مهندس"
+    },
+    // 3. تعيين مهندس -> فى انتظار (Pending) OR بدء الإصلاح (In Progress)
+    {
+        from: [TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING],
+        to: TicketStatus.IN_PROGRESS,
+        requiredPermission: PERMISSIONS.TICKET_EDIT,
+        description: "Start Repairing Device",
+        actionLabel: "بدء الإصلاح"
+    },
+    {
+        from: [TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING, TicketStatus.IN_PROGRESS],
         to: TicketStatus.PENDING_APPROVAL,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Quote needs approval",
-        actionLabel: "Submit Quote"
+        description: "Waiting for approval or parts",
+        actionLabel: "فى انتظار"
     },
+    // 4. فى انتظار / تعيين مهندس -> تم الاصلاح (Fixed)
     {
-        from: [TicketStatus.DIAGNOSING, TicketStatus.PENDING_APPROVAL, TicketStatus.WAITING_FOR_PARTS],
-        to: TicketStatus.IN_PROGRESS,
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Repair work started",
-        actionLabel: "Start Repair"
-    },
-    {
-        from: [TicketStatus.IN_PROGRESS],
-        to: TicketStatus.WAITING_FOR_PARTS,
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Pause for parts",
-        actionLabel: "Wait for Parts"
-    },
-    // Technician finishes -> QC PENDING
-    {
-        from: [TicketStatus.IN_PROGRESS],
-        to: TicketStatus.QC_PENDING,
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Repair done, needs check",
-        actionLabel: "Finish & Send to QC"
-    },
-
-    // 4. QC Flow
-    {
-        from: [TicketStatus.QC_PENDING],
+        from: [TicketStatus.PENDING_APPROVAL, TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING, TicketStatus.IN_PROGRESS],
         to: TicketStatus.COMPLETED,
-        requiredPermission: PERMISSIONS.TICKET_COMPLETE, // QC Role needs this
-        description: "Quality Check Passed",
-        actionLabel: "Log Parts & Pass QC"
+        requiredPermission: PERMISSIONS.TICKET_COMPLETE,
+        description: "Repair finished",
+        actionLabel: "تم الاصلاح"
     },
-
-    // 5. Return Flow
+    // 5. تم الاصلاح -> الدفع (Payment)
     {
-        from: [TicketStatus.COMPLETED, TicketStatus.CANCELLED],
-        to: TicketStatus.IN_TRANSIT_TO_BRANCH, // Simplified: Direct to Transit
-        requiredPermission: PERMISSIONS.LOGISTICS_CREATE,
-        description: "Shipped back to store",
-        actionLabel: "Ship to Store"
+        from: [TicketStatus.COMPLETED, TicketStatus.READY_AT_BRANCH],
+        to: TicketStatus.PICKED_UP,
+        requiredPermission: PERMISSIONS.TICKET_PAY,
+        description: "Process payment",
+        actionLabel: "الدفع"
     },
+    // 6. الدفع -> قفل التذكرة (Closure)
     {
-        from: [TicketStatus.IN_TRANSIT_TO_BRANCH],
-        to: TicketStatus.READY_AT_BRANCH,
-        requiredPermission: PERMISSIONS.LOGISTICS_RECEIVE,
-        description: "Arrived at Store",
-        actionLabel: "Receive at Store"
-    },
-
-    // 6. Customer Handover
-    {
-        from: [TicketStatus.READY_AT_BRANCH, TicketStatus.COMPLETED], // If completed in store directly
-        to: TicketStatus.PICKED_UP, // DELIVERED
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Customer collected device",
-        actionLabel: "Mark Delivered"
-    },
-
-    // 🔧 FIX BUG-03: 6b. Final State — Paid & Delivered (close the ticket)
-    {
-        from: [TicketStatus.PICKED_UP, TicketStatus.DELIVERED, TicketStatus.COMPLETED, TicketStatus.READY_AT_BRANCH],
+        from: [TicketStatus.PICKED_UP, TicketStatus.DELIVERED],
         to: TicketStatus.PAID_DELIVERED,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Ticket fully paid and delivered — close ticket",
-        actionLabel: "Close Ticket"
+        description: "Close ticket",
+        actionLabel: "قفل التذكرة"
     },
 
-    // 7. Warranty Return Flow (Re-Repair)
+    // Rejection Flow
     {
-        from: [TicketStatus.DELIVERED, TicketStatus.PICKED_UP, TicketStatus.PAID_DELIVERED],
-        to: TicketStatus.RETURNED_FOR_REFIX,
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Customer returned device with issue",
-        actionLabel: "Return for Re-Repair"
-    },
-    {
-        from: [TicketStatus.RETURNED_FOR_REFIX],
-        to: TicketStatus.IN_TRANSIT_TO_CENTER,
-        requiredPermission: PERMISSIONS.LOGISTICS_CREATE,
-        description: "Send for re-repair at center",
-        actionLabel: "Send to Center"
-    },
-    {
-        from: [TicketStatus.RETURNED_FOR_REFIX],
-        to: TicketStatus.IN_PROGRESS,
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Quick fix at branch",
-        actionLabel: "Start Quick Fix"
-    },
-
-    // 8. Rejection Flow (Unrepairable)
-    {
-        from: [TicketStatus.DIAGNOSING, TicketStatus.IN_PROGRESS, TicketStatus.PENDING_APPROVAL],
+        from: [TicketStatus.DIAGNOSING, TicketStatus.AT_CENTER, TicketStatus.PENDING_APPROVAL],
         to: TicketStatus.REJECTED,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Cannot repair / Rejected",
-        actionLabel: "Reject / Unrepairable"
-    },
-    {
-        from: [TicketStatus.REJECTED],
-        to: TicketStatus.READY_AT_BRANCH,
-        requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Return rejected device to front desk",
-        actionLabel: "Ready for Pickup"
+        description: "Reject / Unrepairable",
+        actionLabel: "رفض / غير قابل للإصلاح"
     }
 ];
 
@@ -176,7 +96,10 @@ export function canTransition(
 
     return possibleMoves.map(move => {
         // 1. Check Permissions
-        if (move.requiredPermission && !userPermissions.includes(move.requiredPermission)) {
+        // Using hasPermission handles '*' wildcard for admins safely
+        // Admins also bypass via role string check for extra robustness
+        const isAdmin = userRole === 'ADMIN' || userRole === 'Admin' || userRole === 'مدير النظام' || userRole === 'المالك';
+        if (move.requiredPermission && !isAdmin && !hasPermission(userPermissions, move.requiredPermission)) {
             return {
                 allowed: false,
                 reason: "Insufficient Permissions",
@@ -216,24 +139,16 @@ export function canTransition(
         }
 
         // 3. Logic Guards (Existing)
-        // REMOVED: We now allow completing tickets without parts/labor (e.g. Warranty or No Issue Found)
-        /*
-        if (move.to === TicketStatus.COMPLETED) {
-            if (ticketDetails) {
-                const hasParts = ticketDetails.parts && ticketDetails.parts.length > 0;
-                const hasCharge = ticketDetails.repairPrice && Number(ticketDetails.repairPrice) > 0;
-
-                if (!hasParts && !hasCharge) {
-                    return {
-                        allowed: false,
-                        reason: "Cannot complete: Please log Parts or Labor first.",
-                        target: move.to,
-                        actionLabel: move.actionLabel
-                    };
-                }
+        if (move.to === TicketStatus.IN_PROGRESS) {
+            if (ticketDetails && !ticketDetails.technicianId) {
+                return {
+                    allowed: false,
+                    reason: "يجب تعيين مهندس أولاً",
+                    target: move.to,
+                    actionLabel: move.actionLabel
+                };
             }
         }
-        */
 
         return {
             allowed: true,

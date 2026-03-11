@@ -199,6 +199,46 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
         });
     }
 
+    // Cleanup: Ensure only ONE warehouse is marked as default for this branch
+    const defaultWarehouses = await prisma.warehouse.findMany({
+        where: { branchId: branch.id, isDefault: true, deletedAt: null },
+        orderBy: { createdAt: 'asc' } // Keep the oldest one as the true original
+    });
+
+    if (defaultWarehouses.length > 1) {
+        const trueOriginalWarehouse = defaultWarehouses[0];
+
+        // Ensure we don't accidentally delete stock. If the duplicates have no stock, we can delete them.
+        // Otherwise we just mark them as not default.
+        for (let i = 1; i < defaultWarehouses.length; i++) {
+            const duplicateWh = defaultWarehouses[i];
+            
+            // Check if it has stock, invoices, sales, or movements
+            const [stockCount, invoiceCount, saleCount, mvCount] = await Promise.all([
+                prisma.stock.count({ where: { warehouseId: duplicateWh.id, quantity: { gt: 0 } } }),
+                prisma.purchaseInvoice.count({ where: { warehouseId: duplicateWh.id } }),
+                prisma.sale.count({ where: { warehouseId: duplicateWh.id } }),
+                prisma.stockMovement.count({ where: { OR: [{ fromWarehouseId: duplicateWh.id }, { toWarehouseId: duplicateWh.id }] } })
+            ]);
+
+            if (stockCount === 0 && invoiceCount === 0 && saleCount === 0 && mvCount === 0) {
+                // Completely safe to delete the duplicate phantom warehouse
+                await prisma.stock.deleteMany({ where: { warehouseId: duplicateWh.id } }); // Delete any zero-qty stock records
+                await prisma.technician.deleteMany({ where: { warehouseId: duplicateWh.id } });
+                await prisma.warehouse.delete({ where: { id: duplicateWh.id } });
+            } else {
+                // Not safe to delete, just remove the default flag and rename it to avoid confusion
+                await prisma.warehouse.update({
+                    where: { id: duplicateWh.id },
+                    data: { 
+                        isDefault: false, 
+                        name: `${duplicateWh.name} (Duplicate)` 
+                    }
+                });
+            }
+        }
+    }
+
     // Assign all users without a branch to this branch
     await prisma.user.updateMany({
         where: { branchId: null },

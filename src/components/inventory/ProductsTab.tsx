@@ -62,6 +62,8 @@ export default function ProductsTab({
     const [search, setSearch] = useState("");
     const [debouncedSearch] = useDebounce(search, 500);
     const [page, setPage] = useState(1);
+    const [categoryId, setCategoryId] = useState<string>("");
+    const [stockStatus, setStockStatus] = useState<string>("");
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -80,11 +82,11 @@ export default function ProductsTab({
     const [quickPrintProduct, setQuickPrintProduct] = useState<Product | null>(null);
     const [addProductOpen, setAddProductOpen] = useState(false);
 
-    // React Query for Pagination & Search
+    // React Query for Pagination & Search & Filtering
     const { data: queryData, isLoading: isQueryLoading, refetch } = useQuery({
-        queryKey: ['products', debouncedSearch, page],
+        queryKey: ['products', debouncedSearch, page, categoryId, stockStatus],
         queryFn: async () => {
-            const res = await getProducts({ search: debouncedSearch, page, limit: 50 });
+            const res = await getProducts({ search: debouncedSearch, page, limit: 50, categoryId: categoryId || undefined, stockStatus: stockStatus || undefined });
             return res.success ? res : { data: [], pagination: { total: 0, totalPages: 0, page: 1, limit: 50 } };
         },
         initialData: (debouncedSearch === "" && page === 1) ? {
@@ -181,8 +183,8 @@ export default function ProductsTab({
         <div className="space-y-6 animate-fly-in">
             <BarcodeListener onScan={(code) => setSearch(code)} />
             {/* Action Bar */}
-            <div className="flex items-center justify-between gap-4">
-                <div className="relative flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute start-4 top-3 text-zinc-500 w-5 h-5" />
                     <input
                         type="text"
@@ -195,6 +197,29 @@ export default function ProductsTab({
                         className="w-full glass-input ps-12 py-3"
                     />
                     {isQueryLoading && <div className="absolute end-4 top-3"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>}
+                </div>
+
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <select
+                        value={categoryId}
+                        onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
+                        className="glass-input py-3 min-w-[150px] bg-card text-sm cursor-pointer [&>option]:bg-zinc-900 [&>option]:text-white"
+                    >
+                        <option value="">{tCommon('allCategories') || 'كل الأقسام'}</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+
+                    <select
+                        value={stockStatus}
+                        onChange={(e) => { setStockStatus(e.target.value); setPage(1); }}
+                        className="glass-input py-3 min-w-[150px] bg-card text-sm cursor-pointer [&>option]:bg-zinc-900 [&>option]:text-white"
+                    >
+                        <option value="">{tCommon('allStatuses') || 'كل الحالات'}</option>
+                        <option value="in_stock">{tCommon('inStock') || 'متوفر'}</option>
+                        <option value="low_stock">{tCommon('lowStock') || 'أوشك على النفاذ'}</option>
+                        <option value="out_of_stock">{tCommon('outOfStock') || 'نفذت الكمية'}</option>
+                        <option value="services">{tCommon('servicesLabel') || 'خدمات'}</option>
+                    </select>
                 </div>
 
                 {canManage && (
