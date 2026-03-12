@@ -1,5 +1,20 @@
 {
+    "HR": {
+        "directory": {
+            "title": "دليل الموظفين",
+            "activeMembers": "{count} عضو نشط",
+            "searchPlaceholder": "ابحث عن الموظفين...",
+            "addNew": "إضافة موظف",
+            "card": {
+                "branch": "الفرع",
+                "shift": "الوردية",
+                "inSince": "متاح منذ {time}",
+                "offDuty": "خارج وقت الدوام الإعتيادي"
+            }
+        }
+    },
     "Sidebar": {
+        "hr": "شؤون الموظفين",
         "dashboard": "لوحة القيادة",
         "pos": "نقطة البيع",
         "inventory": "المخزون",
@@ -1236,6 +1251,9 @@
             },
             "history": {
                 "noData": "لا يوجد سجل لهذا الفني",
+                "price": "سعر الإصلاح",
+                "searchPlaceholder": "بحث في السجل...",
+                "noResults": "لم يتم العثور على سجلات مطابقة",
                 "status": {
                     "NEW": "استلام",
                     "DIAGNOSING": "تحديد التكلفة",

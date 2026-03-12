@@ -65,6 +65,10 @@ model User {
   addedTicketParts     TicketPart[]          @relation("PartAddedBy")
   branch               Branch?               @relation(fields: [branchId], references: [id])
   role                 Role?                 @relation(fields: [roleId], references: [id])
+  
+  // HR Module
+  salary               Decimal?              @default(0.00)
+  dailyLogs            DailyWorkLog[]
 }
 
 model Role {
@@ -799,6 +803,26 @@ model DeviceMovement {
   toBranch     Branch    @relation("ToBranch", fields: [toBranchId], references: [id])
   fromBranch   Branch    @relation("FromBranch", fields: [fromBranchId], references: [id])
   tickets      Ticket[]
+}
+
+// --- HR Module ---
+
+model DailyWorkLog {
+  id        String    @id @default(uuid())
+  userId    String
+  date      DateTime
+  status    String    @default("PRESENT")
+  deduction Decimal   @default(0.00)
+  bonus     Decimal   @default(0.00)
+  note      String?
+  shift     String?
+  checkIn   DateTime?
+  checkOut  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
 }
 
 model EmployeeTransaction {

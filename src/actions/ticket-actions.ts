@@ -16,6 +16,7 @@ import { logger } from "@/lib/logger";
 import { calculateNetProfit, calculateCommission } from "@/lib/commission-validation";
 import { getBranchFilter } from "@/lib/data-filters";
 import { TicketStatus } from "@/lib/constants";
+import { handleReturnedPartStock } from "@/lib/stock-helpers";
 
 // Helper to get next sequential ticket number (T-001, T-002...) with collision protection
 async function getNextTicketNumber() {
@@ -858,24 +859,177 @@ export const softDeleteTicket = secureAction(async (data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    await prisma.ticket.update({
+    // 1. Fetch comprehensive ticket data
+    const ticket = await prisma.ticket.findUnique({
         where: { id: ticketId },
-        data: {
-            deletedAt: new Date()
+        include: {
+            parts: { where: { status: 'ACTIVE' } },
+            payments: true,
+            technician: true,
+            customer: true,
+            parentTicket: true
         }
     });
 
-    await prisma.auditLog.create({
-        data: {
-            entityType: 'TICKET',
-            entityId: ticketId,
-            action: 'SOFT_DELETE',
-            reason,
-            user: user.name || user.username || "Unknown"
+    if (!ticket) throw new Error("التذكرة غير موجودة.");
+    if (ticket.deletedAt) throw new Error("التذكرة ممسوحة بالفعل.");
+
+    // 2. Shift Guard if money needs to be reversed
+    const amountToRefund = Number(ticket.amountPaid) || 0;
+    let currentShift = null;
+    if (amountToRefund > 0) {
+        const shiftResult = await getCurrentShiftInternal({ userId: user.id });
+        if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
+            throw new Error("يجب فتح وردية أولاً للتراجع عن المبالغ المدفوعة في التذكرة.");
         }
+        currentShift = shiftResult.shift;
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+        // --- Part 1: Stock Reversal ---
+        let totalPartsCostReversal = 0;
+        for (const part of ticket.parts) {
+            if (part.productId) {
+                totalPartsCostReversal += (Number(part.cost) || 0) * part.quantity;
+                await handleReturnedPartStock(tx, {
+                    productId: part.productId,
+                    warehouseId: ticket.technician?.warehouseId || part.warehouseId || null,
+                    quantity: part.quantity,
+                    isDamaged: false, // Return implies parts are good
+                    reason: `مسح التذكرة #${ticket.barcode}: ${reason}`,
+                    performedById: user.id
+                });
+            }
+        }
+
+        // --- Part 2: Financial Reversal (If money involved) ---
+        if (amountToRefund > 0 && currentShift) {
+            const lastPayment = ticket.payments.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
+            const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
+
+            // 1. RepairPayment (Audit)
+            await tx.repairPayment.create({
+                data: {
+                    ticketId: ticket.id,
+                    type: 'REFUND',
+                    amount: new Decimal(amountToRefund),
+                    method: refundMethod,
+                    reference: `مسح التذكرة: ${reason}`,
+                    recordedBy: user.name || user.username || 'System'
+                }
+            });
+
+            // 2. Shift Totals
+            if (refundMethod !== 'ACCOUNT') {
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: {
+                        totalRefunds: { increment: amountToRefund },
+                        totalCashRefunds: { increment: refundMethod === 'CASH' ? amountToRefund : 0 }
+                    }
+                });
+
+                // 3. Treasury & Transaction
+                const defaultTreasury = await tx.treasury.findFirst({
+                    where: { branchId: user.branchId!, isDefault: true }
+                });
+
+                if (defaultTreasury) {
+                    await tx.transaction.create({
+                        data: {
+                            type: 'REFUND',
+                            amount: new Decimal(-amountToRefund),
+                            paymentMethod: refundMethod,
+                            description: `Delete Ticket #${ticket.barcode} - ${reason}`,
+                            shiftId: currentShift.id,
+                            treasuryId: defaultTreasury.id
+                        }
+                    });
+
+                    await tx.treasury.update({
+                        where: { id: defaultTreasury.id },
+                        data: { balance: { decrement: amountToRefund } }
+                    });
+                }
+            } else if (ticket.customerId) {
+                // 4. Customer Balance (Account Payment)
+                await tx.customer.update({
+                    where: { id: ticket.customerId },
+                    data: { balance: { increment: amountToRefund } }
+                });
+
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId: ticket.customerId,
+                        type: 'CREDIT',
+                        amount: new Decimal(-amountToRefund),
+                        description: `Ticket #${ticket.barcode} Deleted - Refund to Account`,
+                        reference: ticket.id,
+                        createdBy: user.id
+                    }
+                });
+            }
+
+            // 5. Accounting
+            await AccountingEngine.recordRefund({
+                amount: amountToRefund,
+                method: refundMethod,
+                description: `Delete Ticket: #${ticket.barcode}`,
+                reference: ticket.id,
+                ticketId: ticket.id,
+                cogsReversal: totalPartsCostReversal
+            }, tx);
+        }
+
+        // --- Part 3: Relationship Cleanup ---
+        if (ticket.parentTicketId) {
+            await tx.ticket.update({
+                where: { id: ticket.parentTicketId },
+                data: { returnCount: { decrement: 1 } }
+            });
+        }
+
+        // --- Part 4: Ticket & Part Deletion ---
+        await tx.ticketPart.updateMany({
+            where: { ticketId: ticket.id, status: 'ACTIVE' },
+            data: { 
+                status: 'REFUNDED',
+                deletedAt: new Date() 
+            }
+        });
+
+        const deletedTicket = await tx.ticket.update({
+            where: { id: ticketId },
+            data: {
+                deletedAt: new Date(),
+                status: TicketStatus.VOIDED,
+                repairPrice: new Decimal(0),
+                partsCost: new Decimal(0),
+                netProfit: new Decimal(0),
+                commissionAmount: new Decimal(0),
+                amountPaid: new Decimal(0),
+                paymentStatus: 'refunded'
+            }
+        });
+
+        // --- Part 5: Final Audit Log ---
+        await tx.auditLog.create({
+            data: {
+                entityType: 'TICKET',
+                entityId: ticketId,
+                action: 'SOFT_DELETE',
+                reason,
+                user: user.name || user.username || "Unknown"
+            }
+        });
+
+        return deletedTicket;
     });
 
     revalidatePath('/ar/maintenance/tickets');
+    revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
+    revalidateTag("dashboard");
+
     return { success: true };
 }, { permission: PERMISSIONS.TICKET_DELETE });
 

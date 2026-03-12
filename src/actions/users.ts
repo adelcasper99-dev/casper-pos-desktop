@@ -149,6 +149,7 @@ export const getUsersByBranch = secureAction(async (branchId: string) => {
             ...user,
             maxDiscount: u.maxDiscount ? Number(u.maxDiscount) : 0,
             maxDiscountAmount: u.maxDiscountAmount ? Number(u.maxDiscountAmount) : 0,
+            salary: u.salary ? Number(u.salary) : 0,
             managedHQIds: typeof user.managedHQIds === 'string' ? JSON.parse(user.managedHQIds) : user.managedHQIds
         }
     })
@@ -161,7 +162,7 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
     if (!session?.user) throw new Error("Unauthorized");
 
     const validatedData = userSchema.parse(data);
-    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount } = validatedData;
+    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount, salary } = validatedData;
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId);
@@ -222,7 +223,8 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
             isGlobalAdmin: isGlobalAdmin || false,
             phone: phone || null,
             maxDiscount: maxDiscount ?? 0.00,
-            maxDiscountAmount: maxDiscountAmount ?? 0.00
+            maxDiscountAmount: maxDiscountAmount ?? 0.00,
+            salary: salary ?? 0.00
         }
     })
 
@@ -242,7 +244,7 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
 
     const validatedData = userSchema.parse(data);
     // Note: password is optional in update
-    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount } = validatedData;
+    const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount, salary } = validatedData;
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId, id);
@@ -272,7 +274,8 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
         isGlobalAdmin: isGlobalAdmin ?? undefined,
         phone: phone || null,
         maxDiscount: maxDiscount ?? 0.00,
-        maxDiscountAmount: maxDiscountAmount ?? 0.00
+        maxDiscountAmount: maxDiscountAmount ?? 0.00,
+        salary: salary ?? 0.00
     }
 
     if (password && password.trim() !== '') {
@@ -381,6 +384,7 @@ export async function getUsersForPage() {
         ...u,
         maxDiscount: u.maxDiscount ? Number(u.maxDiscount) : 0,
         maxDiscountAmount: u.maxDiscountAmount ? Number(u.maxDiscountAmount) : 0,
+        salary: u.salary ? Number(u.salary) : 0,
         managedHQIds: typeof u.managedHQIds === 'string' ? JSON.parse(u.managedHQIds) : u.managedHQIds
     }));
 }

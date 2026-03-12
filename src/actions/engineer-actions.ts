@@ -352,10 +352,14 @@ export const getEngineerHistory = secureAction(async (engineerId: string) => {
                 id: true,
                 barcode: true,
                 deviceModel: true,
+                deviceBrand: true,
                 issueDescription: true,
                 repairPrice: true,
                 completedAt: true,
-                status: true
+                status: true,
+                customerName: true,
+                customerPhone: true,
+                updatedAt: true
             },
             take: 50
         });

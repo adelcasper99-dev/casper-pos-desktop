@@ -12,4 +12,5 @@ export const userSchema = z.object({
     isGlobalAdmin: z.boolean().optional(),
     maxDiscount: z.coerce.number().min(0).max(100).optional().nullable(),
     maxDiscountAmount: z.coerce.number().min(0).optional().nullable(),
+    salary: z.coerce.number().min(0).optional().nullable(),
 });

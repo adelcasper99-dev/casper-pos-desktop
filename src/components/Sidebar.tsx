@@ -26,6 +26,8 @@ import {
     Building2,
     Package,
     Activity,
+    Briefcase,
+    Clock,
     History as HistoryIcon,
     type LucideIcon
 } from "lucide-react";
@@ -57,6 +59,8 @@ import { SortableSidebarItem } from "./SortableSidebarItem";
 const MENU_ITEMS = [
     { key: "dashboard", href: "/dashboard", icon: LayoutDashboard, permission: PERMISSION_REGISTRY.DASHBOARD.VIEW },
     { key: "pos", href: "/pos", icon: ShoppingCart, permission: PERMISSION_REGISTRY.POS.ACCESS },
+    { key: "shifts", href: "/shifts", icon: Clock, permission: PERMISSION_REGISTRY.SHIFT.VIEW },
+    { key: "hr", href: "/hr", icon: Briefcase, permission: PERMISSION_REGISTRY.HR.VIEW_ATTENDANCE },
     { key: "inventory", href: "/inventory", icon: Box, permission: PERMISSION_REGISTRY.INVENTORY.VIEW },
     { key: "customers", href: "/customers", icon: Users, permission: PERMISSION_REGISTRY.CUSTOMER.VIEW },
     { key: "purchasing", href: "/purchasing", icon: Truck, permission: PERMISSION_REGISTRY.PURCHASING.VIEW },
