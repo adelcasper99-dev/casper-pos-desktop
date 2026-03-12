@@ -263,12 +263,18 @@
         "printerOnline": "الطابعة متصلة",
         "printerOffline": "الطابعة غير متصلة",
         "checking": "جاري التحقق...",
+        "name": "الاسم",
+        "phone": "رقم الهاتف",
         "methods": {
+            "title": "طريقة الدفع",
             "CASH": "نقداً",
             "VISA": "بطاقة",
             "CARD": "بطاقة",
             "TRANSFER": "تحويل بنكي",
-            "MADA": "مدى"
+            "MADA": "مدى",
+            "WALLET": "محفظة إلكترونية",
+            "INSTAPAY": "إنستا باي",
+            "ACCOUNT": "حساب عميل / آجل"
         }
     },
     "Validation": {
@@ -1136,7 +1142,20 @@
                 "paymentError": "خطأ في الدفع",
                 "confirmPayment": "تأكيد الدفع",
                 "balanceDue": "المبلغ المستحق",
-                "paymentAmount": "مبلغ الدفعة"
+                "paymentAmount": "مبلغ الدفعة",
+                "finalPayment": "دفع المتبقي / نهائي",
+                "deposit": "دفعة / عربون",
+                "fullBalance": "المبلغ كاملاً",
+                "half": "50% دفعة",
+                "referenceAuthCode": "رقم المرجع / العملية",
+                "customerAccount": "حساب العميل",
+                "searchExisting": "بحث عن عميل",
+                "addNewCustomer": "إضافة عميل جديد",
+                "currentBalance": "الرصيد الحالي",
+                "searchPlaceHolder": "بحث بالاسم أو الهاتف...",
+                "empSalDeduction": "خصم من الراتب (موظف)",
+                "validAmountError": "يرجى إدخال مبلغ صحيح",
+                "linkCustomerError": "فشل ربط العميل للحساب الآجل"
             },
             "quickEdit": {
                 "title": "تعديل سريع للتذكرة #{barcode}",

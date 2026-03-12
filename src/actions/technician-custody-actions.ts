@@ -55,7 +55,10 @@ export const searchProductsForCustody = secureAction(async (data: {
         // Resolve source warehouse
         let warehouseId = sourceWarehouseId;
         if (!warehouseId) {
-            const defaultWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+            let defaultWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
+            if (!defaultWh) {
+                defaultWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+            }
             warehouseId = defaultWh?.id || undefined;
         }
 
@@ -204,8 +207,12 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
 
     const destWarehouseId = tech.warehouseId;
 
-    // 2. Get Main Warehouse
-    const mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+    // 2. Get Main Maintenance Warehouse
+    let mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
+    if (!mainWh) {
+        mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+    }
+    
     if (!mainWh) throw new Error("Main warehouse not found");
 
     const sourceWarehouseId = mainWh.id;

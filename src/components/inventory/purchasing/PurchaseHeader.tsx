@@ -55,8 +55,8 @@ export function PurchaseHeader({
                     />
                 </div>
 
-                {/* Warehouse (Locked to Main/Default) */}
-                <div className="hidden">
+                {/* Warehouse */}
+                <div>
                     <label className="text-xs text-muted-foreground uppercase font-bold mb-1.5 block">
                         {t('warehouse')}
                     </label>
@@ -67,15 +67,6 @@ export function PurchaseHeader({
                         placeholder={t('selectWarehouse')}
                         emptyText="No warehouses found."
                     />
-                </div>
-
-                <div className="flex flex-col justify-center">
-                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1.5 block">
-                        {t('warehouse')}
-                    </label>
-                    <div className="h-10 flex items-center px-4 rounded-lg bg-muted text-sm font-medium border border-border">
-                        {warehouseOptions.find(w => w.value === selectedWarehouseId)?.label || "Main Warehouse"}
-                    </div>
                 </div>
             </div>
         </div>

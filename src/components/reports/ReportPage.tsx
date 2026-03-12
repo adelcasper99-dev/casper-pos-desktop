@@ -738,7 +738,7 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right text-zinc-400 text-xs">
-                                                        {t.branch || 'المخزن الرئيسي'}
+                                                        {t.branch || 'المخزن الافتراضي'}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <Badge variant="outline" className="text-[10px] border-white/5 bg-zinc-900 text-zinc-500 px-2 py-0">

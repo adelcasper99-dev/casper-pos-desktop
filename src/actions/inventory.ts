@@ -515,12 +515,15 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         : [];
     const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
 
-    // Prepare Warehouse ID (Enforce Main Warehouse)
-    const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-    if (!main) {
-        throw new Error("Main warehouse not found. Please ensure a default warehouse exists.");
+    // Prepare Warehouse ID
+    let warehouseId = header.warehouseId;
+    if (!warehouseId) {
+        const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        if (!main) {
+            throw new Error("Main warehouse not found. Please ensure a default warehouse exists.");
+        }
+        warehouseId = main.id;
     }
-    const warehouseId = main.id;
 
     // 2. Transaction (Optimized Writes)
     await prisma.$transaction(async (tx) => {
@@ -760,9 +763,12 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         : [];
     const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
 
-    const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-    if (!main) throw new Error("Main warehouse not found.");
-    const warehouseId = main.id;
+    let warehouseId = header.warehouseId;
+    if (!warehouseId) {
+        const main = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        if (!main) throw new Error("Main warehouse not found.");
+        warehouseId = main.id;
+    }
 
     await prisma.$transaction(async (tx) => {
         const oldInvoice = await tx.purchaseInvoice.findUnique({

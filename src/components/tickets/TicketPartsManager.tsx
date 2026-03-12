@@ -75,6 +75,9 @@ export default function TicketPartsManager({
     const [serviceName, setServiceName] = useState("");
     const [servicePrice, setServicePrice] = useState(0);
 
+    const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     useEffect(() => {
         if (isAddingPart) loadData();
     }, [isAddingPart, usageType, technicianId]);
@@ -141,10 +144,21 @@ export default function TicketPartsManager({
         }
     };
 
-    const handleRemove = async (partId: string) => {
-        if (!confirm("حذف العنصر؟")) return;
-        const res = await removeTicketPart({ partId, csrfToken: csrfToken ?? undefined });
-        if (res.success) { toast.success("تم الحذف"); router.refresh(); onUpdate?.(); }
+    const handleRemoveClick = (partId: string) => {
+        setDeletingPartId(partId);
+    };
+
+    const confirmRemove = async () => {
+        if (!deletingPartId) return;
+        setIsDeleting(true);
+        const res = await removeTicketPart({ partId: deletingPartId, csrfToken: csrfToken ?? undefined });
+        if (res.success) { 
+            toast.success("تم الحذف"); 
+            router.refresh(); 
+            onUpdate?.(); 
+        }
+        setDeletingPartId(null);
+        setIsDeleting(false);
     };
 
     return (
@@ -209,7 +223,7 @@ export default function TicketPartsManager({
                                             </span>
                                         </TableCell>
                                         <TableCell className="px-6 text-left">
-                                            <button onClick={() => handleRemove(part.id)} className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-400 transition-all bg-white/5 rounded-lg hover:bg-red-500/10">
+                                            <button onClick={() => handleRemoveClick(part.id)} className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-400 transition-all bg-white/5 rounded-lg hover:bg-red-500/10">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </TableCell>
@@ -250,10 +264,10 @@ export default function TicketPartsManager({
                     {usageType === 'transfer' ? (
                         <div className="space-y-5">
                             <SearchableSelect
-                                options={products.map(p => ({ label: `${p.name} (متوفر في الرئيسي: ${p.stock})`, value: p.name }))}
+                                options={products.map(p => ({ label: `${p.name} (متوفر للصرف: ${p.stock})`, value: p.name }))}
                                 value={selectedProduct?.name || ""}
                                 onChange={(val) => { const f = products.find(p => p.name === val); if (f) setSelectedProductId(f.id); }}
-                                placeholder="ابحث عن قطعة في المخزن الرئيسي للنقل..."
+                                placeholder="ابحث عن قطعة في مخزن الصيانة الافتراضي للنقل..."
                             />
                             <div className="flex items-center gap-4">
                                 <label className="text-sm font-black text-zinc-400 shrink-0">الكمية المنقولة:</label>
@@ -296,6 +310,30 @@ export default function TicketPartsManager({
                             {usageType === 'transfer' ? 'تأكيد النقل للمهندس' : 'إضافة البند للقائمة'}
                         </Button>
                         <Button variant="ghost" onClick={() => setIsAddingPart(false)} className="px-10 h-16 text-zinc-500 hover:text-white rounded-2xl font-bold">إلغاء</Button>
+                    </div>
+                </div>
+            </GlassModal>
+
+            {/* DELETE CONFIRMATION MODAL */}
+            <GlassModal isOpen={!!deletingPartId} onClose={() => !isDeleting && setDeletingPartId(null)} title="تأكيد الحذف">
+                <div className="space-y-4 pt-4 text-right" dir="rtl">
+                    <p className="text-zinc-400 text-sm font-bold">هل أنت متأكد من حذف هذا البند من التذكرة؟</p>
+                    <div className="flex gap-4 pt-4">
+                        <Button 
+                            onClick={confirmRemove} 
+                            className="flex-1 bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20 font-black h-12 rounded-xl transition-all"
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? "جاري الحذف..." : "نعم، احذف البند"}
+                        </Button>
+                        <Button 
+                            variant="ghost" 
+                            onClick={() => setDeletingPartId(null)} 
+                            className="px-8 text-zinc-500 hover:text-white h-12 rounded-xl font-bold bg-white/5"
+                            disabled={isDeleting}
+                        >
+                            إلغاء
+                        </Button>
                     </div>
                 </div>
             </GlassModal>

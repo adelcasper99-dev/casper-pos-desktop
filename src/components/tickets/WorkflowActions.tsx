@@ -89,12 +89,15 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
             const res = await updateTicketStatus({ ticketId: ticket.id, status: targetStatus, csrfToken: csrfToken ?? undefined });
             if (res.success) {
                 toast.success(t('statusUpdated'));
+                setOptimisticStatus(null); // Clear optimistic state to sync visually
                 onUpdate();
             } else {
                 toast.error(res.error || t('updateFailed'));
+                setOptimisticStatus(null);
             }
         } catch (error) {
             toast.error(t('networkError'));
+            setOptimisticStatus(null);
         }
     };
 
@@ -104,6 +107,7 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
             const res = await undoTicketStatus({ ticketId: ticket.id, csrfToken: csrfToken ?? undefined });
             if (res.success) {
                 toast.success(t('statusUpdated'));
+                setOptimisticStatus(null); // Clear optimistic state to sync visually
                 onUpdate();
             } else {
                 toast.error(res.error || t('updateFailed'));
@@ -167,7 +171,9 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
 
     return (
         <div className="flex items-center gap-2 w-full justify-end">
-            {ticket.previousStatus && (user.role === 'ADMIN' || user.role === 'MANAGER' || user.role === 'مدير النظام' || user.role === 'المالك') && (
+            {ticket.previousStatus && 
+             (user.role === 'ADMIN' || user.role === 'MANAGER' || user.role === 'مدير النظام' || user.role === 'المالك') && 
+             !['COMPLETED', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status) && (
                 <Button
                     variant="outline"
                     onClick={handleUndo}

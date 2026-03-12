@@ -74,7 +74,7 @@ function SectionHeader({ children, icon: Icon, className }: { children: React.Re
                     <Icon className="w-4 h-4" />
                 </div>
             )}
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover/section:text-white transition-colors">
+            <h3 className="text-lg font-black text-white group-hover/section:text-cyan-400 transition-colors">
                 {children}
             </h3>
         </div>
@@ -85,7 +85,7 @@ function DataRow({ label, children, action, className }: { label: string; childr
     return (
         <div className={cn("flex flex-col py-2.5 gap-1 group/row border-b border-white/[0.08] hover:bg-white/[0.02] px-3 -mx-3 rounded-lg transition-all", className)}>
             <div className="flex items-center justify-between w-full">
-                <span className="text-[9px] font-black uppercase text-zinc-600 tracking-widest group-hover/row:text-zinc-400 transition-colors">
+                <span className="text-xs font-black uppercase text-zinc-500 tracking-wide group-hover/row:text-zinc-400 transition-colors">
                     {label}
                 </span>
                 {action && <div className="shrink-0">{action}</div>}
@@ -244,7 +244,9 @@ export default function TicketDetailPage() {
 
     useEffect(() => {
         const shouldPrint = searchParams.get('print') === 'true';
-        if (shouldPrint && ticket && !loading && !hasPrinted) {
+        const autoPrintEnabled = settings?.data?.autoPrint ?? true; // Default to true if settings not yet loaded to maintain current behavior? No, let's stick to safety.
+        
+        if (shouldPrint && ticket && !loading && !hasPrinted && autoPrintEnabled) {
             setShowPrintOptions(true);
             setHasPrinted(true);
             // Clean URL
@@ -252,7 +254,7 @@ export default function TicketDetailPage() {
             url.searchParams.delete('print');
             window.history.replaceState({}, '', url.toString());
         }
-    }, [searchParams, ticket, loading, hasPrinted]);
+    }, [searchParams, ticket, loading, hasPrinted, settings]);
 
     async function loadData() {
         if (!ticket) setLoading(true);
@@ -436,8 +438,8 @@ export default function TicketDetailPage() {
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="flex flex-col text-left">
-                                <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">الحالة</span>
-                                <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                <span className="text-xs font-black text-zinc-500 mb-1">الحالة</span>
+                                <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 px-3 py-1 rounded-lg text-xs font-black tracking-wide">
                                     {tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}
                                 </Badge>
                             </div>
@@ -454,8 +456,8 @@ export default function TicketDetailPage() {
                                     <span className="font-mono text-zinc-400 tabular-nums">{ticket.deviceImei || '-'}</span>
                                 </DataRow>
                                 <div className="py-4">
-                                    <span className="text-[10px] font-black uppercase text-zinc-600 tracking-widest block mb-2 px-1">وصف العطل</span>
-                                    <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/10 text-[12px] text-zinc-400 leading-relaxed font-bold italic shadow-inner">
+                                    <span className="text-xs font-black text-zinc-600 block mb-2 px-1">وصف العطل</span>
+                                    <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/10 text-sm text-zinc-300 leading-relaxed font-bold shadow-inner">
                                         "{ticket.issueDescription}"
                                     </div>
                                 </div>
@@ -585,7 +587,7 @@ export default function TicketDetailPage() {
                     {/* Action Panel (The Invoice "Send" Zone) - Moved to Top */}
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-2 pr-1">
-                            <span className="text-[11px] font-black uppercase text-zinc-500 tracking-[0.2em] pl-2">إجمالي المبلغ المستحق</span>
+                            <span className="text-sm font-black text-zinc-500 pl-2">إجمالي المبلغ المستحق</span>
                             <div className="flex items-baseline gap-3 bg-zinc-950 p-6 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden group">
                                 <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <span className="text-5xl font-black text-white tabular-nums tracking-tighter relative z-10">
@@ -599,7 +601,7 @@ export default function TicketDetailPage() {
                                 <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 mt-1 shadow-sm backdrop-blur-md">
                                     <div className="flex items-center gap-2">
                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">المبلغ المدفوع</span>
+                                        <span className="text-xs font-black text-zinc-500">المبلغ المدفوع</span>
                                     </div>
                                     <span className="text-sm font-black text-emerald-400 tabular-nums">
                                         {Number(ticket.amountPaid).toLocaleString()}
@@ -706,19 +708,6 @@ export default function TicketDetailPage() {
                     barcode: ticket.barcode,
                     amountPaid: Number(ticket.amountPaid),
                     repairPrice: Number(ticket.repairPrice)
-                }}
-                onSuccess={loadData}
-            />
-
-            <TechnicianAssignmentModal
-                isOpen={showTechModal}
-                onClose={() => setShowTechModal(false)}
-                ticket={{
-                    id: ticket.id,
-                    barcode: ticket.barcode,
-                    technicianId: ticket.technicianId,
-                    deviceBrand: ticket.deviceBrand,
-                    deviceModel: ticket.deviceModel,
                 }}
                 onSuccess={loadData}
             />

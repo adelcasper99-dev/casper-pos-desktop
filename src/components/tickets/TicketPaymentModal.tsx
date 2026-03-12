@@ -35,7 +35,7 @@ interface TicketPaymentModalProps {
 }
 
 export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess }: TicketPaymentModalProps) {
-    const t = useTranslations("Ticket.payment");
+    const t = useTranslations("Tickets.details.payment");
     const router = useRouter();
     const commonT = useTranslations("Common");
     const { token: csrfToken } = useCSRF();
@@ -126,7 +126,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
     const handleProcessPayment = async () => {
         if (paymentAmountNum <= 0 && paymentMethod !== "ACCOUNT") {
-            toast.error("Please enter a valid amount");
+            toast.error(t('validAmountError') || "Please enter a valid amount");
             return;
         }
 
@@ -145,7 +145,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 if (custRes.success) {
                     finalCustomerId = (custRes as any).id;
                 } else {
-                    toast.error("Failed to link customer for account payment");
+                    toast.error(t('linkCustomerError') || "Failed to link customer for account payment");
                     setIsLoading(false);
                     return;
                 }
@@ -299,14 +299,14 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 <div className="space-y-4">
                     {/* Payment Method Grid */}
                     <div className="space-y-2">
-                        <Label className="text-zinc-400 text-xs uppercase tracking-wider">{commonT('methods.title') || "Payment Method"}</Label>
+                        <Label className="text-zinc-400 text-xs uppercase tracking-wider">{commonT('methods.title')}</Label>
                         <div className="grid grid-cols-3 gap-2">
                             {[
                                 { id: 'CASH', icon: Banknote, label: commonT('methods.CASH') },
                                 { id: 'VISA', icon: CreditCard, label: commonT('methods.VISA') },
-                                { id: 'WALLET', icon: Smartphone, label: "Wallet" },
-                                { id: 'INSTAPAY', icon: ArrowRightLeft, label: "InstaPay" },
-                                { id: 'ACCOUNT', icon: UserCircle, label: "Account" },
+                                { id: 'WALLET', icon: Smartphone, label: commonT('methods.WALLET') },
+                                { id: 'INSTAPAY', icon: ArrowRightLeft, label: commonT('methods.INSTAPAY') },
+                                { id: 'ACCOUNT', icon: UserCircle, label: commonT('methods.ACCOUNT') },
                             ].map((m) => (
                                 <button
                                     key={m.id}
@@ -336,7 +336,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                     : "text-zinc-500 hover:text-white"
                             )}
                         >
-                            {t('finalPayment') || "Final Payment"}
+                            {t('finalPayment')}
                         </button>
                         <button
                             onClick={() => setPaymentType('DEPOSIT')}
@@ -347,7 +347,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                     : "text-zinc-500 hover:text-white"
                             )}
                         >
-                            {t('deposit') || "Deposit"}
+                            {t('deposit')}
                         </button>
                     </div>
 
@@ -372,7 +372,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
                                 onClick={() => setAmount(balanceDue.toString())}
                             >
-                                {t('fullBalance') || "Full Balance"}
+                                {t('fullBalance')}
                             </Button>
                             <Button
                                 variant="ghost"
@@ -380,7 +380,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
                                 onClick={() => setAmount((balanceDue / 2).toString())}
                             >
-                                {t('half') || "50% Deposit"}
+                                {t('half')}
                             </Button>
                         </div>
                     </div>
@@ -388,11 +388,11 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                     {/* Reference (for Visa/Wallet/InstaPay) */}
                     {['VISA', 'WALLET', 'INSTAPAY'].includes(paymentMethod) && (
                         <div className="space-y-2 animate-fly-in">
-                            <Label className="text-zinc-400 text-xs uppercase tracking-wider">{t('referenceAuthCode') || "Reference / Auth Code"}</Label>
+                            <Label className="text-zinc-400 text-xs uppercase tracking-wider">{t('referenceAuthCode')}</Label>
                             <Input
                                 value={reference}
                                 onChange={e => setReference(e.target.value)}
-                                placeholder="Optional Transaction ID"
+                                placeholder={t('referenceAuthCode')}
                                 className="bg-white/5 border-white/10 h-10 text-sm"
                             />
                         </div>
@@ -409,8 +409,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                             <UserCheck className="w-4 h-4 text-blue-400" />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-bold text-blue-400">Employee: {employeeData.name}</p>
-                                            <p className="text-[10px] text-zinc-500 tracking-tighter">Salary Deduction (خصم من الراتب)</p>
+                                            <p className="text-xs font-bold text-blue-400">{employeeData.name}</p>
+                                            <p className="text-[10px] text-zinc-500 tracking-tighter">{t('empSalDeduction')}</p>
                                         </div>
                                     </div>
                                     <ShieldAlert className="w-4 h-4 text-blue-400 opacity-50" />
@@ -418,27 +418,27 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                             )}
 
                             <div className="flex items-center justify-between mb-1">
-                                <Label className="text-[10px] text-zinc-500 uppercase font-black">{t('customerAccount') || "Customer Account"}</Label>
+                                <Label className="text-[10px] text-zinc-500 uppercase font-black">{t('customerAccount')}</Label>
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 text-[10px] text-cyan-500 hover:bg-cyan-500/10"
                                     onClick={() => setIsCreatingCustomer(!isCreatingCustomer)}
                                 >
-                                    {isCreatingCustomer ? "Search Existing" : "Add New Customer"}
+                                    {isCreatingCustomer ? t('searchExisting') : t('addNewCustomer')}
                                 </Button>
                             </div>
 
                             {isCreatingCustomer ? (
                                 <div className="grid grid-cols-2 gap-2 animate-fly-in">
                                     <Input
-                                        placeholder="Name"
+                                        placeholder={commonT('name')}
                                         value={newCustomerName}
                                         onChange={e => setNewCustomerName(e.target.value)}
                                         className="h-10 text-xs bg-white/5 border-white/10"
                                     />
                                     <Input
-                                        placeholder="Phone"
+                                        placeholder={commonT('phone')}
                                         value={newCustomerPhone}
                                         onChange={e => setNewCustomerPhone(e.target.value)}
                                         className="h-10 text-xs bg-white/5 border-white/10"
@@ -454,12 +454,12 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                             setSelectedCustomer(cust);
                                         }}
                                         onSearch={setCustomerQuery}
-                                        placeholder="Search by name or phone..."
+                                        placeholder={t('searchPlaceHolder')}
                                         className="h-10"
                                     />
                                     {selectedCustomer && (
                                         <div className="flex items-center justify-between px-2 pt-1">
-                                            <span className="text-[10px] text-zinc-500">Current Balance:</span>
+                                            <span className="text-[10px] text-zinc-500">{t('currentBalance')}:</span>
                                             <span className={clsx(
                                                 "text-xs font-bold",
                                                 Number(selectedCustomer.balance) > 0 ? "text-red-400" : "text-green-400"

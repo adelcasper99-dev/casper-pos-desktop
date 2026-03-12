@@ -117,6 +117,23 @@ export default function StoreConfig({ settings }: { settings: any }) {
                         </label>
                     </div>
 
+                    {/* Auto-Print Toggle */}
+                    <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
+                        <div className="space-y-0.5">
+                            <label className="text-sm font-medium text-white">{t('autoPrint', 'Auto-Print Receipts')}</label>
+                            <p className="text-xs text-zinc-400">{t('autoPrintDesc', 'Automatically open print dialog after creating tickets/sales')}</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={form.autoPrint || false}
+                                onChange={(e) => handleChange('autoPrint', e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                        </label>
+                    </div>
+
                     {Number(form.taxRate) > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                             <div>

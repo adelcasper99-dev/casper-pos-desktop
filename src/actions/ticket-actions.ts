@@ -559,6 +559,11 @@ export const updateTicketStatus = secureAction(async (data: {
         };
 
         if (status === 'COMPLETED') {
+            // NEW VALIDATION: Must have at least one part or service
+            if (!existingTicket.parts || existingTicket.parts.length === 0) {
+                throw new Error("لا يمكن تحويل التذكرة إلى تم الإصلاح بدون إضافة بنود تكلفة (قطع غيار أو خدمات)");
+            }
+
             updateData.completedAt = new Date();
             updateData.completedById = technicianId || existingTicket.technicianId;
             if (repairPrice !== undefined) updateData.repairPrice = new Decimal(repairPrice);
@@ -625,6 +630,11 @@ export const undoTicketStatus = secureAction(async (data: {
 
     if (!ticket) throw new Error("Ticket not found");
     if (!ticket.previousStatus) throw new Error("No previous status found to undo");
+
+    // NEW VALIDATION: Block undoing completed/delivered tickets. Must use Return flow.
+    if (['COMPLETED', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status)) {
+        throw new Error("لا يمكن التراجع عن تذكرة مكتملة. يرجى استخدام خيار 'مرتجع'");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
         const updatedTicket = await tx.ticket.update({
@@ -1271,7 +1281,10 @@ export const removeTicketPart = secureAction(async (data: {
 export const getProductsForSelector = secureAction(async (warehouseId?: string) => {
     let targetWarehouseId = warehouseId;
     if (warehouseId === 'MAIN') {
-        const mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        let mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
+        if (!mainWh) {
+            mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
+        }
         targetWarehouseId = mainWh?.id || undefined;
     }
 
