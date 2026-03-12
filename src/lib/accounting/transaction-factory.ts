@@ -38,8 +38,8 @@ const PAYMENT_ACCOUNT_MAP: Record<string, string> = {
     VODAFONE_CASH: '1020',
     INSTAPAY: '1020',
     WALLET: '1020',
-    DEFERRED: '1200',
-    ACCOUNT: '1200',
+    DEFERRED: '1100',
+    ACCOUNT: '1100',
 };
 
 export class AccountingEngine {
@@ -192,6 +192,54 @@ export class AccountingEngine {
                 { accountCode: '5200', debit: amount, credit: 0, description },
                 { accountCode: '1000', debit: 0, credit: amount, description: 'Cash paid' }
             ]
+        }, tx);
+    }
+
+    /**
+     * Unified Refund Helper
+     * Handles both retail sales and maintenance refunds.
+     */
+    static async recordRefund(data: {
+        amount: number;
+        method: string;
+        description: string;
+        reference: string;
+        saleId?: string;
+        ticketId?: string;
+        cogsReversal?: number;
+    }, tx?: any) {
+        const { amount, method, description, reference, saleId, ticketId, cogsReversal } = data;
+        const absAmount = Math.abs(amount);
+        const accountCode = PAYMENT_ACCOUNT_MAP[method] ?? '1000';
+        const isDeferred = method === 'DEFERRED' || method === 'ACCOUNT';
+
+        const lines: TransactionLineInput[] = [
+            // Refund: Debit Revenue (reverse) / Credit Asset/AR
+            { 
+                accountCode: ticketId ? '4100' : '4000', 
+                debit: absAmount, 
+                credit: 0, 
+                description: ticketId ? 'Service Revenue Reversed' : 'Sales Revenue Reversed' 
+            },
+            { 
+                accountCode, 
+                debit: 0, 
+                credit: absAmount, 
+                description: isDeferred ? 'Customer AR Reduced' : 'Cash/Bank Refunded' 
+            }
+        ];
+
+        // Handle COGS reversal if provided (for retail returns)
+        if (cogsReversal && cogsReversal > 0) {
+            lines.push({ accountCode: '1200', debit: cogsReversal, credit: 0, description: 'Inventory Restored' });
+            lines.push({ accountCode: '5000', debit: 0, credit: cogsReversal, description: 'COGS Reversed' });
+        }
+
+        return this.recordTransaction({
+            description,
+            reference,
+            saleId,
+            lines
         }, tx);
     }
 }

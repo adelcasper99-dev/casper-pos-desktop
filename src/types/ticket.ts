@@ -109,4 +109,5 @@ export interface WorkflowTicket {
     expectedDuration: number | null;
     notes?: TicketNote[];
     previousStatus?: string | null;
+    warrantyExpiryDate?: Date | null;
 }

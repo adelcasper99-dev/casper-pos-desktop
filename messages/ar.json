@@ -965,13 +965,16 @@
             "updateFailed": "فشل تحديث الحالة",
             "completed": "اكتمل الإصلاح",
             "paidDelivered": "مدفوع ومسلم",
+            "fullReturn": "مرتجع كامل (إلغاء)",
             "noActions": "لا توجد إجراءات متاحة",
             "blocked": "ممنوع",
             "syncing": "جاري المزامنة...",
             "errors": {
                 "insufficientPermissions": "صلاحيات غير كافية",
                 "centerOnly": "متاح فقط في المركز الرئيسي"
-            }
+            },
+            "createWarrantyReturn": "إنشاء مرتجع صيانة",
+            "warrantyExpiredTooltip": "الضمان منتهي — لا يمكن إنشاء مرتجع صيانة"
         },
         "title": "تذاكر الصيانة",
         "subtitle": "إدارة إصلاحات الأجهزة وتعيينات الفنيين",
@@ -1017,7 +1020,8 @@
             "cancelled": "ملغية",
             "returnedForRefix": "مرتجع للإصلاح",
             "paidDelivered": "قفل التذكرة",
-            "rejected": "مرفوض"
+            "rejected": "مرفوض",
+            "voided": "مرتجع (ملغية)"
         },
         "table": {
             "status": "الحالة",
@@ -1133,10 +1137,27 @@
             "partsTab": "قطع الغيار",
             "returnCount": "عدد مرات الإرجاع: {count}",
             "issueRefund": "إصدار استرداد",
+            "fullReturn": "مرتجع كامل للطلب",
+            "fullReturnDesc": "سيتم استرداد المبلغ بالكامل وإرجاع جميع القطع للمخزون وتحويل حالة التذكرة إلى ملغاة.",
             "returnForRepair": "إرجاع للإصلاح",
             "whatsappUpdate": "تحديث عبر واتساب",
             "save": "حفظ",
             "cancel": "إلغاء",
+            "refund": {
+                "title": "استرداد مبلغ",
+                "refundAmount": "مبلغ الاسترداد",
+                "reasonRequired": "السبب مطلوب (ملاحظات)",
+                "paymentError": "خطأ في مبلغ الاسترداد",
+                "successTitle": "تمت العملية بنجاح",
+                "processed": "تم معالجة الاسترداد",
+                "inventoryUpdated": "تم تحديث المخزون والقيود المحاسبية",
+                "warning": "تنبيه",
+                "deductWarning": "سيتم خصم المبلغ من الخزينة وتحديث الوردية الحالية",
+                "maxRefundable": "أقصى مبلغ متاح",
+                "max": "الأقصى",
+                "voidAndReturn": "إلغاء وإرجاع للمخزون",
+                "confirmRefund": "تأكيد الاسترداد"
+            },
             "payment": {
                 "paymentSuccess": "تم الدفع بنجاح",
                 "paymentError": "خطأ في الدفع",

@@ -24,6 +24,7 @@ interface TechnicianAssignmentModalProps {
     ticket: {
         id: string;
         barcode: string;
+        status: string;
         technicianId?: string | null;
         deviceBrand?: string;
         deviceModel?: string;
@@ -44,6 +45,7 @@ export default function TechnicianAssignmentModal({
     ticket,
     onSuccess,
 }: TechnicianAssignmentModalProps) {
+    const isLocked = ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED'].includes(ticket.status);
     const { token: csrfToken } = useCSRF();
     const [technicians, setTechnicians] = useState<Technician[]>([]);
     const [selected, setSelected] = useState<string | null>(null);

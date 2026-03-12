@@ -429,7 +429,30 @@ export default function TicketDetailPage() {
                     {/* Header Banner (Invoice Style) */}
                     <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-6">
                         <div className="flex flex-col">
-                            <h2 className="text-4xl font-black text-white tabular-nums tracking-tighter">#{ticket.barcode}</h2>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <h2 className="text-4xl font-black text-white tabular-nums tracking-tighter">#{ticket.barcode}</h2>
+                                {ticket.parentTicketId && (
+                                    <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-black tracking-widest leading-none h-6 mt-1">مرتجع ضمان</Badge>
+                                )}
+                                {ticket.returnTickets && ticket.returnTickets.length > 0 && (
+                                    <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-1 rounded-md font-black flex items-center gap-1.5 mt-1 h-6">
+                                        يوجد {ticket.returnTickets.length} مرتجع (
+                                        {ticket.returnTickets.map((rt: any, i: number) => (
+                                            <span 
+                                                key={rt.id} 
+                                                className="cursor-pointer hover:text-emerald-300 hover:underline mx-0.5"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    router.push(`/ar/maintenance/tickets/${rt.id}`);
+                                                }}
+                                            >
+                                                #{rt.barcode}{i < ticket.returnTickets.length - 1 ? ',' : ''}
+                                            </span>
+                                        ))}
+                                        )
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex items-center gap-3 mt-3">
                                 <span className="text-[11px] font-black uppercase text-cyan-500 tracking-[0.2em]">{tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}</span>
                                 <div className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
@@ -503,10 +526,12 @@ export default function TicketDetailPage() {
                             <TicketPartsManager
                                 ticketId={ticket.id}
                                 parts={ticket.parts || []}
+                                status={ticket.status}
                                 technicianId={ticket.technicianId}
                                 technicianName={ticket.technician?.name}
                                 onChangeTechnician={() => setShowTechModal(true)}
                                 onUpdate={loadData}
+                                isWarrantyTicket={!!ticket.parentTicketId}
                             />
                         </div>
                     </section>
@@ -647,9 +672,26 @@ export default function TicketDetailPage() {
                                     </div>
                                 </DataRow>
                                 <div className="pt-4 border-t border-white/5 mt-4 space-y-2">
-                                    <label className="text-[9px] font-black uppercase text-zinc-600 tracking-widest px-1">الفني المسؤول</label>
-                                    <Select defaultValue={ticket.technicianId || ''} onValueChange={handleAssign}>
-                                        <SelectTrigger className="bg-zinc-950 border-white/5 h-12 rounded-xl focus:ring-0 text-[11px] font-bold text-white transition-all hover:bg-white/[0.05]">
+                                    <div className="flex items-center justify-between px-1">
+                                        <label className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">الفني المسؤول</label>
+                                        {ticket.isWarrantyReturn && ['ADMIN', 'مدير النظام', 'المالك', '*'].includes(user?.role) && (
+                                            <button 
+                                                onClick={() => setShowTechModal(true)}
+                                                className="text-[9px] font-black uppercase text-orange-400 hover:text-orange-300 transition-colors"
+                                            >
+                                                إعادة تعيين استثنائية
+                                            </button>
+                                        )}
+                                    </div>
+                                    <Select 
+                                        defaultValue={ticket.technicianId || ''} 
+                                        onValueChange={handleAssign}
+                                        disabled={
+                                            ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED', 'VOIDED', 'RETURNED_FOR_REFIX'].includes(ticket.status) || 
+                                            (ticket.isWarrantyReturn && !['ADMIN', 'مدير النظام', 'المالك', '*'].includes(user?.role))
+                                        }
+                                    >
+                                        <SelectTrigger className="bg-zinc-950 border-white/5 h-12 rounded-xl focus:ring-0 text-[11px] font-bold text-white transition-all hover:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed">
                                             <SelectValue placeholder="غير مسند" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-zinc-900 border-zinc-800 text-white rounded-xl">
@@ -688,6 +730,7 @@ export default function TicketDetailPage() {
                     deviceBrand: ticket.deviceBrand,
                     deviceModel: ticket.deviceModel,
                     deviceColor: ticket.deviceColor,
+                    status: ticket.status,
                     issueDescription: ticket.issueDescription
                 }}
                 onSuccess={loadData}
@@ -718,6 +761,7 @@ export default function TicketDetailPage() {
                 ticket={{
                     id: ticket.id,
                     barcode: ticket.barcode,
+                    status: ticket.status,
                     technicianId: ticket.technicianId,
                     deviceBrand: ticket.deviceBrand,
                     deviceModel: ticket.deviceModel,

@@ -16,7 +16,7 @@ import {
 import GlassModal from "@/components/ui/GlassModal";
 import { toast } from "sonner";
 import { useCSRF } from "@/contexts/CSRFContext";
-import { processTicketPayment, getOrCreateCustomer } from "@/actions/ticket-actions";
+import { processTicketPayment, getOrCreateCustomer, updateTicketStatus } from "@/actions/ticket-actions";
 import { getEffectiveStoreSettings } from "@/actions/settings";
 import TicketPrintTemplate from "./TicketPrintTemplate";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -46,7 +46,6 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     // Payment State
     const [paymentMethod, setPaymentMethod] = useState("CASH");
     const [paymentType, setPaymentType] = useState<'DEPOSIT' | 'PAYMENT'>('PAYMENT');
-    const [amount, setAmount] = useState<string>("");
     const [reference, setReference] = useState("");
     const [printReceipt, setPrintReceipt] = useState(true);
 
@@ -60,7 +59,16 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const [newCustomerName, setNewCustomerName] = useState("");
     const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-    const balanceDue = Math.max(0, (Number(ticket.repairPrice || 0) - Number(ticket.amountPaid || 0)));
+    const isWarrantyReturn = !!ticket.parentTicket;
+    const inheritedCredit = isWarrantyReturn ? Number(ticket.parentTicket.amountPaid || 0) : 0;
+    const currentPaid = Number(ticket.amountPaid || 0);
+    const totalNewPrice = Number(ticket.repairPrice || 0);
+    const balanceDue = Math.max(0, totalNewPrice - currentPaid);
+
+    // Delta for reconciliation (unifies warranty and regular overpayments)
+    const netDelta = totalNewPrice - inheritedCredit - currentPaid;
+
+    const [amount, setAmount] = useState(isWarrantyReturn || netDelta < 0 ? netDelta.toString() : balanceDue.toString());
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -69,7 +77,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         };
         if (isOpen) {
             loadSettings();
-            setAmount(balanceDue.toString());
+            setAmount(isWarrantyReturn || netDelta < 0 ? netDelta.toString() : balanceDue.toString());
             setPaymentMethod("CASH");
             setPaymentType("PAYMENT");
             setReference("");
@@ -125,7 +133,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const effectivePayment = Math.min(paymentAmountNum, balanceDue);
 
     const handleProcessPayment = async () => {
-        if (paymentAmountNum <= 0 && paymentMethod !== "ACCOUNT") {
+        // For warranty returns, 0 is valid (even swap) and negative is valid (refund)
+        if (!isWarrantyReturn && paymentAmountNum <= 0 && paymentMethod !== "ACCOUNT") {
             toast.error(t('validAmountError') || "Please enter a valid amount");
             return;
         }
@@ -159,7 +168,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         // 2. Process Server Action
         const res = await processTicketPayment({
             ticketId: ticket.id,
-            amount: effectivePayment,
+            amount: isWarrantyReturn ? paymentAmountNum : effectivePayment,
             paymentMethod: paymentMethod as any,
             paymentType: paymentType,
             reference: reference || undefined,
@@ -168,15 +177,24 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         });
 
         if (res.success) {
+            // CONSOLIDATED FLOW: If this is a final repair payment (not deposit) 
+            // and the balance is now zero, transition status to PAID_DELIVERED
+            const newAmountPaid = (Number(ticket.amountPaid) || 0) + effectivePayment;
+            const isFullyPaid = newAmountPaid >= Number(ticket.repairPrice);
+
+            if (paymentType === 'PAYMENT' && isFullyPaid) {
+                // Status transition is now handled atomically in the backend processTicketPayment
+            }
+
             toast.success(t('paymentSuccess'));
             setSuccess(true);
-
-            // Auto-print if enabled and not showing success preview (though here we show success preview)
-            // In desktop version, success preview is good, but user might want instant print.
-            // Following original project, we show preview and offer print button.
-
             onSuccess?.();
             router.refresh();
+            
+            // Auto close after small delay to let user see success state/toast
+            setTimeout(() => {
+                onClose();
+            }, 800);
         } else {
             toast.error((res as any).error || t('paymentError'));
         }
@@ -280,13 +298,47 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             <div className="space-y-5 py-4 overflow-y-auto max-h-[80vh] scrollbar-hide">
                 {/* Due Amount Highlight */}
                 <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-center">
-                    <div className="text-xs text-cyan-400 uppercase tracking-widest font-bold mb-1">{t('balanceDue')}</div>
-                    <div className="text-3xl font-black text-white">
-                        {formatCurrency(balanceDue)}
-                    </div>
+                    {(isWarrantyReturn || netDelta < 0) ? (
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-zinc-400">{t('newTotalDue') || "New Repair Total"}</span>
+                                <span className="text-white font-bold">{formatCurrency(totalNewPrice)}</span>
+                            </div>
+                            {isWarrantyReturn && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-zinc-400">{t('inheritedCredit') || "Previous Credit"}</span>
+                                    <span className="text-green-400 font-bold">{formatCurrency(inheritedCredit)}</span>
+                                </div>
+                            )}
+                            {currentPaid > 0 && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-zinc-400">{isWarrantyReturn ? (t('paidInReturn') || "Paid in Return") : (t('paidAmount') || "Total Paid")}</span>
+                                    <span className="text-cyan-400 font-bold">{formatCurrency(currentPaid)}</span>
+                                </div>
+                            )}
+                            <div className="pt-2 border-t border-white/5 flex justify-between items-center">
+                                <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-black">
+                                    {netDelta < 0 ? (t('refundAmount') || "Refund Amount") : (t('netAmount') || "Net Amount")}
+                                </span>
+                                <span className={clsx(
+                                    "text-2xl font-black",
+                                    netDelta > 0 ? "text-white" : netDelta < 0 ? "text-red-400" : "text-green-400"
+                                )}>
+                                    {formatCurrency(Math.abs(netDelta))}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="text-xs text-cyan-400 uppercase tracking-widest font-bold mb-1">{t('balanceDue')}</div>
+                            <div className="text-3xl font-black text-white">
+                                {formatCurrency(balanceDue)}
+                            </div>
+                        </>
+                    )}
 
                     {/* Change Calculator */}
-                    {changeAmount > 0 && (
+                    {!isWarrantyReturn && changeAmount > 0 && (
                         <div className="mt-3 pt-3 border-t border-cyan-500/20 animate-fly-in">
                             <div className="flex items-center justify-between bg-yellow-400/10 p-2 rounded-lg border border-yellow-400/20">
                                 <span className="text-yellow-400 font-bold text-xs">{t('change') || "Change"}</span>
@@ -370,18 +422,20 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 variant="ghost"
                                 size="sm"
                                 className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
-                                onClick={() => setAmount(balanceDue.toString())}
+                                onClick={() => setAmount(isWarrantyReturn ? netDelta.toString() : balanceDue.toString())}
                             >
-                                {t('fullBalance')}
+                                {isWarrantyReturn ? (t('fullDelta') || "Full Delta") : t('fullBalance')}
                             </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
-                                onClick={() => setAmount((balanceDue / 2).toString())}
-                            >
-                                {t('half')}
-                            </Button>
+                            {!isWarrantyReturn && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
+                                    onClick={() => setAmount((balanceDue / 2).toString())}
+                                >
+                                    {t('half')}
+                                </Button>
+                            )}
                         </div>
                     </div>
 
@@ -475,17 +529,28 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 </div>
 
                 {/* Footer Actions */}
-                <div className="pt-4 flex gap-3">
-                    <Button variant="ghost" onClick={onClose} className="flex-1 text-zinc-500 h-12">
-                        {commonT('cancel')}
+                <div className="pt-4 flex gap-3 border-t border-white/5">
+                    <Button variant="ghost" onClick={onClose} className="flex-1 text-zinc-500 h-14">
+                        {commonT('cancel').toUpperCase()}
                     </Button>
                     <Button
                         onClick={handleProcessPayment}
                         disabled={isLoading}
-                        className="flex-[2] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black h-12 shadow-lg shadow-cyan-500/20 border-0"
+                        className={clsx(
+                            "flex-[2] font-black h-14 shadow-lg border-0 transition-all",
+                            netDelta < 0 
+                                ? "bg-red-600 hover:bg-red-500 shadow-red-500/20 text-white" 
+                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-500/20 text-white"
+                        )}
                     >
-                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5 mr-2" />}
-                        {t('confirmPayment').toUpperCase()}
+                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                            netDelta < 0 ? <ArrowRightLeft className="w-5 h-5 mr-2" /> : <CreditCard className="w-5 h-5 mr-2" />
+                        )}
+                        {(isWarrantyReturn || netDelta < 0) ? (
+                            netDelta > 0 ? (t('collectDifference') || "Collect Difference").toUpperCase() :
+                            netDelta < 0 ? (t('refundCustomer') || "Refund Customer").toUpperCase() :
+                            (t('settleAndClose') || "Settle & Close").toUpperCase()
+                        ) : t('confirmPayment').toUpperCase()}
                     </Button>
                 </div>
             </div>

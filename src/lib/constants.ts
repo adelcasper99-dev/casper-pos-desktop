@@ -16,6 +16,7 @@ export const TicketStatus = {
     PICKED_UP: 'PICKED_UP',         // 🔧 BUG-12 NOTE: Same as DELIVERED, workflow uses PICKED_UP as primary
     CANCELLED: 'CANCELLED',
     PAID_DELIVERED: 'PAID_DELIVERED', // Final state
+    VOIDED: 'VOIDED',                 // Full Return state
     RETURNED_FOR_REFIX: 'RETURNED_FOR_REFIX', // Warranty return - customer returned with issue
     REJECTED: 'REJECTED' // Technician marked as unrepairable
 } as const;

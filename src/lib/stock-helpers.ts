@@ -66,3 +66,69 @@ export async function incrementWarehouseStock(
         data: { stock: { increment: qty } },
     });
 }
+
+/**
+ * Shared utility for handling returned or removed parts.
+ * Decides whether to restore to stock or log as wastage based on damage flag.
+ */
+export async function handleReturnedPartStock(
+    tx: any,
+    data: {
+        productId: string;
+        warehouseId: string | null;
+        quantity: number;
+        isDamaged: boolean;
+        reason: string;
+        performedById: string;
+    }
+): Promise<void> {
+    const { productId, warehouseId, quantity, isDamaged, reason, performedById } = data;
+    
+    if (isDamaged) {
+        // Log as wastage
+        await tx.stockWastage.create({
+            data: {
+                productId,
+                quantity,
+                reason: `[DAMAGED] ${reason}`,
+                warehouseId: warehouseId || undefined,
+                performedById
+            }
+        });
+
+        await tx.stockMovement.create({
+            data: {
+                type: 'WASTAGE',
+                productId,
+                fromWarehouseId: warehouseId || undefined,
+                quantity,
+                reason,
+                performedById
+            }
+        });
+    } else {
+        // Return to stock
+        let targetWhId = warehouseId;
+        if (!targetWhId) {
+            const fallbackWh = await tx.warehouse.findFirst({
+                where: { OR: [{ isMaintenanceDefault: true }, { isDefault: true }] }
+            });
+            targetWhId = fallbackWh?.id || null;
+        }
+
+        if (targetWhId) {
+            await incrementWarehouseStock(tx, productId, targetWhId, quantity);
+            
+            await tx.stockMovement.create({
+                data: {
+                    type: 'REFUND',
+                    productId,
+                    toWarehouseId: targetWhId,
+                    quantity,
+                    reason,
+                    performedById
+                }
+            });
+        }
+    }
+}

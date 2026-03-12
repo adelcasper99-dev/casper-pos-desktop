@@ -74,7 +74,12 @@ export default function WarrantyCard({ ticket, onUpdate }: WarrantyCardProps) {
                     </Badge>
                     <Popover open={isOpen} onOpenChange={setIsOpen}>
                         <PopoverTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg border border-white/5 hover:border-white/10 transition-all">
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                disabled={['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED'].includes(ticket.status)}
+                                className="h-8 w-8 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg border border-white/5 hover:border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 <Edit2 className="w-3 h-3" />
                             </Button>
                         </PopoverTrigger>

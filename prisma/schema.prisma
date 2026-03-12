@@ -7,8 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-// System Config
 model SystemConfig {
   id                    String   @id @default("default")
   warrantyDays          Int      @default(30)
@@ -21,26 +19,25 @@ model SystemConfig {
 }
 
 model StoreSettings {
-  id             String  @id @default("settings")
-  name           String  @default("Casper Store")
-  phone          String?
-  address        String?
-  taxRate        Decimal @default(0.00)
-  currency       String  @default("EGP")
-  receiptFooter  String  @default("Thank you for shopping with us!")
-  vatNumber      String?
-  logoUrl        String?
-  autoPrint      Boolean @default(false)
-  paperSize      String  @default("80mm")
-  features       String  @default("{}")
-  locationLat    Float   @default(24.7136)
-  locationLng    Float   @default(46.6753)
-  locationRadius Int     @default(500)
-  labelTemplate  String? // Changed from Json for SQLite
+  id                 String  @id @default("settings")
+  name               String  @default("Casper Store")
+  phone              String?
+  address            String?
+  taxRate            Decimal @default(0.00)
+  currency           String  @default("EGP")
+  receiptFooter      String  @default("Thank you for shopping with us!")
+  vatNumber          String?
+  logoUrl            String?
+  autoPrint          Boolean @default(false)
+  paperSize          String  @default("80mm")
+  features           String  @default("{}")
+  locationLat        Float   @default(24.7136)
+  locationLng        Float   @default(46.6753)
+  locationRadius     Int     @default(500)
+  labelTemplate      String?
   allowNegativeStock Boolean @default(false)
 }
 
-// Identity (Simplified)
 model User {
   id                   String                @id @default(uuid())
   username             String                @unique
@@ -48,36 +45,32 @@ model User {
   name                 String?
   roleStr              String                @default("STAFF")
   createdAt            DateTime              @default(now())
-  branchId             String?               // Optional for desktop standalone if single branch
+  branchId             String?
   deletedAt            DateTime?
   phone                String?               @unique
   isGlobalAdmin        Boolean               @default(false)
-  managedHQIds         String?               // Stored as JSON string for SQLite
-  maxDiscount          Decimal?              @default(0.00) // Maximum allowed discount % in POS
-  maxDiscountAmount    Decimal?              @default(0.00) // Maximum allowed discount amount in POS
-  
-  // Relations
+  managedHQIds         String?
+  roleId               String?
+  maxDiscount          Decimal?              @default(0.00)
+  maxDiscountAmount    Decimal?              @default(0.00)
   actionLogs           ActionLog[]
+  employeeTransactions EmployeeTransaction[]
   sales                Sale[]                @relation("SaleOwner")
+  sessions             Session[]
   shifts               Shift[]               @relation("ShiftOwner")
   stockMovements       StockMovement[]
   reportedWastage      StockWastage[]
-  roleId               String?
-  role                 Role?                 @relation(fields: [roleId], references: [id])
-  branch               Branch?               @relation(fields: [branchId], references: [id])
-  sessions             Session[]
-
-  // Ticket Module Relations
   technician           Technician?
-  employeeTransactions EmployeeTransaction[]
   clientTickets        Ticket[]              @relation("ClientUser")
   addedTicketParts     TicketPart[]          @relation("PartAddedBy")
+  branch               Branch?               @relation(fields: [branchId], references: [id])
+  role                 Role?                 @relation(fields: [roleId], references: [id])
 }
 
 model Role {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  permissions String   @default("[]")
+  id          String @id @default(uuid())
+  name        String @unique
+  permissions String @default("[]")
   users       User[]
 }
 
@@ -92,78 +85,65 @@ model Session {
   @@index([userId])
 }
 
-// Core Geo
 model Branch {
-  id                String           @id @default(uuid())
-  name              String
-  code              String           @unique
-  address           String?
-  phone             String?
-  type              String           @default("STORE")
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  deletedAt         DateTime?
-  
-  parentBranchId    String?
-  parentBranch      Branch?          @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
-  childBranches     Branch[]         @relation("BranchHierarchy")
-  region            String?
-  sortOrder         Int?             @default(0)
-  territoryCode     String?
-
-  // Relations
-  warehouses        Warehouse[]
-  users             User[]
-  treasuries        Treasury[]
-  stockRequests     StockRequest[]   @relation("RequestedByBranch")
-
-  // Ticket Module Relations
-  currentTickets    Ticket[]         @relation("CurrentLocation")
-  movementsFrom      DeviceMovement[] @relation("FromBranch")
-  movementsTo        DeviceMovement[] @relation("ToBranch")
+  id             String           @id @default(uuid())
+  name           String
+  code           String           @unique
+  address        String?
+  phone          String?
+  type           String           @default("STORE")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+  parentBranchId String?
+  region         String?
+  sortOrder      Int?             @default(0)
+  territoryCode  String?
+  parentBranch   Branch?          @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
+  childBranches  Branch[]         @relation("BranchHierarchy")
+  movementsTo    DeviceMovement[] @relation("ToBranch")
+  movementsFrom  DeviceMovement[] @relation("FromBranch")
+  stockRequests  StockRequest[]   @relation("RequestedByBranch")
+  currentTickets Ticket[]         @relation("CurrentLocation")
+  treasuries     Treasury[]
+  users          User[]
+  warehouses     Warehouse[]
 }
 
 model Warehouse {
-  id                  String            @id @default(uuid())
-  name                String
-  address             String?
-  isDefault           Boolean           @default(false)
-  isMaintenanceDefault Boolean          @default(false)
-  createdAt           DateTime          @default(now())
-  branchId            String
-  deletedAt           DateTime?
-
-  
-  // Relations
-  branch              Branch            @relation(fields: [branchId], references: [id])
-  purchases           PurchaseInvoice[]
-  sales               Sale[]
-  stocks              Stock[]
-  movementsFrom       StockMovement[]   @relation("FromWarehouse")
-  movementsTo         StockMovement[]   @relation("ToWarehouse")
-  fulfillmentRequests StockRequest[]    @relation("FulfillingWarehouse")
-  wastages            StockWastage[]
-  
-  // Ticket Module Relations
-  technicians         Technician[]
-  ticketParts         TicketPart[]
+  id                   String            @id @default(uuid())
+  name                 String
+  address              String?
+  isDefault            Boolean           @default(false)
+  isMaintenanceDefault Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  branchId             String
+  deletedAt            DateTime?
+  purchases            PurchaseInvoice[]
+  sales                Sale[]
+  stocks               Stock[]
+  movementsTo          StockMovement[]   @relation("ToWarehouse")
+  movementsFrom        StockMovement[]   @relation("FromWarehouse")
+  fulfillmentRequests  StockRequest[]    @relation("FulfillingWarehouse")
+  wastages             StockWastage[]
+  technicians          Technician[]
+  ticketParts          TicketPart[]
+  branch               Branch            @relation(fields: [branchId], references: [id])
 }
 
-// Accounting
 model Customer {
-  id              String                  @id @default(uuid())
-  name            String
-  phone           String                  @unique
-  email           String?
-  address         String?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  balance         Decimal                 @default(0.00)
-  creditLimit     Decimal?
-  
-  sales           Sale[]
-  transactions    CustomerTransaction[]
-  tickets         Ticket[]
+  id           String                @id @default(uuid())
+  name         String
+  phone        String                @unique
+  email        String?
+  address      String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  balance      Decimal               @default(0.00)
+  creditLimit  Decimal?
+  transactions CustomerTransaction[]
+  sales        Sale[]
+  tickets      Ticket[]
 }
 
 model CustomerTransaction {
@@ -189,7 +169,6 @@ model Supplier {
   address       String?
   balance       Decimal           @default(0.00)
   createdAt     DateTime          @default(now())
-  
   invoices      PurchaseInvoice[]
   payments      SupplierPayment[]
   clientTickets Ticket[]          @relation("ClientSupplier")
@@ -229,10 +208,9 @@ model JournalEntry {
   expenseId   String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
-  
-  expense     Expense?         @relation(fields: [expenseId], references: [id])
-  purchase    PurchaseInvoice? @relation(fields: [purchaseId], references: [id])
   sale        Sale?            @relation(fields: [saleId], references: [id])
+  purchase    PurchaseInvoice? @relation(fields: [purchaseId], references: [id])
+  expense     Expense?         @relation(fields: [expenseId], references: [id])
   lines       JournalLine[]
 
   @@index([date])
@@ -245,14 +223,13 @@ model JournalLine {
   debit          Decimal      @default(0.00)
   credit         Decimal      @default(0.00)
   description    String?
-  account        Account      @relation(fields: [accountId], references: [id])
   journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account        Account      @relation(fields: [accountId], references: [id])
 
   @@index([accountId])
   @@index([journalEntryId])
 }
 
-// Inventory
 model Category {
   id        String    @id @default(uuid())
   name      String
@@ -280,7 +257,8 @@ model Product {
   deletedAt         DateTime?
   version           Int                @default(1)
   archived          Boolean            @default(false)
-  
+  componentOf       BundleItem[]       @relation("ComponentProduct")
+  bundleItems       BundleItem[]       @relation("BundleProduct")
   category          Category           @relation(fields: [categoryId], references: [id])
   purchaseItems     PurchaseItem[]
   saleItems         SaleItem[]
@@ -288,23 +266,16 @@ model Product {
   stockMovements    StockMovement[]
   stockRequestItems StockRequestItem[]
   wastages          StockWastage[]
-  // Bundle relations
-  bundleItems       BundleItem[]       @relation("BundleProduct")
-  componentOf       BundleItem[]       @relation("ComponentProduct")
-
-  // Ticket Module Relations
   ticketParts       TicketPart[]
 }
 
-// Bundle / Package composed products
 model BundleItem {
   id                 String  @id @default(uuid())
   bundleProductId    String
   componentProductId String
   quantityIncluded   Int     @default(1)
-
-  bundleProduct     Product @relation("BundleProduct", fields: [bundleProductId], references: [id], onDelete: Cascade)
-  componentProduct  Product @relation("ComponentProduct", fields: [componentProductId], references: [id])
+  componentProduct   Product @relation("ComponentProduct", fields: [componentProductId], references: [id])
+  bundleProduct      Product @relation("BundleProduct", fields: [bundleProductId], references: [id], onDelete: Cascade)
 
   @@unique([bundleProductId, componentProductId])
   @@index([bundleProductId])
@@ -315,8 +286,8 @@ model Stock {
   productId   String
   warehouseId String
   quantity    Int       @default(0)
-  product     Product   @relation(fields: [productId], references: [id])
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
 
   @@unique([productId, warehouseId])
 }
@@ -331,16 +302,15 @@ model StockMovement {
   reason          String?
   createdAt       DateTime   @default(now())
   performedById   String?
-  
-  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
-  performedBy     User?      @relation(fields: [performedById], references: [id])
-  product         Product    @relation(fields: [productId], references: [id])
   toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  product         Product    @relation(fields: [productId], references: [id])
+  performedBy     User?      @relation(fields: [performedById], references: [id])
+  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
 }
 
 model StockRequest {
   id              String             @id @default(uuid())
-  requestNumber   Int                @unique // Removed default(autoincrement()) for SQLite
+  requestNumber   Int                @unique
   branchId        String
   warehouseId     String
   status          String             @default("PENDING")
@@ -354,9 +324,8 @@ model StockRequest {
   fallbackReason  String?
   routedHQId      String?
   routingMethod   String             @default("AUTO")
-  
-  branch          Branch             @relation("RequestedByBranch", fields: [branchId], references: [id])
   warehouse       Warehouse          @relation("FulfillingWarehouse", fields: [warehouseId], references: [id])
+  branch          Branch             @relation("RequestedByBranch", fields: [branchId], references: [id])
   items           StockRequestItem[]
 
   @@index([branchId])
@@ -369,25 +338,24 @@ model StockRequestItem {
   stockRequestId String
   productId      String
   quantity       Int
-  product        Product      @relation(fields: [productId], references: [id])
   stockRequest   StockRequest @relation(fields: [stockRequestId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id])
 
   @@unique([stockRequestId, productId])
 }
 
 model StockWastage {
-  id          String        @id @default(cuid())
+  id          String    @id @default(cuid())
   productId   String
   warehouseId String
   quantity    Int
-  reason      String // Simplified from enum for SQLite compatibility if needed, though enums work
+  reason      String
   notes       String?
   reportedBy  String
-  createdAt   DateTime      @default(now())
-  
-  product     Product       @relation(fields: [productId], references: [id])
-  user        User          @relation(fields: [reportedBy], references: [id])
-  warehouse   Warehouse     @relation(fields: [warehouseId], references: [id])
+  createdAt   DateTime  @default(now())
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  user        User      @relation(fields: [reportedBy], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
 
   @@index([productId, createdAt])
   @@index([warehouseId, createdAt])
@@ -408,10 +376,9 @@ model PurchaseInvoice {
   voidReason     String?
   voidedAt       DateTime?
   voidedBy       String?
-  
   journalEntries JournalEntry[]
-  supplier       Supplier       @relation(fields: [supplierId], references: [id])
   warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  supplier       Supplier       @relation(fields: [supplierId], references: [id])
   items          PurchaseItem[]
 }
 
@@ -420,13 +387,12 @@ model PurchaseItem {
   purchaseInvoiceId String
   productId         String
   quantity          Int
-  returnedQty       Int             @default(0) // Tracks how many units have been returned
+  returnedQty       Int             @default(0)
   unitCost          Decimal
-  product           Product         @relation(fields: [productId], references: [id])
   invoice           PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
+  product           Product         @relation(fields: [productId], references: [id])
 }
 
-// POS & Shifts
 model Sale {
   id                 String         @id @default(uuid())
   customerName       String?
@@ -436,12 +402,10 @@ model Sale {
   totalAmount        Decimal
   paymentMethod      String
   status             String         @default("NEW")
-  previousStatus     String?
   refundReason       String?
   taxAmount          Decimal        @default(0.00)
   subTotal           Decimal        @default(0.00)
   discountAmount     Decimal        @default(0.00)
-  discountPercentage Decimal?       @default(0.00)
   createdAt          DateTime       @default(now())
   shiftId            String?
   warrantyDays       Int?
@@ -449,17 +413,18 @@ model Sale {
   customerId         String?
   tableId            String?
   tableName          String?
-  
+  userId             String?
+  syncStatus         String         @default("PENDING")
+  offlineFlag        Boolean        @default(false)
+  discountPercentage Decimal?       @default(0.00)
+  previousStatus     String?
   journalEntries     JournalEntry[]
-  customer           Customer?      @relation(fields: [customerId], references: [id])
-  shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
+  user               User?          @relation("SaleOwner", fields: [userId], references: [id])
   warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
+  shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
+  customer           Customer?      @relation(fields: [customerId], references: [id])
   items              SaleItem[]
   payments           SalePayment[]
-  userId             String?
-  user               User?          @relation("SaleOwner", fields: [userId], references: [id])
-  syncStatus         String         @default("PENDING") // PENDING, SYNCED, ERROR
-  offlineFlag        Boolean        @default(false)
 
   @@index([shiftId])
   @@index([customerId])
@@ -479,15 +444,15 @@ model SalePayment {
 }
 
 model SaleItem {
-  id           String  @id @default(uuid())
-  saleId       String
-  productId    String
-  quantity     Int
-  refundedQty  Int     @default(0)  // Tracks how many units have been returned — audit fix V-07
-  unitPrice    Decimal
-  unitCost     Decimal @default(0.00)
-  product      Product @relation(fields: [productId], references: [id])
-  sale         Sale    @relation(fields: [saleId], references: [id])
+  id          String  @id @default(uuid())
+  saleId      String
+  productId   String
+  quantity    Int
+  refundedQty Int     @default(0)
+  unitPrice   Decimal
+  unitCost    Decimal @default(0.00)
+  sale        Sale    @relation(fields: [saleId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
 
   @@index([saleId])
 }
@@ -522,7 +487,6 @@ model Shift {
   totalInstapay              Decimal           @default(0.00)
   totalWalletSales           Decimal           @default(0.00)
   totalAccountSales          Decimal           @default(0.00)
-  
   totalRefunds               Decimal           @default(0.00)
   totalCashRefunds           Decimal           @default(0.00)
   totalAccountRefunds        Decimal           @default(0.00)
@@ -535,13 +499,12 @@ model Shift {
   totalTicketRevenueCash     Decimal           @default(0.00)
   totalTicketRevenueInstapay Decimal           @default(0.00)
   totalTicketRevenueWallet   Decimal           @default(0.00)
-  
   expenses                   Expense[]         @relation("ShiftExpenses")
   sales                      Sale[]            @relation("ShiftSales")
   user                       User              @relation("ShiftOwner", fields: [userId], references: [id])
   adjustments                ShiftAdjustment[]
-  transactions               Transaction[]
   tickets                    Ticket[]          @relation("ShiftTickets")
+  transactions               Transaction[]
 
   @@index([userId, status])
   @@index([registerId, status])
@@ -567,7 +530,7 @@ model Treasury {
   name          String
   branchId      String
   isDefault     Boolean       @default(false)
-  paymentMethod String?       // CASH | VISA | WALLET | INSTAPAY — null = general treasury
+  paymentMethod String?
   balance       Decimal       @default(0.00)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -592,8 +555,8 @@ model Transaction {
   relatedTransactionId String?
   shiftId              String?
   treasuryId           String?
-  shift                Shift?    @relation(fields: [shiftId], references: [id])
   treasury             Treasury? @relation(fields: [treasuryId], references: [id])
+  shift                Shift?    @relation(fields: [shiftId], references: [id])
 
   @@index([treasuryId, createdAt])
 }
@@ -610,7 +573,6 @@ model Expense {
   journalEntries JournalEntry[]
 }
 
-// Misc needed for compilation but maybe not used
 model ActionLog {
   id        String   @id @default(uuid())
   action    String
@@ -618,8 +580,6 @@ model ActionLog {
   userId    String?
   branchId  String?
   createdAt DateTime @default(now())
-  
-  // Relations need to be optional if User/Branch not always present, but here they are just IDs
   user      User?    @relation(fields: [userId], references: [id])
 }
 
@@ -636,11 +596,11 @@ model Technician {
   updatedAt             DateTime               @updatedAt
   warehouseId           String?
   deletedAt             DateTime?
-  user                  User                   @relation(fields: [userId], references: [id])
   warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
+  user                  User                   @relation(fields: [userId], references: [id])
   TechnicianPerformance TechnicianPerformance?
-  completedTickets      Ticket[]               @relation("CompletedBy")
   tickets               Ticket[]
+  completedTickets      Ticket[]               @relation("CompletedBy")
   collaborations        TicketCollaborator[]
 }
 
@@ -663,8 +623,8 @@ model DevicePreset {
 }
 
 model Ticket {
-  id                 String            @id @default(uuid())
-  barcode            String            @unique
+  id                 String               @id @default(uuid())
+  barcode            String               @unique
   customerName       String
   customerPhone      String
   customerEmail      String?
@@ -678,53 +638,57 @@ model Ticket {
   issueDescription   String
   conditionNotes     String?
   warrantyExpiry     DateTime?
-  status             String            @default("NEW")
-  previousStatus     String?
+  status             String               @default("NEW")
   currentBranchId    String
   movementId         String?
   technicianId       String?
   completedById      String?
-  initialQuote       Decimal           @default(0.00)
-  repairPrice        Decimal           @default(0.00)
-  partsCost          Decimal           @default(0.00)
-  deposit            Decimal           @default(0.00)
-  commissionRate     Decimal           @default(0.00)
-  commissionAmount   Decimal           @default(0.00)
-  netProfit          Decimal           @default(0.00)
-  paymentStatus      String            @default("unpaid")
+  initialQuote       Decimal              @default(0.00)
+  repairPrice        Decimal              @default(0.00)
+  partsCost          Decimal              @default(0.00)
+  deposit            Decimal              @default(0.00)
+  commissionRate     Decimal              @default(0.00)
+  commissionAmount   Decimal              @default(0.00)
+  netProfit          Decimal              @default(0.00)
+  paymentStatus      String               @default("unpaid")
   paymentMethod      String?
-  amountPaid         Decimal           @default(0.00)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  amountPaid         Decimal              @default(0.00)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?
-  version            Int               @default(1)
+  version            Int                  @default(1)
   completedAt        DateTime?
   deliveredAt        DateTime?
-  commissionClawback Decimal           @default(0.00)
+  commissionClawback Decimal              @default(0.00)
   lastReturnedAt     DateTime?
   originalTechId     String?
-  returnCount        Int               @default(0)
+  returnCount        Int                  @default(0)
   returnReason       String?
   shiftId            String?
   warrantyExpiryDate DateTime?
   expectedDuration   Int?
   startedAt          DateTime?
+  clientUserId       String?
+  clientSupplierId   String?
+  previousStatus     String?
+  parentTicketId     String?
+  isWarrantyReturn   Boolean              @default(false)
   feedback           Feedback?
   logs               NotificationLog[]
   payments           RepairPayment[]
-  completedBy        Technician?       @relation("CompletedBy", fields: [completedById], references: [id])
-  currentBranch      Branch            @relation("CurrentLocation", fields: [currentBranchId], references: [id])
-  customer           Customer?         @relation(fields: [customerId], references: [id])
-  movement           DeviceMovement?   @relation(fields: [movementId], references: [id])
-  shift              Shift?            @relation("ShiftTickets", fields: [shiftId], references: [id])
-  technician         Technician?       @relation(fields: [technicianId], references: [id])
-  clientUser         User?             @relation("ClientUser", fields: [clientUserId], references: [id])
-  clientUserId       String?
-  clientSupplier     Supplier?         @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
-  clientSupplierId   String?
+  clientSupplier     Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
+  clientUser         User?                @relation("ClientUser", fields: [clientUserId], references: [id])
+  technician         Technician?          @relation(fields: [technicianId], references: [id])
+  shift              Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
+  movement           DeviceMovement?      @relation(fields: [movementId], references: [id])
+  customer           Customer?            @relation(fields: [customerId], references: [id])
+  currentBranch      Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  parentTicket       Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
+  returnTickets      Ticket[]             @relation("TicketReturns")
+  completedBy        Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
+  collaborators      TicketCollaborator[]
   notes              TicketNote[]
   parts              TicketPart[]
-  collaborators      TicketCollaborator[]
 
   @@index([barcode])
   @@index([status, createdAt])
@@ -733,6 +697,7 @@ model Ticket {
   @@index([technicianId])
   @@index([clientUserId])
   @@index([clientSupplierId])
+  @@index([parentTicketId])
 }
 
 model NotificationLog {
@@ -754,24 +719,27 @@ model TicketPart {
   cost        Decimal    @default(0.00)
   price       Decimal    @default(0.00)
   createdAt   DateTime   @default(now())
+  status      String     @default("ACTIVE")
+  isDamaged   Boolean    @default(false)
+  deletedAt   DateTime?
   warehouseId String?
   addedById   String?
-  product     Product?   @relation(fields: [productId], references: [id])
-  ticket      Ticket     @relation(fields: [ticketId], references: [id])
-  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
   addedBy     User?      @relation("PartAddedBy", fields: [addedById], references: [id])
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  ticket      Ticket     @relation(fields: [ticketId], references: [id])
+  product     Product?   @relation(fields: [productId], references: [id])
 }
 
 model TicketCollaborator {
   id               String     @id @default(uuid())
   ticketId         String
   technicianId     String
-  role             String     @default("ASSISTANT") // LEAD, ASSISTANT
+  role             String     @default("ASSISTANT")
   commissionRate   Decimal    @default(0.00)
   commissionAmount Decimal    @default(0.00)
   createdAt        DateTime   @default(now())
+  technician       Technician @relation(fields: [technicianId], references: [id])
   ticket           Ticket     @relation(fields: [ticketId], references: [id])
-  technician     Technician @relation(fields: [technicianId], references: [id])
 
   @@unique([ticketId, technicianId])
 }
@@ -828,8 +796,8 @@ model DeviceMovement {
   receivedAt   DateTime?
   createdById  String
   receivedById String?
-  fromBranch   Branch    @relation("FromBranch", fields: [fromBranchId], references: [id])
   toBranch     Branch    @relation("ToBranch", fields: [toBranchId], references: [id])
+  fromBranch   Branch    @relation("FromBranch", fields: [fromBranchId], references: [id])
   tickets      Ticket[]
 }
 
@@ -868,7 +836,7 @@ model BackupLog {
   id           String   @id @default(uuid())
   filename     String
   filePath     String
-  fileSize     Float    // Use Float or Int for SQLite, BigInt has issues in JSON serialization usually
+  fileSize     Float
   checksum     String?
   compressed   Boolean  @default(false)
   encrypted    Boolean  @default(false)
@@ -883,7 +851,6 @@ model Floor {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
   tables    Table[]
 }
 
@@ -891,18 +858,17 @@ model Table {
   id        String   @id @default(uuid())
   name      String
   floorId   String
-  status    String   @default("AVAILABLE") // AVAILABLE, OCCUPIED
+  status    String   @default("AVAILABLE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
   floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
 }
 
 model LocalBackup {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   backupPath      String
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
   fileSize        Int
-  integrityStatus String   @default("UNCHECKED") // VALID, CORRUPT, UNCHECKED
+  integrityStatus String    @default("UNCHECKED")
   lastRestoredAt  DateTime?
 }

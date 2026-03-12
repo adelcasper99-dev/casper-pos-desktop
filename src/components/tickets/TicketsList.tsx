@@ -14,7 +14,7 @@ import { CasperLoader } from "@/components/ui/CasperLoader"
 import { useTranslations } from '@/lib/i18n-mock'
 import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
-import { Edit2, Trash2, MoreHorizontal, Clock, AlertTriangle, AlertCircle, X } from "lucide-react"
+import { Edit2, Trash2, MoreHorizontal, Clock, AlertTriangle, AlertCircle, X, Shield, Wrench } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -160,6 +160,17 @@ export default function TicketsList() {
         if (timeLeftMin < 0) return { status: 'overdue', label: t('table.overdue', { min: Math.abs(timeLeftMin) }), color: 'text-red-500' };
         if (timeLeftMin < 60) return { status: 'due_soon', label: t('table.dueIn', { min: timeLeftMin }), color: 'text-yellow-500' };
         return { status: 'normal', label: `${ticket.expectedDuration} min`, color: 'text-zinc-400' };
+    }
+
+    const getCaseInfo = (ticket: any) => {
+        if (ticket.isWarrantyReturn) {
+            return { label: 'مرتجع', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20', icon: AlertTriangle };
+        }
+        const now = new Date();
+        if (ticket.warrantyExpiryDate && new Date(ticket.warrantyExpiryDate) > now) {
+            return { label: 'ضمان', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: Shield };
+        }
+        return { label: 'عادي', color: 'bg-zinc-500/10 text-zinc-400 border-white/5', icon: Wrench };
     }
 
     const getRiskInfo = (ticket: any) => {
@@ -349,7 +360,19 @@ export default function TicketsList() {
                                                 <span className="text-xs">{new Date(ticket.createdAt).toLocaleDateString()}</span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="font-mono text-zinc-300 font-medium text-xs">#{ticket.barcode}</span>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="font-mono text-zinc-300 font-medium text-xs">#{ticket.barcode}</span>
+                                                    {(() => {
+                                                        const caseInfo = getCaseInfo(ticket);
+                                                        const CaseIcon = caseInfo.icon;
+                                                        return (
+                                                            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border w-fit ${caseInfo.color}`}>
+                                                                <CaseIcon className="w-3 h-3" />
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider">{caseInfo.label}</span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-xs font-medium text-blue-300">
                                                 {ticket.gap || formatDistanceToNow(new Date(ticket.updatedAt), { addSuffix: true })}
