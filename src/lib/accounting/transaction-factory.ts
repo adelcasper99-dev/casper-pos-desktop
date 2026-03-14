@@ -40,6 +40,7 @@ const PAYMENT_ACCOUNT_MAP: Record<string, string> = {
     WALLET: '1020',
     DEFERRED: '1100',
     ACCOUNT: '1100',
+    SUPPLIER_OFFSET: '2000',
 };
 
 export class AccountingEngine {

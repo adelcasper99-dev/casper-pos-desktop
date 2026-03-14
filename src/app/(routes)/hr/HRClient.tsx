@@ -1,20 +1,22 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "@/lib/i18n-mock"
 import EmployeeDirectory from "@/components/hr/EmployeeDirectory"
 import AttendanceManager from "@/components/hr/AttendanceManager"
 import { Users, Calendar } from "lucide-react"
 
 export default function HRClient({ csrfToken }: { csrfToken: string }) {
+    const t = useTranslations("HR")
     const [activeTab, setActiveTab] = useState<'directory' | 'attendance'>('directory')
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="p-6 w-full space-y-6">
             <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                    HR & Team
+                    {t("title")}
                 </h1>
-                <p className="text-muted-foreground">Manage employees and daily attendance</p>
+                <p className="text-muted-foreground">{t("subtitle")}</p>
             </div>
 
             {/* Tabs */}
@@ -27,7 +29,7 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
                         }`}
                 >
                     <Users className="w-4 h-4" />
-                    Directory
+                    {t("tabs.directory")}
                 </button>
                 <button
                     onClick={() => setActiveTab('attendance')}
@@ -37,7 +39,7 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
                         }`}
                 >
                     <Calendar className="w-4 h-4" />
-                    Attendance
+                    {t("tabs.attendance")}
                 </button>
             </div>
 

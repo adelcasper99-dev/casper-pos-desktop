@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, User, Phone, X, Check, Loader2, UserPlus } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
-import { searchCustomers, createCustomer } from "@/actions/customer-actions";
+import { searchCustomers, createCustomer, getEmployeesForLink } from "@/actions/customer-actions";
 import { useCartStore } from "@/store/cart";
 import clsx from "clsx";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -11,7 +11,7 @@ import { useFormatCurrency } from "@/contexts/SettingsContext";
 export default function CustomerSearch() {
     const t = useTranslations("POS");
     const formatCurrency = useFormatCurrency();
-    const { customerName, customerPhone, customerId, setCustomer } = useCartStore();
+    const { customerName, customerPhone, customerId, linkedEmployeeId, isSupplier, setCustomer } = useCartStore();
 
     // Search state
     const [query, setQuery] = useState("");
@@ -27,6 +27,12 @@ export default function CustomerSearch() {
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState("");
     const [duplicateCustomer, setDuplicateCustomer] = useState<any>(null);
+
+    // Employee Linking State
+    const [isEmployee, setIsEmployee] = useState(false);
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+    const [employees, setEmployees] = useState<{id: string, name: string}[]>([]);
+    const [loadingEmployees, setLoadingEmployees] = useState(false);
 
     // Sync query with store initially or when cleared
     useEffect(() => {
@@ -69,7 +75,7 @@ export default function CustomerSearch() {
     }, [query, isOpen]);
 
     const handleSelect = (customer: any) => {
-        setCustomer(customer.name, customer.phone, customer.id || undefined, customer.balance);
+        setCustomer(customer.name, customer.phone, customer.id || undefined, customer.balance, customer.linkedEmployeeId || undefined, customer.type === 'SUPPLIER');
         setQuery(customer.name);
         setIsOpen(false);
         setShowAddForm(false);
@@ -80,7 +86,7 @@ export default function CustomerSearch() {
     };
 
     const handleClear = () => {
-        setCustomer("", "", undefined, undefined);
+        setCustomer("", "", undefined, undefined, undefined, undefined);
         setQuery("");
         setResults([]);
         setIsOpen(false);
@@ -89,6 +95,8 @@ export default function CustomerSearch() {
         setNewPhone("");
         setCreateError("");
         setDuplicateCustomer(null);
+        setIsEmployee(false);
+        setSelectedEmployeeId("");
         // Explicitly blur the input to release focus
         if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
@@ -102,8 +110,21 @@ export default function CustomerSearch() {
         setNewPhone(looksLikePhone ? query : "");
         setCreateError("");
         setDuplicateCustomer(null);
+        setIsEmployee(false);
+        setSelectedEmployeeId("");
         setShowAddForm(true);
         setIsOpen(false);
+
+        // Fetch employees
+        if (employees.length === 0) {
+            setLoadingEmployees(true);
+            getEmployeesForLink().then(res => {
+                if (res.success && res.employees) {
+                    setEmployees(res.employees);
+                }
+                setLoadingEmployees(false);
+            });
+        }
     };
 
     const handleCreate = async () => {
@@ -115,7 +136,12 @@ export default function CustomerSearch() {
         setCreateError("");
         setDuplicateCustomer(null);
 
-        const res = await createCustomer({ name: newName, phone: newPhone });
+        const payload: any = { name: newName, phone: newPhone };
+        if (isEmployee && selectedEmployeeId) {
+            payload.linkedEmployeeId = selectedEmployeeId;
+        }
+
+        const res = await createCustomer(payload);
 
         setCreating(false);
 
@@ -152,21 +178,33 @@ export default function CustomerSearch() {
                         "w-5 h-5 transition-colors pointer-events-none shrink-0",
                         isCustomerSelected ? "text-cyan-400" : "text-cyan-500/50 group-focus-within/search:text-cyan-400"
                     )} />
-                    <input
-                        value={query}
-                        onChange={(e) => {
-                            setQuery(e.target.value);
-                            setIsOpen(true);
-                            setShowAddForm(false);
-                            if (e.target.value === "") handleClear();
-                        }}
-                        onFocus={() => {
-                            setIsOpen(true);
-                            setShowAddForm(false);
-                        }}
-                        placeholder={t('searchCustomer') || "ابحث عن عميل (اسم / هاتف)..."}
-                        className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-base text-white font-medium"
-                    />
+                    <div className="flex-1 overflow-hidden relative">
+                        {isCustomerSelected && linkedEmployeeId && (
+                            <span className="absolute end-0 top-1/2 -translate-y-1/2 text-[10px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold shadow-lg shadow-cyan-900/20 whitespace-nowrap z-10">
+                                موظف داخلي
+                            </span>
+                        )}
+                        {isCustomerSelected && isSupplier && (
+                            <span className="absolute end-0 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold shadow-lg shadow-emerald-900/20 whitespace-nowrap z-10 transition-all">
+                                مورد
+                            </span>
+                        )}
+                        <input
+                            value={query}
+                            onChange={(e) => {
+                                setQuery(e.target.value);
+                                setIsOpen(true);
+                                setShowAddForm(false);
+                                if (e.target.value === "") handleClear();
+                            }}
+                            onFocus={() => {
+                                setIsOpen(true);
+                                setShowAddForm(false);
+                            }}
+                            placeholder={t('searchCustomer') || "ابحث عن عميل (اسم / هاتف)..."}
+                            className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-base text-white font-medium pr-16"
+                        />
+                    </div>
 
                     {loading ? (
                         <div className="absolute end-12 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -217,7 +255,9 @@ export default function CustomerSearch() {
                                         "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold",
                                         c.id ? "bg-cyan-500/10 text-cyan-400" : "bg-yellow-500/10 text-yellow-500"
                                     )}>
-                                        {c.id ? <User className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                                        {c.id ? (
+                                            c.type === 'SUPPLIER' ? <User className="w-4 h-4 text-emerald-400" /> : <User className="w-4 h-4" />
+                                        ) : <UserPlus className="w-4 h-4" />}
                                     </div>
                                     <div>
                                         <div className="font-bold text-sm text-foreground">{c.name}</div>
@@ -236,6 +276,20 @@ export default function CustomerSearch() {
                                         )}>
                                             {formatCurrency(c.balance)}
                                         </div>
+                                        {c.linkedEmployeeId && (
+                                            <div className="mt-1">
+                                                <span className="text-[10px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
+                                                    موظف داخلي
+                                                </span>
+                                            </div>
+                                        )}
+                                        {c.type === 'SUPPLIER' && (
+                                            <div className="mt-1">
+                                                <span className="text-[10px] bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                                                    مورد
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <span className="text-[10px] bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded-full font-bold">
@@ -306,6 +360,59 @@ export default function CustomerSearch() {
                                 className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
                                 onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                             />
+                        </div>
+
+                        {/* Employee Link Toggle */}
+                        <div className="flex flex-col gap-2 p-3 bg-black/20 rounded-xl border border-white/5">
+                            <label className="flex items-center justify-between cursor-pointer group">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                                        <User className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">{t('linkToEmployee') || "ربط بملف موظف"}</span>
+                                </div>
+                                <div className="relative">
+                                    <input 
+                                        type="checkbox" 
+                                        className="sr-only" 
+                                        checked={isEmployee}
+                                        onChange={(e) => {
+                                            setIsEmployee(e.target.checked);
+                                            if (!e.target.checked) setSelectedEmployeeId("");
+                                        }}
+                                    />
+                                    <div className={clsx(
+                                        "w-10 h-6 bg-zinc-700/50 rounded-full transition-colors",
+                                        isEmployee && "bg-cyan-500"
+                                    )}></div>
+                                    <div className={clsx(
+                                        "absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform",
+                                        isEmployee && "translate-x-4"
+                                    )}></div>
+                                </div>
+                            </label>
+
+                            {isEmployee && (
+                                <div className="mt-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                                    {loadingEmployees ? (
+                                        <div className="flex items-center gap-2 text-xs text-zinc-400 h-10 px-3">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            {t('loading') || "جاري التحميل..."}
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={selectedEmployeeId}
+                                            onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                                            className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-sm text-white outline-none focus:border-cyan-500/50 transition-colors"
+                                        >
+                                            <option value="">{t('selectEmployee') || "اختر الموظف..."}</option>
+                                            {employees.map(emp => (
+                                                <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Error & Duplicate Handling */}

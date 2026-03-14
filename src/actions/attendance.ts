@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions/registry";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { logAction } from '@/lib/audit'
 import { getSession } from "@/lib/auth";
 import { getTranslations } from "@/lib/i18n-mock";
@@ -32,6 +32,8 @@ export const upsertDailyLog = secureAction(async (data: { userId: string, dateSt
                 deduction: logData.deduction ? Number(logData.deduction) : undefined,
                 bonus: logData.bonus ? Number(logData.bonus) : undefined,
                 note: logData.note,
+                bonusNote: logData.bonusNote,
+                deductionNote: logData.deductionNote,
                 checkIn: logData.checkIn ? new Date(`${dateStr}T${logData.checkIn}:00`) : undefined,
                 checkOut: logData.checkOut ? new Date(`${dateStr}T${logData.checkOut}:00`) : undefined,
             }
@@ -43,7 +45,9 @@ export const upsertDailyLog = secureAction(async (data: { userId: string, dateSt
                 oldStatus: existing.status,
                 newStatus: logData.status,
                 deduction: logData.deduction,
-                bonus: logData.bonus
+                deductionNote: logData.deductionNote,
+                bonus: logData.bonus,
+                bonusNote: logData.bonusNote
             });
         }
 
@@ -56,6 +60,8 @@ export const upsertDailyLog = secureAction(async (data: { userId: string, dateSt
                 deduction: logData.deduction ? Number(logData.deduction) : 0,
                 bonus: logData.bonus ? Number(logData.bonus) : 0,
                 note: logData.note,
+                bonusNote: logData.bonusNote,
+                deductionNote: logData.deductionNote,
                 checkIn: logData.checkIn ? new Date(`${dateStr}T${logData.checkIn}:00`) : undefined,
                 checkOut: logData.checkOut ? new Date(`${dateStr}T${logData.checkOut}:00`) : undefined,
             }
@@ -105,7 +111,7 @@ export async function getMonthlyLogsForPage(monthStr: string) {
     }
 
     const user = session.user;
-    const hasAccess = user.permissions?.includes(PERMISSIONS.HR_VIEW_ATTENDANCE) || user.role === "ADMIN";
+    const hasAccess = hasPermission(user.permissions, PERMISSIONS.HR_VIEW_ATTENDANCE) || user.role === "ADMIN";
 
     if (!hasAccess) {
         throw new Error(t('forbidden'));

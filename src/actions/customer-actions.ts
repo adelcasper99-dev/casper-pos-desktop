@@ -8,6 +8,7 @@ import { getTranslations } from '@/lib/i18n-mock';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
+import { z } from 'zod';
 
 
 /**
@@ -19,8 +20,8 @@ export const searchCustomers = secureAction(async (query: string) => {
         return { customers: [] };
     }
 
-    // First, try to find in the Customer table (preferred source)
-    const existingCustomers = await prisma.customer.findMany({
+    // 1. Search in Customer table
+    const customers = await prisma.customer.findMany({
         where: {
             OR: [
                 { name: { contains: query } },
@@ -32,71 +33,106 @@ export const searchCustomers = secureAction(async (query: string) => {
             name: true,
             phone: true,
             email: true,
-            balance: true
+            balance: true,
+            linkedEmployeeId: true
         },
         take: 10,
         orderBy: { updatedAt: 'desc' }
     });
 
-    if (existingCustomers.length > 0) {
-        return {
-            customers: existingCustomers.map(c => ({
-                id: c.id, // Real UUID from Customer table
-                name: c.name,
-                phone: c.phone,
-                email: c.email || undefined, // Convert null to undefined
-                balance: Number(c.balance) // Serialize Decimal to number
-            }))
-        };
-    }
+    // 2. Search in Supplier table
+    const suppliers = await prisma.supplier.findMany({
+        where: {
+            OR: [
+                { name: { contains: query } },
+                { phone: { contains: query } }
+            ]
+        },
+        select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            balance: true,
+            linkedEmployeeId: true
+        },
+        take: 5
+    });
+
+    const results = [
+        ...customers.map(c => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email || undefined,
+            balance: Number(c.balance),
+            linkedEmployeeId: c.linkedEmployeeId || undefined,
+            type: 'CUSTOMER' as const
+        })),
+        ...suppliers.map(s => ({
+            id: s.id,
+            name: s.name,
+            phone: s.phone || '',
+            email: s.email || undefined,
+            balance: Number(s.balance),
+            linkedEmployeeId: s.linkedEmployeeId || undefined,
+            type: 'SUPPLIER' as const
+        }))
+    ];
 
     return {
-        customers: []
+        customers: results
     };
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
 
 /**
  * Create a new customer with name and phone
  */
-export const createCustomer = secureAction(async ({ name, phone }: { name: string; phone: string }) => {
+export const createCustomer = secureAction(async ({ name, phone, linkedEmployeeId }: { name: string; phone: string; linkedEmployeeId?: string | null }) => {
     if (!name || name.trim().length < 2) {
         return { error: 'الاسم قصير جداً' };
     }
-    if (!phone || phone.trim().length < 7) {
-        return { error: 'رقم الهاتف غير صحيح' };
-    }
 
-    // Check if phone already exists
-    const existing = await prisma.customer.findFirst({
-        where: { phone: phone.trim() }
-    });
-    if (existing) {
+    try {
+        // Optional: Ensure phone uniqueness if provided
+        if (phone) {
+            const existing = await prisma.customer.findUnique({
+                where: { phone: phone.trim() }
+            });
+
+            if (existing) {
+                return {
+                    error: 'هذا الرقم مسجل مسبقاً',
+                    customer: {
+                        id: existing.id,
+                        name: existing.name,
+                        phone: existing.phone,
+                        balance: Number(existing.balance)
+                    }
+                };
+            }
+        }
+
+        const customer = await prisma.customer.create({
+            data: {
+                name: name.trim(),
+                phone: phone.trim(),
+                linkedEmployeeId: linkedEmployeeId || null,
+            }
+        });
+
         return {
-            error: 'يوجد عميل بنفس رقم الهاتف',
             customer: {
-                id: existing.id,
-                name: existing.name,
-                phone: existing.phone,
-                balance: Number(existing.balance)
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+                balance: Number(customer.balance)
             }
         };
+    } catch (e: any) {
+        console.error(e);
+        return { error: 'حدث خطأ أثناء إضافة العميل' };
     }
-
-    const customer = await prisma.customer.create({
-        data: {
-            name: name.trim(),
-            phone: phone.trim(),
-        }
-    });
-
-    return {
-        customer: {
-            id: customer.id,
-            name: customer.name,
-            phone: customer.phone,
-            balance: Number(customer.balance)
-        }
-    };
 }, { permission: 'CUSTOMER_MANAGE', requireCSRF: false });
 
 /**
@@ -365,4 +401,27 @@ export const getCustomerTransactions = secureAction(async (customerId: string) =
             amount: Number(tx.amount)
         }))
     };
+}, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
+
+/**
+ * Get active employees list for selection in customer/supplier linking
+ */
+export const getEmployeesForLink = secureAction(async () => {
+    try {
+        const users = await prisma.user.findMany({
+            where: { deletedAt: null },
+            select: { id: true, name: true, username: true }
+        });
+
+        return {
+            success: true,
+            employees: users.map(u => ({ 
+                id: u.id, 
+                name: u.name || u.username 
+            }))
+        };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'حدث خطأ أثناء جلب قائمة الموظفين' };
+    }
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });

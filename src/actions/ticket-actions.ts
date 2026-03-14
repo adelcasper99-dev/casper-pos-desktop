@@ -1694,25 +1694,38 @@ export const processTicketPayment = secureAction(async (data: {
         let isSalaryDeduction = false;
 
         if (paymentMethod === 'ACCOUNT') {
-            const lookupPhone = ticket.customerPhone || (customerId && customerId.length > 5 ? customerId : '');
-            if (lookupPhone) {
-                const employee = await tx.user.findFirst({
-                    where: { phone: { equals: lookupPhone } }
-                });
+            let employeeId = null;
 
-                if (employee) {
-                    isSalaryDeduction = true;
-                    await tx.employeeTransaction.create({
-                        data: {
-                            userId: employee.id,
-                            amount: new Prisma.Decimal(effectiveAmount).negated(),
-                            type: 'MAINTENANCE_DEDUCTION',
-                            referenceId: ticket.id,
-                            referenceType: 'TICKET',
-                            description: `Ticket #${ticket.barcode} - Repair Service`
-                        }
+            if ((ticket.customer as any)?.linkedEmployeeId) {
+                employeeId = (ticket.customer as any).linkedEmployeeId;
+            } else {
+                const lookupPhone = ticket.customerPhone || (customerId && customerId.length > 5 ? customerId : '');
+                if (lookupPhone) {
+                    const employee = await tx.user.findFirst({
+                        where: { phone: { equals: lookupPhone } },
+                        select: { id: true }
                     });
+                    if (employee) employeeId = employee.id;
                 }
+            }
+
+            if (employeeId) {
+                isSalaryDeduction = true;
+                const txType = isActuallyRefund ? 'MAINTENANCE_DEDUCTION_REVERSAL' : 'MAINTENANCE_DEDUCTION';
+                const txDesc = isActuallyRefund 
+                    ? `عكس صيانة آجل - تذكرة #${ticket.barcode}`
+                    : `صيانة آجل - تذكرة #${ticket.barcode}`;
+
+                await (tx as any).employeeTransaction.create({
+                    data: {
+                        userId: employeeId,
+                        amount: new Prisma.Decimal(Math.abs(effectiveAmount)),
+                        type: txType,
+                        referenceId: ticket.id,
+                        referenceType: isActuallyRefund ? 'TICKET_REFUND' : 'TICKET',
+                        description: txDesc
+                    }
+                });
             }
 
             if (!isSalaryDeduction) {
@@ -2003,7 +2016,10 @@ export const updateCollaboratorCommission = secureAction(async (data: {
 export const getAllTechnicians = secureAction(async () => {
     try {
         const technicians = await prisma.technician.findMany({
-            where: { deletedAt: null },
+            where: { 
+                deletedAt: null,
+                user: { isFrozen: false }
+            },
             orderBy: { name: 'asc' }
         });
         return { success: true, technicians };

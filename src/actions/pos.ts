@@ -31,6 +31,7 @@ interface ProcessSaleData extends z.infer<typeof saleSchema> {
         warrantyExpiryDate?: Date;
     };
     offlineFlag?: boolean;
+    isSupplier?: boolean;
     csrfToken?: string;
 }
 
@@ -162,7 +163,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         const sale = await tx.sale.create({
             data: {
-                customerId: (data.customer?.id && data.customer.id.trim() !== "") ? data.customer.id : null,
+                customerId: (data.customer?.id && data.customer.id.trim() !== "" && !rawData.isSupplier) ? data.customer.id : null,
                 warehouseId: mainWarehouseId,
                 totalAmount: new Decimal(totalAmount),
                 subTotal: new Decimal(subTotalAmount),
@@ -206,37 +207,99 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
 
         // 2. Deduction Logic (Employee Salary or Customer Account)
-        if (data.paymentMethod === 'ACCOUNT' || data.paymentMethod === 'DEFERRED') {
-            const customerId = data.customer?.id;
-
-            // Priority: Linked Customer (New Logic)
-            if (customerId) {
-                // 1. Create Ledger Entry
-                await tx.customerTransaction.create({
-                    data: {
-                        customerId: customerId,
-                        type: 'DEBIT', // They owe us
-                        amount: new Decimal(totalAmount),
-                        description: `Purchase: ${data.items.length} items`,
-                        reference: sale.id,
-                        createdBy: currentUser.id
-                    }
-                });
-
-                // 2. Update Customer Balance
-                await tx.customer.update({
-                    where: { id: customerId },
-                    data: { balance: { increment: totalAmount } }
-                });
-
-            } else {
-                // Fallback: Employee Phone Lookup (Legacy Logic) - REMOVED for Desktop
-                // const phone = data.customer?.phone;
-                // if (phone) {
-                //    // Logic removed
-                // }
+        const paymentsToProcess = data.payments || [{ method: data.paymentMethod, amount: totalAmount }];
+        let amountToAccount = 0;
+        for (const p of paymentsToProcess) {
+            if (p.method === 'ACCOUNT' || p.method === 'DEFERRED') {
+                amountToAccount += Number(p.amount);
             }
         }
+
+        if (amountToAccount > 0) {
+            const customerId = data.customer?.id;
+
+            if (customerId) {
+                if (rawData.isSupplier) {
+                    // Logic for Supplier Offset
+                    const supplierData = await tx.supplier.findUnique({
+                        where: { id: customerId },
+                        select: { id: true, name: true, linkedEmployeeId: true }
+                    });
+
+                    if (supplierData) {
+                        // 1. Update Supplier Balance (Decrement because we owe them less)
+                        await tx.supplier.update({
+                            where: { id: customerId },
+                            data: { balance: { decrement: amountToAccount } }
+                        });
+
+                        // 2. Create Supplier Payment Record (Offset type)
+                        await tx.supplierPayment.create({
+                            data: {
+                                supplierId: customerId,
+                                amount: new Decimal(amountToAccount),
+                                method: 'SALE_OFFSET',
+                                notes: `POS Sale #${sale.id.split('-')[0].toUpperCase()} - items offset`
+                            }
+                        });
+
+                        // 3. Sync to HR Ledger if linked employee
+                        if (supplierData.linkedEmployeeId) {
+                            await (tx as any).employeeTransaction.create({
+                                data: {
+                                    userId: supplierData.linkedEmployeeId,
+                                    amount: new Decimal(amountToAccount),
+                                    type: 'SALES_DEDUCTION',
+                                    description: `Internal Purchase (Supplier Offset): ${data.items.length} items`,
+                                    referenceId: sale.id,
+                                    referenceType: 'SALE'
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    // Standard Customer Logic
+                    // Fetch customer to check for linked employee
+                    const customerData = await tx.customer.findUnique({
+                        where: { id: customerId },
+                        select: { id: true, linkedEmployeeId: true }
+                    });
+
+                    // 1. Create Ledger Entry
+                    await tx.customerTransaction.create({
+                        data: {
+                            customerId: customerId,
+                            type: 'DEBIT', // They owe us
+                            amount: new Decimal(amountToAccount),
+                            description: `Purchase: ${data.items.length} items`,
+                            reference: sale.id,
+                            createdBy: currentUser.id
+                        }
+                    });
+
+                    // 2. Update Customer Balance
+                    await tx.customer.update({
+                        where: { id: customerId },
+                        data: { balance: { increment: amountToAccount } }
+                    });
+
+                    // 3. Sync to HR Ledger if linked employee
+                    if (customerData?.linkedEmployeeId) {
+                        await (tx as any).employeeTransaction.create({
+                            data: {
+                                userId: customerData.linkedEmployeeId,
+                                amount: new Decimal(amountToAccount),
+                                type: 'SALES_DEDUCTION',
+                                description: `مشتريات آجل - فاتورة #${sale.id.split('-')[0].toUpperCase()}`,
+                                referenceId: sale.id,
+                                referenceType: 'SALE'
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
 
         // 2b. Deduct Stock — bundles deduct from components, not themselves
         const productInfoMap = new Map(products.map(p => [p.id, p]));
@@ -320,8 +383,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         let accountIncrement = 0;
 
         // Iterate over the payments we just prepared for creation
-        // Note: We use data.payments if available, otherwise fallback to single method
-        const paymentsToProcess = data.payments || [{ method: data.paymentMethod, amount: totalAmount }];
+        // Note: paymentsToProcess is already defined above
+
 
         for (const p of paymentsToProcess) {
             const amt = Number(p.amount);
@@ -419,11 +482,16 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             totalCOGS += (cost * item.quantity);
         }
 
+        const syncPayments = paymentsToProcess.map(p => ({
+            method: (rawData.isSupplier && (p.method === 'ACCOUNT' || p.method === 'DEFERRED')) ? 'SUPPLIER_OFFSET' : p.method,
+            amount: Number(p.amount)
+        }));
+
         // BL-01 fix: Accounting is inside the transaction.
         // If journal entry fails, the entire sale rolls back automatically.
         await AccountingEngine.recordSale(
             sale.id,
-            paymentsToProcess.map(p => ({ method: p.method, amount: Number(p.amount) })),
+            syncPayments,
             discountAmount,
             totalCOGS,
             tx

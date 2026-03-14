@@ -1,5 +1,11 @@
 {
     "HR": {
+        "title": "شؤون الموظفين",
+        "subtitle": "إدارة الموظفين والحضور اليومي",
+        "tabs": {
+            "directory": "دليل الموظفين",
+            "attendance": "إدارة الحضور"
+        },
         "directory": {
             "title": "دليل الموظفين",
             "activeMembers": "{count} عضو نشط",
@@ -7,9 +13,60 @@
             "addNew": "إضافة موظف",
             "card": {
                 "branch": "الفرع",
+                "salary": "الراتب الأساسي",
+                "status": "الحالة",
+                "online": "متصل",
+                "offline": "غير متصل",
                 "shift": "الوردية",
                 "inSince": "متاح منذ {time}",
                 "offDuty": "خارج وقت الدوام الإعتيادي"
+            },
+            "table": {
+                "employee": "الموظف",
+                "role": "الوظيفة",
+                "branch": "الفرع",
+                "salary": "الراتب",
+                "status": "الحالة",
+                "actions": "إجراءات",
+                "total": "الإجمالي",
+                "members": "موظف"
+            },
+            "lastUpdate": "آخر تحديث",
+            "noResults": "لم يتم العثور على موظفين يطابقون بحثك."
+        },
+        "attendance": {
+            "title": "إدارة الحضور",
+            "daily": "اليومي",
+            "monthly": "الشهري",
+            "individual": "فردي",
+            "present": "حاضر",
+            "absent": "غائب",
+            "late": "متأخر",
+            "off": "إجازة",
+            "halfDay": "نصف يوم",
+            "adjustments": "التسويات",
+            "note": "ملاحظة",
+            "save": "حفظ",
+            "refresh": "تحديث",
+            "noEmployeeSelected": "لم يتم اختيار موظف",
+            "projectedPayrollCost": "تكلفة الرواتب المتوقعة",
+            "offDayQuota": "رصيد الإجازات",
+            "clickToCycle": "اضغط لتغيير الحالة",
+            "lateTime": "وقت التأخير",
+            "bonus": "مكافأة",
+            "deduction": "خصم",
+            "fine": "غرامة",
+            "adjustmentsTitle": "التسويات المالية",
+            "failedToLoadData": "فشل في تحميل بيانات الحضور",
+            "date": "التاريخ",
+            "status": "الحالة",
+            "edit": "تعديل",
+            "logSaved": "تم حفظ السجل",
+            "failedToSave": "فشل في الحفظ",
+            "shift": {
+                "title": "الوردية",
+                "day": "نهاري",
+                "night": "ليلي"
             }
         }
     },

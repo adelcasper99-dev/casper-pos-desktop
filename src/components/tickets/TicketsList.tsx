@@ -385,7 +385,14 @@ export default function TicketsList() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
-                                                    <span className="font-medium text-zinc-200 group-hover:text-cyan-500 transition-colors truncate">{ticket.customerName}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium text-zinc-200 group-hover:text-cyan-500 transition-colors truncate">{ticket.customerName}</span>
+                                                        {ticket.customer?.linkedEmployeeId && (
+                                                            <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                                موظف داخلي
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <span className="text-xs text-zinc-500">{ticket.customerPhone}</span>
                                                 </div>
                                             </td>

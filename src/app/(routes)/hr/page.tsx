@@ -1,7 +1,7 @@
 import HRClient from "./HRClient"
 import { getSession } from "@/lib/auth"
 import { getCSRFToken } from "@/lib/csrf"
-import { PERMISSIONS } from "@/lib/permissions/registry"
+import { PERMISSIONS, hasPermission } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 
 export const metadata = {
@@ -16,7 +16,7 @@ export default async function HRPage() {
         redirect(`/login`)
     }
 
-    const hasAccess = session.user.permissions?.includes(PERMISSIONS.HR_VIEW_ATTENDANCE) || session.user.role === 'ADMIN'
+    const hasAccess = hasPermission(session.user.permissions, PERMISSIONS.HR_VIEW_ATTENDANCE) || session.user.role === 'ADMIN'
 
     if (!hasAccess) {
         redirect(`/dashboard`)

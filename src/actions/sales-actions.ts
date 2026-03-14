@@ -104,6 +104,51 @@ export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
 
 
 /**
+ * Fetch a single sale by ID with relations
+ */
+export async function getSaleById(saleId: string) {
+    try {
+        const sale = await prisma.sale.findUnique({
+            where: { id: saleId },
+            include: {
+                customer: { select: { name: true, phone: true, address: true } },
+                items: {
+                    include: {
+                        product: { select: { name: true, sku: true } }
+                    }
+                },
+                user: { select: { name: true, username: true } },
+                payments: true
+            }
+        });
+
+        if (!sale) return { success: false, error: "Sale not found" };
+
+        return {
+            success: true,
+            sale: {
+                ...sale,
+                invoiceNumber: `S-${sale.id.split('-')[0].toUpperCase()}`,
+                totalAmount: Number(sale.totalAmount),
+                taxAmount: Number(sale.taxAmount),
+                subTotal: Number(sale.subTotal),
+                discountAmount: Number(sale.discountAmount),
+                items: sale.items.map(i => ({
+                    ...i,
+                    unitPrice: Number(i.unitPrice),
+                    unitCost: Number(i.unitCost)
+                }))
+            }
+        };
+    } catch (error: any) {
+        console.error('[getSaleById] Error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+
+
+/**
  * Refund a sale (Ported Logic)
  */
 export const refundSale = secureAction(async (data: {
@@ -133,6 +178,7 @@ export const refundSale = secureAction(async (data: {
         const sale = await (tx.sale.findUnique as any)({
             where: { id: saleId },
             include: {
+                customer: { select: { linkedEmployeeId: true } },
                 items: {
                     include: {
                         product: { select: { id: true, isBundle: true } }
@@ -213,6 +259,19 @@ export const refundSale = secureAction(async (data: {
                 where: { id: sale.customerId },
                 data: { balance: { decrement: amountToAccount } }
             });
+
+            if ((sale.customer as any)?.linkedEmployeeId) {
+                await (tx as any).employeeTransaction.create({
+                    data: {
+                        userId: (sale.customer as any).linkedEmployeeId,
+                        amount: new Decimal(amountToAccount),
+                        type: 'SALES_DEDUCTION_REVERSAL',
+                        referenceId: sale.id,
+                        referenceType: 'SALE_REFUND',
+                        description: `عكس مشتريات آجل - مرتجع فاتورة #${sale.id.split('-')[0].toUpperCase()}`
+                    }
+                });
+            }
         }
 
         // 4. Reverse inventory
@@ -398,6 +457,7 @@ export const partialRefundSale = secureAction(async (data: {
         const sale = await (tx.sale.findUnique as any)({
             where: { id: saleId },
             include: {
+                customer: { select: { linkedEmployeeId: true } },
                 items: {
                     include: {
                         product: { select: { id: true, name: true, isBundle: true } }
@@ -507,6 +567,19 @@ export const partialRefundSale = secureAction(async (data: {
                 where: { id: sale.customerId },
                 data: { balance: { decrement: amountToAccount } }
             });
+
+            if ((sale.customer as any)?.linkedEmployeeId) {
+                await (tx as any).employeeTransaction.create({
+                    data: {
+                        userId: (sale.customer as any).linkedEmployeeId,
+                        amount: new Decimal(amountToAccount),
+                        type: 'SALES_DEDUCTION_REVERSAL',
+                        referenceId: sale.id,
+                        referenceType: 'PARTIAL_SALE_REFUND',
+                        description: `عكس مشتريات آجل - مرتجع جزئي فاتورة #${sale.id.split('-')[0].toUpperCase()}`
+                    }
+                });
+            }
         }
 
         // 6. Reverse stock for returned items

@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 
@@ -182,8 +182,8 @@ export const getTransferHistory = async (filters?: z.infer<typeof TransferHistor
 
         // Simple permission check
         const user = session.user;
-        const hasPermission = user.permissions?.includes(PERMISSIONS.INVENTORY_VIEW) || user.role === 'ADMIN';
-        if (!hasPermission) {
+        const hasAccess = hasPermission(user.permissions, PERMISSIONS.INVENTORY_VIEW) || user.role === 'ADMIN';
+        if (!hasAccess) {
             return { success: false, message: "Insufficient permissions" };
         }
 

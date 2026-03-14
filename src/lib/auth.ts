@@ -90,13 +90,19 @@ export async function getSession() {
     });
 
 
-    // Handle expired or not found
-    if (!session || session.expiresAt < new Date()) {
+    // Handle expired, not found, or frozen
+    if (!session || session.expiresAt < new Date() || session.user.isFrozen) {
+        if (session?.user.isFrozen && process.env.NODE_ENV === 'development') {
+            console.log(`[AUTH DEBUG] User ${session.user.username} is FROZEN. Blocking session.`);
+        }
 
         // Use try-catch because cookies() might be unavailable in some contexts
         try {
             const cookieStore = cookies();
             cookieStore.delete("session");
+            if (session) {
+                await prisma.session.deleteMany({ where: { token } });
+            }
         } catch (e) {
             // Silently ignore if cookies cannot be deleted (e.g. static rendering)
         }

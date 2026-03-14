@@ -48,27 +48,29 @@ model User {
   branchId             String?
   deletedAt            DateTime?
   phone                String?               @unique
+  isFrozen             Boolean               @default(false)
   isGlobalAdmin        Boolean               @default(false)
   managedHQIds         String?
   roleId               String?
   maxDiscount          Decimal?              @default(0.00)
   maxDiscountAmount    Decimal?              @default(0.00)
+  salary               Decimal?              @default(0.00)
+  monthlyOffDays       Int?                  @default(4)
   actionLogs           ActionLog[]
+  linkedCustomer       Customer?             @relation("CustomerEmployee")
+  dailyLogs            DailyWorkLog[]
   employeeTransactions EmployeeTransaction[]
   sales                Sale[]                @relation("SaleOwner")
   sessions             Session[]
   shifts               Shift[]               @relation("ShiftOwner")
   stockMovements       StockMovement[]
   reportedWastage      StockWastage[]
+  linkedSupplier       Supplier?             @relation("SupplierEmployee")
   technician           Technician?
   clientTickets        Ticket[]              @relation("ClientUser")
   addedTicketParts     TicketPart[]          @relation("PartAddedBy")
-  branch               Branch?               @relation(fields: [branchId], references: [id])
   role                 Role?                 @relation(fields: [roleId], references: [id])
-  
-  // HR Module
-  salary               Decimal?              @default(0.00)
-  dailyLogs            DailyWorkLog[]
+  branch               Branch?               @relation(fields: [branchId], references: [id])
 }
 
 model Role {
@@ -136,18 +138,20 @@ model Warehouse {
 }
 
 model Customer {
-  id           String                @id @default(uuid())
-  name         String
-  phone        String                @unique
-  email        String?
-  address      String?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  balance      Decimal               @default(0.00)
-  creditLimit  Decimal?
-  transactions CustomerTransaction[]
-  sales        Sale[]
-  tickets      Ticket[]
+  id               String                @id @default(uuid())
+  name             String
+  phone            String                @unique
+  email            String?
+  address          String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  balance          Decimal               @default(0.00)
+  creditLimit      Decimal?
+  linkedEmployeeId String?               @unique
+  linkedEmployee   User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
+  transactions     CustomerTransaction[]
+  sales            Sale[]
+  tickets          Ticket[]
 }
 
 model CustomerTransaction {
@@ -166,16 +170,18 @@ model CustomerTransaction {
 }
 
 model Supplier {
-  id            String            @id @default(uuid())
-  name          String
-  phone         String?           @unique
-  email         String?
-  address       String?
-  balance       Decimal           @default(0.00)
-  createdAt     DateTime          @default(now())
-  invoices      PurchaseInvoice[]
-  payments      SupplierPayment[]
-  clientTickets Ticket[]          @relation("ClientSupplier")
+  id               String            @id @default(uuid())
+  name             String
+  phone            String?           @unique
+  email            String?
+  address          String?
+  balance          Decimal           @default(0.00)
+  createdAt        DateTime          @default(now())
+  linkedEmployeeId String?           @unique
+  invoices         PurchaseInvoice[]
+  linkedEmployee   User?             @relation("SupplierEmployee", fields: [linkedEmployeeId], references: [id])
+  payments         SupplierPayment[]
+  clientTickets    Ticket[]          @relation("ClientSupplier")
 }
 
 model SupplierPayment {
@@ -603,8 +609,8 @@ model Technician {
   warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
   user                  User                   @relation(fields: [userId], references: [id])
   TechnicianPerformance TechnicianPerformance?
-  tickets               Ticket[]
   completedTickets      Ticket[]               @relation("CompletedBy")
+  tickets               Ticket[]
   collaborations        TicketCollaborator[]
 }
 
@@ -680,16 +686,16 @@ model Ticket {
   feedback           Feedback?
   logs               NotificationLog[]
   payments           RepairPayment[]
-  clientSupplier     Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
-  clientUser         User?                @relation("ClientUser", fields: [clientUserId], references: [id])
-  technician         Technician?          @relation(fields: [technicianId], references: [id])
-  shift              Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
-  movement           DeviceMovement?      @relation(fields: [movementId], references: [id])
-  customer           Customer?            @relation(fields: [customerId], references: [id])
-  currentBranch      Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  completedBy        Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
   parentTicket       Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
   returnTickets      Ticket[]             @relation("TicketReturns")
-  completedBy        Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
+  currentBranch      Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  customer           Customer?            @relation(fields: [customerId], references: [id])
+  movement           DeviceMovement?      @relation(fields: [movementId], references: [id])
+  shift              Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
+  technician         Technician?          @relation(fields: [technicianId], references: [id])
+  clientUser         User?                @relation("ClientUser", fields: [clientUserId], references: [id])
+  clientSupplier     Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
   collaborators      TicketCollaborator[]
   notes              TicketNote[]
   parts              TicketPart[]
@@ -728,10 +734,10 @@ model TicketPart {
   deletedAt   DateTime?
   warehouseId String?
   addedById   String?
-  addedBy     User?      @relation("PartAddedBy", fields: [addedById], references: [id])
-  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
-  ticket      Ticket     @relation(fields: [ticketId], references: [id])
   product     Product?   @relation(fields: [productId], references: [id])
+  ticket      Ticket     @relation(fields: [ticketId], references: [id])
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  addedBy     User?      @relation("PartAddedBy", fields: [addedById], references: [id])
 }
 
 model TicketCollaborator {
@@ -805,22 +811,22 @@ model DeviceMovement {
   tickets      Ticket[]
 }
 
-// --- HR Module ---
-
 model DailyWorkLog {
-  id        String    @id @default(uuid())
-  userId    String
-  date      DateTime
-  status    String    @default("PRESENT")
-  deduction Decimal   @default(0.00)
-  bonus     Decimal   @default(0.00)
-  note      String?
-  shift     String?
-  checkIn   DateTime?
-  checkOut  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id])
+  id            String    @id @default(uuid())
+  userId        String
+  date          DateTime
+  status        String    @default("PRESENT")
+  deduction     Decimal   @default(0.00)
+  bonus         Decimal   @default(0.00)
+  note          String?
+  shift         String?
+  checkIn       DateTime?
+  checkOut      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  bonusNote     String?
+  deductionNote String?
+  user          User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, date])
 }

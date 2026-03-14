@@ -11,6 +11,7 @@ interface Customer {
     phone: string;
     email?: string;
     balance?: number;
+    linkedEmployeeId?: string | null;
 }
 
 interface CustomerAutocompleteProps {
@@ -43,7 +44,8 @@ export function CustomerAutocomplete({ onSelect, placeholder = "Search existing 
                         name: c.name,
                         phone: c.phone,
                         email: c.email || undefined,
-                        balance: typeof c.balance === 'number' ? c.balance : Number(c.balance || 0)
+                        balance: typeof c.balance === 'number' ? c.balance : Number(c.balance || 0),
+                        linkedEmployeeId: c.linkedEmployeeId
                     }));
                 setResults(validCustomers);
                 setOpen(validCustomers.length > 0);
@@ -130,6 +132,13 @@ export function CustomerAutocomplete({ onSelect, placeholder = "Search existing 
                                                 </div>
                                             )}
                                         </div>
+                                        {customer.linkedEmployeeId && (
+                                            <div className="mt-1">
+                                                <span className="text-[10px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
+                                                    موظف داخلي
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </button>
                             ))}

@@ -17,7 +17,7 @@ import { getRoles } from "@/actions/roles";
 import { prisma } from "@/lib/prisma";
 import { getSession, requirePermission } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 
 export default async function SettingsPage() {
     const t = await getTranslations('Settings');
@@ -28,7 +28,13 @@ export default async function SettingsPage() {
     }
 
     // Allow access if user has either full settings access OR just user management
-    const canAccessSettings = session.user.role === 'ADMIN' || session.user.role === 'مدير النظام' || session.user.role === 'المالك' || session.user.permissions?.includes('*') || session.user.permissions?.includes(PERMISSIONS.MANAGE_SETTINGS) || session.user.permissions?.includes(PERMISSIONS.MANAGE_USERS);
+    const canAccessSettings = session.user.role === 'ADMIN' || 
+                             session.user.role === 'مدير النظام' || 
+                             session.user.role === 'المالك' || 
+                             hasPermission(session.user.permissions, '*') || 
+                             hasPermission(session.user.permissions, PERMISSIONS.MANAGE_SETTINGS) || 
+                             hasPermission(session.user.permissions, PERMISSIONS.MANAGE_USERS);
+                             
     if (!canAccessSettings) {
         redirect('/unauthorized');
     }
@@ -54,9 +60,9 @@ export default async function SettingsPage() {
     const roles = rolesRes.success ? (rolesRes.data ?? []) : [];
 
     const settings = settingsRes?.data || {};
-    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'مدير النظام' || session.user.role === 'المالك' || session.user.permissions?.includes('*');
-    const canManageSettings = isAdmin || session.user.permissions?.includes(PERMISSIONS.MANAGE_SETTINGS);
-    const canManageUsers = isAdmin || session.user.permissions?.includes(PERMISSIONS.MANAGE_USERS);
+    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'مدير النظام' || session.user.role === 'المالك' || hasPermission(session.user.permissions, '*');
+    const canManageSettings = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_SETTINGS);
+    const canManageUsers = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_USERS);
     const isManager = session.user.role === 'BRANCH_MANAGER' || session.user.role === 'Branch Manager' || canManageUsers;
     const canSeePrinters = canManageSettings || isManager;
 

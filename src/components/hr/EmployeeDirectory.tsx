@@ -1,27 +1,53 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { Search, MapPin, MapPinned, User as UserIcon, Calendar, DollarSign, Clock } from "lucide-react"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, LayoutGrid, List } from "lucide-react"
 import { getStaffDirectory } from "@/actions/hr"
+import { useTranslations } from "@/lib/i18n-mock"
 import clsx from "clsx"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
 
 export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) {
+    const t = useTranslations("HR.directory")
     const [staff, setStaff] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+    const pollInterval = useRef<NodeJS.Timeout | null>(null)
 
-    const loadStaff = async () => {
-        setLoading(true)
-        const res = await getStaffDirectory()
-        if (res.success && res.data) {
-            setStaff(res.data)
+    const loadStaff = useCallback(async (isSilent = false) => {
+        if (!isSilent) setLoading(true)
+        else setRefreshing(true)
+        
+        try {
+            const res = await getStaffDirectory()
+            if (res.success && res.data) {
+                setStaff(res.data)
+                setLastUpdated(new Date())
+            } else if (!res.success) {
+                console.error("[EmployeeDirectory] Failed to load staff:", (res as any).error);
+            }
+        } catch (error) {
+            console.error("[EmployeeDirectory] Error loading staff:", error);
+        } finally {
+            setLoading(false)
+            setRefreshing(false)
         }
-        setLoading(false)
-    }
+    }, [])
 
     useEffect(() => {
         loadStaff()
-    }, [])
+        
+        // Setup polling every 30 seconds
+        pollInterval.current = setInterval(() => {
+            loadStaff(true)
+        }, 30000)
+
+        return () => {
+            if (pollInterval.current) clearInterval(pollInterval.current)
+        }
+    }, [loadStaff])
 
     const filteredStaff = staff.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -31,10 +57,19 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header & Search */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-card p-4 rounded-2xl border border-white/5 shadow-sm">
-                <div>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">Staff Directory</h2>
-                    <p className="text-xs text-muted-foreground">{staff.length} Active Members</p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-card/50 backdrop-blur-md p-4 rounded-2xl border border-white/5 shadow-sm">
+                <div className="flex items-center gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">{t("title")}</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs text-muted-foreground">{t("activeMembers", { count: staff.length })}</p>
+                            <span className="w-1 h-1 rounded-full bg-zinc-700" />
+                            <p className="text-[10px] text-zinc-500 flex items-center gap-1">
+                                {t("lastUpdate") || "Last updated"}: {lastUpdated.toLocaleTimeString()}
+                                {refreshing && <RefreshCw className="w-3 h-3 animate-spin text-primary" />}
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -42,77 +77,145 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <input
                             type="text"
-                            placeholder="Search staff..."
+                            placeholder={t("searchPlaceholder")}
                             className="w-full glass-input pl-10 h-9"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    <button 
+                        onClick={() => loadStaff(true)}
+                        disabled={refreshing}
+                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors disabled:opacity-50 group"
+                        title="Refresh"
+                    >
+                        <RefreshCw className={clsx("w-4 h-4 text-zinc-400 group-hover:text-white transition-colors", refreshing && "animate-spin")} />
+                    </button>
                 </div>
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="h-48 rounded-2xl bg-muted/20 animate-pulse" />
+                <div className="space-y-2">
+                    {[1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="h-14 rounded-xl bg-muted/10 animate-pulse border border-white/5" />
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {filteredStaff.map((member) => (
-                        <StaffCard key={member.id} member={member} />
-                    ))}
+                <div className="bg-card/30 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden shadow-2xl">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left rtl:text-right border-collapse">
+                            <thead>
+                                <tr className="border-b border-white/5 bg-white/5">
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.employee") || "Employee"}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.role") || "Role"}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.branch") || "Branch"}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.salary") || "Salary"}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.status") || "Status"}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right rtl:text-left">{t("table.actions") || "Actions"}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <AnimatePresence mode="popLayout">
+                                    {filteredStaff.map((member) => (
+                                        <TableRow key={member.id} member={member} t={t} />
+                                    ))}
+                                </AnimatePresence>
+                                {filteredStaff.length > 0 && (
+                                    <tr className="bg-white/5 font-bold border-t-2 border-white/10 sticky bottom-0 backdrop-blur-md">
+                                        <td className="px-6 py-4 text-zinc-400">
+                                            {t("table.total") || "Total"}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-2.5 py-1 rounded-full bg-zinc-500/10 text-zinc-400 text-xs border border-zinc-500/20">
+                                                {filteredStaff.length} {t("table.members") || "Members"}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4"></td>
+                                        <td className="px-6 py-4 text-primary">
+                                            <div className="font-mono text-sm">
+                                                ${filteredStaff.reduce((sum, s) => sum + Number(s.salary), 0).toLocaleString()}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4" colSpan={2}></td>
+                                    </tr>
+                                )}
+                                {filteredStaff.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 italic">
+                                            {t("noResults") || "No employees found matching your search."}
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>
     )
 }
 
-function StaffCard({ member }: { member: any }) {
+function TableRow({ member, t }: { member: any, t: any }) {
     const isOnline = member.status === 'ONLINE'
+    const router = useRouter()
 
     return (
-        <div className="group relative overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-b from-white/5 to-transparent hover:from-white/10 hover:border-white/10 transition-all duration-300 backdrop-blur-sm cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-1">
-            {/* Status Indicator Stripe */}
-            <div className={clsx(
-                "absolute top-0 left-0 w-full h-1",
-                isOnline ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-zinc-700"
-            )} />
-
-            <div className="p-5 flex flex-col items-center">
-                {/* Avatar */}
-                <div className="relative mb-3">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xl font-bold text-white shadow-inner border-2 border-white/10">
-                        {member.avatarSeed.substring(0, 2).toUpperCase()}
+        <motion.tr 
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            onClick={() => router.push(`/hr/employees/${member.id}`)}
+            className="group border-b border-white/5 hover:bg-white/[0.04] transition-all cursor-pointer active:scale-[0.995]"
+        >
+            <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center text-sm font-bold text-white group-hover:scale-105 transition-transform">
+                            {member.avatarSeed?.substring(0, 2).toUpperCase() || "CN"}
+                        </div>
+                        {isOnline && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-zinc-900 animate-pulse" />
+                        )}
                     </div>
-                    {isOnline && (
-                        <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-green-500 border-2 border-zinc-900 animate-pulse" />
-                    )}
-                </div>
-
-                <h3 className="font-bold text-lg text-white truncate w-full text-center">{member.name}</h3>
-                <p className="text-sm text-indigo-300 font-medium mb-4">{member.role}</p>
-
-                {/* Info Grid */}
-                <div className="w-full space-y-2 bg-black/20 rounded-xl p-3 border border-white/5">
-                    <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-400 flex items-center gap-1"><MapPin className="w-3 h-3" /> Branch</span>
-                        <span className="text-zinc-200">{member.branch}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-400 flex items-center gap-1"><DollarSign className="w-3 h-3" /> Base Salary</span>
-                        <span className="text-zinc-200 font-mono">${member.salary}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
-                        <span className="text-zinc-400 flex items-center gap-1"><Clock className="w-3 h-3" /> Status</span>
-                        <span className={clsx("font-medium", isOnline ? "text-green-400" : "text-zinc-500")}>
-                            {isOnline ? "Online" : "Offline"}
-                        </span>
+                    <div className="flex flex-col">
+                        <span className="font-semibold text-white group-hover:text-primary transition-colors">{member.name}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono italic">@{member.username}</span>
                     </div>
                 </div>
-            </div>
-        </div>
+            </td>
+            <td className="px-6 py-4">
+                <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-medium border border-indigo-500/20">
+                    {member.role}
+                </span>
+            </td>
+            <td className="px-6 py-4">
+                <div className="flex items-center gap-1.5 text-zinc-300 text-sm">
+                    <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                    {member.branch}
+                </div>
+            </td>
+            <td className="px-6 py-4">
+                <div className="font-mono text-white text-sm">
+                    ${Number(member.salary).toLocaleString()}
+                </div>
+            </td>
+            <td className="px-6 py-4">
+                <div className={clsx(
+                    "flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-lg w-fit transition-all duration-500",
+                    isOnline 
+                        ? "bg-green-500/10 text-green-400 border border-green-500/20 shadow-[0_0_12px_rgba(34,197,94,0.1)]" 
+                        : "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20"
+                )}>
+                    <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-green-400 animate-pulse" : "bg-zinc-600")} />
+                    {isOnline ? t("card.online") : t("card.offline")}
+                </div>
+            </td>
+            <td className="px-6 py-4 text-right rtl:text-left">
+                <button className="p-2 rounded-lg bg-white/5 group-hover:bg-primary group-hover:text-primary-foreground transition-all group/btn border border-white/5">
+                    <ChevronRight className="w-4 h-4 rtl:rotate-180 transition-transform group-hover/btn:translate-x-0.5 rtl:group-hover/btn:-translate-x-0.5" />
+                </button>
+            </td>
+        </motion.tr>
     )
 }

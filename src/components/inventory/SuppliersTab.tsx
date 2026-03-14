@@ -8,6 +8,8 @@ import { formatCurrency } from "@/lib/utils";
 import GlassModal from "../ui/GlassModal";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
+import { getEmployeesForLink } from "@/actions/customer-actions";
+import clsx from "clsx";
 
 export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }: { suppliers: any[], csrfToken?: string, currency?: string }) {
     const t = useTranslations('Purchasing.Suppliers');
@@ -26,6 +28,12 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     const [createError, setCreateError] = useState("");
     const [duplicateSupplier, setDuplicateSupplier] = useState<any>(null);
 
+    // Employee Linking State
+    const [isEmployee, setIsEmployee] = useState(false);
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+    const [employees, setEmployees] = useState<{id: string, name: string}[]>([]);
+    const [loadingEmployees, setLoadingEmployees] = useState(false);
+
     const filteredSuppliers = suppliers.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.phone?.includes(searchTerm)
@@ -40,6 +48,8 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
         setIsAddMode(false);
         setCreateError("");
         setDuplicateSupplier(null);
+        setIsEmployee(false);
+        setSelectedEmployeeId("");
     }
 
     async function handleSave() {
@@ -48,13 +58,19 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
         setCreateError("");
         setDuplicateSupplier(null);
 
-        const data = {
+        const data: any = {
             name,
             phone,
             email,
             address,
             csrfToken
         };
+
+        if (isEmployee && selectedEmployeeId) {
+            data.linkedEmployeeId = selectedEmployeeId;
+        } else {
+            data.linkedEmployeeId = null; // Clear if toggled off
+        }
 
         let res;
         if (editingId) {
@@ -95,7 +111,27 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
         setPhone(s.phone || "");
         setEmail(s.email || "");
         setAddress(s.address || "");
+        
+        if (s.linkedEmployeeId) {
+            setIsEmployee(true);
+            setSelectedEmployeeId(s.linkedEmployeeId);
+            fetchEmployees();
+        } else {
+            setIsEmployee(false);
+            setSelectedEmployeeId("");
+        }
+
         setIsAddMode(true);
+    }
+
+    async function fetchEmployees() {
+        if (employees.length > 0) return;
+        setLoadingEmployees(true);
+        const res = await getEmployeesForLink();
+        if (res.success && res.employees) {
+            setEmployees(res.employees);
+        }
+        setLoadingEmployees(false);
     }
 
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -168,12 +204,21 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                     <tbody className="divide-y divide-border text-sm">
                         {filteredSuppliers.map((s) => (
                             <tr key={s.id} className="hover:bg-muted/50 transition-colors group cursor-pointer" onClick={() => router.push(`/inventory/suppliers/${s.id}`)}>
-                                <td className="p-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold text-xs">
+                                <td>
+                                    <div className="flex items-center gap-2 px-3 py-2">
+                                        <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold text-xs shrink-0">
                                             {s.name.slice(0, 2).toUpperCase()}
                                         </div>
-                                        <div className="font-bold text-sm text-foreground">{s.name}</div>
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-sm text-foreground">{s.name}</span>
+                                                {s.linkedEmployeeId && (
+                                                    <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                        موظف داخلي
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </td>
                                 <td className="p-3 text-muted-foreground">
@@ -255,6 +300,62 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                             className="glass-input w-full h-20 resize-none"
                             placeholder={t('addressPlaceholder')}
                         />
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-white/5 bg-black/20 space-y-3">
+                        <label className="flex items-center justify-between cursor-pointer">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                                    <Check className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-white">ربط بملف موظف</p>
+                                    <p className="text-xs text-zinc-500">جعل هذا المورد مرتبطاً بموظف داخلي</p>
+                                </div>
+                            </div>
+                            <div className="relative inline-block w-10 overflow-hidden h-5 rounded-full bg-zinc-800">
+                                <input
+                                    type="checkbox"
+                                    className="peer sr-only"
+                                    checked={isEmployee}
+                                    onChange={(e) => {
+                                        setIsEmployee(e.target.checked);
+                                        if (e.target.checked) fetchEmployees();
+                                        else setSelectedEmployeeId("");
+                                    }}
+                                />
+                                <div className={clsx(
+                                    "absolute top-0.5 start-0.5 bg-white w-4 h-4 rounded-full transition-all peer-checked:bg-cyan-500",
+                                    isEmployee ? "translate-x-full !bg-white" : ""
+                                )}></div>
+                                <div className={clsx(
+                                    "absolute inset-0 transition-colors peer-checked:bg-cyan-500",
+                                    isEmployee ? "bg-cyan-500" : "bg-zinc-700"
+                                )}></div>
+                            </div>
+                        </label>
+
+                        {isEmployee && (
+                            <div className="animate-in fade-in slide-in-from-top-2 pt-2 border-t border-white/5">
+                                {loadingEmployees ? (
+                                    <div className="flex items-center gap-2 text-zinc-500 text-sm py-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        جاري التحميل...
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedEmployeeId}
+                                        onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                                        className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-sm text-white outline-none focus:border-cyan-500/50 transition-colors cursor-pointer"
+                                    >
+                                        <option value="">اختر الموظف...</option>
+                                        {employees.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {createError && (

@@ -23,6 +23,8 @@ export interface HeldCart {
     customerPhone?: string;
     customerId?: string; // 🆕 Added to HeldCart interface
     customerBalance?: number; // 🆕 Added to HeldCart interface
+    linkedEmployeeId?: string; // 🆕 Added Employee Link
+    isSupplier?: boolean; // 🆕 Added Supplier Flag
     tableId?: string;
     tableName?: string;
     discountAmount?: number;
@@ -35,6 +37,8 @@ interface CartState {
     customerPhone: string;
     customerId?: string; // 🆕 Added Customer ID
     customerBalance?: number; // 🆕 Added Customer Balance
+    linkedEmployeeId?: string; // 🆕 Added Employee Link
+    isSupplier?: boolean; // 🆕 Added Supplier Flag
     tableId?: string;
     tableName?: string;
     discountAmount: number;
@@ -44,7 +48,7 @@ interface CartState {
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, delta: number) => void;
     clearCart: () => void;
-    setCustomer: (name: string, phone: string, id?: string, balance?: number) => void;
+    setCustomer: (name: string, phone: string, id?: string, balance?: number, linkedEmployeeId?: string, isSupplier?: boolean) => void;
     setTable: (id?: string, name?: string) => void;
     setDiscount: (amount: number, percentage: number) => void;
 
@@ -72,7 +76,7 @@ export const useCartStore = create<CartState>()(
             discountPercentage: 0,
             heldCarts: [],
 
-            setCustomer: (name, phone, id, balance) => set({ customerName: name, customerPhone: phone, customerId: id, customerBalance: balance }),
+            setCustomer: (name, phone, id, balance, linkedEmployeeId, isSupplier) => set({ customerName: name, customerPhone: phone, customerId: id, customerBalance: balance, linkedEmployeeId, isSupplier }),
             setTable: (id, name) => set({ tableId: id, tableName: name }),
             setDiscount: (amount, percentage) => set({ discountAmount: amount, discountPercentage: percentage }),
 
@@ -134,7 +138,7 @@ export const useCartStore = create<CartState>()(
                 });
             },
 
-            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined, tableId: undefined, tableName: undefined, discountAmount: 0, discountPercentage: 0 }),
+            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined, customerBalance: undefined, linkedEmployeeId: undefined, isSupplier: undefined, tableId: undefined, tableName: undefined, discountAmount: 0, discountPercentage: 0 }),
 
             holdCart: (cartName) => {
                 const { items, heldCarts, customerName, customerPhone } = get();
@@ -149,6 +153,8 @@ export const useCartStore = create<CartState>()(
                     customerPhone,
                     customerId: get().customerId,
                     customerBalance: get().customerBalance,
+                    linkedEmployeeId: get().linkedEmployeeId,
+                    isSupplier: get().isSupplier,
                     tableId: get().tableId,
                     tableName: get().tableName,
                     discountAmount: get().discountAmount,
@@ -162,6 +168,8 @@ export const useCartStore = create<CartState>()(
                     customerPhone: '',
                     customerId: undefined,
                     customerBalance: undefined,
+                    linkedEmployeeId: undefined,
+                    isSupplier: undefined,
                     tableId: undefined,
                     tableName: undefined,
                     discountAmount: 0,
@@ -180,6 +188,8 @@ export const useCartStore = create<CartState>()(
                         customerPhone: cartToResume.customerPhone || '',
                         customerId: cartToResume.customerId, // Restore ID if exists
                         customerBalance: cartToResume.customerBalance, // Restore balance
+                        linkedEmployeeId: cartToResume.linkedEmployeeId,
+                        isSupplier: cartToResume.isSupplier,
                         tableId: cartToResume.tableId,
                         tableName: cartToResume.tableName,
                         discountAmount: cartToResume.discountAmount || 0,

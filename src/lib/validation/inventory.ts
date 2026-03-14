@@ -26,6 +26,7 @@ export const supplierSchema = z.object({
         .refine(val => !val || /^\d{11}$/.test(val), "Phone number must be exactly 11 digits"),
     email: z.string().email().optional().or(z.literal('')),
     address: z.string().optional(),
+    linkedEmployeeId: z.string().uuid().optional().nullable(),
 });
 
 export const categorySchema = z.object({
