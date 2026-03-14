@@ -29,7 +29,8 @@ import {
     Target,
     AlertCircle,
     RefreshCw,
-    Zap
+    Zap,
+    DollarSign
 } from 'lucide-react'
 import { toggleUserFreeze } from '@/actions/hr'
 import { deleteEmployeeTransaction, deleteAttendanceEntry } from '@/actions/employee-ledger'
@@ -40,13 +41,16 @@ import { generateThermalReceiptHTML } from '@/components/pos/ThermalReceiptTempl
 import { formatArabicPrintText } from '@/lib/arabic-reshaper'
 import EmployeeTransactionModal from './EmployeeTransactionModal'
 import EmployeeDataModal from './EmployeeDataModal'
+import SalaryPaymentModal from './SalaryPaymentModal'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { getEmployeeProfileData } from '@/actions/hr-profile'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import clsx from 'clsx'
 
 interface ProfileData {
     user: any
+    hireDate?: string | null
     attendanceLogs: any[]
     tickets: any[]
     transactions: any[]
@@ -75,12 +79,14 @@ export default function EmployeeProfileClient({
 }) {
     const t = useTranslations("HR.profile")
     const ta = useTranslations("HR.attendance")
+    const tl = useTranslations("HR.ledger")
     const locale = useLocale()
     const router = useRouter()
     
     const [data, setData] = useState(initialData)
     const [isTxModalOpen, setIsTxModalOpen] = useState(false)
     const [isDataModalOpen, setIsDataModalOpen] = useState(false)
+    const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false)
     const [selectedTx, setSelectedTx] = useState<any>(null)
     const [modalMode, setModalMode] = useState<'MANUAL' | 'ATTENDANCE'>('MANUAL')
     
@@ -97,6 +103,17 @@ export default function EmployeeProfileClient({
         data?: any 
     } | null>(null)
 
+    const refreshData = async () => {
+        try {
+            const res = await getEmployeeProfileData(userId, monthStr)
+            if (res.success && res.data) {
+                setData(res.data)
+            }
+        } catch (error) {
+            console.error("Failed to refresh data:", error)
+        }
+    }
+
     useEffect(() => {
         setData(initialData)
     }, [initialData])
@@ -109,7 +126,7 @@ export default function EmployeeProfileClient({
         // Base Salary Entry
         {
             date: `${monthStr}-01`,
-            description: "الراتب الأساسي المستحق للموظف",
+            description: tl("salary_base"),
             type: "ADDITION",
             amount: kpis.baseSalary,
             status: "NATIVE",
@@ -294,9 +311,17 @@ export default function EmployeeProfileClient({
                         <AvatarFallback className="bg-zinc-800 text-2xl">{user.name?.[0]}</AvatarFallback>
                     </Avatar>
                     <div className="space-y-1">
-                        <h1 className="text-3xl font-extrabold tracking-tight text-white">{user.name}</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-extrabold tracking-tight text-white">{user.name}</h1>
+                            {user.hireDate && (
+                                <Badge variant="outline" className="bg-white/5 border-white/10 text-zinc-400 text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                    <CalendarCheck className="w-3 h-3 text-cyan-400" />
+                                    تعيين: {new Date(user.hireDate).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </Badge>
+                            )}
+                        </div>
                         <div className="flex items-center gap-2">
-                            <span className="text-cyan-400 font-medium text-lg">{user.roleStr}</span>
+                            <span className="text-cyan-400 font-medium text-lg">{user.role?.name || user.roleStr}</span>
                             <span className="text-zinc-600">•</span>
                             <span className="text-zinc-400">{user.branch?.name || 'Main Branch'}</span>
                         </div>
@@ -334,11 +359,18 @@ export default function EmployeeProfileClient({
                         <Printer className="w-4 h-4" /> طباعة كشف الحساب
                     </button>
                     <Button 
-                        onClick={() => router.push(`/${locale}/hr/employees/edit/${user.id}`)}
+                        onClick={() => setIsDataModalOpen(true)}
                         className="bg-cyan-500 text-black border-none hover:bg-cyan-400 font-bold rounded-xl px-6"
                     >
                         <Pencil className="w-4 h-4 mr-2" />
                         تعديل البيانات
+                    </Button>
+                    <Button 
+                        onClick={() => setIsSalaryModalOpen(true)}
+                        className="bg-emerald-600 text-white border-none hover:bg-emerald-500 font-bold rounded-xl px-6 shadow-lg shadow-emerald-500/20"
+                    >
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        سداد المرتب
                     </Button>
                 </div>
             </div>
@@ -476,21 +508,21 @@ export default function EmployeeProfileClient({
                 <TabsContent value="ledger" className="mt-0 focus-visible:ring-0">
                     <Card className="bg-card/40 border-white/5 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-md">
                         <div className="p-6 bg-white/[0.02] border-b border-white/5 flex justify-between items-center">
-                            <h2 className="text-lg font-bold">الدفتر المالي التفصيلي</h2>
+                            <h2 className="text-lg font-bold">{tl("title")}</h2>
                             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 border border-white/5 rounded-xl">
                                 <Search className="w-3.5 h-3.5 text-zinc-500" />
-                                <input placeholder="بحث في الحركات..." className="bg-transparent border-none text-xs focus:ring-0 text-white w-32" />
+                                <input placeholder={tl("search")} className="bg-transparent border-none text-xs focus:ring-0 text-white w-32" />
                             </div>
                         </div>
                         <div className="overflow-x-auto min-h-[400px]">
                             <table className="w-full text-right">
                                 <thead className="bg-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
                                     <tr>
-                                        <th className="p-4 border-b border-white/5">التاريخ</th>
-                                        <th className="p-4 border-b border-white/5">البيان (التفاصيل)</th>
-                                        <th className="p-4 border-b border-white/5">النوع</th>
-                                        <th className="p-4 border-b border-white/5">المبلغ</th>
-                                        <th className="p-4 border-b border-white/5 text-left">الإجراءات</th>
+                                        <th className="p-4 border-b border-white/5">{tl("date")}</th>
+                                        <th className="p-4 border-b border-white/5">{tl("description")}</th>
+                                        <th className="p-4 border-b border-white/5">{tl("type")}</th>
+                                        <th className="p-4 border-b border-white/5">{tl("amount")}</th>
+                                        <th className="p-4 border-b border-white/5 text-left">{tl("actions")}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
@@ -525,56 +557,56 @@ export default function EmployeeProfileClient({
                                                     )}
                                                     {entry.status === 'MANUAL' || entry.status === 'ATTENDANCE' ? (
                                                         <>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    if (entry.status === 'MANUAL') {
-                                                                        setSelectedTx(transactions.find((tx: any) => tx.id === entry.id))
-                                                                        setModalMode('MANUAL')
-                                                                    } else {
-                                                                        const log = attendanceLogs.find((l: any) => l.id === entry.id)
-                                                                        setSelectedTx({
-                                                                            id: log.id,
-                                                                            type: entry.type,
-                                                                            amount: entry.amount,
-                                                                            description: entry.description,
-                                                                            date: entry.date
-                                                                        })
-                                                                        setModalMode('ATTENDANCE')
-                                                                    }
-                                                                    setIsTxModalOpen(true)
-                                                                }}
-                                                                className="px-2 py-1 flex items-center gap-1 hover:bg-zinc-500/10 rounded-lg text-zinc-400 transition-colors"
-                                                            >
-                                                                <Pencil className="w-3.5 h-3.5" />
-                                                                <span className="text-[10px] font-bold">تعديل</span>
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    setPendingAction({ 
-                                                                        type: 'DELETE_TX', 
-                                                                        data: { id: entry.id, type: entry.type, status: entry.status } 
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (entry.status === 'MANUAL') {
+                                                                    setSelectedTx(transactions.find((tx: any) => tx.id === entry.id))
+                                                                    setModalMode('MANUAL')
+                                                                } else {
+                                                                    const log = attendanceLogs.find((l: any) => l.id === entry.id)
+                                                                    setSelectedTx({
+                                                                        id: log.id,
+                                                                        type: entry.type,
+                                                                        amount: entry.amount,
+                                                                        description: entry.description,
+                                                                        date: entry.date
                                                                     })
-                                                                    setIsConfirmModalOpen(true)
-                                                                }}
-                                                                className="px-2 py-1 flex items-center gap-1 hover:bg-rose-500/10 rounded-lg text-rose-400 transition-colors"
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                                <span className="text-[10px] font-bold">حذف</span>
-                                                            </button>
-                                                        </>
-                                                    ) : (
-                                                        <Badge variant="secondary" className="bg-zinc-800 text-zinc-400 border-none text-[10px] font-bold">
-                                                            نظامي
-                                                        </Badge>
-                                                    )}
+                                                                    setModalMode('ATTENDANCE')
+                                                                }
+                                                                setIsTxModalOpen(true)
+                                                            }}
+                                                            className="px-2 py-1 flex items-center gap-1 hover:bg-zinc-500/10 rounded-lg text-zinc-400 transition-colors"
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                            <span className="text-[10px] font-bold">{tl("edit")}</span>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setPendingAction({ 
+                                                                    type: 'DELETE_TX', 
+                                                                    data: { id: entry.id, type: entry.type, status: entry.status } 
+                                                                })
+                                                                setIsConfirmModalOpen(true)
+                                                            }}
+                                                            className="px-2 py-1 flex items-center gap-1 hover:bg-rose-500/10 rounded-lg text-rose-400 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                            <span className="text-[10px] font-bold">{tl("delete")}</span>
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <Badge variant="secondary" className="bg-zinc-800 text-zinc-400 border-none text-[10px] font-bold">
+                                                        {tl("system")}
+                                                    </Badge>
+                                                )}
                                                 </div>
                                             </td>
                                         </tr>
                                     )) : (
                                         <tr className="hover:bg-white/[0.02] transition-colors">
                                             <td className="p-4 text-xs font-mono text-zinc-400">---</td>
-                                            <td className="p-4 text-sm font-medium">لا توجد حركات مالية مسجلة لهذا الشهر</td>
-                                            <td className="p-4"><Badge variant="outline">نظامي</Badge></td>
+                                            <td className="p-4 text-sm font-medium">{tl("no_transactions")}</td>
+                                            <td className="p-4"><Badge variant="outline">{tl("system")}</Badge></td>
                                             <td className="p-4 text-sm font-black">---</td>
                                             <td className="p-4 font-bold text-xs text-zinc-600 italic">لا توجد بيانات</td>
                                         </tr>
@@ -713,6 +745,7 @@ export default function EmployeeProfileClient({
             <EmployeeTransactionModal 
                 isOpen={isTxModalOpen}
                 onClose={() => setIsTxModalOpen(false)}
+                onSuccess={refreshData}
                 userId={userId}
                 transaction={selectedTx}
                 mode={modalMode}
@@ -727,8 +760,18 @@ export default function EmployeeProfileClient({
                     roleId: user.roleId || '',
                     branchId: user.branchId || '',
                     salary: user.salary ? Number(user.salary) : 0,
-                    monthlyOffDays: user.monthlyOffDays ?? 4
+                    monthlyOffDays: user.monthlyOffDays ?? 4,
+                    hireDate: user.hireDate || null
                 }}
+            />
+
+            <SalaryPaymentModal 
+                isOpen={isSalaryModalOpen}
+                onClose={() => setIsSalaryModalOpen(false)}
+                onSuccess={refreshData}
+                userId={userId}
+                suggestedAmount={kpis.netAccrued}
+                userName={user.name}
             />
 
             <ConfirmationModal
@@ -753,7 +796,7 @@ export default function EmployeeProfileClient({
 
                             if (res.success) {
                                 toast.success('تم حذف الحركة بنجاح')
-                                router.refresh()
+                                refreshData()
                                 setIsConfirmModalOpen(false)
                             } else {
                                 toast.error(res.error)
@@ -777,7 +820,7 @@ export default function EmployeeProfileClient({
                 message={
                     pendingAction?.type === 'TOGGLE_FREEZE' 
                         ? (user.isFrozen ? 'هل تريد إلغاء تجميد حساب الموظف؟' : 'هل تريد تجميد الحساب؟ سيتم تسجيل خروج الموظف ومنعه من الدخول فوراً.')
-                        : "هل أنت متأكد من حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء."
+                        : "هل أنت متأكد من حذف هذه الحركة؟ سيتم استرجاع أي مبالغ تم خصمها إلى الخزينة المرتبطة وإلغاء القيود المحاسبية."
                 }
                 confirmText={pendingAction?.type === 'TOGGLE_FREEZE' ? (user.isFrozen ? 'إلغاء التجميد' : 'تجميد الحساب') : "حذف الحركة"}
                 cancelText="تراجع"

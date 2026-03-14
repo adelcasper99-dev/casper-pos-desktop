@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Plus, Trash2, User as UserIcon, Shield, ShieldAlert, Loader2, Edit, Eye, EyeOff, Lock } from 'lucide-react'
-import { createUser, deleteUser, updateUser } from '@/actions/users'
+import { createUser, deleteUser, updateUser, checkPhoneLink } from '@/actions/users'
 import GlassModal from '@/components/ui/GlassModal'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { useTranslations } from '@/lib/i18n-mock'
 import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -32,6 +33,8 @@ export default function UserManagement({ users, roles, branches, branchId, curre
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [editingUser, setEditingUser] = useState<any | null>(null)
     const [showPassword, setShowPassword] = useState(false)
+    const [confirmDeleteModal, setConfirmDeleteModal] = useState<{ isOpen: boolean, id: string | null }>({ isOpen: false, id: null })
+    const [confirmLinkModal, setConfirmLinkModal] = useState<{ isOpen: boolean, customer: any | null, formData: FormData | null }>({ isOpen: false, customer: null, formData: null })
 
     if (!currentUser) return null;
 
@@ -61,13 +64,32 @@ export default function UserManagement({ users, roles, branches, branchId, curre
             return rolePerms.every(p => userPerms.includes(p));
         });
 
-    async function handleSubmit(formData: FormData) {
+    async function handleSubmit(formData: FormData, bypassLinkCheck = false) {
         setLoading(true)
         const data = Object.fromEntries(formData)
 
         // Set name to username if not provided
         if (!data.name || data.name === '') {
             data.name = data.username
+        }
+
+        const phone = data.phone as string;
+        
+        // 1. Check if phone is already linked to a customer (only if phone changed or new user)
+        if (!bypassLinkCheck && phone && phone.length === 11) {
+            const needsCheck = !editingUser || editingUser.phone !== phone;
+            if (needsCheck) {
+                const linkCheck = await checkPhoneLink(phone);
+                if (linkCheck.exists && linkCheck.customer) {
+                    setConfirmLinkModal({
+                        isOpen: true,
+                        customer: linkCheck.customer,
+                        formData
+                    });
+                    setLoading(false);
+                    return;
+                }
+            }
         }
 
         let res;
@@ -82,24 +104,36 @@ export default function UserManagement({ users, roles, branches, branchId, curre
             setIsModalOpen(false)
             setEditingUser(null)
             setShowPassword(false)
+            setConfirmLinkModal({ isOpen: false, customer: null, formData: null })
             router.refresh()
+            toast.success(editingUser ? t('success.updated') : t('success.created'))
         } else {
             const errorKey = editingUser ? 'errors.updateError' : 'errors.createError';
             toast.error(res.error || t(errorKey))
         }
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm(t('errors.deleteConfirm'))) return
-        setDeletingId(id)
-        const res = await deleteUser({ id })
+    async function handleDeleteConfirmed() {
+        if (!confirmDeleteModal.id) return;
+        setDeletingId(confirmDeleteModal.id)
+        const res = await deleteUser({ id: confirmDeleteModal.id })
 
         if (res.success) {
+            toast.success(t('success.deleted') || "User deleted successfully")
+            setConfirmDeleteModal({ isOpen: false, id: null })
             router.refresh()
         } else {
             toast.error(res.error || t('errors.deleteError'))
-            setDeletingId(null)
         }
+        setDeletingId(null)
+    }
+
+    async function handleLinkConfirmed() {
+        if (!confirmLinkModal.formData) return;
+        const finalData = new FormData();
+        confirmLinkModal.formData.forEach((value, key) => finalData.append(key, value));
+        finalData.append('confirmLink', 'true');
+        await handleSubmit(finalData, true);
     }
 
     function openAddModal() {
@@ -203,7 +237,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                                                     <Edit className="w-4 h-4" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(user.id)}
+                                                    onClick={() => setConfirmDeleteModal({ isOpen: true, id: user.id })}
                                                     disabled={deletingId === user.id}
                                                     className="text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors disabled:opacity-50"
                                                 >
@@ -253,6 +287,17 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                         />
                     </div>
                     <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">{t('phone') || "Phone Number"}</label>
+                        <input
+                            name="phone"
+                            type="text"
+                            className="w-full glass-input"
+                            required
+                            placeholder="e.g. 01234567890"
+                            defaultValue={editingUser?.phone}
+                        />
+                    </div>
+                    <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-1">
                             {t('password')}
                             {editingUser && <span className="text-muted-foreground text-xs font-normal ml-2">{t('passwordHint')}</span>}
@@ -272,6 +317,16 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                         </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">{t('hireDate') || "Hire Date"}</label>
+                        <input
+                            name="hireDate"
+                            type="date"
+                            className="w-full glass-input"
+                            required
+                            defaultValue={editingUser?.hireDate ? new Date(editingUser.hireDate).toISOString().split('T')[0] : ''}
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-1">{t('role')}</label>
@@ -358,6 +413,26 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                     </button>
                 </form >
             </GlassModal >
+
+            <ConfirmationModal
+                isOpen={confirmDeleteModal.isOpen}
+                onClose={() => setConfirmDeleteModal({ isOpen: false, id: null })}
+                onConfirm={handleDeleteConfirmed}
+                title={t('errors.deleteConfirm') || "Confirm Deletion"}
+                message={t('errors.deleteMessage') || "Are you sure you want to delete this user? This action cannot be undone."}
+                variant="danger"
+                loading={deletingId !== null}
+            />
+
+            <ConfirmationModal
+                isOpen={confirmLinkModal.isOpen}
+                onClose={() => setConfirmLinkModal({ isOpen: false, customer: null, formData: null })}
+                onConfirm={handleLinkConfirmed}
+                title="ربط حساب عميل"
+                message={`عفواً، هذا الرقم مسجل لعميل: [${confirmLinkModal.customer?.name}].\nرصيده الحالي: ${confirmLinkModal.customer?.balance} EGP.\n\nهل تريد ربط حساب الموظف بهذا العميل؟`}
+                variant="warning"
+                loading={loading}
+            />
         </div >
     )
 }

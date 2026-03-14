@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 import { PERMISSIONS, hasPermission } from '@/lib/permissions'
 import { Decimal } from 'decimal.js'
 import { Ticket } from '@prisma/client'
+import { unstable_noStore as noStore } from 'next/cache';
 
 export async function getEmployeeProfileData(userId: string, monthStr: string) {
     const session = await getSession()
@@ -95,8 +96,22 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
             }
         }) : []
 
-        // Calculation of KPI Card values
-        const baseSalary = new Decimal(user.salary?.toString() || '0')
+        // KPI Calculations
+        let baseSalary = new Decimal(user.salary?.toString() || '0')
+        const hireDate = user.hireDate ? new Date(user.hireDate) : null
+
+        // Prorate salary if hired in current month
+        if (hireDate) {
+            if (hireDate > endDate) {
+                baseSalary = new Decimal(0);
+            } else if (hireDate > startDate) {
+                const daysInMonth = 30; 
+                const startDay = hireDate.getDate();
+                const daysWorked = Math.max(0, 31 - startDay);
+                baseSalary = baseSalary.times(daysWorked).dividedBy(30);
+            }
+        }
+
         let totalBonuses = new Decimal(0)
         let totalDeductions = new Decimal(0)
 
@@ -113,11 +128,13 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
             }
         })
 
+        noStore();
+
         // Sum from transactions
         transactions.forEach((tx: any) => {
             if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
                 totalBonuses = totalBonuses.plus(tx.amount.toString())
-            } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION')) {
+            } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION') || tx.type === 'SALARY_PAYMENT') {
                 totalDeductions = totalDeductions.plus(tx.amount.toString())
             }
         })

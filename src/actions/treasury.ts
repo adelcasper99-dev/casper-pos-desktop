@@ -262,6 +262,10 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
           },
         });
       }
+
+      // 4. Reverse Accounting Entries (Integration)
+      const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
+      await FinancialReversalService.reverseAccountingEntries(tx, id, reason);
     });
 
     revalidatePath("/treasury");

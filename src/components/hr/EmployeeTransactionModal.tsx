@@ -33,6 +33,7 @@ interface TransactionModalProps {
     userId: string
     transaction?: any // If provided, we're in Edit mode
     mode?: 'MANUAL' | 'ATTENDANCE'
+    onSuccess?: () => void
 }
 
 export default function EmployeeTransactionModal({
@@ -40,7 +41,8 @@ export default function EmployeeTransactionModal({
     onClose,
     userId,
     transaction,
-    mode = 'MANUAL'
+    mode = 'MANUAL',
+    onSuccess
 }: TransactionModalProps) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
@@ -103,7 +105,7 @@ export default function EmployeeTransactionModal({
 
             if (res.success) {
                 toast.success(transaction ? "تم تحديث الحركة بنجاح" : "تم إضافة الحركة بنجاح")
-                router.refresh()
+                onSuccess?.()
                 onClose()
             } else {
                 toast.error(res.error || "فشل حفظ الحركة")

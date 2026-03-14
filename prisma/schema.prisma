@@ -55,6 +55,7 @@ model User {
   maxDiscount          Decimal?              @default(0.00)
   maxDiscountAmount    Decimal?              @default(0.00)
   salary               Decimal?              @default(0.00)
+  hireDate             DateTime?
   monthlyOffDays       Int?                  @default(4)
   actionLogs           ActionLog[]
   linkedCustomer       Customer?             @relation("CustomerEmployee")
@@ -567,8 +568,12 @@ model Transaction {
   treasuryId           String?
   treasury             Treasury? @relation(fields: [treasuryId], references: [id])
   shift                Shift?    @relation(fields: [shiftId], references: [id])
+  referenceId          String?
+  referenceType        String?
+  isReversed           Boolean   @default(false)
 
   @@index([treasuryId, createdAt])
+  @@index([referenceId, referenceType])
 }
 
 model Expense {

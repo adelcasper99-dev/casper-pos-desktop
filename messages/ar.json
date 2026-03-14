@@ -68,6 +68,23 @@
                 "day": "نهاري",
                 "night": "ليلي"
             }
+        },
+        "ledger": {
+            "title": "الدفتر المالي التفصيلي",
+            "search": "بحث في الحركات...",
+            "date": "التاريخ",
+            "description": "البيان (التفاصيل)",
+            "type": "النوع",
+            "amount": "المبلغ",
+            "actions": "الإجراءات",
+            "salary_base": "الراتب الأساسي المستحق للموظف",
+            "salary_payment": "سداد راتب",
+            "salary_payment_via": "سداد راتب عبر {method}",
+            "no_transactions": "لا توجد حركات مالية مسجلة لهذا الشهر",
+            "edit": "تعديل",
+            "delete": "حذف",
+            "view": "عرض",
+            "system": "نظامي"
         }
     },
     "Sidebar": {

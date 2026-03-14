@@ -17,6 +17,7 @@ interface EmployeeDataModalProps {
         branchId: string
         salary: number
         monthlyOffDays: number
+        hireDate: string | null
     }
 }
 
@@ -150,6 +151,20 @@ export default function EmployeeDataModal({
                                 const val = e.target.value;
                                 setFormData({ ...formData, monthlyOffDays: val === "" ? 0 : parseInt(val) })
                             }}
+                        />
+                    </div>
+
+                    {/* Hire Date */}
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-500 flex items-center gap-2 justify-end">
+                            تاريخ التعيين <Calendar className="w-3 h-3" />
+                        </label>
+                        <input
+                            type="date"
+                            required
+                            className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm focus:border-cyan-500/50 outline-none transition-all text-right"
+                            value={formData.hireDate ? formData.hireDate.split('T')[0] : ''}
+                            onChange={(e) => setFormData({ ...formData, hireDate: e.target.value })}
                         />
                     </div>
                 </div>

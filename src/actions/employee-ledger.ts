@@ -47,7 +47,7 @@ export async function upsertEmployeeTransaction(data: z.infer<typeof Transaction
                 data: payload,
             });
         } else {
-            result = await prisma.employeeTransaction.create({
+            result = await (prisma as any).employeeTransaction.create({
                 data: payload,
             });
         }
@@ -83,18 +83,31 @@ export async function deleteEmployeeTransaction(id: string, userId: string, reas
         const existing = await prisma.employeeTransaction.findUnique({ where: { id } });
         if (!existing) return { success: false, error: "Transaction not found" };
 
-        await prisma.employeeTransaction.delete({ where: { id } });
+        const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
 
-        // Audit Logging
-        await (prisma as any).auditLog.create({
-            data: {
-                entityType: "EmployeeTransaction",
-                entityId: id,
-                action: "DELETE",
-                previousData: JSON.stringify(existing),
-                reason: reason || "Manual ledger deletion",
-                user: session.user.name || session.user.id,
-            }
+        await prisma.$transaction(async (tx) => {
+            // 1. Reverse Financial Impacts (Treasury & Accounting)
+            await FinancialReversalService.fullReversal(
+                tx,
+                id,
+                existing.type, // e.g., 'SALARY_PAYMENT'
+                reason || "Manual ledger deletion"
+            );
+
+            // 2. Delete the record
+            await tx.employeeTransaction.delete({ where: { id } });
+
+            // 3. Audit Logging
+            await (tx as any).auditLog.create({
+                data: {
+                    entityType: "EmployeeTransaction",
+                    entityId: id,
+                    action: "DELETE",
+                    previousData: JSON.stringify(existing),
+                    reason: reason || "Manual ledger deletion",
+                    user: session.user.name || session.user.id,
+                }
+            });
         });
 
         revalidatePath(`/hr/employees/${userId}`);

@@ -157,12 +157,13 @@ export const getUsersByBranch = secureAction(async (branchId: string) => {
     return { data: serializedUsers }
 }, { permission: 'MANAGE_USERS', requireCSRF: false });
 
-export const createUser = secureAction(async (data: z.infer<typeof userSchema>) => {
+export const createUser = secureAction(async (data: z.infer<typeof userSchema> & { confirmLink?: boolean }) => {
     const session = await getSession();
     if (!session?.user) throw new Error("Unauthorized");
 
     const validatedData = userSchema.parse(data);
     const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount, salary } = validatedData;
+    const confirmLink = (data as any).confirmLink === true || (data as any).confirmLink === 'true';
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId);
@@ -178,10 +179,16 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
     if (phone) {
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
         const phoneCheck = await checkGlobalPhoneUniqueness(phone, 'USER');
+        
         if (!phoneCheck.unique) {
-            const { getTranslations } = await import('@/lib/i18n-mock');
-            const t = await getTranslations('SystemMessages.Errors');
-            throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
+            // Special Case: If matches a CUSTOMER and admin confirmed linking, WE ALLOW IT
+            if (phoneCheck.usedBy === 'CUSTOMER' && confirmLink) {
+                // Allow proceeding, we will link later
+            } else {
+                const { getTranslations } = await import('@/lib/i18n-mock');
+                const t = await getTranslations('SystemMessages.Errors');
+                throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
+            }
         }
     }
 
@@ -202,35 +209,72 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
     const hashedPassword = await bcrypt.hash(password, 10)
 
     // Fetch Role Name for legacy support
+    let role = null;
     let roleName = "STAFF";
     if (roleId) {
-        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        role = await prisma.role.findUnique({ where: { id: roleId } });
         if (role) roleName = role.name;
     }
 
     // Auto-assign to main branch if no branch specified (single-branch mode)
     const effectiveBranchId = branchId || await ensureMainBranch();
 
-    await prisma.user.create({
-        data: {
-            name,
-            username,
-            password: hashedPassword,
-            roleId: roleId || undefined,
-            roleStr: roleName,
-            branchId: effectiveBranchId,
-            managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : "[]",
-            isGlobalAdmin: isGlobalAdmin || false,
-            phone: phone || null,
-            maxDiscount: maxDiscount ?? 0.00,
-            maxDiscountAmount: maxDiscountAmount ?? 0.00,
-            salary: salary ?? 0.00
+    // Use transaction for atomic creation (User + Warehouse + Technician)
+    await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+            data: {
+                name,
+                username,
+                password: hashedPassword,
+                roleId: roleId || undefined,
+                roleStr: roleName,
+                branchId: effectiveBranchId,
+                managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : "[]",
+                isGlobalAdmin: isGlobalAdmin || false,
+                phone: phone || null,
+                maxDiscount: maxDiscount ?? 0.00,
+                maxDiscountAmount: maxDiscountAmount ?? 0.00,
+                salary: salary ?? 0.00,
+                hireDate: validatedData.hireDate ? new Date(validatedData.hireDate) : null,
+            }
+        })
+
+        // --- Technician Automation ---
+        const isTechnicianRole = roleName.toLowerCase().includes('technician') || roleName === 'فني';
+        if (isTechnicianRole) {
+            // 1. Create a dedicated warehouse for this technician
+            const warehouse = await tx.warehouse.create({
+                data: {
+                    name: `${name || username} Warehouse`,
+                    branchId: effectiveBranchId,
+                    isDefault: false,
+                }
+            });
+
+            // 2. Create the Technician profile linked to this user and warehouse
+            await tx.technician.create({
+                data: {
+                    userId: newUser.id,
+                    name: name || username,
+                    warehouseId: warehouse.id,
+                    phone: phone || null,
+                }
+            });
         }
-    })
+
+        // --- Customer Linking (Explicit) ---
+        if (phone && confirmLink) {
+            await tx.customer.updateMany({
+                where: { phone },
+                data: { linkedEmployeeId: newUser.id }
+            });
+        }
+    });
 
     logger.info('User created', {
         userId: username,
         role: roleName,
+        automatedWarehouse: roleName.toLowerCase().includes('technician') || roleName === 'فني',
         duration: Date.now() - startTime,
     });
 
@@ -238,13 +282,14 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema>) 
     return { success: true }
 }, { permission: 'MANAGE_USERS', requireCSRF: false });
 
-export const updateUser = secureAction(async (id: string, data: z.infer<typeof userSchema>) => {
+export const updateUser = secureAction(async (id: string, data: z.infer<typeof userSchema> & { confirmLink?: boolean }) => {
     const session = await getSession();
     if (!session?.user) throw new Error("Unauthorized");
 
     const validatedData = userSchema.parse(data);
     // Note: password is optional in update
     const { name, username, password, roleId, branchId, managedHQIds, isGlobalAdmin, phone, maxDiscount, maxDiscountAmount, salary } = validatedData;
+    const confirmLink = (data as any).confirmLink === true || (data as any).confirmLink === 'true';
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId, id);
@@ -258,10 +303,16 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
     if (phone) {
         const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
         const phoneCheck = await checkGlobalPhoneUniqueness(phone, 'USER', id);
+        
         if (!phoneCheck.unique) {
-            const { getTranslations } = await import('@/lib/i18n-mock');
-            const t = await getTranslations('SystemMessages.Errors');
-            throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
+             // Special Case: If matches a CUSTOMER and admin confirmed linking, WE ALLOW IT
+             if (phoneCheck.usedBy === 'CUSTOMER' && confirmLink) {
+                // Allow proceeding
+            } else {
+                const { getTranslations } = await import('@/lib/i18n-mock');
+                const t = await getTranslations('SystemMessages.Errors');
+                throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
+            }
         }
     }
 
@@ -282,16 +333,73 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
         updateData.password = await bcrypt.hash(password, 10)
     }
 
-    // Sync roleStr
-    if (roleId) {
-        const role = await prisma.role.findUnique({ where: { id: roleId } });
-        if (role) updateData.roleStr = role.name;
+    if (validatedData.hireDate) {
+        updateData.hireDate = new Date(validatedData.hireDate);
     }
 
-    await prisma.user.update({
-        where: { id },
-        data: updateData
-    })
+    // Sync roleStr
+    let roleName = null;
+    if (roleId) {
+        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        if (role) {
+            updateData.roleStr = role.name;
+            roleName = role.name;
+        }
+    }
+
+    await prisma.$transaction(async (tx) => {
+        const updatedUser = await tx.user.update({
+            where: { id },
+            data: updateData
+        })
+
+        // --- Technician Automation on Update ---
+        if (roleName) {
+            const isTechnicianRole = roleName.toLowerCase().includes('technician') || roleName === 'فني';
+            if (isTechnicianRole) {
+                // Check if technician profile already exists
+                const existingTech = await tx.technician.findUnique({ where: { userId: id } });
+                if (!existingTech) {
+                    // Create warehouse and technician profile
+                    const effectiveBranchId = branchId || updatedUser.branchId || await ensureMainBranch();
+                    const warehouse = await tx.warehouse.create({
+                        data: {
+                            name: `${name || updatedUser.name || updatedUser.username} Warehouse`,
+                            branchId: effectiveBranchId,
+                            isDefault: false,
+                        }
+                    });
+
+                    await tx.technician.create({
+                        data: {
+                            userId: id,
+                            name: name || updatedUser.name || updatedUser.username,
+                            warehouseId: warehouse.id,
+                            phone: phone || updatedUser.phone || null,
+                        }
+                    });
+                } else if (name || phone || branchId) {
+                    // Update existing technician name/phone if changed
+                    await tx.technician.update({
+                        where: { userId: id },
+                        data: {
+                            name: name || undefined,
+                            phone: phone || undefined,
+                        }
+                    });
+                }
+            }
+        }
+
+        // --- Customer Linking (Explicit) ---
+        if (phone && confirmLink) {
+            // 1. Unlink anyone else from this customer phone first (sanity check)
+            await tx.customer.updateMany({
+                where: { phone },
+                data: { linkedEmployeeId: id }
+            });
+        }
+    });
 
     // Invalidate user sessions to force fresh login with new permissions/details
     await invalidateUserSessions(id);
@@ -313,6 +421,7 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id },
+            include: { technician: true }
         });
 
         if (!user) {
@@ -325,9 +434,43 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
         // Invalidate sessions before deletion
         await invalidateUserSessions(id);
 
-        // Delete user
-        await prisma.user.delete({
-            where: { id }
+        await prisma.$transaction(async (tx) => {
+            // 1. If this is a technician, we should handle their dedicated warehouse
+            if (user.technician) {
+                const warehouseId = user.technician.warehouseId;
+                
+                // Remove technician profile
+                await tx.technician.delete({ where: { userId: id } });
+
+                // Check if this warehouse is likely the automated one (named after user)
+                if (warehouseId) {
+                    const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
+                    if (warehouse && warehouse.name.includes(user.name || user.username)) {
+                        // Only delete if it's empty (no stock) to avoid data loss
+                        const stockCount = await tx.stock.count({ where: { warehouseId } });
+                        if (stockCount === 0) {
+                            await tx.warehouse.delete({ where: { id: warehouseId } });
+                        }
+                    }
+                }
+            }
+
+            // 2. Unlink from any customers
+            await tx.customer.updateMany({
+                where: { linkedEmployeeId: id },
+                data: { linkedEmployeeId: null }
+            });
+
+            // 3. Unlink from any suppliers
+            await tx.supplier.updateMany({
+                where: { linkedEmployeeId: id },
+                data: { linkedEmployeeId: null }
+            });
+
+            // 4. Delete the User (Cascades: Sessions, etc. based on schema)
+            await tx.user.delete({
+                where: { id }
+            });
         });
 
         logger.warn('User deleted', {
@@ -388,3 +531,25 @@ export async function getUsersForPage() {
         managedHQIds: typeof u.managedHQIds === 'string' ? JSON.parse(u.managedHQIds) : u.managedHQIds
     }));
 }
+
+export const checkPhoneLink = secureAction(async (phone: string) => {
+    if (!phone) return { exists: false };
+
+    const customer = await prisma.customer.findUnique({
+        where: { phone },
+        select: { id: true, name: true, balance: true }
+    });
+
+    if (customer) {
+        return {
+            exists: true,
+            customer: {
+                id: customer.id,
+                name: customer.name,
+                balance: Number(customer.balance)
+            }
+        };
+    }
+
+    return { exists: false };
+}, { permission: 'MANAGE_USERS', requireCSRF: false });

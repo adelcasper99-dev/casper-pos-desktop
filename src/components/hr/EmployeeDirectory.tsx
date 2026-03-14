@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, LayoutGrid, List } from "lucide-react"
+import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, ChevronLeft, LayoutGrid, List } from "lucide-react"
 import { getStaffDirectory } from "@/actions/hr"
 import { useTranslations } from "@/lib/i18n-mock"
 import clsx from "clsx"
@@ -14,14 +14,26 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
     const [refreshing, setRefreshing] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+    const [filterDate, setFilterDate] = useState(new Date())
+    const [mounted, setMounted] = useState(false)
     const pollInterval = useRef<NodeJS.Timeout | null>(null)
+
+    const nextMonth = () => setFilterDate(new Date(filterDate.getFullYear(), filterDate.getMonth() + 1, 1))
+    const prevMonth = () => setFilterDate(new Date(filterDate.getFullYear(), filterDate.getMonth() - 1, 1))
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     const loadStaff = useCallback(async (isSilent = false) => {
         if (!isSilent) setLoading(true)
         else setRefreshing(true)
         
         try {
-            const res = await getStaffDirectory()
+            const res = await getStaffDirectory({
+                month: filterDate.getMonth(),
+                year: filterDate.getFullYear()
+            })
             if (res.success && res.data) {
                 setStaff(res.data)
                 setLastUpdated(new Date())
@@ -34,7 +46,7 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
             setLoading(false)
             setRefreshing(false)
         }
-    }, [])
+    }, [filterDate])
 
     useEffect(() => {
         loadStaff()
@@ -58,17 +70,43 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header & Search */}
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-card/50 backdrop-blur-md p-4 rounded-2xl border border-white/5 shadow-sm">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                     <div>
                         <h2 className="text-xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">{t("title")}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <p className="text-xs text-muted-foreground">{t("activeMembers", { count: staff.length })}</p>
                             <span className="w-1 h-1 rounded-full bg-zinc-700" />
                             <p className="text-[10px] text-zinc-500 flex items-center gap-1">
-                                {t("lastUpdate") || "Last updated"}: {lastUpdated.toLocaleTimeString()}
+                                {t("lastUpdate") || "Last updated"}: {mounted ? lastUpdated.toLocaleTimeString() : '--:--:--'}
                                 {refreshing && <RefreshCw className="w-3 h-3 animate-spin text-primary" />}
                             </p>
                         </div>
+                    </div>
+
+                    {/* Date Navigation */}
+                    <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1.5 backdrop-blur-md">
+                        <button 
+                            onClick={prevMonth}
+                            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <div className="flex items-center gap-2 px-3 py-1 text-sm font-semibold min-w-[120px] justify-center text-white">
+                            <Clock className="w-3.5 h-3.5 text-primary" />
+                            {filterDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
+                        </div>
+                        <button 
+                            onClick={nextMonth}
+                            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => setFilterDate(new Date())}
+                            className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-all"
+                        >
+                            {t("today") || "Today"}
+                        </button>
                     </div>
                 </div>
 
@@ -110,6 +148,7 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.role") || "Role"}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.branch") || "Branch"}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.salary") || "Salary"}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">الصافي المستحق</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.status") || "Status"}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right rtl:text-left">{t("table.actions") || "Actions"}</th>
                                 </tr>
@@ -131,9 +170,14 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                             </span>
                                         </td>
                                         <td className="px-6 py-4"></td>
-                                        <td className="px-6 py-4 text-primary">
+                                        <td className="px-6 py-4 text-zinc-400">
                                             <div className="font-mono text-sm">
                                                 ${filteredStaff.reduce((sum, s) => sum + Number(s.salary), 0).toLocaleString()}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-emerald-400">
+                                            <div className="font-mono text-sm font-bold">
+                                                ${filteredStaff.reduce((sum, s) => sum + Number(s.netDue), 0).toLocaleString()}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4" colSpan={2}></td>
@@ -198,6 +242,14 @@ function TableRow({ member, t }: { member: any, t: any }) {
             <td className="px-6 py-4">
                 <div className="font-mono text-white text-sm">
                     ${Number(member.salary).toLocaleString()}
+                </div>
+            </td>
+            <td className="px-6 py-4">
+                <div className={clsx(
+                    "font-mono text-sm font-bold",
+                    member.netDue > 0 ? "text-emerald-400" : member.netDue < 0 ? "text-rose-400" : "text-zinc-500"
+                )}>
+                    ${Number(member.netDue).toLocaleString()}
                 </div>
             </td>
             <td className="px-6 py-4">
