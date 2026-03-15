@@ -10,6 +10,7 @@ import { getCurrentShiftInternal } from "./shift-management-actions";
 import { getCurrentUser } from "./auth";
 import { seedAccounts } from "@/lib/accounting/seed-accounts";
 import { getTranslations } from "@/lib/i18n-mock";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 // Repair/Initialize Accounting Accounts
 export const repairAccounting = secureAction(async () => {
@@ -65,6 +66,13 @@ export const createExpense = secureAction(async (data: {
 
         // 3. Update Treasury Balance if linked
         if (data.treasuryId) {
+            const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
+            if (treasury && Number(treasury.balance) < data.amount) {
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                if (!canGoNegative) {
+                    throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
+                }
+            }
             await tx.treasury.update({
                 where: { id: data.treasuryId },
                 data: { balance: { decrement: data.amount } }
@@ -265,6 +273,14 @@ export const addTransaction = secureAction(async (type: string, amount: number, 
                     data: { balance: { increment: amount } }
                 });
             } else {
+                const treasury = await tx.treasury.findUnique({ where: { id: finalTreasuryId } });
+                if (treasury && Number(treasury.balance) < amount) {
+                    const currentUser = await getCurrentUser();
+                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    if (!canGoNegative) {
+                        throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
+                    }
+                }
                 await tx.treasury.update({
                     where: { id: finalTreasuryId },
                     data: { balance: { decrement: amount } }
@@ -324,6 +340,20 @@ export const updateTransaction = secureAction(async (id: string, data: Prisma.Tr
                 // We use existing.type unless data.type is provided (but usually type isn't editable)
                 const finalType = (data as any).type || existing.type;
                 const forwardImpact = isPositive(finalType) ? newAmount : -newAmount;
+                
+                // 🛑 Check for Negative Balance Permission
+                if (forwardImpact < 0) {
+                    const treasury = await tx.treasury.findUnique({ where: { id: newTreasuryId } });
+                    if (treasury && (Number(treasury.balance) + forwardImpact) < 0) {
+                        const { getCurrentUser } = await import('./auth');
+                        const user = await getCurrentUser();
+                        const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                        if (!canGoNegative) {
+                            throw new Error(`تحديث العملية سيؤدي إلى رصيد سالب في الخزنة (${Number(treasury.balance) + forwardImpact}). ولا تملك صلاحية السحب بالسالب.`);
+                        }
+                    }
+                }
+
                 await tx.treasury.update({
                     where: { id: newTreasuryId },
                     data: { balance: { increment: forwardImpact } }

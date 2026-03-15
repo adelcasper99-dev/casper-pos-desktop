@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
 import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-management-actions";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
@@ -2369,6 +2369,13 @@ export const fullTicketReturn = secureAction(async (data: {
                 });
 
                 if (treasuryId) {
+                    const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
+                    if (treasury && Number(treasury.balance) < amountToRefund) {
+                        const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                        if (!canGoNegative) {
+                            throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
+                        }
+                    }
                     await tx.treasury.update({
                         where: { id: treasuryId },
                         data: { balance: { decrement: new Decimal(amountToRefund) } }

@@ -14,6 +14,7 @@ import { logger } from "@/lib/logger";
 import { AppError, ErrorCodes } from "@/lib/errors"; // Added import
 import { getCurrentUser } from "./auth";
 import { getTranslations } from "@/lib/i18n-mock";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 // --- Suppliers ---
 
@@ -161,6 +162,13 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
 
         // 🆕 Update Treasury Balance (Real Money Movement)
         if (defaultTreasuryId) {
+            const treasury = await tx.treasury.findUnique({ where: { id: defaultTreasuryId } });
+            if (treasury && Number(treasury.balance) < amount) {
+                const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                if (!canGoNegative) {
+                    throw new Error("Insufficient treasury balance");
+                }
+            }
             await tx.treasury.update({
                 where: { id: defaultTreasuryId },
                 data: { balance: { decrement: amount } }

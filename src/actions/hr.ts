@@ -381,7 +381,12 @@ export const payEmployeeSalary = secureAction(async (data: {
             if (data.paymentMethod === 'CASH' && data.treasuryId) {
                 const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
                 if (!treasury) throw new Error("Treasury not found");
-                if (Number(treasury.balance) < data.amount) throw new Error("Insufficient treasury balance");
+                if (Number(treasury.balance) < data.amount) {
+                    const canGoNegative = hasPermission(session.user.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    if (!canGoNegative) {
+                        throw new Error("Insufficient treasury balance");
+                    }
+                }
 
                 await tx.treasury.update({
                     where: { id: data.treasuryId },
