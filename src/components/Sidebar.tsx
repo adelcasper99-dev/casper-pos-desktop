@@ -29,6 +29,7 @@ import {
     Briefcase,
     Clock,
     History as HistoryIcon,
+    Undo2,
     type LucideIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,9 +69,10 @@ const MENU_ITEMS = [
     { key: "reports", href: "/reports", icon: BarChart3, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
     { key: "maintenance_dashboard", href: "/maintenance/dashboard", icon: Activity, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
     { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSION_REGISTRY.TICKET.VIEW },
+    { key: "returns", href: "/returns", icon: Undo2, permission: PERMISSION_REGISTRY.POS.ACCESS },
 ];
 
-function Sidebar({ user }: { user: any }) {
+function Sidebar({ user, settings }: { user: any, settings?: any }) {
     const t = useTranslations('Sidebar');
     const [isExpanded, setIsExpanded] = useState(false);
     const pathname = usePathname();
@@ -80,6 +82,14 @@ function Sidebar({ user }: { user: any }) {
 
     const [mounted, setMounted] = useState(false);
     const [itemsOrder, setItemsOrder] = useState<string[]>(MENU_ITEMS.map(i => i.key));
+
+    const features = useMemo(() => {
+        try {
+            return JSON.parse(settings?.features || "{}");
+        } catch (e) {
+            return {};
+        }
+    }, [settings?.features]);
 
     useEffect(() => {
         setMounted(true);
@@ -114,6 +124,16 @@ function Sidebar({ user }: { user: any }) {
 
     const filteredItems = useMemo(() => {
         const visibleItems = MENU_ITEMS.filter(item => {
+            // 1. Check Feature Toggle (Enabled by default if not specified)
+            // Handle linked modules
+            const featureKey = item.key.includes('maintenance') ? 'maintenance' : 
+                               item.key === 'returns' ? 'pos' :
+                               item.key === 'logs' ? 'reports' :
+                               item.key;
+
+            if (features[featureKey] === false) return false;
+
+            // 2. Check Permissions
             if (!item.permission) return true;
             if (isAdmin) return true;
             return hasPermission(user?.permissions, item.permission);
@@ -125,7 +145,7 @@ function Sidebar({ user }: { user: any }) {
             const indexB = itemsOrder.indexOf(b.key);
             return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
         });
-    }, [user, isAdmin, itemsOrder]);
+    }, [user, isAdmin, itemsOrder, features]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -216,7 +236,7 @@ function Sidebar({ user }: { user: any }) {
                         return (
                             <Link
                                 key={item.key}
-                                href={item.href.startsWith('/maintenance') ? `/${locale}${item.href}` : item.href}
+                                href={item.href.startsWith('/maintenance') || item.href.startsWith('/returns') ? `/${locale}${item.href}` : item.href}
                                 className={cn(
                                     "relative flex items-center gap-4 p-4 rounded-xl transition-all duration-300 group overflow-hidden border border-border/50 shadow-md",
                                     isActive

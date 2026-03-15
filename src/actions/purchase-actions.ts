@@ -268,6 +268,13 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
     };
 }, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: false });
 
+export interface PartialPurchaseReturnResult {
+    returnedAmount: number;
+    returnId: string;
+    allReturned: boolean;
+    newTotal: number;
+}
+
 /**
  * Partial Purchase Return — return specific items from a purchase invoice
  */
@@ -276,7 +283,7 @@ export const partialReturnPurchase = secureAction(async (data: {
     items: { itemId: string; quantity: number }[];
     reason?: string;
     csrfToken?: string;
-}) => {
+}): Promise<PartialPurchaseReturnResult> => {
     const { purchaseId, items: returnItems, reason } = data;
 
     if (!returnItems || returnItems.length === 0) {
@@ -461,7 +468,10 @@ export const partialReturnPurchase = secureAction(async (data: {
             returnId: returnInvoice.id,
             itemCount: processedItems.length,
             invoiceNumber: returnInvoice.invoiceNumber,
-            supplierId: invoice.supplierId
+            supplierId: invoice.supplierId,
+            totalReturnedQtySoFar,
+            totalPurchasedQty,
+            newTotal: Number(invoice.totalAmount) // Keeping original total for reference or tracking
         };
     });
 
@@ -474,9 +484,9 @@ export const partialReturnPurchase = secureAction(async (data: {
     }
 
     return {
-        success: true,
-        message: `تم إنشاء فاتورة مرتجع رقم ${result.invoiceNumber} بمبلغ ${result.returnTotal.toFixed(2)}`,
         returnedAmount: result.returnTotal,
-        returnId: result.returnId
+        returnId: result.returnId,
+        allReturned: result.totalReturnedQtySoFar >= result.totalPurchasedQty,
+        newTotal: result.newTotal
     };
 }, { permission: PERMISSIONS.INVENTORY_MANAGE });

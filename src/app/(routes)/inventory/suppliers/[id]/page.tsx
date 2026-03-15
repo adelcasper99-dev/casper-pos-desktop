@@ -241,30 +241,22 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             </div>
 
             {/* Main Content Sections */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left: Actions & Details */}
-                <div className="space-y-6">
-                    <SupplierActions
-                        supplierId={supplier.id}
-                        supplierName={supplier.name}
-                        balance={supplier.balance.toNumber()}
-                        phone={supplier.phone}
-                        email={supplier.email}
-                        address={supplier.address}
-                        transactions={transactionsWithBalance}
-                        csrfToken={csrfToken || ''}
-                    />
-                </div>
+            <div className="space-y-4">
+                <h3 className="font-bold text-xl flex items-center gap-2">
+                    <History className="w-5 h-5 text-indigo-400" />
+                    {tSuppliers('Details.transactionHistory')}
+                </h3>
 
-                {/* Right: History Table (Spans 2 cols) */}
-                <div className="lg:col-span-2 space-y-4">
-                    <h3 className="font-bold text-xl flex items-center gap-2">
-                        <History className="w-5 h-5 text-indigo-400" />
-                        {tSuppliers('Details.transactionHistory')}
-                    </h3>
-
-                    <SupplierHistoryTable transactions={transactionsWithBalance} />
-                </div>
+                <SupplierHistoryTable 
+                    transactions={transactionsWithBalance} 
+                    supplierId={supplier.id}
+                    supplierName={supplier.name}
+                    balance={supplier.balance.toNumber()}
+                    phone={supplier.phone}
+                    email={supplier.email}
+                    address={supplier.address}
+                    csrfToken={csrfToken || ''}
+                />
             </div>
         </div>
     );

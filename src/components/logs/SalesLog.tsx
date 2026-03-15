@@ -468,10 +468,11 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                 <tr
                                     key={sale.id}
                                     className={cn(
-                                        "border-white/5 hover:bg-white/5 transition-colors group",
+                                        "border-white/5 hover:bg-white/5 transition-colors group cursor-pointer",
                                         (sale.isReturn || sale._isRefundEntry) && "bg-red-500/5 border-l-2 border-l-red-500/40",
                                         !(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && "bg-amber-500/5 border-l-2 border-l-amber-500/40"
                                     )}
+                                    onClick={() => setSelectedSale(sale)}
                                 >
                                     <td className="py-2 px-4">
                                         <div className="flex flex-col gap-0.5">

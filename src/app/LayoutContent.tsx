@@ -8,10 +8,12 @@ import SplashScreen from "@/components/SplashScreen";
 
 export default function LayoutContent({
     children,
-    user
+    user,
+    settings
 }: {
     children: React.ReactNode;
     user: any;
+    settings: any;
 }) {
     const pathname = usePathname();
     const isLoginPage = pathname === "/";
@@ -45,7 +47,7 @@ export default function LayoutContent({
                 <TitleBar />
             </div>
             <div className="flex flex-1 overflow-hidden">
-                {user && <Sidebar user={user} />}
+                {user && <Sidebar user={user} settings={settings} />}
                 <main className="flex-1 overflow-y-auto custom-scrollbar relative">
                     {children}
                 </main>

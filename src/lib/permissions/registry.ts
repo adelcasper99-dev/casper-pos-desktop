@@ -57,10 +57,14 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'INVENTORY_VIEW',
     /** Create and edit products */
     MANAGE: 'INVENTORY_MANAGE',
+    /** Delete products */
+    DELETE: 'INVENTORY_DELETE',
     /** Create and edit categories */
     MANAGE_CATEGORIES: 'INVENTORY_MANAGE_CATEGORIES',
     /** Manual stock adjustments */
     ADJUST: 'INVENTORY_ADJUST',
+    /** Bulk import and export operations */
+    IMPORT_EXPORT: 'INVENTORY_IMPORT_EXPORT',
     /** View Cost Price */
     VIEW_COST: 'INVENTORY_VIEW_COST',
     /** View Sell Price 1 */
@@ -77,6 +81,8 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'PURCHASING_VIEW',
     /** Create and manage purchase orders */
     MANAGE: 'PURCHASING_MANAGE',
+    /** Approve purchase operations */
+    APPROVE: 'PURCHASING_APPROVE',
   },
 
   /** Warehouse Operations */
@@ -85,12 +91,18 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'WAREHOUSE_VIEW',
     /** Manage transfers and operations */
     MANAGE: 'WAREHOUSE_MANAGE',
+    /** Move stock between different locations */
+    TRANSFER: 'WAREHOUSE_TRANSFER',
   },
 
   /** Accounting & Finance */
   ACCOUNTING: {
     /** View accounting records and reports */
     VIEW: 'ACCOUNTING_VIEW',
+    /** Edit journal entries and GL accounts */
+    MANAGE: 'ACCOUNTING_MANAGE',
+    /** Perform bank and cash reconciliation */
+    RECONCILE: 'ACCOUNTING_RECONCILE',
   },
 
   /** Treasury & Cash Management */
@@ -99,12 +111,26 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'TREASURY_VIEW',
     /** Add and edit treasury transactions */
     MANAGE: 'TREASURY_MANAGE',
+    /** Delete treasury records */
+    DELETE: 'TREASURY_DELETE',
   },
 
   /** Expense Management */
   EXPENSES: {
+    /** View expense records */
+    VIEW: 'EXPENSES_VIEW',
     /** Manage expense records */
     MANAGE: 'EXPENSES_MANAGE',
+    /** Delete expense records */
+    DELETE: 'EXPENSES_DELETE',
+  },
+
+  /** Branch Management */
+  BRANCH: {
+    /** View branch information */
+    VIEW: 'BRANCH_VIEW',
+    /** Create and edit branches */
+    MANAGE: 'BRANCH_MANAGE',
   },
 
   /** Reports & Analytics */
@@ -113,6 +139,8 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'REPORTS_VIEW',
     /** View all branch reports (Admin/Manager) */
     VIEW_ALL: 'REPORTS_VIEW_ALL',
+    /** Export reports to PDF/Excel */
+    EXPORT: 'REPORTS_EXPORT',
   },
 
   /** Logistics */
@@ -121,6 +149,8 @@ export const PERMISSION_REGISTRY = {
     CREATE: 'LOGISTICS_CREATE',
     /** Receive and process logistics */
     RECEIVE: 'LOGISTICS_RECEIVE',
+    /** Manage vehicles and logistics resources */
+    MANAGE: 'LOGISTICS_MANAGE',
   },
 
   /** Suppliers */
@@ -129,6 +159,8 @@ export const PERMISSION_REGISTRY = {
     VIEW: 'SUPPLIER_VIEW',
     /** Add, edit, and delete suppliers */
     MANAGE: 'SUPPLIER_MANAGE',
+    /** View supplier financial ledger */
+    VIEW_LEDGER: 'SUPPLIER_VIEW_LEDGER',
   },
 
   /** Ticket Management */
@@ -151,6 +183,8 @@ export const PERMISSION_REGISTRY = {
     PAY: 'TICKET_PAY',
     /** Manage workflow and view performance reports */
     WORKFLOW: 'TICKET_WORKFLOW',
+    /** Override restricted actions */
+    OVERRIDE: 'TICKET_OVERRIDE',
   },
 
   /** Customer Management */
@@ -161,6 +195,8 @@ export const PERMISSION_REGISTRY = {
     VIEW_ALL: 'CUSTOMER_VIEW_ALL',
     /** Create and edit customers */
     MANAGE: 'CUSTOMER_MANAGE',
+    /** Delete customer records */
+    DELETE: 'CUSTOMER_DELETE',
   },
 
   /** HR & Attendance */
@@ -183,6 +219,8 @@ export const PERMISSION_REGISTRY = {
     MANAGE_SHIFTS: 'HR_MANAGE_SHIFTS',
     /** Manage schedule templates and assignments */
     MANAGE_SCHEDULE: 'HR_MANAGE_SCHEDULE',
+    /** Manage employee files and profiles */
+    MANAGE_EMPLOYEES: 'HR_MANAGE_EMPLOYEES',
   },
 
   /** Multi-HQ Management */
@@ -235,8 +273,20 @@ export const PERMISSION_REGISTRY = {
     MANAGE_USERS: 'MANAGE_USERS',
     /** Manage roles and permissions */
     MANAGE_ROLES: 'MANAGE_ROLES',
-    /** Manage system settings */
+    /** Manage system settings (General) */
     MANAGE_SETTINGS: 'MANAGE_SETTINGS',
+    /** Manage printer settings */
+    MANAGE_PRINTERS: 'MANAGE_PRINTERS',
+    /** Manage backup settings */
+    MANAGE_BACKUPS: 'MANAGE_BACKUPS',
+    /** Manage warehouse settings */
+    MANAGE_WAREHOUSES: 'MANAGE_WAREHOUSES',
+    /** Manage table and floor settings */
+    MANAGE_TABLES: 'MANAGE_TABLES',
+    /** Manage module toggles */
+    MANAGE_MODULES: 'MANAGE_MODULES',
+    /** Manage accounting setup/wizard */
+    MANAGE_ACCOUNTING_SETUP: 'MANAGE_ACCOUNTING_SETUP',
   },
 } as const;
 
@@ -266,8 +316,10 @@ function flattenRegistry() {
     // INVENTORY
     INVENTORY_VIEW: PERMISSION_REGISTRY.INVENTORY.VIEW,
     INVENTORY_MANAGE: PERMISSION_REGISTRY.INVENTORY.MANAGE,
+    INVENTORY_DELETE: PERMISSION_REGISTRY.INVENTORY.DELETE,
     INVENTORY_MANAGE_CATEGORIES: PERMISSION_REGISTRY.INVENTORY.MANAGE_CATEGORIES,
     INVENTORY_ADJUST: PERMISSION_REGISTRY.INVENTORY.ADJUST,
+    INVENTORY_IMPORT_EXPORT: PERMISSION_REGISTRY.INVENTORY.IMPORT_EXPORT,
     INVENTORY_VIEW_COST: PERMISSION_REGISTRY.INVENTORY.VIEW_COST,
     INVENTORY_VIEW_PRICE_1: PERMISSION_REGISTRY.INVENTORY.VIEW_PRICE_1,
     INVENTORY_VIEW_PRICE_2: PERMISSION_REGISTRY.INVENTORY.VIEW_PRICE_2,
@@ -276,32 +328,46 @@ function flattenRegistry() {
     // PURCHASING
     PURCHASING_VIEW: PERMISSION_REGISTRY.PURCHASING.VIEW,
     PURCHASING_MANAGE: PERMISSION_REGISTRY.PURCHASING.MANAGE,
+    PURCHASING_APPROVE: PERMISSION_REGISTRY.PURCHASING.APPROVE,
 
     // WAREHOUSE
     WAREHOUSE_VIEW: PERMISSION_REGISTRY.WAREHOUSE.VIEW,
     WAREHOUSE_MANAGE: PERMISSION_REGISTRY.WAREHOUSE.MANAGE,
+    WAREHOUSE_TRANSFER: PERMISSION_REGISTRY.WAREHOUSE.TRANSFER,
 
     // ACCOUNTING
     ACCOUNTING_VIEW: PERMISSION_REGISTRY.ACCOUNTING.VIEW,
+    ACCOUNTING_MANAGE: PERMISSION_REGISTRY.ACCOUNTING.MANAGE,
+    ACCOUNTING_RECONCILE: PERMISSION_REGISTRY.ACCOUNTING.RECONCILE,
 
     // TREASURY
     TREASURY_VIEW: PERMISSION_REGISTRY.TREASURY.VIEW,
     TREASURY_MANAGE: PERMISSION_REGISTRY.TREASURY.MANAGE,
+    TREASURY_DELETE: PERMISSION_REGISTRY.TREASURY.DELETE,
 
     // EXPENSES
+    EXPENSES_VIEW: PERMISSION_REGISTRY.EXPENSES.VIEW,
     EXPENSES_MANAGE: PERMISSION_REGISTRY.EXPENSES.MANAGE,
+    EXPENSES_DELETE: PERMISSION_REGISTRY.EXPENSES.DELETE,
+
+    // BRANCH
+    BRANCH_VIEW: PERMISSION_REGISTRY.BRANCH.VIEW,
+    BRANCH_MANAGE: PERMISSION_REGISTRY.BRANCH.MANAGE,
 
     // REPORTS
     REPORTS_VIEW: PERMISSION_REGISTRY.REPORTS.VIEW,
     REPORTS_VIEW_ALL: PERMISSION_REGISTRY.REPORTS.VIEW_ALL,
+    REPORTS_EXPORT: PERMISSION_REGISTRY.REPORTS.EXPORT,
 
     // LOGISTICS
     LOGISTICS_CREATE: PERMISSION_REGISTRY.LOGISTICS.CREATE,
     LOGISTICS_RECEIVE: PERMISSION_REGISTRY.LOGISTICS.RECEIVE,
+    LOGISTICS_MANAGE: PERMISSION_REGISTRY.LOGISTICS.MANAGE,
 
     // SUPPLIER
     SUPPLIER_VIEW: PERMISSION_REGISTRY.SUPPLIER.VIEW,
     SUPPLIER_MANAGE: PERMISSION_REGISTRY.SUPPLIER.MANAGE,
+    SUPPLIER_VIEW_LEDGER: PERMISSION_REGISTRY.SUPPLIER.VIEW_LEDGER,
 
     // TICKET
     TICKET_VIEW: PERMISSION_REGISTRY.TICKET.VIEW,
@@ -313,11 +379,13 @@ function flattenRegistry() {
     TICKET_COMPLETE: PERMISSION_REGISTRY.TICKET.COMPLETE,
     TICKET_PAY: PERMISSION_REGISTRY.TICKET.PAY,
     TICKET_WORKFLOW: PERMISSION_REGISTRY.TICKET.WORKFLOW,
+    TICKET_OVERRIDE: PERMISSION_REGISTRY.TICKET.OVERRIDE,
 
     // CUSTOMER
     CUSTOMER_VIEW: PERMISSION_REGISTRY.CUSTOMER.VIEW,
     CUSTOMER_VIEW_ALL: PERMISSION_REGISTRY.CUSTOMER.VIEW_ALL,
     CUSTOMER_MANAGE: PERMISSION_REGISTRY.CUSTOMER.MANAGE,
+    CUSTOMER_DELETE: PERMISSION_REGISTRY.CUSTOMER.DELETE,
 
     // HR
     HR_VIEW_ATTENDANCE: PERMISSION_REGISTRY.HR.VIEW_ATTENDANCE,
@@ -329,6 +397,7 @@ function flattenRegistry() {
     HR_MANAGE_LEAVES: PERMISSION_REGISTRY.HR.MANAGE_LEAVES,
     HR_MANAGE_SHIFTS: PERMISSION_REGISTRY.HR.MANAGE_SHIFTS,
     HR_MANAGE_SCHEDULE: PERMISSION_REGISTRY.HR.MANAGE_SCHEDULE,
+    HR_MANAGE_EMPLOYEES: PERMISSION_REGISTRY.HR.MANAGE_EMPLOYEES,
 
     // HQ
     HQ_VIEW: PERMISSION_REGISTRY.HQ.VIEW,
@@ -356,8 +425,114 @@ function flattenRegistry() {
     MANAGE_USERS: PERMISSION_REGISTRY.ADMIN.MANAGE_USERS,
     MANAGE_ROLES: PERMISSION_REGISTRY.ADMIN.MANAGE_ROLES,
     MANAGE_SETTINGS: PERMISSION_REGISTRY.ADMIN.MANAGE_SETTINGS,
+    MANAGE_PRINTERS: PERMISSION_REGISTRY.ADMIN.MANAGE_PRINTERS,
+    MANAGE_BACKUPS: PERMISSION_REGISTRY.ADMIN.MANAGE_BACKUPS,
+    MANAGE_WAREHOUSES: PERMISSION_REGISTRY.ADMIN.MANAGE_WAREHOUSES,
+    MANAGE_TABLES: PERMISSION_REGISTRY.ADMIN.MANAGE_TABLES,
+    MANAGE_MODULES: PERMISSION_REGISTRY.ADMIN.MANAGE_MODULES,
+    MANAGE_ACCOUNTING_SETUP: PERMISSION_REGISTRY.ADMIN.MANAGE_ACCOUNTING_SETUP,
   } as const;
 }
+
+/**
+ * Arabic Localization for Permissions
+ */
+const PERMISSION_LABELS_AR: Record<string, string> = {
+  // ... (previous entries remain same)
+  DASHBOARD_VIEW: 'عرض لوحة القيادة',
+  LOGS_VIEW: 'عرض سجلات النظام',
+  POS_ACCESS: 'دخول واجهة البيع',
+  POS_DISCOUNT: 'تطبيق خصومات إضافية',
+  POS_REFUND: 'عمليات المرتجع',
+  POS_CHECKOUT: 'إتمام الدفع والمبيعات',
+  POS_HOLD_CART: 'تعليق واستعادة السلات',
+  POS_DINE_IN: 'إدارة الطاولات (Dine-in)',
+  POS_PRINT_RECEIPT: 'طباعة الفواتير',
+  POS_CHANGE_PRICE: 'تعديل أسعار المنتجات يدوياً',
+  INVENTORY_VIEW: 'عرض المخزون والمنتجات',
+  INVENTORY_MANAGE: 'إدارة المنتجات (إضافة/تعديل)',
+  INVENTORY_DELETE: 'حذف المنتجات',
+  INVENTORY_MANAGE_CATEGORIES: 'إدارة أقسام المنتجات',
+  INVENTORY_ADJUST: 'تسوية المخزون يدوياً',
+  INVENTORY_IMPORT_EXPORT: 'استيراد وتصدير البيانات',
+  INVENTORY_VIEW_COST: 'عرض أسعار التكلفة',
+  INVENTORY_VIEW_PRICE_1: 'عرض سعر البيع 1',
+  INVENTORY_VIEW_PRICE_2: 'عرض سعر البيع 2',
+  INVENTORY_VIEW_PRICE_3: 'عرض سعر البيع 3',
+  PURCHASING_VIEW: 'عرض فواتير المشتريات',
+  PURCHASING_MANAGE: 'إنشاء وإدارة فواتير الشراء',
+  PURCHASING_APPROVE: 'اعتماد عمليات الشراء',
+  WAREHOUSE_VIEW: 'عرض مخزون المستودعات',
+  WAREHOUSE_MANAGE: 'إدارة المستودعات والتحويلات',
+  WAREHOUSE_TRANSFER: 'تحويل المخزون بين المواقع',
+  ACCOUNTING_VIEW: 'عرض القيود والتقارير المحاسبية',
+  ACCOUNTING_MANAGE: 'إدارة القيود والدليل المحاسبي',
+  ACCOUNTING_RECONCILE: 'إجراء التسويات البنكية والنقدية',
+  TREASURY_VIEW: 'عرض حركات الخزينة',
+  TREASURY_MANAGE: 'إضافة وتعديل حركات الخزينة',
+  TREASURY_DELETE: 'حذف حركات الخزينة',
+  EXPENSES_VIEW: 'عرض المصروفات',
+  EXPENSES_MANAGE: 'إضافة وإدارة المصروفات',
+  EXPENSES_DELETE: 'حذف سجلات المصروفات',
+  BRANCH_VIEW: 'عرض بيانات الفروع',
+  BRANCH_MANAGE: 'إنشاء وتعديل الفروع',
+  REPORTS_VIEW: 'عرض التقارير والتحليلات',
+  REPORTS_VIEW_ALL: 'عرض تقارير كافة الفروع',
+  REPORTS_EXPORT: 'تصدير التقارير (PDF/Excel)',
+  LOGISTICS_CREATE: 'إنشاء طلبات الشحن واللوجستيات',
+  LOGISTICS_RECEIVE: 'استلام ومعالجة الشحنات',
+  LOGISTICS_MANAGE: 'إدارة الموارد والأسطول اللوجستي',
+  SUPPLIER_VIEW: 'عرض قائمة الموردين',
+  SUPPLIER_MANAGE: 'إدارة بيانات الموردين',
+  SUPPLIER_VIEW_LEDGER: 'عرض كشف حساب المورد',
+  TICKET_VIEW: 'عرض تذاكر الصيانة',
+  TICKET_VIEW_ALL: 'عرض كافة تذاكر الصيانة للفرع',
+  TICKET_CREATE: 'إنشاء تذاكر صيانة جديدة',
+  TICKET_ASSIGN: 'إسناد التذاكر للفنيين',
+  TICKET_EDIT: 'تعديل بيانات التذاكر',
+  TICKET_DELETE: 'حذف تذاكر الصيانة',
+  TICKET_COMPLETE: 'إغلاق وإتمام تذاكر الصيانة',
+  TICKET_PAY: 'تحصيل مدفوعات الصيانة',
+  TICKET_WORKFLOW: 'إدارة سير العمل والتقارير الفنية',
+  TICKET_OVERRIDE: 'تجاوز الإجراءات المقيدة بالصيانة',
+  CUSTOMER_VIEW: 'عرض بيانات العملاء',
+  CUSTOMER_VIEW_ALL: 'عرض كافة العملاء',
+  CUSTOMER_MANAGE: 'إضافة وتعديل بيانات العملاء',
+  CUSTOMER_DELETE: 'حذف بيانات العملاء',
+  HR_VIEW_ATTENDANCE: 'عرض سجلات الحضور والانصراف',
+  HR_MANAGE_ATTENDANCE: 'إدارة الحضور والتعديل اليدوي',
+  HR_VIEW_PAYROLL: 'عرض بيانات الرواتب',
+  HR_MANAGE_PAYROLL: 'احتساب ومعالجة الرواتب',
+  HR_VIEW_COMPENSATION: 'عرض التعويضات والمكافآت',
+  HR_APPROVE_LEAVES: 'اعتماد أو رفض الإجازات',
+  HR_MANAGE_LEAVES: 'إدارة سياسات وسجلات الإجازات',
+  HR_MANAGE_SHIFTS: 'إدارة وتعيين مناوبات الموظفين',
+  HR_MANAGE_SCHEDULE: 'إدارة فترات العمل والجداول',
+  HR_MANAGE_EMPLOYEES: 'إدارة ملفات الموظفين والبيانات الشخصية',
+  HQ_VIEW: 'عرض لوحة قيادة المقر الرئيسي',
+  HQ_MANAGE: 'إدارة الفروع والاعتمادات بالمركز الرئيسي',
+  ENGINEER_VIEW: 'عرض قائمة الفنيين وإحصائياتهم',
+  ENGINEER_MANAGE: 'إدارة بيانات الفنيين (إضافة/تعديل/حذف)',
+  SHIFT_VIEW: 'عرض تفاصيل الوردية الحالية',
+  SHIFT_VIEW_ALL: 'عرض كافة الورديات',
+  SHIFT_MANAGE: 'فتح وإغلاق الورديات',
+  SHIFT_ADMIN: 'إدارة الورديات المتقدمة (إجبار الإغلاق)',
+  SHIFT_HANDOFF: 'تسليم وتسلم العهدة بين الورديات',
+  SHIFT_ADJUST: 'إجراء تسويات مادية على الورديات المغلقة',
+  BACKUP_VIEW: 'عرض تاريخ وحالة النسخ الاحتياطي',
+  BACKUP_CREATE: 'إنشاء نسخة احتياطية يدوية',
+  BACKUP_RESTORE: 'استعادة النظام من نسخة احتياطية (حرج)',
+  BACKUP_MANAGE_DRIVE: 'إدارة الربط مع Google Drive',
+  MANAGE_USERS: 'إدارة المستخدمين',
+  MANAGE_ROLES: 'إدارة الصلاحيات والأدوار',
+  MANAGE_SETTINGS: 'إدارة الإعدادات العامة',
+  MANAGE_PRINTERS: 'إدارة إعدادات الطابعات',
+  MANAGE_BACKUPS: 'إدارة النسخ الاحتياطي',
+  MANAGE_WAREHOUSES: 'إدارة إعدادات المستودعات',
+  MANAGE_TABLES: 'إدارة الطاولات والصالات',
+  MANAGE_MODULES: 'إدارة تفعيل الموديولات',
+  MANAGE_ACCOUNTING_SETUP: 'إدارة إعدادات الحسابات والأرصدة',
+};
 
 /**
  * Flat permissions object for backwards compatibility
@@ -386,15 +561,17 @@ export function getModulePermissions(module: PermissionModule): Permission[] {
 
 /**
  * Helper: Get permission display name
- * @example getPermissionDisplayName('POS_ACCESS') // 'Access POS interface'
+ * Supports Arabic and English fallback
  */
-export function getPermissionDisplayName(permission: Permission): string {
-  // Find the permission in registry and extract its JSDoc comment
+export function getPermissionDisplayName(permission: Permission, locale: string = 'ar'): string {
+  if (locale === 'ar' && PERMISSION_LABELS_AR[permission]) {
+    return PERMISSION_LABELS_AR[permission];
+  }
+
+  // Find the permission in registry and extract its key as fallback
   for (const [moduleName, module] of Object.entries(PERMISSION_REGISTRY)) {
     for (const [key, value] of Object.entries(module)) {
       if (value === permission) {
-        // In production, this would parse JSDoc comments
-        // For now, convert from SNAKE_CASE to readable format
         return key.split('_').map(word =>
           word.charAt(0) + word.slice(1).toLowerCase()
         ).join(' ');

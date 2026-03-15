@@ -23,6 +23,10 @@ import {
     Table, TableBody, TableCell,
     TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
+import {
+    Dialog, DialogContent, DialogHeader,
+    DialogTitle, DialogFooter
+} from '@/components/ui/dialog';
 import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker';
 import { toast } from 'sonner';
 import {
@@ -31,8 +35,9 @@ import {
     startOfMonth, endOfMonth, subDays
 } from 'date-fns';
 import { voidPurchase } from '@/actions/purchase-actions';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { DateRange } from "react-day-picker"
+import { useTranslations } from '@/lib/i18n-mock';
 import PartialReturnPurchaseDialog from './PartialReturnPurchaseDialog';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 
@@ -50,8 +55,21 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [loading, setLoading] = useState<string | null>(null);
     const [partialReturnPurchase, setPartialReturnPurchase] = useState<any>(null);
+    const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
     const [voidItem, setVoidItem] = useState<{ id: string } | null>(null);
+    const t_logs = useTranslations("Logs");
 
+    const getStatusLabel = (status: string, isReturn?: boolean) => {
+        if (isReturn) return "مرتجع";
+        switch (status) {
+            case 'PAID': return "مدفوع";
+            case 'PARTIAL_RETURN': return "مرتجع جزئي";
+            case 'RETURNED': return "مرتجع كلي";
+            case 'VOIDED': return "ملغي";
+            case 'PENDING': return "قيد الانتظار";
+            default: return status;
+        }
+    };
     const filteredPurchases = purchases.filter(p => {
         const matchesSearch =
             (p.supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -65,11 +83,15 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
 
         let matchesDate = true;
         const date = new Date(p.purchaseDate);
-        if (dateFilter === "today") matchesDate = isToday(date);
-        else if (dateFilter === "yesterday") matchesDate = isYesterday(date);
-        else if (dateFilter === "week") matchesDate = isThisWeek(date);
-        else if (dateFilter === "month") matchesDate = isThisMonth(date);
-        else if (dateFilter === "custom" && dateRange?.from) {
+        if (dateFilter === "today") {
+            matchesDate = isToday(date);
+        } else if (dateFilter === "yesterday") {
+            matchesDate = isYesterday(date);
+        } else if (dateFilter === "week") {
+            matchesDate = isThisWeek(date);
+        } else if (dateFilter === "month") {
+            matchesDate = isThisMonth(date);
+        } else if (dateFilter === "custom" && dateRange?.from) {
             if (dateRange.to) {
                 matchesDate = isWithinInterval(date, {
                     start: startOfDay(dateRange.from),
@@ -307,11 +329,14 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                             </TableRow>
                         ) : (
                             filteredPurchases.map((inv) => (
-                                <tr key={inv.id} className={cn(
-                                    "border-white/5 hover:bg-white/5 transition-colors group",
-                                    (inv.status === 'VOIDED' || inv.isReturn) && "opacity-60",
-                                    inv.isReturn && "bg-rose-500/5 border-l-2 border-l-rose-500/40"
-                                )}>
+                                <tr key={inv.id}
+                                    className={cn(
+                                        "border-white/5 hover:bg-white/5 transition-colors group cursor-pointer",
+                                        (inv.status === 'VOIDED' || inv.isReturn) && "opacity-60",
+                                        inv.isReturn && "bg-rose-500/5 border-l-2 border-l-rose-500/40"
+                                    )}
+                                    onClick={() => setSelectedPurchase(inv)}
+                                >
                                     <td className="py-2 px-4 text-zinc-400 text-xs text-nowrap">
                                         {format(new Date(inv.purchaseDate), 'yyyy/MM/dd HH:mm')}
                                     </td>
@@ -347,6 +372,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                 size="icon"
                                                 className="h-8 w-8 text-indigo-400 hover:bg-indigo-400/10"
                                                 title="عرض الأصناف"
+                                                onClick={() => setSelectedPurchase(inv)}
                                             >
                                                 <Package className="w-4 h-4" />
                                             </Button>
@@ -418,6 +444,96 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                 onReturnDone={handlePartialReturnDone}
                 csrfToken={csrfToken}
             />
+
+            {/* Details Dialog */}
+            {selectedPurchase && (
+                <Dialog open={!!selectedPurchase} onOpenChange={() => setSelectedPurchase(null)}>
+                    <DialogContent className="sm:max-w-md bg-zinc-950 border-white/10 text-white">
+                        <DialogHeader className="pb-2">
+                            <DialogTitle className="flex items-center justify-between">
+                                <span className="text-xl font-bold flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-indigo-400" />
+                                    تفاصيل فاتورة الشراء
+                                </span>
+                                <Badge variant="outline" className="border-white/10 text-xs">
+                                    {selectedPurchase.invoiceNumber || `#${selectedPurchase.id.slice(0, 8).toUpperCase()}`}
+                                </Badge>
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 pt-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm bg-white/5 p-4 rounded-xl border border-white/5">
+                                <div className="space-y-1">
+                                    <span className="text-zinc-400 text-xs block">التاريخ</span>
+                                    <span className="font-bold">{format(new Date(selectedPurchase.purchaseDate), 'yyyy/MM/dd HH:mm')}</span>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-zinc-400 text-xs block">المورد</span>
+                                    <span className="font-bold">{selectedPurchase.supplier?.name}</span>
+                                </div>
+                                <div className="space-y-1 col-span-2 border-t border-white/5 pt-2">
+                                    <span className="text-zinc-400 text-xs block">المستودع</span>
+                                    <span className="font-bold">{selectedPurchase.warehouse?.name || "المستودع الافتراضي"}</span>
+                                </div>
+                            </div>
+
+                            {/* Items List */}
+                            <div className="space-y-2">
+                                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest pb-1 block">الأصناف المشتراة</span>
+                                <div className="max-h-[250px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                    {selectedPurchase.items?.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/5 group hover:border-indigo-500/30 transition-colors">
+                                            <div className="flex-1">
+                                                <div className="font-bold text-sm text-zinc-100">{item.product?.name || "منتج غير معروف"}</div>
+                                                <div className="text-[10px] text-zinc-500 font-mono italic">
+                                                    {item.quantity} {item.unitCost ? `x ${Number(item.unitCost).toLocaleString()}` : ''}
+                                                </div>
+                                            </div>
+                                            <div className="font-mono font-bold text-indigo-400 text-sm">
+                                                {(item.quantity * Number(item.unitCost || 0)).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Totals */}
+                            <div className="mt-6 pt-4 border-t border-white/10 space-y-2">
+                                <div className="flex justify-between text-zinc-400 text-xs">
+                                    <span>الإجمالي</span>
+                                    <span className="font-bold">{formatCurrency(selectedPurchase.totalAmount)}</span>
+                                </div>
+                                <div className="flex justify-between text-emerald-400 text-xs">
+                                    <span>المدفوع</span>
+                                    <span className="font-bold">{formatCurrency(selectedPurchase.paidAmount)}</span>
+                                </div>
+                                <div className="flex justify-between text-rose-400 text-xs font-bold border-t border-white/5 pt-2">
+                                    <span>المتبقي</span>
+                                    <span>{formatCurrency(Number(selectedPurchase.totalAmount) - Number(selectedPurchase.paidAmount))}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 mt-4">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 h-10 border-white/10 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl gap-2"
+                                    onClick={() => setSelectedPurchase(null)}
+                                >
+                                    إغلاق
+                                </Button>
+                                {selectedPurchase.status !== 'VOIDED' && !selectedPurchase.isReturn && (
+                                    <Button
+                                        className="flex-1 h-10 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl gap-2"
+                                        onClick={() => { setSelectedPurchase(null); setPartialReturnPurchase(selectedPurchase); }}
+                                    >
+                                        <RotateCcw className="w-4 h-4" />
+                                        مرتجع جزئي
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 }

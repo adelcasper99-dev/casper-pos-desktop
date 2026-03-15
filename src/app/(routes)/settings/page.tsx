@@ -61,12 +61,26 @@ export default async function SettingsPage() {
 
     const settings = settingsRes?.data || {};
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'مدير النظام' || session.user.role === 'المالك' || hasPermission(session.user.permissions, '*');
-    const canManageSettings = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_SETTINGS);
+    
+    // Permission Checks
+    const canManageGeneral = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_SETTINGS);
+    const canManagePrinters = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_PRINTERS);
+    const canManageBackups = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_BACKUPS);
     const canManageUsers = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_USERS);
-    const isManager = session.user.role === 'BRANCH_MANAGER' || session.user.role === 'Branch Manager' || canManageUsers;
-    const canSeePrinters = canManageSettings || isManager;
+    const canManageRoles = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_ROLES);
+    const canManageWarehouses = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_WAREHOUSES);
+    const canManageTables = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_TABLES);
+    const canManageModules = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_MODULES);
+    const canManageAccounting = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_ACCOUNTING_SETUP);
 
-    const defaultTab = canManageSettings ? "general" : "users";
+    const canSeePrinters = canManagePrinters || isAdmin;
+
+    // Define default tab based on priority of permissions
+    let defaultTab = "users";
+    if (canManageGeneral) defaultTab = "general";
+    else if (canManagePrinters) defaultTab = "printers";
+    else if (canManageBackups) defaultTab = "backups";
+    else if (canManageWarehouses) defaultTab = "warehouses";
 
     return (
         <div className="p-8 max-w-[1600px] mx-auto w-full">
@@ -78,44 +92,53 @@ export default async function SettingsPage() {
 
                 <Tabs defaultValue={defaultTab} className="space-y-6">
                     <TabsList className="bg-black/40 border border-white/10 p-1 h-auto flex-wrap justify-start gap-1">
-                        {canManageSettings && (
+                        {canManageGeneral && (
                             <TabsTrigger value="general" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
-                                <Store className="w-4 h-4" /> General
+                                <Store className="w-4 h-4" /> {t('tabs.general', 'General')}
                             </TabsTrigger>
                         )}
                         {canSeePrinters && (
                             <TabsTrigger value="printers" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
-                                <Printer className="w-4 h-4" /> Printers
+                                <Printer className="w-4 h-4" /> {t('tabs.print', 'Printers')}
                             </TabsTrigger>
                         )}
-                        {canManageSettings && (
+                        {canManageBackups && (
                             <TabsTrigger value="backups" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
-                                <Database className="w-4 h-4" /> Backups
+                                <Database className="w-4 h-4" /> {t('tabs.backup', 'Backups')}
                             </TabsTrigger>
                         )}
                         <TabsTrigger value="users" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
                             <Users className="w-4 h-4" /> Users & Roles
                         </TabsTrigger>
-                        {canManageSettings && (
+
+                        {canManageWarehouses && (
                             <TabsTrigger value="warehouses" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
                                 <Database className="w-4 h-4" /> المستودعات
                             </TabsTrigger>
                         )}
-                        {canManageSettings && (
-                            <>
-                                <TabsTrigger value="tables" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
-                                    <Store className="w-4 h-4" /> Tables
-                                </TabsTrigger>
-                                <TabsTrigger value="accounting" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
-                                    <Calculator className="w-4 h-4" /> Accounting Setup
-                                </TabsTrigger>
-                            </>
+
+                        {canManageTables && (
+                            <TabsTrigger value="tables" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
+                                <Store className="w-4 h-4" /> {t('tabs.tables_and_floors', 'Tables')}
+                            </TabsTrigger>
+                        )}
+
+                        {canManageModules && (
+                            <TabsTrigger value="modules" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white flex gap-2 items-center">
+                                <Shield className="w-4 h-4" /> {t('tabs.modules', 'Modules')}
+                            </TabsTrigger>
+                        )}
+
+                        {canManageAccounting && (
+                            <TabsTrigger value="accounting" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white flex gap-2 items-center">
+                                <Calculator className="w-4 h-4" /> {t('tabs.accounting', 'Accounting Setup')}
+                            </TabsTrigger>
                         )}
                     </TabsList>
 
-                    {canManageSettings && (
+                    {canManageGeneral && (
                         <TabsContent value="general" className="outline-none">
-                            <StoreConfig settings={settings} />
+                            <StoreConfig settings={settings} hideModules={true} />
                         </TabsContent>
                     )}
 
@@ -149,7 +172,7 @@ export default async function SettingsPage() {
                         </TabsContent>
                     )}
 
-                    {canManageSettings && (
+                    {canManageBackups && (
                         <TabsContent value="backups" className="outline-none">
                             <BackupManager />
                         </TabsContent>
@@ -162,7 +185,7 @@ export default async function SettingsPage() {
                                     <TabsTrigger value="staff" className="px-4 py-2 data-[state=active]:bg-cyan-500 data-[state=active]:text-black font-bold transition-all rounded-lg">
                                         Staff Members
                                     </TabsTrigger>
-                                    {canManageSettings && (
+                                    {canManageRoles && (
                                         <TabsTrigger value="roles" className="px-4 py-2 data-[state=active]:bg-purple-500 data-[state=active]:text-white font-bold transition-all rounded-lg">
                                             Roles & Permissions
                                         </TabsTrigger>
@@ -180,7 +203,7 @@ export default async function SettingsPage() {
                                 />
                             </TabsContent>
 
-                            {canManageSettings && (
+                            {canManageRoles && (
                                 <TabsContent value="roles" className="mt-0">
                                     <RoleManagement initialRoles={roles} currentUser={session.user} />
                                 </TabsContent>
@@ -188,7 +211,7 @@ export default async function SettingsPage() {
                         </Tabs>
                     </TabsContent>
 
-                    {canManageSettings && (
+                    {canManageWarehouses && (
                         <TabsContent value="warehouses" className="outline-none">
                             <WarehouseSettings 
                                 warehouses={warehouses as any} 
@@ -197,16 +220,22 @@ export default async function SettingsPage() {
                         </TabsContent>
                     )}
 
-                    {canManageSettings && (
-                        <>
-                            <TabsContent value="tables" className="outline-none">
-                                <TablesManagement />
-                            </TabsContent>
+                    {canManageTables && (
+                        <TabsContent value="tables" className="outline-none">
+                            <TablesManagement />
+                        </TabsContent>
+                    )}
 
-                            <TabsContent value="accounting" className="outline-none">
-                                <OpeningBalanceWizard />
-                            </TabsContent>
-                        </>
+                    {canManageModules && (
+                        <TabsContent value="modules" className="outline-none">
+                            <StoreConfig settings={settings} hideModules={false} />
+                        </TabsContent>
+                    )}
+
+                    {canManageAccounting && (
+                        <TabsContent value="accounting" className="outline-none">
+                            <OpeningBalanceWizard />
+                        </TabsContent>
                     )}
                 </Tabs>
             </div>

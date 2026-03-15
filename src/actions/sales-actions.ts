@@ -248,9 +248,9 @@ export const refundSale = secureAction(async (data: {
                 totalAmount: new Decimal(-remainingTotalAmount),
                 paymentMethod: finalRefundMethod,
                 status: 'REFUNDED',
-                subTotal: new Decimal(sale.subTotal || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount)), // Prorated subtotal
-                taxAmount: new Decimal(sale.taxAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount)), // Prorated tax
-                discountAmount: new Decimal(sale.discountAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount)), // Prorated discount
+                subTotal: new Decimal(new Decimal(sale.subTotal || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated subtotal
+                taxAmount: new Decimal(new Decimal(sale.taxAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated tax
+                discountAmount: new Decimal(new Decimal(sale.discountAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated discount
                 shiftId: currentShift.id,
                 customerId: sale.customerId,
                 userId: currentUser.id,
@@ -258,7 +258,6 @@ export const refundSale = secureAction(async (data: {
                 isReturn: true,
                 // @ts-ignore
                 parentId: saleId,
-                paidAmount: new Decimal(-amountToCash),
                 items: {
                     create: sale.items.map((i: any) => {
                         const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
@@ -268,8 +267,8 @@ export const refundSale = secureAction(async (data: {
                         return {
                             productId: i.productId,
                             quantity: Math.max(0, i.quantity - alreadyReturnedQty),
-                            unitPrice: i.unitPrice,
-                            unitCost: i.unitCost
+                            unitPrice: new Decimal(i.unitPrice),
+                            unitCost: new Decimal(i.unitCost)
                         };
                     }).filter((i: any) => i.quantity > 0)
                 }
@@ -671,7 +670,6 @@ export const partialRefundSale = secureAction(async (data: {
                 isReturn: true,
                 // @ts-ignore
                 parentId: saleId,
-                paidAmount: new Decimal(-finalAmountToCash),
                 items: {
                     create: processedItems.map(p => ({
                         productId: p.productId,

@@ -9,37 +9,47 @@ function getNestedValue(obj: any, path: string) {
 
 // Mock for next-intl server-side
 export async function getTranslations(namespace: string) {
-    return (key: string, params?: Record<string, string | number>) => {
+    return (key: string, paramsOrFallback?: any, fallback?: string) => {
         const messages = ar as any;
         const nsObj = getNestedValue(messages, namespace);
-        const result = (nsObj ? getNestedValue(nsObj, key) : undefined) || key;
+        const result = nsObj ? getNestedValue(nsObj, key) : undefined;
+        
+        let actualFallback = typeof paramsOrFallback === 'string' ? paramsOrFallback : fallback;
+        let actualParams = typeof paramsOrFallback === 'object' ? paramsOrFallback : undefined;
 
-        if (params) {
-            let text = result;
-            Object.entries(params).forEach(([k, v]) => {
+        const val = result || actualFallback || key;
+
+        if (actualParams) {
+            let text = val;
+            Object.entries(actualParams).forEach(([k, v]) => {
                 text = text.replace(`{${k}}`, String(v));
             });
             return text;
         }
-        return result;
+        return val;
     };
 }
 
 // Mock for next-intl client-side
 export function useTranslations(namespace: string) {
-    return (key: string, params?: Record<string, string | number>) => {
+    return (key: string, paramsOrFallback?: any, fallback?: string) => {
         const messages = ar as any;
         const nsObj = getNestedValue(messages, namespace);
-        const result = (nsObj ? getNestedValue(nsObj, key) : undefined) || key;
+        const result = nsObj ? getNestedValue(nsObj, key) : undefined;
 
-        if (params) {
-            let text = result;
-            Object.entries(params).forEach(([k, v]) => {
+        let actualFallback = typeof paramsOrFallback === 'string' ? paramsOrFallback : fallback;
+        let actualParams = typeof paramsOrFallback === 'object' ? paramsOrFallback : undefined;
+
+        const val = result || actualFallback || key;
+
+        if (actualParams) {
+            let text = val;
+            Object.entries(actualParams).forEach(([k, v]) => {
                 text = text.replace(`{${k}}`, String(v));
             });
             return text;
         }
-        return result;
+        return val;
     };
 }
 

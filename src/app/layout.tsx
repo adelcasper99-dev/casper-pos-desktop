@@ -11,6 +11,7 @@ import { cookies } from "next/headers";
 import Sidebar from "@/components/Sidebar";
 import { getCurrentUser } from "@/actions/auth";
 import { initDatabase } from "@/lib/db-init";
+import { getStoreSettings } from "@/actions/settings";
 import LayoutContent from "./LayoutContent";
 
 export const metadata = {
@@ -28,11 +29,14 @@ export default async function RootLayout({
     const cookieStore = await cookies();
     const csrfToken = cookieStore.get('csrf-token')?.value || null;
 
+    const settingsRes = await getStoreSettings();
+    const settings = settingsRes?.data || {};
+
     return (
         <html lang="ar" dir="rtl" suppressHydrationWarning>
             <body className="antialiased">
                 <Providers initialToken={csrfToken}>
-                    <LayoutWrapper user={user}>
+                    <LayoutWrapper user={user} settings={settings}>
                         {children}
                     </LayoutWrapper>
                     <Toaster />
@@ -44,9 +48,9 @@ export default async function RootLayout({
 
 // Client-side wrapper to handle conditional sidebar
 
-function LayoutWrapper({ children, user }: { children: React.ReactNode, user: any }) {
+function LayoutWrapper({ children, user, settings }: { children: React.ReactNode, user: any, settings: any }) {
     return (
-        <LayoutContent user={user}>
+        <LayoutContent user={user} settings={settings}>
             {children}
         </LayoutContent>
     );

@@ -51,7 +51,7 @@ export function SortableSidebarItem({
             className="touch-none"
         >
             <Link
-                href={href.startsWith('/maintenance') ? `/${locale}${href}` : href}
+                href={href.startsWith('/maintenance') || href.startsWith('/returns') ? `/${locale}${href}` : href}
                 className={cn(
                     "relative flex items-center gap-4 p-4 rounded-xl transition-all duration-300 group overflow-hidden border border-border/50 shadow-md",
                     isActive

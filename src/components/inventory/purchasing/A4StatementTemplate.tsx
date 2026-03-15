@@ -9,6 +9,12 @@ interface Transaction {
     status: string;
     isCredit: boolean;
     method?: string;
+    items?: {
+        name: string;
+        quantity: number;
+        unitCost: number;
+    }[];
+    runningBalance?: number;
 }
 
 interface TemplateProps {
@@ -197,27 +203,41 @@ export const generateA4StatementHTML = ({ supplierData, transactions, settings }
                         <th style="width: 100px;">التاريخ</th>
                         <th>البيان / الوصف</th>
                         <th style="width: 100px;">المرجع</th>
-                        <th style="width: 100px;">الطريقة</th>
-                        <th style="width: 120px; text-align: left;">مدين (+)</th>
-                        <th style="width: 120px; text-align: left;">دائن (-)</th>
+                        <th style="width: 80px;">الطريقة</th>
+                        <th style="width: 100px; text-align: left;">مدين (+)</th>
+                        <th style="width: 100px; text-align: left;">دائن (-)</th>
+                        <th style="width: 110px; text-align: left; background-color: #eee;">الرصيد الجاري</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${transactions.map((tx) => `
                         <tr style="height: 25px;">
-                            <td style="font-size: 12px;">${new Date(tx.date).toLocaleDateString('ar-EG')}</td>
-                            <td style="padding: 4px 12px;">
-                                <div style="font-weight: bold; font-size: 12px;">
-                                    ${tx.type === 'INVOICE' ? 'فاتورة مشتريات' : 'دفعة مسددة'}
+                            <td style="font-size: 11px;">
+                                <div>${new Date(tx.date).toLocaleDateString('ar-EG')}</div>
+                                <div style="font-size: 9px; color: #777;">${new Date(tx.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
+                            </td>
+                            <td style="padding: 6px 12px; vertical-align: top;">
+                                <div style="font-weight: bold; font-size: 11px; color: ${tx.type === 'INVOICE' && tx.reference.startsWith('RTN-') ? '#b91c1c' : '#333'};">
+                                    ${tx.type === 'INVOICE' 
+                                        ? (tx.reference.startsWith('RTN-') ? 'مرتجع شراء (-)' : 'فاتورة مشتريات (+)') 
+                                        : 'دفعة مسددة'}
                                 </div>
+                                ${tx.items && tx.items.length > 0 ? `
+                                    <div style="font-size: 9px; color: #666; margin-top: 2px;">
+                                        ${tx.items.map(i => `${i.name} (${i.quantity})`).join(' | ')}
+                                    </div>
+                                ` : ''}
                             </td>
                             <td style="font-family: monospace; font-size: 11px; color: #666; padding: 4px 12px;">${tx.reference}</td>
                             <td style="font-size: 11px; padding: 4px 12px;">${tx.method || '-'}</td>
                             <td style="text-align: left; color: #b91c1c; font-size: 12px; padding: 4px 12px;">
                                 ${!tx.isCredit ? `<strong>${formatCurrency(tx.amount, currency)}</strong>` : ''}
                             </td>
-                            <td style="text-align: left; color: #15803d; font-size: 12px; padding: 4px 12px;">
+                            <td style="text-align: left; color: #15803d; font-size: 12px; padding: 4px 12px; vertical-align: top;">
                                 ${tx.isCredit ? `<strong>${formatCurrency(tx.amount, currency)}</strong>` : ''}
+                            </td>
+                            <td style="text-align: left; font-size: 12px; padding: 4px 12px; vertical-align: top; background-color: #fafafa; font-weight: bold;">
+                                ${tx.runningBalance !== undefined ? formatCurrency(tx.runningBalance, currency) : '-'}
                             </td>
                         </tr>
                     `).join('')}

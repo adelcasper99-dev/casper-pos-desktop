@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getRoles, createRole, updateRole, deleteRole } from "@/actions/roles";
-import { PERMISSION_GROUPS, PERMISSION_DEPENDENCIES, SYSTEM_ROLES } from "@/lib/permissions";
+import { PERMISSION_GROUPS, PERMISSION_DEPENDENCIES, SYSTEM_ROLES, getPermissionDisplayName } from "@/lib/permissions";
 import { Loader2, Plus, Trash2, Edit, Shield, Check, Lock } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { cn } from "@/lib/utils";
@@ -313,7 +313,7 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
                                                     "text-sm transition-colors",
                                                     selectedPermissions.includes(perm) ? "text-foreground font-medium" : "text-muted-foreground"
                                                 )}>
-                                                    {perm.replace(/_/g, " ")}
+                                                    {getPermissionDisplayName(perm as any, 'ar')}
                                                 </span>
                                             </label>
                                         ))}
