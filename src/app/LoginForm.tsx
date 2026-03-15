@@ -1,7 +1,7 @@
 "use client";
 
 import { login } from "@/actions/auth";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,9 @@ export default function LoginForm() {
     const [username, setUsername] = useState("");
     const [rememberMe, setRememberMe] = useState(false);
 
+    const usernameRef = useRef<HTMLInputElement>(null);
+    const passwordRef = useRef<HTMLInputElement>(null);
+
     const router = useRouter();
 
     useEffect(() => {
@@ -22,7 +25,17 @@ export default function LoginForm() {
             setUsername(storedUsername);
             setRememberMe(storedRememberMe);
         }
+        
+        // Auto focus username on mount
+        usernameRef.current?.focus();
     }, []);
+
+    const handleUsernameKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            passwordRef.current?.focus();
+        }
+    };
 
     const handleSubmit = async (formData: FormData) => {
         setLoading(true);
@@ -81,9 +94,11 @@ export default function LoginForm() {
                     <div>
                         <label className="text-xs text-zinc-400 uppercase font-bold mb-1 block">{t('username')}</label>
                         <input
+                            ref={usernameRef}
                             name="username"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
+                            onKeyDown={handleUsernameKeyDown}
                             className="glass-input w-full"
                             required
                             autoComplete="username"
@@ -92,6 +107,7 @@ export default function LoginForm() {
                     <div>
                         <label className="text-xs text-zinc-400 uppercase font-bold mb-1 block">{t('password')}</label>
                         <input
+                            ref={passwordRef}
                             type="password"
                             name="password"
                             className="glass-input w-full"
