@@ -88,7 +88,13 @@ export const updateSupplier = secureAction(async (data: { id: string } & z.infer
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?: string }) => {
-    await prisma.supplier.delete({ where: { id: data.id } });
+    try {
+        await prisma.supplier.delete({ where: { id: data.id } });
+    } catch (error: any) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+            throw error;
+        }
+    }
     revalidatePath("/inventory", 'page');
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
@@ -545,6 +551,9 @@ export const deleteProduct = secureAction(async (data: { id: string; csrfToken?:
             const t = await getTranslations('SystemMessages.Errors');
             throw new Error(t('deleteProductError'));
         }
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+            return { success: true };
+        }
         throw e;
     }
 }, { permission: 'INVENTORY_MANAGE' });
@@ -658,7 +667,13 @@ export const updateCategory = secureAction(async (data: { id: string } & z.infer
 
 export const deleteCategory = secureAction(async (data: { id: string; csrfToken?: string }) => {
     const { id } = data;
-    await prisma.category.delete({ where: { id } });
+    try {
+        await prisma.category.delete({ where: { id } });
+    } catch (error: any) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+            throw error;
+        }
+    }
     revalidatePath('/inventory', 'page');
     revalidatePath('/pos', 'page');
     revalidateTag(CACHE_TAGS.CATEGORIES);
@@ -1599,6 +1614,14 @@ export const updateWarehouse = secureAction(async (data: { id: string } & z.infe
 export const deleteWarehouse = secureAction(async (data: { id: string; csrfToken?: string }) => {
     const { id } = data;
     const t = await getTranslations('Inventory.warehouses');
+    const targetWarehouse = await prisma.warehouse.findUnique({
+        where: { id },
+        select: { id: true, branchId: true }
+    });
+
+    if (!targetWarehouse) {
+        return { success: true };
+    }
 
     // 1. Check for stock availability
     const stockCount = await prisma.stock.count({
@@ -1660,7 +1683,7 @@ export const deleteWarehouse = secureAction(async (data: { id: string; csrfToken
     }
 
     // 7. Cleanup & Delete
-    const warehouse = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
         // Delete zero-quantity stock records first to satisfy FK
         await tx.stock.deleteMany({
             where: { warehouseId: id }
@@ -1671,13 +1694,19 @@ export const deleteWarehouse = secureAction(async (data: { id: string; csrfToken
             where: { warehouseId: id }
         });
 
-        return await tx.warehouse.delete({
-            where: { id }
-        });
+        try {
+            await tx.warehouse.delete({
+                where: { id }
+            });
+        } catch (error: any) {
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+                throw error;
+            }
+        }
     });
 
     revalidatePath("/inventory");
-    revalidatePath(`/branches/${warehouse.branchId}/warehouses`);
+    revalidatePath(`/branches/${targetWarehouse.branchId}/warehouses`);
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 

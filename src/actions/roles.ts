@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { PERMISSIONS } from "@/lib/permissions";
 import { validatePermissions, resolvePermissionDependencies } from "@/lib/permission-validation";
@@ -392,7 +393,13 @@ export async function deleteRole(id: string) {
             return { success: false, message: `Cannot delete role: Assigned to ${count} users.` };
         }
 
-        await prisma.role.delete({ where: { id } });
+        try {
+            await prisma.role.delete({ where: { id } });
+        } catch (error: any) {
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+                throw error;
+            }
+        }
         revalidatePath("/settings");
         return { success: true };
     } catch (e: any) {

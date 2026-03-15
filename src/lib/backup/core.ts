@@ -2,6 +2,7 @@ import { copyFile, unlink, stat, mkdir } from 'fs/promises';
 import path from 'path';
 import { encryptFile, decryptFile, calculateChecksum } from './encryption';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { logger } from '../logger';
 
 const BACKUPS_DIR = path.join(process.cwd(), 'backups');
@@ -148,7 +149,13 @@ export async function deleteBackup(backupId: string) {
     logger.warn(`Could not delete file ${backup.filePath}`, error);
   }
 
-  await prisma.backupLog.delete({
-    where: { id: backupId },
-  });
+  try {
+    await prisma.backupLog.delete({
+      where: { id: backupId },
+    });
+  } catch (error: any) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+      throw error;
+    }
+  }
 }

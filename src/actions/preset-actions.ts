@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_ISSUES = ['شاشة مكسورة', 'بطارية ضعيفة', 'لا يشحن', 'فاصل باور', 'مشاكل في الصوت', 'عطل في الكاميرا', 'تحديث سوفت وير', 'نسيان رمز القفل'];
@@ -73,9 +74,15 @@ export async function addPreset(type: "ISSUE" | "CONDITION", name: string) {
 
 export async function deletePreset(id: string) {
     try {
-        await prisma.ticketPreset.delete({
-            where: { id }
-        });
+        try {
+            await prisma.ticketPreset.delete({
+                where: { id }
+            });
+        } catch (error: any) {
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+                throw error;
+            }
+        }
         revalidatePath('/ar/maintenance/tickets/new');
         return { success: true };
     } catch (error) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 export async function createFloor(data: { name: string }) {
@@ -59,9 +60,15 @@ export async function updateFloor(id: string, name: string) {
 
 export async function deleteFloor(id: string) {
     try {
-        await prisma.floor.delete({
-            where: { id }
-        });
+        try {
+            await prisma.floor.delete({
+                where: { id }
+            });
+        } catch (error: any) {
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+                throw error;
+            }
+        }
 
         revalidatePath('/pos');
         revalidatePath('/settings');
@@ -90,9 +97,15 @@ export async function updateTable(id: string, name: string) {
 
 export async function deleteTable(id: string) {
     try {
-        await prisma.table.delete({
-            where: { id }
-        });
+        try {
+            await prisma.table.delete({
+                where: { id }
+            });
+        } catch (error: any) {
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+                throw error;
+            }
+        }
 
         revalidatePath('/pos');
         revalidatePath('/settings');

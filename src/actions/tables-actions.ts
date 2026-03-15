@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { secureAction } from "@/lib/safe-action";
 
 // FLOOR ACTIONS
@@ -27,7 +28,13 @@ export const updateFloor = secureAction(async (id: string, data: { name: string 
 }, { permission: 'MANAGE_SETTINGS', requireCSRF: false });
 
 export const deleteFloor = secureAction(async (id: string) => {
-    await prisma.floor.delete({ where: { id } });
+    try {
+        await prisma.floor.delete({ where: { id } });
+    } catch (error: any) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+            throw error;
+        }
+    }
     return { success: true };
 }, { permission: 'MANAGE_SETTINGS', requireCSRF: false });
 
@@ -63,6 +70,12 @@ export const updateTable = secureAction(async (id: string, data: { name?: string
 }, { requireCSRF: false }); // Open for POS usage to update status quickly
 
 export const deleteTable = secureAction(async (id: string) => {
-    await prisma.table.delete({ where: { id } });
+    try {
+        await prisma.table.delete({ where: { id } });
+    } catch (error: any) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+            throw error;
+        }
+    }
     return { success: true };
 }, { permission: 'MANAGE_SETTINGS', requireCSRF: false });

@@ -2054,11 +2054,17 @@ export const removeCollaborator = secureAction(async (data: {
 }) => {
     const { ticketId, technicianId } = data;
 
-    await prisma.ticketCollaborator.delete({
-        where: {
-            ticketId_technicianId: { ticketId, technicianId }
+    try {
+        await prisma.ticketCollaborator.delete({
+            where: {
+                ticketId_technicianId: { ticketId, technicianId }
+            }
+        });
+    } catch (error: any) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+            throw error;
         }
-    });
+    }
 
     revalidatePath(`/maintenance/tickets/${ticketId}`);
     return { success: true };

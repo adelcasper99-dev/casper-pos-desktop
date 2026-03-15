@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 const MAIN_BRANCH_CODE = 'MAIN';
 let cachedMainBranchId: string | null = null; // V-08: In-memory cache for ultra-fast login
@@ -46,7 +47,7 @@ export async function ensureMainBranch(): Promise<string> {
                     prisma.treasury.deleteMany({ where: { branchId: legacyBranch.id } }),
                     prisma.warehouse.deleteMany({ where: { branchId: legacyBranch.id } }),
                     prisma.stockRequest.deleteMany({ where: { branchId: legacyBranch.id } }),
-                    prisma.branch.delete({ where: { id: legacyBranch.id } })
+                    prisma.branch.deleteMany({ where: { id: legacyBranch.id } })
                 ]).catch(async () => {
                     // Fallback: If transaction fails (e.g. more complex FKs), just rename it to avoid code conflict
                     await prisma.branch.update({ where: { id: legacyBranch.id }, data: { code: `OLD-${legacyBranch.id.slice(0, 4)}` } });
@@ -225,7 +226,13 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
                 // Completely safe to delete the duplicate phantom warehouse
                 await prisma.stock.deleteMany({ where: { warehouseId: duplicateWh.id } }); // Delete any zero-qty stock records
                 await prisma.technician.deleteMany({ where: { warehouseId: duplicateWh.id } });
-                await prisma.warehouse.delete({ where: { id: duplicateWh.id } });
+                try {
+                    await prisma.warehouse.delete({ where: { id: duplicateWh.id } });
+                } catch (error: any) {
+                    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+                        throw error;
+                    }
+                }
             } else {
                 // Not safe to delete, just remove the default flag and rename it to avoid confusion
                 await prisma.warehouse.update({

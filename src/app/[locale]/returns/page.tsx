@@ -8,11 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function ReturnsCenterPage() {
   const csrfToken = await getCSRFToken();
   const settingsRes = await getStoreSettings();
-  const settings = settingsRes?.data || {};
+  const settings = (settingsRes?.data || {}) as { features?: string };
 
-  let features = {};
+  let features: Record<string, boolean> = {};
   try {
-    features = JSON.parse(settings.features || "{}");
+    features = JSON.parse(typeof settings.features === "string" ? settings.features : "{}");
   } catch (e) {
     console.error("Failed to parse features", e);
   }
