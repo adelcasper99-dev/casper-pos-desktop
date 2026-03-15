@@ -87,6 +87,19 @@ export const updateSupplier = secureAction(async (data: { id: string } & z.infer
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
+export const getDefaultWarehouses = secureAction(async () => {
+    const [posDefault, maintenanceDefault] = await Promise.all([
+        prisma.warehouse.findFirst({ where: { isDefault: true, deletedAt: null } }),
+        prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true, deletedAt: null } })
+    ]);
+
+    return {
+        success: true,
+        posDefault: posDefault ? { id: posDefault.id, name: posDefault.name } : null,
+        maintenanceDefault: maintenanceDefault ? { id: maintenanceDefault.id, name: maintenanceDefault.name } : null
+    };
+}, { permission: 'INVENTORY_VIEW', requireCSRF: false });
+
 export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?: string }) => {
     try {
         await prisma.supplier.delete({ where: { id: data.id } });
@@ -1506,7 +1519,11 @@ export const getWarehousesByBranch = secureAction(async (branchId: string) => {
 export const getWarehouseStock = secureAction(async (warehouseId: string) => {
     const stock = await prisma.stock.findMany({
         where: { warehouseId },
-        include: { product: true },
+        include: { 
+            product: {
+                include: { category: true }
+            }
+        },
         orderBy: { product: { name: 'asc' } }
     });
 
@@ -1517,7 +1534,9 @@ export const getWarehouseStock = secureAction(async (warehouseId: string) => {
         sku: s.product.sku,
         quantity: s.quantity,
         unitCost: Number(s.product.costPrice),
-        sellPrice: Number(s.product.sellPrice)
+        sellPrice: Number(s.product.sellPrice),
+        categoryId: s.product.categoryId,
+        categoryName: s.product.category?.name || 'Uncategorized'
     }));
 
     return { success: true, data: mapped };
@@ -1777,7 +1796,18 @@ export const generateNextSku = secureAction(async (options?: {
     return { success: true, sku: newSku };
 }, { requireCSRF: false }); // No permission required - safe read-only operation
 
-export const getProducts = secureAction(async (params: { search?: string; page?: number; limit?: number; categoryId?: string; stockStatus?: string } = {}) => {
+export const getProducts = secureAction(async (params: { 
+    search?: string; 
+    page?: number; 
+    limit?: number; 
+    categoryId?: string; 
+    stockStatus?: string;
+    warehouseId?: string;
+    startDate?: string;
+    endDate?: string;
+    sortBy?: 'name' | 'createdAt' | 'stock';
+    sortOrder?: 'asc' | 'desc';
+} = {}) => {
     const page = params.page || 1;
     const limit = params.limit || 50;
     const skip = (page - 1) * limit;
@@ -1797,19 +1827,46 @@ export const getProducts = secureAction(async (params: { search?: string; page?:
         where.categoryId = params.categoryId;
     }
 
+    if (params.startDate || params.endDate) {
+        where.createdAt = {};
+        if (params.startDate) where.createdAt.gte = new Date(params.startDate);
+        if (params.endDate) where.createdAt.lte = new Date(params.endDate);
+    }
+
+    // Stock Status Logic (Conditional on Warehouse)
     if (params.stockStatus) {
-        if (params.stockStatus === 'in_stock') {
-            where.stock = { gte: 5 };
+        const statusWhere: any = {};
+        if (params.stockStatus === 'in_stock') statusWhere.gte = 5;
+        else if (params.stockStatus === 'low_stock') statusWhere.gt = 0, statusWhere.lt = 5;
+        else if (params.stockStatus === 'out_of_stock') statusWhere.lte = 0;
+        
+        if (params.stockStatus !== 'services') {
             where.trackStock = true;
-        } else if (params.stockStatus === 'low_stock') {
-            where.stock = { gt: 0, lt: 5 };
-            where.trackStock = true;
-        } else if (params.stockStatus === 'out_of_stock') {
-            where.stock = { lte: 0 };
-            where.trackStock = true;
-        } else if (params.stockStatus === 'services') {
+            if (params.warehouseId) {
+                where.stocks = {
+                    some: {
+                        warehouseId: params.warehouseId,
+                        quantity: statusWhere
+                    }
+                };
+            } else {
+                where.stock = statusWhere;
+            }
+        } else {
             where.trackStock = false;
         }
+    } else if (params.warehouseId) {
+        // Just filter by warehouse presence if no status given but wh is
+        where.stocks = {
+            some: { warehouseId: params.warehouseId }
+        };
+    }
+
+    const orderBy: any = {};
+    if (params.sortBy) {
+        orderBy[params.sortBy] = params.sortOrder || 'asc';
+    } else {
+        orderBy.name = 'asc';
     }
 
     const [products, total] = await Promise.all([
@@ -1817,7 +1874,13 @@ export const getProducts = secureAction(async (params: { search?: string; page?:
             where,
             skip,
             take: limit,
-            orderBy: { name: 'asc' }
+            orderBy,
+            include: {
+                category: { select: { name: true } },
+                stocks: params.warehouseId ? {
+                    where: { warehouseId: params.warehouseId }
+                } : false
+            }
         }),
         prisma.product.count({ where })
     ]);
@@ -1826,6 +1889,9 @@ export const getProducts = secureAction(async (params: { search?: string; page?:
         success: true,
         data: products.map(p => ({
             ...p,
+            // Override stock with warehouse-specific stock if filtered
+            stock: params.warehouseId ? (p.stocks?.[0]?.quantity || 0) : p.stock,
+            categoryName: p.category?.name || null,
             costPrice: p.costPrice.toNumber(),
             sellPrice: p.sellPrice.toNumber(),
             sellPrice2: p.sellPrice2?.toNumber() || 0,

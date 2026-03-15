@@ -23,6 +23,8 @@ import { subDays } from "date-fns";
 import { DrillDownModal } from "./DrillDownModal";
 import { getHQDrilldownData, DrillDownType } from "@/actions/hq-drilldown-actions";
 import { useTranslations } from "@/lib/i18n-mock";
+import Link from "next/link";
+import { FileBarChart } from "lucide-react";
 
 interface MaintenanceDashboardClientProps {
     initialData: any;
@@ -128,6 +130,17 @@ export function MaintenanceDashboardClient({ initialData, branches }: Maintenanc
                     <span className="text-[10px] text-zinc-500 font-mono hidden md:inline-block tracking-widest uppercase opacity-70">
                         {t('autoRefresh')}
                     </span>
+                    
+                    <Link href="/dashboard/reports/maintenance-profit">
+                        <Button
+                            variant="outline"
+                            className="bg-zinc-800 border-border/50 text-cyan-400 hover:text-cyan-300 hover:bg-zinc-700 h-10 rounded-xl gap-2 text-xs"
+                        >
+                            <FileBarChart className="h-4 w-4" />
+                            تقرير الأرباح
+                        </Button>
+                    </Link>
+
                     <Button
                         variant="ghost"
                         size="icon"

@@ -455,7 +455,11 @@
             "loadingStock": "جاري تحميل المخزون...",
             "noStockFound": "لم يتم العثور على مخزون في هذا الموقع.",
             "inStock": "في المخزون",
-            "appx": "تقريباً"
+            "appx": "تقريباً",
+            "search": "بحث في الأصناف...",
+            "allCategories": "جميع الأقسام",
+            "totalItems": "إجمالي الأصناف",
+            "totalQuantity": "إجمالي الكمية"
         },
         "operations": {
             "transfer": "تحويل",

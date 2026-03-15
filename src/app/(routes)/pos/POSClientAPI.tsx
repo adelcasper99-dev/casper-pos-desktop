@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2, ZoomIn, ZoomOut, Database } from "lucide-react";
 
 import { useCartStore } from "@/store/cart";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -23,7 +23,15 @@ import { DesktopStatus } from "@/components/pos/DesktopStatus";
 
 // ... (other imports remain, remove unused if any)
 
-export default function POSClientAPI({ products, categories: initialCategories, settings, csrfToken, floors = [], permissions = { canCheckout: true, canHoldCart: true, canDineIn: true, canPrintReceipt: true, canChangePrice: true, canDiscount: true, canViewCost: false, maxDiscount: 0, maxDiscountAmount: 0 } }: any) {
+export default function POSClientAPI({ 
+    products, 
+    categories: initialCategories, 
+    settings, 
+    csrfToken, 
+    floors = [], 
+    permissions = { canCheckout: true, canHoldCart: true, canDineIn: true, canPrintReceipt: true, canChangePrice: true, canDiscount: true, canViewCost: false, maxDiscount: 0, maxDiscountAmount: 0 },
+    posDefaultName
+}: any) {
     const t = useTranslations("POS");
     const router = useRouter();
     const formatCurrency = useFormatCurrency();
@@ -860,8 +868,18 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 <div className="flex-1 flex flex-col gap-4 h-full overflow-hidden p-4">
                     {/* Search Header */}
                     <div className="flex flex-col gap-3">
-                        <div className="flex justify-between items-center">
-                            <DesktopStatus />
+                        <div className="flex justify-between items-center bg-black/20 p-2 rounded-xl border border-white/5 mb-1">
+                            {posDefaultName && (
+                                <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                                    <Database className="w-3.5 h-3.5 text-cyan-400" />
+                                    <span className="text-cyan-400 font-black text-[10px] uppercase tracking-widest">
+                                        المخزن: {posDefaultName}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="mr-auto">
+                                <DesktopStatus />
+                            </div>
                         </div>
                         <div className="flex gap-3">
                             <div className="glass-card bg-white/5 backdrop-blur-md flex items-center gap-3 py-3 px-4 flex-[2] transition-all focus-within:border-cyan-500/50">

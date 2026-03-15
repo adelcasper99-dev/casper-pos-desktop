@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Box, Edit, Loader2, Save, Wand2, Trash2, ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon, Plus } from "lucide-react";
+import { 
+    Search, Box, Edit, Loader2, Save, Wand2, Trash2, 
+    ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon, 
+    Plus, Filter, ChevronDown, Clock, Calendar, Activity as ActivityIcon, 
+    ArrowUpDown, ChevronUp 
+} from "lucide-react";
 import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
 import { ThermalPrintLabel } from "./ThermalPrintLabel";
 import AddProductModal from "./AddProductModal";
-import { updateProduct, generateNextSku, deleteProduct, getProducts } from "@/actions/inventory";
+import { updateProduct, generateNextSku, deleteProduct, getProducts, getWarehouses } from "@/actions/inventory";
 import GlassModal from "../ui/GlassModal";
 import clsx from "clsx";
 import BarcodeListener from "./BarcodeListener";
@@ -14,8 +19,24 @@ import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { useTranslations } from "@/lib/i18n-mock";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
+import {
+    format, isToday, isYesterday, isThisWeek, isThisMonth,
+    startOfDay, endOfDay, startOfWeek, endOfWeek,
+    startOfMonth, endOfMonth, subDays
+} from 'date-fns';
+import { DateRange } from "react-day-picker";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 interface Product {
     id: string;
@@ -70,6 +91,23 @@ export default function ProductsTab({
     const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
     const [showPrintDialog, setShowPrintDialog] = useState(false);
 
+    // Advanced Filters State
+    const [dateFilter, setDateFilter] = useState<string>("all");
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [filterWarehouseId, setFilterWarehouseId] = useState<string>("");
+    const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'stock'>('name');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+    // Fetch Warehouses for filter
+    const { data: warehousesData } = useQuery({
+        queryKey: ['warehouses'],
+        queryFn: async () => {
+            const res = await getWarehouses();
+            return res.data || [];
+        }
+    });
+    const warehouses = warehousesData || [];
+
     // Permission Checks
     const canManage = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE);
     const canViewCost = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_VIEW_COST);
@@ -84,22 +122,33 @@ export default function ProductsTab({
 
     // React Query for Pagination & Search & Filtering
     const { data: queryData, isLoading: isQueryLoading, refetch } = useQuery({
-        queryKey: ['products', debouncedSearch, page, categoryId, stockStatus],
+        queryKey: ['products', debouncedSearch, page, categoryId, stockStatus, filterWarehouseId, dateRange, sortBy, sortOrder],
         queryFn: async () => {
-            const res = await getProducts({ search: debouncedSearch, page, limit: 50, categoryId: categoryId || undefined, stockStatus: stockStatus || undefined });
+            const res = await getProducts({ 
+                search: debouncedSearch, 
+                page, 
+                limit: 50, 
+                categoryId: categoryId || undefined, 
+                stockStatus: stockStatus || undefined,
+                warehouseId: filterWarehouseId || undefined,
+                startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
+                endDate: dateRange?.to ? dateRange.to.toISOString() : undefined,
+                sortBy,
+                sortOrder
+            });
             return res.success ? res : { data: [], pagination: { total: 0, totalPages: 0, page: 1, limit: 50 } };
         },
-        initialData: (debouncedSearch === "" && page === 1) ? {
+        initialData: (debouncedSearch === "" && page === 1 && !filterWarehouseId && !dateRange) ? {
             success: true,
             data: initialProducts,
             pagination: {
-                total: initialProducts.length, // Approx for initial load if full list passed previously, but safe enough
+                total: initialProducts.length, 
                 page: 1,
                 limit: 50,
                 totalPages: 1
             }
         } : undefined,
-        placeholderData: (previousData) => previousData, // Keep data while fetching new page
+        placeholderData: (previousData) => previousData, 
     });
 
     const products = queryData?.data || [];
@@ -183,64 +232,220 @@ export default function ProductsTab({
         <div className="space-y-6 animate-fly-in">
             <BarcodeListener onScan={(code) => setSearch(code)} />
             {/* Action Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute start-4 top-3 text-zinc-500 w-5 h-5" />
-                    <input
-                        type="text"
-                        placeholder={t('searchPlaceholder')}
-                        value={search}
-                        onChange={(e) => {
-                            setSearch(e.target.value);
-                            setPage(1);
-                        }}
-                        className="w-full glass-input ps-12 py-3"
-                    />
-                    {isQueryLoading && <div className="absolute end-4 top-3"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>}
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="relative flex-1 min-w-[300px] group/search">
+                        <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder={t('searchPlaceholder')}
+                            value={search}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1);
+                            }}
+                            className="w-full glass-input ps-12 py-3 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
+                        />
+                        {isQueryLoading && <div className="absolute end-4 top-1/2 -translate-y-1/2"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {canManage && (
+                            <button
+                                onClick={() => setAddProductOpen(true)}
+                                className="px-5 py-3 h-11 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-bold rounded-xl flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-amber-500/20 active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" />
+                                {tCommon('add') || "إضافة منتج"}
+                            </button>
+                        )}
+
+                        {selectedProducts.size > 0 && (
+                            <button
+                                onClick={() => setShowPrintDialog(true)}
+                                className="px-6 py-3 h-11 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
+                            >
+                                <Printer className="w-5 h-5" />
+                                {t('printLabels')} ({selectedProducts.size})
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <select
-                        value={categoryId}
-                        onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
-                        className="glass-input py-3 min-w-[150px] bg-card text-sm cursor-pointer [&>option]:bg-zinc-900 [&>option]:text-white"
-                    >
-                        <option value="">{tCommon('allCategories') || 'كل الأقسام'}</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                {/* Advanced Filters Toolbar */}
+                <div className="flex gap-4 items-center flex-wrap">
+                    {/* Date Quick Filters */}
+                    <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-xl border border-white/10 flex-wrap overflow-hidden">
+                        {[
+                            { id: 'all', label: 'الكل' },
+                            { id: 'today', label: 'اليوم', fn: () => ({ from: startOfDay(new Date()), to: endOfDay(new Date()) }) },
+                            { id: 'yesterday', label: 'أمس', fn: () => { const y = subDays(new Date(), 1); return { from: startOfDay(y), to: endOfDay(y) }; } },
+                            { id: 'week', label: 'الأسبوع', fn: () => ({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) }) },
+                            { id: 'month', label: 'الشهر', fn: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }) }
+                        ].map(f => (
+                            <Button
+                                key={f.id}
+                                variant={dateFilter === f.id ? "default" : "ghost"}
+                                size="sm"
+                                className={cn(
+                                    "h-8 text-[11px] font-bold px-3 rounded-lg transition-all",
+                                    dateFilter === f.id 
+                                        ? "bg-cyan-500 text-black hover:bg-cyan-400 shadow-md shadow-cyan-500/20" 
+                                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                                )}
+                                onClick={() => {
+                                    setDateFilter(f.id);
+                                    if (f.id === 'all') setDateRange(undefined);
+                                    else if (f.fn) setDateRange(f.fn());
+                                    setPage(1);
+                                }}
+                            >
+                                {f.label}
+                            </Button>
+                        ))}
 
-                    <select
-                        value={stockStatus}
-                        onChange={(e) => { setStockStatus(e.target.value); setPage(1); }}
-                        className="glass-input py-3 min-w-[150px] bg-card text-sm cursor-pointer [&>option]:bg-zinc-900 [&>option]:text-white"
-                    >
-                        <option value="">{tCommon('allStatuses') || 'كل الحالات'}</option>
-                        <option value="in_stock">{tCommon('inStock') || 'متوفر'}</option>
-                        <option value="low_stock">{tCommon('lowStock') || 'أوشك على النفاذ'}</option>
-                        <option value="out_of_stock">{tCommon('outOfStock') || 'نفذت الكمية'}</option>
-                        <option value="services">{tCommon('servicesLabel') || 'خدمات'}</option>
-                    </select>
+                        <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+
+                        <FlatpickrRangePicker
+                            onRangeChange={(dates) => {
+                                if (dates.length === 2) {
+                                    setDateRange({ from: dates[0], to: dates[1] });
+                                    setDateFilter("custom");
+                                } else if (dates.length === 1) {
+                                    setDateRange({ from: dates[0], to: undefined });
+                                    setDateFilter("custom");
+                                } else {
+                                    setDateRange(undefined);
+                                    setDateFilter("all");
+                                }
+                                setPage(1);
+                            }}
+                            onClear={() => {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                                setPage(1);
+                            }}
+                            initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
+                            className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:ring-0"
+                            placeholder="تاريخ مخصص..."
+                        />
+                    </div>
+
+                    {/* Warehouse Filter */}
+                    <div className="flex gap-2 flex-wrap">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50 rounded-xl hover:bg-zinc-800 transition-all">
+                                    <Box className="w-4 h-4 text-zinc-400" />
+                                    <span className="text-zinc-300">
+                                        {filterWarehouseId 
+                                            ? warehouses.find(w => w.id === filterWarehouseId)?.name 
+                                            : "كل المستودعات"}
+                                    </span>
+                                    <ChevronDown className="w-3 h-3 opacity-50" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-56 bg-zinc-950 border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-500 p-3">تصفية حسب المستودع</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => { setFilterWarehouseId(""); setPage(1); }} className={cn("rounded-lg m-1", !filterWarehouseId && "bg-white/10")}>
+                                    كل المستودعات
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-white/5" />
+                                {warehouses.map(wh => (
+                                    <DropdownMenuItem key={wh.id} onClick={() => { setFilterWarehouseId(wh.id); setPage(1); }} className={cn("rounded-lg m-1", filterWarehouseId === wh.id && "bg-white/10 text-cyan-400 font-bold")}>
+                                        {wh.name}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* Category Filter Group */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50 rounded-xl hover:bg-zinc-800 transition-all">
+                                    <Filter className="w-4 h-4 text-zinc-400" />
+                                    <span className="text-zinc-300">
+                                        {categoryId 
+                                            ? categories.find(c => c.id === categoryId)?.name 
+                                            : (tCommon('allCategories') || "كل الأقسام")}
+                                    </span>
+                                    <ChevronDown className="w-3 h-3 opacity-50" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-56 bg-zinc-950 border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-500 p-3">الأقسام</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => { setCategoryId(""); setPage(1); }} className="rounded-lg m-1">
+                                    {tCommon('allCategories') || "كل الأقسام"}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-white/5" />
+                                {categories.map(cat => (
+                                    <DropdownMenuItem key={cat.id} onClick={() => { setCategoryId(cat.id); setPage(1); }} className={cn("rounded-lg m-1", categoryId === cat.id && "bg-white/10 text-cyan-400 font-bold")}>
+                                        {cat.name}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* Status Filter */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50 rounded-xl hover:bg-zinc-800 transition-all">
+                                    <ActivityIcon className="w-4 h-4 text-zinc-400" />
+                                    <span className="text-zinc-300">
+                                        {stockStatus === "in_stock" ? "متوفر" :
+                                         stockStatus === "low_stock" ? "منخفض" :
+                                         stockStatus === "out_of_stock" ? "نفذ" :
+                                         stockStatus === "services" ? "خدمات" : "كل الحالات"}
+                                    </span>
+                                    <ChevronDown className="w-3 h-3 opacity-50" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-500 p-3">حالة المخزون</DropdownMenuLabel>
+                                {[
+                                    { id: "", label: "كل الحالات" },
+                                    { id: "in_stock", label: "متوفر" },
+                                    { id: "low_stock", label: "أوشك على النفاذ" },
+                                    { id: "out_of_stock", label: "نفذت الكمية" },
+                                    { id: "services", label: "خدمات" }
+                                ].map(st => (
+                                    <DropdownMenuItem key={st.id} onClick={() => { setStockStatus(st.id); setPage(1); }} className={cn("rounded-lg m-1", stockStatus === st.id && "bg-white/10 text-cyan-400 font-bold")}>
+                                        {st.label}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* Sort Logic */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50 rounded-xl hover:bg-zinc-800 transition-all">
+                                    <ArrowUpDown className="w-4 h-4 text-zinc-400" />
+                                    <span className="text-zinc-300">
+                                        {sortBy === 'name' ? 'الاسم' : (sortBy === 'createdAt' ? 'التاريخ' : 'الكمية')}
+                                    </span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-500 p-3">ترتيب حسب</DropdownMenuLabel>
+                                {[
+                                    { id: 'name', label: 'الاسم' },
+                                    { id: 'createdAt', label: 'تاريخ الإضافة' },
+                                    { id: 'stock', label: 'الكمية' }
+                                ].map(s => (
+                                    <DropdownMenuItem key={s.id} onClick={() => { 
+                                        if (sortBy === s.id) setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+                                        else { setSortBy(s.id as any); setSortOrder('asc'); }
+                                        setPage(1);
+                                    }} className={cn("rounded-lg m-1 flex justify-between", sortBy === s.id && "bg-white/10 text-cyan-400 font-bold")}>
+                                        {s.label}
+                                        {sortBy === s.id && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
-
-                {canManage && (
-                    <button
-                        onClick={() => setAddProductOpen(true)}
-                        className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg flex items-center gap-2 transition-colors shrink-0"
-                    >
-                        <Plus className="w-4 h-4" />
-                        إضافة باقة / عرض
-                    </button>
-                )}
-
-                {selectedProducts.size > 0 && (
-                    <button
-                        onClick={() => setShowPrintDialog(true)}
-                        className="px-6 py-3 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                        <Printer className="w-5 h-5" />
-                        {t('printLabels')} ({selectedProducts.size})
-                    </button>
-                )}
             </div>
 
             {/* Add Product Modal */}

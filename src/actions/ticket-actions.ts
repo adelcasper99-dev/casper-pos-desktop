@@ -1342,23 +1342,21 @@ export const addTicketPart = secureAction(async (data: {
             if (ticket.technician?.warehouseId) {
                 sourceWarehouseId = ticket.technician.warehouseId;
             } 
-            // Priority 2: isMaintenanceDefault (Dedicated Maintenance Warehouse)
-            else {
-                const maintenanceWh = await prisma.warehouse.findFirst({
-                    where: {
-                        isMaintenanceDefault: true,
-                        deletedAt: null
-                    }
-                });
-                if (maintenanceWh) {
-                    sourceWarehouseId = maintenanceWh.id;
-                } 
-                // Priority 3: Global default warehouse
+                // Priority 2: isMaintenanceDefault (Dedicated Maintenance Warehouse)
                 else {
-                    const defaultWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-                    sourceWarehouseId = defaultWh?.id;
+                    const maintenanceWh = await prisma.warehouse.findFirst({
+                        where: {
+                            isMaintenanceDefault: true,
+                            deletedAt: null
+                        }
+                    });
+                    if (maintenanceWh) {
+                        sourceWarehouseId = maintenanceWh.id;
+                    } 
+                    // STRICT SEPARATION: No fallback to isDefault (POS) here.
+                    // If no maintenance warehouse is found, operations will fail 
+                    // later with stock-related errors rather than pulling from POS.
                 }
-            }
         }
 
         if (sourceWarehouseId) {
@@ -1379,7 +1377,7 @@ export const addTicketPart = secureAction(async (data: {
                  // Try fallback to main warehouse if we started with tech custody
                  if (ticket.technician?.warehouseId && sourceWarehouseId === ticket.technician.warehouseId) {
                     const mainWh = await prisma.warehouse.findFirst({ 
-                        where: { OR: [{ isMaintenanceDefault: true }, { isDefault: true }] } 
+                        where: { isMaintenanceDefault: true } 
                     });
                     if (mainWh && mainWh.id !== sourceWarehouseId) {
                         const mainStock = await prisma.stock.findUnique({
@@ -1643,10 +1641,7 @@ export const removeTicketPart = secureAction(async (data: {
 export const getProductsForSelector = secureAction(async (warehouseId?: string) => {
     let targetWarehouseId = warehouseId;
     if (warehouseId === 'MAIN') {
-        let mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
-        if (!mainWh) {
-            mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-        }
+        const mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
         targetWarehouseId = mainWh?.id || undefined;
     } else if (warehouseId) {
         // 🔍 Check if the warehouseId is actually a Technician ID
