@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, User, Phone, X, Check, Loader2, UserPlus } from "lucide-react";
+import { Search, User, Phone, X, Check, Loader2, UserPlus, MapPin } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import { searchCustomers, createCustomer, getEmployeesForLink } from "@/actions/customer-actions";
 import { useCartStore } from "@/store/cart";
@@ -24,6 +24,7 @@ export default function CustomerSearch() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newName, setNewName] = useState("");
     const [newPhone, setNewPhone] = useState("");
+    const [newAddress, setNewAddress] = useState("");
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState("");
     const [duplicateCustomer, setDuplicateCustomer] = useState<any>(null);
@@ -75,7 +76,15 @@ export default function CustomerSearch() {
     }, [query, isOpen]);
 
     const handleSelect = (customer: any) => {
-        setCustomer(customer.name, customer.phone, customer.id || undefined, customer.balance, customer.linkedEmployeeId || undefined, customer.type === 'SUPPLIER');
+        setCustomer(
+            customer.name, 
+            customer.phone, 
+            customer.id || undefined, 
+            customer.balance, 
+            customer.linkedEmployeeId || undefined, 
+            customer.type === 'SUPPLIER',
+            customer.address || undefined
+        );
         setQuery(customer.name);
         setIsOpen(false);
         setShowAddForm(false);
@@ -93,6 +102,7 @@ export default function CustomerSearch() {
         setShowAddForm(false);
         setNewName("");
         setNewPhone("");
+        setNewAddress("");
         setCreateError("");
         setDuplicateCustomer(null);
         setIsEmployee(false);
@@ -108,6 +118,7 @@ export default function CustomerSearch() {
         const looksLikePhone = /^[\d\s+\-()]{7,}$/.test(query);
         setNewName(looksLikePhone ? "" : query);
         setNewPhone(looksLikePhone ? query : "");
+        setNewAddress("");
         setCreateError("");
         setDuplicateCustomer(null);
         setIsEmployee(false);
@@ -136,7 +147,7 @@ export default function CustomerSearch() {
         setCreateError("");
         setDuplicateCustomer(null);
 
-        const payload: any = { name: newName, phone: newPhone };
+        const payload: any = { name: newName, phone: newPhone, address: newAddress };
         if (isEmployee && selectedEmployeeId) {
             payload.linkedEmployeeId = selectedEmployeeId;
         }
@@ -155,23 +166,27 @@ export default function CustomerSearch() {
         }
 
         if (res?.customer) {
-            handleSelect(res.customer);
+            handleSelect({
+                ...res.customer,
+                address: newAddress
+            });
             setShowAddForm(false);
             setNewName("");
             setNewPhone("");
+            setNewAddress("");
         }
     };
 
     const isCustomerSelected = !!customerName;
 
     return (
-        <div className="relative w-full z-30" ref={searchRef}>
+        <div className="relative w-full z-30" ref={searchRef} data-inhibit-pos-focus="true">
             <div className="flex gap-2">
                 {/* Search Input */}
                 <div className={clsx(
-                    "bg-black/40 rounded-xl flex items-center gap-3 h-14 px-4 flex-1 border transition-all relative group/search",
+                    "glass-card bg-black/40 flex items-center gap-3 h-14 px-4 flex-1 border transition-all relative group/search",
                     isCustomerSelected
-                        ? "border-cyan-500/50 bg-black/60"
+                        ? "border-cyan-500/50 bg-black/60 shadow-[0_0_15px_rgba(0,242,255,0.1)]"
                         : "border-white/10 focus-within:border-cyan-500/50 focus-within:bg-black/60"
                 )}>
                     <User className={clsx(
@@ -212,7 +227,10 @@ export default function CustomerSearch() {
                         </div>
                     ) : (customerName || query) && (
                         <button
-                            onClick={handleClear}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleClear();
+                        }}
                             className="absolute end-3 h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 text-zinc-500 hover:text-red-400 transition-all active:scale-90"
                         >
                             <X className="w-5 h-5" />
@@ -223,23 +241,30 @@ export default function CustomerSearch() {
                 {/* Add New Customer Button */}
                 {!isCustomerSelected && (
                     <button
-                        onClick={openAddForm}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            openAddForm();
+                        }}
                         title={t('addNewCustomer') || "إضافة عميل جديد"}
                         className={clsx(
-                            "w-14 h-14 rounded-xl flex items-center justify-center border transition-all active:scale-95 shrink-0",
+                            "w-14 h-14 rounded-xl flex items-center justify-center border transition-all active:scale-95 shrink-0 shadow-lg shadow-black/20",
                             showAddForm
                                 ? "bg-cyan-500 text-black border-cyan-400"
-                                : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20"
+                                : "bg-black/60 text-cyan-400 border-white/10 hover:border-cyan-500/50 hover:bg-black/80"
                         )}
                     >
-                        <UserPlus className="w-5 h-5" />
+                        <UserPlus className={clsx("w-5 h-5", showAddForm ? "animate-pulse" : "")} />
                     </button>
                 )}
             </div>
 
             {/* Dropdown: Search Results */}
             {isOpen && results.length > 0 && !showAddForm && (
-                <div className="absolute top-full left-0 w-full mt-2 bg-card border border-border rounded-xl shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                <div 
+                    role="dialog"
+                    className="absolute top-full left-0 w-full mt-2 glass-card bg-black/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100 z-50"
+                >
                     <div className="p-2 space-y-1">
                         {results.map((c, i) => (
                             <button
@@ -264,6 +289,11 @@ export default function CustomerSearch() {
                                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                                             <Phone className="w-3 h-3" /> {c.phone}
                                         </div>
+                                        {c.address && (
+                                            <div className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5 max-w-[200px] truncate">
+                                                <MapPin className="w-2.5 h-2.5" /> {c.address}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -301,7 +331,11 @@ export default function CustomerSearch() {
 
                         {/* Add New button at bottom of results */}
                         <button
-                            onMouseDown={(e) => { e.preventDefault(); openAddForm(); }}
+                            onMouseDown={(e) => { 
+                                e.preventDefault(); 
+                                e.stopPropagation();
+                                openAddForm(); 
+                            }}
                             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-cyan-500/10 text-cyan-400 transition-colors border border-dashed border-cyan-500/20 mt-1"
                         >
                             <UserPlus className="w-4 h-4" />
@@ -313,14 +347,24 @@ export default function CustomerSearch() {
 
             {/* No results — show add button */}
             {isOpen && !loading && query.length >= 2 && results.length === 0 && !showAddForm && (
-                <div className="absolute top-full left-0 w-full mt-2 bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                    <div className="p-4 flex flex-col items-center gap-3 text-center">
-                        <p className="text-sm text-muted-foreground">{t('noCustomerFound') || "لا يوجد عميل بهذا الاسم أو الهاتف"}</p>
+                <div 
+                    role="dialog"
+                    className="absolute top-full left-0 w-full mt-2 glass-card bg-black/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50"
+                >
+                    <div className="p-6 flex flex-col items-center gap-4 text-center">
+                        <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/10">
+                            <UserPlus className="w-6 h-6 text-cyan-500/50" />
+                        </div>
+                        <p className="text-sm text-zinc-400">{t('noCustomerFound') || "لا يوجد عميل بهذا الاسم أو الهاتف"}</p>
                         <button
-                            onMouseDown={(e) => { e.preventDefault(); openAddForm(); }}
-                            className="flex items-center gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 px-4 py-2 rounded-xl border border-cyan-500/20 text-sm font-bold transition-all"
+                            onMouseDown={(e) => { 
+                                e.preventDefault(); 
+                                e.stopPropagation();
+                                openAddForm(); 
+                            }}
+                            className="flex items-center gap-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 px-6 py-2.5 rounded-xl border border-cyan-500/30 text-sm font-bold transition-all active:scale-95 shadow-lg shadow-cyan-900/20"
                         >
-                            <UserPlus className="w-4 h-4" />
+                            <UserPlus className="w-5 h-5" />
                             {t('addAsNewCustomer') || "إضافة كعميل جديد"}
                         </button>
                     </div>
@@ -329,37 +373,52 @@ export default function CustomerSearch() {
 
             {/* Quick Add Form */}
             {showAddForm && (
-                <div className="absolute top-full left-0 w-full mt-2 bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-40">
+                <div 
+                    role="dialog"
+                    className="absolute top-full left-0 w-full mt-2 glass-card bg-black/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50"
+                >
                     <div className="p-4 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
                             <UserPlus className="w-4 h-4 text-cyan-400" />
                             <span className="text-sm font-bold text-foreground">{t('addNewCustomer') || "إضافة عميل جديد"}</span>
                         </div>
 
-                        {/* Name */}
-                        <div className="flex items-center gap-3 bg-black/30 rounded-xl px-4 h-12 border border-white/10 focus-within:border-cyan-500/50 transition-all">
-                            <User className="w-4 h-4 text-zinc-500 shrink-0" />
-                            <input
-                                value={newName}
-                                onChange={(e) => setNewName(e.target.value)}
-                                placeholder={t('customerName') || "الاسم"}
-                                className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
-                                autoFocus
-                                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                            />
-                        </div>
+                        {/* Name & Phone */}
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 glass-input bg-black/30 h-12 border-white/10 focus-within:border-cyan-500/50 transition-all">
+                                <User className="w-4 h-4 text-zinc-500 shrink-0" />
+                                <input
+                                    value={newName}
+                                    onChange={(e) => setNewName(e.target.value)}
+                                    placeholder={t('customerName') || "الاسم"}
+                                    className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
+                                    autoFocus
+                                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                                />
+                            </div>
 
-                        {/* Phone */}
-                        <div className="flex items-center gap-3 bg-black/30 rounded-xl px-4 h-12 border border-white/10 focus-within:border-cyan-500/50 transition-all">
-                            <Phone className="w-4 h-4 text-zinc-500 shrink-0" />
-                            <input
-                                value={newPhone}
-                                onChange={(e) => setNewPhone(e.target.value)}
-                                placeholder={t('customerPhone') || "رقم الهاتف"}
-                                type="tel"
-                                className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
-                                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                            />
+                            <div className="flex items-center gap-3 glass-input bg-black/30 h-12 border-white/10 focus-within:border-cyan-500/50 transition-all">
+                                <Phone className="w-4 h-4 text-zinc-500 shrink-0" />
+                                <input
+                                    value={newPhone}
+                                    onChange={(e) => setNewPhone(e.target.value)}
+                                    placeholder={t('customerPhone') || "رقم الهاتف"}
+                                    type="tel"
+                                    className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
+                                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-3 glass-input bg-black/30 h-12 border-white/10 focus-within:border-cyan-500/50 transition-all">
+                                <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
+                                <input
+                                    value={newAddress}
+                                    onChange={(e) => setNewAddress(e.target.value)}
+                                    placeholder={t('customerAddress') || "العنوان (اختياري)"}
+                                    className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
+                                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                                />
+                            </div>
                         </div>
 
                         {/* Employee Link Toggle */}

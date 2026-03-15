@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
 import { printZReport } from "@/lib/print-zreport";
 import { toast } from "sonner";
+import GlassModal from "../ui/GlassModal";
+import CashInOutModal from "./CashInOutModal";
 
 interface ShiftStatusIndicatorProps {
     shift?: any;
@@ -24,6 +26,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const [isLoading, setIsLoading] = useState(false);
     const [showOpenModal, setShowOpenModal] = useState(false);
     const [showCloseModal, setShowCloseModal] = useState(false);
+    const [showCashInOutModal, setShowCashInOutModal] = useState(false);
 
     // Form states
     const [startCash, setStartCash] = useState("");
@@ -131,111 +134,108 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     if (!shift) {
         return (
             <>
-                <div className="bg-gradient-to-r from-yellow-600 to-yellow-500 text-white px-6 py-3 rounded-lg flex items-center justify-between shadow-lg">
-                    <div className="flex items-center gap-3">
+                <div className="glass-card bg-black/40 text-white px-6 py-4 flex items-center justify-between shadow-2xl border border-white/5 backdrop-blur-3xl transition-all duration-500">
+                    <div className="flex items-center gap-4">
                         {/* Open Shift Button on far left */}
                         <button
                             onClick={() => setShowOpenModal(true)}
-                            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105 font-semibold"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all hover:scale-105 font-black shadow-[0_0_20px_rgba(0,242,255,0.3)] group"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            {t('openShift')}
+                            <div className="bg-black/10 p-1 rounded-lg group-hover:scale-110 transition-transform">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                            </div>
+                            <span className="tracking-tight uppercase">{t('openShift')}</span>
                         </button>
-                        <div className="h-6 w-px bg-yellow-300/50"></div>
-                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                        <div>
-                            <span className="font-semibold">{t('noActiveShift')}</span>
+                        <div className="h-10 w-px bg-white/10 mx-2"></div>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
+                                <span className="font-black text-sm tracking-wide uppercase text-yellow-500/90">{t('noActiveShift')}</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none px-4.5">System Ready for Session</span>
                         </div>
                     </div>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                    <div className="p-2 bg-white/5 rounded-full border border-white/10 text-white/30">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
                 </div>
 
                 {/* Open Shift Modal */}
-                {showOpenModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-700">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-white">{t('openModalTitle')}</h3>
-                                    <p className="text-sm text-gray-400">{t('openModalSubtitle')}</p>
-                                </div>
+                <GlassModal 
+                    isOpen={showOpenModal} 
+                    onClose={() => {
+                        setShowOpenModal(false);
+                        setStartCash("");
+                    }} 
+                    title={t('openModalTitle')}
+                >
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+                            <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/30">
+                                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
                             </div>
+                            <p className="text-sm text-blue-100/70 flex-1">{t('openModalSubtitle')}</p>
+                        </div>
 
-                            {registers.length > 1 && (
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2 text-gray-300">
-                                        {t('selectRegister')}
-                                    </label>
-                                    <select
-                                        id="open-shift-register-select"
-                                        {...getNavProps(0)}
-                                        value={selectedRegister || ""}
-                                        onChange={(e) => setSelectedRegister(e.target.value)}
-                                        onKeyDown={(e) => handleKeyDown(e, 0, 2, undefined)}
-                                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    >
-                                        {registers.map(reg => (
-                                            <option key={reg.id} value={reg.id}>
-                                                {reg.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2 text-gray-300">
-                                    المبلغ العهدة (Start Cash)
+                        {registers.length > 1 && (
+                            <div className="space-y-2">
+                                <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500 px-1">
+                                    {t('selectRegister')}
                                 </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
-                                    <input
-                                        id="open-shift-start-cash"
-                                        {...getNavProps(1)}
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={startCash}
-                                        onChange={(e) => setStartCash(e.target.value)}
-                                        onKeyDown={(e) => handleKeyDown(e, 1, 2, handleOpenShift)}
-                                        className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="0.00"
-                                        autoFocus
-                                    />
-                                </div>
+                                <select
+                                    id="open-shift-register-select"
+                                    {...getNavProps(0)}
+                                    value={selectedRegister || ""}
+                                    onChange={(e) => setSelectedRegister(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, 0, 2, undefined)}
+                                    className="w-full glass-input"
+                                >
+                                    {registers.map(reg => (
+                                        <option key={reg.id} value={reg.id} className="bg-zinc-900">
+                                            {reg.name}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
+                        )}
 
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={handleOpenShift}
-                                    disabled={isLoading}
-                                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                >
-                                    {isLoading ? tVal('required') : t('confirmOpen')}
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setShowOpenModal(false);
-                                        setStartCash("");
-                                    }}
-                                    disabled={isLoading}
-                                    className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-semibold transition-all"
-                                >
-                                    {t('cancel')}
-                                </button>
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500 px-1">
+                                المبلغ العهدة (Start Cash)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
+                                <input
+                                    id="open-shift-start-cash"
+                                    {...getNavProps(1)}
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={startCash}
+                                    onChange={(e) => setStartCash(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, 1, 2, handleOpenShift)}
+                                    className="w-full glass-input pl-10 text-xl font-bold"
+                                    placeholder="0.00"
+                                    autoFocus
+                                />
                             </div>
                         </div>
+
+                        <button
+                            onClick={handleOpenShift}
+                            disabled={isLoading}
+                            className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(0,242,255,0.2)]"
+                        >
+                            {isLoading ? tVal('required') : t('confirmOpen')}
+                        </button>
                     </div>
-                )}
+                </GlassModal>
             </>
         );
     }
@@ -264,201 +264,166 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const totalAccountSales = Number(shift.totalAccountSales || 0);
 
     return (
-        <div className="flex flex-col md:flex-row gap-3 items-stretch">
-            {/* Close Shift Button - Far Left & Large */}
-            <div className="shrink-0 flex flex-col gap-1.5">
-                <button
-                    onClick={() => setShowCloseModal(true)}
-                    className="flex-1 bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black text-sm px-4 py-2 rounded-xl shadow-lg border border-red-500/50 transition-all flex flex-col items-center justify-center gap-1 min-w-[100px]"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    <span>إغلاق الوردية</span>
-                </button>
-                <div className="bg-slate-800/50 rounded-lg px-2 py-1 flex items-center justify-center gap-2 border border-slate-700">
-                    <span className="text-[10px] font-bold text-slate-300">{shift.cashierName}</span>
-                    <span className="w-px h-2 bg-slate-600" />
-                    <span className="text-[10px] font-bold text-cyan-400">{isMounted && `${hours}س ${mins}د`}</span>
-                </div>
-            </div>
-
-            {/* Main Shift Summary Grid */}
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-
-                {/* BOX 1: Cash & Card (Ordinary Flow) */}
-                <div className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white p-3 rounded-xl shadow-lg border border-emerald-400 overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-1 opacity-10">
-                        <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z" /></svg>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="bg-white/20 p-1 rounded-lg text-sm">💵</span>
-                        <h4 className="font-bold text-xs tracking-wide">المبيعات والدرج</h4>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-1">
-                        <div className="text-center">
-                            <div className="text-[9px] text-emerald-100 mb-0.5">كاش</div>
-                            <div className="font-bold text-sm">${Number(shift.totalCashSales || 0).toFixed(2)}</div>
+        <>
+            <header className="w-full h-16 border-b border-white/5 bg-black/40 backdrop-blur-3xl px-6 flex items-center justify-between sticky top-0 z-[60] shadow-2xl transition-all duration-500">
+                {/* RIGHT SECTION: Identity & Status */}
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-white/40 tracking-widest uppercase">{shift.cashierName}</span>
+                            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
                         </div>
-                        <div className="text-center border-x border-white/20">
-                            <div className="text-[9px] text-emerald-100 mb-0.5">فيزا</div>
-                            <div className="font-bold text-sm">${Number(shift.totalCardSales || 0).toFixed(2)}</div>
-                        </div>
-                        <div className="text-center">
-                            <div className="text-[9px] text-emerald-100 mb-0.5">الصافي</div>
-                            <div className="font-bold text-sm text-yellow-300">
-                                ${(Number(shift.totalCashSales || 0) + Number(shift.totalCardSales || 0) + Number(shift.totalWalletSales || 0) + Number(shift.totalInstapay || 0) - totalCashRefunds).toFixed(2)}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-2 pt-2 border-t border-white/20 flex justify-between items-center bg-black/10 -mx-3 px-3 py-1.5">
-                        <div className="text-[10px] text-emerald-100 font-medium">العهدة المتوقعة بالدرج</div>
-                        <div className="text-lg font-black text-white drop-shadow-sm">${expectedCashValue.toFixed(2)}</div>
+                        <span className="text-[10px] font-black text-cyan-400 tracking-wider uppercase leading-none mt-0.5">{isMounted && `${hours}س ${mins}د`}</span>
                     </div>
                 </div>
 
-                {/* BOX 2: Credit & Returns (Audit/Credit Zone) */}
-                <div className="bg-gradient-to-r from-slate-700 to-slate-800 text-white p-3 rounded-xl shadow-lg border border-slate-600 overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-1 opacity-10 font-bold text-3xl">!</div>
-
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="bg-white/10 p-1 rounded-lg text-sm">📝</span>
-                        <h4 className="font-bold text-xs tracking-wide">الآجل والمرتجع</h4>
+                {/* CENTER SECTION: Horizontal Counters */}
+                <div className="flex items-center gap-8 divide-x divide-x-reverse divide-white/5 h-full py-3">
+                    {/* Opening Cash */}
+                    <div className="flex flex-col items-center px-6">
+                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">افتتاحي</span>
+                        <span className="text-sm font-black text-emerald-400/80 tabular-nums">${Number(shift.startCash || 0).toFixed(2)}</span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1">
-                        <div className="text-center">
-                            <div className="text-[9px] text-slate-400 mb-0.5">بيع آجل</div>
-                            <div className="font-bold text-sm text-blue-300">${totalAccountSales.toFixed(2)}</div>
-                        </div>
-                        <div className="text-center border-l border-white/10">
-                            <div className="text-[9px] text-slate-400 mb-0.5">مرتجع كاش</div>
-                            <div className="font-bold text-sm text-orange-400">-${totalCashRefunds.toFixed(2)}</div>
-                        </div>
-                        <div className="text-center border-l border-white/10">
-                            <div className="text-[9px] text-slate-400 mb-0.5">مرتجع آجل</div>
-                            <div className="font-bold text-sm text-purple-400">-${totalAccountRefunds.toFixed(2)}</div>
-                        </div>
+                    {/* Cash Sales */}
+                    <div className="flex flex-col items-center px-6">
+                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">كاش</span>
+                        <span className="text-sm font-black text-emerald-400 tabular-nums">${Number(shift.totalCashSales || 0).toFixed(2)}</span>
                     </div>
 
-                    <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center bg-black/20 -mx-3 px-3 py-1.5">
-                        <div className="text-[9px] text-slate-500 font-medium">إجمالي المرتجعات</div>
-                        <div className="text-sm font-bold text-white italic">${(totalCashRefunds + totalAccountRefunds).toFixed(2)}</div>
+                    {/* Visa/Network */}
+                    <div className="flex flex-col items-center px-6">
+                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">فيزا/شبكة</span>
+                        <span className="text-sm font-black text-cyan-400 tabular-nums">${Number(shift.totalCardSales || 0).toFixed(2)}</span>
+                    </div>
+
+                    {/* Credit/Ajel */}
+                    <div className="flex flex-col items-center px-6">
+                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">آجل</span>
+                        <span className="text-sm font-black text-amber-400 tabular-nums">${totalAccountSales.toFixed(2)}</span>
+                    </div>
+
+                    {/* Returns */}
+                    <div className="flex flex-col items-center px-6">
+                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">مرتجع</span>
+                        <span className="text-sm font-black text-rose-400 tabular-nums">-${(totalCashRefunds + totalAccountRefunds).toFixed(2)}</span>
                     </div>
                 </div>
 
-            </div>
+                {/* LEFT SECTION: Actions */}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowCashInOutModal(true)}
+                        className="h-10 px-4 glass-card bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all duration-300"
+                    >
+                        سحب / إيداع
+                    </button>
+                    <button
+                        onClick={() => setShowCloseModal(true)}
+                        className="h-10 px-6 bg-red-600/20 hover:bg-red-600/40 text-red-500 hover:text-red-400 border border-red-500/20 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all duration-300 shadow-[0_0_20px_rgba(220,38,38,0.1)] hover:shadow-[0_0_25px_rgba(220,38,38,0.2)]"
+                    >
+                        إغلاق الوردية
+                    </button>
+                </div>
+            </header>
 
-            {/* Close Shift Modal */}
-            {showCloseModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-700">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
-                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-white">{t('closeModalTitle') || "إغلاق الوردية"}</h3>
-                                <p className="text-sm text-gray-400">{t('closeModalSubtitle') || "مراجعة العهدة وإغلاق اليومية"}</p>
-                            </div>
+            <GlassModal 
+                isOpen={showCloseModal} 
+                onClose={() => {
+                    setShowCloseModal(false);
+                    setActualCash("");
+                    setNotes("");
+                }} 
+                title={t('closeModalTitle') || "إغلاق الوردية"}
+            >
+                <div className="space-y-5 flex flex-col">
+                    <div className="flex items-center gap-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center border border-red-500/30">
+                            <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                         </div>
+                        <p className="text-sm text-red-100/70 flex-1">{t('closeModalSubtitle') || "مراجعة العهدة وإغلاق اليومية"}</p>
+                    </div>
 
-                        <div className="grid grid-cols-1 gap-4 mb-4">
-                            <CashCounter 
-                                onChange={(total, breakdown) => {
-                                    setActualCash(total.toString());
-                                    setCashBreakdown(breakdown);
-                                }}
-                                onEnterAtEnd={() => {
-                                    const notesEl = document.getElementById('shift-notes-input');
-                                    if (notesEl) {
-                                        notesEl.focus();
-                                    }
-                                }}
-                            />
+                    <CashCounter 
+                        onChange={(total, breakdown) => {
+                            setActualCash(total.toString());
+                            setCashBreakdown(breakdown);
+                        }}
+                        onEnterAtEnd={() => {
+                            const notesEl = document.getElementById('shift-notes-input');
+                            if (notesEl) notesEl.focus();
+                        }}
+                    />
 
-                            <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700">
-                                <label className="block text-[10px] font-bold mb-2 text-gray-500 uppercase tracking-widest text-center">
-                                    Actual Cash Counted (رصيد الدرج النهائي)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-blue-500 font-bold">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={actualCash}
-                                        onChange={(e) => setActualCash(e.target.value)}
-                                        className="w-full p-2 pl-8 bg-black/40 border border-white/10 rounded-lg text-white text-2xl font-black text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Live Reconciliation Display (Only if NOT Blind Close) */}
-                        {!isBlindClose && (
-                            <div className="mb-4 bg-gray-800/80 p-4 rounded-xl border border-gray-700 shadow-inner">
-                                <div className="flex justify-between text-sm mb-2">
-                                    <span className="text-gray-400">الرصيد المتوقع (Expected):</span>
-                                    <span className="text-white font-medium">${expectedCashValue.toFixed(2)}</span>
-                                </div>
-                                <div className="w-full h-px bg-gray-600/50 my-2"></div>
-                                <div className="flex justify-between font-bold text-lg">
-                                    <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-gray-300"}>
-                                        {varianceValue < 0 ? "عجز (Shortage):" : varianceValue > 0 ? "زيادة (Surplus):" : "متطابق:"}
-                                    </span>
-                                    <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-white"}>
-                                        {varianceValue > 0 ? "+" : ""}{varianceValue.toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                                {t('notes')}
-                            </label>
-                            <textarea
-                                id="shift-notes-input"
-                                {...getNavProps(1)}
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                onKeyDown={(e) => handleKeyDown(e, 1, 2, handleCloseShift)}
-                                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                                rows={3}
-                                placeholder="Any notes about discrepancies..."
+                    <div className="glass-card bg-white/5 p-4 space-y-2">
+                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-center">
+                            Actual Cash Counted (رصيد الدرج النهائي)
+                        </label>
+                        <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={actualCash}
+                                onChange={(e) => setActualCash(e.target.value)}
+                                className="w-full glass-input pl-10 text-2xl font-black text-center"
+                                placeholder="0.00"
                             />
                         </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={handleCloseShift}
-                                disabled={isLoading}
-                                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-lg shadow-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
-                            >
-                                {isLoading ? tVal('required') : "إنهاء الوردية (Close Shift)"}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowCloseModal(false);
-                                    setActualCash("");
-                                    setNotes("");
-                                }}
-                                disabled={isLoading}
-                                className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-semibold transition-all"
-                            >
-                                {t('cancel')}
-                            </button>
-                        </div>
                     </div>
+
+                    {!isBlindClose && (
+                        <div className="glass-card bg-black/40 p-4 space-y-2">
+                            <div className="flex justify-between text-xs">
+                                <span className="text-zinc-500">الرصيد المتوقع (Expected):</span>
+                                <span className="text-white font-bold">${expectedCashValue.toFixed(2)}</span>
+                            </div>
+                            <div className="h-px bg-white/5" />
+                            <div className="flex justify-between font-bold text-lg">
+                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-zinc-400"}>
+                                    {varianceValue < 0 ? "عجز:" : varianceValue > 0 ? "زيادة:" : "متطابق"}
+                                </span>
+                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-white"}>
+                                    {varianceValue > 0 ? "+" : ""}{varianceValue.toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500 px-1">
+                            {t('notes')}
+                        </label>
+                        <textarea
+                            id="shift-notes-input"
+                            {...getNavProps(1)}
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, 1, 2, handleCloseShift)}
+                            className="w-full glass-input resize-none h-20"
+                            placeholder="Any notes..."
+                        />
+                    </div>
+
+                    <button
+                        onClick={handleCloseShift}
+                        disabled={isLoading}
+                        className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)]"
+                    >
+                        {isLoading ? tVal('required') : "إنهاء الوردية (Close Shift)"}
+                    </button>
                 </div>
-            )}
-        </div>
+            </GlassModal>
+
+            <CashInOutModal 
+                isOpen={showCashInOutModal}
+                onClose={() => setShowCashInOutModal(false)}
+                currentShiftId={shift.id}
+                treasuryId={shift.registerId} // Link to register treasury if possible
+            />
+        </>
     );
 }

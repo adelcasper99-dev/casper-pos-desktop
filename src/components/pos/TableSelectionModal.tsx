@@ -1,5 +1,6 @@
 "use client";
 
+import GlassModal from "@/components/ui/GlassModal";
 import { useState, useEffect } from "react";
 import { X, Search, Plus, Loader2, PlayCircle, PlusCircle, Edit2, Trash2, Check } from "lucide-react";
 import { createFloor, createTable, updateFloor, deleteFloor, updateTable, deleteTable } from "@/actions/tables-management";
@@ -191,27 +192,18 @@ export default function TableSelectionModal({
     };
 
     return (
-        <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
-            onClick={onClose}
+        <GlassModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={t('selectTable') || 'Select a Table'}
+            className="max-w-4xl p-0 h-[85vh]"
         >
-            <div
-                className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-border relative"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="p-4 border-b border-border flex justify-between items-center bg-muted/50">
-                    <h2 className="text-xl font-bold text-foreground">{t('selectTable') || 'Select a Table'}</h2>
-                    <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
 
-                <div className="flex flex-1 overflow-hidden">
+                <div className="flex flex-1 overflow-hidden h-full">
                     {/* Sidebar - Floors */}
-                    <div className="w-48 border-r border-border bg-muted/20 overflow-y-auto w-full md:w-auto flex flex-row md:flex-col">
+                    <div className="w-48 border-r border-white/5 bg-black/20 overflow-y-auto w-full md:w-auto flex flex-row md:flex-col custom-scrollbar">
                         {localFloors.map(floor => (
-                            <div key={floor.id} className={`group relative border-b border-border transition-colors ${selectedFloorId === floor.id ? 'bg-cyan-500/10 border-l-4 border-l-cyan-500' : 'hover:bg-white/5 border-l-4 border-l-transparent'}`}>
+                            <div key={floor.id} className={`group relative border-b border-white/5 transition-colors ${selectedFloorId === floor.id ? 'bg-cyan-500/10 border-l-4 border-l-cyan-500' : 'hover:bg-white/5 border-l-4 border-l-transparent'}`}>
                                 {editingFloorId === floor.id ? (
                                     <div className="p-3 flex items-center gap-2">
                                         <input
@@ -365,12 +357,12 @@ export default function TableSelectionModal({
                                                     }
                                                 }}
                                                 className={`
-                                                    w-full h-full relative p-6 rounded-xl flex flex-col items-center justify-center gap-2 transition-all
+                                                    w-full h-full relative p-6 glass-card flex flex-col items-center justify-center gap-2 transition-all duration-300
                                                     ${isSelected
-                                                        ? 'bg-cyan-500/20 text-cyan-400 border-2 border-cyan-500 shadow-[0_0_15px_rgba(0,255,255,0.2)]'
+                                                        ? 'bg-cyan-500/20 text-cyan-400 border-2 border-cyan-500 shadow-[0_0_20px_rgba(0,255,255,0.3)]'
                                                         : isOccupied
                                                             ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20'
-                                                            : 'bg-muted/50 text-foreground border border-border hover:bg-white/5 hover:border-white/20'
+                                                            : 'bg-white/5 text-foreground border border-white/5 hover:bg-white/10 hover:border-white/10'
                                                     }
                                                 `}
                                             >
@@ -379,7 +371,7 @@ export default function TableSelectionModal({
                                                     {isOccupied ? t('occupied') : t('available')}
                                                 </div>
                                                 {isSelected && (
-                                                    <div className="absolute top-2 right-2 w-3 h-3 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(0,255,255,0.8)]" />
+                                                    <div className="absolute top-2 right-2 w-3 h-3 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(0,255,255,0.8)] animate-pulse" />
                                                 )}
                                             </button>
 
@@ -442,22 +434,22 @@ export default function TableSelectionModal({
 
                 {/* Action Popup overlay for occupied tables */}
                 {actionTable && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in rounded-2xl">
-                        <div className="bg-card border border-border rounded-xl p-6 flex flex-col items-center shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95">
-                            <h3 className="text-xl font-bold mb-2">{actionTable.name}</h3>
-                            <p className="text-muted-foreground text-sm text-center mb-6">
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in rounded-2xl">
+                        <div className="glass-card border border-white/10 p-8 flex flex-col items-center shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95 backdrop-blur-3xl">
+                            <h3 className="text-2xl font-black mb-2 text-white">{actionTable.name}</h3>
+                            <p className="text-zinc-400 text-sm text-center mb-8 font-medium">
                                 {t('occupiedTableMessage') || 'This table is currently occupied. Do you want to resume an existing order or add a new one?'}
                             </p>
-                            <div className="flex flex-col gap-3 w-full">
+                            <div className="flex flex-col gap-4 w-full">
                                 <button
                                     onClick={() => {
                                         onSelectTable(actionTable.id, `${currentFloor.name} - ${actionTable.name}`, 'resume');
                                         setActionTable(null);
                                         onClose();
                                     }}
-                                    className="w-full flex items-center justify-center gap-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg transition-colors"
+                                    className="w-full flex items-center justify-center gap-3 bg-cyan-500 hover:bg-cyan-400 text-black font-black py-4 rounded-xl transition-all shadow-lg shadow-cyan-500/20 transform active:scale-[0.98]"
                                 >
-                                    <PlayCircle className="w-5 h-5" />
+                                    <PlayCircle className="w-5 h-5 fill-current" />
                                     {t('resumeOrder') || 'Resume Order'}
                                 </button>
                                 <button
@@ -466,14 +458,14 @@ export default function TableSelectionModal({
                                         setActionTable(null);
                                         onClose();
                                     }}
-                                    className="w-full flex items-center justify-center gap-3 bg-muted hover:bg-muted/80 text-foreground font-bold py-3 border border-border rounded-lg transition-colors"
+                                    className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white font-black py-4 border border-white/10 rounded-xl transition-all transform active:scale-[0.98]"
                                 >
                                     <PlusCircle className="w-5 h-5" />
                                     {t('addNew') || 'Add New'}
                                 </button>
                                 <button
                                     onClick={() => setActionTable(null)}
-                                    className="w-full mt-2 text-zinc-500 hover:text-white text-sm font-bold py-2 transition-colors"
+                                    className="w-full mt-2 text-zinc-500 hover:text-white text-xs font-black uppercase tracking-widest py-2 transition-colors"
                                 >
                                     {t('cancel') || 'Cancel'}
                                 </button>
@@ -481,7 +473,6 @@ export default function TableSelectionModal({
                         </div>
                     </div>
                 )}
-            </div>
-        </div>
-    );
+            </GlassModal>
+        );
 }

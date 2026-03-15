@@ -773,9 +773,20 @@ export const refundTicket = secureAction(async (data: {
 
     const result = await prisma.$transaction(async (tx) => {
         const ticket = await tx.ticket.findFirst({
-            where: { OR: [{ id: ticketId }, { barcode: ticketId }] }
+            where: { OR: [{ id: ticketId }, { barcode: ticketId }] },
+            include: { payments: true }
         });
         if (!ticket) throw new Error("Ticket not found");
+        const allowedStatuses = ['DELIVERED', 'PAID_DELIVERED'];
+        if (!allowedStatuses.includes(ticket.status)) {
+            throw new Error("Cannot refund this ticket in its current status.");
+        }
+        const currentPaid = Number(ticket.amountPaid) || 0;
+        if (!amount || amount <= 0) throw new Error("Invalid refund amount.");
+        if (amount > currentPaid) throw new Error("Refund amount exceeds paid amount.");
+
+        const lastPayment = ticket.payments.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
+        const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
         // 1. Create refund record
         const payment = await tx.repairPayment.create({
@@ -783,61 +794,113 @@ export const refundTicket = secureAction(async (data: {
                 ticketId,
                 amount: new Decimal(amount),
                 type: 'REFUND',
-                method: 'CASH',
+                method: refundMethod,
                 reference: reason,
                 recordedBy: user.name || user.username || "System"
             }
         });
 
         // 2. Update financials
+        const newAmountPaid = currentPaid - amount;
+        const repairPrice = Number(ticket.repairPrice) || 0;
+        let paymentStatus = 'partial';
+        if (newAmountPaid <= 0) paymentStatus = 'unpaid';
+        else if (repairPrice > 0 && newAmountPaid >= repairPrice) paymentStatus = 'paid';
         await tx.ticket.update({
             where: { id: ticketId },
             data: {
                 amountPaid: { decrement: amount },
-                paymentStatus: 'partial' // Simple logic, could be refined
+                paymentStatus
             }
         });
 
-        // 3. Update Shift
-        await tx.shift.update({
-            where: { id: currentShift.id },
-            data: {
-                totalRefunds: { increment: amount },
-                lastHeartbeat: new Date()
-            }
-        });
+        if (refundMethod === 'ACCOUNT' || refundMethod === 'DEFERRED') {
+            if (!ticket.customerId) throw new Error("Customer is required for account refunds.");
 
-        // 4. Update Treasury
-        const treasury = await tx.treasury.findFirst({
-            where: { branchId: user.branchId!, isDefault: true }
-        });
-
-        if (treasury) {
-            await tx.transaction.create({
+            await tx.customerTransaction.create({
                 data: {
-                    type: 'REFUND',
-                    amount: new Decimal(amount).negated(),
-                    paymentMethod: 'CASH',
-                    description: `Refund: Ticket #${ticket.barcode}`,
-                    shiftId: currentShift.id,
-                    treasuryId: treasury.id
+                    customerId: ticket.customerId,
+                    type: 'CREDIT',
+                    amount: new Decimal(amount),
+                    description: `Ticket #${ticket.barcode} - Refund`,
+                    reference: ticket.id,
+                    createdBy: user.id
                 }
             });
 
-            await tx.treasury.update({
-                where: { id: treasury.id },
-                data: { balance: { decrement: amount } }
+            await tx.customer.update({
+                where: { id: ticket.customerId },
+                data: { balance: { decrement: new Decimal(amount) } }
             });
+
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: {
+                    totalRefunds: { increment: new Decimal(amount) },
+                    totalAccountRefunds: { increment: new Decimal(amount) },
+                    lastHeartbeat: new Date()
+                }
+            });
+        } else {
+            const absAmount = new Decimal(amount);
+            const shiftUpdate: any = {
+                totalRefunds: { increment: absAmount },
+                lastHeartbeat: new Date()
+            };
+
+            switch (refundMethod) {
+                case 'CASH':
+                    shiftUpdate.totalCashRefunds = { increment: absAmount };
+                    shiftUpdate.totalTicketRevenueCash = { increment: absAmount.negated() };
+                    break;
+                case 'VISA':
+                case 'CARD':
+                case 'MASTERCARD':
+                    shiftUpdate.totalTicketRevenueCard = { increment: absAmount.negated() };
+                    break;
+                case 'WALLET':
+                case 'VODAFONE_CASH':
+                    shiftUpdate.totalTicketRevenueWallet = { increment: absAmount.negated() };
+                    break;
+                case 'INSTAPAY':
+                    shiftUpdate.totalTicketRevenueInstapay = { increment: absAmount.negated() };
+                    break;
+            }
+
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: shiftUpdate
+            });
+
+            const treasury = await tx.treasury.findFirst({
+                where: { branchId: user.branchId!, isDefault: true }
+            });
+
+            if (treasury) {
+                await tx.transaction.create({
+                    data: {
+                        type: 'REFUND',
+                        amount: new Decimal(amount).negated(),
+                        paymentMethod: refundMethod,
+                        description: `Refund: Ticket #${ticket.barcode}`,
+                        shiftId: currentShift.id,
+                        treasuryId: treasury.id
+                    }
+                });
+
+                await tx.treasury.update({
+                    where: { id: treasury.id },
+                    data: { balance: { decrement: amount } }
+                });
+            }
         }
 
-        // 5. Accounting
-        await AccountingEngine.recordTransaction({
+        await AccountingEngine.recordRefund({
+            amount,
+            method: refundMethod,
             description: `Refund: Ticket #${ticket.barcode}`,
             reference: ticketId,
-            lines: [
-                { accountCode: '4000', debit: amount, credit: 0, description: 'Service Revenue Reversed' },
-                { accountCode: '1000', debit: 0, credit: amount, description: 'Cash Refunded' }
-            ]
+            ticketId: ticketId
         }, tx);
 
         return payment;
@@ -1052,6 +1115,10 @@ export const markForReRepair = secureAction(async (data: {
     });
 
     if (!ticket) throw new Error("Ticket not found");
+    const allowedStatuses = ['DELIVERED', 'PAID_DELIVERED'];
+    if (!allowedStatuses.includes(ticket.status)) {
+        throw new Error("Cannot return this ticket in its current status.");
+    }
 
     // Calculate warranty and clawback details
     const originalTechId = ticket.completedById || ticket.technicianId;
@@ -2161,6 +2228,10 @@ export const fullTicketReturn = secureAction(async (data: {
     });
 
     if (!ticket) throw new Error("Ticket not found");
+    const allowedStatuses = ['DELIVERED', 'PAID_DELIVERED'];
+    if (!allowedStatuses.includes(ticket.status)) {
+        throw new Error("Cannot return this ticket in its current status.");
+    }
 
     // 2. Auth/Guard check
     const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER' || currentUser.role === 'مدير النظام' || currentUser.role === 'المالك';
@@ -2223,7 +2294,7 @@ export const fullTicketReturn = secureAction(async (data: {
                     data: {
                         customerId: ticket.customerId,
                         type: 'CREDIT', // Standardized to CREDIT for returns
-                        amount: new Decimal(-amountToRefund),
+                        amount: new Decimal(amountToRefund),
                         description: `Ticket #${ticket.barcode} - Full Return Refund`,
                         reference: ticket.id,
                         createdBy: currentUser.id
@@ -2239,24 +2310,44 @@ export const fullTicketReturn = secureAction(async (data: {
             }
 
             // 3. Update Shift Balances (Standardized to use totalRefunds)
-            if (refundMethod !== 'ACCOUNT') {
-                const shiftUpdateData: any = {
-                    totalRefunds: { increment: amountToRefund }
-                };
-                
-                if (refundMethod === 'CASH') shiftUpdateData.totalCashRefunds = { increment: amountToRefund };
-                else if (refundMethod === 'VISA') shiftUpdateData.totalCardSales = { decrement: amountToRefund }; // POS convention check
-                
-                // For simplicity and audit, we follow sales-actions pattern:
+            const absAmount = new Decimal(amountToRefund);
+            if (refundMethod === 'ACCOUNT' || refundMethod === 'DEFERRED') {
                 await tx.shift.update({
                     where: { id: currentShift.id },
                     data: {
-                        totalRefunds: { increment: amountToRefund },
-                        totalCashRefunds: { increment: refundMethod === 'CASH' ? amountToRefund : 0 }
+                        totalRefunds: { increment: absAmount },
+                        totalAccountRefunds: { increment: absAmount }
                     }
                 });
+            } else {
+                const shiftUpdate: any = {
+                    totalRefunds: { increment: absAmount }
+                };
 
-                // 4. Record Treasury Transaction for the refund
+                switch (refundMethod) {
+                    case 'CASH':
+                        shiftUpdate.totalCashRefunds = { increment: absAmount };
+                        shiftUpdate.totalTicketRevenueCash = { increment: absAmount.negated() };
+                        break;
+                    case 'VISA':
+                    case 'CARD':
+                    case 'MASTERCARD':
+                        shiftUpdate.totalTicketRevenueCard = { increment: absAmount.negated() };
+                        break;
+                    case 'WALLET':
+                    case 'VODAFONE_CASH':
+                        shiftUpdate.totalTicketRevenueWallet = { increment: absAmount.negated() };
+                        break;
+                    case 'INSTAPAY':
+                        shiftUpdate.totalTicketRevenueInstapay = { increment: absAmount.negated() };
+                        break;
+                }
+
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: shiftUpdate
+                });
+
                 let treasuryId: string | null = null;
                 if (currentUser.branchId) {
                     const defaultTreasury = await tx.treasury.findFirst({
@@ -2314,10 +2405,17 @@ export const fullTicketReturn = secureAction(async (data: {
             }
         });
 
-        // Delete all parts from the ticket (they are back in stock)
-        await tx.ticketPart.deleteMany({
-            where: { ticketId: ticket.id }
-        });
+        for (const part of ticket.parts) {
+            await tx.ticketPart.update({
+                where: { id: part.id },
+                data: {
+                    status: 'REFUNDED',
+                    refundedQty: part.quantity,
+                    deletedAt: new Date(),
+                    isDamaged: false
+                }
+            });
+        }
 
         return { success: true };
     });

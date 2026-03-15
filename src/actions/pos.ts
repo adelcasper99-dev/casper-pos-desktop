@@ -114,7 +114,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         const products = await tx.product.findMany({
             where: { id: { in: productIds } },
             // @ts-ignore: isBundle exists in schema but might be missing in cached types
-            select: { id: true, costPrice: true, name: true, isBundle: true, itemType: true }
+            select: { id: true, costPrice: true, name: true, isBundle: true, itemType: true, trackStock: true, stock: true }
         });
 
         // 🛡️ FK GUARD: Ensure all products exist

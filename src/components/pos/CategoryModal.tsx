@@ -94,7 +94,7 @@ export default function CategoryModal({ isOpen, onClose, category, csrfToken, on
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder={t("enterCategoryName") || "Enter category name..."}
-                        className="bg-zinc-900/50 border-white/10 text-white h-12 text-lg focus:ring-cyan-500/50"
+                        className="glass-input bg-zinc-900/40 border-white/10 text-white h-12 text-lg focus:ring-cyan-500/50"
                         required
                     />
                 </div>

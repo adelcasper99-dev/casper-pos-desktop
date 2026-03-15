@@ -34,6 +34,7 @@ export const searchCustomers = secureAction(async (query: string) => {
             phone: true,
             email: true,
             balance: true,
+            address: true,
             linkedEmployeeId: true
         },
         take: 10,
@@ -54,6 +55,7 @@ export const searchCustomers = secureAction(async (query: string) => {
             phone: true,
             email: true,
             balance: true,
+            address: true,
             linkedEmployeeId: true
         },
         take: 5
@@ -65,6 +67,7 @@ export const searchCustomers = secureAction(async (query: string) => {
             name: c.name,
             phone: c.phone,
             email: c.email || undefined,
+            address: c.address || undefined,
             balance: Number(c.balance),
             linkedEmployeeId: c.linkedEmployeeId || undefined,
             type: 'CUSTOMER' as const
@@ -74,6 +77,7 @@ export const searchCustomers = secureAction(async (query: string) => {
             name: s.name,
             phone: s.phone || '',
             email: s.email || undefined,
+            address: s.address || undefined,
             balance: Number(s.balance),
             linkedEmployeeId: s.linkedEmployeeId || undefined,
             type: 'SUPPLIER' as const
@@ -88,7 +92,7 @@ export const searchCustomers = secureAction(async (query: string) => {
 /**
  * Create a new customer with name and phone
  */
-export const createCustomer = secureAction(async ({ name, phone, linkedEmployeeId }: { name: string; phone: string; linkedEmployeeId?: string | null }) => {
+export const createCustomer = secureAction(async ({ name, phone, address, linkedEmployeeId }: { name: string; phone: string; address?: string; linkedEmployeeId?: string | null }) => {
     if (!name || name.trim().length < 2) {
         return { error: 'الاسم قصير جداً' };
     }
@@ -117,6 +121,7 @@ export const createCustomer = secureAction(async ({ name, phone, linkedEmployeeI
             data: {
                 name: name.trim(),
                 phone: phone.trim(),
+                address: address?.trim() || null,
                 linkedEmployeeId: linkedEmployeeId || null,
             }
         });
@@ -126,6 +131,7 @@ export const createCustomer = secureAction(async ({ name, phone, linkedEmployeeI
                 id: customer.id,
                 name: customer.name,
                 phone: customer.phone,
+                address: customer.address || undefined,
                 balance: Number(customer.balance)
             }
         };

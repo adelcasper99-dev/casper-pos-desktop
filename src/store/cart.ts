@@ -23,6 +23,7 @@ export interface HeldCart {
     customerPhone?: string;
     customerId?: string; // 🆕 Added to HeldCart interface
     customerBalance?: number; // 🆕 Added to HeldCart interface
+    customerAddress?: string; // 🆕 Added Customer Address
     linkedEmployeeId?: string; // 🆕 Added Employee Link
     isSupplier?: boolean; // 🆕 Added Supplier Flag
     tableId?: string;
@@ -35,6 +36,7 @@ interface CartState {
     items: CartItem[];
     customerName: string;
     customerPhone: string;
+    customerAddress?: string; // 🆕 Added Customer Address
     customerId?: string; // 🆕 Added Customer ID
     customerBalance?: number; // 🆕 Added Customer Balance
     linkedEmployeeId?: string; // 🆕 Added Employee Link
@@ -50,7 +52,7 @@ interface CartState {
     updateQuantity: (productId: string, delta: number) => void;
     setItemQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
-    setCustomer: (name: string, phone: string, id?: string, balance?: number, linkedEmployeeId?: string, isSupplier?: boolean) => void;
+    setCustomer: (name: string, phone: string, id?: string, balance?: number, linkedEmployeeId?: string, isSupplier?: boolean, address?: string) => void;
     setTable: (id?: string, name?: string) => void;
     setDiscount: (amount: number, percentage: number) => void;
 
@@ -70,6 +72,7 @@ export const useCartStore = create<CartState>()(
             items: [],
             customerName: '',
             customerPhone: '',
+            customerAddress: undefined,
             customerId: undefined,
             customerBalance: undefined,
             tableId: undefined,
@@ -79,7 +82,15 @@ export const useCartStore = create<CartState>()(
             heldCarts: [],
             lastAddedId: null,
 
-            setCustomer: (name, phone, id, balance, linkedEmployeeId, isSupplier) => set({ customerName: name, customerPhone: phone, customerId: id, customerBalance: balance, linkedEmployeeId, isSupplier }),
+            setCustomer: (name, phone, id, balance, linkedEmployeeId, isSupplier, address) => set({ 
+                customerName: name, 
+                customerPhone: phone, 
+                customerId: id, 
+                customerBalance: balance, 
+                linkedEmployeeId, 
+                isSupplier,
+                customerAddress: address 
+            }),
             setTable: (id, name) => set({ tableId: id, tableName: name }),
             setDiscount: (amount, percentage) => set({ discountAmount: amount, discountPercentage: percentage }),
 
@@ -157,7 +168,7 @@ export const useCartStore = create<CartState>()(
                 });
             },
 
-            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerId: undefined, customerBalance: undefined, linkedEmployeeId: undefined, isSupplier: undefined, tableId: undefined, tableName: undefined, discountAmount: 0, discountPercentage: 0 }),
+            clearCart: () => set({ items: [], customerName: '', customerPhone: '', customerAddress: undefined, customerId: undefined, customerBalance: undefined, linkedEmployeeId: undefined, isSupplier: undefined, tableId: undefined, tableName: undefined, discountAmount: 0, discountPercentage: 0 }),
 
             holdCart: (cartName) => {
                 const { items, heldCarts, customerName, customerPhone } = get();
@@ -170,6 +181,7 @@ export const useCartStore = create<CartState>()(
                     date: new Date(),
                     customerName,
                     customerPhone,
+                    customerAddress: get().customerAddress,
                     customerId: get().customerId,
                     customerBalance: get().customerBalance,
                     linkedEmployeeId: get().linkedEmployeeId,
@@ -185,6 +197,7 @@ export const useCartStore = create<CartState>()(
                     items: [], // Clear main cart
                     customerName: '',
                     customerPhone: '',
+                    customerAddress: undefined,
                     customerId: undefined,
                     customerBalance: undefined,
                     linkedEmployeeId: undefined,
@@ -205,6 +218,7 @@ export const useCartStore = create<CartState>()(
                         items: cartToResume.items,
                         customerName: cartToResume.customerName || '',
                         customerPhone: cartToResume.customerPhone || '',
+                        customerAddress: cartToResume.customerAddress,
                         customerId: cartToResume.customerId, // Restore ID if exists
                         customerBalance: cartToResume.customerBalance, // Restore balance
                         linkedEmployeeId: cartToResume.linkedEmployeeId,

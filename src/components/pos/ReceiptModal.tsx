@@ -344,30 +344,33 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                 )}
 
                 {/* Controls */}
-                <div className="w-full max-w-[300px] bg-zinc-800/80 p-4 rounded-2xl border border-white/10 space-y-3">
+                <div className="w-full max-w-[300px] glass-card bg-black/40 p-4 border border-white/10 space-y-3">
                     <div className="flex items-center justify-between">
                         <label className="text-sm font-bold text-white/90">{t('copyCount') || 'عدد النسخ'}</label>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setCopyCount(Math.max(1, copyCount - 1))}
-                                className="w-8 h-8 rounded-lg bg-zinc-700 text-white flex items-center justify-center hover:bg-zinc-600 transition-colors font-black"
+                                className="w-9 h-9 glass-card bg-white/5 text-white flex items-center justify-center hover:bg-white/10 transition-colors font-black border border-white/5 active:scale-95"
                             >-</button>
-                            <span className="w-8 text-center font-black text-white">{copyCount}</span>
+                            <span className="w-8 text-center font-black text-xl text-cyan-400">{copyCount}</span>
                             <button
                                 onClick={() => setCopyCount(copyCount + 1)}
-                                className="w-8 h-8 rounded-lg bg-zinc-700 text-white flex items-center justify-center hover:bg-zinc-600 transition-colors font-black"
+                                className="w-9 h-9 glass-card bg-white/5 text-white flex items-center justify-center hover:bg-white/10 transition-colors font-black border border-white/5 active:scale-95"
                             >+</button>
                         </div>
                     </div>
 
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                        <input
-                            type="checkbox"
-                            checked={saveAsDefault}
-                            onChange={(e) => setSaveAsDefault(e.target.checked)}
-                            className="w-4 h-4 rounded border-2 border-zinc-600 bg-zinc-900 focus:ring-cyan-500 checked:bg-cyan-500 text-cyan-500"
-                        />
-                        <span className="text-sm text-white/70 group-hover:text-white transition-colors">
+                    <label className="flex items-center gap-3 cursor-pointer group py-1">
+                        <div className="relative flex items-center">
+                            <input
+                                type="checkbox"
+                                checked={saveAsDefault}
+                                onChange={(e) => setSaveAsDefault(e.target.checked)}
+                                className="peer appearance-none w-5 h-5 rounded-md border-2 border-white/10 bg-black/50 checked:bg-cyan-500 checked:border-cyan-500 transition-all cursor-pointer"
+                            />
+                            <CheckCircle className="absolute w-5 h-5 text-black opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity p-0.5" />
+                        </div>
+                        <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
                             {t('saveAsDefault') || 'حفظ كافتراضي'}
                         </span>
                     </label>
@@ -401,9 +404,9 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                         <button
                             onClick={handleExportPDF}
                             disabled={isPrinting}
-                            className="w-full py-3 rounded-xl bg-zinc-700 hover:bg-zinc-600 border border-white/5 text-white font-bold transition-all flex items-center justify-center gap-2"
+                            className="w-full py-4 glass-card bg-white/5 hover:bg-white/10 border border-white/10 text-white font-black uppercase tracking-wider text-xs transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                         >
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                 <polyline points="7 10 12 15 17 10" />
                                 <line x1="12" y1="15" x2="12" y2="3" />

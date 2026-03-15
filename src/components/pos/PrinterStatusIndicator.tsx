@@ -52,10 +52,10 @@ export default function PrinterStatusIndicator() {
 
     return (
         <div className={clsx(
-            "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300",
-            status === 'connected' ? "bg-green-500/10 border-green-500/30" :
-                status === 'offline' ? "bg-red-500/10 border-red-500/30" :
-                    "bg-zinc-500/10 border-zinc-500/30"
+            "flex items-center gap-3 px-4 py-2 glass-card transition-all duration-300",
+            status === 'connected' ? "bg-green-500/10 border-green-500/20" :
+                status === 'offline' ? "bg-red-500/10 border-red-500/20" :
+                    "bg-zinc-500/10 border-white/5"
         )}>
             <div className="relative">
                 <Printer className={clsx(

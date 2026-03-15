@@ -88,6 +88,12 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             const activeElement = document.activeElement;
             const isInput = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
             const isSearchInput = activeElement === searchInputRef.current;
+            
+            // Detect if ANY modal is currently open to prevent global shortcut interference
+            // We check both internal state and DOM role for robustness with sibling components
+            const isAnyModalOpen = 
+                isCheckoutOpen || isTableModalOpen || isCategoryModalOpen || isSpeedPrintModalOpen || showHeldCarts ||
+                !!document.querySelector('[role="dialog"]');
 
             // 0. Escape -> Clear overlays
             if (e.key === 'Escape') {
@@ -112,16 +118,28 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             
             const isNumeric = /^[0-9]$/.test(e.key);
             
-            // Allow '+' to hold cart from search anywhere
-            if (e.key === '+') {
-                if (!isCheckoutOpen && !isTableModalOpen && !isCategoryModalOpen && !isSpeedPrintModalOpen && items.length > 0) {
-                    e.preventDefault(); // Stop + from typing
-                    if (permissions.canHoldCart) {
-                        holdCart();
-                        toast.success(t("Cart Held Successfully"));
-                    } else {
-                        toast.error(t("You don't have permission to hold carts"));
+            // Allow 'Space' to hold cart from search anywhere
+            if (e.code === 'Space') {
+                if (!isAnyModalOpen && items.length > 0) {
+                    // Only trigger if not in a deep input (like customer search name)
+                    if (!isInput || isSearchInput) {
+                        e.preventDefault(); // Stop Space from typing
+                        if (permissions.canHoldCart) {
+                            holdCart();
+                            toast.success(t("Cart Held Successfully"));
+                        } else {
+                            toast.error(t("You don't have permission to hold carts"));
+                        }
                     }
+                }
+                return;
+            }
+            
+            // Allow 'Right Control' for Speed Print
+            if (e.code === 'ControlRight') {
+                if (!isAnyModalOpen && items.length > 0 && permissions.canPrintReceipt) {
+                    e.preventDefault();
+                    handleSpeedPrint();
                 }
                 return;
             }
@@ -133,8 +151,13 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 }
             }
             
-            // Shortcuts depend on having a last added item
-            if (!qtyModeId) return;
+            // Shortcuts depend on having a selected item
+            let activeId = qtyModeId;
+            if (!activeId && items.length > 0) {
+                activeId = items[items.length - 1].id;
+                setQtyModeId(activeId);
+            }
+            if (!activeId) return;
 
             // 1. Numeric Entry (0-9)
             if (isNumeric) {
@@ -142,14 +165,14 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 const newQtyString = (qtyString || "") + e.key;
                 const newQty = parseInt(newQtyString);
                 if (!isNaN(newQty) && newQty > 0) {
-                    const item = items.find(i => i.id === qtyModeId);
+                    const item = items.find(i => i.id === activeId);
                     if (item && item.trackStock !== false && newQty > item.maxQuantity) {
                          toast.error(`أقصى كمية متاحة هي ${item.maxQuantity}`);
                          setQtyString(item.maxQuantity.toString());
-                         setItemQuantity(qtyModeId, item.maxQuantity);
+                         setItemQuantity(activeId, item.maxQuantity);
                     } else {
                          setQtyString(newQtyString);
-                         setItemQuantity(qtyModeId, newQty);
+                         setItemQuantity(activeId, newQty);
                     }
                 }
             }
@@ -158,10 +181,10 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             if (e.key === 'Enter') {
                 if (qtyModeId && qtyString !== null) {
                     setQtyString(null);
-                    setQtyModeId(null);
+                    // Do NOT clear qtyModeId here, so shortcuts still work if modal is closed
                     setIsCheckoutOpen(true);
                     e.preventDefault();
-                } else if (!isCheckoutOpen && !isTableModalOpen && !isCategoryModalOpen && !isSpeedPrintModalOpen) {
+                } else if (!isAnyModalOpen) {
                     if (items.length > 0) {
                         // Open checkout if we aren't editing a quantity or searching
                         if (!isInput || (isSearchInput && search.length === 0)) {
@@ -173,7 +196,8 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                         if (!isInput || (isSearchInput && search.length === 0)) {
                             const lastHeldCart = heldCarts[heldCarts.length - 1];
                             resumeCart(lastHeldCart.id);
-                            toast.success(t("Cart Resumed"));
+                            toast.success(t("Cart Resumed") || "تم استرجاع السلة");
+                            setShowHeldCarts(false); // Close the list if it was open
                             e.preventDefault();
                         }
                     }
@@ -182,15 +206,15 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
             // 3. Delete -> Remove Last Item and move focus to previous
             if (e.key === 'Delete') {
-                const currentIndex = items.findIndex(i => i.id === qtyModeId);
-                removeFromCart(qtyModeId);
+                const currentIndex = items.findIndex(i => i.id === activeId);
+                removeFromCart(activeId);
                 
                 if (items.length > 1) {
                     // Try to select the previous item, otherwise the next item (which is now at the same index)
                     const nextIndex = currentIndex > 0 ? currentIndex - 1 : 0;
                     // The items array here is the one from the *previous* render, 
                     // but we know which one was removed. Let's just grab the ID.
-                    const newItems = items.filter(i => i.id !== qtyModeId);
+                    const newItems = items.filter(i => i.id !== activeId);
                     if (newItems.length > 0) {
                         const targetId = newItems[nextIndex]?.id || newItems[newItems.length - 1].id;
                         setQtyModeId(targetId);
@@ -211,7 +235,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             if (e.key === 'Backspace') {
                 // If search is empty or focused element is not an input
                 if (!isInput || (isSearchInput && search.length === 0)) {
-                    updateQuantity(qtyModeId, -1);
+                    updateQuantity(activeId, -1);
                     setQtyString(null); // Reset qty building string
                     e.preventDefault();
                 }
@@ -224,27 +248,54 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
     // Focus Search Input on Mount and after Modals Close (Auto-restoration)
     useEffect(() => {
+        let focusTimer: NodeJS.Timeout;
+
         const restoreFocus = () => {
-            if (!isCheckoutOpen && !isTableModalOpen && !isCategoryModalOpen && !showHeldCarts && isMounted) {
-                // Use requestAnimationFrame for smoother timing with OS window transitions
-                requestAnimationFrame(() => {
+            clearTimeout(focusTimer);
+            
+            // Give React 50ms to apply autoFocus to newly mounted elements
+            // before we decide to steal focus back to the main search bar.
+            focusTimer = setTimeout(() => {
+                const activeElement = document.activeElement;
+                
+                // Check if active element or ANY of its parents want to inhibit focus restoration
+                const isInhibitingFocus = !!activeElement?.closest('[data-inhibit-pos-focus="true"]');
+
+                // Check if ANY modal or overlay is open
+                const isAnyModalVisible = 
+                    isCheckoutOpen || isTableModalOpen || isCategoryModalOpen || 
+                    showHeldCarts || isSpeedPrintModalOpen || 
+                    !!document.querySelector('[role="dialog"]');
+
+                const isInteractingWithOtherInput = 
+                    activeElement?.tagName === 'INPUT' || 
+                    activeElement?.tagName === 'TEXTAREA' || 
+                    activeElement?.tagName === 'SELECT' ||
+                    activeElement?.hasAttribute('contenteditable');
+
+                // ONLY restore focus if no modal is visible AND we aren't already in another input/inhibited area
+                if (!isAnyModalVisible && !isInhibitingFocus && !isInteractingWithOtherInput && isMounted) {
                     searchInputRef.current?.focus();
-                });
-            }
+                }
+            }, 50);
         };
 
         // Restore focus on window focus (regaining focus from another app/desktop)
         window.addEventListener('focus', restoreFocus);
+        
+        // Watch for DOM changes to detect when modals are removed from the DOM
+        const observer = new MutationObserver(restoreFocus);
+        observer.observe(document.body, { childList: true, subtree: true });
 
-        // Initial focus and periodic fallback
+        // Initial focus call
         restoreFocus();
-        const timer = setTimeout(restoreFocus, 300);
 
         return () => {
+            clearTimeout(focusTimer);
             window.removeEventListener('focus', restoreFocus);
-            clearTimeout(timer);
+            observer.disconnect();
         };
-    }, [isCheckoutOpen, isTableModalOpen, isCategoryModalOpen, showHeldCarts, isMounted]);
+    }, [isCheckoutOpen, isTableModalOpen, isCategoryModalOpen, showHeldCarts, isSpeedPrintModalOpen, isMounted]);
 
     // Sync orderMode with held carts that might have a table selected
     useEffect(() => {
@@ -392,8 +443,8 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
     return (
         <div className="flex h-full w-full gap-0">
-            {/* LEFT: Cart Sidebar - UNCHANGED */}
-            <div className="w-full md:w-[400px] flex flex-col h-full bg-card border-r border-border z-20 shadow-2xl shrink-0">
+            {/* LEFT: Cart Sidebar */}
+            <div className="w-full md:w-[400px] flex flex-col h-full glass-card bg-black/40 border-r border-white/5 z-20 shadow-2xl shrink-0 rounded-none">
                 <div className="flex-1 flex flex-col overflow-hidden relative">
                     {/* Top Panel: Table Selection / Order Mode Toggle */}
                     <div className="p-4 border-b border-border bg-card z-10 shadow-sm flex flex-col gap-3">
@@ -403,7 +454,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                     setTable(undefined, undefined);
                                     setOrderMode('takeaway');
                                 }}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${orderMode === 'takeaway' && !tableId ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-500 hover:text-white'}`}
+                                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${orderMode === 'takeaway' && !tableId ? 'bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                             >
                                 {t('takeaway') || 'Takeaway'}
                             </button>
@@ -431,7 +482,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                     </div>
 
                     {/* Header */}
-                    <div className="p-4 border-b border-border flex justify-between items-center bg-muted/50">
+                    <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md">
                         <h2 className="font-bold flex items-center gap-2 text-lg text-foreground">
                             <ShoppingCart className="w-5 h-5 text-cyan-400" />
                             {t('items')}
@@ -455,7 +506,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
 
                     {/* Held Carts Overlay */}
                     {showHeldCarts && (
-                        <div className="absolute top-14 left-0 w-full bg-black/95 backdrop-blur-xl z-30 border-b border-white/10 p-2 space-y-2 animate-fly-in">
+                        <div className="absolute top-14 left-0 w-full glass-card bg-black/60 shadow-2xl z-30 border-b border-white/10 p-3 space-y-2 animate-fly-in">
                             <div className="flex justify-between items-center px-2">
                                 <span className="text-xs font-bold text-zinc-400">{t('heldCartsTitle')}</span>
                                 <button onClick={() => setShowHeldCarts(false)}><XCircle className="w-4 h-4 text-zinc-500" /></button>
@@ -480,7 +531,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                     )}
 
                     {/* Cart Items List */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-2 no-scrollbar bg-card">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 no-scrollbar bg-transparent">
                         {items.length === 0 && (
                             <div className="h-full flex flex-col items-center justify-center text-zinc-700 opacity-50">
                                 <ShoppingCart className="w-16 h-16 mb-4 opacity-50" />
@@ -488,7 +539,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             </div>
                         )}
                         {items.map((item) => (
-                            <div key={item.id} className="relative bg-muted/30 border border-border p-4 rounded-2xl group overflow-hidden shadow-lg mb-3">
+                            <div key={item.id} className="relative glass-card bg-white/5 backdrop-blur-md p-4 group overflow-hidden shadow-lg mb-3">
                                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
                                 {/* Bundle header row */}
                                 <div className="relative z-10 flex justify-between items-center">
@@ -503,7 +554,12 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className={clsx("flex items-center gap-2 bg-background/50 rounded-xl p-1.5 border transition-all duration-300 shadow-inner", qtyModeId === item.id ? "border-cyan-500 ring-2 ring-cyan-500/50 bg-cyan-950/20" : "border-border")}>
-                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5 shrink-0"><Minus className="w-4 h-4" /></button>
+                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5 shrink-0 relative order-1">
+                                                <Minus className="w-4 h-4" />
+                                                {qtyModeId === item.id && (
+                                                    <span className="absolute -top-1 -left-1 text-[8px] bg-black/60 text-zinc-400 px-1 rounded border border-white/5 font-bold uppercase pointer-events-none">BS</span>
+                                                )}
+                                            </button>
                                             <input
                                                 type="text"
                                                 value={qtyModeId === item.id && qtyString !== null ? qtyString : item.quantity.toString()}
@@ -543,9 +599,14 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                                 }}
                                                 className={clsx("w-10 text-center text-lg font-black font-mono tracking-tight bg-transparent border-none outline-none focus:ring-0", qtyModeId === item.id ? "text-cyan-400" : "text-white")}
                                             />
-                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)] shrink-0"><Plus className="w-4 h-4" /></button>
+                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)] shrink-0 order-3"><Plus className="w-4 h-4" /></button>
                                         </div>
-                                        <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 flex items-center justify-center border border-red-500/20 transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5" /></button>
+                                        <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 flex items-center justify-center border border-red-500/20 transition-all opacity-0 group-hover:opacity-100 relative">
+                                            <Trash2 className="w-5 h-5" />
+                                            {qtyModeId === item.id && (
+                                                <span className="absolute -top-1 -right-1 text-[8px] bg-red-500 text-white px-1 rounded font-bold uppercase pointer-events-none">DEL</span>
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
                                 {/* Bundle components listed below */}
@@ -675,20 +736,23 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                 <button
                                     onClick={handleSpeedPrint}
                                     disabled={items.length === 0 || isPrinting || !permissions.canPrintReceipt}
-                                    className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all relative"
                                     title={t('speedPrint') || "Speed Print"}
                                 >
                                     {isPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-6 h-6" />}
+                                    <span className="absolute -top-1 -left-1 text-[8px] bg-purple-500 text-white px-1 rounded font-bold uppercase pointer-events-none">R-CTRL</span>
                                 </button>
-                                <button onClick={() => holdCart()} disabled={items.length === 0 || isPrinting || !permissions.canHoldCart} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all" title="Hold Cart">
+                                <button onClick={() => holdCart()} disabled={items.length === 0 || isPrinting || !permissions.canHoldCart} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all relative" title="Hold Cart">
                                     <PauseCircle className="w-6 h-6" />
+                                    <span className="absolute -top-1 -left-1 text-[8px] bg-yellow-600 text-white px-1 rounded font-bold uppercase pointer-events-none">SPACE</span>
                                 </button>
                                 <button
                                     onClick={() => setIsCheckoutOpen(true)}
                                     disabled={items.length === 0 || isPrinting || !permissions.canCheckout}
-                                    className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                                    className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none relative"
                                 >
                                     <Banknote className="w-6 h-6" />{t('checkout')}
+                                    <span className="absolute top-2 right-3 text-[10px] bg-black/40 text-white px-1.5 py-0.5 rounded border border-white/20 font-black uppercase">ENTER</span>
                                 </button>
                             </div>
                         </div>
@@ -741,6 +805,11 @@ export default function POSClientAPI({ products, categories: initialCategories, 
             <div
                 className="flex-1 flex bg-muted/10"
                 onClick={(e) => {
+                    // Check if the click target or any parent is inhibiting focus (e.g., Customer Search)
+                    if ((e.target as HTMLElement).closest('[data-inhibit-pos-focus="true"]')) {
+                        return;
+                    }
+
                     // Redirect clicks on the container background to the search input
                     if (e.target === e.currentTarget && !isCheckoutOpen && !isTableModalOpen) {
                         searchInputRef.current?.focus();
@@ -748,8 +817,11 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 }}
             >
                 {/* Categories */}
-                <div className="w-40 border-r border-border bg-card/50 backdrop-blur-2xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full">
-                    <button onClick={() => setSelectedCategory(null)} className={clsx("w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0", selectedCategory === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground")}>{t('allCategories')}</button>
+                <div className="w-40 border-r border-white/5 glass-card bg-black/40 backdrop-blur-3xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full rounded-none">
+                    <button onClick={() => setSelectedCategory(null)} className={clsx("w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 border border-white/5", selectedCategory === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground")}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+                        {t('allCategories')}
+                    </button>
                     {localCategories.map((c: any) => (
                         <button
                             key={c.id}
@@ -759,11 +831,15 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                 setCategoryToEdit(c);
                                 setIsCategoryModalOpen(true);
                             }}
-                            className={clsx("w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-lg relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/5", selectedCategory === c.id ? "scale-[1.02] ring-2 ring-white/50" : "hover:scale-[1.02] opacity-90 hover:opacity-100")}
-                            style={{ backgroundColor: c.color || "#06b6d4", color: "#000", textShadow: "0px 1px 2px rgba(255,255,255,0.2)" }}
+                            className={clsx("w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/10 backdrop-blur-xl", selectedCategory === c.id ? "scale-[1.02] ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.2)]" : "hover:scale-[1.02] opacity-80 hover:opacity-100")}
+                            style={{ 
+                                backgroundColor: `${c.color || "#06b6d4"}33`, // Add 33 (20% alpha) to hex color
+                                color: selectedCategory === c.id ? "#fff" : "rgba(255,255,255,0.7)", 
+                                borderLeft: `4px solid ${c.color || "#06b6d4"}`
+                            }}
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
-                            <span className="relative z-10 text-white drop-shadow-md text-sm uppercase tracking-wider">{c.name}</span>
+                            <div className="absolute inset-0 bg-white/5 group-hover:bg-white/10 transition-colors pointer-events-none" />
+                            <span className="relative z-10 drop-shadow-md text-sm uppercase tracking-wider font-black">{c.name}</span>
                         </button>
                     ))}
 
@@ -788,7 +864,7 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                             <DesktopStatus />
                         </div>
                         <div className="flex gap-3">
-                            <div className="bg-card rounded-xl flex items-center gap-3 py-3 px-4 flex-[2] border border-border transition-all focus-within:border-cyan-500/50">
+                            <div className="glass-card bg-white/5 backdrop-blur-md flex items-center gap-3 py-3 px-4 flex-[2] transition-all focus-within:border-cyan-500/50">
                                 <Search className="w-5 h-5 text-muted-foreground" />
                                 <input
                                     ref={searchInputRef}

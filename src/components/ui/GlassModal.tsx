@@ -27,12 +27,16 @@ export default function GlassModal({ isOpen, onClose, title, children, className
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-200"
+            onClick={onClose}
+        >
             <div
                 className={cn(
-                    "glass-card w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar p-6 relative shadow-2xl bg-card border border-border animate-in zoom-in-95 duration-300",
+                    "glass-card w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar p-6 relative shadow-2xl animate-in zoom-in-95 duration-300",
                     className
                 )}
+                onClick={(e) => e.stopPropagation()}
             >
                 {/* Gloss Effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none opacity-30" />

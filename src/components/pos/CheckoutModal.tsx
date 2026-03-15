@@ -32,7 +32,20 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const t = useTranslations("POS");
     const router = useRouter();
     const { handleKeyDown, getNavProps } = useKeyboardNavigation();
-    const { items, getTotal, clearCart, customerName, customerPhone, customerBalance, customerId, tableId, tableName, discountAmount = 0, discountPercentage = 0 } = useCartStore();
+    const { 
+        items, 
+        getTotal, 
+        clearCart, 
+        customerName, 
+        customerPhone, 
+        customerAddress, // 🆕 Pull Address
+        customerBalance, 
+        customerId, 
+        tableId, 
+        tableName, 
+        discountAmount = 0, 
+        discountPercentage = 0 
+    } = useCartStore();
     const { isOnline } = useNetworkStatus(); // Used for UI status indicator only
 
     const [loading, setLoading] = useState(false);
@@ -85,7 +98,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     // Delivery / Customer Details
     const [name, setName] = useState(customerName || '');
     const [phone, setPhone] = useState(customerPhone);
-    const [address, setAddress] = useState("");
+    const [address, setAddress] = useState(customerAddress || "");
 
     const [error, setError] = useState<string | null>(null);
     const [canForce, setCanForce] = useState(false);
@@ -107,26 +120,79 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         }
     }, [error, isOpen]);
 
-    // Handle Escape key to dismiss errors
+    // Handle Keyboard Navigation (Arrows & Escape)
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
+        const handleKeys = (e: KeyboardEvent) => {
+            if (!isOpen || saleResult) return;
+
             if (e.key === 'Escape' && error) {
                 setError(null);
                 setCanForce(false);
                 e.stopPropagation();
+                return;
+            }
+
+            // 1. Treasury/Payment Method Switching (Left/Right)
+            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                const combinedMethods = [...treasuries, { id: 'ACCOUNT', name: 'ACCOUNT', isAccount: true }];
+                const currentIndex = combinedMethods.findIndex(m => 
+                    (paymentMethod === 'ACCOUNT' || paymentMethod === 'DEFERRED') ? m.id === 'ACCOUNT' : m.id === selectedTreasuryId
+                );
+                
+                if (currentIndex !== -1) {
+                    let nextIndex = e.key === 'ArrowRight' ? currentIndex + 1 : currentIndex - 1;
+                    if (nextIndex >= combinedMethods.length) nextIndex = 0;
+                    if (nextIndex < 0) nextIndex = combinedMethods.length - 1;
+
+                    const nextMethod = combinedMethods[nextIndex] as any;
+                    if (nextMethod.isAccount) {
+                        if (customerId) {
+                            setPaymentMethod("ACCOUNT");
+                            setSelectedTreasuryId('');
+                        }
+                    } else {
+                        setSelectedTreasuryId(nextMethod.id);
+                        setPaymentMethod(nextMethod.paymentMethod || 'CASH');
+                    }
+                    e.preventDefault();
+                }
+            }
+
+            // 2. Vertical Navigation (Up/Down)
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                const active = document.activeElement;
+                const isAmountFocus = active?.getAttribute('name') === 'receivedAmount' || active?.classList.contains('glass-input');
+                
+                if (e.key === 'ArrowDown') {
+                    if (!isAmountFocus) {
+                        // Focus the received amount input if it exists
+                        const amountInput = document.querySelector('input[type="number"]') as HTMLInputElement;
+                        amountInput?.focus();
+                    } else {
+                        // Focus the checkout button
+                        const checkoutBtn = document.querySelector('button.bg-cyan-500:not([disabled])') as HTMLButtonElement;
+                        checkoutBtn?.focus();
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    // Focus back to safe zone (close button or top of modal)
+                    closeBtnRef.current?.focus();
+                }
+                e.preventDefault();
             }
         };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [error]);
+
+        window.addEventListener('keydown', handleKeys);
+        return () => window.removeEventListener('keydown', handleKeys);
+    }, [isOpen, error, treasuries, selectedTreasuryId, paymentMethod, customerId, saleResult]);
 
     // Sync local state with store when modal opens or store changes
     useEffect(() => {
         setName(customerName);
         setPhone(customerPhone);
+        setAddress(customerAddress || ""); // 🆕 Pre-fill address
         setError(null);
         setCanForce(false);
-    }, [customerName, customerPhone, isOpen]);
+    }, [customerName, customerPhone, customerAddress, isOpen]);
 
     // ... (Calculations stay same)
     // Recalculate Totals
@@ -235,7 +301,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         <p className="text-zinc-400 text-sm">{t('saleId')}: {saleResult.invoiceNumber}</p>
                     </div>
 
-                    <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">
+                    <div className="w-full glass-card bg-white/5 border border-white/10 p-6 space-y-3">
                         <div className="flex justify-between text-sm">
                             <span className="text-zinc-400">{t('totalAmount')}</span>
                             <span className="text-white font-bold text-lg">{formatCurrency(saleResult.totalAmount)}</span>
@@ -252,7 +318,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 // Explicit trigger for ReceiptModal logic
                                 setSaleResult({ ...saleResult, showPrint: true });
                             }}
-                            className="bg-white/10 hover:bg-white/20 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 border border-white/10 transition-all"
+                            className="glass-card bg-white/5 hover:bg-white/10 text-white font-bold py-4 flex items-center justify-center gap-2 transition-all"
                         >
                             <Printer className="w-5 h-5" />
                             {t('printReceipt') || "Print Receipt"}
@@ -334,7 +400,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                 {/* Delivery Toggle & Form */}
                 {/* ... (Keep existing structure) ... */}
-                <div className="border border-border rounded-xl p-4 bg-muted/30">
+                <div className="glass-card bg-white/5 backdrop-blur-md p-4">
                     <label className="flex items-center gap-3 cursor-pointer">
                         <input
                             type="checkbox"
@@ -353,17 +419,17 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                             <input
                                 {...getNavProps(1)}
                                 name="name"
-                                defaultValue={name}
+                                value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, 1, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
-                                placeholder={t('notes')}
+                                placeholder={t('customerName') || "الاسم"}
                                 className="glass-input w-full"
                                 required
                             />
                             <input
                                 {...getNavProps(2)}
                                 name="phone"
-                                defaultValue={phone}
+                                value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, 2, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
                                 placeholder={t('customerPhone')}
@@ -373,6 +439,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                             <textarea
                                 {...getNavProps(3)}
                                 name="address"
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
                                 placeholder={t('deliveryAddress')}
                                 className="glass-input w-full resize-none h-20"
                                 onKeyDown={(e) => handleKeyDown(e, 3, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
@@ -383,7 +451,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 </div>
 
                 {/* Warranty Selector */}
-                <div className="border border-border rounded-xl p-4 bg-muted/30 space-y-3">
+                <div className="glass-card bg-white/5 backdrop-blur-md p-4 space-y-3">
                     <label className="flex items-center gap-3 cursor-pointer">
                         <input
                             type="checkbox"
@@ -455,7 +523,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                     {/* Quick Change Calculator (Visual Only) */}
                     {(paymentMethod === 'CASH' || paymentMethod === 'WALLET') && (
-                        <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="mt-4 p-4 glass-card bg-black/40 border border-white/10 space-y-3 animate-in fade-in slide-in-from-bottom-2">
                             <h4 className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center justify-between">
                                 حاسبة الباقي (للمساعدة فقط)
                                 {receivedAmount !== '' && (
@@ -558,25 +626,27 @@ function PaymentMethod({ label, icon: Icon, active, onClick, disabled, warning, 
             onClick={onClick}
             disabled={disabled}
             className={clsx(
-                "flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all duration-200 relative group",
+                "flex flex-col items-center justify-center gap-2 p-4 glass-card border transition-all duration-300 relative group overflow-hidden",
                 active
-                    ? "bg-cyan-500/20 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(0,242,255,0.2)]"
+                    ? "bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-[0_0_20px_rgba(0,242,255,0.15)] scale-[1.02]"
                     : disabled
-                        ? "bg-muted/20 border-transparent text-muted-foreground/30 cursor-not-allowed"
-                        : "bg-muted/50 border-transparent text-muted-foreground hover:bg-muted"
+                        ? "opacity-30 grayscale cursor-not-allowed border-white/5"
+                        : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:border-white/20"
             )}
         >
-            <Icon className="w-6 h-6" />
-            <span className="text-xs font-bold uppercase text-center">{label}</span>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+            
+            <Icon className={clsx("w-6 h-6 transition-transform duration-300", active && "scale-110")} />
+            <span className="text-[10px] font-bold uppercase text-center tracking-wider">{label}</span>
             {isDefault && (
-                <span className="absolute top-1 right-1 bg-cyan-500/30 text-cyan-300 text-[9px] px-1 rounded-sm border border-cyan-500/50">
+                <span className="absolute top-2 right-2 bg-cyan-500/20 text-cyan-300 text-[8px] px-1.5 py-0.5 rounded-full border border-cyan-500/30 font-black uppercase">
                     Default
                 </span>
             )}
 
             {/* Tooltip for disabled state */}
             {disabled && warning && (
-                <div className="absolute bottom-full mb-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="absolute bottom-full mb-2 bg-black/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10">
                     {warning}
                 </div>
             )}
