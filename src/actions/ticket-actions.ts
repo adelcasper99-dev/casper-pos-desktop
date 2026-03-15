@@ -1635,8 +1635,12 @@ export const processTicketPayment = secureAction(async (data: {
     reference?: string;
     customerId?: string;
     csrfToken?: string;
+    warranty?: {
+        warrantyDays: number;
+        warrantyExpiryDate: Date;
+    };
 }) => {
-    const { ticketId, amount, paymentMethod, paymentType = 'PAYMENT', reference, customerId } = data;
+    const { ticketId, amount, paymentMethod, paymentType = 'PAYMENT', reference, customerId, warranty } = data;
 
     const ticket = await prisma.ticket.findFirst({
         where: { OR: [{ id: ticketId }, { barcode: ticketId }] },
@@ -1794,7 +1798,12 @@ export const processTicketPayment = secureAction(async (data: {
                 // Automatically close the ticket if fully paid
                 ...(paymentStatus === 'paid' && paymentType === 'PAYMENT' ? { 
                     status: 'PAID_DELIVERED',
-                    deliveredAt: new Date()
+                    deliveredAt: new Date(),
+                    warrantyExpiryDate: warranty?.warrantyExpiryDate ?? (function() {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 30);
+                        return d;
+                    })()
                 } : {})
             }
         });

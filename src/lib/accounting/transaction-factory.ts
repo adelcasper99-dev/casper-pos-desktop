@@ -41,6 +41,7 @@ const PAYMENT_ACCOUNT_MAP: Record<string, string> = {
     DEFERRED: '1100',
     ACCOUNT: '1100',
     SUPPLIER_OFFSET: '2000',
+    STORE_CREDIT: '2100',
 };
 
 export class AccountingEngine {
@@ -226,7 +227,9 @@ export class AccountingEngine {
                 accountCode, 
                 debit: 0, 
                 credit: absAmount, 
-                description: isDeferred ? 'Customer AR Reduced' : 'Cash/Bank Refunded' 
+                description: method === 'STORE_CREDIT' 
+                    ? 'Store Credit Issued (Wallet)' 
+                    : (isDeferred ? 'Customer AR Reduced' : 'Cash/Bank Refunded')
             }
         ];
 
@@ -240,6 +243,62 @@ export class AccountingEngine {
             description,
             reference,
             saleId,
+            lines
+        }, tx);
+    }
+
+    /**
+     * recordSaleReturn (New centralized helper)
+     * Handles full/partial returns with item-level logic (Bypass Services)
+     */
+    static async recordSaleReturn(data: {
+        saleId: string;
+        returnSaleId: string;
+        totalRefund: number;
+        cashPortion: number;
+        arPortion: number;
+        walletPortion: number;
+        items: { productId: string; quantity: number; unitCost: number }[];
+        reason?: string;
+    }, tx?: any) {
+        const { totalRefund, cashPortion, arPortion, walletPortion, items, returnSaleId, saleId, reason } = data;
+        const db = tx || prisma;
+
+        // 1. Core Revenue Reversal
+        const lines: TransactionLineInput[] = [
+            { accountCode: '4000', debit: Number(totalRefund), credit: 0, description: `Sales Revenue Reversed: #${saleId.slice(0, 8)}` }
+        ];
+
+        // 2. Financial Reversals
+        if (cashPortion > 0) lines.push({ accountCode: '1000', debit: 0, credit: Number(cashPortion), description: 'Cash Refunded' });
+        if (arPortion > 0) lines.push({ accountCode: '1100', debit: 0, credit: Number(arPortion), description: 'AR Reduced' });
+        if (walletPortion > 0) lines.push({ accountCode: '2100', debit: 0, credit: Number(walletPortion), description: 'Store Credit Issued' });
+
+        // 3. COGS / Inventory Reversal (Centralized Bypass Logic)
+        const productIds = items.map(i => i.productId);
+        const products = await db.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, itemType: true }
+        });
+        const productTypeMap = new Map(products.map((p: any) => [p.id, p.itemType]));
+
+        let totalCogsReversal = 0;
+        for (const item of items) {
+            const type = productTypeMap.get(item.productId);
+            if (type !== 'SERVICE') {
+                totalCogsReversal += (Number(item.unitCost) * item.quantity);
+            }
+        }
+
+        if (totalCogsReversal > 0) {
+            lines.push({ accountCode: '1200', debit: totalCogsReversal, credit: 0, description: 'Inventory Asset Restored' });
+            lines.push({ accountCode: '5000', debit: 0, credit: totalCogsReversal, description: 'COGS Reversed' });
+        }
+
+        return this.recordTransaction({
+            description: `Return Transaction: ${reason || 'Customer Return'}`,
+            reference: returnSaleId,
+            saleId: returnSaleId,
             lines
         }, tx);
     }

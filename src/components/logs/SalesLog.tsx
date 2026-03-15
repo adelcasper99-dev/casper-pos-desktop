@@ -91,7 +91,9 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
             (sale.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (`#${sale.id.slice(0, 8).toUpperCase()}`.includes(searchTerm.toUpperCase()));
 
-        const matchesStatus = statusFilter === "all" || sale.status === statusFilter;
+        const isReturn = sale.isReturn || sale._isRefundEntry;
+        const matchesStatus = statusFilter === "all" || 
+            (statusFilter === "REFUNDED" ? isReturn : sale.status === statusFilter);
         const matchesPayment = paymentFilter === "all" || sale.paymentMethod === paymentFilter;
 
         let matchesDate = true;
@@ -116,10 +118,12 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
 
     // Compute totals based on filtered results
     const computedTotals = {
-        netTotal: filteredSales
-            .filter(s => s.status !== 'REFUNDED' && !s._isRefundEntry)
-            .reduce((acc, s) => acc + s.totalAmount, 0),
-        count: filteredSales.filter(s => !s._isRefundEntry).length
+        netTotal: filteredSales.reduce((acc, s) => {
+            const isReturn = s.isReturn || s._isRefundEntry;
+            if (s.status === 'VOIDED' && !isReturn) return acc;
+            return acc + Number(s.totalAmount);
+        }, 0),
+        count: filteredSales.filter(s => !s.isReturn && !s._isRefundEntry).length
     };
 
     // Push totals to parent when they change
@@ -129,14 +133,14 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
         }
     }, [computedTotals.netTotal, computedTotals.count]);  // Intentionally omitting onTotalsChange to avoid unnecessary effect triggers
 
-    const handleRefund = async (saleId: string, data: { treasuryId: string, paymentMethod: string, reason?: string }) => {
+    const handleRefund = async (saleId: string, data: { treasuryId: string, paymentMethod: string, reason?: string, refundMethod?: 'CASH' | 'STORE_CREDIT' }) => {
         setLoading(saleId);
         try {
             const res = await refundSale({
                 saleId,
                 reason: data.reason || undefined,
                 treasuryId: data.treasuryId,
-                paymentMethod: data.paymentMethod,
+                refundMethod: data.refundMethod,
                 csrfToken
             });
             if (res.success) {
@@ -208,21 +212,10 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
         setSales(prev => {
             const updated = prev.map(s => {
                 if (s.id !== saleId) return s;
-
-                // Update original sale's total and merge item quantities from server
-                const updatedSaleItems = (s.items || [])
-                    .map((item: any) => {
-                        const serverItem = updatedItems.find((u: any) => u.id === item.id);
-                        if (!serverItem) return null; // fully returned — remove
-                        return { ...item, quantity: serverItem.quantity };
-                    })
-                    .filter(Boolean);
-
                 return {
                     ...s,
-                    status: allReturned ? 'REFUNDED' : 'PARTIAL_REFUND',
-                    totalAmount: newTotal,
-                    items: updatedSaleItems,
+                    status: allReturned ? 'REFUNDED' : 'PARTIAL_REFUND'
+                    // Original totalAmount and items are preserved for audit trail
                 };
             });
             return refundEntry ? [refundEntry, ...updated] : updated;
@@ -476,21 +469,21 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                     key={sale.id}
                                     className={cn(
                                         "border-white/5 hover:bg-white/5 transition-colors group",
-                                        sale._isRefundEntry && "bg-red-500/5 border-l-2 border-l-red-500/40",
-                                        !sale._isRefundEntry && Number(sale.discountAmount) > 0 && "bg-amber-500/5 border-l-2 border-l-amber-500/40"
+                                        (sale.isReturn || sale._isRefundEntry) && "bg-red-500/5 border-l-2 border-l-red-500/40",
+                                        !(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && "bg-amber-500/5 border-l-2 border-l-amber-500/40"
                                     )}
                                 >
                                     <td className="py-2 px-4">
                                         <div className="flex flex-col gap-0.5">
-                                            {sale._isRefundEntry && (
+                                            {(sale.isReturn || sale._isRefundEntry) && (
                                                 <span className="text-[9px] font-black uppercase tracking-widest text-red-400 flex items-center gap-1">
                                                     ↩ ارتجاع
                                                 </span>
                                             )}
-                                            <div className={`font-mono text-xs ${sale._isRefundEntry ? 'text-red-400/80' : 'text-cyan-500/80'}`}>
+                                            <div className={`font-mono text-xs ${ (sale.isReturn || sale._isRefundEntry) ? 'text-red-400/80' : 'text-cyan-500/80'}`}>
                                                 #{sale.invoiceNumber || (sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase())}
                                             </div>
-                                            {!sale._isRefundEntry && Number(sale.discountAmount) > 0 && (
+                                            {!(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && (
                                                 <span className="text-[9px] font-bold text-amber-500 uppercase">مخفض %</span>
                                             )}
                                         </div>
@@ -501,8 +494,8 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                     <td className="py-2 px-4 font-bold text-zinc-100 italic">
                                         {sale.customerName || "عميل نقدي"}
                                     </td>
-                                    <td className={`py-2 px-4 font-mono font-bold ${sale._isRefundEntry ? 'text-red-400' : 'text-zinc-100'}`}>
-                                        {sale.totalAmount < 0 ? '-' : ''}{Math.abs(sale.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    <td className={`py-2 px-4 font-mono font-bold ${(sale.isReturn || sale._isRefundEntry) ? 'text-red-400' : 'text-zinc-100'}`}>
+                                        {sale.totalAmount < 0 ? '-' : ''}{Math.abs(Number(sale.totalAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </td>
                                     <td className="py-2 px-4">
                                         <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 font-bold uppercase">
@@ -534,7 +527,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             >
                                                 <FileText className="w-4 h-4" />
                                             </Button>
-                                            {!sale._isRefundEntry && sale.status !== 'REFUNDED' && (
+                                            {!(sale.isReturn || sale._isRefundEntry) && sale.status !== 'REFUNDED' && (
                                                 <>
                                                     {/* Partial Refund */}
                                                     <Button

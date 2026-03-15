@@ -18,6 +18,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 
 // Virtual ID — deduct from customer credit balance without touching any treasury
 const ACCOUNT_VIRTUAL_ID = '__ACCOUNT__';
+const STORE_CREDIT_VIRTUAL_ID = '__STORE_CREDIT__';
 
 interface PartialRefundDialogProps {
     isOpen: boolean;
@@ -28,7 +29,7 @@ interface PartialRefundDialogProps {
 }
 
 export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, onRefundDone }: PartialRefundDialogProps) {
-    const [selectedItems, setSelectedItems] = useState<Record<string, { selected: boolean; quantity: number }>>({});
+    const [selectedItems, setSelectedItems] = useState<Record<string, { selected: boolean; quantity: number; isDamaged: boolean }>>({});
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(false);
     const [refundDone, setRefundDone] = useState(false);
@@ -63,7 +64,8 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
             ...prev,
             [itemId]: {
                 selected: !prev[itemId]?.selected,
-                quantity: prev[itemId]?.quantity ?? 1
+                quantity: prev[itemId]?.quantity ?? 1,
+                isDamaged: prev[itemId]?.isDamaged ?? false
             }
         }));
     };
@@ -72,7 +74,14 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
         const clampedQty = Math.max(1, Math.min(qty, maxQty));
         setSelectedItems(prev => ({
             ...prev,
-            [itemId]: { selected: true, quantity: clampedQty }
+            [itemId]: { ...prev[itemId], selected: true, quantity: clampedQty }
+        }));
+    };
+
+    const toggleDamaged = (itemId: string) => {
+        setSelectedItems(prev => ({
+            ...prev,
+            [itemId]: { ...prev[itemId], isDamaged: !prev[itemId]?.isDamaged }
         }));
     };
 
@@ -95,8 +104,8 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
         if (allSelected) {
             setSelectedItems({});
         } else {
-            const all: Record<string, { selected: boolean; quantity: number }> = {};
-            items.forEach((i: any) => { all[i.id] = { selected: true, quantity: i.quantity }; });
+            const all: Record<string, { selected: boolean; quantity: number; isDamaged: boolean }> = {};
+            items.forEach((i: any) => { all[i.id] = { selected: true, quantity: i.quantity, isDamaged: false }; });
             setSelectedItems(all);
         }
     };
@@ -104,7 +113,11 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
     const handleRefund = async () => {
         const itemsToRefund = items
             .filter((i: any) => selectedItems[i.id]?.selected)
-            .map((i: any) => ({ itemId: i.id, quantity: selectedItems[i.id].quantity }));
+            .map((i: any) => ({ 
+                itemId: i.id, 
+                quantity: selectedItems[i.id].quantity,
+                isDamaged: selectedItems[i.id].isDamaged
+            }));
 
         if (itemsToRefund.length === 0) {
             toast.error('يرجى اختيار صنف واحد على الأقل');
@@ -112,11 +125,12 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
         }
 
         const isAccountOption = selectedTreasuryId === ACCOUNT_VIRTUAL_ID;
+        const isStoreCredit = selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID;
 
         // Validate: if paying back cash on a DEFERRED invoice, cap at what was paid
-        if (!isAccountOption && isCredit && sale?.paymentMethod === 'DEFERRED') {
+        if (!isAccountOption && !isStoreCredit && isCredit && sale?.paymentMethod === 'DEFERRED') {
             if (refundTotal > originalPaidCash) {
-                toast.error(`المبلغ المسترد (${refundTotal.toFixed(2)}) يتجاوز ما دفعه العميل نقداً (${originalPaidCash.toFixed(2)}). اختر "حساب العميل" أو قلل الكمية.`);
+                toast.error(`المبلغ المسترد (${refundTotal.toFixed(2)}) يتجاوز ما دفعه العميل نقداً (${originalPaidCash.toFixed(2)}). اختر "حساب العميل" أو "رصيد المتجر".`);
                 return;
             }
         }
@@ -124,16 +138,17 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
         setLoading(true);
         try {
             const selectedTreasury = treasuries.find(t => t.id === selectedTreasuryId);
-            const result = await partialRefundSale({
+            const result = await (partialRefundSale as any)({
                 saleId: sale.id,
                 items: itemsToRefund,
                 reason: reason || undefined,
-                paymentMethod: isAccountOption ? 'ACCOUNT' : selectedTreasury?.paymentMethod,
-                treasuryId: isAccountOption ? undefined : selectedTreasuryId,
+                refundMethod: isStoreCredit ? 'STORE_CREDIT' : 'CASH',
+                treasuryId: (isAccountOption || isStoreCredit) ? undefined : selectedTreasuryId,
                 csrfToken,
             });
 
             if (result.success) {
+                const data = result.data || result;
                 const returnedItems = items
                     .filter((i: any) => selectedItems[i.id]?.selected)
                     .map((i: any) => ({
@@ -143,16 +158,16 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                         lineTotal: Number(i.unitPrice) * selectedItems[i.id].quantity,
                     }));
 
-                setRefundSummary({ total: result.refundedAmount ?? 0, items: returnedItems });
+                setRefundSummary({ total: data.refundedAmount ?? 0, items: returnedItems });
                 setRefundDone(true);
-                toast.success(result.message || 'تم تنفيذ المرتجع بنجاح');
+                toast.success(data.message || 'تم تنفيذ المرتجع بنجاح');
                 onRefundDone(
                     sale.id,
-                    result.refundedAmount ?? 0,
-                    result.allReturned ?? false,
+                    data.refundedAmount ?? 0,
+                    data.allReturned ?? false,
                     returnedItems,
-                    result.newTotal ?? 0,
-                    result.updatedItems ?? []
+                    data.newTotal ?? 0,
+                    data.updatedItems ?? []
                 );
             } else {
                 toast.error((result as any).error || 'فشل تنفيذ المرتجع');
@@ -292,6 +307,20 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                             <div className="text-[10px] text-zinc-500 font-mono tracking-tighter">
                                                 السعر: {Number(item.unitPrice).toFixed(2)} | الكمية: {item.quantity}
                                             </div>
+                                            {isSelected && item.product?.itemType !== 'SERVICE' && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); toggleDamaged(item.id); }}
+                                                    className={cn(
+                                                        "mt-1 px-2 py-0.5 rounded-md text-[9px] font-bold border transition-colors flex items-center gap-1 w-fit",
+                                                        sel.isDamaged 
+                                                            ? "bg-orange-500/20 border-orange-500/40 text-orange-400"
+                                                            : "bg-zinc-800 border-white/5 text-zinc-400 hover:border-zinc-500"
+                                                    )}
+                                                >
+                                                    <AlertCircle className="w-3 h-3" />
+                                                    {sel.isDamaged ? "تالف / معيب" : "سليم / قابل للبيع"}
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* Touch Optimized Stepper */}
@@ -338,6 +367,12 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                     {isCredit && (
                                         <option value={ACCOUNT_VIRTUAL_ID} className="bg-zinc-950">
                                             ⊖ خصم من حساب العميل (آجل)
+                                        </option>
+                                    )}
+                                    {/* Store Credit option */}
+                                    {sale?.customerId && (
+                                        <option value={STORE_CREDIT_VIRTUAL_ID} className="bg-zinc-950">
+                                            ↻ إعادة إلى رصيد المتجر (محفظة)
                                         </option>
                                     )}
                                     {treasuries.map(t => (

@@ -2,9 +2,12 @@
 
 import {
     ArrowUpRight, ArrowDownLeft, FileText, DollarSign,
-    Calendar, Hash, X, Filter,
-    Calendar as CalendarIcon
+    Calendar, Hash, X, Filter, Trash2, AlertCircle
 } from "lucide-react";
+import { voidPurchase } from "@/actions/purchase-actions";
+import { voidSupplierPayment } from "@/actions/inventory";
+import { toast } from "sonner";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useState, Fragment } from "react";
 import {
     startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
@@ -37,6 +40,34 @@ export default function SupplierHistoryTable({ transactions }: { transactions: T
     const t = useTranslations('Inventory.Suppliers.Details');
     const [dateFilter, setDateFilter] = useState("all");
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
+    const [isVoiding, setIsVoiding] = useState(false);
+    const [transactionToVoid, setTransactionToVoid] = useState<Transaction | null>(null);
+    const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+
+    const handleVoid = async () => {
+        if (!transactionToVoid) return;
+        setIsVoiding(true);
+        try {
+            let res;
+            if (transactionToVoid.type === 'INVOICE') {
+                res = await voidPurchase({ id: transactionToVoid.id, reason: "Manual void from history" });
+            } else {
+                res = await voidSupplierPayment({ paymentId: transactionToVoid.id });
+            }
+
+            if (res.success) {
+                toast.success("تم إلغاء المعاملة بنجاح");
+                setVoidDialogOpen(false);
+            } else {
+                toast.error(res.error || "فشل إلغاء المعاملة");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "حدث خطأ غير متوقع");
+        } finally {
+            setIsVoiding(false);
+            setTransactionToVoid(null);
+        }
+    };
 
     const filteredTransactions = transactions.filter(tx => {
         if (dateRange?.from && dateRange?.to) {
@@ -156,7 +187,8 @@ export default function SupplierHistoryTable({ transactions }: { transactions: T
                                     <th className="p-3 text-center border-r border-border/50">{t('table.ref')}</th>
                                     <th className="p-3 text-end border-r border-border/50 bg-amber-500/5 text-amber-600">{t('table.debit')}</th>
                                     <th className="p-3 text-end border-r border-border/50 bg-emerald-500/5 text-emerald-600">{t('table.credit')}</th>
-                                    <th className="p-3 text-end font-bold">{t('table.balance')}</th>
+                                    <th className="p-3 text-end border-r border-border/50 font-bold">{t('table.balance')}</th>
+                                    <th className="p-3 text-center">{t('table.actions') || 'إجراءات'}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border/50 text-xs sm:text-sm">
@@ -202,10 +234,38 @@ export default function SupplierHistoryTable({ transactions }: { transactions: T
                                             </td>
 
                                             {/* RUNNING BALANCE */}
-                                            <td className="p-3 text-end font-mono font-bold">
-                                                <span className={(tx.runningBalance || 0) > 0 ? 'text-red-500' : 'text-green-500'}>
-                                                    {(tx.runningBalance || 0).toFixed(2)}
-                                                </span>
+                                            <td className="p-3 text-end border-r border-border/50 font-mono font-bold">
+                                                <div className="flex flex-col items-end">
+                                                    <span className={(tx.runningBalance || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}>
+                                                        {Math.abs(tx.runningBalance || 0).toFixed(2)}
+                                                    </span>
+                                                    {(tx.runningBalance || 0) < 0 && (
+                                                        <span className="text-[9px] text-emerald-500/70 uppercase">دائن لنا</span>
+                                                    )}
+                                                    {(tx.runningBalance || 0) > 0 && (
+                                                        <span className="text-[9px] text-rose-500/70 uppercase">مديونية</span>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* ACTIONS */}
+                                            <td className="p-3 text-center">
+                                                <button
+                                                    disabled={tx.status === 'VOIDED'}
+                                                    onClick={() => {
+                                                        setTransactionToVoid(tx);
+                                                        setVoidDialogOpen(true);
+                                                    }}
+                                                    className={cn(
+                                                        "p-2 rounded-lg transition-all",
+                                                        tx.status === 'VOIDED' 
+                                                            ? "text-muted-foreground/30 cursor-not-allowed" 
+                                                            : "text-red-500 hover:bg-red-500/10 hover:shadow-lg hover:shadow-red-500/10"
+                                                    )}
+                                                    title="إلغاء المعاملة"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     </Fragment>
@@ -215,6 +275,21 @@ export default function SupplierHistoryTable({ transactions }: { transactions: T
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={voidDialogOpen}
+                onClose={() => setVoidDialogOpen(false)}
+                onConfirm={handleVoid}
+                loading={isVoiding}
+                title="تأكيد إلغاء المعاملة"
+                message={
+                    transactionToVoid?.type === 'INVOICE' 
+                        ? "هل أنت متأكد من رغبتك في إلغاء هذه الفاتورة؟ سيتم عكس المخزون وإلغاء المديونية. لا يمكن التراجع عن هذا الإجراء." 
+                        : "هل أنت متأكد من رغبتك في إلغاء هذا السداد؟ سيتم استرداد المبلغ للخزينة وإلغاء سداد الفواتير المرتبطة. لا يمكن التراجع عن هذا الإجراء."
+                }
+                confirmText="تأكيد الإلغاء"
+                variant="danger"
+            />
         </div>
     );
 }

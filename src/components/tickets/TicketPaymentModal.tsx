@@ -11,8 +11,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
     Plus, CreditCard, Banknote, ShieldAlert, Printer,
     CheckCircle2, UserPlus, Search, Loader2, ArrowRightLeft,
-    Smartphone, UserCircle, XCircle, CheckCircle
+    Smartphone, UserCircle, XCircle, CheckCircle, ShieldCheck
 } from "lucide-react";
+import { addDays } from "date-fns";
+import { Badge } from "@/components/ui/badge";
 import GlassModal from "@/components/ui/GlassModal";
 import { toast } from "sonner";
 import { useCSRF } from "@/contexts/CSRFContext";
@@ -49,6 +51,11 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const [reference, setReference] = useState("");
     const [printReceipt, setPrintReceipt] = useState(true);
 
+    // Warranty State
+    const [warrantyEnabled, setWarrantyEnabled] = useState(true);
+    const [warrantyDays, setWarrantyDays] = useState(30);
+    const [warrantyExpiryDate, setWarrantyExpiryDate] = useState<Date>(addDays(new Date(), 30));
+
     // Customer / Employee Selection
     const [customers, setCustomers] = useState<any[]>([]);
     const [customerQuery, setCustomerQuery] = useState("");
@@ -82,6 +89,10 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             setPaymentType("PAYMENT");
             setReference("");
             setSuccess(false);
+            setWarrantyEnabled(true);
+            const defaultDays = settings?.warrantyDays || 30;
+            setWarrantyDays(defaultDays);
+            setWarrantyExpiryDate(addDays(new Date(), defaultDays));
             setSelectedCustomer(null);
             setEmployeeData(null);
             setIsCreatingCustomer(false);
@@ -105,6 +116,10 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             }
         }
     }, [debouncedQuery, paymentMethod]);
+
+    useEffect(() => {
+        setWarrantyExpiryDate(addDays(new Date(), warrantyDays));
+    }, [warrantyDays]);
 
     const handleSearchCustomers = async (q: string) => {
         const res = await searchCustomers(q);
@@ -173,7 +188,11 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             paymentType: paymentType,
             reference: reference || undefined,
             customerId: paymentMethod === "ACCOUNT" ? (employeeData ? undefined : finalCustomerId) : undefined,
-            csrfToken: csrfToken ?? undefined
+            csrfToken: csrfToken ?? undefined,
+            warranty: (warrantyEnabled && paymentType === 'PAYMENT') ? {
+                warrantyDays,
+                warrantyExpiryDate
+            } : undefined
         });
 
         if (res.success) {
@@ -449,6 +468,63 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 placeholder={t('referenceAuthCode')}
                                 className="bg-white/5 border-white/10 h-10 text-sm"
                             />
+                        </div>
+                    )}
+
+                    {/* Warranty Selection */}
+                    {paymentType === 'PAYMENT' && netDelta >= 0 && (
+                        <div className="space-y-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl animate-fly-in">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Checkbox 
+                                        id="warranty-toggle" 
+                                        checked={warrantyEnabled} 
+                                        onCheckedChange={(val) => setWarrantyEnabled(val as boolean)}
+                                        className="border-emerald-500/50 data-[state=checked]:bg-emerald-500 data-[state=checked]:text-black"
+                                    />
+                                    <Label htmlFor="warranty-toggle" className="text-emerald-500 font-bold text-[10px] uppercase tracking-wider cursor-pointer">
+                                        {t('enableWarranty') || "تفعيل الضمان"}
+                                    </Label>
+                                </div>
+                                {warrantyEnabled && (
+                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] h-5 font-black uppercase">
+                                        {warrantyDays} {commonT('days')}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            {warrantyEnabled && (
+                                <div className="space-y-3 pt-3 border-t border-emerald-500/10 animate-fade-in">
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {[30, 60, 90, 180].map(d => (
+                                            <Button 
+                                                key={d} 
+                                                variant="outline" 
+                                                size="sm"
+                                                onClick={() => setWarrantyDays(d)}
+                                                className={clsx(
+                                                    "h-8 text-[9px] font-black rounded-lg border transition-all",
+                                                    warrantyDays === d 
+                                                        ? "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20" 
+                                                        : "bg-white/5 border-white/5 hover:border-emerald-500/30 text-zinc-400"
+                                                )}
+                                            >
+                                                {d} {commonT('days')}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between px-1">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                                            <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black">{t('expiryDate') || "تاريخ الانتهاء"}</span>
+                                        </div>
+                                        <span className="text-xs font-black text-emerald-400 tracking-tighter">
+                                            {warrantyExpiryDate.toLocaleDateString('ar-EG')}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -2,13 +2,27 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Edit2, Trash2, Truck, Phone, Mail, MapPin, Check, Search } from "lucide-react";
+import { Plus, Edit2, Trash2, Truck, Phone, Mail, MapPin, Check, Search, Filter, ChevronDown, X, Clock } from "lucide-react";
 import { createSupplier, updateSupplier, deleteSupplier, paySupplier } from "@/actions/inventory";
 import { formatCurrency } from "@/lib/utils";
 import GlassModal from "../ui/GlassModal";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import { getEmployeesForLink } from "@/actions/customer-actions";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
+import { 
+    startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, 
+    startOfMonth, endOfMonth, isWithinInterval 
+} from "date-fns";
 import clsx from "clsx";
 
 export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }: { suppliers: any[], csrfToken?: string, currency?: string }) {
@@ -19,6 +33,11 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    
+    // Filtering States
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [dateFilter, setDateFilter] = useState("all");
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
 
     // Form State (Uncontrolled via FormData usually better for actions, but controlled for pre-filling edit)
     const [name, setName] = useState("");
@@ -34,10 +53,33 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     const [employees, setEmployees] = useState<{id: string, name: string}[]>([]);
     const [loadingEmployees, setLoadingEmployees] = useState(false);
 
-    const filteredSuppliers = suppliers.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.phone?.includes(searchTerm)
-    );
+    const filteredSuppliers = suppliers.filter(s => {
+        // Search Filter
+        const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             s.phone?.includes(searchTerm);
+        if (!matchesSearch) return false;
+
+        // Balance Status Filter
+        if (statusFilter === 'inDebt' && s.balance <= 0) return false;
+        if (statusFilter === 'credit' && s.balance >= 0) return false;
+
+        // Date Filter
+        if (dateRange?.from && dateRange?.to) {
+            const createdDate = new Date(s.createdAt);
+            return isWithinInterval(createdDate, {
+                start: dateRange.from,
+                end: dateRange.to
+            });
+        }
+
+        return true;
+    });
+
+    const stats = {
+        totalDebt: filteredSuppliers.reduce((acc, s) => acc + (Number(s.balance) > 0 ? Number(s.balance) : 0), 0),
+        totalCredit: filteredSuppliers.reduce((acc, s) => acc + (Number(s.balance) < 0 ? Math.abs(Number(s.balance)) : 0), 0),
+        inDebtCount: filteredSuppliers.filter(s => Number(s.balance) > 0).length
+    };
 
     function resetForm() {
         setName("");
@@ -179,15 +221,141 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                 </button>
             </div>
 
-            {/* Search */}
-            <div className="relative">
-                <Search className="absolute start-4 top-3 text-muted-foreground w-5 h-5" />
-                <input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={t('search')}
-                    className="w-full glass-input ps-12 py-3"
-                />
+            {/* Stats Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-red-500/50 bg-red-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalDebt')}</span>
+                    <span className="text-xl font-mono font-bold text-red-500">{formatCurrency(stats.totalDebt, currency)}</span>
+                </div>
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-indigo-500/50 bg-indigo-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.suppliersCount')}</span>
+                    <span className="text-xl font-bold text-indigo-400">{filteredSuppliers.length}</span>
+                </div>
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-emerald-500/50 bg-emerald-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">إجمالي لنا (دائن)</span>
+                    <span className="text-xl font-mono font-bold text-emerald-500">{formatCurrency(stats.totalCredit, currency)}</span>
+                </div>
+            </div>
+
+            {/* Search & Filters */}
+            <div className="flex gap-4 items-center flex-wrap">
+                <div className="relative flex-1 min-w-[300px] group/search">
+                    <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
+                    <input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder={t('search')}
+                        className="w-full solid-input h-10 ps-12 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
+                    />
+                </div>
+
+                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                    <Button
+                        variant={dateFilter === "today" ? "default" : "ghost"}
+                        size="sm"
+                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                        onClick={() => {
+                            setDateFilter("today");
+                            setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+                        }}
+                    >
+                        اليوم
+                    </Button>
+                    <button
+                        onClick={() => {
+                            const yesterday = subDays(new Date(), 1);
+                            setDateFilter("yesterday");
+                            setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
+                        }}
+                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md transition-all", dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                    >
+                        أمس
+                    </button>
+                    <button
+                        onClick={() => {
+                            setDateFilter("week");
+                            setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
+                        }}
+                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md transition-all", dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                    >
+                        الأسبوع
+                    </button>
+                    <button
+                        onClick={() => {
+                            setDateFilter("month");
+                            setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                        }}
+                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md transition-all", dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                    >
+                        الشهر
+                    </button>
+
+                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+
+                    <FlatpickrRangePicker
+                        onRangeChange={(dates: Date[]) => {
+                            if (dates.length === 2) {
+                                setDateRange({ from: dates[0], to: dates[1] });
+                                setDateFilter("custom");
+                            } else if (dates.length === 0) {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                            }
+                        }}
+                        onClear={() => {
+                            setDateRange(undefined);
+                            setDateFilter("all");
+                        }}
+                        initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
+                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                    />
+                </div>
+
+                <div className="flex gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
+                                <Filter className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-bold">
+                                    {statusFilter === 'all' ? t('filters.all') : 
+                                     statusFilter === 'inDebt' ? t('filters.inDebt') : 
+                                     t('filters.credit')}
+                                </span>
+                                <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">
+                                {t('filters.status')}
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setStatusFilter('all')} className={statusFilter === 'all' ? "bg-white/10" : ""}>
+                                {t('filters.all')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter('inDebt')} className={statusFilter === 'inDebt' ? "bg-white/10" : ""}>
+                                {t('filters.inDebt')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter('credit')} className={statusFilter === 'credit' ? "bg-white/10" : ""}>
+                                {t('filters.credit')}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {(dateFilter !== "all" || statusFilter !== 'all' || searchTerm !== "") && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                                setStatusFilter('all');
+                                setSearchTerm("");
+                            }}
+                            className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-10 px-3 font-bold gap-2"
+                        >
+                            <X className="w-4 h-4" /> {tCommon('clearFilters') || "مسح الفلاتر"}
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <div className="glass-card overflow-hidden bg-card border border-border">
@@ -231,9 +399,13 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                                     {s.address ? <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {s.address}</span> : "-"}
                                 </td>
                                 <td className="p-3 text-end font-mono font-bold text-sm">
-                                    <span className={s.balance > 0 ? 'text-red-500' : 'text-green-500'}>
-                                        {formatCurrency(s.balance, currency)}
-                                    </span>
+                                    <div className="flex flex-col items-end">
+                                        <span className={s.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}>
+                                            {formatCurrency(Math.abs(s.balance), currency)}
+                                        </span>
+                                        {s.balance < 0 && <span className="text-[10px] text-emerald-500/70 font-bold">دائن لنا</span>}
+                                        {s.balance > 0 && <span className="text-[10px] text-rose-500/70 font-bold">مديونية</span>}
+                                    </div>
                                 </td>
                                 <td className="p-3 text-end">
                                     <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>

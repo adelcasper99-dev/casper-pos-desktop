@@ -310,16 +310,20 @@ export default function CustomerAccountsTab() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono">
-                                            <Badge
-                                                variant={customer.balance > 0 ? "destructive" : "default"}
-                                                className={cn(
-                                                    "min-w-[100px] justify-center text-sm py-1 font-black",
-                                                    customer.balance <= 0 && "bg-emerald-500/20 text-emerald-500 border-emerald-500/40 hover:bg-emerald-500/30",
-                                                    customer.balance > 0 && "bg-rose-500/20 text-rose-500 border-rose-500/40 hover:bg-rose-500/30"
-                                                )}
-                                            >
-                                                {Number(customer.balance).toFixed(2)}
-                                            </Badge>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <Badge
+                                                    variant={customer.balance > 0 ? "destructive" : "default"}
+                                                    className={cn(
+                                                        "min-w-[100px] justify-center text-sm py-1 font-black",
+                                                        customer.balance <= 0 && "bg-emerald-500/20 text-emerald-500 border-emerald-500/40 hover:bg-emerald-500/30",
+                                                        customer.balance > 0 && "bg-rose-500/20 text-rose-500 border-rose-500/40 hover:bg-rose-500/30"
+                                                    )}
+                                                >
+                                                    {Math.abs(customer.balance).toFixed(2)}
+                                                </Badge>
+                                                {customer.balance < 0 && <span className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-tighter">رصيد للعميل</span>}
+                                                {customer.balance > 0 && <span className="text-[10px] text-rose-500/70 font-bold uppercase tracking-tighter">مديونية مستحقة</span>}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right text-muted-foreground font-mono italic">
                                             {customer.creditLimit ? (

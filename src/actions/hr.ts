@@ -9,6 +9,56 @@ import { startOfMonth, endOfMonth } from "date-fns";
 
 const db = prisma as any;
 
+/**
+ * Shared logic for calculating net salary for an employee in a target month.
+ */
+async function calculateNetDue(u: any, startDate: Date, endDate: Date) {
+    const { Decimal } = await import("decimal.js");
+    
+    let baseSalary = new Decimal(u.salary?.toString() || '0');
+    const hireDate = u.hireDate ? new Date(u.hireDate) : null;
+    
+    // Prorate salary if hired in current month
+    if (hireDate) {
+        if (hireDate > endDate) {
+            baseSalary = new Decimal(0);
+        } else if (hireDate > startDate) {
+            const daysWorked = Math.max(0, 31 - hireDate.getDate());
+            baseSalary = baseSalary.times(daysWorked).dividedBy(30);
+        }
+    }
+
+    let totalBonuses = new Decimal(0);
+    let totalDeductions = new Decimal(0);
+
+    // Attendance
+    u.dailyLogs?.forEach((log: any) => {
+        totalBonuses = totalBonuses.plus(log.bonus.toString());
+        const logDeduction = new Decimal(log.deduction.toString());
+        if (log.status === 'ABSENT' && logDeduction.isZero()) {
+            totalDeductions = totalDeductions.plus(baseSalary.dividedBy(30));
+        } else {
+            totalDeductions = totalDeductions.plus(logDeduction);
+        }
+    });
+
+    // Transactions
+    u.employeeTransactions?.forEach((tx: any) => {
+        if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
+            totalBonuses = totalBonuses.plus(tx.amount.toString());
+        } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION') || tx.type === 'SALARY_PAYMENT') {
+            totalDeductions = totalDeductions.plus(tx.amount.toString());
+        }
+    });
+
+    return {
+        baseSalary,
+        totalBonuses,
+        totalDeductions,
+        netDue: baseSalary.plus(totalBonuses).minus(totalDeductions)
+    };
+}
+
 export const getStaffDirectory = secureAction(async (data?: { month?: number; year?: number }) => {
     const now = new Date();
     const month = data?.month ?? now.getMonth();
@@ -40,47 +90,8 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
 
     const { Decimal } = await import("decimal.js");
 
-    const staffData = users.map((u: any) => {
-        let baseSalary = new Decimal(u.salary?.toString() || '0');
-        const hireDate = u.hireDate ? new Date(u.hireDate) : null;
-        
-        // Prorate salary if hired in current month
-        if (hireDate) {
-            if (hireDate > endDate) {
-                baseSalary = new Decimal(0);
-            } else if (hireDate > startDate) {
-                // Calculate days worked in the month
-                const daysInMonth = 30; // Using standard 30-day month for financial simplicity, or can use date-fns differenceInDays
-                const startDay = hireDate.getDate();
-                const daysWorked = Math.max(0, 31 - startDay); // Simplified: 30 - startDay + 1
-                baseSalary = baseSalary.times(daysWorked).dividedBy(30);
-            }
-        }
-
-        let totalBonuses = new Decimal(0);
-        let totalDeductions = new Decimal(0);
-
-        // Attendance
-        u.dailyLogs.forEach((log: any) => {
-            totalBonuses = totalBonuses.plus(log.bonus.toString());
-            const logDeduction = new Decimal(log.deduction.toString());
-            if (log.status === 'ABSENT' && logDeduction.isZero()) {
-                totalDeductions = totalDeductions.plus(baseSalary.dividedBy(30));
-            } else {
-                totalDeductions = totalDeductions.plus(logDeduction);
-            }
-        });
-
-        // Transactions
-        u.employeeTransactions.forEach((tx: any) => {
-            if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
-                totalBonuses = totalBonuses.plus(tx.amount.toString());
-            } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION') || tx.type === 'SALARY_PAYMENT') {
-                totalDeductions = totalDeductions.plus(tx.amount.toString());
-            }
-        });
-
-        const netDue = baseSalary.plus(totalBonuses).minus(totalDeductions);
+    const staffData = await Promise.all(users.map(async (u: any) => {
+        const { baseSalary, netDue } = await calculateNetDue(u, startDate, endDate);
 
         return {
             id: u.id,
@@ -96,7 +107,7 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
             avatarSeed: u.username,
             hireDate: u.hireDate
         };
-    });
+    }));
 
     return { data: staffData };
 }, { permission: PERMISSIONS.HR_VIEW_ATTENDANCE, requireCSRF: false });
@@ -146,6 +157,7 @@ export async function updateEmployeeData(userId: string, data: {
     branchId?: string;
     salary?: number;
     monthlyOffDays?: number;
+    hireDate?: string | Date | null;
 }) {
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
@@ -232,26 +244,38 @@ export async function toggleUserFreeze(userId: string) {
 }
 
 export const getHRDashboardSummary = secureAction(async (params?: { month?: number; year?: number }) => {
+    noStore();
+    
     const now = new Date();
-    const targetMonth = params?.month ?? now.getMonth(); // 0-indexed
+    const targetMonth = params?.month ?? now.getMonth(); 
     const targetYear = params?.year ?? now.getFullYear();
 
     const start = new Date(targetYear, targetMonth, 1);
     const end = endOfMonth(start);
 
-    // 1. Expected Salaries (Active users)
-    // We assume salaries are fixed per month. 
-    // If a user was added/deleted mid-month, precise logic would check created/deleted dates.
-    // For now, we take current active users.
+    // 1. Calculate Net Expected Salaries for ALL active users
     const activeUsers = await db.user.findMany({
         where: {
             deletedAt: null,
             isFrozen: false
         },
-        select: { salary: true }
+        include: {
+            dailyLogs: {
+                where: { date: { gte: start, lte: end } }
+            },
+            employeeTransactions: {
+                where: { createdAt: { gte: start, lte: end } }
+            }
+        }
     });
-    
-    const expectedSalaries = activeUsers.reduce((sum: number, u: any) => sum + (u.salary ? Number(u.salary) : 0), 0);
+
+    const { Decimal } = await import("decimal.js");
+    let totalNetDue = new Decimal(0);
+
+    for (const u of activeUsers) {
+        const { netDue } = await calculateNetDue(u, start, end);
+        totalNetDue = totalNetDue.plus(netDue);
+    }
 
     // 2. Total Absences this month
     const totalAbsences = await db.dailyWorkLog.count({
@@ -280,18 +304,19 @@ export const getHRDashboardSummary = secureAction(async (params?: { month?: numb
 
     let creditSales = 0;
     for (const t of transactions) {
-        const amt = Number(t.amount);
+        const amt = t.amount ? Number(t.amount) : 0;
+        const safeAmt = isNaN(amt) ? 0 : amt;
+        
         if (t.type === 'SALES_DEDUCTION' || t.type === 'MAINTENANCE_DEDUCTION') {
-            creditSales += amt;
+            creditSales += safeAmt;
         } else if (t.type === 'SALES_DEDUCTION_REVERSAL' || t.type === 'MAINTENANCE_DEDUCTION_REVERSAL') {
-            creditSales -= amt;
+            creditSales -= safeAmt;
         }
     }
 
     return {
-        success: true,
         data: {
-            expectedSalaries,
+            expectedSalaries: totalNetDue.toNumber(),
             totalAbsences,
             employeeCreditSales: creditSales
         }

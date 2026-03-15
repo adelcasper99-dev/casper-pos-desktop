@@ -108,6 +108,7 @@ export const getUsers = secureAction(async () => {
     const canViewSalary = isAdmin || session?.user?.permissions?.includes('HR_VIEW_COMPENSATION');
 
     const users = await prisma.user.findMany({
+        where: { deletedAt: null },
         orderBy: { createdAt: 'desc' },
         include: {
             role: { select: { id: true, name: true, permissions: true } },
@@ -135,7 +136,7 @@ export const getUsersByBranch = secureAction(async (branchId: string) => {
     const canViewSalary = isAdmin || session?.user?.permissions?.includes('HR_VIEW_COMPENSATION');
 
     const users = await prisma.user.findMany({
-        where: { branchId },
+        where: { branchId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         include: {
             role: { select: { id: true, name: true, permissions: true } },
@@ -437,22 +438,11 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
         await prisma.$transaction(async (tx) => {
             // 1. If this is a technician, we should handle their dedicated warehouse
             if (user.technician) {
-                const warehouseId = user.technician.warehouseId;
-                
-                // Remove technician profile
-                await tx.technician.delete({ where: { userId: id } });
-
-                // Check if this warehouse is likely the automated one (named after user)
-                if (warehouseId) {
-                    const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
-                    if (warehouse && warehouse.name.includes(user.name || user.username)) {
-                        // Only delete if it's empty (no stock) to avoid data loss
-                        const stockCount = await tx.stock.count({ where: { warehouseId } });
-                        if (stockCount === 0) {
-                            await tx.warehouse.delete({ where: { id: warehouseId } });
-                        }
-                    }
-                }
+                // Soft delete technician profile
+                await tx.technician.update({
+                    where: { userId: id },
+                    data: { deletedAt: new Date() }
+                });
             }
 
             // 2. Unlink from any customers
@@ -467,9 +457,16 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
                 data: { linkedEmployeeId: null }
             });
 
-            // 4. Delete the User (Cascades: Sessions, etc. based on schema)
-            await tx.user.delete({
-                where: { id }
+            // 4. Soft Delete the User instead of hard delete to preserve historical data
+            const timestamp = Date.now();
+            await tx.user.update({
+                where: { id },
+                data: {
+                    deletedAt: new Date(),
+                    // Rename unique fields to free them up for reuse
+                    username: `${user.username}_del_${timestamp}`,
+                    phone: user.phone ? `${user.phone}_del_${timestamp}` : null,
+                }
             });
         });
 
@@ -516,6 +513,7 @@ export async function getUsersForPage() {
     const canViewSalary = user.role === 'ADMIN' || user.permissions?.includes('HR_VIEW_COMPENSATION');
 
     const users = await prisma.user.findMany({
+        where: { deletedAt: null },
         orderBy: { createdAt: 'desc' },
         include: {
             role: { select: { id: true, name: true } },

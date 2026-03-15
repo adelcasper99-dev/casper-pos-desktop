@@ -31,6 +31,16 @@ import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 import { toast } from "sonner";
 import { safeRandomUUID, formatCurrency } from "@/lib/utils";
 import { ReasonDialog } from "@/components/ui/ReasonDialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 
 interface Product {
     id: string;
@@ -363,6 +373,28 @@ export default function PurchasesTab({
         ).slice(0, 50)
         : [];
 
+    const filteredInvoices = activeInvoices.filter((inv: any) => {
+        // Status Filter
+        if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
+        if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
+
+        // Date Filter
+        if (dateRange?.from && dateRange?.to) {
+            return isWithinInterval(new Date(inv.purchaseDate), {
+                start: dateRange.from,
+                end: dateRange.to
+            });
+        }
+
+        return true;
+    });
+
+    const stats = {
+        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (inv.status !== 'VOIDED' ? inv.totalAmount : 0), 0),
+        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (inv.status !== 'VOIDED' ? inv.paidAmount : 0), 0),
+    };
+    const totalPending = stats.totalPurchases - stats.totalPaid;
+
     return (
         <div className="space-y-6 animate-fly-in" dir="rtl">
             {isNewPurchaseOpen && <BarcodeListener onScan={handleScan} />}
@@ -395,109 +427,80 @@ export default function PurchasesTab({
                 </div>
             </div>
 
-            {/* Filters Bar */}
-            <div className="flex flex-wrap gap-4 items-center bg-muted/30 p-4 rounded-xl border border-border">
-                {/* Status Filter */}
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                            {t('filter.status')}
-                        </span>
-                    </div>
-
-                    <div className="flex bg-background/50 p-1 rounded-lg border border-border/50">
-                        <button
-                            onClick={() => setStatusFilter('ACTIVE')}
-                            className={clsx(
-                                "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
-                                statusFilter === 'ACTIVE'
-                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                            )}
-                        >
-                            {t('filter.active')}
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('ALL')}
-                            className={clsx(
-                                "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
-                                statusFilter === 'ALL'
-                                    ? "bg-zinc-600 text-white shadow-lg shadow-zinc-600/30"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                            )}
-                        >
-                            {t('filter.all')}
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('VOIDED')}
-                            className={clsx(
-                                "px-4 py-1.5 rounded-md text-sm font-bold transition-all",
-                                statusFilter === 'VOIDED'
-                                    ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                            )}
-                        >
-                            {t('filter.voided')}
-                        </button>
-                    </div>
+            {/* Stats Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-indigo-500/50 bg-indigo-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.invoicesCount')}</span>
+                    <span className="text-xl font-bold text-indigo-400">{filteredInvoices.length}</span>
                 </div>
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-cyan-500/50 bg-cyan-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalPurchases')}</span>
+                    <span className="text-xl font-mono font-bold text-cyan-400">{formatCurrency(stats.totalPurchases, settings?.currency || "EGP")}</span>
+                </div>
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-emerald-500/50 bg-emerald-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalPaid')}</span>
+                    <span className="text-xl font-mono font-bold text-emerald-400">{formatCurrency(stats.totalPaid, settings?.currency || "EGP")}</span>
+                </div>
+                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-orange-500/50 bg-orange-500/5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalPending')}</span>
+                    <span className="text-xl font-mono font-bold text-orange-400">{formatCurrency(totalPending, settings?.currency || "EGP")}</span>
+                </div>
+            </div>
 
-                <div className="h-6 w-px bg-border/50 mx-2" />
+            {/* Filters Bar */}
+            <div className="flex gap-4 items-center flex-wrap">
+                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                    <button
+                        onClick={() => {
+                            setDateFilter("today");
+                            setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+                        }}
+                        className={clsx(
+                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
+                            dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                        )}
+                    >
+                        اليوم
+                    </button>
+                    <button
+                        onClick={() => {
+                            const yesterday = subDays(new Date(), 1);
+                            setDateFilter("yesterday");
+                            setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
+                        }}
+                        className={clsx(
+                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
+                            dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                        )}
+                    >
+                        أمس
+                    </button>
+                    <button
+                        onClick={() => {
+                            setDateFilter("week");
+                            setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
+                        }}
+                        className={clsx(
+                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
+                            dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                        )}
+                    >
+                        الأسبوع
+                    </button>
+                    <button
+                        onClick={() => {
+                            setDateFilter("month");
+                            setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                        }}
+                        className={clsx(
+                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
+                            dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                        )}
+                    >
+                        الشهر
+                    </button>
 
-                {/* Date Filter & Presets */}
-                <div className="flex flex-wrap items-center gap-3 flex-1">
-                    <div className="flex items-center gap-1 bg-background/50 p-1 rounded-lg border border-border/50">
-                        <button
-                            onClick={() => {
-                                setDateFilter("today");
-                                setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
-                            }}
-                            className={clsx(
-                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
-                                dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
-                            )}
-                        >
-                            اليوم
-                        </button>
-                        <button
-                            onClick={() => {
-                                const yesterday = subDays(new Date(), 1);
-                                setDateFilter("yesterday");
-                                setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
-                            }}
-                            className={clsx(
-                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
-                                dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
-                            )}
-                        >
-                            أمس
-                        </button>
-                        <button
-                            onClick={() => {
-                                setDateFilter("week");
-                                setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
-                            }}
-                            className={clsx(
-                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
-                                dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
-                            )}
-                        >
-                            الأسبوع
-                        </button>
-                        <button
-                            onClick={() => {
-                                setDateFilter("month");
-                                setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
-                            }}
-                            className={clsx(
-                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
-                                dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30" : "text-muted-foreground hover:bg-white/5"
-                            )}
-                        >
-                            الشهر
-                        </button>
-                    </div>
+                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates: Date[]) => {
@@ -514,40 +517,58 @@ export default function PurchasesTab({
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-64"
+                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
                     />
+                </div>
+
+                <div className="flex gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
+                                <Filter className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-bold">
+                                    {statusFilter === 'ALL' ? t('filter.all') : 
+                                     statusFilter === 'ACTIVE' ? t('filter.active') : 
+                                     t('filter.voided')}
+                                </span>
+                                <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border-white/10 text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">
+                                {t('filter.status')}
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setStatusFilter('ACTIVE')} className={statusFilter === 'ACTIVE' ? "bg-white/10" : ""}>
+                                {t('filter.active')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter('ALL')} className={statusFilter === 'ALL' ? "bg-white/10" : ""}>
+                                {t('filter.all')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter('VOIDED')} className={statusFilter === 'VOIDED' ? "bg-white/10" : ""}>
+                                {t('filter.voided')}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
 
                     {(dateFilter !== "all" || statusFilter !== 'ACTIVE') && (
-                        <button
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
                                 setDateRange(undefined);
                                 setDateFilter("all");
                                 setStatusFilter('ACTIVE');
                             }}
-                            className="flex items-center gap-1 text-xs text-orange-400 font-bold hover:text-orange-300 transition-colors"
+                            className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-10 px-3 font-bold gap-2"
                         >
-                            <X className="w-3 h-3" /> مسح الفلاتر
-                        </button>
+                            <X className="w-4 h-4" /> {t('filter.clear')}
+                        </Button>
                     )}
                 </div>
             </div>
 
             {/* Invoices List */}
-            {activeInvoices.filter((inv: any) => {
-                // Status Filter
-                if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
-                if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
-
-                // Date Filter
-                if (dateRange?.from && dateRange?.to) {
-                    return isWithinInterval(new Date(inv.purchaseDate), {
-                        start: dateRange.from,
-                        end: dateRange.to
-                    });
-                }
-
-                return true;
-            }).length === 0 ? (
+            {filteredInvoices.length === 0 ? (
                 <div className="glass-card p-10 text-center text-zinc-500 flex flex-col items-center">
                     <FileText className="w-12 h-12 mb-3 opacity-20" />
                     <p>{t('noInvoices')}</p>
@@ -571,21 +592,7 @@ export default function PurchasesTab({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {activeInvoices.filter((inv: any) => {
-                                // Status Filter
-                                if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
-                                if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
-
-                                // Date Filter
-                                if (dateRange?.from && dateRange?.to) {
-                                    return isWithinInterval(new Date(inv.purchaseDate), {
-                                        start: dateRange.from,
-                                        end: dateRange.to
-                                    });
-                                }
-
-                                return true;
-                            }).map((inv: PurchaseInvoice) => (
+                            {filteredInvoices.map((inv: PurchaseInvoice) => (
                                 <tr key={inv.id} className={clsx(
                                     "hover:bg-muted/30 transition-colors group",
                                     inv.status === 'VOIDED' && "opacity-50 bg-muted/10"

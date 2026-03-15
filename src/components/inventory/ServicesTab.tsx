@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Layers, Box, Edit2, Trash2, Infinity } from "lucide-react";
-import { prisma } from "@/lib/prisma"; // This won't work in client, need action
+import { Plus, Search, Layers, Box, Edit2, Trash2, Infinity, AlertTriangle } from "lucide-react";
 import { getProducts, updateProduct, deleteProduct, createProduct } from "@/actions/inventory";
 import { toast } from "sonner";
 import clsx from "clsx";
@@ -14,7 +13,10 @@ export default function ServicesTab({ categories, csrfToken }: any) {
     const t = useTranslations('Purchasing');
     const [searchTerm, setSearchTerm] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [editingService, setEditingService] = useState<any>(null);
+    const [toBeDeleted, setToBeDeleted] = useState<any>(null);
     const [formData, setFormData] = useState({
         name: "",
         sku: "",
@@ -28,7 +30,6 @@ export default function ServicesTab({ categories, csrfToken }: any) {
         queryFn: async () => {
             const res = await getProducts();
             if (!res.success) return [];
-            // Filter only non-tracking products
             return (res.data || []).filter((p: any) => p.trackStock === false);
         }
     });
@@ -38,24 +39,60 @@ export default function ServicesTab({ categories, csrfToken }: any) {
         p.sku.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const handleOpenCreate = () => {
+        setEditingService(null);
+        setFormData({ name: "", sku: "", sellPrice: 0, categoryId: "" });
+        setIsModalOpen(true);
+    };
+
+    const handleOpenEdit = (service: any) => {
+        setEditingService(service);
+        setFormData({
+            name: service.name,
+            sku: service.sku,
+            sellPrice: Number(service.sellPrice),
+            categoryId: service.categoryId || ""
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleOpenDelete = (service: any) => {
+        setToBeDeleted(service);
+        setIsDeleteModalOpen(true);
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name) return toast.error(t('services.modal.nameRequired'));
 
         setIsSaving(true);
         try {
-            const res = await createProduct({
-                ...formData,
-                costPrice: 0,
-                stock: 0,
-                minStock: 0,
-                trackStock: false,
-                csrfToken
-            } as any);
+            let res;
+            if (editingService) {
+                res = await updateProduct({
+                    id: editingService.id,
+                    ...formData,
+                    costPrice: 0,
+                    stock: 0,
+                    minStock: 0,
+                    trackStock: false,
+                    csrfToken
+                } as any);
+            } else {
+                res = await createProduct({
+                    ...formData,
+                    costPrice: 0,
+                    stock: 0,
+                    minStock: 0,
+                    trackStock: false,
+                    csrfToken
+                } as any);
+            }
 
             if (res.success) {
-                toast.success(t('services.modal.success'));
+                toast.success(editingService ? t('services.modal.updateSuccess') : t('services.modal.success'));
                 setIsModalOpen(false);
+                setEditingService(null);
                 setFormData({ name: "", sku: "", sellPrice: 0, categoryId: "" });
                 queryClient.invalidateQueries({ queryKey: ['products-services'] });
             } else {
@@ -63,6 +100,26 @@ export default function ServicesTab({ categories, csrfToken }: any) {
             }
         } catch (error: any) {
             toast.error(error.message || t('services.modal.error'));
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!toBeDeleted) return;
+        setIsSaving(true);
+        try {
+            const res = await deleteProduct({ id: toBeDeleted.id, csrfToken });
+            if (res.success) {
+                toast.success(t('services.modal.deleteSuccess'));
+                setIsDeleteModalOpen(false);
+                setToBeDeleted(null);
+                queryClient.invalidateQueries({ queryKey: ['products-services'] });
+            } else {
+                throw new Error(res.error || t('services.modal.deleteError'));
+            }
+        } catch (error: any) {
+            toast.error(error.message || t('services.modal.deleteError'));
         } finally {
             setIsSaving(false);
         }
@@ -88,9 +145,8 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                     </h2>
                     <p className="text-muted-foreground text-sm">{t('services.subtitle')}</p>
                 </div>
-                {/* ml-24 added to prevent system overlay on left screen edge from blocking the button */}
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleOpenCreate}
                     className="bg-cyan-500 text-black font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-cyan-400 transition-colors shadow-[0_0_15px_rgba(6,182,212,0.4)] ml-24"
                 >
                     <Plus className="w-4 h-4" />
@@ -121,14 +177,23 @@ export default function ServicesTab({ categories, csrfToken }: any) {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filtered.map((item: any) => (
-                        <div key={item.id} className="glass-card p-4 hover:border-cyan-500/50 transition-all group">
+                        <div key={item.id} className="glass-card p-4 hover:border-cyan-500/50 transition-all group relative">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="p-2 bg-cyan-500/10 rounded-lg">
                                     <Infinity className="w-5 h-5 text-cyan-400" />
                                 </div>
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white">
+                                    <button 
+                                        onClick={() => handleOpenEdit(item)}
+                                        className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-cyan-400 transition-colors"
+                                    >
                                         <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleOpenDelete(item)}
+                                        className="p-2 hover:bg-red-500/10 rounded-lg text-zinc-400 hover:text-red-400 transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
@@ -147,14 +212,14 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                 </div>
             )}
 
-            {/* CREATE MODAL */}
+            {/* CREATE/EDIT MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                         <div className="p-6 border-b border-white/10 flex justify-between items-center">
                             <h3 className="text-xl font-bold flex items-center gap-2">
-                                <Plus className="w-5 h-5 text-cyan-500" />
-                                {t('services.newService')}
+                                {editingService ? <Edit2 className="w-5 h-5 text-cyan-500" /> : <Plus className="w-5 h-5 text-cyan-500" />}
+                                {editingService ? t('services.editService') : t('services.newService')}
                             </h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
                                 <Plus className="w-6 h-6 rotate-45" />
@@ -163,27 +228,27 @@ export default function ServicesTab({ categories, csrfToken }: any) {
 
                         <form onSubmit={handleSave} className="p-6 space-y-4">
                             <div>
-                                <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">اسم الخدمة</label>
+                                <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">{t('services.modal.nameLabel')}</label>
                                 <input
                                     type="text"
                                     required
                                     className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 focus:ring-2 focus:ring-cyan-500 outline-none"
                                     value={formData.name}
                                     onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="مثال: خدمة شحن / غسيل سيارة..."
+                                    placeholder={t('services.modal.namePlaceholder')}
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">الكود (SKU)</label>
+                                    <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">{t('services.modal.skuLabel')}</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
                                             className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 focus:ring-2 focus:ring-cyan-500 outline-none flex-1"
                                             value={formData.sku}
                                             onChange={e => setFormData({ ...formData, sku: e.target.value })}
-                                            placeholder="تلقائي..."
+                                            placeholder={t('services.modal.skuPlaceholder')}
                                         />
                                         <button
                                             type="button"
@@ -196,7 +261,7 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">السعر</label>
+                                    <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">{t('services.modal.priceLabel')}</label>
                                     <input
                                         type="number"
                                         step="0.01"
@@ -209,13 +274,13 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                             </div>
 
                             <div>
-                                <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">الفئة</label>
+                                <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">{t('services.modal.categoryLabel')}</label>
                                 <select
                                     className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 focus:ring-2 focus:ring-cyan-500 outline-none"
                                     value={formData.categoryId}
                                     onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
                                 >
-                                    <option value="" className="bg-[#111]">-- اختر فئة --</option>
+                                    <option value="" className="bg-[#111]">{t('services.modal.categoryPlaceholder')}</option>
                                     {categories.map((c: any) => (
                                         <option key={c.id} value={c.id} className="bg-[#111]">{c.name}</option>
                                     ))}
@@ -228,17 +293,48 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                                     onClick={() => setIsModalOpen(false)}
                                     className="flex-1 px-4 py-2 rounded-xl border border-white/10 font-bold hover:bg-white/5 transition-colors"
                                 >
-                                    إلغاء
+                                    {t('services.modal.cancel')}
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSaving}
                                     className="flex-[2] bg-cyan-500 text-black font-bold px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-cyan-400 transition-colors disabled:opacity-50"
                                 >
-                                    {isSaving ? "جاري الحفظ..." : "حفظ الخدمة"}
+                                    {isSaving ? t('services.modal.saving') : (editingService ? t('services.modal.update') : t('services.modal.save'))}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* DELETE CONFIRMATION MODAL */}
+            {isDeleteModalOpen && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 text-center">
+                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2 text-white">{t('services.modal.deleteConfirm')}</h3>
+                            <p className="text-zinc-500 text-sm mb-6">{toBeDeleted?.name}</p>
+                            
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setIsDeleteModalOpen(false)}
+                                    className="flex-1 px-4 py-2 rounded-xl border border-white/10 font-bold hover:bg-white/5 transition-colors text-white"
+                                >
+                                    {t('services.modal.cancel')}
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isSaving}
+                                    className="flex-1 bg-red-500 text-white font-bold px-4 py-2 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
+                                >
+                                    {isSaving ? t('services.modal.saving') : "حذف"}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

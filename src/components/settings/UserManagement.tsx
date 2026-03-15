@@ -169,10 +169,11 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                     <thead className="bg-muted/50 text-muted-foreground uppercase text-xs">
                         <tr>
                             <th className="p-4">{t('username')}</th>
+                            <th className="p-4">{t('phone')}</th>
                             <th className="p-4">{t('role')}</th>
                             <th className="p-4">{t('branch')}</th>
-                            <th className="p-4 text-center">Max Discount (%)</th>
-                            <th className="p-4 text-center">Max Amount</th>
+                            <th className="p-4 text-center">{t('maxDiscount')}</th>
+                            <th className="p-4 text-center">{t('maxDiscountAmount')}</th>
                             <th className="p-4 text-right">{t('actions')}</th>
                         </tr>
                     </thead>
@@ -209,6 +210,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                             return (
                                 <tr key={user.id} className="hover:bg-muted/50 transition-colors">
                                     <td className="p-4 text-muted-foreground font-mono text-sm font-medium text-foreground">{user.username}</td>
+                                    <td className="p-4 text-sm text-zinc-400">{user.phone || '-'}</td>
                                     <td className="p-4">
                                         <span className={cn(
                                             "inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border",
@@ -273,7 +275,17 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                 title={editingUser ? t('editUser') : t('addUser')}
             >
                 <form action={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="name" value="" />
+                    <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">{t('name') || "Full Name"}</label>
+                        <input
+                            name="name"
+                            type="text"
+                            className="w-full glass-input"
+                            required
+                            placeholder="e.g. John Doe"
+                            defaultValue={editingUser?.name}
+                        />
+                    </div>
 
                     <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-1">{t('username')}</label>
@@ -325,7 +337,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                             type="date"
                             className="w-full glass-input"
                             required
-                            defaultValue={editingUser?.hireDate ? new Date(editingUser.hireDate).toISOString().split('T')[0] : ''}
+                            defaultValue={editingUser?.hireDate ? new Date(editingUser.hireDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
                         />
                     </div>
                     <div>
@@ -375,7 +387,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium text-muted-foreground mb-1">Max Discount (%)</label>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">{t('maxDiscount')}</label>
                         <input
                             name="maxDiscount"
                             type="number"
@@ -390,7 +402,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-muted-foreground mb-1">Max Discount (Amount)</label>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">{t('maxDiscountAmount')}</label>
                         <input
                             name="maxDiscountAmount"
                             type="number"

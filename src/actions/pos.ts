@@ -114,7 +114,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         const products = await tx.product.findMany({
             where: { id: { in: productIds } },
             // @ts-ignore: isBundle exists in schema but might be missing in cached types
-            select: { id: true, costPrice: true, name: true, isBundle: true }
+            select: { id: true, costPrice: true, name: true, isBundle: true, itemType: true }
         });
 
         // 🛡️ FK GUARD: Ensure all products exist
@@ -475,11 +475,14 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             }
         }
 
-        // Calculate total COGS for Phase 2.1
+        // Calculate total COGS for Phase 2.1 (Bypass Services)
         let totalCOGS = 0;
         for (const item of data.items) {
-            const cost = costPriceMap.get(item.id) || 0;
-            totalCOGS += (cost * item.quantity);
+            const productInfo = productInfoMap.get(item.id) as any;
+            if (productInfo?.itemType !== 'SERVICE') {
+                const cost = costPriceMap.get(item.id) || 0;
+                totalCOGS += (cost * item.quantity);
+            }
         }
 
         const syncPayments = paymentsToProcess.map(p => ({

@@ -59,7 +59,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             (p.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (`#${p.id.slice(0, 8).toUpperCase()}`.includes(searchTerm.toUpperCase()));
 
-        const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+        const isReturn = p.isReturn || p._isReturnEntry;
+        const matchesStatus = statusFilter === "all" || 
+            (statusFilter === "VOIDED" ? (isReturn || p.status === 'VOIDED') : p.status === statusFilter);
 
         let matchesDate = true;
         const date = new Date(p.purchaseDate);
@@ -82,8 +84,16 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     });
 
     const computedTotals = {
-        actualTotal: filteredPurchases.filter(p => p.status !== 'VOIDED').reduce((acc, p) => acc + p.totalAmount, 0),
-        remaining: filteredPurchases.filter(p => p.status !== 'VOIDED').reduce((acc, p) => acc + (p.totalAmount - p.paidAmount), 0)
+        actualTotal: filteredPurchases.reduce((acc, p) => {
+            const isReturn = p.isReturn || p._isReturnEntry;
+            if (p.status === 'VOIDED' && !isReturn) return acc;
+            return acc + Number(p.totalAmount);
+        }, 0),
+        remaining: filteredPurchases.reduce((acc, p) => {
+            const isReturn = p.isReturn || p._isReturnEntry;
+            if (p.status === 'VOIDED' && !isReturn) return acc;
+            return acc + (Number(p.totalAmount) - Number(p.paidAmount));
+        }, 0)
     };
 
     useEffect(() => {
@@ -100,7 +110,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             const res = await voidPurchase({ id, reason: reason || undefined, csrfToken });
             if (res.success) {
                 toast.success("تم إلغاء الفاتورة بنجاح");
-                setPurchases(purchases.map(p => p.id === id ? { ...p, status: 'VOIDED' } : p));
+                setPurchases(purchases.map(p => p.id === id ? { ...p, status: 'RETURNED' } : p));
             } else {
                 toast.error(res.error || "فشل إلغاء الفاتورة");
             }
@@ -116,18 +126,18 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             if (p.id !== purchaseId) return p;
             return {
                 ...p,
-                status: allReturned ? 'VOIDED' : 'PARTIAL_RETURN',
-                totalAmount: newTotal,
-                items: updatedItems
+                status: allReturned ? 'RETURNED' : 'PARTIAL_RETURN'
+                // Note: we no longer mutate totalAmount or items of the original invoice here
+                // because separate return documents are now fetched/added to the list.
             };
         }));
         setPartialReturnPurchase(null);
     };
 
-    const getStatusBadge = (status: string, total: number, paid: number) => {
-        if (status === 'VOIDED') return (
+    const getStatusBadge = (status: string, total: number, paid: number, isReturn?: boolean) => {
+        if (isReturn || status === 'VOIDED' || status === 'RETURNED') return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
-                <XCircle className="w-3 h-3" /> مرتجع كامل
+                <XCircle className="w-3 h-3" /> {isReturn ? 'فاتورة مرتجع' : (status === 'VOIDED' ? 'ملغاة' : 'مرتجع كلي')}
             </span>
         );
 
@@ -297,27 +307,38 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                             </TableRow>
                         ) : (
                             filteredPurchases.map((inv) => (
-                                <tr key={inv.id} className={`border-white/5 hover:bg-white/5 transition-colors group ${inv.status === 'VOIDED' ? 'opacity-50' : ''}`}>
+                                <tr key={inv.id} className={cn(
+                                    "border-white/5 hover:bg-white/5 transition-colors group",
+                                    (inv.status === 'VOIDED' || inv.isReturn) && "opacity-60",
+                                    inv.isReturn && "bg-rose-500/5 border-l-2 border-l-rose-500/40"
+                                )}>
                                     <td className="py-2 px-4 text-zinc-400 text-xs text-nowrap">
                                         {format(new Date(inv.purchaseDate), 'yyyy/MM/dd HH:mm')}
                                     </td>
                                     <td className="py-2 px-4">
-                                        <div className="font-mono text-indigo-400/80 text-xs font-bold">
-                                            {inv.invoiceNumber || `#${inv.id.slice(0, 4)}...`}
+                                        <div className="flex flex-col gap-0.5">
+                                            {inv.isReturn && (
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-1">
+                                                    ↩ مرتجع شراء
+                                                </span>
+                                            )}
+                                            <div className={cn("font-mono text-xs font-bold", inv.isReturn ? "text-rose-400/80" : "text-indigo-400/80")}>
+                                                {inv.invoiceNumber || `#${inv.id.slice(0, 4)}...`}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="py-2 px-4 font-bold text-zinc-100 flex items-center gap-2">
                                         <Truck className="w-3 h-3 text-indigo-400" />
                                         {inv.supplier?.name}
                                     </td>
-                                    <td className="py-2 px-4 text-right font-mono font-bold text-cyan-400">
-                                        {inv.totalAmount.toLocaleString()}
+                                    <td className={`py-2 px-4 text-right font-mono font-bold ${inv.isReturn ? 'text-rose-400' : 'text-cyan-400'}`}>
+                                        {inv.totalAmount < 0 ? '-' : ''}{Math.abs(Number(inv.totalAmount)).toLocaleString()}
                                     </td>
                                     <td className="py-2 px-4 text-right font-mono text-zinc-400">
-                                        {inv.paidAmount.toLocaleString()}
+                                        {Math.abs(Number(inv.paidAmount)).toLocaleString()}
                                     </td>
                                     <td className="py-2 px-4 text-center">
-                                        {getStatusBadge(inv.status, inv.totalAmount, inv.paidAmount)}
+                                        {getStatusBadge(inv.status, Number(inv.totalAmount), Number(inv.paidAmount), inv.isReturn)}
                                     </td>
                                     <td className="py-2 px-4 text-right">
                                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -329,7 +350,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             >
                                                 <Package className="w-4 h-4" />
                                             </Button>
-                                            {inv.status !== 'VOIDED' && (
+                                            {inv.status !== 'VOIDED' && !inv.isReturn && (
                                                 <>
                                                     <Button
                                                         variant="ghost"

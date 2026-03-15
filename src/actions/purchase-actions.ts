@@ -6,7 +6,9 @@ import { revalidatePath } from 'next/cache';
 import { Decimal } from '@prisma/client/runtime/library';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
+import { getCurrentShiftInternal } from './shift-management-actions';
 import { PERMISSIONS } from '@/lib/permissions';
+import { calculateProratedRefundValue } from '@/utils/refund-calculations';
 
 interface PurchaseFilters {
     startDate?: string;
@@ -125,10 +127,61 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         });
 
         if (!invoice) throw new Error("Invoice not found");
-        if (invoice.status === 'VOIDED') throw new Error("Already voided");
+        if (invoice.status === 'RETURNED') throw new Error("Already returned");
 
-        // 2. Reverse Inventory
-        for (const item of invoice.items) {
+        const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
+        const currentShift = shiftResult.shift;
+
+        // 🔍 Calculate exactly what remains to be returned
+        const previousReturns = await (tx.purchaseInvoice as any).findMany({
+            where: { parentId: id, isReturn: true }
+        });
+
+        const totalReturnedValue = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.totalAmount)), 0);
+        const totalReturnedPaid = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.paidAmount)), 0);
+        
+        const remainingTotalAmount = Math.max(0, Number(invoice.totalAmount) - totalReturnedValue);
+        const remainingPaidAmount = Math.max(0, Number(invoice.paidAmount) - totalReturnedPaid);
+
+        if (remainingTotalAmount <= 0) {
+            throw new Error("هذه الفاتورة تم إرجاعها بالكامل بالفعل عبر مستندات مرتجع جزئية");
+        }
+
+        // ─── Create NEW Return Invoice document ───
+        const timestamp = new Date().getTime().toString().slice(-4);
+        const returnInvoice = await tx.purchaseInvoice.create({
+            data: {
+                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
+                supplierId: invoice.supplierId,
+                warehouseId: invoice.warehouseId,
+                totalAmount: new Decimal(-remainingTotalAmount),
+                paidAmount: new Decimal(0), // Full credit by default, unless handled below
+                status: 'RETURN',
+                paymentMethod: invoice.paymentMethod,
+                // @ts-ignore
+                isReturn: true,
+                // @ts-ignore
+                parentId: id,
+                items: {
+                    create: invoice.items.map((i: any) => {
+                        // Check if this specific item has remaining qty
+                        const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
+                            const matched = (ret.items || []).find((ii: any) => ii.productId === i.productId);
+                            return sum + (matched?.quantity || 0);
+                        }, 0);
+                        const availableQty = Math.max(0, i.quantity - alreadyReturnedQty);
+                        return {
+                            productId: i.productId,
+                            quantity: availableQty,
+                            unitCost: i.unitCost
+                        };
+                    }).filter(i => i.quantity > 0)
+                }
+            }
+        });
+
+        // 2. Reverse Inventory (Restoring only the REMAINING items)
+        for (const item of (returnInvoice as any).items) {
             await tx.product.update({
                 where: { id: item.productId },
                 data: { stock: { decrement: item.quantity } }
@@ -146,94 +199,74 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                     fromWarehouseId: invoice.warehouseId,
                     toWarehouseId: null,
                     quantity: item.quantity,
-                    reason: `Void: Purchase Invoice #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
+                    reason: `Void (Remaining): Purchase Invoice #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
                     performedById: currentUser.id === 'super-admin' ? null : currentUser.id
                 }
             });
         }
 
-        // 3. Supplier Balance Adjustment
-        // We decrement the unpaid portion to zero it out. 
-        // We DON'T block negative balance here (matches refundPurchase fix)
-        const unpaid = new Decimal(invoice.totalAmount).minus(invoice.paidAmount);
+        // 3. Supplier Balance Adjustment (Full return amount goes to balance/credit)
         await tx.supplier.update({
             where: { id: invoice.supplierId },
-            data: { balance: { decrement: unpaid } }
+            data: { balance: { decrement: remainingTotalAmount } }
         });
 
-        // 4. Treasury Reversal (if paid)
-        if (Number(invoice.paidAmount) > 0) {
-            // 🔍 Trace original treasury from payment transaction
-            const originalPaymentTx = await tx.transaction.findFirst({
-                where: {
-                    type: 'OUT',
-                    description: { contains: invoice.invoiceNumber || invoice.id.split('-')[0] },
-                    treasuryId: { not: null }
-                },
-                orderBy: { createdAt: 'desc' }
-            });
-
-            // Find treasury matching original or default
-            const treasury = originalPaymentTx
-                ? await tx.treasury.findUnique({ where: { id: originalPaymentTx.treasuryId! } })
-                : await tx.treasury.findFirst({
-                    where: { branchId: invoice.warehouse?.branchId || currentUser.branchId || undefined, isDefault: true }
-                }) || await tx.treasury.findFirst({ where: { isDefault: true } });
-
-            if (treasury) {
-                await tx.transaction.create({
-                    data: {
-                        type: 'IN', // Reversal of OUT
-                        amount: invoice.paidAmount,
-                        description: `Void Purchase #${invoice.invoiceNumber || invoice.id.split('-')[0]} - Cash In`,
-                        paymentMethod: invoice.paymentMethod,
-                        treasuryId: treasury.id
-                    }
-                });
-
-                await tx.treasury.update({
-                    where: { id: treasury.id },
-                    data: { balance: { increment: invoice.paidAmount } }
-                });
-            }
+        // 4. Treasury Reversal (Optional: we skip this to allow full credit as per user request, 
+        // but if they specifically want cash back, they can record a separate treasury out.
+        // For standard ERP Return, it's usually Full Credit Note.)
+        /*
+        if (remainingPaidAmount > 0) {
+            // ... original treasury code ...
         }
+        */
 
         // 5. Update Status
         const voidedInvoice = await tx.purchaseInvoice.update({
             where: { id },
             data: {
-                status: 'VOIDED',
+                status: 'RETURNED',
                 voidReason: reason || 'Purchase Return',
                 voidedAt: new Date(),
                 voidedBy: currentUser.id
             }
         });
 
-        // 6. Accounting Reversal
+        // 6. Accounting Reversal (Remaining AP + Cash split)
+        const unpaidAmount = new Decimal(remainingTotalAmount).minus(remainingPaidAmount);
+        const accountingLines = [];
+        
+        if (unpaidAmount.gt(0)) {
+            accountingLines.push({ accountCode: '2000', debit: Number(unpaidAmount), credit: 0, description: 'AP Reversed (Void Remaining)' });
+        }
+        if (remainingPaidAmount > 0) {
+            accountingLines.push({ accountCode: '1000', debit: Number(remainingPaidAmount), credit: 0, description: 'Cash Refund Received (Void Remaining)' });
+        }
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: Number(remainingTotalAmount), description: 'Inventory Asset Reversed (Void Remaining)' });
+
         await AccountingEngine.recordTransaction({
-            description: `Void Purchase: ${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
-            reference: invoice.id,
-            purchaseId: invoice.id,
-            lines: [
-                { accountCode: '2000', debit: Number(invoice.totalAmount), credit: 0, description: 'AP Reversed' },
-                { accountCode: '1200', debit: 0, credit: Number(invoice.totalAmount), description: 'Inventory Asset Reversed' }
-            ]
+            description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
+            reference: returnInvoice.id,
+            purchaseId: returnInvoice.id,
+            lines: accountingLines
         }, tx);
 
-        return voidedInvoice;
+        return { ...returnInvoice, supplierId: invoice.supplierId };
     });
 
     revalidatePath("/inventory");
     revalidatePath("/logs");
     revalidatePath("/reports");
     revalidatePath("/purchasing");
+    if (result.supplierId) {
+        revalidatePath(`/inventory/suppliers/${result.supplierId}`);
+    }
 
     return {
         success: true,
         message: "Purchase voided successfully",
         data: result
     };
-}, { permission: PERMISSIONS.INVENTORY_MANAGE });
+}, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: false });
 
 /**
  * Partial Purchase Return — return specific items from a purchase invoice
@@ -254,6 +287,9 @@ export const partialReturnPurchase = secureAction(async (data: {
     if (!currentUser) throw new Error("Authentication required");
 
     const result = await prisma.$transaction(async (tx) => {
+        const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
+        const currentShift = shiftResult.shift;
+
         // 1. Fetch original invoice with items
         const invoice = await tx.purchaseInvoice.findUnique({
             where: { id: purchaseId },
@@ -263,15 +299,28 @@ export const partialReturnPurchase = secureAction(async (data: {
         if (!invoice) throw new Error("الفاتورة غير موجودة");
         if (invoice.status === 'VOIDED') throw new Error("هذه الفاتورة ملغاة بالفعل");
 
-        // 2. Validate return quantities
+        // 2. Validate return quantities (Aggregated check across all linked returns)
+        const previousReturns = await (tx.purchaseInvoice as any).findMany({
+            where: { parentId: purchaseId, isReturn: true },
+            include: { items: true }
+        });
+
+        const totalReturnedValueSoFar = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.totalAmount)), 0);
+        const totalReturnedPaidSoFar = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.paidAmount)), 0);
+
         let returnTotal = 0;
-        const processedItems: { item: any; returnQty: number; lineCost: number }[] = [];
+        const processedItems: { productId: string; returnQty: number; unitCost: number; name: string }[] = [];
 
         for (const returnItem of returnItems) {
-            const originalItem = invoice.items.find(i => i.id === returnItem.itemId);
+            const originalItem = invoice.items.find((i: any) => i.id === returnItem.itemId);
             if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
 
-            const alreadyReturned = (originalItem as any).returnedQty || 0;
+            // Check how many have been returned in PREVIOUS separate return documents
+            const alreadyReturned = (previousReturns as any[]).reduce((sum: number, ret: any) => {
+                const matchedItem = (ret.items as any[]).find((i: any) => i.productId === originalItem.productId);
+                return sum + (matchedItem?.quantity || 0);
+            }, 0);
+
             const availableQty = originalItem.quantity - alreadyReturned;
 
             if (returnItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
@@ -281,141 +330,127 @@ export const partialReturnPurchase = secureAction(async (data: {
 
             const lineCost = Number(originalItem.unitCost) * returnItem.quantity;
             returnTotal += lineCost;
-            processedItems.push({ item: originalItem, returnQty: returnItem.quantity, lineCost });
+            processedItems.push({
+                productId: originalItem.productId,
+                returnQty: returnItem.quantity,
+                unitCost: Number(originalItem.unitCost),
+                name: originalItem.product.name
+            });
         }
 
-        // 3. Reverse inventory (decrement stock)
-        for (const { item, returnQty } of processedItems) {
+        // 📊 Determine remaining debt and cash on the ORIGINAL invoice
+        const currentUnpaidAmount = Math.max(0, (Number(invoice.totalAmount) - Number(invoice.paidAmount)) - (totalReturnedValueSoFar - totalReturnedPaidSoFar));
+        const currentPaidCashRemaining = Math.max(0, Number(invoice.paidAmount) - totalReturnedPaidSoFar);
+
+        // 🔀 Split the return between debt-reduction and cash-back
+        const debtReduction = Math.min(returnTotal, currentUnpaidAmount);
+        const cashReversal = returnTotal - debtReduction;
+
+        // 3. Create NEW Return Invoice
+        const timestamp = new Date().getTime().toString().slice(-4);
+        const returnInvoice = await tx.purchaseInvoice.create({
+            data: {
+                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
+                supplierId: invoice.supplierId,
+                warehouseId: invoice.warehouseId,
+                totalAmount: new Decimal(-returnTotal),
+                paidAmount: new Decimal(0), // All go to balance/credit
+                status: 'RETURN',
+                paymentMethod: invoice.paymentMethod,
+                // @ts-ignore
+                isReturn: true,
+                // @ts-ignore
+                parentId: purchaseId,
+                items: {
+                    create: processedItems.map(p => ({
+                        productId: p.productId,
+                        quantity: p.returnQty,
+                        unitCost: new Decimal(p.unitCost)
+                    }))
+                }
+            }
+        });
+
+        // 4. Update Original Invoice Status (but keep totals)
+        const allItemsOriginal = invoice.items;
+        const totalPurchasedQty = allItemsOriginal.reduce((s: number, i: any) => s + i.quantity, 0);
+        
+        // Sum all returned quantities for ALL items in ALL related return invoices
+        const totalReturnedQtySoFar = previousReturns.reduce((s: number, r: any) => s + r.items.reduce((ss: number, ii: any) => ss + ii.quantity, 0), 0) + 
+                                     processedItems.reduce((s: number, p: any) => s + p.returnQty, 0);
+
+        await tx.purchaseInvoice.update({
+            where: { id: purchaseId },
+            data: {
+                status: totalReturnedQtySoFar >= totalPurchasedQty ? 'RETURNED' : 'PARTIAL_RETURN',
+                voidReason: reason || 'مرتجع جزئي'
+            }
+        });
+
+        // 5. Reverse inventory (decrement stock)
+        for (const p of processedItems) {
             await tx.product.update({
-                where: { id: item.productId },
-                data: { stock: { decrement: returnQty } }
+                where: { id: p.productId },
+                data: { stock: { decrement: p.returnQty } }
             });
 
             await tx.stock.updateMany({
-                where: { productId: item.productId, warehouseId: invoice.warehouseId },
-                data: { quantity: { decrement: returnQty } }
+                where: { productId: p.productId, warehouseId: invoice.warehouseId },
+                data: { quantity: { decrement: p.returnQty } }
             });
 
             await tx.stockMovement.create({
                 data: {
                     type: 'RETURN',
-                    productId: item.productId,
+                    productId: p.productId,
                     fromWarehouseId: invoice.warehouseId,
                     toWarehouseId: null,
-                    quantity: returnQty,
-                    reason: `مرتجع مشتريات جزئي — فاتورة #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
+                    quantity: p.returnQty,
+                    reason: `مرتجع مشتريات (مستند جديد) — فاتورة مرتجع #${returnInvoice.invoiceNumber}`,
                     performedById: currentUser.id === 'super-admin' ? null : currentUser.id
                 }
             });
-
-            // Update returnedQty on PurchaseItem
-            await tx.purchaseItem.update({
-                where: { id: item.id },
-                data: { returnedQty: { increment: returnQty } } as any
-            });
         }
 
-        // 4. Supplier Balance Adjustment
-        // Note: For purchases, we deduct the returned amount from the total and paid amounts
-        // If the invoice was unpaid, we reduce the balance we owe.
-        // If it was paid, we technically get credit or cash back, but here we'll simplify 
-        // by reducing the debt or recording a reversal transaction if it was cash.
-
-        const unpaidBefore = new Decimal(invoice.totalAmount).minus(invoice.paidAmount);
-        const returnAmountDecimal = new Decimal(returnTotal);
-
-        let debtReduction = 0;
-        let cashReversal = 0;
-
-        if (unpaidBefore.gte(returnAmountDecimal)) {
-            // All return amount can be deducted from the debt
-            debtReduction = returnTotal;
-        } else {
-            // Return amount is more than debt, some cash/credit is needed
-            debtReduction = unpaidBefore.toNumber();
-            cashReversal = returnAmountDecimal.minus(unpaidBefore).toNumber();
-        }
-
-        if (debtReduction > 0) {
-            await tx.supplier.update({
-                where: { id: invoice.supplierId },
-                data: { balance: { decrement: debtReduction } }
-            });
-        }
-
-        // 5. Treasury Reversal (if cash back needed)
-        if (cashReversal > 0) {
-            // 🔍 Trace original treasury from payment transaction
-            const originalPaymentTx = await tx.transaction.findFirst({
-                where: {
-                    type: 'OUT',
-                    description: { contains: invoice.invoiceNumber || invoice.id.split('-')[0] },
-                    treasuryId: { not: null }
-                },
-                orderBy: { createdAt: 'desc' }
-            });
-
-            const treasury = originalPaymentTx
-                ? await tx.treasury.findUnique({ where: { id: originalPaymentTx.treasuryId! } })
-                : await tx.treasury.findFirst({
-                    where: { branchId: currentUser.branchId || undefined, isDefault: true }
-                }) || await tx.treasury.findFirst({ where: { isDefault: true } });
-
-            if (treasury) {
-                await tx.transaction.create({
-                    data: {
-                        type: 'IN', // Money coming back from supplier
-                        amount: new Decimal(cashReversal),
-                        description: `مرتجع مشتريات (استرداد نقدي) — فاتورة #${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
-                        paymentMethod: invoice.paymentMethod,
-                        treasuryId: treasury.id
-                    }
-                });
-
-                await tx.treasury.update({
-                    where: { id: treasury.id },
-                    data: { balance: { increment: cashReversal } }
-                });
-            }
-        }
-
-        // 6. Update Invoice Status and Totals
-        const allItemsAfter = await tx.purchaseItem.findMany({ where: { purchaseInvoiceId: purchaseId } });
-        const allReturned = allItemsAfter.every(i => (i as any).returnedQty === i.quantity);
-
-        const newTotalAmount = Number(invoice.totalAmount) - returnTotal;
-        const newPaidAmount = Math.max(0, Number(invoice.paidAmount) - cashReversal);
-
-        await tx.purchaseInvoice.update({
-            where: { id: purchaseId },
-            data: {
-                status: allReturned ? 'VOIDED' : 'PARTIAL_RETURN',
-                totalAmount: newTotalAmount,
-                paidAmount: newPaidAmount,
-                voidReason: reason || 'مرتجع جزئي'
-            } as any
+        // 6. Supplier Balance Adjustment (Full amount goes to balance/credit)
+        await tx.supplier.update({
+            where: { id: invoice.supplierId },
+            data: { balance: { decrement: returnTotal } }
         });
 
-        // 7. Accounting Reversal
+        /* Skipping Treasury Adjustment to keep full amount in Supplier Balance (Credit) */
+
+        // 7. Accounting Entry for the Return Invoice
+        const accountingLines = [];
+        if (debtReduction > 0) {
+            accountingLines.push({ accountCode: '2000', debit: Number(debtReduction), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        }
+        if (cashReversal > 0) {
+            accountingLines.push({ accountCode: '1000', debit: Number(cashReversal), credit: 0, description: 'Cash Refund Received' });
+        }
+        // Always credit inventory for the full return amount
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: Number(returnTotal), description: 'Inventory Asset Reduced' });
+
         await AccountingEngine.recordTransaction({
-            description: `Partial Purchase Return: ${invoice.invoiceNumber || invoice.id.split('-')[0]}`,
-            reference: invoice.id,
-            purchaseId: invoice.id,
-            lines: [
-                { accountCode: '2000', debit: Number(returnTotal), credit: 0, description: 'AP Reduced (Purchase Return)' },
-                { accountCode: '1200', debit: 0, credit: Number(returnTotal), description: 'Inventory Asset Reduced' }
-            ]
+            description: `Return Invoice: ${returnInvoice.invoiceNumber}`,
+            reference: returnInvoice.id,
+            purchaseId: returnInvoice.id,
+            lines: accountingLines
         }, tx);
 
         // 8. Audit Log
         await tx.auditLog.create({
             data: {
                 entityType: 'PURCHASE',
-                entityId: purchaseId,
-                action: 'PARTIAL_RETURN',
-                previousData: JSON.stringify({ status: invoice.status, total: Number(invoice.totalAmount) }),
-                newData: JSON.stringify({ returnedItems: processedItems.map(p => ({ name: p.item.product.name, qty: p.returnQty, amount: p.lineCost })), returnTotal, newTotalAmount }),
-                reason: reason || 'مرتجع جزئي',
+                entityId: returnInvoice.id,
+                action: 'CREATE_RETURN',
+                previousData: JSON.stringify({ originalId: purchaseId }),
+                newData: JSON.stringify({ 
+                    returnInvoiceId: returnInvoice.id,
+                    items: processedItems,
+                    total: returnTotal 
+                }),
+                reason: reason || 'مرتجع مشتريات',
                 user: currentUser.id === 'super-admin' ? 'super-admin' : (currentUser.username || currentUser.name),
                 branchId: currentUser.branchId
             }
@@ -423,9 +458,10 @@ export const partialReturnPurchase = secureAction(async (data: {
 
         return {
             returnTotal,
-            allReturned,
+            returnId: returnInvoice.id,
             itemCount: processedItems.length,
-            newTotalAmount
+            invoiceNumber: returnInvoice.invoiceNumber,
+            supplierId: invoice.supplierId
         };
     });
 
@@ -433,12 +469,14 @@ export const partialReturnPurchase = secureAction(async (data: {
     revalidatePath("/logs");
     revalidatePath("/reports");
     revalidatePath("/purchasing");
+    if (result.supplierId) {
+        revalidatePath(`/inventory/suppliers/${result.supplierId}`);
+    }
 
     return {
         success: true,
-        message: `تم إرجاع ${result.itemCount} صنف بمبلغ ${result.returnTotal.toFixed(2)}`,
+        message: `تم إنشاء فاتورة مرتجع رقم ${result.invoiceNumber} بمبلغ ${result.returnTotal.toFixed(2)}`,
         returnedAmount: result.returnTotal,
-        allReturned: result.allReturned,
-        newTotal: result.newTotalAmount
+        returnId: result.returnId
     };
 }, { permission: PERMISSIONS.INVENTORY_MANAGE });

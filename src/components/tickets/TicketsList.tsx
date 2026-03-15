@@ -1,20 +1,15 @@
-'use client'
-
 import { useState, useEffect, useTransition, useMemo } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { getTickets as fetchTickets } from "@/actions/ticket-actions"
-import { Badge } from "@/components/ui/badge"
-import { Search, User as UserIcon } from "lucide-react"
+import {
+    Search, User as UserIcon, Plus, Edit2, Trash2, MoreHorizontal,
+    Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download
+} from "lucide-react"
 import { useRouter } from 'next/navigation'
 import { useDebouncedCallback } from 'use-debounce'
-// import { Virtuoso } from 'react-virtuoso'
 import { CasperLoader } from "@/components/ui/CasperLoader"
 import { useTranslations } from '@/lib/i18n-mock'
-import TicketQuickEditModal from './TicketQuickEditModal'
-import TicketDeleteDialog from './TicketDeleteDialog'
-import { Edit2, Trash2, MoreHorizontal, Clock, AlertTriangle, AlertCircle, X, Shield, Wrench } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -23,7 +18,17 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-// import { processScan } from "@/actions/scan-actions"
+import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker'
+import {
+    format, isToday, isYesterday, isThisWeek, isThisMonth,
+    startOfDay, endOfDay, startOfWeek, endOfWeek,
+    startOfMonth, endOfMonth, subDays, formatDistanceToNow
+} from 'date-fns'
+import { DateRange } from "react-day-picker"
+import { cn } from '@/lib/utils'
+import { getTickets as fetchTickets } from "@/actions/ticket-actions"
+import TicketQuickEditModal from './TicketQuickEditModal'
+import TicketDeleteDialog from './TicketDeleteDialog'
 import { toast } from "sonner"
 
 export default function TicketsList() {
@@ -34,8 +39,11 @@ export default function TicketsList() {
     const [query, setQuery] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
     const [showStale, setShowStale] = useState(false)
-    const [fromDate, setFromDate] = useState('')
-    const [toDate, setToDate] = useState('')
+    
+    // Unified Date Filtering
+    const [dateFilter, setDateFilter] = useState<string>("all")
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+
     const [isPending, startTransition] = useTransition()
     const [sortByUrgency, setSortByUrgency] = useState(false)
     const router = useRouter()
@@ -58,15 +66,15 @@ export default function TicketsList() {
 
     useEffect(() => {
         loadTickets()
-    }, [query, statusFilter, showStale, fromDate, toDate])
+    }, [query, statusFilter, showStale, dateRange])
 
     async function loadTickets() {
         setLoading(true)
         const filters: any = {
             search: query,
             status: showStale ? 'all' : statusFilter,
-            fromDate,
-            toDate
+            startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
+            endDate: dateRange?.to ? dateRange.to.toISOString() : undefined
         }
         if (showStale) {
             filters.minDaysOld = 30
@@ -99,8 +107,6 @@ export default function TicketsList() {
         if (e.key === 'Enter' && searchTerm) {
             debouncedSetQuery.cancel();
             setQuery(searchTerm);
-
-            // Note: processScan might need to be migrated if barcode scanning in list is critical
         }
     }
 
@@ -231,12 +237,12 @@ export default function TicketsList() {
                 </div>
             </div>
 
-            <div className="flex gap-4 items-center glass-card p-4 flex-wrap">
+            <div className="flex gap-4 items-center flex-wrap">
                 <div className="relative flex-1 min-w-[300px] group/search">
                     <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
                     <Input
                         placeholder={t('search.placeholder')}
-                        className="ps-12 solid-input h-14 bg-black/40 border-white/10 text-white text-base placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
+                        className="ps-12 solid-input h-10 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
                         value={searchTerm}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             setSearchTerm(e.target.value);
@@ -253,63 +259,115 @@ export default function TicketsList() {
                         </button>
                     )}
                 </div>
+
+                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                    <Button
+                        variant={dateFilter === "today" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("today");
+                            setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+                        }}
+                    >
+                        اليوم
+                    </Button>
+                    <Button
+                        variant={dateFilter === "yesterday" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            const yesterday = subDays(new Date(), 1);
+                            setDateFilter("yesterday");
+                            setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
+                        }}
+                    >
+                        أمس
+                    </Button>
+                    <Button
+                        variant={dateFilter === "week" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("week");
+                            setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
+                        }}
+                    >
+                        الأسبوع
+                    </Button>
+                    <Button
+                        variant={dateFilter === "month" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("month");
+                            setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                        }}
+                    >
+                        الشهر
+                    </Button>
+
+                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+
+                    <FlatpickrRangePicker
+                        onRangeChange={(dates) => {
+                            if (dates.length === 2) {
+                                setDateRange({ from: dates[0], to: dates[1] });
+                                setDateFilter("custom");
+                            } else if (dates.length === 1) {
+                                setDateRange({ from: dates[0], to: undefined });
+                                setDateFilter("custom");
+                            } else {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                            }
+                        }}
+                        onClear={() => {
+                            setDateRange(undefined);
+                            setDateFilter("all");
+                        }}
+                        initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
+                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                    />
+                </div>
+
                 <div className="flex gap-2 flex-wrap">
-                    {['all', 'new', 'in_progress', 'completed', 'delivered'].map(st => (
-                        <Button
-                            key={st}
-                            variant={statusFilter === st && !showStale ? 'default' : 'outline'}
-                            onClick={() => handleFilterChange(st)}
-                            size="sm"
-                            className={statusFilter === st && !showStale
-                                ? "bg-cyan-500 text-black hover:bg-cyan-400 border-0"
-                                : "bg-transparent border-white/10 text-zinc-400 hover:text-white hover:bg-white/5"}
-                        >
-                            {st === 'all' ? t('filters.all') : (
-                                st === 'new' ? t('filters.new') :
-                                    st === 'in_progress' ? t('filters.inProgress') :
-                                        st === 'completed' ? t('filters.completed') :
-                                            t('filters.delivered')
-                            )}
-                        </Button>
-                    ))}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
+                                <Filter className="w-4 h-4" />
+                                <span>{statusFilter === 'all' ? t('filters.all') : getStatusLabel(statusFilter.toUpperCase())}</span>
+                                <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">{t('table.status')}</DropdownMenuLabel>
+                            {['all', 'new', 'in_progress', 'completed', 'delivered', 'warranty', 'returns'].map(st => (
+                                <DropdownMenuItem 
+                                    key={st} 
+                                    onClick={() => handleFilterChange(st)}
+                                    className={statusFilter === st ? "bg-white/10" : ""}
+                                >
+                                    {st === 'all' ? t('filters.all') : (
+                                        st === 'new' ? t('filters.new') :
+                                            st === 'in_progress' ? t('filters.inProgress') :
+                                                st === 'completed' ? t('filters.completed') :
+                                                    st === 'delivered' ? t('filters.delivered') :
+                                                        st === 'warranty' ? t('filters.warranty') :
+                                                            t('filters.returns')
+                                    )}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
 
-                    <div className="w-px h-6 bg-white/10 mx-2"></div>
-                    {['warranty', 'returns'].map(view => (
-                        <Button
-                            key={view}
-                            variant={statusFilter === view ? 'default' : 'outline'}
-                            onClick={() => handleFilterChange(view)}
-                            size="sm"
-                            className={statusFilter === view
-                                ? (view === 'warranty' ? "bg-emerald-500 text-black hover:bg-emerald-400 border-0" : "bg-orange-500 text-black hover:bg-orange-400 border-0")
-                                : "bg-transparent border-white/10 text-zinc-400 hover:text-white hover:bg-white/5"}
-                        >
-                            {view === 'warranty' ? t('filters.warranty') : t('filters.returns')}
-                        </Button>
-                    ))}
-
-                    <div className="flex items-center gap-2 bg-black/20 p-1 rounded-md border border-white/10">
-                        <Input
-                            type="date"
-                            value={fromDate}
-                            onChange={(e) => setFromDate(e.target.value)}
-                            className="w-[130px] h-8 bg-transparent border-0 text-xs focus-visible:ring-0 text-zinc-300"
-                        />
-                        <span className="text-zinc-500 text-xs">{t('list.to')}</span>
-                        <Input
-                            type="date"
-                            value={toDate}
-                            onChange={(e) => setToDate(e.target.value)}
-                            className="w-[130px] h-8 bg-transparent border-0 text-xs focus-visible:ring-0 text-zinc-300"
-                        />
-                    </div>
                     <Button
                         variant={showStale ? 'default' : 'outline'}
                         onClick={handleStaleToggle}
                         size="sm"
                         className={showStale
-                            ? "bg-orange-500 text-white hover:bg-orange-400 border-0"
-                            : "bg-transparent border-orange-500/30 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10"}
+                            ? "bg-orange-500 text-white hover:bg-orange-400 border-0 h-10"
+                            : "bg-transparent border-orange-500/30 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-10"}
                     >
                         {t('filters.stale')}
                     </Button>

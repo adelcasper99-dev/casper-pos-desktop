@@ -13,14 +13,15 @@ export const dynamic = 'force-dynamic';
 export default async function InventoryPage() {
     const t = await getTranslations('Inventory');
     const suppliersRaw = await prisma.supplier.findMany();
-    const suppliers = suppliersRaw.map((s: { id: string; name: string; phone: string | null; email: string | null; address: string | null; balance: { toNumber: () => number }; linkedEmployeeId: string | null }) => ({
+    const suppliers = suppliersRaw.map((s: any) => ({
         id: s.id,
         name: s.name,
         phone: s.phone,
         email: s.email,
         address: s.address,
         balance: s.balance.toNumber(),
-        linkedEmployeeId: s.linkedEmployeeId
+        linkedEmployeeId: s.linkedEmployeeId,
+        createdAt: s.createdAt
     }));
 
     const categories = await prisma.category.findMany();

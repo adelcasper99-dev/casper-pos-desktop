@@ -13,12 +13,13 @@ import { cn } from '@/lib/utils';
 
 // Virtual ID to represent "deduct from customer account balance" (no physical treasury)
 const ACCOUNT_VIRTUAL_ID = '__ACCOUNT__';
+const STORE_CREDIT_VIRTUAL_ID = '__STORE_CREDIT__';
 
 interface RefundSelectionDialogProps {
     isOpen: boolean;
     onClose: () => void;
     /** treasuryId will be an empty string when the account option is selected */
-    onConfirm: (data: { treasuryId: string; paymentMethod: string; reason: string }) => void;
+    onConfirm: (data: { treasuryId: string; paymentMethod: string; reason: string; refundMethod?: 'CASH' | 'STORE_CREDIT' }) => void;
     sale: any;
     loading?: boolean;
 }
@@ -53,10 +54,12 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
 
     const handleConfirm = () => {
         const isAccountOption = selectedTreasuryId === ACCOUNT_VIRTUAL_ID;
+        const isStoreCredit = selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID;
         const treasury = treasuries.find(t => t.id === selectedTreasuryId);
         onConfirm({
-            treasuryId: isAccountOption ? '' : selectedTreasuryId,
-            paymentMethod: isAccountOption ? 'ACCOUNT' : (treasury?.paymentMethod || 'CASH'),
+            treasuryId: (isAccountOption || isStoreCredit) ? '' : selectedTreasuryId,
+            paymentMethod: isStoreCredit ? 'STORE_CREDIT' : (isAccountOption ? 'ACCOUNT' : (treasury?.paymentMethod || 'CASH')),
+            refundMethod: isStoreCredit ? 'STORE_CREDIT' : 'CASH',
             reason
         });
     };
@@ -66,6 +69,7 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
             case 'CASH': return <Wallet className="w-4 h-4" />;
             case 'VISA': return <CreditCard className="w-4 h-4" />;
             case 'ACCOUNT': return <UserCheck className="w-4 h-4" />;
+            case 'STORE_CREDIT': return <RotateCcw className="w-4 h-4" />;
             default: return <Landmark className="w-4 h-4" />;
         }
     };
@@ -73,7 +77,9 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
     const selectedTreasuryName =
         selectedTreasuryId === ACCOUNT_VIRTUAL_ID
             ? 'حساب العميل (آجل)'
-            : treasuries.find(t => t.id === selectedTreasuryId)?.name || '...';
+            : selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID
+                ? 'رصيد المتجر (Store Credit)'
+                : treasuries.find(t => t.id === selectedTreasuryId)?.name || '...';
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -99,6 +105,36 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
                                 <div className="h-20 bg-white/5 animate-pulse rounded-xl" />
                             ) : (
                                 <>
+                                    {/* ── Store Credit Option (Always available if customer linked) ── */}
+                                    {sale?.customerId && (
+                                        <button
+                                            key={STORE_CREDIT_VIRTUAL_ID}
+                                            onClick={() => setSelectedTreasuryId(STORE_CREDIT_VIRTUAL_ID)}
+                                            className={cn(
+                                                "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
+                                                selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID
+                                                    ? "bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
+                                                    : "bg-white/5 border-white/5 hover:bg-white/10"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn(
+                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                    selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID ? "bg-cyan-500 text-white" : "bg-zinc-800 text-zinc-400"
+                                                )}>
+                                                    <RotateCcw className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold">إعادة إلى رصيد المتجر</div>
+                                                    <div className="text-[10px] text-zinc-500 uppercase">STORE CREDIT — محفظة العميل</div>
+                                                </div>
+                                            </div>
+                                            {selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID && (
+                                                <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]" />
+                                            )}
+                                        </button>
+                                    )}
+
                                     {/* ── Account option for credit sales ── */}
                                     {isAccountSale && (
                                         <button

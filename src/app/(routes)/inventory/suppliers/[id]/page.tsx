@@ -195,11 +195,15 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                             <Wallet className="w-5 h-5" />
                         </div>
                     </div>
-                    <div className={`text-3xl font-mono font-bold ${supplier.balance.toNumber() > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                        ${supplier.balance.toNumber().toFixed(2)}
+                    <div className={`text-3xl font-mono font-bold ${supplier.balance.toNumber() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        {Math.abs(supplier.balance.toNumber()).toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                        {supplier.balance.toNumber() > 0 ? tSuppliers('Details.amountOwed') : tSuppliers('Details.noDebt')}
+                        {supplier.balance.toNumber() > 0 
+                            ? tSuppliers('Details.amountOwed') 
+                            : supplier.balance.toNumber() < 0 
+                                ? 'دائن لنا (رصيد مستحق)' 
+                                : tSuppliers('Details.noDebt')}
                     </p>
                 </div>
 

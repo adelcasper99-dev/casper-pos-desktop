@@ -107,45 +107,108 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
     }
 
-    // 1. Create Payment Record
-    await prisma.supplierPayment.create({
-        data: {
-            supplierId,
-            amount: new Decimal(amount),
-            method: method,
-            notes: `Manual Payment - ${method}`
-        }
-    });
-
-    // 2. Decrease Supplier Balance (Debt decreases when we pay)
-    await prisma.supplier.update({
-        where: { id: supplierId },
-        data: {
-            balance: {
-                decrement: amount
+    await prisma.$transaction(async (tx) => {
+        // 1. Create Payment Record
+        const payment = await tx.supplierPayment.create({
+            data: {
+                supplierId,
+                amount: new Decimal(amount),
+                method: method,
+                notes: `Manual Payment - ${method}`
             }
-        }
-    });
-
-    // 3. Treasury Transaction (Money Out)
-    // Only record cash/bank transactions if they affect our immediate treasury
-    await prisma.transaction.create({
-        data: {
-            type: 'OUT',
-            amount: new Decimal(amount),
-            description: `Supplier Payment (${method})`,
-            paymentMethod: method,
-            treasuryId: defaultTreasuryId // 🔗 LINKED
-        }
-    });
-
-    // 🆕 Update Treasury Balance (Real Money Movement)
-    if (defaultTreasuryId) {
-        await prisma.treasury.update({
-            where: { id: defaultTreasuryId },
-            data: { balance: { decrement: amount } }
         });
-    }
+
+        // 2. Decrease Supplier Balance (Debt decreases when we pay)
+        await tx.supplier.update({
+            where: { id: supplierId },
+            data: {
+                balance: {
+                    decrement: amount
+                }
+            }
+        });
+
+        // 3. Treasury Transaction (Money Out)
+        // Only record cash/bank transactions if they affect our immediate treasury
+        await tx.transaction.create({
+            data: {
+                type: 'OUT',
+                amount: new Decimal(amount),
+                description: `Supplier Payment (${method})`,
+                paymentMethod: method,
+                treasuryId: defaultTreasuryId // 🔗 LINKED
+            }
+        });
+
+        // 🆕 Update Treasury Balance (Real Money Movement)
+        if (defaultTreasuryId) {
+            await tx.treasury.update({
+                where: { id: defaultTreasuryId },
+                data: { balance: { decrement: amount } }
+            });
+        }
+
+        // 4. Auto-Allocate Payment to Pending Invoices (FIFO)
+        const pendingInvoices = await tx.purchaseInvoice.findMany({
+            where: {
+                supplierId: supplierId,
+                status: { in: ['PENDING', 'PARTIAL'] }
+            },
+            orderBy: {
+                purchaseDate: 'asc'
+            }
+        });
+
+        let remainingAllocation = new Decimal(amount);
+
+        for (const invoice of pendingInvoices) {
+            if (remainingAllocation.lte(0)) break;
+
+            const total = new Decimal(invoice.totalAmount);
+            const paid = new Decimal(invoice.paidAmount);
+            const needed = total.minus(paid);
+
+            if (needed.lte(0)) continue; // Defensive programming
+
+            let paymentToApply = new Decimal(0);
+            let newStatus = invoice.status;
+
+            if (remainingAllocation.gte(needed)) {
+                // We can fully pay this invoice
+                paymentToApply = needed;
+                newStatus = 'PAID';
+                remainingAllocation = remainingAllocation.minus(needed);
+            } else {
+                // We can partially pay this invoice
+                paymentToApply = remainingAllocation;
+                newStatus = 'PARTIAL';
+                remainingAllocation = new Decimal(0);
+            }
+
+            await tx.purchaseInvoice.update({
+                where: { id: invoice.id },
+                data: {
+                    paidAmount: paid.plus(paymentToApply).toNumber(),
+                    status: newStatus
+                }
+            });
+
+            // Log to audit that this payment was auto-allocated
+            await tx.auditLog.create({
+                data: {
+                    entityType: 'PURCHASE',
+                    entityId: invoice.id,
+                    action: 'AUTO_PAYMENT_ALLOCATION',
+                    previousData: JSON.stringify({ paidAmount: paid.toNumber(), status: invoice.status }),
+                    newData: JSON.stringify({ paidAmount: paid.plus(paymentToApply).toNumber(), status: newStatus }),
+                    reason: `Auto-allocated from generic supplier payment of ${amount}`,
+                    user: user?.id === 'super-admin' ? 'super-admin' : (user?.username || user?.name || 'system'),
+                    branchId: user?.branchId,
+                    hqId: payment.id // Store Payment ID here for easy reversal
+                }
+            });
+        }
+    });
 
     // --- Integrations ---
     try {
@@ -169,8 +232,126 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
 
     revalidatePath("/inventory", 'page');
     revalidatePath(`/inventory/suppliers/${supplierId}`, 'page');
+    revalidatePath("/purchasing", 'page');
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
+
+/**
+ * Void a supplier payment and reverse all its effects
+ */
+export const voidSupplierPayment = secureAction(async (data: { paymentId: string, csrfToken?: string }) => {
+    const { paymentId } = data;
+    const { getCurrentUser } = await import('./auth');
+    const user = await getCurrentUser();
+
+    const result = await prisma.$transaction(async (tx) => {
+        // 1. Fetch the payment
+        const payment = await tx.supplierPayment.findUnique({
+            where: { id: paymentId }
+        });
+        if (!payment) throw new Error("Payment not found");
+
+        // 2. Find all auto-allocations triggered by this payment
+        // We stored the paymentId in hqId field as a hack/link
+        const allocations = await tx.auditLog.findMany({
+            where: {
+                hqId: paymentId,
+                action: 'AUTO_PAYMENT_ALLOCATION'
+            }
+        });
+
+        // 3. Revert each allocation on the invoices
+        for (const log of allocations) {
+            const prevData = JSON.parse(log.previousData || '{}');
+            await tx.purchaseInvoice.update({
+                where: { id: log.entityId },
+                data: {
+                    paidAmount: prevData.paidAmount,
+                    status: prevData.status
+                }
+            });
+        }
+
+        // 4. Reverse Supplier Balance
+        await tx.supplier.update({
+            where: { id: payment.supplierId },
+            data: { balance: { increment: payment.amount } }
+        });
+
+        // 5. Reverse Treasury Transaction
+        // Find the OUT transaction created during payment
+        const treasuryTx = await tx.transaction.findFirst({
+            where: {
+                type: 'OUT',
+                amount: payment.amount,
+                paymentMethod: payment.method,
+                description: { contains: 'Supplier Payment' },
+                createdAt: { gte: new Date(payment.paymentDate.getTime() - 10000), lte: new Date(payment.paymentDate.getTime() + 10000) }
+            }
+        });
+
+        if (treasuryTx?.treasuryId) {
+            // Restore funds to treasury
+            await tx.treasury.update({
+                where: { id: treasuryTx.treasuryId },
+                data: { balance: { increment: payment.amount } }
+            });
+
+            // Create a reversal IN transaction
+            await tx.transaction.create({
+                data: {
+                    type: 'IN',
+                    amount: payment.amount,
+                    description: `Reversal of Supplier Payment #${paymentId.substring(0, 5)}`,
+                    paymentMethod: payment.method,
+                    treasuryId: treasuryTx.treasuryId,
+                    referenceId: paymentId,
+                    referenceType: 'SUPPLIER_PAYMENT_VOID'
+                }
+            });
+        }
+
+        // 6. Record Accounting Reversal
+        try {
+            const creditAccount = payment.method === 'CASH' ? '1000' : '1010';
+            await AccountingEngine.recordTransaction({
+                description: `VOID Supplier Payment - ${payment.supplierId.substring(0, 8)}`,
+                reference: payment.supplierId,
+                lines: [
+                    { accountCode: '2000', debit: 0, credit: Number(payment.amount), description: 'Accounts Payable Restored' },
+                    { accountCode: creditAccount, debit: Number(payment.amount), credit: 0, description: 'Cash/Bank Restored' }
+                ]
+            }, tx as any);
+        } catch (err) {
+            console.error("Accounting reversal failed:", err);
+        }
+
+        // 7. Delete the payment record
+        await tx.supplierPayment.delete({
+            where: { id: paymentId }
+        });
+
+        // 8. Log the voiding event
+        await tx.auditLog.create({
+            data: {
+                entityType: 'SUPPLIER_PAYMENT',
+                entityId: paymentId,
+                action: 'VOID_PAYMENT',
+                previousData: JSON.stringify(payment),
+                reason: 'User manual void',
+                user: user?.username || 'system',
+                branchId: user?.branchId
+            }
+        });
+
+        return { supplierId: payment.supplierId };
+    });
+
+    revalidatePath("/inventory", 'page');
+    revalidatePath(`/inventory/suppliers/${result.supplierId}`, 'page');
+    revalidatePath("/purchasing", 'page');
+    return { success: true };
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
 // --- Products ---
 

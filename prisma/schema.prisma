@@ -121,6 +121,7 @@ model Warehouse {
   id                   String            @id @default(uuid())
   name                 String
   address              String?
+  type                 String            @default("SELLABLE")
   isDefault            Boolean           @default(false)
   isMaintenanceDefault Boolean           @default(false)
   createdAt            DateTime          @default(now())
@@ -147,6 +148,7 @@ model Customer {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   balance          Decimal               @default(0.00)
+  walletBalance    Decimal               @default(0.00)
   creditLimit      Decimal?
   linkedEmployeeId String?               @unique
   linkedEmployee   User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
@@ -261,6 +263,7 @@ model Product {
   stock             Int                @default(0)
   minStock          Int                @default(5)
   trackStock        Boolean            @default(true)
+  itemType          String             @default("PHYSICAL")
   isBundle          Boolean            @default(false)
   categoryId        String
   createdAt         DateTime           @default(now())
@@ -304,19 +307,20 @@ model Stock {
 }
 
 model StockMovement {
-  id              String     @id @default(uuid())
+  id              String         @id @default(uuid())
   type            String
   productId       String
   fromWarehouseId String?
   toWarehouseId   String?
   quantity        Int
+  condition       String         @default("GOOD")
   reason          String?
-  createdAt       DateTime   @default(now())
+  createdAt       DateTime       @default(now())
   performedById   String?
-  toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
-  product         Product    @relation(fields: [productId], references: [id])
-  performedBy     User?      @relation(fields: [performedById], references: [id])
-  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse     Warehouse?     @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  product         Product        @relation(fields: [productId], references: [id])
+  performedBy     User?          @relation(fields: [performedById], references: [id])
+  fromWarehouse   Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
 }
 
 model StockRequest {
@@ -387,6 +391,8 @@ model PurchaseInvoice {
   voidReason     String?
   voidedAt       DateTime?
   voidedBy       String?
+  isReturn       Boolean        @default(false)
+  parentId       String?
   journalEntries JournalEntry[]
   warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
   supplier       Supplier       @relation(fields: [supplierId], references: [id])
@@ -429,6 +435,8 @@ model Sale {
   offlineFlag        Boolean        @default(false)
   discountPercentage Decimal?       @default(0.00)
   previousStatus     String?
+  isReturn           Boolean        @default(false)
+  parentId           String?
   journalEntries     JournalEntry[]
   user               User?          @relation("SaleOwner", fields: [userId], references: [id])
   warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
@@ -898,6 +906,10 @@ model Table {
   updatedAt DateTime @updatedAt
   floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
 }
+
+// SQLite does not support native enums. Using String fields with conceptual enums.
+// ProductType: PHYSICAL | SERVICE | DIGITAL
+// StockCondition: GOOD | DEFECTIVE
 
 model LocalBackup {
   id              Int       @id @default(autoincrement())
