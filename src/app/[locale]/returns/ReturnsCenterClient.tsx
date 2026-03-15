@@ -81,6 +81,11 @@ const ALL_RETURN_TYPES: {
   },
 ];
 
+const getTodayRange = (): DateRange => {
+  const now = new Date();
+  return { from: startOfDay(now), to: endOfDay(now) };
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCenterClientProps) {
@@ -99,6 +104,7 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [tableFilter, setTableFilter] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -107,8 +113,8 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
   const [isPending, startTransition] = useTransition();
 
   // Unified Date Filtering
-  const [dateFilter, setDateFilter] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [dateFilter, setDateFilter] = useState<string>("today");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => getTodayRange());
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -198,6 +204,23 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
     setSearchQuery("");
   }, []);
 
+  const displayedRows = searchResults.filter((row) => {
+    const q = tableFilter.trim().toLowerCase();
+    if (!q) return true;
+    return [
+      row.customerName,
+      row.customerPhone,
+      row.productName,
+      row.referenceNumber,
+      String(row.quantity),
+      String(row.unitPrice),
+      new Date(row.invoiceDate).toLocaleDateString("ar-EG"),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
+
   if (returnTypes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center bg-zinc-900/50 rounded-2xl border border-white/5">
@@ -256,9 +279,9 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
                 <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
                   {searchQuery ? "نتائج البحث" : "مستندات حديثة"}
                 </div>
-                {searchResults.map((res) => (
+                {searchResults.map((res, idx) => (
                   <button
-                    key={res.id}
+                    key={`${res.id}-${res.productName}-${idx}`}
                     onClick={() => selectDocument(res.id)}
                     className="w-full flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-white/10 text-right transition-all group"
                   >
@@ -335,6 +358,67 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
               className="w-56"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-zinc-950/40 overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-4 border-b border-white/10">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-200">تفاصيل الفواتير في المرتجعات</h3>
+            <p className="text-xs text-zinc-500 mt-1">اضغط على أي صف لفتح الفاتورة وتجهيز المرتجع</p>
+          </div>
+          <div className="relative w-full lg:w-[360px]">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              placeholder="تصفية الجدول بالعميل/الرقم/المنتج/الكمية/السعر"
+              className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pr-9 pl-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/10"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="bg-white/5 text-zinc-400">
+              <tr>
+                <th className="px-4 py-3 text-right font-bold">المرجع</th>
+                <th className="px-4 py-3 text-right font-bold">اسم العميل</th>
+                <th className="px-4 py-3 text-right font-bold">رقم العميل</th>
+                <th className="px-4 py-3 text-right font-bold">اسم المنتج</th>
+                <th className="px-4 py-3 text-right font-bold">عدد القطع</th>
+                <th className="px-4 py-3 text-right font-bold">تاريخ الفاتورة</th>
+                <th className="px-4 py-3 text-right font-bold">سعر المنتج</th>
+                <th className="px-4 py-3 text-right font-bold">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedRows.map((row, idx) => (
+                <tr
+                  key={`${row.id}-${row.productName}-${idx}`}
+                  onClick={() => selectDocument(row.id)}
+                  className="border-t border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 text-zinc-200 font-mono">{row.referenceNumber}</td>
+                  <td className="px-4 py-3 text-zinc-200">{row.customerName || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-300">{row.customerPhone || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-200">{row.productName || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-200">{row.quantity}</td>
+                  <td className="px-4 py-3 text-zinc-300">{new Date(row.invoiceDate).toLocaleDateString("ar-EG")}</td>
+                  <td className="px-4 py-3 text-zinc-200 font-mono">{row.unitPrice.toFixed(2)} ج.م</td>
+                  <td className="px-4 py-3 text-emerald-300 font-mono">{row.total.toFixed(2)} ج.م</td>
+                </tr>
+              ))}
+              {displayedRows.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
+                    لا توجد نتائج مطابقة للفلاتر الحالية
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

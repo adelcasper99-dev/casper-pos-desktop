@@ -57,6 +57,17 @@ export async function resetDatabase() {
             await tx.actionLog.deleteMany();
             await tx.auditLog.deleteMany();
 
+            // Maintenance Tickets & Repair Services (Delete child tables first)
+            await tx.repairPayment.deleteMany();
+            await tx.ticketPart.deleteMany();
+            await tx.ticketNote.deleteMany();
+            await tx.ticketCollaborator.deleteMany();
+            await tx.notificationLog.deleteMany();
+            await tx.feedback.deleteMany();
+            await tx.ticket.deleteMany();
+            await tx.technicianPerformance.deleteMany();
+            await tx.deviceMovement.deleteMany();
+
             // 2. Reset Quantities and Balances to 0
 
             // Reset Stock

@@ -409,6 +409,13 @@ export interface SearchResult {
   label: string; // Displayed in the combobox (e.g., "#INV-001 - Name")
   subLabel: string; // (e.g., "0123456789 | 2024-01-01")
   total: number;
+  customerName: string;
+  customerPhone: string;
+  productName: string;
+  quantity: number;
+  invoiceDate: string;
+  unitPrice: number;
+  referenceNumber: string;
 }
 
 export async function searchReturns(
@@ -439,19 +446,38 @@ export async function searchReturns(
                  { id: { contains: q } },
                  { customerName: { contains: q } },
                  { customerPhone: { contains: q } },
+                 { items: { some: { product: { name: { contains: q } } } } },
+                 { items: { some: { product: { sku: { contains: q } } } } },
                ]
              } : {}
           ]
+        } as any,
+        include: {
+          items: {
+            include: {
+              product: { select: { name: true, sku: true } },
+            },
+          },
         },
-        take: 15,
+        take: 30,
         orderBy: { createdAt: "desc" },
       });
-      results = sales.map((s) => ({
-        id: s.id,
-        label: `${s.customerName ?? s.id.slice(0, 8)}`,
-        subLabel: `${s.customerPhone ?? ""} | ${s.createdAt.toLocaleDateString()}`,
-        total: Number(s.totalAmount),
-      }));
+      results = sales.flatMap((s) => {
+        const items = s.items.length > 0 ? s.items : [null];
+        return items.map((item: any) => ({
+          id: s.id,
+          label: `${s.customerName ?? s.id.slice(0, 8)}`,
+          subLabel: `${s.customerPhone ?? ""} | ${s.createdAt.toLocaleDateString()}`,
+          total: Number(s.totalAmount),
+          customerName: s.customerName ?? "—",
+          customerPhone: s.customerPhone ?? "—",
+          productName: item?.product?.name ?? "—",
+          quantity: item?.quantity ?? 0,
+          invoiceDate: s.createdAt.toISOString(),
+          unitPrice: Number(item?.unitPrice ?? 0),
+          referenceNumber: (s as any).invoiceNumber ?? s.id.slice(0, 8).toUpperCase(),
+        }));
+      });
     } else if (type === "PURCHASES") {
       const purchases = await prisma.purchaseInvoice.findMany({
         where: {
@@ -462,20 +488,35 @@ export async function searchReturns(
                 { id: { contains: q } },
                 { invoiceNumber: { contains: q } },
                 { supplier: { name: { contains: q } } },
+                { items: { some: { product: { name: { contains: q } } } } },
+                { items: { some: { product: { sku: { contains: q } } } } },
               ]
             } : {}
           ]
         },
-        include: { supplier: true },
-        take: 15,
+        include: {
+          supplier: true,
+          items: { include: { product: { select: { name: true, sku: true } } } },
+        },
+        take: 30,
         orderBy: { purchaseDate: "desc" },
       });
-      results = purchases.map((p) => ({
-        id: p.id,
-        label: `${p.invoiceNumber ?? p.id.slice(0, 8)} - ${p.supplier.name}`,
-        subLabel: p.purchaseDate.toLocaleDateString(),
-        total: Number(p.totalAmount),
-      }));
+      results = purchases.flatMap((p) => {
+        const items = p.items.length > 0 ? p.items : [null];
+        return items.map((item: any) => ({
+          id: p.id,
+          label: `${p.invoiceNumber ?? p.id.slice(0, 8)} - ${p.supplier.name}`,
+          subLabel: p.purchaseDate.toLocaleDateString(),
+          total: Number(p.totalAmount),
+          customerName: p.supplier.name,
+          customerPhone: "—",
+          productName: item?.product?.name ?? "—",
+          quantity: item?.quantity ?? 0,
+          invoiceDate: p.purchaseDate.toISOString(),
+          unitPrice: Number(item?.unitCost ?? 0),
+          referenceNumber: p.invoiceNumber ?? p.id.slice(0, 8).toUpperCase(),
+        }));
+      });
     } else if (type === "MAINTENANCE") {
       const tickets = await (prisma as any).ticket.findMany({
         where: {
@@ -487,19 +528,44 @@ export async function searchReturns(
                 { barcode: { contains: q } },
                 { customerName: { contains: q } },
                 { customerPhone: { contains: q } },
+                { parts: { some: { product: { name: { contains: q } } } } },
+                { parts: { some: { product: { sku: { contains: q } } } } },
               ]
             } : {}
           ]
+        } as any,
+        include: {
+          parts: {
+            include: {
+              product: { select: { name: true, sku: true } },
+            },
+          },
         },
-        take: 15,
+        take: 30,
         orderBy: { createdAt: "desc" },
       });
-      results = tickets.map((t: any) => ({
-        id: t.id,
-        label: `${t.Barcode ?? t.barcode ?? t.id.slice(0, 8)} - ${t.customerName ?? "—"}`,
-        subLabel: `${t.customerPhone ?? ""} | ${t.createdAt.toLocaleDateString()}`,
-        total: Number(t.totalAmount ?? 0),
-      }));
+      results = tickets.flatMap((t: any) => {
+        const parts = Array.isArray(t.parts) && t.parts.length > 0
+          ? t.parts
+          : [{
+              quantity: 1,
+              price: Number(t.repairPrice ?? 0),
+              product: { name: "خدمة صيانة", sku: "SERVICE" }
+            }];
+        return parts.map((part: any) => ({
+          id: t.id,
+          label: `${t.Barcode ?? t.barcode ?? t.id.slice(0, 8)} - ${t.customerName ?? "—"}`,
+          subLabel: `${t.customerPhone ?? ""} | ${t.createdAt.toLocaleDateString()}`,
+          total: Number(t.totalAmount ?? 0),
+          customerName: t.customerName ?? "—",
+          customerPhone: t.customerPhone ?? "—",
+          productName: part.product?.name ?? part.name ?? "—",
+          quantity: Number(part.quantity ?? 0),
+          invoiceDate: new Date(t.createdAt).toISOString(),
+          unitPrice: Number(part.price ?? t.repairPrice ?? 0),
+          referenceNumber: t.barcode ?? t.id.slice(0, 8).toUpperCase(),
+        }));
+      });
     }
 
     return { success: true, data: results };
@@ -508,4 +574,3 @@ export async function searchReturns(
     return { success: false, data: [] };
   }
 }
-
