@@ -69,7 +69,7 @@ const MENU_ITEMS = [
     { key: "reports", href: "/reports", icon: BarChart3, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
     { key: "maintenance_dashboard", href: "/maintenance/dashboard", icon: Activity, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
     { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSION_REGISTRY.TICKET.VIEW },
-    { key: "returns", href: "/returns", icon: Undo2, permission: PERMISSION_REGISTRY.POS.ACCESS },
+    { key: "returns", href: "/returns", icon: Undo2, permission: undefined },
 ];
 
 function Sidebar({ user, settings }: { user: any, settings?: any }) {
@@ -127,11 +127,28 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
             // 1. Check Feature Toggle (Enabled by default if not specified)
             // Handle linked modules
             const featureKey = item.key.includes('maintenance') ? 'maintenance' : 
-                               item.key === 'returns' ? 'pos' :
+                               item.key === 'returns' ? 'returns' :
                                item.key === 'logs' ? 'reports' :
                                item.key;
 
-            if (features[featureKey] === false) return false;
+            if (item.key === 'returns') {
+                // Returns should be visible if POS OR Maintenance OR Purchasing is enabled
+                const isPosEnabled = features['pos'] !== false;
+                const isMaintenanceEnabled = features['maintenance'] !== false;
+                const isPurchasingEnabled = features['purchasing'] !== false;
+                if (!isPosEnabled && !isMaintenanceEnabled && !isPurchasingEnabled) return false;
+
+                // Also check if user has permission for ANY of these
+                if (isAdmin) return true;
+                const hasPosAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.POS.ACCESS);
+                const hasMaintAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.TICKET.VIEW);
+                const hasPurchAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.PURCHASING.VIEW);
+                if (!hasPosAccess && !hasMaintAccess && !hasPurchAccess) return false;
+                
+                return true;
+            } else if (features[featureKey] === false) {
+                return false;
+            }
 
             // 2. Check Permissions
             if (!item.permission) return true;

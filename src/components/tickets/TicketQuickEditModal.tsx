@@ -11,6 +11,7 @@ import { getAllTechnicians } from "@/actions/engineer-actions"
 import { Loader2, Save, Lock, DollarSign, AlertTriangle, Clock } from "lucide-react"
 import { useTranslations } from '@/lib/i18n-mock';
 import { useCSRF } from "@/contexts/CSRFContext";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 
 interface TicketQuickEditModalProps {
     isOpen: boolean;
@@ -22,6 +23,7 @@ interface TicketQuickEditModalProps {
 export default function TicketQuickEditModal({ isOpen, onClose, ticket, onSuccess }: TicketQuickEditModalProps) {
     const t = useTranslations('Ticket.quickEdit');
     const tCommon = useTranslations('Common');
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
     const { token: csrfToken } = useCSRF();
     const [loading, setLoading] = useState(false);
     const [technicians, setTechnicians] = useState<any[]>([]);
@@ -105,9 +107,11 @@ export default function TicketQuickEditModal({ isOpen, onClose, ticket, onSucces
                         <div className="col-span-3 relative">
                             <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500" />
                             <Input
+                                {...getNavProps(0)}
                                 type="number"
                                 value={price}
                                 onChange={(e) => setPrice(e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, 0, 4, handleSave)}
                                 className="pl-8 bg-black/50 border-zinc-700 text-white"
                             />
                         </div>
@@ -118,8 +122,10 @@ export default function TicketQuickEditModal({ isOpen, onClose, ticket, onSucces
                         <div className="col-span-3 relative">
                             <Lock className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500" />
                             <Input
+                                {...getNavProps(1)}
                                 value={securityCode}
                                 onChange={(e) => setSecurityCode(e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, 1, 4, handleSave)}
                                 placeholder={t('pinPatternPlaceholder')}
                                 className="pl-8 bg-black/50 border-zinc-700 text-white"
                             />
@@ -149,9 +155,11 @@ export default function TicketQuickEditModal({ isOpen, onClose, ticket, onSucces
                             <div className="relative">
                                 <Clock className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500" />
                                 <Input
+                                    {...getNavProps(2)}
                                     type="number"
                                     value={duration}
                                     onChange={(e) => setDuration(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, 2, 4, handleSave)}
                                     placeholder={t('expectedDuration')}
                                     className="pl-8 bg-black/50 border-zinc-700 text-white"
                                 />
@@ -188,8 +196,10 @@ export default function TicketQuickEditModal({ isOpen, onClose, ticket, onSucces
                     <div className="grid gap-2">
                         <label className="text-sm text-zinc-400">{t('issueDescription')}</label>
                         <Textarea
+                            {...getNavProps(3)}
                             value={issue}
                             onChange={(e) => setIssue(e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, 3, 4, handleSave)}
                             className="bg-black/50 border-zinc-700 text-white min-h-[80px]"
                         />
                     </div>

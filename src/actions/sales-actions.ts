@@ -435,14 +435,30 @@ export const refundSale = secureAction(async (data: {
             }
         }
 
-        // 5. Update sale status
-        const refundedSale = await tx.sale.update({
+        // 5. Update original sale status and items
+        await tx.sale.update({
             where: { id: saleId },
             data: {
                 status: 'REFUNDED',
                 refundReason: reason || 'Customer refund'
             }
         });
+
+        // 5.1 Increment refundedQty on all original items
+        for (const item of sale.items) {
+            const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
+                const matched = (ret.items || []).find((ii: any) => ii.productId === item.productId);
+                return sum + (matched?.quantity || 0);
+            }, 0);
+            const qtyToRefund = Math.max(0, item.quantity - alreadyReturnedQty);
+            
+            if (qtyToRefund > 0) {
+                await tx.saleItem.update({
+                    where: { id: item.id },
+                    data: { refundedQty: { increment: qtyToRefund } }
+                });
+            }
+        }
 
         // 6. Audit Log
         await tx.auditLog.create({
@@ -556,24 +572,26 @@ export const partialRefundSale = secureAction(async (data: {
             include: { items: true }
         });
 
-        let refundTotal = 0;
+        let refundTotal = new Decimal(0);
         const processedItems: { 
             itemId: string; 
             productId: string; 
             refundQty: number; 
-            lineTotal: number; 
-            proratedTax: number;
-            proratedDiscount: number;
-            unitPrice: number; 
-            unitCost: number; 
+            lineTotal: Decimal; 
+            proratedTax: Decimal;
+            proratedDiscount: Decimal;
+            unitPrice: Decimal; 
+            unitCost: Decimal; 
             name: string; 
             isDamaged: boolean 
         }[] = [];
 
         const originalItemsSubTotal = (sale.items as any[]).reduce(
-            (s: number, i: any) => s + Number(i.unitPrice) * i.quantity,
-            0
-        ) || Number(sale.subTotal);
+            (s: Decimal, i: any) => s.plus(new Decimal(i.unitPrice).times(i.quantity)),
+            new Decimal(0)
+        );
+
+        const finalSubTotal = originalItemsSubTotal.gt(0) ? originalItemsSubTotal : new Decimal(sale.subTotal || 0);
 
         for (const refundItem of refundItems) {
             const originalItem = (sale.items as any[]).find((i: any) => i.id === refundItem.itemId);
@@ -591,21 +609,21 @@ export const partialRefundSale = secureAction(async (data: {
                 throw new Error(t('partialRefundQtyError', { qty: availableQty, name: originalItem.product.name }));
             }
 
-            const itemLineTotal = Number(originalItem.unitPrice) * refundItem.quantity;
-            const weightRatio = originalItemsSubTotal > 0 ? itemLineTotal / originalItemsSubTotal : 0;
+            const itemLineTotal = new Decimal(originalItem.unitPrice).times(refundItem.quantity);
+            const weightRatio = finalSubTotal.gt(0) ? itemLineTotal.div(finalSubTotal) : new Decimal(0);
 
-            const lineTotal = calculateProratedRefundValue(
+            const lineTotal = new Decimal(calculateProratedRefundValue(
                 Number(originalItem.unitPrice),
                 refundItem.quantity,
-                originalItemsSubTotal,
+                finalSubTotal.toNumber(),
                 Number(sale.discountAmount),
                 Number(sale.taxAmount)
-            );
+            ));
             
-            const proratedTax = Number(sale.taxAmount) * weightRatio;
-            const proratedDiscount = Number(sale.discountAmount) * weightRatio;
+            const proratedTax = new Decimal(sale.taxAmount || 0).times(weightRatio);
+            const proratedDiscount = new Decimal(sale.discountAmount || 0).times(weightRatio);
             
-            refundTotal += lineTotal;
+            refundTotal = refundTotal.plus(lineTotal);
             processedItems.push({
                 itemId: originalItem.id,
                 productId: originalItem.productId,
@@ -613,28 +631,34 @@ export const partialRefundSale = secureAction(async (data: {
                 lineTotal,
                 proratedTax,
                 proratedDiscount,
-                unitPrice: Number(originalItem.unitPrice),
-                unitCost: Number(originalItem.unitCost),
+                unitPrice: new Decimal(originalItem.unitPrice),
+                unitCost: new Decimal(originalItem.unitCost),
                 name: originalItem.product.name,
                 isDamaged: refundItem.isDamaged || false
+            });
+
+            // 2.1 Update original item refundedQty
+            await tx.saleItem.update({
+                where: { id: originalItem.id },
+                data: { refundedQty: { increment: refundItem.quantity } }
             });
         }
 
         // 3. Financial Calculations
-        const totalReturnedPaidSoFar = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.paidAmount)), 0);
-        const originalPaidCashOverall: number = (sale.payments || []).filter(
+        const totalReturnedPaidSoFar = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.paidAmount).abs()), new Decimal(0));
+        const originalPaidCashOverall = (sale.payments || []).filter(
             (p: any) => p.method !== 'ACCOUNT' && p.method !== 'DEFERRED'
-        ).reduce((s: number, p: any) => s + Number(p.amount), 0);
+        ).reduce((s: Decimal, p: any) => s.plus(new Decimal(p.amount)), new Decimal(0));
 
-        const currentPaidCashRemaining = Math.max(0, originalPaidCashOverall - totalReturnedPaidSoFar);
+        const currentPaidCashRemaining = originalPaidCashOverall.minus(totalReturnedPaidSoFar);
 
         const { amountToCash, amountToAccount } = splitDeferredRefund(
             sale.paymentMethod,
-            refundTotal,
-            currentPaidCashRemaining
+            refundTotal.toNumber(),
+            currentPaidCashRemaining.toNumber()
         );
 
-        const finalRefundMethod = refundMethod === 'STORE_CREDIT' ? 'STORE_CREDIT' : (amountToCash > 0 ? (sale.paymentMethod || 'CASH') : 'ACCOUNT');
+        const finalRefundMethod = refundMethod === 'STORE_CREDIT' ? 'STORE_CREDIT' : (new Decimal(amountToCash).gt(0) ? (sale.paymentMethod || 'CASH') : 'ACCOUNT');
         const amountToWallet = refundMethod === 'STORE_CREDIT' ? amountToCash : 0;
         const finalAmountToCash = refundMethod === 'STORE_CREDIT' ? 0 : amountToCash;
 
@@ -657,12 +681,12 @@ export const partialRefundSale = secureAction(async (data: {
                 customerPhone: sale.customerPhone,
                 customerAddress: sale.customerAddress,
                 warehouseId: sale.warehouseId,
-                totalAmount: new Decimal(-refundTotal),
+                totalAmount: refundTotal.negated(),
                 paymentMethod: finalRefundMethod,
                 status: 'REFUNDED',
-                subTotal: new Decimal(-refundTotal),
-                taxAmount: new Decimal(-(processedItems.reduce((s, p: any) => s + p.proratedTax, 0))),
-                discountAmount: new Decimal(-(processedItems.reduce((s, p: any) => s + p.proratedDiscount, 0))),
+                subTotal: refundTotal.negated(),
+                taxAmount: processedItems.reduce((s, p) => s.plus(p.proratedTax), new Decimal(0)).negated(),
+                discountAmount: processedItems.reduce((s, p) => s.plus(p.proratedDiscount), new Decimal(0)).negated(),
                 shiftId: currentShift.id,
                 customerId: sale.customerId,
                 userId: currentUser.id,
@@ -815,14 +839,14 @@ export const partialRefundSale = secureAction(async (data: {
         await AccountingEngine.recordSaleReturn({
             saleId,
             returnSaleId: returnSale.id,
-            totalRefund: refundTotal,
+            totalRefund: refundTotal.toNumber(),
             cashPortion: finalAmountToCash,
             arPortion: amountToAccount,
             walletPortion: amountToWallet,
             items: processedItems.map(p => ({
                 productId: p.productId,
                 quantity: p.refundQty,
-                unitCost: p.unitCost
+                unitCost: p.unitCost.toNumber()
             })),
             reason: reason || 'Partial Refund'
         }, tx);
@@ -830,7 +854,7 @@ export const partialRefundSale = secureAction(async (data: {
         await tx.shift.update({
             where: { id: currentShift.id },
             data: {
-                totalRefunds: { increment: Number(refundTotal) },
+                totalRefunds: { increment: refundTotal },
                 // @ts-ignore
                 totalCashRefunds: { increment: finalAmountToCash },
                 // @ts-ignore
@@ -838,7 +862,7 @@ export const partialRefundSale = secureAction(async (data: {
             }
         });
 
-        return { refundTotal, returnSaleId: returnSale.id, itemCount: processedItems.length };
+        return { refundTotal: refundTotal.toNumber(), returnSaleId: returnSale.id, itemCount: processedItems.length };
     });
 
     revalidatePath("/pos");

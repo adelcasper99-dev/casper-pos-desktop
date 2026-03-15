@@ -688,10 +688,20 @@
         "category": "الفئة",
         "filter": {
             "status": "الحالة",
-            "active": "نشط",
+            "active": "نشط / مؤكد",
             "all": "الكل",
             "voided": "ملغى",
+            "returns": "المرتجعات",
             "clear": "مسح الفلاتر"
+        },
+        "statuses": {
+            "PAID": "مسدد بالكامل",
+            "PARTIAL": "مسدد جزئياً",
+            "PENDING": "قيد الانتظار",
+            "VOIDED": "ملغى",
+            "RETURN": "مرتجع",
+            "RETURNED": "مرتجع كلي",
+            "PARTIAL_RETURN": "مرتجع جزئي"
         },
         "table": {
             "date": "التاريخ",

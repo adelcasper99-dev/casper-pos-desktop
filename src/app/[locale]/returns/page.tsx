@@ -1,10 +1,21 @@
 import ReturnsCenterClient from "./ReturnsCenterClient";
 import { getCSRFToken } from "@/lib/csrf";
+import { getStoreSettings } from "@/actions/settings";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReturnsCenterPage() {
   const csrfToken = await getCSRFToken();
+  const settingsRes = await getStoreSettings();
+  const settings = settingsRes?.data || {};
+
+  let features = {};
+  try {
+    features = JSON.parse(settings.features || "{}");
+  } catch (e) {
+    console.error("Failed to parse features", e);
+  }
 
   return (
     <div className="space-y-6">
@@ -14,7 +25,7 @@ export default async function ReturnsCenterPage() {
           إدارة مرتجعات المبيعات، المشتريات، وتذاكر الصيانة من مكان واحد
         </p>
       </div>
-      <ReturnsCenterClient csrfToken={csrfToken || ""} />
+      <ReturnsCenterClient csrfToken={csrfToken || ""} features={features} />
     </div>
   );
 }

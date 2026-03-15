@@ -137,13 +137,13 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             where: { parentId: id, isReturn: true }
         });
 
-        const totalReturnedValue = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.totalAmount)), 0);
-        const totalReturnedPaid = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.paidAmount)), 0);
+        const totalReturnedValue = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.totalAmount).abs()), new Decimal(0));
+        const totalReturnedPaid = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.paidAmount).abs()), new Decimal(0));
         
-        const remainingTotalAmount = Math.max(0, Number(invoice.totalAmount) - totalReturnedValue);
-        const remainingPaidAmount = Math.max(0, Number(invoice.paidAmount) - totalReturnedPaid);
+        const remainingTotalAmount = Decimal.max(0, new Decimal(invoice.totalAmount).minus(totalReturnedValue));
+        const remainingPaidAmount = Decimal.max(0, new Decimal(invoice.paidAmount).minus(totalReturnedPaid));
 
-        if (remainingTotalAmount <= 0) {
+        if (remainingTotalAmount.lte(0)) {
             throw new Error("هذه الفاتورة تم إرجاعها بالكامل بالفعل عبر مستندات مرتجع جزئية");
         }
 
@@ -154,7 +154,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
-                totalAmount: new Decimal(-remainingTotalAmount),
+                totalAmount: remainingTotalAmount.negated(),
                 paidAmount: new Decimal(0), // Full credit by default, unless handled below
                 status: 'RETURN',
                 paymentMethod: invoice.paymentMethod,
@@ -220,8 +220,8 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         }
         */
 
-        // 5. Update Status
-        const voidedInvoice = await tx.purchaseInvoice.update({
+        // 5. Update Status and items
+        await tx.purchaseInvoice.update({
             where: { id },
             data: {
                 status: 'RETURNED',
@@ -231,17 +231,33 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             }
         });
 
+        // 5.1 Increment returnedQty on all original items
+        for (const item of invoice.items) {
+            const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
+                const matched = (ret.items || []).find((ii: any) => ii.productId === item.productId);
+                return sum + (matched?.quantity || 0);
+            }, 0);
+            const qtyToReturn = Math.max(0, item.quantity - alreadyReturnedQty);
+            
+            if (qtyToReturn > 0) {
+                await tx.purchaseItem.update({
+                    where: { id: item.id },
+                    data: { returnedQty: { increment: qtyToReturn } }
+                });
+            }
+        }
+
         // 6. Accounting Reversal (Remaining AP + Cash split)
         const unpaidAmount = new Decimal(remainingTotalAmount).minus(remainingPaidAmount);
         const accountingLines = [];
         
         if (unpaidAmount.gt(0)) {
-            accountingLines.push({ accountCode: '2000', debit: Number(unpaidAmount), credit: 0, description: 'AP Reversed (Void Remaining)' });
+            accountingLines.push({ accountCode: '2000', debit: unpaidAmount.toNumber(), credit: 0, description: 'AP Reversed (Void Remaining)' });
         }
-        if (remainingPaidAmount > 0) {
-            accountingLines.push({ accountCode: '1000', debit: Number(remainingPaidAmount), credit: 0, description: 'Cash Refund Received (Void Remaining)' });
+        if (remainingPaidAmount.gt(0)) {
+            accountingLines.push({ accountCode: '1000', debit: remainingPaidAmount.toNumber(), credit: 0, description: 'Cash Refund Received (Void Remaining)' });
         }
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: Number(remainingTotalAmount), description: 'Inventory Asset Reversed (Void Remaining)' });
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: remainingTotalAmount.toNumber(), description: 'Inventory Asset Reversed (Void Remaining)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
@@ -312,10 +328,10 @@ export const partialReturnPurchase = secureAction(async (data: {
             include: { items: true }
         });
 
-        const totalReturnedValueSoFar = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.totalAmount)), 0);
-        const totalReturnedPaidSoFar = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.paidAmount)), 0);
+        const totalReturnedValueSoFar = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.totalAmount).abs()), new Decimal(0));
+        const totalReturnedPaidSoFar = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.paidAmount).abs()), new Decimal(0));
 
-        let returnTotal = 0;
+        let returnTotal = new Decimal(0);
         const processedItems: { productId: string; returnQty: number; unitCost: number; name: string }[] = [];
 
         for (const returnItem of returnItems) {
@@ -335,23 +351,29 @@ export const partialReturnPurchase = secureAction(async (data: {
                 throw new Error(`الكمية المتبقية للإرجاع هي (${availableQty}). لا يمكن إرجاع (${returnItem.quantity}) من "${originalItem.product.name}"`);
             }
 
-            const lineCost = Number(originalItem.unitCost) * returnItem.quantity;
-            returnTotal += lineCost;
+            const lineCost = new Decimal(originalItem.unitCost).times(returnItem.quantity);
+            returnTotal = returnTotal.plus(lineCost);
             processedItems.push({
                 productId: originalItem.productId,
                 returnQty: returnItem.quantity,
-                unitCost: Number(originalItem.unitCost),
+                unitCost: new Decimal(originalItem.unitCost).toNumber(),
                 name: originalItem.product.name
+            });
+
+            // 2.1 Update original item returnedQty
+            await tx.purchaseItem.update({
+                where: { id: originalItem.id },
+                data: { returnedQty: { increment: returnItem.quantity } }
             });
         }
 
         // 📊 Determine remaining debt and cash on the ORIGINAL invoice
-        const currentUnpaidAmount = Math.max(0, (Number(invoice.totalAmount) - Number(invoice.paidAmount)) - (totalReturnedValueSoFar - totalReturnedPaidSoFar));
-        const currentPaidCashRemaining = Math.max(0, Number(invoice.paidAmount) - totalReturnedPaidSoFar);
+        const currentUnpaidAmount = Decimal.max(0, new Decimal(invoice.totalAmount).minus(invoice.paidAmount).minus(totalReturnedValueSoFar.minus(totalReturnedPaidSoFar)));
+        const currentPaidCashRemaining = Decimal.max(0, new Decimal(invoice.paidAmount).minus(totalReturnedPaidSoFar));
 
         // 🔀 Split the return between debt-reduction and cash-back
-        const debtReduction = Math.min(returnTotal, currentUnpaidAmount);
-        const cashReversal = returnTotal - debtReduction;
+        const debtReduction = Decimal.min(returnTotal, currentUnpaidAmount);
+        const cashReversal = returnTotal.minus(debtReduction);
 
         // 3. Create NEW Return Invoice
         const timestamp = new Date().getTime().toString().slice(-4);
@@ -360,7 +382,7 @@ export const partialReturnPurchase = secureAction(async (data: {
                 invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
-                totalAmount: new Decimal(-returnTotal),
+                totalAmount: returnTotal.negated(),
                 paidAmount: new Decimal(0), // All go to balance/credit
                 status: 'RETURN',
                 paymentMethod: invoice.paymentMethod,
@@ -429,14 +451,14 @@ export const partialReturnPurchase = secureAction(async (data: {
 
         // 7. Accounting Entry for the Return Invoice
         const accountingLines = [];
-        if (debtReduction > 0) {
-            accountingLines.push({ accountCode: '2000', debit: Number(debtReduction), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        if (debtReduction.gt(0)) {
+            accountingLines.push({ accountCode: '2000', debit: debtReduction.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
         }
-        if (cashReversal > 0) {
-            accountingLines.push({ accountCode: '1000', debit: Number(cashReversal), credit: 0, description: 'Cash Refund Received' });
+        if (cashReversal.gt(0)) {
+            accountingLines.push({ accountCode: '1000', debit: cashReversal.toNumber(), credit: 0, description: 'Cash Refund Received' });
         }
         // Always credit inventory for the full return amount
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: Number(returnTotal), description: 'Inventory Asset Reduced' });
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reduced' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice: ${returnInvoice.invoiceNumber}`,
@@ -455,7 +477,7 @@ export const partialReturnPurchase = secureAction(async (data: {
                 newData: JSON.stringify({ 
                     returnInvoiceId: returnInvoice.id,
                     items: processedItems,
-                    total: returnTotal 
+                    total: returnTotal.toNumber()
                 }),
                 reason: reason || 'مرتجع مشتريات',
                 user: currentUser.id === 'super-admin' ? 'super-admin' : (currentUser.username || currentUser.name),
@@ -464,7 +486,7 @@ export const partialReturnPurchase = secureAction(async (data: {
         });
 
         return {
-            returnTotal,
+            returnTotal: returnTotal.toNumber(),
             returnId: returnInvoice.id,
             itemCount: processedItems.length,
             invoiceNumber: returnInvoice.invoiceNumber,

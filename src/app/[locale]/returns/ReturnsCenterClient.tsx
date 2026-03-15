@@ -42,11 +42,12 @@ type FetchedDocument =
 
 interface ReturnsCenterClientProps {
   csrfToken: string;
+  features: any;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const RETURN_TYPES: {
+const ALL_RETURN_TYPES: {
   key: ReturnType;
   label: string;
   labelEn: string;
@@ -82,8 +83,20 @@ const RETURN_TYPES: {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ReturnsCenterClient({ csrfToken }: ReturnsCenterClientProps) {
-  const [returnType, setReturnType] = useState<ReturnType>("SALES");
+export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCenterClientProps) {
+  // Filter available return types based on module state
+  const returnTypes = ALL_RETURN_TYPES.filter(type => {
+    if (type.key === "SALES" && features.pos === false) return false;
+    if (type.key === "MAINTENANCE" && features.maintenance === false) return false;
+    if (type.key === "PURCHASES" && features.purchasing === false) return false;
+    return true;
+  });
+
+  const [returnType, setReturnType] = useState<ReturnType>(() => {
+    // Default to the first available return type
+    return returnTypes[0]?.key || "SALES";
+  });
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -98,10 +111,22 @@ export default function ReturnsCenterClient({ csrfToken }: ReturnsCenterClientPr
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const activeConfig = RETURN_TYPES.find((t) => t.key === returnType)!;
+
+  // Protected activeConfig
+  const activeConfig = returnTypes.find((t) => t.key === returnType) || returnTypes[0];
+
+  // ── Handle ReturnType Fallback ─────────────────────────────────────────────
+  useEffect(() => {
+    const isCurrentTypeValid = returnTypes.some(t => t.key === returnType);
+    if (!isCurrentTypeValid && returnTypes.length > 0) {
+      setReturnType(returnTypes[0].key);
+    }
+  }, [features, returnTypes, returnType]);
 
   // ── Debounced Search ──────────────────────────────────────────────────────
   useEffect(() => {
+    if (!activeConfig) return; // Guard for no available modules
+
     const timer = setTimeout(() => {
       if (searchQuery.trim().length >= 2 || (dateRange?.from && searchQuery.trim().length === 0)) {
         setIsSearching(true);
@@ -125,7 +150,7 @@ export default function ReturnsCenterClient({ csrfToken }: ReturnsCenterClientPr
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, returnType, dateRange]);
+  }, [searchQuery, returnType, dateRange, activeConfig]);
 
   // ── Close results on click outside ────────────────────────────────────────
   useEffect(() => {
@@ -173,11 +198,21 @@ export default function ReturnsCenterClient({ csrfToken }: ReturnsCenterClientPr
     setSearchQuery("");
   }, []);
 
+  if (returnTypes.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-zinc-900/50 rounded-2xl border border-white/5">
+        <Undo2 size={48} className="text-zinc-600 mb-4" />
+        <h2 className="text-xl font-bold text-zinc-300">لا توجد موديولات مفعلة</h2>
+        <p className="text-zinc-500 mt-2">يرجى تفعيل موديول المبيعات أو المشتريات أو الصيانة لاستخدام مركز المرتجعات</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6" dir="rtl">
       {/* ── Type Toggle ── */}
-      <div className="grid grid-cols-3 gap-3">
-        {RETURN_TYPES.map(({ key, label, labelEn, icon: Icon, activeColor }) => {
+      <div className={cn("grid gap-3", returnTypes.length === 1 ? "grid-cols-1" : returnTypes.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+        {returnTypes.map(({ key, label, labelEn, icon: Icon, activeColor }) => {
           const isActive = returnType === key;
           return (
             <button
@@ -208,7 +243,7 @@ export default function ReturnsCenterClient({ csrfToken }: ReturnsCenterClientPr
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => (searchQuery.length >= 2 || dateRange?.from) && setShowResults(true)}
-              placeholder={activeConfig.placeholder}
+              placeholder={activeConfig?.placeholder || ""}
               className="w-full rounded-2xl border border-white/5 bg-white/5 py-4 pr-12 pl-4 text-base text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/10 transition-all font-medium"
             />
             {isSearching && <Loader2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 animate-spin text-zinc-500" />}

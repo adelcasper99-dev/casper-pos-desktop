@@ -154,6 +154,7 @@ export const closeShift = secureAction(async (data: {
     shiftId: string;
     actualCash: number;
     notes?: string;
+    cashBreakdown?: Record<string, number>;
     safeDropAmount?: number;
     safeDropTreasuryId?: string;
     csrfToken?: string; // For CSRF validation
@@ -320,6 +321,8 @@ export const closeShift = secureAction(async (data: {
             totalSales: finalSalesCount,      // ✅ Verified
             totalTickets: finalTicketsCount,  // ✅ Verified
             hasAdjustments: hasDiscrepancy,   // ✅ Flag if corrected
+            // @ts-ignore
+            cashBreakdown: data.cashBreakdown ? JSON.stringify(data.cashBreakdown) : undefined,
             notes: hasDiscrepancy
                 ? `${data.notes || ''}\n\n[AUTO-CORRECTED]: ${discrepancyNotes.join('\n')}`
                 : data.notes || shift.notes

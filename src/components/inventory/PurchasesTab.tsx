@@ -76,6 +76,7 @@ interface PurchaseInvoice {
     deliveryCharge?: number;
     status: string;
     purchaseDate: Date;
+    isReturn?: boolean;
     warehouse?: {
         name: string;
         branch?: {
@@ -105,6 +106,8 @@ interface Warehouse {
     };
 }
 
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+
 export default function PurchasesTab({
     suppliers,
     products,
@@ -129,6 +132,7 @@ export default function PurchasesTab({
     const t = useTranslations('Purchasing');
     const tPOS = useTranslations("POS");
     const tCommon = useTranslations('Common');
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
 
     // Real-time polling for invoices
     const { data: activeInvoices } = useQuery({
@@ -143,7 +147,7 @@ export default function PurchasesTab({
         staleTime: 4000
     });
 
-    const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL' | 'VOIDED'>('ACTIVE');
+    const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL' | 'VOIDED' | 'RETURNS'>('ACTIVE');
     const [dateFilter, setDateFilter] = useState("all");
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -377,6 +381,7 @@ export default function PurchasesTab({
         // Status Filter
         if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
         if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
+        if (statusFilter === 'RETURNS' && !inv.isReturn && !['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) return false;
 
         // Date Filter
         if (dateRange?.from && dateRange?.to) {
@@ -529,6 +534,7 @@ export default function PurchasesTab({
                                 <span className="font-bold">
                                     {statusFilter === 'ALL' ? t('filter.all') : 
                                      statusFilter === 'ACTIVE' ? t('filter.active') : 
+                                     statusFilter === 'RETURNS' ? t('filter.returns') :
                                      t('filter.voided')}
                                 </span>
                                 <ChevronDown className="w-3 h-3 opacity-50" />
@@ -540,6 +546,9 @@ export default function PurchasesTab({
                             </DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => setStatusFilter('ACTIVE')} className={statusFilter === 'ACTIVE' ? "bg-white/10" : ""}>
                                 {t('filter.active')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter('RETURNS')} className={statusFilter === 'RETURNS' ? "bg-white/10" : ""}>
+                                {t('filter.returns')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setStatusFilter('ALL')} className={statusFilter === 'ALL' ? "bg-white/10" : ""}>
                                 {t('filter.all')}
@@ -616,13 +625,14 @@ export default function PurchasesTab({
                                     </td>
                                     <td className="p-4 text-center">
                                         <span className={clsx(
-                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
+                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap",
                                             inv.status === 'VOIDED' ? "bg-rose-500/20 text-rose-400 line-through opacity-60" :
-                                                inv.status === 'PAID' ? "bg-emerald-500/20 text-emerald-400" :
-                                                    inv.status === 'PARTIAL' ? "bg-amber-500/20 text-amber-400" :
-                                                        "bg-blue-500/20 text-blue-400"
+                                            (inv.isReturn || ['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" :
+                                            inv.status === 'PAID' ? "bg-emerald-500/20 text-emerald-400" :
+                                            inv.status === 'PARTIAL' ? "bg-amber-500/20 text-amber-400" :
+                                            "bg-blue-500/20 text-blue-400"
                                         )}>
-                                            {inv.status}
+                                            {t(`statuses.${inv.status}`) || inv.status}
                                         </span>
                                     </td>
                                     <td className="p-4 text-end font-mono text-muted-foreground text-xs">
@@ -787,9 +797,11 @@ export default function PurchasesTab({
                                 <div>
                                     <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('deliveryCharge')}</label>
                                     <input
+                                        {...getNavProps(10)}
                                         type="number"
                                         value={deliveryCharge}
                                         onChange={e => setDeliveryCharge(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, 10, 13, undefined)}
                                         className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-28 font-mono text-zinc-100 focus:border-cyan-500 outline-none transition-colors"
                                         placeholder="0.00"
                                     />
@@ -818,8 +830,10 @@ export default function PurchasesTab({
                                         )}
                                     </div>
                                     <input
+                                        {...getNavProps(11)}
                                         type="number"
                                         value={paidAmount}
+                                        onKeyDown={(e) => handleKeyDown(e, 11, 13, handleSubmit)}
                                         onChange={e => {
                                             const val = e.target.value;
                                             if (val === '') {
@@ -846,8 +860,10 @@ export default function PurchasesTab({
                                             {t('treasury') || 'الخزينة'}
                                         </label>
                                         <select
+                                            {...getNavProps(12)}
                                             value={treasuryId}
                                             onChange={(e) => setTreasuryId(e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(e, 12, 13, handleSubmit)}
                                             className="bg-zinc-900 border border-white/10 px-3 py-2 rounded-lg w-40 text-sm text-zinc-100 focus:border-cyan-500 outline-none transition-colors cursor-pointer"
                                         >
                                             <option value="">{t('selectTreasury') || 'الخزينة الافتراضية'}</option>

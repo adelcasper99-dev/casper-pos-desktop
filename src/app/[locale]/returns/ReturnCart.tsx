@@ -24,6 +24,7 @@ import {
 import { issueStoreCredit } from "../../../actions/returns-fetchers";
 import { partialRefundSale } from "../../../actions/sales-actions";
 import { partialReturnPurchase } from "../../../actions/purchase-actions";
+import { partialRefundTicket } from "../../../actions/ticket-actions";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "@/lib/i18n-mock";
 
@@ -142,20 +143,6 @@ function SalesReturnCart({
       if (!result?.success) {
         setError((result as any)?.error ?? "فشل تنفيذ المرتجع");
         return;
-      }
-
-      // 2. If STORE_CREDIT, explicitly top up the customer wallet
-      if (refundMethod === "STORE_CREDIT" && data.customerId) {
-        const creditRes = await issueStoreCredit({
-          sourceId: data.id,
-          customerId: data.customerId,
-          amount: totalRefund,
-          csrfToken,
-        });
-        if (!creditRes.success) {
-          setError(`تم الإرجاع، لكن فشل إضافة الرصيد للمحفظة: ${creditRes.error}`);
-          return;
-        }
       }
 
       onSuccess(
@@ -471,9 +458,9 @@ function MaintenanceReturnCart({
     }
 
     startTransition(async () => {
-      // Use partialRefundSale since maintenance tickets share financial flow
-      const result = await partialRefundSale({
-        saleId: data.id,
+      // Use partialRefundTicket instead of partialRefundSale
+      const result = await partialRefundTicket({
+        ticketId: data.id,
         items: payload,
         refundMethod: refundMethod === "STORE_CREDIT" ? "STORE_CREDIT" : "CASH",
         csrfToken,
@@ -482,21 +469,6 @@ function MaintenanceReturnCart({
       if (!result?.success) {
         setError((result as any)?.error ?? "فشل تنفيذ الاسترداد");
         return;
-      }
-
-      // If STORE_CREDIT selected, explicitly load the customer wallet
-      if (refundMethod === "STORE_CREDIT" && data.customerId) {
-        const creditRes = await issueStoreCredit({
-          sourceId: data.id,
-          customerId: data.customerId,
-          amount: totalRefund,
-          reason: "استرداد تذكرة صيانة",
-          csrfToken,
-        });
-        if (!creditRes.success) {
-          setError(`تم الاسترداد كنقاط نظامية، لكن فشل شحن المحفظة: ${creditRes.error}`);
-          return;
-        }
       }
 
       onSuccess(

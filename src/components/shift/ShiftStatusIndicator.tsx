@@ -2,6 +2,9 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { openShift, closeShift } from "@/actions/shift-management-actions";
+import { getEffectiveStoreSettings } from "@/actions/settings";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+import CashCounter from "./CashCounter";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
 import { printZReport } from "@/lib/print-zreport";
@@ -14,6 +17,7 @@ interface ShiftStatusIndicatorProps {
 }
 
 export default function ShiftStatusIndicator({ shift, registers = [], csrfToken }: ShiftStatusIndicatorProps) {
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
     const t = useTranslations('Shift');
     const tVal = useTranslations('Validation');
     const router = useRouter();
@@ -24,13 +28,24 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     // Form states
     const [startCash, setStartCash] = useState("");
     const [actualCash, setActualCash] = useState("");
+    const [cashBreakdown, setCashBreakdown] = useState<Record<string, number>>({});
     const [notes, setNotes] = useState("");
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
     const [isMounted, setIsMounted] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
 
     useEffect(() => {
         setIsMounted(true);
+        const fetchSettings = async () => {
+            const res = await getEffectiveStoreSettings();
+            if (res.data) {
+                setSettings(res.data);
+            }
+        };
+        fetchSettings();
     }, []);
+
+    const isBlindClose = settings?.blindCloseEnabled !== false;
 
     const handleOpenShift = async () => {
         const cashValue = startCash === "" ? 0 : parseFloat(startCash);
@@ -79,6 +94,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
             const result = await closeShift({
                 shiftId: shift.id,
                 actualCash: parseFloat(actualCash),
+                cashBreakdown,
                 notes: notes || undefined,
                 csrfToken // Added CSRF token
             });
@@ -160,8 +176,11 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                         {t('selectRegister')}
                                     </label>
                                     <select
+                                        id="open-shift-register-select"
+                                        {...getNavProps(0)}
                                         value={selectedRegister || ""}
                                         onChange={(e) => setSelectedRegister(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, 0, 2, undefined)}
                                         className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     >
                                         {registers.map(reg => (
@@ -180,11 +199,14 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 <div className="relative">
                                     <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
                                     <input
+                                        id="open-shift-start-cash"
+                                        {...getNavProps(1)}
                                         type="number"
                                         step="0.01"
                                         min="0"
                                         value={startCash}
                                         onChange={(e) => setStartCash(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, 1, 2, handleOpenShift)}
                                         className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         placeholder="0.00"
                                         autoFocus
@@ -346,53 +368,68 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                             </div>
                         </div>
 
-                        {/* Live Reconciliation Display */}
-                        <div className="mb-6 bg-gray-800/80 p-4 rounded-xl border border-gray-700 shadow-inner">
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-gray-400">الرصيد المتوقع بالدرج (Expected):</span>
-                                <span className="text-white font-medium">${expectedCashValue.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-gray-400">الرصيد الفعلي المدخل (Actual):</span>
-                                <span className="text-white font-medium">${actualCash === "" ? "0.00" : actualCashNum.toFixed(2)}</span>
-                            </div>
-                            <div className="w-full h-px bg-gray-600/50 my-3"></div>
-                            <div className="flex justify-between font-bold text-lg">
-                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-gray-300"}>
-                                    {varianceValue < 0 ? "عجز بالدرج (Shortage):" : varianceValue > 0 ? "زيادة بالدرج (Surplus):" : "متطابق (Matched):"}
-                                </span>
-                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-white"}>
-                                    {varianceValue > 0 ? "+" : ""}{varianceValue.toFixed(2)}
-                                </span>
+                        <div className="grid grid-cols-1 gap-4 mb-4">
+                            <CashCounter 
+                                onChange={(total, breakdown) => {
+                                    setActualCash(total.toString());
+                                    setCashBreakdown(breakdown);
+                                }}
+                                onEnterAtEnd={() => {
+                                    const notesEl = document.getElementById('shift-notes-input');
+                                    if (notesEl) {
+                                        notesEl.focus();
+                                    }
+                                }}
+                            />
+
+                            <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700">
+                                <label className="block text-[10px] font-bold mb-2 text-gray-500 uppercase tracking-widest text-center">
+                                    Actual Cash Counted (رصيد الدرج النهائي)
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2.5 text-blue-500 font-bold">$</span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={actualCash}
+                                        onChange={(e) => setActualCash(e.target.value)}
+                                        className="w-full p-2 pl-8 bg-black/40 border border-white/10 rounded-lg text-white text-2xl font-black text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                        placeholder="0.00"
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                                المبلغ الفعلي (Actual Amount in Drawer)
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={actualCash}
-                                    onChange={(e) => setActualCash(e.target.value)}
-                                    className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                    placeholder="0.00"
-                                    autoFocus
-                                />
+                        {/* Live Reconciliation Display (Only if NOT Blind Close) */}
+                        {!isBlindClose && (
+                            <div className="mb-4 bg-gray-800/80 p-4 rounded-xl border border-gray-700 shadow-inner">
+                                <div className="flex justify-between text-sm mb-2">
+                                    <span className="text-gray-400">الرصيد المتوقع (Expected):</span>
+                                    <span className="text-white font-medium">${expectedCashValue.toFixed(2)}</span>
+                                </div>
+                                <div className="w-full h-px bg-gray-600/50 my-2"></div>
+                                <div className="flex justify-between font-bold text-lg">
+                                    <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-gray-300"}>
+                                        {varianceValue < 0 ? "عجز (Shortage):" : varianceValue > 0 ? "زيادة (Surplus):" : "متطابق:"}
+                                    </span>
+                                    <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-white"}>
+                                        {varianceValue > 0 ? "+" : ""}{varianceValue.toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="mb-6">
                             <label className="block text-sm font-medium mb-2 text-gray-300">
                                 {t('notes')}
                             </label>
                             <textarea
+                                id="shift-notes-input"
+                                {...getNavProps(1)}
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, 1, 2, handleCloseShift)}
                                 className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
                                 rows={3}
                                 placeholder="Any notes about discrepancies..."

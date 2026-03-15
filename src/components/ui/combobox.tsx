@@ -28,8 +28,9 @@ export function Combobox({
     placeholder = "Select...",
     className,
     disabled = false,
-    emptyText = "Twjood options found."
-}: ComboboxProps) {
+    emptyText = "Twjood options found.",
+    ...props
+}: ComboboxProps & Omit<React.HTMLAttributes<HTMLButtonElement>, 'onChange'>) {
     const [isOpen, setIsOpen] = useState(false);
     const [query, setQuery] = useState("");
     const containerRef = useRef<HTMLDivElement>(null);
@@ -66,19 +67,21 @@ export function Combobox({
     return (
         <div className={cn("relative w-full", className)} ref={containerRef}>
             {/* Trigger Area - Looks like an Input */}
-            <div
+            <button
+                type="button"
                 className={cn(
-                    "glass-input w-full flex items-center justify-between px-3 h-10 cursor-pointer transition-colors",
+                    "glass-input w-full flex items-center justify-between px-3 h-10 cursor-pointer transition-colors text-left",
                     disabled && "opacity-50 cursor-not-allowed",
                     !value && "text-muted-foreground"
                 )}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
+                {...Object.fromEntries(Object.entries(props).filter(([key]) => key.startsWith('data-')))}
             >
                 <span className="truncate text-sm">
                     {selectedLabel || placeholder}
                 </span>
                 <ChevronsUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
-            </div>
+            </button>
 
             {/* Dropdown Content */}
             {isOpen && !disabled && (

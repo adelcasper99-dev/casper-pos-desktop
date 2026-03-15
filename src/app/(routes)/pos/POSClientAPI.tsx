@@ -46,12 +46,17 @@ export default function POSClientAPI({ products, categories: initialCategories, 
     const [isSpeedPrintModalOpen, setIsSpeedPrintModalOpen] = useState(false);
     const [speedPrintData, setSpeedPrintData] = useState<any>(null);
 
+    // Keyboard Shortcuts State
+    const [qtyModeId, setQtyModeId] = useState<string | null>(null);
+    const [qtyString, setQtyString] = useState<string | null>(null);
+
     const {
-        items, addToCart, removeFromCart, updateQuantity, getTotal, clearCart,
+        items, addToCart, removeFromCart, updateQuantity, setItemQuantity, getTotal, clearCart,
         holdCart, heldCarts, resumeCart, removeHeldCart,
         customerId, customerName, customerPhone, customerBalance, setCustomer,
         tableId, tableName, setTable,
-        discountAmount, discountPercentage, setDiscount
+        discountAmount, discountPercentage, setDiscount,
+        lastAddedId
     } = useCartStore();
 
     const [orderMode, setOrderMode] = useState<"takeaway" | "dine-in">("takeaway");
@@ -62,13 +67,30 @@ export default function POSClientAPI({ products, categories: initialCategories, 
         setIsMounted(true);
     }, []);
 
-    // Global Key Listener for Focus Restoration and State Clearing
+
+    // Reset Qty Mode when a new item is added or cart cleared
+    useEffect(() => {
+        if (lastAddedId) {
+            setQtyModeId(lastAddedId);
+            setQtyString(null);
+        }
+    }, [lastAddedId]);
+
+    useEffect(() => {
+        if (items.length === 0) {
+            setQtyModeId(null);
+            setQtyString(null);
+        }
+    }, [items.length]);
+    // Global Key Listener for Focus Restoration and Keyboard Shortcuts
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
-            // Focus Search/Barcode Input: Ctrl+F or just allow barcodes to flow
-            // But specifically for fixing the "freeze":
+            const activeElement = document.activeElement;
+            const isInput = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+            const isSearchInput = activeElement === searchInputRef.current;
+
+            // 0. Escape -> Clear overlays
             if (e.key === 'Escape') {
-                // Clear overlays in a specific priority
                 if (isCheckoutOpen) setIsCheckoutOpen(false);
                 else if (isTableModalOpen) setIsTableModalOpen(false);
                 else if (showHeldCarts) setShowHeldCarts(false);
@@ -82,12 +104,123 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                 setTimeout(() => {
                     searchInputRef.current?.focus();
                 }, 100);
+                return;
+            }
+
+            // Don't trigger shortcuts if generic inputs are focused (except search box)
+            if (isInput && !isSearchInput) return;
+            
+            const isNumeric = /^[0-9]$/.test(e.key);
+            
+            // Allow '+' to hold cart from search anywhere
+            if (e.key === '+') {
+                if (!isCheckoutOpen && !isTableModalOpen && !isCategoryModalOpen && !isSpeedPrintModalOpen && items.length > 0) {
+                    e.preventDefault(); // Stop + from typing
+                    if (permissions.canHoldCart) {
+                        holdCart();
+                        toast.success(t("Cart Held Successfully"));
+                    } else {
+                        toast.error(t("You don't have permission to hold carts"));
+                    }
+                }
+                return;
+            }
+            
+            // If in search input and it has text, only allow shortcuts if it's a numeric key in qtyMode, or specific control keys.
+            if (isSearchInput && search.length > 0) {
+                if (!(qtyModeId && isNumeric) && !['Enter', 'Delete', 'Backspace'].includes(e.key)) {
+                    return;
+                }
+            }
+            
+            // Shortcuts depend on having a last added item
+            if (!qtyModeId) return;
+
+            // 1. Numeric Entry (0-9)
+            if (isNumeric) {
+                e.preventDefault();
+                const newQtyString = (qtyString || "") + e.key;
+                const newQty = parseInt(newQtyString);
+                if (!isNaN(newQty) && newQty > 0) {
+                    const item = items.find(i => i.id === qtyModeId);
+                    if (item && item.trackStock !== false && newQty > item.maxQuantity) {
+                         toast.error(`أقصى كمية متاحة هي ${item.maxQuantity}`);
+                         setQtyString(item.maxQuantity.toString());
+                         setItemQuantity(qtyModeId, item.maxQuantity);
+                    } else {
+                         setQtyString(newQtyString);
+                         setItemQuantity(qtyModeId, newQty);
+                    }
+                }
+            }
+
+            // 2. Enter -> Finalize Qty Edit OR Open Checkout
+            if (e.key === 'Enter') {
+                if (qtyModeId && qtyString !== null) {
+                    setQtyString(null);
+                    setQtyModeId(null);
+                    setIsCheckoutOpen(true);
+                    e.preventDefault();
+                } else if (!isCheckoutOpen && !isTableModalOpen && !isCategoryModalOpen && !isSpeedPrintModalOpen) {
+                    if (items.length > 0) {
+                        // Open checkout if we aren't editing a quantity or searching
+                        if (!isInput || (isSearchInput && search.length === 0)) {
+                            setIsCheckoutOpen(true);
+                            e.preventDefault();
+                        }
+                    } else if (heldCarts.length > 0) {
+                        // Resume the last held cart if current cart is empty
+                        if (!isInput || (isSearchInput && search.length === 0)) {
+                            const lastHeldCart = heldCarts[heldCarts.length - 1];
+                            resumeCart(lastHeldCart.id);
+                            toast.success(t("Cart Resumed"));
+                            e.preventDefault();
+                        }
+                    }
+                }
+            }
+
+            // 3. Delete -> Remove Last Item and move focus to previous
+            if (e.key === 'Delete') {
+                const currentIndex = items.findIndex(i => i.id === qtyModeId);
+                removeFromCart(qtyModeId);
+                
+                if (items.length > 1) {
+                    // Try to select the previous item, otherwise the next item (which is now at the same index)
+                    const nextIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+                    // The items array here is the one from the *previous* render, 
+                    // but we know which one was removed. Let's just grab the ID.
+                    const newItems = items.filter(i => i.id !== qtyModeId);
+                    if (newItems.length > 0) {
+                        const targetId = newItems[nextIndex]?.id || newItems[newItems.length - 1].id;
+                        setQtyModeId(targetId);
+                        setQtyString(null);
+                    } else {
+                        setQtyModeId(null);
+                        setQtyString(null);
+                    }
+                } else {
+                    setQtyModeId(null);
+                    setQtyString(null);
+                }
+                
+                e.preventDefault();
+            }
+
+            // 4. Backspace -> Decrease by 1
+            if (e.key === 'Backspace') {
+                // If search is empty or focused element is not an input
+                if (!isInput || (isSearchInput && search.length === 0)) {
+                    updateQuantity(qtyModeId, -1);
+                    setQtyString(null); // Reset qty building string
+                    e.preventDefault();
+                }
             }
         };
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [isCheckoutOpen, isTableModalOpen, showHeldCarts, isCategoryModalOpen, isSpeedPrintModalOpen]);
+    }, [isCheckoutOpen, isTableModalOpen, showHeldCarts, isCategoryModalOpen, isSpeedPrintModalOpen, qtyModeId, qtyString, items, search]);
 
     // Focus Search Input on Mount and after Modals Close (Auto-restoration)
     useEffect(() => {
@@ -369,10 +502,48 @@ export default function POSClientAPI({ products, categories: initialCategories, 
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-2 bg-background/50 rounded-xl p-1.5 border border-border shadow-inner">
-                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5"><Minus className="w-4 h-4" /></button>
-                                            <span className="w-8 text-center text-lg font-black font-mono text-white tracking-tight">{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)]"><Plus className="w-4 h-4" /></button>
+                                        <div className={clsx("flex items-center gap-2 bg-background/50 rounded-xl p-1.5 border transition-all duration-300 shadow-inner", qtyModeId === item.id ? "border-cyan-500 ring-2 ring-cyan-500/50 bg-cyan-950/20" : "border-border")}>
+                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5 shrink-0"><Minus className="w-4 h-4" /></button>
+                                            <input
+                                                type="text"
+                                                value={qtyModeId === item.id && qtyString !== null ? qtyString : item.quantity.toString()}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/\D/g, ''); // Allow only digits
+                                                    setQtyModeId(item.id);
+                                                    
+                                                    const num = parseInt(val);
+                                                    if (!isNaN(num) && num > 0) {
+                                                        if (item.trackStock !== false && num > item.maxQuantity) {
+                                                            toast.error(`أقصى كمية متاحة هي ${item.maxQuantity}`);
+                                                            setQtyString(item.maxQuantity.toString());
+                                                            setItemQuantity(item.id, item.maxQuantity);
+                                                        } else {
+                                                            setQtyString(val);
+                                                            setItemQuantity(item.id, num);
+                                                        }
+                                                    } else {
+                                                        setQtyString(val);
+                                                    }
+                                                }}
+                                                onFocus={(e) => {
+                                                    setQtyModeId(item.id);
+                                                    setQtyString(item.quantity.toString());
+                                                    setTimeout(() => e.target.select(), 0);
+                                                }}
+                                                onBlur={() => {
+                                                    setQtyString(null);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        setQtyString(null);
+                                                        setQtyModeId(null);
+                                                        setIsCheckoutOpen(true); // Open checkout directly
+                                                    }
+                                                }}
+                                                className={clsx("w-10 text-center text-lg font-black font-mono tracking-tight bg-transparent border-none outline-none focus:ring-0", qtyModeId === item.id ? "text-cyan-400" : "text-white")}
+                                            />
+                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)] shrink-0"><Plus className="w-4 h-4" /></button>
                                         </div>
                                         <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 flex items-center justify-center border border-red-500/20 transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5" /></button>
                                     </div>

@@ -237,6 +237,17 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                     onCheckedChange={(checked) => handleFeatureToggle('hideLocationsTab', checked)}
                                 />
                             </div>
+
+                            <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
+                                <div className="space-y-0.5">
+                                    <Label className="text-sm font-medium text-white">Blind Close Shift (الإغلاق الأعمى)</Label>
+                                    <p className="text-xs text-zinc-400">Hide expected cash totals from cashiers during shift close for better auditing.</p>
+                                </div>
+                                <Switch
+                                    checked={form.blindCloseEnabled !== false}
+                                    onCheckedChange={(checked) => handleChange('blindCloseEnabled', checked)}
+                                />
+                            </div>
                         </div>
 
                         <div className="border-t border-white/10 pt-4" />

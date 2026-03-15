@@ -60,6 +60,8 @@ interface PurchaseItemEntryProps {
     csrfToken?: string;
 }
 
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+
 export function PurchaseItemEntry({
     entryMode,
     onModeChange,
@@ -89,6 +91,7 @@ export function PurchaseItemEntry({
     csrfToken
 }: PurchaseItemEntryProps) {
     const t = useTranslations('Purchasing');
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
     const categoryOptions = categories.map(c => ({ label: c.name, value: c.id }));
@@ -121,6 +124,7 @@ export function PurchaseItemEntry({
                         <div className="relative">
                             <Search className="absolute start-3 top-3 w-4 h-4 text-muted-foreground" />
                             <input
+                                {...getNavProps(0)}
                                 className="glass-input w-full ps-12"
                                 placeholder={t('searchPlaceholder')}
                                 value={itemSearch}
@@ -164,10 +168,12 @@ export function PurchaseItemEntry({
                                     </button>
                                 </label>
                                 <input
+                                    {...getNavProps(2)}
                                     className="glass-input w-full text-xs"
                                     placeholder="CODE"
                                     value={newItemSku}
                                     onChange={e => setNewItemSku(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, 2, 13, undefined)}
                                 />
                             </div>
 
@@ -175,10 +181,12 @@ export function PurchaseItemEntry({
                             <div className="lg:col-span-2">
                                 <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('name')} *</label>
                                 <input
+                                    {...getNavProps(3)}
                                     className="glass-input w-full text-xs"
                                     placeholder={t('name')}
                                     value={newItemName}
                                     onChange={e => setNewItemName(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, 3, 13, undefined)}
                                 />
                             </div>
 
@@ -186,9 +194,11 @@ export function PurchaseItemEntry({
                             <div className="relative">
                                 <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('category')}</label>
                                 <Combobox
+                                    {...getNavProps(4)}
                                     options={categoryOptions}
                                     value={newItemCategoryId}
                                     onChange={setNewItemCategoryId}
+                                    onKeyDown={(e: any) => handleKeyDown(e, 4, 13, undefined)}
                                     placeholder={t('select')}
                                     className="h-9 [&_.glass-input]:h-9 [&_.glass-input]:text-xs"
                                 />
@@ -207,11 +217,13 @@ export function PurchaseItemEntry({
                             <div className="">
                                 <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('cost')}</label>
                                 <input
+                                    {...getNavProps(5)}
                                     type="number"
                                     className="glass-input w-full text-xs"
                                     placeholder="0.00"
                                     value={newItemCost}
                                     onChange={e => setNewItemCost(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, 5, 13, undefined)}
                                 />
                             </div>
 
@@ -219,14 +231,13 @@ export function PurchaseItemEntry({
                             <div className="">
                                 <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('qty')}</label>
                                 <input
+                                    {...getNavProps(6)}
                                     type="number"
                                     className="glass-input w-full text-xs"
                                     placeholder="1"
                                     value={newItemQty}
                                     onChange={e => setNewItemQty(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') onAddNewSubmit();
-                                    }}
+                                    onKeyDown={(e) => handleKeyDown(e, 6, 13, onAddNewSubmit)}
                                 />
                             </div>
 
@@ -235,28 +246,31 @@ export function PurchaseItemEntry({
                                 <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('sellPrices')} (1 / 2 / 3)</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     <input
+                                        {...getNavProps(7)}
                                         type="number"
                                         className="glass-input w-full text-xs text-center"
                                         placeholder="P1"
                                         value={newItemSellPrice}
                                         onChange={e => setNewItemSellPrice(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, 7, 13, onAddNewSubmit)}
                                     />
                                     <input
+                                        {...getNavProps(8)}
                                         type="number"
                                         className="glass-input w-full text-xs text-center"
                                         placeholder="P2"
                                         value={newItemSellPrice2}
                                         onChange={e => setNewItemSellPrice2(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, 8, 13, onAddNewSubmit)}
                                     />
                                     <input
+                                        {...getNavProps(9)}
                                         type="number"
                                         className="glass-input w-full text-xs text-center"
                                         placeholder="P3"
                                         value={newItemSellPrice3}
                                         onChange={e => setNewItemSellPrice3(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') onAddNewSubmit();
-                                        }}
+                                        onKeyDown={(e) => handleKeyDown(e, 9, 13, onAddNewSubmit)}
                                     />
                                 </div>
                             </div>

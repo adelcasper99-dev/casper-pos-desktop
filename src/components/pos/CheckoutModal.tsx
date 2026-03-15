@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/actions/auth";
 import clsx from "clsx";
 import ReceiptModal from "./ReceiptModal";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 
 
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -30,6 +31,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const formatCurrency = useFormatCurrency();
     const t = useTranslations("POS");
     const router = useRouter();
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
     const { items, getTotal, clearCart, customerName, customerPhone, customerBalance, customerId, tableId, tableName, discountAmount = 0, discountPercentage = 0 } = useCartStore();
     const { isOnline } = useNetworkStatus(); // Used for UI status indicator only
 
@@ -349,22 +351,33 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                     {isDelivery && (
                         <form id="checkout-form" action={(formData) => handleCheckout(formData, false)} className="mt-4 space-y-3 animate-fly-in">
                             <input
+                                {...getNavProps(1)}
                                 name="name"
                                 defaultValue={name}
                                 onChange={(e) => setName(e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, 1, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
                                 placeholder={t('notes')}
                                 className="glass-input w-full"
                                 required
                             />
                             <input
+                                {...getNavProps(2)}
                                 name="phone"
                                 defaultValue={phone}
                                 onChange={(e) => setPhone(e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, 2, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
                                 placeholder={t('customerPhone')}
                                 className="glass-input w-full"
                                 required
                             />
-                            <textarea name="address" placeholder={t('deliveryAddress')} className="glass-input w-full resize-none h-20" required></textarea>
+                            <textarea
+                                {...getNavProps(3)}
+                                name="address"
+                                placeholder={t('deliveryAddress')}
+                                className="glass-input w-full resize-none h-20"
+                                onKeyDown={(e) => handleKeyDown(e, 3, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
+                                required
+                            ></textarea>
                         </form>
                     )}
                 </div>
@@ -454,9 +467,21 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase italic">المبلغ المستلم</label>
                                     <div className="relative">
                                         <input
+                                            {...getNavProps(0)}
                                             type="number"
                                             value={receivedAmount}
                                             onChange={(e) => setReceivedAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    if (isDelivery) {
+                                                        // Focus the next delivery field
+                                                        handleKeyDown(e, 0, 4, undefined);
+                                                    } else {
+                                                        // Finalize Checkout
+                                                        handleCheckout(new FormData());
+                                                    }
+                                                }
+                                            }}
                                             placeholder="0.00"
                                             className="glass-input h-9 py-1 text-sm w-full pr-8"
                                             min="0"

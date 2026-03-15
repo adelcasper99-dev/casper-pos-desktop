@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getAllTechnicians, assignTechnician, updateTicketStatus } from "@/actions/ticket-actions";
 import { useCSRF } from "@/contexts/CSRFContext";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 
 interface Technician {
     id: string;
@@ -46,6 +47,7 @@ export default function TechnicianAssignmentModal({
     onSuccess,
 }: TechnicianAssignmentModalProps) {
     const isLocked = ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED'].includes(ticket.status);
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
     const { token: csrfToken } = useCSRF();
     const [technicians, setTechnicians] = useState<Technician[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
@@ -126,12 +128,14 @@ export default function TechnicianAssignmentModal({
                 {/* Search Bar */}
                 <div className="relative group">
                     <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-cyan-500 transition-colors" />
-                    <Input
-                        placeholder="بحث عن فني (الاسم أو المهارات)..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-12 pr-11 bg-white/[0.03] border-white/10 rounded-xl focus:border-cyan-500/50 focus:ring-cyan-500/20 transition-all text-sm font-bold"
-                    />
+                     <Input
+                        {...getNavProps(0)}
+                         placeholder="بحث عن فني (الاسم أو المهارات)..."
+                         value={searchQuery}
+                         onChange={(e) => setSearchQuery(e.target.value)}
+                         onKeyDown={(e) => handleKeyDown(e, 0, 1, handleConfirm)}
+                         className="h-12 pr-11 bg-white/[0.03] border-white/10 rounded-xl focus:border-cyan-500/50 focus:ring-cyan-500/20 transition-all text-sm font-bold"
+                     />
                 </div>
 
                 {/* Technician List */}

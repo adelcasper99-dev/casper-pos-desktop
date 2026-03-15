@@ -2482,3 +2482,147 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
 
     return { success: true, newTicketId: result.id, newBarcode: result.barcode };
 }, { permission: PERMISSIONS.TICKET_EDIT, requireCSRF: false });
+
+/**
+ * Handle partial refund for maintenance tickets
+ */
+export const partialRefundTicket = secureAction(async (data: {
+    ticketId: string;
+    items: Array<{ itemId: string; quantity: number; isDamaged: boolean }>;
+    refundMethod: 'CASH' | 'STORE_CREDIT';
+    csrfToken?: string;
+}) => {
+    const { ticketId, items, refundMethod } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Unauthorized");
+
+    const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
+    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
+        throw new Error('No active shift.');
+    }
+    const currentShift = shiftResult.shift;
+
+    const result = await prisma.$transaction(async (tx) => {
+        const ticket = await tx.ticket.findFirst({
+            where: { OR: [{ id: ticketId }, { barcode: ticketId }] },
+            include: { parts: true, customer: true }
+        });
+
+        if (!ticket) throw new Error("Ticket not found");
+
+        let totalRefundAmount = new Decimal(0);
+        let totalCogsReversal = new Decimal(0);
+
+        for (const returnItem of items) {
+            const part = ticket.parts.find(p => p.id === returnItem.itemId);
+            if (!part) throw new Error(`Part ${returnItem.itemId} not found in ticket`);
+
+            const available = part.quantity - (part.refundedQty || 0);
+            if (returnItem.quantity > available) {
+                throw new Error(`Cannot refund more than available for ${part.name || 'part'}`);
+            }
+
+            // 1. Update TicketPart counter
+            await tx.ticketPart.update({
+                where: { id: part.id },
+                data: {
+                    refundedQty: { increment: returnItem.quantity },
+                    status: available === returnItem.quantity ? 'REFUNDED' : part.status
+                }
+            });
+
+            // 2. Handle Stock Reversal
+            if (part.productId) {
+                await handleReturnedPartStock(tx, {
+                    productId: part.productId,
+                    warehouseId: part.warehouseId,
+                    quantity: returnItem.quantity,
+                    isDamaged: returnItem.isDamaged,
+                    reason: `Partial Refund: Ticket #${ticket.barcode}`,
+                    performedById: currentUser.id
+                });
+                totalCogsReversal = totalCogsReversal.plus(new Decimal(part.cost).times(returnItem.quantity));
+            }
+
+            totalRefundAmount = totalRefundAmount.plus(new Decimal(part.price).times(returnItem.quantity));
+        }
+
+        // 3. Create Refund Payment Record
+        if (totalRefundAmount.gt(0)) {
+            await tx.repairPayment.create({
+                data: {
+                    ticketId: ticket.id,
+                    type: 'REFUND',
+                    amount: totalRefundAmount,
+                    method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
+                    reference: `Partial Refund of ${items.length} items`,
+                    recordedBy: currentUser.name || "System"
+                }
+            });
+
+            // 4. Update Ticket Totals
+            await tx.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    amountPaid: { decrement: totalRefundAmount },
+                    paymentStatus: 'partial',
+                    lastReturnedAt: new Date(),
+                    returnCount: { increment: 1 }
+                }
+            });
+
+            // 5. Shift & Treasury (if Cash)
+            if (refundMethod === 'CASH') {
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: {
+                        totalRefunds: { increment: totalRefundAmount },
+                        totalCashRefunds: { increment: totalRefundAmount }
+                    }
+                });
+
+                let treasuryId: string | null = null;
+                if (currentUser.branchId) {
+                    const treasury = await tx.treasury.findFirst({
+                        where: { branchId: currentUser.branchId, isDefault: true }
+                    });
+                    treasuryId = treasury?.id || null;
+                }
+
+                if (treasuryId) {
+                    await tx.treasury.update({
+                        where: { id: treasuryId },
+                        data: { balance: { decrement: totalRefundAmount } }
+                    });
+                }
+
+                await tx.transaction.create({
+                    data: {
+                        type: 'REFUND',
+                        amount: totalRefundAmount.negated(),
+                        paymentMethod: 'CASH',
+                        description: `Partial Refund Ticket #${ticket.barcode}`,
+                        shiftId: currentShift.id,
+                        treasuryId
+                    }
+                });
+            }
+
+            // 6. Accounting
+            await AccountingEngine.recordRefund({
+                amount: totalRefundAmount.toNumber(),
+                method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
+                description: `Partial Refund: Ticket #${ticket.barcode}`,
+                reference: ticket.id,
+                ticketId: ticket.id,
+                cogsReversal: totalCogsReversal.toNumber()
+            }, tx);
+        }
+
+        return { success: true, refundedAmount: totalRefundAmount.toNumber() };
+    });
+
+    revalidatePath(`/tickets/${ticketId}`);
+    revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
+    return result;
+}, { permission: PERMISSIONS.TICKET_EDIT });

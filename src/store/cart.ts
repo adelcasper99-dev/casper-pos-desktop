@@ -43,10 +43,12 @@ interface CartState {
     tableName?: string;
     discountAmount: number;
     discountPercentage: number;
+    lastAddedId: string | null; // 🆕 Track last added item for shortcuts
 
     addToCart: (product: CartProduct) => void;
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, delta: number) => void;
+    setItemQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
     setCustomer: (name: string, phone: string, id?: string, balance?: number, linkedEmployeeId?: string, isSupplier?: boolean) => void;
     setTable: (id?: string, name?: string) => void;
@@ -75,6 +77,7 @@ export const useCartStore = create<CartState>()(
             discountAmount: 0,
             discountPercentage: 0,
             heldCarts: [],
+            lastAddedId: null,
 
             setCustomer: (name, phone, id, balance, linkedEmployeeId, isSupplier) => set({ customerName: name, customerPhone: phone, customerId: id, customerBalance: balance, linkedEmployeeId, isSupplier }),
             setTable: (id, name) => set({ tableId: id, tableName: name }),
@@ -97,6 +100,7 @@ export const useCartStore = create<CartState>()(
                         items: items.map((i) =>
                             i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
                         ),
+                        lastAddedId: product.id,
                     });
                 } else {
                     set({
@@ -114,6 +118,7 @@ export const useCartStore = create<CartState>()(
                                 bundleComponents: (product as any).bundleComponents || undefined,
                             },
                         ],
+                        lastAddedId: product.id,
                     });
                 }
             },
@@ -132,9 +137,23 @@ export const useCartStore = create<CartState>()(
                 });
             },
 
+            setItemQuantity: (productId, quantity) => {
+                const items = get().items;
+                set({
+                    items: items.map((i) => {
+                        if (i.id === productId) {
+                            if (i.trackStock !== false && quantity > i.maxQuantity) return i; // Block exceeding stock
+                            return { ...i, quantity: Math.max(1, quantity) };
+                        }
+                        return i;
+                    })
+                });
+            },
+
             removeFromCart: (productId) => {
                 set({
                     items: get().items.filter((i) => i.id !== productId),
+                    lastAddedId: get().lastAddedId === productId ? null : get().lastAddedId,
                 });
             },
 

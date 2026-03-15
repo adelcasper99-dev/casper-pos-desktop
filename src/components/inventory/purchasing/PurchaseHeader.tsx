@@ -2,6 +2,7 @@
 
 import { useTranslations } from "@/lib/i18n-mock";
 import { Combobox } from "@/components/ui/combobox";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 
 interface PurchaseHeaderProps {
     suppliers: { id: string; name: string }[];
@@ -33,6 +34,7 @@ export function PurchaseHeader({
     isHQUser
 }: PurchaseHeaderProps) {
     const t = useTranslations('Purchasing');
+    const { handleKeyDown, getNavProps } = useKeyboardNavigation();
 
     // Convert to Combobox options
     const supplierOptions = suppliers.map(s => ({ label: s.name, value: s.id }));
@@ -47,9 +49,11 @@ export function PurchaseHeader({
                         {t('supplier')}
                     </label>
                     <Combobox
+                        {...getNavProps(0)}
                         options={supplierOptions}
                         value={selectedSupplierId}
                         onChange={onSupplierChange}
+                        onKeyDown={(e: any) => handleKeyDown(e, 0, 13, undefined)}
                         placeholder={t('selectSupplier')}
                         emptyText="No suppliers found."
                     />
@@ -61,9 +65,11 @@ export function PurchaseHeader({
                         {t('warehouse')}
                     </label>
                     <Combobox
+                        {...getNavProps(1)}
                         options={warehouseOptions}
                         value={selectedWarehouseId}
                         onChange={onWarehouseChange}
+                        onKeyDown={(e: any) => handleKeyDown(e, 1, 13, undefined)}
                         placeholder={t('selectWarehouse')}
                         emptyText="No warehouses found."
                     />

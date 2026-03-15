@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { openShift, closeShift } from "@/actions/shift-management-actions";
+import { getEffectiveStoreSettings } from "@/actions/settings";
+import CashCounter from "./CashCounter";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 interface ShiftManagerProps {
     currentShift?: any;
@@ -19,8 +22,22 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     // Form states
     const [startCash, setStartCash] = useState("");
     const [actualCash, setActualCash] = useState("");
+    const [cashBreakdown, setCashBreakdown] = useState<Record<string, number>>({});
     const [notes, setNotes] = useState("");
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
+    const [settings, setSettings] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            const res = await getEffectiveStoreSettings();
+            if (res.data) {
+                setSettings(res.data);
+            }
+        };
+        fetchSettings();
+    }, []);
+
+    const isBlindClose = settings?.blindCloseEnabled !== false; // Default to true if not loaded yet
 
     const handleOpenShift = async () => {
         const cashValue = startCash === "" ? 0 : parseFloat(startCash);
@@ -69,6 +86,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
             const result = await closeShift({
                 shiftId: currentShift.id,
                 actualCash: parseFloat(actualCash),
+                cashBreakdown,
                 notes: notes || undefined
             });
 
@@ -196,35 +214,48 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                     <h3 className="text-xl font-bold text-white">Close Shift</h3>
                                     <p className="text-sm text-gray-400">End of day reconciliation</p>
                                 </div>
-                                <div className="text-right bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-600">
-                                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Expected Cash</p>
-                                    <p className="text-lg font-bold text-green-400">
+                                {!isBlindClose && (
+                                    <div className="text-right bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-600">
+                                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Expected Cash</p>
+                                        <p className="text-lg font-bold text-green-400">
+                                            ${(
+                                                Number(currentShift.startCash) +
+                                                Number(currentShift.totalCashSales || 0) -
+                                                Number(currentShift.totalExpenses || 0)
+                                            ).toFixed(2)}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {!isBlindClose && (
+                            <div className="mb-4 p-4 bg-blue-500 bg-opacity-20 rounded-lg border border-blue-500 border-opacity-30">
+                                <div className="flex justify-between items-center text-blue-300 mb-2">
+                                    <span className="text-sm font-medium">Expected Cash</span>
+                                    <span className="text-2xl font-bold">
                                         ${(
                                             Number(currentShift.startCash) +
                                             Number(currentShift.totalCashSales || 0) -
                                             Number(currentShift.totalExpenses || 0)
                                         ).toFixed(2)}
-                                    </p>
+                                    </span>
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                    Start: ${Number(currentShift.startCash).toFixed(2)} +
+                                    Sales: ${Number(currentShift.totalCashSales || 0).toFixed(2)} -
+                                    Expenses: ${Number(currentShift.totalExpenses || 0).toFixed(2)}
                                 </div>
                             </div>
-                        </div>
+                        )}
 
-                        <div className="mb-4 p-4 bg-blue-500 bg-opacity-20 rounded-lg border border-blue-500 border-opacity-30">
-                            <div className="flex justify-between items-center text-blue-300 mb-2">
-                                <span className="text-sm font-medium">Expected Cash</span>
-                                <span className="text-2xl font-bold">
-                                    ${(
-                                        Number(currentShift.startCash) +
-                                        Number(currentShift.totalCashSales || 0) -
-                                        Number(currentShift.totalExpenses || 0)
-                                    ).toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="text-xs text-gray-400">
-                                Start: ${Number(currentShift.startCash).toFixed(2)} +
-                                Sales: ${Number(currentShift.totalCashSales || 0).toFixed(2)} -
-                                Expenses: ${Number(currentShift.totalExpenses || 0).toFixed(2)}
-                            </div>
+                        <div className="mb-6 max-h-[400px] overflow-y-auto pr-1 thin-scrollbar">
+                            <CashCounter 
+                                onChange={(total, breakdown) => {
+                                    setActualCash(total.toString());
+                                    setCashBreakdown(breakdown);
+                                }}
+                            />
                         </div>
 
                         <div className="mb-4">

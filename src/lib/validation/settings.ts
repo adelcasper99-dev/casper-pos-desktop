@@ -17,4 +17,5 @@ export const settingsSchema = z.object({
     locationLng: z.coerce.number().optional(),
     locationRadius: z.coerce.number().optional(),
     allowNegativeStock: z.boolean().optional(),
+    blindCloseEnabled: z.boolean().optional(),
 });

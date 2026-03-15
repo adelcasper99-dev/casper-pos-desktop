@@ -92,6 +92,8 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             locationLng: validated.locationLng ?? undefined,
             locationRadius: validated.locationRadius ?? undefined,
             allowNegativeStock: validated.allowNegativeStock ?? undefined,
+            // @ts-ignore
+            blindCloseEnabled: validated.blindCloseEnabled ?? undefined,
         },
         create: {
             id: "settings",
@@ -111,6 +113,8 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             locationLng: validated.locationLng || 46.6753,
             locationRadius: validated.locationRadius || 500,
             allowNegativeStock: validated.allowNegativeStock || false,
+            // @ts-ignore
+            blindCloseEnabled: true,
         }
     });
 

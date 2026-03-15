@@ -36,6 +36,7 @@ model StoreSettings {
   locationRadius     Int     @default(500)
   labelTemplate      String?
   allowNegativeStock Boolean @default(false)
+  blindCloseEnabled  Boolean @default(true)
 }
 
 model User {
@@ -524,6 +525,7 @@ model Shift {
   adjustments                ShiftAdjustment[]
   tickets                    Ticket[]          @relation("ShiftTickets")
   transactions               Transaction[]
+  cashBreakdown              String?
 
   @@index([userId, status])
   @@index([registerId, status])
@@ -739,6 +741,7 @@ model TicketPart {
   productId   String?
   name        String?
   quantity    Int        @default(1)
+  refundedQty Int        @default(0)
   cost        Decimal    @default(0.00)
   price       Decimal    @default(0.00)
   createdAt   DateTime   @default(now())
