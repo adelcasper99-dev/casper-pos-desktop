@@ -49,7 +49,8 @@ export const createExpense = secureAction(async (data: {
                 amount: new Decimal(data.amount),
                 category: data.category,
                 paymentMethod: data.paymentMethod || 'CASH',
-                shiftId: currentShift?.id || null // Link to shift if active
+                shiftId: currentShift?.id || null, // Link to shift if active
+                branchId: currentUser.branchId ?? null
             }
         });
 
@@ -219,7 +220,24 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
             });
         }
 
-        // 4. Finally, hard delete the expense (accounting journals cascade or can be orphaned)
+        // 4. Reverse Journal Entry for GL Synchronization
+        // Find the original journal entry's branchId
+        const originalJE = await tx.journalEntry.findFirst({
+            where: { expenseId: existing.id }
+        }) as any;
+
+        await AccountingEngine.recordTransaction({
+            description: `REVERSED: Expense deletion - ${existing.description}`,
+            reference: `REV-${existing.id}`,
+            expenseId: existing.id,
+            branchId: originalJE?.branchId ?? currentUser.branchId ?? undefined,
+            lines: [
+                { accountCode: '5200', debit: 0, credit: Number(existing.amount), description: `Reversal: ${existing.category}` },
+                { accountCode: '1000', debit: Number(existing.amount), credit: 0, description: 'Cash Restored' }
+            ]
+        }, tx);
+
+        // 5. Finally, hard delete the expense
         await tx.expense.delete({ where: { id } });
     });
 
