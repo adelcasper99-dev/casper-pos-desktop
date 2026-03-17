@@ -40,9 +40,12 @@ export default function TicketsList() {
     const [statusFilter, setStatusFilter] = useState('all')
     const [showStale, setShowStale] = useState(false)
     
-    // Unified Date Filtering
-    const [dateFilter, setDateFilter] = useState<string>("all")
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+    // Unified Date Filtering - Defaulting to Today
+    const [dateFilter, setDateFilter] = useState<string>("today")
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({
+        from: startOfDay(new Date()),
+        to: endOfDay(new Date())
+    })
 
     const [isPending, startTransition] = useTransition()
     const [sortByUrgency, setSortByUrgency] = useState(false)
@@ -53,7 +56,7 @@ export default function TicketsList() {
     const [showEditModal, setShowEditModal] = useState(false)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-    const [serverStats, setServerStats] = useState({ delivered: 0, returns: 0, ratio: '0.0' });
+    const [serverStats, setServerStats] = useState({ delivered: 0, returns: 0, ratio: '0.0', totalPaid: 0 });
 
     const stats = useMemo(() => serverStats, [serverStats]);
 
@@ -228,8 +231,8 @@ export default function TicketsList() {
                 </div>
                 <div className="glass-card p-4 flex items-center justify-between border border-white/5 bg-white/5 shadow-xl">
                     <div>
-                        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{t('filters.all')}</p>
-                        <h3 className="text-2xl font-bold text-cyan-400 mt-1">{tickets.length}</h3>
+                        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{t('table.totalPaidAmount')}</p>
+                        <h3 className="text-2xl font-bold text-cyan-400 mt-1">{stats.totalPaid?.toLocaleString()} <span className="text-xs">EGP</span></h3>
                     </div>
                     <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
                         <Search className="h-5 w-5 text-cyan-500" />
@@ -342,19 +345,16 @@ export default function TicketsList() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
                             <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">{t('table.status')}</DropdownMenuLabel>
-                            {['all', 'new', 'in_progress', 'completed', 'delivered', 'warranty', 'returns'].map(st => (
+                            {['all', 'new', 'in_progress', 'waiting_for_parts', 'completed', 'ready_at_branch', 'picked_up', 'delivered', 'paid_delivered', 'warranty', 'returns', 'rejected'].map(st => (
                                 <DropdownMenuItem 
                                     key={st} 
                                     onClick={() => handleFilterChange(st)}
                                     className={statusFilter === st ? "bg-white/10" : ""}
                                 >
                                     {st === 'all' ? t('filters.all') : (
-                                        st === 'new' ? t('filters.new') :
-                                            st === 'in_progress' ? t('filters.inProgress') :
-                                                st === 'completed' ? t('filters.completed') :
-                                                    st === 'delivered' ? t('filters.delivered') :
-                                                        st === 'warranty' ? t('filters.warranty') :
-                                                            t('filters.returns')
+                                        st === 'in_progress' ? t('filters.inProgress') :
+                                            st === 'paid_delivered' ? t('status.paidDelivered') :
+                                                getStatusLabel(st.toUpperCase())
                                     )}
                                 </DropdownMenuItem>
                             ))}
@@ -390,8 +390,8 @@ export default function TicketsList() {
                                     <th className="px-6 py-4">{t('table.status')}</th>
                                     <th className="px-6 py-4">{t('table.date')}</th>
                                     <th className="px-6 py-4">{t('table.ticketInfo')}</th>
-                                    <th className="px-6 py-4">{t('table.gap')}</th>
-                                    <th className="px-6 py-4">{t('table.risk')}</th>
+                                    <th className="px-6 py-4">{t('table.paidAmount')}</th>
+                                    <th className="px-6 py-4">{t('table.amountDue')}</th>
                                     <th className="px-6 py-4">{t('table.customer')}</th>
                                     <th className="px-6 py-4">{t('table.device')}</th>
                                     <th className="px-6 py-4">{t('table.timeToFix')}</th>
@@ -432,13 +432,18 @@ export default function TicketsList() {
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-xs font-medium text-blue-300">
-                                                {ticket.gap || formatDistanceToNow(new Date(ticket.updatedAt), { addSuffix: true })}
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-emerald-400 font-bold tabular-nums">{(ticket.amountPaid || 0).toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">EGP</span></span>
+                                                    <span className="text-[10px] text-zinc-600 tracking-tighter uppercase">{ticket.paymentStatus || 'unpaid'}</span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className={`flex items-center gap-1 ${ticket.riskLevel === 'high' ? 'text-red-500' : (ticket.riskLevel === 'medium' ? 'text-orange-500' : 'text-emerald-500')}`}>
-                                                    {ticket.riskLevel === 'high' ? <AlertCircle className="w-4 h-4" /> : (ticket.riskLevel === 'medium' ? <AlertTriangle className="w-4 h-4" /> : <Clock className="w-4 h-4" />)}
-                                                    <span className="text-xs uppercase font-bold tracking-tighter">{ticket.riskLevel || 'low'}</span>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className={`font-bold tabular-nums ${(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'text-rose-400' : 'text-zinc-500'}`}>
+                                                        {(ticket.repairPrice - (ticket.amountPaid || 0)).toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">EGP</span>
+                                                    </span>
+                                                    <span className="text-[10px] text-zinc-600 tracking-tighter uppercase">{(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'pending' : 'settled'}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">

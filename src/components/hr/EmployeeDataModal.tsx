@@ -10,6 +10,7 @@ import { User, Shield, MapPin, DollarSign, Calendar, Save } from 'lucide-react'
 interface EmployeeDataModalProps {
     isOpen: boolean
     onClose: () => void
+    onSuccess?: () => void
     userId: string
     initialData: {
         name: string
@@ -24,6 +25,7 @@ interface EmployeeDataModalProps {
 export default function EmployeeDataModal({
     isOpen,
     onClose,
+    onSuccess,
     userId,
     initialData
 }: EmployeeDataModalProps) {
@@ -57,6 +59,7 @@ export default function EmployeeDataModal({
             const res = await updateEmployeeData(userId, formData)
             if (res.success) {
                 toast.success('تم تحديث بيانات الموظف بنجاح')
+                if (onSuccess) onSuccess()
                 router.refresh()
                 onClose()
             } else {

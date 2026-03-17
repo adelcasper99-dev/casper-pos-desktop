@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { EXPENSE_CATEGORY_MAP, INCOMING_CATEGORIES } from "@/shared/constants/accounting-mappings";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { getCurrentUser } from "./auth";
 
 // ─── Get Treasury Data ────────────────────────────────────────────────────────
 export async function getTreasuryData(filters?: {
@@ -109,7 +111,22 @@ export async function addTreasuryTransaction(
     const isPositive = POSITIVE_TYPES.includes(finalType);
     const numericAmount = Number(amount);
 
+    const currentUser = await getCurrentUser();
+
     await prisma.$transaction(async (tx) => {
+      // ── V-X: Negative Balance Check ──
+      if (treasuryId && !isPositive) {
+        const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
+        const currentBalance = Number(treasury?.balance || 0);
+        
+        if (currentBalance < numericAmount) {
+          const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+          if (!canGoNegative) {
+            throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance}). ولا تملك صلاحية السحب بالسالب.`);
+          }
+        }
+      }
+
       const dbTx = await tx.transaction.create({
         data: { type: finalType, amount: numericAmount, description, paymentMethod, treasuryId },
       });
@@ -177,9 +194,9 @@ export async function addTreasuryTransaction(
 
     revalidatePath("/treasury");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Treasury Transaction Error:", error);
-    return { success: false, error: "Failed to add transaction" };
+    return { success: false, error: error.message || "Failed to add transaction" };
   }
 }
 
@@ -269,6 +286,18 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
 
       // 3. Reverse the physical balance if the transaction belongs to a treasury
       if (existing.treasuryId && absAmount > 0) {
+        const treasury = await tx.treasury.findUnique({ where: { id: existing.treasuryId } });
+        const currentBalance = Number(treasury?.balance || 0);
+
+        // If deleting income, balance will DECREASE.
+        if (isIncome && currentBalance < absAmount) {
+          const currentUser = await getCurrentUser();
+          const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+          if (!canGoNegative) {
+             throw new Error(`حذف هذه الحركة سيؤدي لرصيد سالب (${currentBalance - absAmount}). ولا تملك صلاحية السحب بالسالب.`);
+          }
+        }
+
         await tx.treasury.update({
           where: { id: existing.treasuryId },
           data: {
@@ -421,8 +450,14 @@ export async function transferBetweenTreasuries(data: {
 
     if (!fromTreasury || fromTreasury.deletedAt) return { success: false, error: "الخزنة المصدر غير موجودة" };
     if (!toTreasury || toTreasury.deletedAt) return { success: false, error: "الخزنة الهدف غير موجودة" };
+    
+    // Check permission for negative balance
     if (Number(fromTreasury.balance) < data.amount) {
-      return { success: false, error: `رصيد الخزنة غير كافٍ. الرصيد الحالي: ${Number(fromTreasury.balance).toFixed(2)}` };
+      const currentUser = await getCurrentUser();
+      const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+      if (!canGoNegative) {
+        return { success: false, error: `رصيد الخزنة غير كافٍ. الرصيد الحالي: ${Number(fromTreasury.balance).toFixed(2)}. ولا تملك صلاحية السحب بالسالب.` };
+      }
     }
 
     const method = data.paymentMethod || "CASH";

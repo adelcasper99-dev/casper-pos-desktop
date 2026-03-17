@@ -1,19 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Wrench, Percent, Clock, ArrowRightLeft, Package, List, AlertTriangle, RotateCcw, RefreshCcw, Activity } from "lucide-react"
+import { ArrowLeft, Wrench, Percent, Clock, ArrowRightLeft, Package, List, AlertTriangle, RotateCcw, RefreshCcw, Activity, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from 'next/link'
 import { useTranslations } from '@/lib/i18n-mock'
 import { getEngineerDetails, getEngineerStock } from "@/actions/engineer-actions"
+import { getEffectiveStoreSettings } from "@/actions/settings"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency } from "@/lib/utils"
 import EngineerHistory from "@/components/tickets/EngineerHistory"
 import EngineerConsumption from "@/components/tickets/EngineerConsumption"
 import { Loader2 } from "lucide-react"
 import TransferConsole from "@/components/tickets/TransferConsole"
+import EngineerStockPrintTemplate from "@/components/tickets/EngineerStockPrintTemplate"
 import { useCSRF } from "@/contexts/CSRFContext"
+import { useRef } from "react"
+import { toast } from "sonner"
 import { getTechniciansForCustody } from "@/actions/technician-custody-actions"
 import { getWarehousesByBranch } from "@/actions/branch-actions"
 
@@ -28,6 +32,9 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
     const [loading, setLoading] = useState(true)
     const [viewTab, setViewTab] = useState<'overview' | 'stock' | 'history' | 'consumption'>('overview')
     const [stock, setStock] = useState<any[]>([])
+    const [settings, setSettings] = useState<any>(null)
+    const [isPrinting, setIsPrinting] = useState(false)
+    const printRef = useRef<HTMLDivElement>(null)
 
     // Transfer Console State
     const [isTransferConsoleOpen, setIsTransferConsoleOpen] = useState(false);
@@ -35,7 +42,13 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
 
     useEffect(() => {
         loadEngineer()
+        loadSettings()
     }, [id])
+
+    async function loadSettings() {
+        const res = await getEffectiveStoreSettings()
+        if (res.success) setSettings(res.data)
+    }
 
     async function loadEngineer() {
         try {
@@ -57,6 +70,42 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
     async function loadStock(warehouseId: string) {
         const res = await getEngineerStock(warehouseId)
         if (res.success) setStock(res.data || [])
+    }
+
+    const handlePrint = async () => {
+        setIsPrinting(true)
+        try {
+            const content = printRef.current?.innerHTML
+            if (!content) return
+
+            const printWindow = window.open('', '_blank')
+            if (!printWindow) return
+
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Print Stock Report</title>
+                        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+                        <style>
+                            @page { margin: 10mm; }
+                            body { background: white !important; color: black !important; }
+                            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        </style>
+                    </head>
+                    <body onload="window.print(); window.close();">
+                        <div class="p-8">
+                            ${content}
+                        </div>
+                    </body>
+                </html>
+            `)
+            printWindow.document.close()
+        } catch (error) {
+            console.error("Print error", error)
+            toast.error("Failed to print report")
+        } finally {
+            setIsPrinting(false)
+        }
     }
 
     // Load destinations for transfer console
@@ -236,6 +285,16 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                         <div className="flex justify-end gap-2 mb-4">
                             <Button
                                 size="sm"
+                                variant="outline"
+                                className="h-10 border-white/10 hover:bg-white/10 text-zinc-300"
+                                onClick={handlePrint}
+                                disabled={stock.length === 0 || isPrinting}
+                            >
+                                {isPrinting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
+                                {t('details.print')}
+                            </Button>
+                            <Button
+                                size="sm"
                                 variant="secondary"
                                 className="h-10 border-white/10 hover:bg-white/10"
                                 onClick={() => setIsTransferConsoleOpen(true)}
@@ -316,6 +375,20 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                     />
                 )
             }
+
+            {/* Hidden Print Template */}
+            <div className="hidden">
+                <div ref={printRef}>
+                    {engineer && settings && (
+                        <EngineerStockPrintTemplate
+                            engineer={engineer}
+                            stock={stock}
+                            settings={settings}
+                            translations={t}
+                        />
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

@@ -238,7 +238,10 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                         }}
                     >
                         {/* Header */}
-                        <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '8px', marginBottom: '8px' }}>
+                        <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '8px', marginBottom: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            {settings?.logoUrl && (
+                                <img src={settings.logoUrl} alt="Logo" style={{ maxWidth: '120px', maxHeight: '50px', marginBottom: '8px', objectFit: 'contain', filter: 'grayscale(1) contrast(1.2)' }} />
+                            )}
                             <div style={{ fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 {settings?.name ?? 'CASPER POS'}
                             </div>

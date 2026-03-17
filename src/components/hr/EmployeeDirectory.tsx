@@ -172,7 +172,7 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                         <td className="px-6 py-4"></td>
                                         <td className="px-6 py-4 text-zinc-400">
                                             <div className="font-mono text-sm">
-                                                ${filteredStaff.reduce((sum, s) => sum + Number(s.salary), 0).toLocaleString()}
+                                                ${filteredStaff.reduce((sum, s) => sum + Number(s.salary || 0), 0).toLocaleString()}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-emerald-400">
@@ -241,7 +241,7 @@ function TableRow({ member, t }: { member: any, t: any }) {
             </td>
             <td className="px-6 py-4">
                 <div className="font-mono text-white text-sm">
-                    ${Number(member.salary).toLocaleString()}
+                    ${Number(member.salary || 0).toLocaleString()}
                 </div>
             </td>
             <td className="px-6 py-4">

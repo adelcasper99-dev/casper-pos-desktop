@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
     ArrowLeft, Printer, Shield, ShieldCheck, Lock, Smartphone, User,
     DollarSign, Send, CheckCircle, Receipt, Eye, EyeOff, Edit2,
-    RotateCcw, Save, X, ScanBarcode, Clock, Plus
+    RotateCcw, Save, X, ScanBarcode, Clock, Plus, Database
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
 } from "@/actions/ticket-actions";
 import { getCurrentUser } from "@/actions/auth";
 import { getEffectiveStoreSettings } from "@/actions/settings";
+import { getDefaultWarehouses } from "@/actions/inventory";
 import { useCSRF } from "@/contexts/CSRFContext";
 
 import TicketPartsManager from "@/components/tickets/TicketPartsManager";
@@ -81,16 +82,19 @@ function SectionHeader({ children, icon: Icon, className }: { children: React.Re
     );
 }
 
-function DataRow({ label, children, action, className }: { label: string; children: React.ReactNode; action?: React.ReactNode; className?: string }) {
+function DataRow({ label, children, action, className, align = 'start' }: { label: string; children: React.ReactNode; action?: React.ReactNode; className?: string; align?: 'start' | 'center' }) {
     return (
-        <div className={cn("flex flex-col py-2.5 gap-1 group/row border-b border-white/[0.08] hover:bg-white/[0.02] px-3 -mx-3 rounded-lg transition-all", className)}>
-            <div className="flex items-center justify-between w-full">
-                <span className="text-xs font-black uppercase text-zinc-500 tracking-wide group-hover/row:text-zinc-400 transition-colors">
+        <div className={cn("flex flex-col py-2.5 gap-1 group/row border-b border-white/[0.08] hover:bg-white/[0.02] px-3 -mx-3 rounded-lg transition-all", 
+            align === 'center' ? "items-center text-center" : "items-start text-right",
+            className
+        )}>
+            <div className={cn("flex items-center w-full", align === 'center' ? "justify-center" : "justify-between")}>
+                <span className="text-xs font-black uppercase text-zinc-100 tracking-wide group-hover/row:text-cyan-400 transition-colors">
                     {label}
                 </span>
-                {action && <div className="shrink-0">{action}</div>}
+                {action && <div className={cn("shrink-0", align === 'center' ? "absolute right-3" : "")}>{action}</div>}
             </div>
-            <div className="font-bold text-xs text-zinc-100 group-hover/row:text-cyan-400 transition-colors">
+            <div className="font-black text-sm text-white group-hover/row:text-cyan-500 transition-colors">
                 {children}
             </div>
         </div>
@@ -220,6 +224,7 @@ export default function TicketDetailPage() {
     const [user, setUser] = useState<any>(null);
     const [hasPrinted, setHasPrinted] = useState(false);
     const [settings, setSettings] = useState<any>(null);
+    const [maintenanceWhName, setMaintenanceWhName] = useState<string | null>(null);
 
     // Form States
     const [noteText, setNoteText] = useState('');
@@ -244,7 +249,7 @@ export default function TicketDetailPage() {
 
     useEffect(() => {
         const shouldPrint = searchParams.get('print') === 'true';
-        const autoPrintEnabled = settings?.data?.autoPrint ?? true; // Default to true if settings not yet loaded to maintain current behavior? No, let's stick to safety.
+        const autoPrintEnabled = settings?.autoPrint ?? true;
         
         if (shouldPrint && ticket && !loading && !hasPrinted && autoPrintEnabled) {
             setShowPrintOptions(true);
@@ -259,11 +264,12 @@ export default function TicketDetailPage() {
     async function loadData() {
         if (!ticket) setLoading(true);
         try {
-            const [ticketRes, techRes, userRes, settingsRes] = await Promise.all([
+            const [ticketRes, techRes, userRes, settingsRes, whRes] = await Promise.all([
                 getTicketDetails(id),
                 getAllTechnicians(),
                 getCurrentUser(),
-                getEffectiveStoreSettings()
+                getEffectiveStoreSettings(),
+                getDefaultWarehouses()
             ]);
 
             if (ticketRes.ticket) {
@@ -281,7 +287,8 @@ export default function TicketDetailPage() {
             }
 
             setUser(userRes);
-            if (settingsRes.success) setSettings(settingsRes);
+            if (settingsRes?.data) setSettings(settingsRes.data);
+            if (whRes.success) setMaintenanceWhName(whRes.maintenanceDefault?.name || null);
         } catch (error) {
             console.error("Failed to load ticket data", error);
             toast.error("Failed to load data");
@@ -386,8 +393,17 @@ export default function TicketDetailPage() {
                                 {tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}
                             </Badge>
                         </div>
-                        <div className="text-xs text-zinc-500 font-bold mt-1">
-                            {ticket.customerName} • {ticket.customerPhone}
+                        <div className="text-xs text-zinc-500 font-bold mt-1 flex items-center gap-3">
+                            <span>{ticket.customerName} • {ticket.customerPhone}</span>
+                            {maintenanceWhName && (
+                                <>
+                                    <div className="h-1 w-1 rounded-full bg-zinc-700" />
+                                    <div className="flex items-center gap-1.5 text-cyan-500/80">
+                                        <Database className="w-3 h-3" />
+                                        <span className="text-[10px] uppercase font-black tracking-widest">المخزن: {maintenanceWhName}</span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -493,6 +509,7 @@ export default function TicketDetailPage() {
                             <div className="space-y-1 pr-4">
                                 <DataRow
                                     label="رمز القفل المباشر"
+                                    align="center"
                                     action={
                                         <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white">
                                             {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -505,6 +522,7 @@ export default function TicketDetailPage() {
                                 </DataRow>
                                 <DataRow
                                     label="نمط الفتح المرسوم"
+                                    align="center"
                                     action={
                                         <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-zinc-700 h-8 w-8 hover:text-white">
                                             {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -584,7 +602,7 @@ export default function TicketDetailPage() {
                             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-zinc-700 to-zinc-800 border border-white/10 flex items-center justify-center text-white text-2xl font-black shadow-2xl relative z-10 transform group-hover:scale-105 transition-transform">
                                 {ticket.customerName.charAt(0)}
                             </div>
-                            <div className="flex flex-col gap-1 relative z-10">
+                            <div className="flex flex-col items-center gap-1 relative z-10 w-full text-center">
                                 <h4 className="text-lg font-black text-white leading-tight">{ticket.customerName}</h4>
                                 <div className="flex items-center justify-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

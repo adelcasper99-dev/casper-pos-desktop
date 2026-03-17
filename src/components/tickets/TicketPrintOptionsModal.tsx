@@ -111,11 +111,23 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             const paperWidth = settings?.paperSize === '58mm' ? '58mm' : (settings?.paperSize === '100mm' ? '100mm' : '80mm');
             const sharedStyles = `
                 @page { margin: 0; }
-                * { box-sizing: border-box; }
-                body { font-family: monospace; padding: 0; margin: 0 auto; width: ${paperWidth}; direction: rtl; text-align: center; background: transparent; }
-                .content { padding: 2mm 5mm; display: inline-block; width: 100%; text-align: right; }
-                .header { text-align: center; border-bottom: 2px dashed black; margin-bottom: 15px; padding-bottom: 5px; }
-                .logo { max-width: 80px; max-height: 80px; margin: 0 auto; display: block; }
+                * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                body { 
+                    font-family: sans-serif; 
+                    padding: 0; 
+                    margin: 0; 
+                    margin-left: 4mm;
+                    width: ${paperWidth}; 
+                    direction: rtl; 
+                    background: transparent; 
+                    color: black;
+                    font-weight: 900;
+                }
+                .ticket-print-root {
+                    width: 100%;
+                    padding: 1mm;
+                }
+                .header { text-align: center; border-bottom: 2px solid black; margin-bottom: 10px; padding-bottom: 5px; }
                 .flex { display: flex; }
                 .justify-between { justify-content: space-between; }
                 .items-center { align-items: center; }
@@ -123,18 +135,36 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                 .text-center { text-align: center; }
                 .text-right { text-align: right; }
                 .font-bold { font-weight: bold; }
+                .font-black { font-weight: 900; }
                 .text-xs { font-size: 10px; }
                 .text-sm { font-size: 12px; }
                 .text-lg { font-size: 16px; }
-                .mb-1 { margin-bottom: 2px; }
-                .mb-2 { margin-bottom: 5px; }
-                .mb-4 { margin-bottom: 10px; }
-                .mt-2 { margin-top: 5px; }
-                .mt-4 { margin-top: 10px; }
+                .text-base { font-size: 14px; }
+                .bg-black { background-color: black !important; color: white !important; }
+                .text-white { color: white !important; }
+                .mb-1 { margin-bottom: 4px; }
+                .mb-2 { margin-bottom: 8px; }
+                .mb-3 { margin-bottom: 12px; }
+                .mb-4 { margin-bottom: 16px; }
+                .mt-1 { margin-top: 4px; }
+                .mt-2 { margin-top: 8px; }
+                .mt-3 { margin-top: 12px; }
+                .mt-4 { margin-top: 16px; }
+                .p-1 { padding: 4px; }
+                .p-2 { padding: 8px; }
                 .border-b { border-bottom: 1px solid black; }
+                .border-b-2 { border-bottom: 2px solid black; }
                 .border-t { border-top: 1px solid black; }
+                .border-2 { border: 2px solid black; }
                 .border-dashed { border-style: dashed; }
+                .rounded-sm { border-radius: 2px; }
                 .whitespace-pre-wrap { white-space: pre-wrap; }
+                .leading-tight { line-height: 1.2; }
+                .leading-none { line-height: 1; }
+                .italic { font-style: italic; }
+                .opacity-80 { opacity: 0.8; }
+                .opacity-90 { opacity: 0.9; }
+                .uppercase { text-transform: uppercase; }
             `;
 
             const fullReceiptHtml = `

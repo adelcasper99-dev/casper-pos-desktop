@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
 import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-management-actions";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
@@ -196,12 +196,20 @@ export const getTickets = secureAction(async (filters?: {
         };
     });
 
+    const totalSummary = await prisma.ticket.aggregate({
+        where,
+        _sum: {
+            amountPaid: true
+        }
+    });
+
     return {
         tickets: processedTickets,
         stats: {
             delivered: deliveredCount,
             returns: returnCount,
-            ratio: ratio.toFixed(1)
+            ratio: ratio.toFixed(1),
+            totalPaid: Number(totalSummary._sum.amountPaid || 0)
         }
     };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
@@ -1357,23 +1365,21 @@ export const addTicketPart = secureAction(async (data: {
             if (ticket.technician?.warehouseId) {
                 sourceWarehouseId = ticket.technician.warehouseId;
             } 
-            // Priority 2: isMaintenanceDefault (Dedicated Maintenance Warehouse)
-            else {
-                const maintenanceWh = await prisma.warehouse.findFirst({
-                    where: {
-                        isMaintenanceDefault: true,
-                        deletedAt: null
-                    }
-                });
-                if (maintenanceWh) {
-                    sourceWarehouseId = maintenanceWh.id;
-                } 
-                // Priority 3: Global default warehouse
+                // Priority 2: isMaintenanceDefault (Dedicated Maintenance Warehouse)
                 else {
-                    const defaultWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-                    sourceWarehouseId = defaultWh?.id;
+                    const maintenanceWh = await prisma.warehouse.findFirst({
+                        where: {
+                            isMaintenanceDefault: true,
+                            deletedAt: null
+                        }
+                    });
+                    if (maintenanceWh) {
+                        sourceWarehouseId = maintenanceWh.id;
+                    } 
+                    // STRICT SEPARATION: No fallback to isDefault (POS) here.
+                    // If no maintenance warehouse is found, operations will fail 
+                    // later with stock-related errors rather than pulling from POS.
                 }
-            }
         }
 
         if (sourceWarehouseId) {
@@ -1394,7 +1400,7 @@ export const addTicketPart = secureAction(async (data: {
                  // Try fallback to main warehouse if we started with tech custody
                  if (ticket.technician?.warehouseId && sourceWarehouseId === ticket.technician.warehouseId) {
                     const mainWh = await prisma.warehouse.findFirst({ 
-                        where: { OR: [{ isMaintenanceDefault: true }, { isDefault: true }] } 
+                        where: { isMaintenanceDefault: true } 
                     });
                     if (mainWh && mainWh.id !== sourceWarehouseId) {
                         const mainStock = await prisma.stock.findUnique({
@@ -1659,10 +1665,7 @@ export const removeTicketPart = secureAction(async (data: {
 export const getProductsForSelector = secureAction(async (warehouseId?: string) => {
     let targetWarehouseId = warehouseId;
     if (warehouseId === 'MAIN') {
-        let mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
-        if (!mainWh) {
-            mainWh = await prisma.warehouse.findFirst({ where: { isDefault: true } });
-        }
+        const mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
         targetWarehouseId = mainWh?.id || undefined;
     } else if (warehouseId) {
         // 🔍 Check if the warehouseId is actually a Technician ID
@@ -1891,6 +1894,60 @@ export const processTicketPayment = secureAction(async (data: {
                 } : {})
             }
         });
+
+        // --- Part 4: Engineer Commission Recording ---
+        // Only trigger if status changes to PAID_DELIVERED in this transaction
+        const wasPaidDelivered = ticket.status === 'PAID_DELIVERED';
+        const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
+
+        if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
+            // 1. Record Main Technician Commission
+            if (ticket.technicianId && Number(ticket.commissionAmount) > 0) {
+                const tech = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    select: { userId: true }
+                });
+
+                if (tech) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: tech.userId,
+                            type: 'MAINTENANCE_COMMISSION',
+                            amount: ticket.commissionAmount,
+                            description: `عمولة صيانة تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET'
+                        }
+                    });
+                }
+            }
+
+            // 2. Record Collaborators Commissions
+            const collaborators = await tx.ticketCollaborator.findMany({
+                where: { ticketId: ticket.id },
+                include: { technician: { select: { userId: true } } }
+            });
+
+            for (const collab of collaborators) {
+                const repairPriceNum = Number(ticket.repairPrice) || 0;
+                const partsCostNum = Number(ticket.partsCost) || 0;
+                const netProfit = repairPriceNum - partsCostNum;
+                const collabCommission = (netProfit * Number(collab.commissionRate)) / 100;
+
+                if (collabCommission > 0) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: collab.technician.userId,
+                            type: 'MAINTENANCE_COMMISSION',
+                            amount: new Prisma.Decimal(collabCommission),
+                            description: `عمولة تعاون (مساعد) تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET'
+                        }
+                    });
+                }
+            }
+        }
 
         if (paymentMethod !== 'ACCOUNT' && effectiveAmount !== 0) {
             const shiftUpdate: any = {};
@@ -2413,6 +2470,13 @@ export const fullTicketReturn = secureAction(async (data: {
                 });
 
                 if (treasuryId) {
+                    const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
+                    if (treasury && Number(treasury.balance) < amountToRefund) {
+                        const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                        if (!canGoNegative) {
+                            throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
+                        }
+                    }
                     await tx.treasury.update({
                         where: { id: treasuryId },
                         data: { balance: { decrement: new Decimal(amountToRefund) } }
@@ -2450,6 +2514,56 @@ export const fullTicketReturn = secureAction(async (data: {
                 returnCount: { increment: 1 }
             }
         });
+
+        // --- Part 4: Commission Reversal ---
+        if (ticket.status === 'PAID_DELIVERED' && originalCommission > 0) {
+            // Reversal for Main Technician
+            if (ticket.technicianId) {
+                const tech = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    select: { userId: true }
+                });
+
+                if (tech) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: tech.userId,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: new Decimal(originalCommission),
+                            description: `عكس عمولة صيانة (حذف تذكرة) - تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET_VOID'
+                        }
+                    });
+                }
+            }
+
+            // Reversal for Collaborators
+            const collaborators = await tx.ticketCollaborator.findMany({
+                where: { ticketId: ticket.id },
+                include: { technician: { select: { userId: true } } }
+            });
+
+            for (const collab of collaborators) {
+                const repairPriceNum = Number(ticket.repairPrice) || 0;
+                const partsCostNum = Number(ticket.partsCost) || 0;
+                const netProfit = repairPriceNum - partsCostNum;
+                const collabCommission = (netProfit * Number(collab.commissionRate)) / 100;
+
+                if (collabCommission > 0) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: collab.technician.userId,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: new Decimal(collabCommission),
+                            description: `عكس عمولة تعاون (حذف تذكرة) - تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET_VOID'
+                        }
+                    });
+                }
+            }
+        }
 
         for (const part of ticket.parts) {
             await tx.ticketPart.update({

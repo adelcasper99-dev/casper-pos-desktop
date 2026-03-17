@@ -10,13 +10,13 @@ import { getCurrentShiftInternal } from "./shift-management-actions";
 import { getCurrentUser } from "./auth";
 import { seedAccounts } from "@/lib/accounting/seed-accounts";
 import { getTranslations } from "@/lib/i18n-mock";
-import { EXPENSE_CATEGORY_MAP } from '@/shared/constants/accounting-mappings';
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 // Repair/Initialize Accounting Accounts
 export const repairAccounting = secureAction(async () => {
     await seedAccounts();
     return { success: true, message: "Accounting accounts synchronized" };
-}, { permission: 'ACCOUNTING_MANAGE', requireCSRF: false });
+}, { permission: 'ACCOUNTING_MANAGE' });
 
 
 /**
@@ -49,9 +49,8 @@ export const createExpense = secureAction(async (data: {
                 amount: new Decimal(data.amount),
                 category: data.category,
                 paymentMethod: data.paymentMethod || 'CASH',
-                shiftId: currentShift?.id || null, // Link to shift if active
-                branchId: currentUser.branchId ?? null
-            } as any
+                shiftId: currentShift?.id || null // Link to shift if active
+            }
         });
 
         // 2. Create treasury transaction for cash outflow
@@ -67,6 +66,13 @@ export const createExpense = secureAction(async (data: {
 
         // 3. Update Treasury Balance if linked
         if (data.treasuryId) {
+            const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
+            if (treasury && Number(treasury.balance) < data.amount) {
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                if (!canGoNegative) {
+                    throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
+                }
+            }
             await tx.treasury.update({
                 where: { id: data.treasuryId },
                 data: { balance: { decrement: data.amount } }
@@ -84,14 +90,12 @@ export const createExpense = secureAction(async (data: {
         }
 
         // 4. Create journal entry (inside transaction)
-        const expenseGlCode = EXPENSE_CATEGORY_MAP[data.category as keyof typeof EXPENSE_CATEGORY_MAP]?.glCode ?? '5200';
         await AccountingEngine.recordTransaction({
             description: `Expense: ${data.description}`,
             reference: expense.id,
             expenseId: expense.id,
-            branchId: currentUser.branchId ?? undefined,
             lines: [
-                { accountCode: expenseGlCode, debit: data.amount, credit: 0, description: data.category },
+                { accountCode: '5200', debit: data.amount, credit: 0, description: data.category },
                 { accountCode: '1000', debit: 0, credit: data.amount, description: 'Cash Paid' }
             ]
         }, tx);
@@ -181,6 +185,8 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
         });
 
         // 2. Find and reverse the associated treasury transaction(s)
+        // Since createExpense creates a transaction with type: 'EXPENSE' and description containing the expense description
+        // we can reverse any transactions created at the exact same moment or just do a generic search.
         const linkedTransactions = await tx.transaction.findMany({
             where: {
                 type: 'EXPENSE',
@@ -213,26 +219,7 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
             });
         }
 
-        // 4. Reverse Journal Entry for GL Synchronization
-        const expenseGlCode = EXPENSE_CATEGORY_MAP[existing.category as keyof typeof EXPENSE_CATEGORY_MAP]?.glCode ?? '5200';
-        
-        // Find the original journal entry's branchId
-        const originalJE = await tx.journalEntry.findFirst({
-            where: { expenseId: existing.id }
-        }) as any;
-
-        await AccountingEngine.recordTransaction({
-            description: `REVERSED: Expense deletion - ${existing.description}`,
-            reference: `REV-${existing.id}`,
-            expenseId: existing.id,
-            branchId: originalJE?.branchId ?? currentUser.branchId ?? undefined,
-            lines: [
-                { accountCode: expenseGlCode, debit: 0, credit: Number(existing.amount), description: `Reversal: ${existing.category}` },
-                { accountCode: '1000', debit: Number(existing.amount), credit: 0, description: 'Cash Restored' }
-            ]
-        }, tx);
-
-        // 5. Finally, hard delete the expense
+        // 4. Finally, hard delete the expense (accounting journals cascade or can be orphaned)
         await tx.expense.delete({ where: { id } });
     });
 
@@ -254,10 +241,59 @@ export const closeShift = async (...args: Parameters<typeof closeShiftAction>) =
 
 
 // Add transaction to treasury
-// @deprecated Use addTreasuryTransaction from treasury.ts instead for unified accounting
 export const addTransaction = secureAction(async (type: string, amount: number, description: string, method: string, treasuryId?: string) => {
-    const { addTreasuryTransaction } = await import("./treasury");
-    return addTreasuryTransaction(type, amount, description, method, treasuryId);
+    // 🆕 If no treasuryId provided, try to find default for current user's branch
+    let finalTreasuryId = treasuryId;
+    if (!finalTreasuryId) {
+        const { getCurrentUser } = await import('./auth');
+        const user = await getCurrentUser();
+        if (user?.branchId) {
+            const defaultTreasury = await prisma.treasury.findFirst({
+                where: { branchId: user.branchId, isDefault: true }
+            });
+            if (defaultTreasury) finalTreasuryId = defaultTreasury.id;
+        }
+    }
+
+    await prisma.$transaction(async (tx) => {
+        await tx.transaction.create({
+            data: {
+                type,
+                amount: new Decimal(amount),
+                description,
+                paymentMethod: method,
+                treasuryId: finalTreasuryId
+            }
+        });
+
+        // 🆕 Update Balance if linked
+        if (finalTreasuryId) {
+            // Logic: IN/CAPITAL/SALE = + | OUT/EXPENSE/REFUND = -
+            const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(type);
+            if (isPositive) {
+                await tx.treasury.update({
+                    where: { id: finalTreasuryId },
+                    data: { balance: { increment: amount } }
+                });
+            } else {
+                const treasury = await tx.treasury.findUnique({ where: { id: finalTreasuryId } });
+                if (treasury && Number(treasury.balance) < amount) {
+                    const currentUser = await getCurrentUser();
+                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    if (!canGoNegative) {
+                        throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
+                    }
+                }
+                await tx.treasury.update({
+                    where: { id: finalTreasuryId },
+                    data: { balance: { decrement: amount } }
+                });
+            }
+        }
+    });
+
+    revalidatePath('/accounting', 'page');
+    return { success: true, message: "Transaction added" };
 }, { permission: 'ACCOUNTING_MANAGE' });
 
 // Update transaction with audit
@@ -307,6 +343,20 @@ export const updateTransaction = secureAction(async (id: string, data: Prisma.Tr
                 // We use existing.type unless data.type is provided (but usually type isn't editable)
                 const finalType = (data as any).type || existing.type;
                 const forwardImpact = isPositive(finalType) ? newAmount : -newAmount;
+
+                // 🛑 Check for Negative Balance Permission
+                if (forwardImpact < 0) {
+                    const treasury = await tx.treasury.findUnique({ where: { id: newTreasuryId } });
+                    if (treasury && (Number(treasury.balance) + forwardImpact) < 0) {
+                        const { getCurrentUser } = await import('./auth');
+                        const user = await getCurrentUser();
+                        const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                        if (!canGoNegative) {
+                            throw new Error(`تحديث العملية سيؤدي إلى رصيد سالب في الخزنة (${Number(treasury.balance) + forwardImpact}). ولا تملك صلاحية السحب بالسالب.`);
+                        }
+                    }
+                }
+
                 await tx.treasury.update({
                     where: { id: newTreasuryId },
                     data: { balance: { increment: forwardImpact } }

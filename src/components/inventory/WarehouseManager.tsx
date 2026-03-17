@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Warehouse, MapPin, Eye, Package, Edit2, Trash2, AlertCircle } from "lucide-react";
+import { Plus, Warehouse, MapPin, Eye, Package, Edit2, Trash2, AlertCircle, Search } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { createWarehouse, updateWarehouse, deleteWarehouse, getWarehouseStock } from "@/actions/inventory";
 import clsx from "clsx";
@@ -24,6 +24,8 @@ interface StockItem {
     sku: string;
     quantity: number;
     sellPrice: number;
+    categoryId: string;
+    categoryName: string;
 }
 
 export default function WarehouseManager({ warehouses, csrfToken, branchId }: { warehouses: Warehouse[], csrfToken?: string, branchId?: string }) {
@@ -44,6 +46,8 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
     const [viewedWarehouse, setViewedWarehouse] = useState<Warehouse | null>(null);
     const [stockList, setStockList] = useState<StockItem[]>([]);
     const [stockLoading, setStockLoading] = useState(false);
+    const [stockSearch, setStockSearch] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
     const openCreateModal = () => {
         setEditingWarehouse(null);
@@ -96,6 +100,8 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
     const handleViewStock = async (warehouse: Warehouse) => {
         setViewedWarehouse(warehouse);
         setStockLoading(true);
+        setStockSearch("");
+        setSelectedCategory("all");
         const res = await getWarehouseStock(warehouse.id);
         if (res.success && res.data) {
             setStockList(res.data);
@@ -109,6 +115,27 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setViewedWarehouse(null);
         setStockList([]);
     };
+
+    // Filtered and Grouped Stock
+    const filteredStock = stockList.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(stockSearch.toLowerCase()) || 
+                             item.sku.toLowerCase().includes(stockSearch.toLowerCase());
+        const matchesCategory = selectedCategory === "all" || item.categoryName === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
+
+    const categoryOptions = Array.from(new Set(stockList.map(item => item.categoryName)));
+
+    const groupedStock = filteredStock.reduce((acc, item) => {
+        if (!acc[item.categoryName]) acc[item.categoryName] = [];
+        acc[item.categoryName].push(item);
+        return acc;
+    }, {} as Record<string, StockItem[]>);
+
+    const totalItems = filteredStock.length;
+    const totalQuantity = filteredStock.reduce((sum, item) => sum + item.quantity, 0);
+
+    const tCommon = useTranslations('Common');
 
     return (
         <div className="space-y-4">
@@ -236,34 +263,86 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                 </form>
             </GlassModal>
 
-            {/* VIEW STOCK MODAL */}
             <GlassModal
                 isOpen={!!viewedWarehouse}
                 onClose={closeStockView}
                 title={t('stockInWarehouse', { name: viewedWarehouse?.name || '...' })}
             >
-                <div>
+                <div className="space-y-4">
+                    {/* Filter Bar */}
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                            <input 
+                                type="text"
+                                className="glass-input w-full ps-9 py-2 text-sm"
+                                placeholder={t('search')}
+                                value={stockSearch}
+                                onChange={(e) => setStockSearch(e.target.value)}
+                            />
+                        </div>
+                        <select 
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="glass-input text-xs py-2 bg-zinc-900 border-border"
+                        >
+                            <option value="all">{t('allCategories')}</option>
+                            {categoryOptions.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/10 text-center">
+                            <div className="text-[10px] text-muted-foreground uppercase font-bold">{t('totalItems')}</div>
+                            <div className="text-sm font-bold text-cyan-400">{totalItems}</div>
+                        </div>
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/10 text-center">
+                            <div className="text-[10px] text-muted-foreground uppercase font-bold">{t('totalQuantity')}</div>
+                            <div className="text-sm font-bold text-green-400">{totalQuantity}</div>
+                        </div>
+                    </div>
+
                     {stockLoading ? (
                         <div className="p-8 text-center text-muted-foreground">{t('loadingStock')}</div>
                     ) : (
                         <div className="overflow-hidden">
-                            {stockList.length === 0 ? (
+                            {filteredStock.length === 0 ? (
                                 <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
                                     <Package className="w-8 h-8 opacity-20 mb-2" />
                                     <p>{t('noStockFound')}</p>
                                 </div>
                             ) : (
-                                <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-2">
-                                    {stockList.map(item => (
-                                        <div key={item.id} className="flex justify-between items-center bg-muted/50 p-3 rounded-xl border border-border">
-                                            <div>
-                                                <div className="font-bold text-sm text-foreground">{item.name}</div>
-                                                <div className="text-xs text-muted-foreground font-mono">{item.sku}</div>
+                                <div className="max-h-[50vh] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                                    {Object.entries(groupedStock).map(([category, items]) => (
+                                        <div key={category} className="space-y-2">
+                                            <div className="flex items-center gap-2 px-1">
+                                                <div className="h-px flex-1 bg-white/5" />
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                                                    {category}
+                                                </span>
+                                                <div className="h-px flex-1 bg-white/5" />
                                             </div>
-                                            <div className="text-right">
-                                                <div className="font-bold text-lg text-cyan-400">{item.quantity} {t('appx')}</div>
-                                                <div className="text-[10px] text-muted-foreground uppercase">{t('inStock')}</div>
-                                            </div>
+                                            
+                                            {items.map(item => (
+                                                <div key={item.id} className="flex justify-between items-center bg-muted/30 hover:bg-muted/50 p-3 rounded-xl border border-border transition-colors">
+                                                    <div>
+                                                        <div className="font-bold text-sm text-foreground">{item.name}</div>
+                                                        <div className="text-[10px] text-muted-foreground font-mono">{item.sku}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className={clsx(
+                                                            "font-bold text-lg",
+                                                            item.quantity < 5 ? "text-destructive" : "text-cyan-400"
+                                                        )}>
+                                                            {item.quantity}
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground uppercase tracking-tight">{t('inStock')}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     ))}
                                 </div>

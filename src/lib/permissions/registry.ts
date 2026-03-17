@@ -113,6 +113,8 @@ export const PERMISSION_REGISTRY = {
     MANAGE: 'TREASURY_MANAGE',
     /** Delete treasury records */
     DELETE: 'TREASURY_DELETE',
+    /** Allow disbursing into negative balance */
+    ALLOW_NEGATIVE_BALANCE: 'TREASURY_ALLOW_NEGATIVE_BALANCE',
   },
 
   /** Expense Management */
@@ -344,6 +346,7 @@ function flattenRegistry() {
     TREASURY_VIEW: PERMISSION_REGISTRY.TREASURY.VIEW,
     TREASURY_MANAGE: PERMISSION_REGISTRY.TREASURY.MANAGE,
     TREASURY_DELETE: PERMISSION_REGISTRY.TREASURY.DELETE,
+    TREASURY_ALLOW_NEGATIVE_BALANCE: PERMISSION_REGISTRY.TREASURY.ALLOW_NEGATIVE_BALANCE,
 
     // EXPENSES
     EXPENSES_VIEW: PERMISSION_REGISTRY.EXPENSES.VIEW,
@@ -471,6 +474,7 @@ const PERMISSION_LABELS_AR: Record<string, string> = {
   TREASURY_VIEW: 'عرض حركات الخزينة',
   TREASURY_MANAGE: 'إضافة وتعديل حركات الخزينة',
   TREASURY_DELETE: 'حذف حركات الخزينة',
+  TREASURY_ALLOW_NEGATIVE_BALANCE: 'السماح بالسحب المكشوف (رصيد سالب) من الخزينة',
   EXPENSES_VIEW: 'عرض المصروفات',
   EXPENSES_MANAGE: 'إضافة وإدارة المصروفات',
   EXPENSES_DELETE: 'حذف سجلات المصروفات',

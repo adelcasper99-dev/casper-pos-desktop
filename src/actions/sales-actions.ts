@@ -13,7 +13,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
-import { PERMISSIONS } from '@/lib/permissions';
+import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import {
     splitDeferredRefund,
     calculateProratedRefundValue,
@@ -294,6 +294,13 @@ export const refundSale = secureAction(async (data: {
 
         // 🏦 Deduct physical cash from treasury (only the cash portion)
         if (treasury && finalAmountToCash > 0) {
+            // Check for negative balance permission
+            if (Number(treasury.balance) < finalAmountToCash) {
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                if (!canGoNegative) {
+                    throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
+                }
+            }
             await tx.treasury.update({
                 where: { id: treasury.id },
                 data: { balance: { decrement: finalAmountToCash } }
@@ -801,6 +808,13 @@ export const partialRefundSale = secureAction(async (data: {
                 }
             });
             if (treasury) {
+                // Check for negative balance permission
+                if (Number(treasury.balance) < finalAmountToCash) {
+                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    if (!canGoNegative) {
+                        throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
+                    }
+                }
                 await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: finalAmountToCash } } });
             }
         }

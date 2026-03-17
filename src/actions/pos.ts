@@ -67,14 +67,16 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     const result = await prisma.$transaction(async (tx) => {
         // 0. Ensure Main Warehouse exists/get it
-        // 🆕 Updated logic: Look for default warehouse of the current branch, or the global default
+        // 🆕 Updated logic: Look for default warehouse of the current USER branch strictly first
+        // If the user has a branch, we MUST use that branch's default warehouse.
         const mainWarehouseRaw = await tx.warehouse.findFirst({
             where: {
                 branchId: currentUser.branchId || undefined,
-                isDefault: true
+                isDefault: true,
+                deletedAt: null
             }
         }) || await tx.warehouse.findFirst({
-            where: { isDefault: true }
+            where: { isDefault: true, deletedAt: null }
         });
 
         if (!mainWarehouseRaw) {

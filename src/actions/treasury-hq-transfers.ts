@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { secureAction } from '@/lib/safe-action';
-import { PERMISSIONS } from '@/lib/permissions';
+import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
 import { getTranslations } from "@/lib/i18n-mock";
 
@@ -49,7 +49,10 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
 
     // Verify source treasury has sufficient balance
     if (Number(fromTreasury.balance) < amount) {
-        throw new Error(t('insufficientFunds', { available: Number(fromTreasury.balance), required: amount }));
+        const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+        if (!canGoNegative) {
+            throw new Error(t('insufficientFunds', { available: Number(fromTreasury.balance), required: amount }));
+        }
     }
 
     // Verify both are HQ centers (not regular stores)

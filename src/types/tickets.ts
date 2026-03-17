@@ -6,6 +6,7 @@ export interface ReceiptSettings {
     receiptFooter?: string | null;
     printHeader?: string | null;
     currency: string;
+    paperSize?: string;
 }
 
 export interface Ticket {

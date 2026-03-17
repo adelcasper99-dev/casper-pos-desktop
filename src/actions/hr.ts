@@ -5,87 +5,10 @@ import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
-import { startOfMonth, endOfMonth, differenceInDays } from "date-fns";
-import { Decimal } from "decimal.js";
-import { calculatePayroll } from "@/lib/payroll-math";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 const db = prisma as any;
-
-/**
- * Shared logic for calculating net salary for an employee in a target month.
- */
-async function calculateNetDue(u: any, startDate: Date, endDate: Date) {
-    const totalDaysInMonth = differenceInDays(endDate, startDate) + 1;
-    let daysHiredInMonth = totalDaysInMonth;
-    
-    // Prorate if hired in current month
-    if (u.hireDate) {
-        const hireDate = new Date(u.hireDate);
-        if (hireDate > endDate) {
-            daysHiredInMonth = 0;
-        } else if (hireDate > startDate) {
-            daysHiredInMonth = differenceInDays(endDate, hireDate) + 1;
-        }
-    }
-
-    const monthlyOffDays = u.monthlyOffDays ?? 4;
-    // Scalar proration of off-days if not hired for full month
-    const effectiveOffDays = (daysHiredInMonth / totalDaysInMonth) * monthlyOffDays;
-    const workingDays = Math.max(0, daysHiredInMonth - effectiveOffDays);
-
-    const employeeInput = {
-        id: u.id,
-        name: u.name || u.username,
-        role: u.role?.name || "Staff",
-        salary: Number(u.salary || 0),
-        absentDays: u.dailyLogs?.filter((l: any) => l.status === 'ABSENT').length || 0,
-        lateMinutes: 0, // Not tracked in basic logs yet
-        offDays: u.dailyLogs?.filter((l: any) => l.status === 'OFF').length || 0,
-        extraOffDays: 0, // Derived
-        leaveDays: u.dailyLogs?.filter((l: any) => l.status === 'LEAVE').length || 0,
-        overtimeHours: 0,
-        bonus: 0,
-        deduct: 0,
-        manualDeduction: u.dailyLogs?.reduce((sum: number, l: any) => sum + Number(l.deduction || 0), 0) || 0,
-        manualBonus: u.dailyLogs?.reduce((sum: number, l: any) => sum + Number(l.bonus || 0), 0) || 0,
-    };
-
-    // 2. Call centralized payroll engine (Unification B23)
-    // We pass empty rules for now as they aren't in DB, but the engine handles base math
-    const payroll = calculatePayroll(
-        employeeInput as any,
-        employeeInput.salary,
-        workingDays,
-        8, // Default 8 hours
-        [] // No dynamic rules yet
-    );
-
-    let totalPaid = new Decimal(0);
-    let totalOtherAdditions = new Decimal(0);
-    let totalOtherDeductions = new Decimal(0);
-
-    // 3. Aggregate Transactions (Payments vs Adjustments)
-    u.employeeTransactions?.forEach((tx: any) => {
-        const amt = new Decimal(tx.amount.toString());
-        if (tx.type === 'SALARY_PAYMENT') {
-            totalPaid = totalPaid.plus(amt);
-        } else if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
-            totalOtherAdditions = totalOtherAdditions.plus(amt);
-        } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION')) {
-            totalOtherDeductions = totalOtherDeductions.plus(amt);
-        }
-    });
-
-    const netSalaryCalculated = new Decimal(payroll.finalSalary);
-
-    return {
-        baseSalary: new Decimal(payroll.baseSalary),
-        totalBonuses: new Decimal(payroll.totalAdditions).plus(totalOtherAdditions),
-        totalDeductions: new Decimal(payroll.totalDeductions).plus(totalOtherDeductions),
-        totalPaid,
-        netDue: netSalaryCalculated.plus(totalOtherAdditions).minus(totalOtherDeductions).minus(totalPaid)
-    };
-}
+import { calculateNetDue } from "@/lib/salary-utils";
 
 export const getStaffDirectory = secureAction(async (data?: { month?: number; year?: number }) => {
     const now = new Date();
@@ -107,10 +30,14 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
                 take: 1
             },
             dailyLogs: {
-                where: { date: { gte: startDate, lte: endDate } }
+                where: { 
+                    date: { gte: startDate, lte: endDate }
+                }
             },
             employeeTransactions: {
-                where: { createdAt: { gte: startDate, lte: endDate } }
+                where: { 
+                    createdAt: { gte: startDate, lte: endDate }
+                }
             }
         },
         orderBy: { name: 'asc' }
@@ -378,8 +305,7 @@ export const payEmployeeSalary = secureAction(async (data: {
                     type: 'SALARY_PAYMENT',
                     amount: data.amount,
                     description: data.notes || `سداد راتب عبر ${data.paymentMethod}`,
-                    branchId: session.user.branchId ?? null
-                } as any
+                }
             });
 
             // 2. Accounting Entry
@@ -411,7 +337,12 @@ export const payEmployeeSalary = secureAction(async (data: {
             if (data.paymentMethod === 'CASH' && data.treasuryId) {
                 const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
                 if (!treasury) throw new Error("Treasury not found");
-                if (Number(treasury.balance) < data.amount) throw new Error("Insufficient treasury balance");
+                if (Number(treasury.balance) < data.amount) {
+                    const canGoNegative = hasPermission(session.user.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    if (!canGoNegative) {
+                        throw new Error("Insufficient treasury balance");
+                    }
+                }
 
                 await tx.treasury.update({
                     where: { id: data.treasuryId },
@@ -454,79 +385,3 @@ export const getAllTreasuries = secureAction(async () => {
         return { success: false, error: "Failed to fetch treasuries" };
     }
 }, { permission: PERMISSIONS.HR_VIEW_ATTENDANCE, requireCSRF: false });
-
-/**
- * Accrual Step (B24): Recognize Salary Expense and build Liability.
- * Posts DR 5100 (Salaries) / CR 2200 (Accrued Salaries).
- */
-export const accrueMonthSalary = secureAction(async (data: { month: number; year: number }) => {
-    const session = await getSession();
-    if (!session?.user) return { success: false, error: "Unauthorized" };
-
-    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
-    if (!isAdmin) return { success: false, error: "Forbidden: Admin access required" };
-
-    const startDate = startOfMonth(new Date(data.year, data.month));
-    const endDate = endOfMonth(startDate);
-    const monthKey = `${data.year}-${(data.month + 1).toString().padStart(2, '0')}`;
-
-    try {
-        const result = await (prisma as any).$transaction(async (tx: any) => {
-            // Check if already accrued
-            const existing = await tx.journalEntry.findFirst({
-                where: { reference: `PAYROLL-ACCRUAL-${monthKey}` }
-            });
-
-            if (existing) {
-                throw new Error(`تم إثبات استحقاق الرواتب لشهر ${monthKey} بالفعل.`);
-            }
-
-            // 1. Calculate totals for ALL active employees
-            const activeUsers = await tx.user.findMany({
-                where: { deletedAt: null, isFrozen: false },
-                include: {
-                    role: true,
-                    dailyLogs: { where: { date: { gte: startDate, lte: endDate } } },
-                    employeeTransactions: { where: { createdAt: { gte: startDate, lte: endDate } } }
-                }
-            });
-
-            let totalExpense = new Decimal(0);
-
-            for (const u of activeUsers) {
-                // We use calculateNetDue but ignoring payments for "Expense Accrual"
-                // Actually, the expense is Base + Additions - Manual Penalties (not payments)
-                const { baseSalary, totalBonuses, totalDeductions, totalPaid } = await calculateNetDue(u, startDate, endDate);
-                
-                // Gross Expense = Base + Bonuses - Penalties (not counting payments)
-                const netExpense = baseSalary.plus(totalBonuses).minus(totalDeductions.minus(totalPaid));
-                totalExpense = totalExpense.plus(netExpense);
-            }
-
-            if (totalExpense.lte(0)) throw new Error("لا يوجد مصروفات رواتب مستحقة لهذا الشهر.");
-
-            // 2. Post Journal Entry
-            const { AccountingEngine } = await import("@/lib/accounting/transaction-factory");
-            await AccountingEngine.recordTransaction({
-                description: `استحقاق رواتب شهر ${monthKey}`,
-                reference: `PAYROLL-ACCRUAL-${monthKey}`,
-                branchId: session.user.branchId ?? undefined,
-                lines: [
-                    { accountCode: '5100', debit: totalExpense.toNumber(), credit: 0, description: `إجمالي مصروفات الرواتب والأجور - شهر ${monthKey}` },
-                    { accountCode: '2200', debit: 0, credit: totalExpense.toNumber(), description: `مستحقات رواتب وأجور موظفين (خصوم متداولة)` }
-                ]
-            }, tx);
-
-            // 3. Mark transactions in this period as "Accrued" if needed
-            // For now, the reference check is enough.
-
-            return { totalAccrued: totalExpense.toNumber() };
-        });
-
-        revalidatePath("/(routes)/hr");
-        return { success: true, data: result };
-    } catch (error: any) {
-        console.error("Error accruing salary:", error);
-        return { success: false, error: error.message || "Internal Server Error" };
-    }
-}, { permission: PERMISSIONS.MANAGE_USERS, requireCSRF: false });

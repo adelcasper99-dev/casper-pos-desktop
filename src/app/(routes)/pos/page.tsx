@@ -5,6 +5,7 @@ import { getCSRFToken } from "@/lib/csrf";
 import { getCurrentShift } from "@/actions/shift-management-actions";
 import ShiftStatusIndicator from "@/components/shift/ShiftStatusIndicator";
 import { getEffectiveStoreSettings } from "@/actions/settings";
+import { getDefaultWarehouses } from "@/actions/inventory";
 import { getSession } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
@@ -33,26 +34,53 @@ export default async function POSPage() {
     const shiftResult = await getCurrentShift();
     const currentShift = shiftResult.shift;
 
-    // Fetch initial data for SSR speed
-    const productsRaw = await prisma.product.findMany();
-    const products = productsRaw.map(p => ({
-        id: p.id,
-        sku: p.sku,
-        name: p.name,
-        stock: p.stock,
-        categoryId: p.categoryId,
-        costPrice: p.costPrice.toNumber(),
-        sellPrice: p.sellPrice.toNumber(),
-        sellPrice3: p.sellPrice3?.toNumber() || 0,
-        minStock: p.minStock,
-        trackStock: (p as any).trackStock ?? true,
-        isBundle: !!(p as any).isBundle,
-    }));
-    const categories = await prisma.category.findMany();
-
-    // Get Effective Settings (Global + Branch Overrides)
-    const settingsRes = await getEffectiveStoreSettings();
+    // Get Effective Settings (Global + Branch Overrides) and identify the default POS warehouse
+    const [settingsRes, whRes] = await Promise.all([
+        getEffectiveStoreSettings(),
+        getDefaultWarehouses()
+    ]);
     const settings = settingsRes.success ? settingsRes.data : null;
+    const posDefault = whRes.success ? whRes.posDefault : null;
+    const posDefaultName = posDefault?.name || null;
+    const posDefaultId = posDefault?.id || null;
+
+    // Fetch initial data for SSR speed - filtering stock by POS default warehouse
+    const productsRaw = await prisma.product.findMany({
+        where: {
+            deletedAt: null,
+            archived: false,
+        },
+        include: {
+            stocks: posDefaultId ? {
+                where: {
+                    warehouseId: posDefaultId
+                }
+            } : false
+        }
+    });
+
+    const products = productsRaw.map(p => {
+        // Calculate stock for the specific warehouse, or total if no default is found (fallback)
+        let warehouseStock = 0;
+        if (posDefaultId && p.stocks && p.stocks.length > 0) {
+            warehouseStock = p.stocks[0].quantity;
+        }
+
+        return {
+            id: p.id,
+            sku: p.sku,
+            name: p.name,
+            stock: warehouseStock, // Now reflects the specific warehouse stock
+            categoryId: p.categoryId,
+            costPrice: p.costPrice.toNumber(),
+            sellPrice: p.sellPrice.toNumber(),
+            sellPrice3: p.sellPrice3?.toNumber() || 0,
+            minStock: p.minStock,
+            trackStock: (p as any).trackStock ?? true,
+            isBundle: !!(p as any).isBundle,
+        };
+    });
+    const categories = await prisma.category.findMany();
 
     // Example registers - In production, fetch from database
     const registers = [
@@ -87,6 +115,7 @@ export default async function POSPage() {
                     csrfToken={csrfToken || ''}
                     floors={floors}
                     permissions={permissions}
+                    posDefaultName={posDefaultName}
                 />
             </div>
         </div>

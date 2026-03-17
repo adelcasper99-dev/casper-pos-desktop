@@ -113,8 +113,10 @@ export async function handleReturnedPartStock(
         // Return to stock
         let targetWhId = warehouseId;
         if (!targetWhId) {
+            // Context-aware fallback: Only allow maintenance fallback for handleReturnedPartStock
+            // which is primarily used in ticket actions.
             const fallbackWh = await tx.warehouse.findFirst({
-                where: { OR: [{ isMaintenanceDefault: true }, { isDefault: true }] }
+                where: { isMaintenanceDefault: true }
             });
             targetWhId = fallbackWh?.id || null;
         }
