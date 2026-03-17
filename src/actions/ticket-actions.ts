@@ -196,12 +196,20 @@ export const getTickets = secureAction(async (filters?: {
         };
     });
 
+    const totalSummary = await prisma.ticket.aggregate({
+        where,
+        _sum: {
+            amountPaid: true
+        }
+    });
+
     return {
         tickets: processedTickets,
         stats: {
             delivered: deliveredCount,
             returns: returnCount,
-            ratio: ratio.toFixed(1)
+            ratio: ratio.toFixed(1),
+            totalPaid: Number(totalSummary._sum.amountPaid || 0)
         }
     };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
@@ -1870,6 +1878,60 @@ export const processTicketPayment = secureAction(async (data: {
             }
         });
 
+        // --- Part 4: Engineer Commission Recording ---
+        // Only trigger if status changes to PAID_DELIVERED in this transaction
+        const wasPaidDelivered = ticket.status === 'PAID_DELIVERED';
+        const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
+
+        if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
+            // 1. Record Main Technician Commission
+            if (ticket.technicianId && Number(ticket.commissionAmount) > 0) {
+                const tech = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    select: { userId: true }
+                });
+
+                if (tech) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: tech.userId,
+                            type: 'MAINTENANCE_COMMISSION',
+                            amount: ticket.commissionAmount,
+                            description: `عمولة صيانة تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET'
+                        }
+                    });
+                }
+            }
+
+            // 2. Record Collaborators Commissions
+            const collaborators = await tx.ticketCollaborator.findMany({
+                where: { ticketId: ticket.id },
+                include: { technician: { select: { userId: true } } }
+            });
+
+            for (const collab of collaborators) {
+                const repairPriceNum = Number(ticket.repairPrice) || 0;
+                const partsCostNum = Number(ticket.partsCost) || 0;
+                const netProfit = repairPriceNum - partsCostNum;
+                const collabCommission = (netProfit * Number(collab.commissionRate)) / 100;
+
+                if (collabCommission > 0) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: collab.technician.userId,
+                            type: 'MAINTENANCE_COMMISSION',
+                            amount: new Prisma.Decimal(collabCommission),
+                            description: `عمولة تعاون (مساعد) تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET'
+                        }
+                    });
+                }
+            }
+        }
+
         if (paymentMethod !== 'ACCOUNT' && effectiveAmount !== 0) {
             const shiftUpdate: any = {};
             const absAmount = new Prisma.Decimal(Math.abs(effectiveAmount));
@@ -2412,6 +2474,56 @@ export const fullTicketReturn = secureAction(async (data: {
                 returnCount: { increment: 1 }
             }
         });
+
+        // --- Part 4: Commission Reversal ---
+        if (ticket.status === 'PAID_DELIVERED' && originalCommission > 0) {
+            // Reversal for Main Technician
+            if (ticket.technicianId) {
+                const tech = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    select: { userId: true }
+                });
+
+                if (tech) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: tech.userId,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: new Decimal(originalCommission),
+                            description: `عكس عمولة صيانة (حذف تذكرة) - تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET_VOID'
+                        }
+                    });
+                }
+            }
+
+            // Reversal for Collaborators
+            const collaborators = await tx.ticketCollaborator.findMany({
+                where: { ticketId: ticket.id },
+                include: { technician: { select: { userId: true } } }
+            });
+
+            for (const collab of collaborators) {
+                const repairPriceNum = Number(ticket.repairPrice) || 0;
+                const partsCostNum = Number(ticket.partsCost) || 0;
+                const netProfit = repairPriceNum - partsCostNum;
+                const collabCommission = (netProfit * Number(collab.commissionRate)) / 100;
+
+                if (collabCommission > 0) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: collab.technician.userId,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: new Decimal(collabCommission),
+                            description: `عكس عمولة تعاون (حذف تذكرة) - تذكرة #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET_VOID'
+                        }
+                    });
+                }
+            }
+        }
 
         for (const part of ticket.parts) {
             await tx.ticketPart.update({

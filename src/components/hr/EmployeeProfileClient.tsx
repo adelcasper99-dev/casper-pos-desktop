@@ -56,6 +56,7 @@ interface ProfileData {
     transactions: any[]
     clawbacks: any[]
     kpis: {
+        contractualSalary: number
         baseSalary: number
         netAccrued: number
         totalDeductions: number
@@ -125,8 +126,12 @@ export default function EmployeeProfileClient({
     const ledgerEntries = [
         // Base Salary Entry
         {
-            date: `${monthStr}-01`,
-            description: tl("salary_base"),
+            date: (user.hireDate && new Date(user.hireDate) > new Date(`${monthStr}-01`))
+                ? new Date(user.hireDate).toLocaleDateString('en-CA')
+                : `${monthStr}-01`,
+            description: (user.hireDate && new Date(user.hireDate) > new Date(`${monthStr}-01`)) 
+                ? "الراتب الأساسي (معدل بناءً على تاريخ التعيين)"
+                : tl("salary_base"),
             type: "ADDITION",
             amount: kpis.baseSalary,
             status: "NATIVE",
@@ -150,13 +155,13 @@ export default function EmployeeProfileClient({
             
             // If absent and no manual deduction was recorded, calculate auto-deduction (1 day)
             if (isAbsent && logDeduction === 0) {
-                const dailyRate = kpis.baseSalary / 30;
+                const dailyRate = kpis.contractualSalary / 30;
                 amount -= dailyRate;
             }
 
             return {
                 id: log.id,
-                date: log.date.split('T')[0],
+                date: new Date(log.date).toLocaleDateString('en-CA'),
                 description: isAbsent ? "غياب" : (isLate ? "تأخير" : "حضور"),
                 type: log.status,
                 amount: amount,
@@ -180,7 +185,7 @@ export default function EmployeeProfileClient({
 
             return {
                 id: tx.id,
-                date: tx.createdAt.split('T')[0],
+                date: new Date(tx.createdAt).toLocaleDateString('en-CA'),
                 description: tx.description || "حركة مالية",
                 type: tx.type,
                 amount: finalAmount,
@@ -190,7 +195,7 @@ export default function EmployeeProfileClient({
             };
         }),
         ...clawbacks.map(cb => ({
-            date: cb.updatedAt.split('T')[0],
+            date: new Date(cb.updatedAt).toLocaleDateString('en-CA'),
             description: `خسارة مرتجع تذكرة #${cb.barcode} (${cb.returnReason || 'عطل فني'})`,
             type: "CLAWBACK",
             amount: -cb.commissionClawback,
@@ -201,7 +206,7 @@ export default function EmployeeProfileClient({
         })),
         // 3. Maintenance Profits (Commissions)
         ...tickets.filter(t => (t.status === 'COMPLETED' || t.status === 'PAID_DELIVERED') && Number(t.commissionAmount) > 0).map(t => ({
-            date: t.completedAt?.split('T')[0] || t.updatedAt?.split('T')[0],
+            date: t.completedAt ? new Date(t.completedAt).toLocaleDateString('en-CA') : new Date(t.updatedAt).toLocaleDateString('en-CA'),
             description: `ربح صيانة تذكرة #${t.barcode}`,
             type: "MAINTENANCE_COMMISSION",
             amount: Number(t.commissionAmount),
@@ -244,9 +249,9 @@ export default function EmployeeProfileClient({
     const kpiCards = [
         { 
             title: "الراتب الأساسي", 
-            value: `${kpis.baseSalary.toLocaleString()} EGP`, 
+            value: `${kpis.contractualSalary.toLocaleString()} EGP`, 
             icon: <CreditCard className="w-5 h-5 text-zinc-400" />,
-            desc: "الراتب الشهري التعاقدي"
+            desc: "الراتب الشهري التعاقدي الثابت"
         },
         { 
             title: "الصافي المستحق", 
@@ -754,6 +759,7 @@ export default function EmployeeProfileClient({
             <EmployeeDataModal 
                 isOpen={isDataModalOpen}
                 onClose={() => setIsDataModalOpen(false)}
+                onSuccess={refreshData}
                 userId={userId}
                 initialData={{
                     name: user.name || '',

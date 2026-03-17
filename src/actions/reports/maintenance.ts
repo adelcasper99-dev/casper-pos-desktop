@@ -78,16 +78,34 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
         
         laborRevenue += ticketLaborRevenue;
 
-        // Metrics from getTickets logic
+        // Refined Gap & Risk Analysis
         const lastUpdate = new Date(ticket.updatedAt).getTime();
         const diffMs = Date.now() - lastUpdate;
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        let gap = diffDays > 0 ? `${diffDays}d ${diffHours}h` : `${diffHours}h`;
-        if (diffDays === 0 && diffHours === 0) gap = `${Math.floor(diffMs / 60000)}m`;
+        
+        // Workflow Gap (Delay vs Expected)
+        let gapDescription = "0m";
+        if (ticket.startedAt && ticket.expectedDuration) {
+            const endTime = ticket.completedAt || new Date();
+            const durationMs = endTime.getTime() - ticket.startedAt.getTime();
+            const expectedMs = ticket.expectedDuration * 60 * 60 * 1000;
+            if (durationMs > expectedMs) {
+                const overMs = durationMs - expectedMs;
+                const d = Math.floor(overMs / (1000 * 60 * 60 * 24));
+                const h = Math.floor((overMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                gapDescription = d > 0 ? `${d}d ${h}h` : `${h}h`;
+            }
+        }
+
+        // If no production delay, show time since last update
+        if (gapDescription === "0m") {
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            gapDescription = diffDays > 0 ? `${diffDays}d ${diffHours}h` : `${diffHours}h`;
+            if (diffDays === 0 && diffHours === 0) gapDescription = `${Math.floor(diffMs / 60000)}m`;
+        }
 
         let riskLevel = 'low';
-        if (ticket.returnCount > 1) {
+        if (ticket.returnCount > 0 || ticket.isWarrantyReturn) {
             riskLevel = 'high';
             highRiskCount++;
         } else if (diffMs > 3 * 24 * 60 * 60 * 1000) {
@@ -107,7 +125,7 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             partsCost: ticketPartsCost,
             commission: commission,
             netProfit: ticketRevenue - (ticketPartsCost + commission),
-            gap,
+            gap: gapDescription,
             riskLevel,
             status: ticket.status
         };

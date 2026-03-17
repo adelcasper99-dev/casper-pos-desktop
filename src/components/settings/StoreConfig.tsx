@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Store, Phone, MapPin, Receipt, Save, History, Shield } from "lucide-react";
+import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X } from "lucide-react";
+import { useState, useRef } from "react";
 import { updateStoreSettings } from "@/actions/settings";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -13,6 +13,23 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
     const [form, setForm] = useState(settings || {});
     const [saving, setSaving] = useState(false);
     const t = useTranslations('StoreConfig');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 200 * 1024) {
+            toast.error(t('logoTooLarge'));
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            handleChange('logoUrl', reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
 
     const handleChange = (key: string, val: any) => {
         setForm((prev: any) => ({ ...prev, [key]: val }));
@@ -110,6 +127,55 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                         <h3 className="font-bold flex items-center gap-2 text-lg text-white">
                             <Store className="w-5 h-5 text-cyan-400" /> {t('title')}
                         </h3>
+
+                        {/* Logo Upload Section */}
+                        <div className="space-y-2 mb-6 p-4 border border-white/10 rounded-xl bg-white/5 relative overflow-hidden group">
+                            <Label className="text-xs text-zinc-400 uppercase font-bold flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4 text-cyan-400" /> {t('storeLogo')}
+                            </Label>
+                            <div className="flex items-center gap-6">
+                                <div className="relative w-24 h-24 bg-black/40 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center overflow-hidden transition-all group-hover:border-cyan-500/50">
+                                    {form.logoUrl ? (
+                                        <>
+                                            <img src={form.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleChange('logoUrl', null)}
+                                                className="absolute top-1 right-1 p-1 bg-red-500 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1 text-zinc-600">
+                                            <ImageIcon className="w-8 h-8 opacity-20" />
+                                            <span className="text-[10px] font-bold">No Logo</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+                                        >
+                                            <Upload className="w-4 h-4 text-cyan-400" /> {t('browseLogo')}
+                                        </button>
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            className="hidden" 
+                                            accept="image/*" 
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-zinc-500 leading-relaxed italic">
+                                        {t('logoNote')}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">

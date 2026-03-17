@@ -8,56 +8,8 @@ import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
 
 const db = prisma as any;
+import { calculateNetDue } from "@/lib/salary-utils";
 
-/**
- * Shared logic for calculating net salary for an employee in a target month.
- */
-async function calculateNetDue(u: any, startDate: Date, endDate: Date) {
-    const { Decimal } = await import("decimal.js");
-    
-    let baseSalary = new Decimal(u.salary?.toString() || '0');
-    const hireDate = u.hireDate ? new Date(u.hireDate) : null;
-    
-    // Prorate salary if hired in current month
-    if (hireDate) {
-        if (hireDate > endDate) {
-            baseSalary = new Decimal(0);
-        } else if (hireDate > startDate) {
-            const daysWorked = Math.max(0, 31 - hireDate.getDate());
-            baseSalary = baseSalary.times(daysWorked).dividedBy(30);
-        }
-    }
-
-    let totalBonuses = new Decimal(0);
-    let totalDeductions = new Decimal(0);
-
-    // Attendance
-    u.dailyLogs?.forEach((log: any) => {
-        totalBonuses = totalBonuses.plus(log.bonus.toString());
-        const logDeduction = new Decimal(log.deduction.toString());
-        if (log.status === 'ABSENT' && logDeduction.isZero()) {
-            totalDeductions = totalDeductions.plus(baseSalary.dividedBy(30));
-        } else {
-            totalDeductions = totalDeductions.plus(logDeduction);
-        }
-    });
-
-    // Transactions
-    u.employeeTransactions?.forEach((tx: any) => {
-        if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
-            totalBonuses = totalBonuses.plus(tx.amount.toString());
-        } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION') || tx.type === 'SALARY_PAYMENT') {
-            totalDeductions = totalDeductions.plus(tx.amount.toString());
-        }
-    });
-
-    return {
-        baseSalary,
-        totalBonuses,
-        totalDeductions,
-        netDue: baseSalary.plus(totalBonuses).minus(totalDeductions)
-    };
-}
 
 export const getStaffDirectory = secureAction(async (data?: { month?: number; year?: number }) => {
     const now = new Date();
@@ -79,10 +31,14 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
                 take: 1
             },
             dailyLogs: {
-                where: { date: { gte: startDate, lte: endDate } }
+                where: { 
+                    date: { gte: startDate, lte: endDate }
+                }
             },
             employeeTransactions: {
-                where: { createdAt: { gte: startDate, lte: endDate } }
+                where: { 
+                    createdAt: { gte: startDate, lte: endDate }
+                }
             }
         },
         orderBy: { name: 'asc' }

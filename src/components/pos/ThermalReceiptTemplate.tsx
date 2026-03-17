@@ -18,6 +18,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   const storeName = settings?.name ?? "CASPER POS";
   const address = settings?.address ?? "";
   const phone = settings?.phone ?? "";
+  const logoUrl = settings?.logoUrl ?? "";
   const currency = settings?.currency ?? "EGP";
   const footer = settings?.receiptFooter ?? "شكراً لزيارتكم";
   const paperSize = settings?.paperSize ?? "80mm";
@@ -120,6 +121,13 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
       flex-direction: column;
       align-items: center;
     }
+    .shop-logo {
+      max-width: 35mm;
+      max-height: 15mm;
+      margin-bottom: 1.5mm;
+      object-fit: contain;
+      filter: grayscale(1) contrast(1.5);
+    }
     .shop-name { font-size: 16px; font-weight: 700; letter-spacing: 0.5mm; width: 100%; }
     
     .info {
@@ -207,6 +215,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
 </head>
 <body>
   <div class="header">
+    ${!isOrder && logoUrl ? `<img src="${logoUrl}" class="shop-logo" alt="Logo" />` : ""}
     <div class="shop-name">${isOrder ? "طـلـب مـفـتـوح" : storeName}</div>
     ${tableName ? `<div style="font-size: 20px; font-weight: 900; border: 1mm solid #000; padding: 2mm; margin-top: 2mm;">${tableName}</div>` : ""}
     ${customerName ? `
