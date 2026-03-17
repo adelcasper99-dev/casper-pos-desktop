@@ -300,6 +300,7 @@ export const issueStoreCredit = secureAction(
         {
           description: `Store Credit — ${sourceId.slice(0, 8).toUpperCase()}`,
           reference: sourceId,
+          branchId: currentUser.branchId ?? undefined,
           lines: [
             {
               accountCode: "4000",
@@ -308,7 +309,7 @@ export const issueStoreCredit = secureAction(
               description: "Sales Revenue Reversed (Store Credit)",
             },
             {
-              accountCode: "2100",
+              accountCode: "2150",
               debit: 0,
               credit: amount,
               description: "Customer Wallet Liability",

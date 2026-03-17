@@ -347,14 +347,32 @@ export const closeShift = secureAction(async (data: {
                 data: { balance: { increment: data.safeDropAmount } }
             });
 
+            // 🆕 Dynamic Treasury GL Mapping (B39)
+            let safeDropDestCode = '1020';
+            const destTreasury = await tx.treasury.findUnique({
+                where: { id: data.safeDropTreasuryId },
+                select: { glCode: true }
+            });
+            if (destTreasury?.glCode) safeDropDestCode = destTreasury.glCode;
+
+            // Resolve branchId from shift owner (Shift doesn't have indirect relation to Branch in this schema)
+            const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
+            const branchId = shiftOwner?.branchId;
+
+            const shiftTreasury = await tx.treasury.findFirst({
+                where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
+            });
+            const cashAccountCode = shiftTreasury?.glCode || '1000';
+
             // ── Phase 4: Z-Report Safe Drop Journal Entry ──
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Safe Drop - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
                 date: new Date(),
+                branchId: branchId || undefined,
                 lines: [
-                    { accountCode: '1020', debit: data.safeDropAmount, credit: 0, description: "Safe Drop - To Treasury" }, // Assuming Safe/Treasury is 1020
-                    { accountCode: '1000', debit: 0, credit: data.safeDropAmount, description: "Safe Drop - From Cash Drawer" }
+                    { accountCode: safeDropDestCode, debit: data.safeDropAmount, credit: 0, description: "Safe Drop - To Treasury" },
+                    { accountCode: cashAccountCode, debit: 0, credit: data.safeDropAmount, description: "Safe Drop - From Cash Drawer" }
                 ]
             }, tx);
         }
@@ -364,17 +382,26 @@ export const closeShift = secureAction(async (data: {
             const varianceAmt = Math.abs(cashVariance.toNumber());
             const isShortage = cashVariance.isNegative(); // If negative, we have less cash than expected
 
+            const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
+            const branchId = shiftOwner?.branchId;
+
+            const shiftTreasury = await tx.treasury.findFirst({
+                where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
+            });
+            const cashAccountCode = shiftTreasury?.glCode || '1000';
+
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Cash Variance - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
                 date: new Date(),
+                branchId: branchId || undefined,
                 lines: isShortage ? [
                     // Shortage: Expense (DR) / Cash Out (CR)
                     { accountCode: '5500', debit: varianceAmt, credit: 0, description: "Cash Shortage (Loss)" },
-                    { accountCode: '1000', debit: 0, credit: varianceAmt, description: "Cash Register Adjustment" }
+                    { accountCode: cashAccountCode, debit: 0, credit: varianceAmt, description: "Cash Register Adjustment" }
                 ] : [
                     // Overage: Cash In (DR) / Contra-Expense or Income (CR)
-                    { accountCode: '1000', debit: varianceAmt, credit: 0, description: "Cash Register Adjustment" },
+                    { accountCode: cashAccountCode, debit: varianceAmt, credit: 0, description: "Cash Register Adjustment" },
                     { accountCode: '5500', debit: 0, credit: varianceAmt, description: "Cash Overage (Gain)" }
                 ]
             }, tx);
@@ -626,7 +653,7 @@ export const forceCloseShift = secureAction(async (data: {
     // recalculating from sales/expenses causes data loss if records are soft-deleted or shifted.
     const totalCashSales = shift.totalCashSales;
     const totalExpenses = shift.totalExpenses;
-    const totalCashRefunds = shift.totalRefunds;
+    const totalCashRefunds = (shift as any).totalCashRefunds ?? shift.totalRefunds;
 
     const estimatedCash = shift.startCash.add(totalCashSales).minus(totalExpenses).minus(totalCashRefunds);
 

@@ -124,6 +124,12 @@ export const transferCustodyToTech = secureAction(async (data: {
     if (tech.warehouseId === sourceWarehouseId) throw new Error("Source and destination warehouse cannot be the same");
 
     const destWarehouseId = tech.warehouseId;
+    
+    // Fetch source warehouse for branch context
+    const sourceWh = await prisma.warehouse.findUnique({
+        where: { id: sourceWarehouseId },
+        select: { branchId: true }
+    });
 
     await prisma.$transaction(async (tx) => {
         for (const item of items) {
@@ -172,8 +178,9 @@ export const transferCustodyToTech = secureAction(async (data: {
                     fromWarehouseId: sourceWarehouseId,
                     toWarehouseId: destWarehouseId,
                     quantity: item.quantity,
-                    reason: `Custody handover to technician: ${tech.name}`
-                }
+                    reason: `Custody handover to technician: ${tech.name}`,
+                    branchId: sourceWh?.branchId || null
+                } as any
             });
         }
     });
@@ -261,8 +268,9 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
                 fromWarehouseId: sourceWarehouseId,
                 toWarehouseId: destWarehouseId,
                 quantity,
-                reason: `Direct transfer to technician ${tech.name} from ticket manager`
-            }
+                reason: `Direct transfer to technician ${tech.name} from ticket manager`,
+                branchId: mainWh.branchId || null
+            } as any
         });
     });
 

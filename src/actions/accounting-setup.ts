@@ -25,12 +25,14 @@ export async function setOpeningBalances(data: {
         await prisma.$transaction(async (tx) => {
             const lines = [];
 
+            // Fetch default treasury for branch context tagging
+            const defaultTreasury = await tx.treasury.findFirst({ where: { isDefault: true, deletedAt: null } });
+
             // Debits (Assets)
             if (data.cash > 0) {
                 lines.push({ accountCode: '1000', debit: data.cash, credit: 0, description: "رصيد افتتاحي - نقدية بالخزينة" });
                 // Note: We might want to actually fund the primary Treasury here too, but for accounting it's enough to hit the GL.
                 // Assuming we update the raw DB treasury balance:
-                const defaultTreasury = await tx.treasury.findFirst({ where: { isDefault: true, deletedAt: null } });
                 if (defaultTreasury) {
                     await tx.treasury.update({ where: { id: defaultTreasury.id }, data: { balance: { increment: data.cash } } });
                 }
@@ -61,6 +63,7 @@ export async function setOpeningBalances(data: {
                     description: "القيد الافتتاحي - Opening Balances",
                     reference: "OPENING-BAL",
                     date: new Date(),
+                    branchId: defaultTreasury?.branchId ?? undefined,
                     lines,
                 }, tx);
             }

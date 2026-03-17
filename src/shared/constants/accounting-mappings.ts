@@ -44,5 +44,5 @@ export const INCOME_CATEGORY_MAP: Record<string, { glCode: string; labelAr: stri
 export const INCOMING_CATEGORIES = [
     { id: "owner_funding", uiLabel: "إيداع من المالك (زيادة رأس مال)", creditAccountId: "3000", actionType: "CAPITAL" },
     { id: "customer_payment", uiLabel: "تحصيل دفعة من عميل (سداد آجل)", creditAccountId: "1100", actionType: "CUSTOMER_PAYMENT" },
-    { id: "other_income", uiLabel: "إيرادات أخرى (خلاف المبيعات)", creditAccountId: "4100", actionType: "IN" }
+    { id: "other_income", uiLabel: "إيرادات أخرى (خلاف المبيعات)", creditAccountId: "4400", actionType: "IN" }
 ];

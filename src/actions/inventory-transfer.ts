@@ -6,6 +6,7 @@ import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { Decimal } from "decimal.js";
 
 // Schema for validation
 const TransferItemSchema = z.object({
@@ -50,40 +51,53 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
             // 1. Resolve Source Warehouse ID
             let sourceWarehouseId: string | null = null;
             let sourceName = "Unknown";
+            let sourceBranchId: string | null = null;
+            let sourceGlCode = "1200";
 
             if (sourceType === 'ENGINEER') {
                 const tech = await tx.technician.findUnique({
                     where: { id: sourceId },
-                    include: { warehouse: true }
+                    include: { warehouse: { include: { branch: true } } }
                 });
-                if (!tech?.warehouseId) throw new Error("Source engineer has no custody warehouse.");
+                if (!tech?.warehouseId || !tech.warehouse) throw new Error("Source engineer has no custody warehouse.");
                 sourceWarehouseId = tech.warehouseId;
                 sourceName = tech.name;
+                sourceBranchId = tech.warehouse.branchId;
+                sourceGlCode = tech.warehouse.branch.glCode || '1200';
             } else {
-                const wh = await tx.warehouse.findUnique({ where: { id: sourceId } });
+                const wh = await tx.warehouse.findUnique({ 
+                    where: { id: sourceId },
+                    include: { branch: true }
+                });
                 if (!wh) throw new Error("Source warehouse not found.");
                 sourceWarehouseId = wh.id;
                 sourceName = wh.name;
+                sourceBranchId = wh.branchId;
+                sourceGlCode = wh.branch.glCode || '1200';
             }
 
             // 2. Resolve Destination Warehouse ID (and create if missing for Engineer)
             let destWarehouseId: string | null = null;
             let destName = "Unknown";
+            let destBranchId: string | null = null;
+            let destGlCode = "1200";
 
             if (destinationType === 'ENGINEER') {
                 const tech = await tx.technician.findUnique({
                     where: { id: destinationId },
-                    include: { user: true, warehouse: true }
+                    include: { user: true, warehouse: { include: { branch: true } } }
                 });
                 if (!tech) throw new Error("Destination engineer not found.");
                 destName = tech.name;
                 destWarehouseId = tech.warehouseId;
+                destBranchId = tech.warehouse?.branchId || null;
+                destGlCode = tech.warehouse?.branch?.glCode || '1200';
 
                 // Auto-create/Fix warehouse for Engineer if missing
                 if (!destWarehouseId) {
+                    // ... (rest of engineer auto-create logic - omitted for brevity, will keep existing in replace)
                     let branchId = tech.user?.branchId;
                     if (!branchId) {
-                        // Fallback to Main or Any branch
                         const main = await tx.branch.findFirst({ where: { code: 'MAIN' } });
                         const anyBranch = await tx.branch.findFirst();
                         branchId = main?.id || anyBranch?.id || "";
@@ -102,19 +116,27 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                         data: { warehouseId: newWh.id }
                     });
                     destWarehouseId = newWh.id;
+                    destBranchId = branchId;
+                } else {
+                    destBranchId = tech.warehouse?.branchId || null;
                 }
             } else {
                 const wh = await tx.warehouse.findUnique({ where: { id: destinationId } });
                 if (!wh) throw new Error("Destination warehouse not found.");
                 destWarehouseId = wh.id;
                 destName = wh.name;
+                destBranchId = wh.branchId;
             }
+
+            // B37: Inter-Branch Logic
+            const isInterBranch = sourceBranchId && destBranchId && sourceBranchId !== destBranchId;
+            let totalTransferValue = new Decimal(0);
 
             // 3. Process Items
             for (const item of items) {
                 // Validate Source Stock
                 const sourceStock = await tx.stock.findUnique({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: sourceWarehouseId } }
+                    where: { productId_warehouseId: { productId: item.productId, warehouseId: sourceWarehouseId! } }
                 });
 
                 if (!sourceStock || sourceStock.quantity < item.quantity) {
@@ -128,27 +150,52 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                 });
 
                 await tx.stock.upsert({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: destWarehouseId } },
+                    where: { productId_warehouseId: { productId: item.productId, warehouseId: destWarehouseId! } },
                     update: { quantity: { increment: item.quantity } },
                     create: {
                         productId: item.productId,
-                        warehouseId: destWarehouseId,
+                        warehouseId: destWarehouseId!,
                         quantity: item.quantity
                     }
                 });
+
+                // Calculate Value for Inter-branch GL
+                if (isInterBranch) {
+                    const product = await tx.product.findUnique({
+                        where: { id: item.productId },
+                        select: { costPrice: true }
+                    });
+                    const itemValue = new Decimal(product?.costPrice?.toString() || "0").mul(item.quantity);
+                    totalTransferValue = totalTransferValue.add(itemValue);
+                }
 
                 // Log Movement
                 await tx.stockMovement.create({
                     data: {
                         type: 'TRANSFER',
                         productId: item.productId,
-                        fromWarehouseId: sourceWarehouseId,
-                        toWarehouseId: destWarehouseId,
+                        fromWarehouseId: sourceWarehouseId!,
+                        toWarehouseId: destWarehouseId!,
                         quantity: item.quantity,
                         reason: `Transfer from ${sourceName} (${sourceType}) to ${destName} (${destinationType})`,
-                        performedById // Add user tracking
-                    }
+                        performedById,
+                        branchId: sourceBranchId
+                    } as any
                 });
+            }
+
+            // 4. Record GL Transaction if Inter-Branch
+            if (isInterBranch && totalTransferValue.gt(0)) {
+                const { AccountingEngine } = await import("@/lib/accounting/transaction-factory");
+                await AccountingEngine.recordTransaction({
+                    description: `Inter-Branch Stock Transfer: ${sourceName} -> ${destName}`,
+                    reference: `TRF-${Date.now()}`,
+                    branchId: sourceBranchId,
+                    lines: [
+                        { accountCode: destGlCode,   debit: totalTransferValue.toNumber(), credit: 0, description: `Inventory Received at ${destName}` },
+                        { accountCode: sourceGlCode, debit: 0, credit: totalTransferValue.toNumber(), description: `Inventory Dispatched from ${sourceName}` }
+                    ]
+                }, tx);
             }
 
             return { count: items.length, source: sourceName, dest: destName };
@@ -160,7 +207,6 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
 
     } catch (error: any) {
         console.error("Transfer failed:", error);
-        // Return the specific error message to the client
         return { success: false, message: error.message || "Transfer failed." };
     }
 }, { permission: PERMISSIONS.INVENTORY_MANAGE });
@@ -174,13 +220,11 @@ const TransferHistoryFilterSchema = z.object({
 
 export const getTransferHistory = async (filters?: z.infer<typeof TransferHistoryFilterSchema>) => {
     try {
-        // 1. Manual Auth & Permission Check
         const session = await getSession();
         if (!session?.user) {
             return { success: false, message: "Unauthorized" };
         }
 
-        // Simple permission check
         const user = session.user;
         const hasAccess = hasPermission(user.permissions, PERMISSIONS.INVENTORY_VIEW) || user.role === 'ADMIN';
         if (!hasAccess) {
@@ -196,7 +240,6 @@ export const getTransferHistory = async (filters?: z.infer<typeof TransferHistor
                 where.createdAt = { ...where.createdAt, gte: filters.startDate };
             }
             if (filters.endDate) {
-                // Set end date to end of day
                 const end = new Date(filters.endDate);
                 end.setHours(23, 59, 59, 999);
                 where.createdAt = { ...where.createdAt, lte: end };
@@ -234,13 +277,12 @@ export const getTransferHistory = async (filters?: z.infer<typeof TransferHistor
                 toWarehouse: {
                     select: { name: true }
                 },
-                performedBy: { // Include user details
+                performedBy: {
                     select: { name: true, username: true }
                 }
             }
         });
 
-        // Explicitly map to plain objects
         const plainMovements = movements.map(m => ({
             id: m.id,
             type: m.type,
@@ -253,7 +295,7 @@ export const getTransferHistory = async (filters?: z.infer<typeof TransferHistor
             product: m.product ? { name: m.product.name, sku: m.product.sku } : { name: 'Unknown', sku: 'N/A' },
             fromWarehouse: m.fromWarehouse ? { name: m.fromWarehouse.name } : null,
             toWarehouse: m.toWarehouse ? { name: m.toWarehouse.name } : null,
-            performedBy: m.performedBy ? { name: m.performedBy.name || m.performedBy.username } : null // Map user
+            performedBy: m.performedBy ? { name: m.performedBy.name || m.performedBy.username } : null
         }));
 
         return { success: true, data: plainMovements };

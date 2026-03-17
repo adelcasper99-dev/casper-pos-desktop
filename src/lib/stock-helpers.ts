@@ -80,9 +80,10 @@ export async function handleReturnedPartStock(
         isDamaged: boolean;
         reason: string;
         performedById: string;
+        branchId?: string;
     }
 ): Promise<void> {
-    const { productId, warehouseId, quantity, isDamaged, reason, performedById } = data;
+    const { productId, warehouseId, quantity, isDamaged, reason, performedById, branchId } = data;
     
     if (isDamaged) {
         // Log as wastage
@@ -92,8 +93,9 @@ export async function handleReturnedPartStock(
                 quantity,
                 reason: `[DAMAGED] ${reason}`,
                 warehouseId: warehouseId || undefined,
-                performedById
-            }
+                reportedBy: performedById,
+                branchId: branchId || null
+            } as any
         });
 
         await tx.stockMovement.create({
@@ -103,8 +105,9 @@ export async function handleReturnedPartStock(
                 fromWarehouseId: warehouseId || undefined,
                 quantity,
                 reason,
-                performedById
-            }
+                performedById,
+                branchId: branchId || null
+            } as any
         });
     } else {
         // Return to stock
@@ -126,8 +129,9 @@ export async function handleReturnedPartStock(
                     toWarehouseId: targetWhId,
                     quantity,
                     reason,
-                    performedById
-                }
+                    performedById,
+                    branchId: branchId || null
+                } as any
             });
         }
     }

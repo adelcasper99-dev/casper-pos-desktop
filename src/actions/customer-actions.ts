@@ -92,7 +92,7 @@ export const searchCustomers = secureAction(async (query: string) => {
 /**
  * Create a new customer with name and phone
  */
-export const createCustomer = secureAction(async ({ name, phone, address, linkedEmployeeId }: { name: string; phone: string; address?: string; linkedEmployeeId?: string | null }) => {
+export const createCustomer = secureAction(async ({ name, phone, address, linkedEmployeeId, openingBalance = 0 }: { name: string; phone: string; address?: string; linkedEmployeeId?: string | null; openingBalance?: number }) => {
     if (!name || name.trim().length < 2) {
         return { error: 'الاسم قصير جداً' };
     }
@@ -117,13 +117,42 @@ export const createCustomer = secureAction(async ({ name, phone, address, linked
             }
         }
 
-        const customer = await prisma.customer.create({
-            data: {
-                name: name.trim(),
-                phone: phone.trim(),
-                address: address?.trim() || null,
-                linkedEmployeeId: linkedEmployeeId || null,
+        const customer = await prisma.$transaction(async (tx) => {
+            const c = await tx.customer.create({
+                data: {
+                    name: name.trim(),
+                    phone: phone.trim(),
+                    address: address?.trim() || null,
+                    linkedEmployeeId: linkedEmployeeId || null,
+                    balance: new Decimal(openingBalance)
+                }
+            });
+
+            if (openingBalance && openingBalance !== 0) {
+                // 1. Create opening transaction record
+                const transaction = await tx.customerTransaction.create({
+                    data: {
+                        customerId: c.id,
+                        type: 'OPENING_BALANCE',
+                        amount: openingBalance,
+                        description: 'Initial Opening Balance'
+                    }
+                });
+
+                // 2. Accounting Sync: DR 1100 (AR) / CR 3000 (Equity)
+                const currentUser = await getCurrentUser();
+                await AccountingEngine.recordTransaction({
+                    description: `Opening Balance: ${c.name}`,
+                    reference: transaction.id,
+                    branchId: currentUser?.branchId ?? undefined,
+                    lines: [
+                        { accountCode: '1100', debit: openingBalance, credit: 0, description: 'Initial Accounts Receivable' },
+                        { accountCode: '3000', debit: 0, credit: openingBalance, description: 'Opening Balance Equity' }
+                    ]
+                }, tx);
             }
+
+            return c;
         });
 
         return {
@@ -370,9 +399,10 @@ export const recordCustomerPayment = secureAction(async (data: {
             await AccountingEngine.recordTransaction({
                 description: `Customer Payment: ${customer.name}`,
                 reference: transaction.id,
+                branchId: currentUser.branchId ?? undefined,
                 lines: [
                     { accountCode: '1000', debit: amount, credit: 0, description: `Cash Received (${paymentMethod})` },
-                    { accountCode: '1200', debit: 0, credit: amount, description: 'Customer AR Reduced' }
+                    { accountCode: '1100', debit: 0, credit: amount, description: 'Customer AR Reduced' }
                 ]
             }, tx);
         } catch (accError) {
@@ -431,3 +461,108 @@ export const getEmployeesForLink = secureAction(async () => {
         return { success: false, error: 'حدث خطأ أثناء جلب قائمة الموظفين' };
     }
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
+
+/**
+ * Adjust customer or supplier balance manually (B42)
+ */
+export const adjustAccountBalance = secureAction(async (data: {
+    entityId: string;
+    entityType: 'CUSTOMER' | 'SUPPLIER';
+    amount: number;
+    type: 'FEE' | 'WRITE_OFF' | 'ADJUSTMENT';
+    reason: string;
+}) => {
+    const { entityId, entityType, amount, type, reason } = data;
+    const { getTranslations } = await import('@/lib/i18n-mock');
+    const t = await getTranslations('SystemMessages.Errors');
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error(t('unauthorized'));
+
+    const result = await prisma.$transaction(async (tx) => {
+        let name = '';
+        const absAmount = Math.abs(amount);
+
+        if (entityType === 'CUSTOMER') {
+            const customer = await tx.customer.update({
+                where: { id: entityId },
+                data: { balance: { increment: amount } }
+            });
+            name = customer.name;
+
+            // 1. Sub-ledger entry
+            const transaction = await tx.customerTransaction.create({
+                data: {
+                    customerId: entityId,
+                    type: amount > 0 ? 'DEBIT' : 'CREDIT',
+                    amount: absAmount,
+                    description: `${type}: ${reason}`,
+                    createdBy: currentUser.id
+                }
+            });
+
+            // 2. GL Entry
+            // Fee: DR 1100 (AR) / CR 4400 (Other Income)
+            // Write-off: DR 5200 (Expense) / CR 1100 (AR)
+            const lines = amount > 0 
+                ? [
+                    { accountCode: '1100', debit: absAmount, credit: 0, description: `Manual Fee: ${reason}` },
+                    { accountCode: '4400', debit: 0, credit: absAmount, description: `Manual Fee: ${reason}` }
+                  ]
+                : [
+                    { accountCode: '5200', debit: absAmount, credit: 0, description: `Manual Adjustment: ${reason}` },
+                    { accountCode: '1100', debit: 0, credit: absAmount, description: `Manual Adjustment: ${reason}` }
+                  ];
+
+            await AccountingEngine.recordTransaction({
+                description: `Manual Adjustment (${type}): ${name}`,
+                reference: transaction.id,
+                branchId: currentUser.branchId ?? undefined,
+                lines
+            }, tx);
+
+        } else {
+            const supplier = await tx.supplier.update({
+                where: { id: entityId },
+                data: { balance: { increment: amount } }
+            });
+            name = supplier.name;
+
+            // 1. Sub-ledger entry (using SupplierPayment as a generic txn log)
+            const payment = await tx.supplierPayment.create({
+                data: {
+                    supplierId: entityId,
+                    amount: new Decimal(absAmount),
+                    method: 'ADJUSTMENT',
+                    notes: `${type}: ${reason}`
+                }
+            });
+
+            // 2. GL Entry
+            // Increase Liability (Fee from supplier): DR 5200 (Expense) / CR 2000 (AP)
+            // Decrease Liability (Credit from supplier): DR 2000 (AP) / CR 4400 (Other Income)
+            const lines = amount > 0
+                ? [
+                    { accountCode: '5200', debit: absAmount, credit: 0, description: `Supplier Adjustment: ${reason}` },
+                    { accountCode: '2000', debit: 0, credit: absAmount, description: `Supplier Adjustment: ${reason}` }
+                  ]
+                : [
+                    { accountCode: '2000', debit: absAmount, credit: 0, description: `Supplier Credit: ${reason}` },
+                    { accountCode: '4400', debit: 0, credit: absAmount, description: `Supplier Credit: ${reason}` }
+                  ];
+
+            await AccountingEngine.recordTransaction({
+                description: `Manual Adjustment (${type}): ${name}`,
+                reference: payment.id,
+                branchId: currentUser.branchId ?? undefined,
+                lines
+            }, tx);
+        }
+
+        return { success: true, name };
+    });
+
+    revalidatePath(entityType === 'CUSTOMER' ? '/customers' : '/inventory');
+
+    return result;
+}, { permission: 'CUSTOMER_MANAGE', requireCSRF: false });

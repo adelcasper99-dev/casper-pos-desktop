@@ -107,15 +107,25 @@ model Branch {
   region         String?
   sortOrder      Int?             @default(0)
   territoryCode  String?
+  glCode         String?          @default("1200") // Default to Inventory Asset if not specified
   parentBranch   Branch?          @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
   childBranches  Branch[]         @relation("BranchHierarchy")
   movementsTo    DeviceMovement[] @relation("ToBranch")
   movementsFrom  DeviceMovement[] @relation("FromBranch")
+  journalEntries JournalEntry[]
   stockRequests  StockRequest[]   @relation("RequestedByBranch")
   currentTickets Ticket[]         @relation("CurrentLocation")
   treasuries     Treasury[]
-  users          User[]
-  warehouses     Warehouse[]
+  users                User[]
+  warehouses           Warehouse[]
+  expenses             Expense[]
+  employeeTransactions EmployeeTransaction[]
+  stockWastages        StockWastage[]
+  stockMovements       StockMovement[]
+  sales                Sale[]
+  purchaseInvoices     PurchaseInvoice[]
+  customerTransactions CustomerTransaction[]
+  supplierPayments     SupplierPayment[]
 }
 
 model Warehouse {
@@ -167,10 +177,14 @@ model CustomerTransaction {
   reference   String?
   createdBy   String?
   createdAt   DateTime @default(now())
+  branchId    String?
   customer    Customer @relation(fields: [customerId], references: [id])
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  journalEntries JournalEntry[]
 
   @@index([customerId])
   @@index([createdAt])
+  @@index([branchId])
 }
 
 model Supplier {
@@ -195,9 +209,13 @@ model SupplierPayment {
   notes       String?
   paymentDate DateTime @default(now())
   method      String   @default("CASH")
+  branchId    String?
   supplier    Supplier @relation(fields: [supplierId], references: [id])
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  journalEntries JournalEntry[]
 
   @@index([supplierId])
+  @@index([branchId])
 }
 
 model Account {
@@ -217,17 +235,28 @@ model JournalEntry {
   date        DateTime         @default(now())
   description String
   reference   String?
+  branchId    String?
   saleId      String?
   purchaseId  String?
   expenseId   String?
+  ticketId    String?
+  customerTransactionId String?
+  supplierPaymentId     String?
+  employeeTransactionId String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  branch      Branch?          @relation(fields: [branchId], references: [id])
   sale        Sale?            @relation(fields: [saleId], references: [id])
   purchase    PurchaseInvoice? @relation(fields: [purchaseId], references: [id])
   expense     Expense?         @relation(fields: [expenseId], references: [id])
+  ticket      Ticket?          @relation(fields: [ticketId], references: [id])
+  customerTransaction CustomerTransaction? @relation(fields: [customerTransactionId], references: [id])
+  supplierPayment     SupplierPayment?     @relation(fields: [supplierPaymentId], references: [id])
+  employeeTransaction EmployeeTransaction? @relation(fields: [employeeTransactionId], references: [id])
   lines       JournalLine[]
 
   @@index([date])
+  @@index([branchId])
 }
 
 model JournalLine {
@@ -318,7 +347,9 @@ model StockMovement {
   reason          String?
   createdAt       DateTime       @default(now())
   performedById   String?
+  branchId        String?
   toWarehouse     Warehouse?     @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  branch          Branch?        @relation(fields: [branchId], references: [id])
   product         Product        @relation(fields: [productId], references: [id])
   performedBy     User?          @relation(fields: [performedById], references: [id])
   fromWarehouse   Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
@@ -368,13 +399,16 @@ model StockWastage {
   reason      String
   notes       String?
   reportedBy  String
+  branchId    String?
   createdAt   DateTime  @default(now())
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  branch      Branch?   @relation(fields: [branchId], references: [id])
   user        User      @relation(fields: [reportedBy], references: [id])
   product     Product   @relation(fields: [productId], references: [id])
 
   @@index([productId, createdAt])
   @@index([warehouseId, createdAt])
+  @@index([branchId])
 }
 
 model PurchaseInvoice {
@@ -390,12 +424,14 @@ model PurchaseInvoice {
   createdAt      DateTime       @default(now())
   deliveryCharge Decimal        @default(0.00)
   voidReason     String?
+  branchId       String?
   voidedAt       DateTime?
   voidedBy       String?
   isReturn       Boolean        @default(false)
   parentId       String?
   journalEntries JournalEntry[]
   warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  branch         Branch?        @relation(fields: [branchId], references: [id])
   supplier       Supplier       @relation(fields: [supplierId], references: [id])
   items          PurchaseItem[]
 }
@@ -438,8 +474,11 @@ model Sale {
   previousStatus     String?
   isReturn           Boolean        @default(false)
   parentId           String?
+  branchId           String?
+  relatedSupplierId  String?
   journalEntries     JournalEntry[]
   user               User?          @relation("SaleOwner", fields: [userId], references: [id])
+  branch             Branch?        @relation(fields: [branchId], references: [id])
   warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
   shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
   customer           Customer?      @relation(fields: [customerId], references: [id])
@@ -556,6 +595,7 @@ model Treasury {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
+  glCode        String?       @default("1000")
   transactions  Transaction[]
   branch        Branch        @relation(fields: [branchId], references: [id])
 
@@ -594,7 +634,9 @@ model Expense {
   date           DateTime       @default(now())
   paymentMethod  String         @default("CASH")
   shiftId        String?
+  branchId       String?
   shift          Shift?         @relation("ShiftExpenses", fields: [shiftId], references: [id])
+  branch         Branch?        @relation(fields: [branchId], references: [id])
   journalEntries JournalEntry[]
 }
 
@@ -714,6 +756,7 @@ model Ticket {
   collaborators      TicketCollaborator[]
   notes              TicketNote[]
   parts              TicketPart[]
+  journalEntries     JournalEntry[]
 
   @@index([barcode])
   @@index([status, createdAt])
@@ -856,9 +899,13 @@ model EmployeeTransaction {
   referenceId   String?
   referenceType String?
   createdAt     DateTime @default(now())
+  branchId      String?
   user          User     @relation(fields: [userId], references: [id])
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  journalEntries JournalEntry[]
 
   @@index([userId])
+  @@index([branchId])
 }
 
 model AuditLog {

@@ -48,7 +48,10 @@ export async function upsertEmployeeTransaction(data: z.infer<typeof Transaction
             });
         } else {
             result = await (prisma as any).employeeTransaction.create({
-                data: payload,
+                data: {
+                    ...payload,
+                    branchId: session.user.branchId || null
+                } as any,
             });
         }
 

@@ -46,8 +46,40 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
         }
     }
 
-    const supplier = await prisma.supplier.create({
-        data: validated,
+    const supplier = await prisma.$transaction(async (tx) => {
+        const s = await tx.supplier.create({
+            data: {
+                ...validated,
+                balance: new Decimal(validated.openingBalance || 0)
+            },
+        });
+
+        if (validated.openingBalance && validated.openingBalance !== 0) {
+            // 1. Create opening transaction record
+            await tx.supplierPayment.create({
+                data: {
+                    supplierId: s.id,
+                    amount: new Decimal(validated.openingBalance),
+                    method: 'OPENING_BALANCE',
+                    notes: 'Initial Opening Balance'
+                }
+            });
+
+            // 2. Accounting Sync: DR 3000 (Equity) / CR 2000 (AP)
+            const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
+            const currentUser = await getCurrentUser();
+            await AccountingEngine.recordTransaction({
+                description: `Opening Balance: ${s.name}`,
+                reference: s.id,
+                branchId: currentUser?.branchId ?? undefined,
+                lines: [
+                    { accountCode: '3000', debit: validated.openingBalance, credit: 0, description: 'Opening Balance Equity' },
+                    { accountCode: '2000', debit: 0, credit: validated.openingBalance, description: 'Initial Accounts Payable' }
+                ]
+            }, tx);
+        }
+
+        return s;
     });
 
     revalidatePath("/inventory", 'page');
@@ -154,6 +186,28 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             });
         }
 
+        // 🆕 Accounting Entry: DR 2000 (AP) / CR Cash/Bank
+        const accountMap: Record<string, string> = {
+            CASH: '1000',
+            BANK: '1010',
+            VISA: '1010',
+            CARD: '1010',
+            INSTAPAY: '1020',
+            WALLET: '1020'
+        };
+        const creditAccount = accountMap[method] || '1000';
+
+        const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
+        await AccountingEngine.recordTransaction({
+            description: `Supplier Payment: ${method}`,
+            reference: payment.id,
+            branchId: user?.branchId ?? undefined,
+            lines: [
+                { accountCode: '2000', debit: amount, credit: 0, description: `Accounts Payable Reduced` },
+                { accountCode: creditAccount, debit: 0, credit: amount, description: `Payment via ${method}` }
+            ]
+        }, tx);
+
         // 4. Auto-Allocate Payment to Pending Invoices (FIFO)
         const pendingInvoices = await tx.purchaseInvoice.findMany({
             where: {
@@ -216,25 +270,6 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         }
     });
 
-    // --- Integrations ---
-    try {
-        // Map methods to GL Accounts
-        // 1000 = Cash on Hand
-        // 1010 = Bank / Transfer / Sadad
-        const creditAccount = method === 'CASH' ? '1000' : '1010';
-        const creditDesc = method === 'CASH' ? 'Cash' : 'Bank/Transfer';
-
-        await AccountingEngine.recordTransaction({
-            description: `Supplier Payment (${method}) - ${supplierId.substring(0, 8)}`,
-            reference: supplierId,
-            lines: [
-                { accountCode: '2000', debit: amount, credit: 0, description: 'Accounts Payable' },
-                { accountCode: creditAccount, debit: 0, credit: amount, description: creditDesc }
-            ]
-        });
-    } catch (accErr) {
-        console.error(accErr);
-    }
 
     revalidatePath("/inventory", 'page');
     revalidatePath(`/inventory/suppliers/${supplierId}`, 'page');
@@ -323,6 +358,7 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
             await AccountingEngine.recordTransaction({
                 description: `VOID Supplier Payment - ${payment.supplierId.substring(0, 8)}`,
                 reference: payment.supplierId,
+                branchId: user?.branchId ?? undefined,
                 lines: [
                     { accountCode: '2000', debit: 0, credit: Number(payment.amount), description: 'Accounts Payable Restored' },
                     { accountCode: creditAccount, debit: Number(payment.amount), credit: 0, description: 'Cash/Bank Restored' }
@@ -441,8 +477,9 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
                     productId: newProduct.id,
                     toWarehouseId: mainWarehouse.id,
                     quantity: effectiveStock,
-                    reason: 'Initial Stock'
-                }
+                    reason: 'Initial Stock',
+                    branchId: mainWarehouse.branchId || null
+                } as any
             });
         }
 
@@ -790,7 +827,13 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         }
 
         // D. Create Invoice & Items
+        // D. Create Invoice & Items
         // Note: Using nested createMany is faster than looping
+        const wh = await tx.warehouse.findUnique({
+            where: { id: warehouseId! },
+            select: { branchId: true }
+        });
+
         const invoice = await tx.purchaseInvoice.create({
             data: {
                 supplierId: header.supplierId,
@@ -801,6 +844,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 paidAmount: paidAmount,
                 status: status,
                 paymentMethod: header.paymentMethod || "CASH",
+                branchId: wh?.branchId || null,
                 items: {
                     createMany: {
                         data: processedItems.map(i => ({
@@ -810,7 +854,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         }))
                     }
                 }
-            }
+            } as any
         });
 
         // E. Update Supplier Balance
@@ -878,7 +922,8 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             fromWarehouseId: null,
             toWarehouseId: warehouseId!,
             quantity: item.quantity,
-            reason: `Purchase Invoice #${finalInvoiceNumber}`
+            reason: `Purchase Invoice #${finalInvoiceNumber}`,
+            branchId: wh?.branchId || null
         }));
 
         await tx.stockMovement.createMany({
@@ -926,6 +971,8 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             finalInvoiceNumber || 'PURCHASE',
             totalAmount,
             paidAmount,
+            header.taxAmount || 0,
+            user?.branchId ?? undefined,
             tx
         );
 
@@ -1122,16 +1169,19 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             )
         ]);
 
-        await AccountingEngine.recordTransaction({
-            description: `Update Purchase Invoice #${header.invoiceNumber || id}`,
-            reference: header.invoiceNumber || id,
-            purchaseId: id,
-            date: new Date(),
-            lines: [
-                { accountCode: '1200', debit: totalAmount, credit: 0, description: 'Inventory Asset' },
-                { accountCode: '2000', debit: 0, credit: totalAmount, description: 'Accounts Payable' }
-            ]
-        }, tx);
+        // H. Record Purchasing Accounting (Phase 2.2)
+        const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
+        await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase updated");
+
+        await AccountingEngine.recordPurchase(
+            id,
+            header.invoiceNumber || 'PURCHASE',
+            totalAmount,
+            paidAmount,
+            header.taxAmount || 0,
+            user?.branchId ?? undefined,
+            tx
+        );
     });
 
     revalidatePath("/inventory", 'page');
@@ -1155,6 +1205,10 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
         }
         const net = old.totalAmount.toNumber() - old.paidAmount.toNumber();
         await tx.supplier.update({ where: { id: old.supplierId }, data: { balance: { decrement: net } } });
+        
+        const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
+        await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase voided");
+        
         await tx.purchaseInvoice.update({ where: { id }, data: { status: 'VOIDED' } });
     });
 
@@ -1165,223 +1219,10 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
 
 
 
-export const refundPurchase = secureAction(async (data: { id: string; reason?: string; force?: boolean; csrfToken?: string }) => {
-    const { id, reason, force = false } = data;
-    // Get current user for audit trail
-    const { getCurrentUser } = await import('@/actions/auth');
-    const user = await getCurrentUser();
+// Redundant refundPurchase removed in favor of voidPurchase in purchase-actions.ts 
 
-    return await prisma.$transaction(async (tx) => {
-        const invoice = await tx.purchaseInvoice.findUnique({
-            where: { id },
-            include: {
-                items: true,
-                warehouse: {
-                    include: { branch: true }
-                }
-            }
-        });
-
-        if (!invoice) throw new Error("Invoice not found");
-
-        // Prevent refunding already voided invoices
-        if (invoice.status === 'VOIDED') {
-            throw new Error("Invoice is already voided");
-        }
-
-        // 🔴 CRITICAL FIX #2: Validate stock availability before voiding  
-        if (!force) {
-            for (const item of invoice.items) {
-                const product = await tx.product.findUnique({
-                    where: { id: item.productId },
-                    select: { stock: true, name: true }
-                });
-
-                if (!product || product.stock < item.quantity) {
-                    const t = await getTranslations('SystemMessages.Errors');
-                    throw new Error(t('insufficientStockWarehouse', { item: product?.name || 'Unknown' }));
-                }
-            }
-        }
-
-        // 🔴 CRITICAL FIX #3: Revert Supplier Balance & Treasury
-        const supplier = await tx.supplier.findUnique({
-            where: { id: invoice.supplierId },
-            select: { balance: true, name: true }
-        });
-
-        // 1. Decrement full totalAmount from supplier balance (Creates credit if totalAmount > balance)
-        await tx.supplier.update({
-            where: { id: invoice.supplierId },
-            data: { balance: { decrement: invoice.totalAmount } }
-        });
-
-        // 2. Treasury Reversal: If invoice was paid, return the money to treasury
-        if (invoice.paidAmount.toNumber() > 0) {
-            // Find default treasury for this branch
-            const treasury = await tx.treasury.findFirst({
-                where: { branchId: invoice.warehouse.branchId, isDefault: true },
-                select: { id: true }
-            });
-
-            if (treasury) {
-                // Return funds to treasury
-                await tx.treasury.update({
-                    where: { id: treasury.id },
-                    data: { balance: { increment: invoice.paidAmount } }
-                });
-
-                // Record the "IN" transaction
-                await tx.transaction.create({
-                    data: {
-                        type: 'IN',
-                        amount: invoice.paidAmount,
-                        description: `Voided Purchase Reversal: Invoice #${invoice.invoiceNumber || invoice.id.slice(0, 8)}`,
-                        paymentMethod: invoice.paymentMethod || "CASH",
-                        treasuryId: treasury.id
-                    }
-                });
-            }
-        }
-
-        // 3. Revert Stock (Reverse the purchase)
-        for (const item of invoice.items) {
-            const product = await tx.product.findUnique({
-                where: { id: item.productId },
-                select: { stock: true, name: true }
-            });
-
-            // If forcing and insufficient stock, only decrement what's available
-            const actualDecrementQty = force && product
-                ? Math.min(product.stock, item.quantity)
-                : item.quantity;
-
-            // Decrease global product stock
-            await tx.product.update({
-                where: { id: item.productId },
-                data: { stock: { decrement: actualDecrementQty } }
-            });
-
-            // Decrease warehouse stock
-            if (invoice.warehouseId) {
-                const warehouseStock = await tx.stock.findUnique({
-                    where: {
-                        productId_warehouseId: {
-                            productId: item.productId,
-                            warehouseId: invoice.warehouseId
-                        }
-                    }
-                });
-
-                if (warehouseStock) {
-                    const newQty = warehouseStock.quantity - item.quantity;
-                    if (newQty <= 0) {
-                        // Delete stock record if quantity becomes zero or negative
-                        await tx.stock.delete({
-                            where: { id: warehouseStock.id }
-                        });
-                    } else {
-                        await tx.stock.update({
-                            where: { id: warehouseStock.id },
-                            data: { quantity: newQty }
-                        });
-                    }
-                }
-            }
-
-            // V-06 audit fix: ensure valid DB userId for StockMovement constraint
-            let performedById: string | null = user?.id || null;
-            if (performedById === 'super-admin') {
-                const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
-                performedById = fallback?.id || null;
-            }
-
-            // Log the reversal
-            await tx.stockMovement.create({
-                data: {
-                    type: 'ADJUSTMENT',
-                    productId: item.productId,
-                    fromWarehouseId: invoice.warehouseId,
-                    quantity: item.quantity,
-                    reason: `Purchase Invoice Voided #${invoice.invoiceNumber || invoice.id.slice(0, 8)}`,
-                    performedById: performedById
-                }
-            });
-        }
-
-        // 4. Mark Invoice as VOIDED (Keep record, don't delete)
-        await tx.purchaseInvoice.update({
-            where: { id },
-            data: {
-                status: 'VOIDED',
-                paidAmount: 0, // Reset paid amount since it's voided
-                voidedAt: new Date(),
-                voidedBy: user?.id || null,
-                voidReason: reason || null,
-            }
-        });
-
-        return { success: true };
-    });
-    revalidatePath("/inventory", 'page');
-    revalidatePath("/pos", 'page');
-    revalidatePath("/logs", 'page');
-    revalidatePath("/reports", 'page');
-    revalidateTag(CACHE_TAGS.INVENTORY);
-    revalidateTag(CACHE_TAGS.PRODUCTS);
-    revalidateTag("dashboard");
-}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
 // --- Stock Ops ---
-
-export const transferStock = secureAction(async (data: {
-    fromWarehouseId: string;
-    toWarehouseId: string;
-    items: { productId: string; quantity: number }[];
-    reason?: string;
-    csrfToken?: string;
-}) => {
-    if (data.fromWarehouseId === data.toWarehouseId) {
-        const t = await getTranslations('SystemMessages.Errors');
-        throw new Error(t('transferSameWarehouse'));
-    }
-
-    await prisma.$transaction(async (tx) => {
-        for (const item of data.items) {
-            const sourceStock = await tx.stock.findUnique({
-                where: { productId_warehouseId: { productId: item.productId, warehouseId: data.fromWarehouseId } }
-            });
-            if (!sourceStock || sourceStock.quantity < item.quantity) {
-                const t = await getTranslations('SystemMessages.Errors');
-                throw new Error(t('insufficientStockWarehouse', { item: item.productId }));
-            }
-            await tx.stock.update({
-                where: { productId_warehouseId: { productId: item.productId, warehouseId: data.fromWarehouseId } },
-                data: { quantity: { decrement: item.quantity } }
-            });
-            await tx.stock.upsert({
-                where: { productId_warehouseId: { productId: item.productId, warehouseId: data.toWarehouseId } },
-                update: { quantity: { increment: item.quantity } },
-                create: { productId: item.productId, warehouseId: data.toWarehouseId, quantity: item.quantity }
-            });
-            await tx.stockMovement.create({
-                data: {
-                    type: 'TRANSFER',
-                    productId: item.productId,
-                    fromWarehouseId: data.fromWarehouseId,
-                    toWarehouseId: data.toWarehouseId,
-                    quantity: item.quantity,
-                    reason: data.reason
-                }
-            });
-        }
-    });
-
-    revalidatePath("/inventory", 'page');
-    revalidatePath("/pos", 'page');
-    revalidateTag(CACHE_TAGS.INVENTORY);
-    return { success: true };
-}, { permission: 'INVENTORY_MANAGE' });
 
 export const adjustStock = secureAction(async (data: {
     productId: string;
@@ -1391,7 +1232,13 @@ export const adjustStock = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     await prisma.$transaction(async (tx) => {
-        // 1. Get Old Quantity for Logic/Logging
+        // 1. Get Old Quantity & Branch Info
+        const warehouse = await tx.warehouse.findUnique({
+            where: { id: data.warehouseId },
+            select: { branchId: true }
+        });
+        if (!warehouse) throw new Error("Warehouse not found");
+
         const currentStock = await tx.stock.findUnique({
             where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } }
         });
@@ -1414,12 +1261,37 @@ export const adjustStock = secureAction(async (data: {
                 productId: data.productId,
                 fromWarehouseId: data.warehouseId,
                 quantity: Math.abs(delta),
-                reason: `${data.reason} (Count: ${oldQty} -> ${data.newQuantity})`
-            }
+                reason: `${data.reason} (Count: ${oldQty} -> ${data.newQuantity})`,
+                branchId: warehouse.branchId || null
+            } as any
         });
 
-        // 4. Recalculate Global Product Stock (Sum of all Warehouses)
-        // This prevents drift because it doesn't rely on 'previous global + delta', but on 'sum(actuals)'
+        // 4. Recalculate Global Product Stock & Record GL (B31)
+        const product = await tx.product.findUnique({
+            where: { id: data.productId },
+            select: { costPrice: true }
+        });
+        const costPrice = product?.costPrice || 0;
+        const totalValueDelta = new Decimal(delta).mul(new Decimal(costPrice));
+
+        if (totalValueDelta.lt(0)) {
+            // Shrinkage (Loss)
+            await AccountingEngine.recordWastage({
+                wastageId: data.productId,
+                amount: totalValueDelta.abs(),
+                description: `Stock Shrinkage Adjustment: ${data.reason}`,
+                branchId: warehouse.branchId
+            }, tx);
+        } else if (totalValueDelta.gt(0)) {
+            // Surplus (Gain)
+            await AccountingEngine.recordStockGain({
+                productId: data.productId,
+                amount: totalValueDelta,
+                description: `Stock Surplus Adjustment: ${data.reason}`,
+                branchId: warehouse.branchId
+            }, tx);
+        }
+
         const aggregation = await tx.stock.aggregate({
             where: { productId: data.productId },
             _sum: { quantity: true }
@@ -1867,7 +1739,7 @@ export const reportWastage = secureAction(async (data: {
         // 1. Verify product and warehouse exist
         const product = await tx.product.findUnique({
             where: { id: data.productId },
-            select: { id: true, name: true, sku: true, stock: true }
+            select: { id: true, name: true, sku: true, stock: true, costPrice: true }
         });
 
         if (!product) {
@@ -1942,6 +1814,11 @@ export const reportWastage = secureAction(async (data: {
             data: { quantity: { decrement: data.quantity } },
         });
 
+        const warehouse = await tx.warehouse.findUnique({
+            where: { id: data.warehouseId },
+            select: { branchId: true }
+        });
+
         // 6. Create stock movement for audit trail
         await tx.stockMovement.create({
             data: {
@@ -1950,8 +1827,21 @@ export const reportWastage = secureAction(async (data: {
                 fromWarehouseId: data.warehouseId,
                 quantity: data.quantity,
                 reason: `Wastage - ${data.reason}: ${data.notes || 'No notes'}`,
-            },
+                branchId: warehouse?.branchId || null
+            } as any,
         });
+
+        // 7. Accounting Entry for Spoilage (B11)
+        const totalCost = Number(product.costPrice || 0) * data.quantity;
+        if (totalCost > 0) {
+            const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
+            await AccountingEngine.recordWastage({
+                wastageId: wastage.id,
+                amount: totalCost,
+                description: `إهلاك مخزون (${product.name}) - ${data.reason}`,
+                branchId: warehouse?.branchId || undefined
+            }, tx);
+        }
 
         return wastage;
     });

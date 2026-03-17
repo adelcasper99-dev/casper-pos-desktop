@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { ArrowRightLeft, Package, AlertTriangle, ScanBarcode } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
-import { transferStock, adjustStock, getWarehouseStock } from "@/actions/inventory";
+import { adjustStock, getWarehouseStock } from "@/actions/inventory";
+import { transferStock } from "@/actions/inventory-transfer";
 import clsx from "clsx";
 import { useTranslations } from "@/lib/i18n-mock";
 import { Loader2 } from "lucide-react";
@@ -128,10 +129,11 @@ export default function WarehouseOperations({
         if (!fromId || !toId || transferItems.length === 0) return;
         setLoading(true);
         const res = await transferStock({
-            fromWarehouseId: fromId,
-            toWarehouseId: toId,
-            items: transferItems,
-            reason: "Manual Transfer"
+            sourceId: fromId,
+            sourceType: 'WAREHOUSE',
+            destinationId: toId,
+            destinationType: 'WAREHOUSE',
+            items: transferItems
         });
         setLoading(false);
         if (res.success) {

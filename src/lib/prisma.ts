@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { createAccountingMiddleware } from './prisma-accounting-middleware';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
@@ -47,5 +48,10 @@ export const prisma =
             timeout: 30000, // 30s for the transaction to complete
         },
     });
+
+// Register Odoo-style accounting middleware for automatic journal entries
+// This creates journal entries automatically when CustomerTransaction, 
+// SupplierPayment, or EmployeeTransaction are created
+prisma.$use(createAccountingMiddleware());
 
 globalForPrisma.prisma = prisma;

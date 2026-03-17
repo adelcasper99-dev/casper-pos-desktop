@@ -8,12 +8,31 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CasperLoader } from "@/components/ui/CasperLoader";
 import { setOpeningBalances } from "@/actions/accounting-setup";
-import { Calculator, CheckCircle2, Landmark, Package, Users, Building2, Briefcase } from "lucide-react";
+import { repairAccounting } from "@/actions/accounting";
+import { Calculator, CheckCircle2, Landmark, Package, Users, Building2, Briefcase, RefreshCw } from "lucide-react";
 import Decimal from "decimal.js";
 
 export default function OpeningBalanceWizard() {
     const [loading, setLoading] = useState(false);
     const [done, setDone] = useState(false);
+    const [repairing, setRepairing] = useState(false);
+
+    const handleRepair = async () => {
+        setRepairing(true);
+        try {
+            const res = await repairAccounting();
+            if (res?.success) {
+                toast.success("تم مزامنة دليل الحسابات بنجاح ✅");
+            } else {
+                toast.error(res?.error || "فشل إصلاح الحسابات");
+            }
+        } catch (e: any) {
+            toast.error(e.message || "خطأ في النظام");
+        } finally {
+            setRepairing(false);
+        }
+    };
+
 
     const [balances, setBalances] = useState({
         cash: "0",
@@ -95,7 +114,34 @@ export default function OpeningBalanceWizard() {
     }
 
     return (
-        <Card className="shadow-xl border-border max-w-3xl mx-auto mt-8">
+        <>
+            {/* ── Accounting Tools & Repair ── */}
+            <Card className="shadow-xl border-border max-w-3xl mx-auto mb-6 bg-cyan-500/5">
+                <CardHeader className="py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-cyan-500/20 rounded-lg shrink-0">
+                                <RefreshCw className={`w-5 h-5 text-cyan-400 ${repairing ? 'animate-spin' : ''}`} />
+                            </div>
+                            <div>
+                                <CardTitle className="text-lg font-bold">أدوات المحاسبة</CardTitle>
+                                <CardDescription className="text-xs">إصلاح وتحديث دليل الحسابات وتطابق الأرصدة</CardDescription>
+                            </div>
+                        </div>
+                        <Button
+                            onClick={handleRepair}
+                            disabled={repairing}
+                            variant="secondary"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold flex gap-2 items-center"
+                        >
+                            {repairing ? <CasperLoader width={16} /> : <RefreshCw className="w-4 h-4" />}
+                            مزامنة دليل الحسابات
+                        </Button>
+                    </div>
+                </CardHeader>
+            </Card>
+
+            <Card className="shadow-xl border-border max-w-3xl mx-auto mt-0">
             <CardHeader className="bg-muted/30 border-b border-border">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-indigo-500 rounded-lg shrink-0">
@@ -214,5 +260,6 @@ export default function OpeningBalanceWizard() {
                 </Button>
             </CardFooter>
         </Card>
+        </>
     );
 }

@@ -10,12 +10,13 @@ import { getCurrentShiftInternal } from "./shift-management-actions";
 import { getCurrentUser } from "./auth";
 import { seedAccounts } from "@/lib/accounting/seed-accounts";
 import { getTranslations } from "@/lib/i18n-mock";
+import { EXPENSE_CATEGORY_MAP } from '@/shared/constants/accounting-mappings';
 
 // Repair/Initialize Accounting Accounts
 export const repairAccounting = secureAction(async () => {
     await seedAccounts();
     return { success: true, message: "Accounting accounts synchronized" };
-}, { permission: 'ACCOUNTING_MANAGE' });
+}, { permission: 'ACCOUNTING_MANAGE', requireCSRF: false });
 
 
 /**
@@ -48,8 +49,9 @@ export const createExpense = secureAction(async (data: {
                 amount: new Decimal(data.amount),
                 category: data.category,
                 paymentMethod: data.paymentMethod || 'CASH',
-                shiftId: currentShift?.id || null // Link to shift if active
-            }
+                shiftId: currentShift?.id || null, // Link to shift if active
+                branchId: currentUser.branchId ?? null
+            } as any
         });
 
         // 2. Create treasury transaction for cash outflow
@@ -82,12 +84,14 @@ export const createExpense = secureAction(async (data: {
         }
 
         // 4. Create journal entry (inside transaction)
+        const expenseGlCode = EXPENSE_CATEGORY_MAP[data.category as keyof typeof EXPENSE_CATEGORY_MAP]?.glCode ?? '5200';
         await AccountingEngine.recordTransaction({
             description: `Expense: ${data.description}`,
             reference: expense.id,
             expenseId: expense.id,
+            branchId: currentUser.branchId ?? undefined,
             lines: [
-                { accountCode: '5200', debit: data.amount, credit: 0, description: data.category },
+                { accountCode: expenseGlCode, debit: data.amount, credit: 0, description: data.category },
                 { accountCode: '1000', debit: 0, credit: data.amount, description: 'Cash Paid' }
             ]
         }, tx);
@@ -150,6 +154,9 @@ export const updateExpense = secureAction(async (id: string, data: {
 // Delete expense with audit trail
 export const deleteExpense = secureAction(async (id: string, reason?: string) => {
     const t = await getTranslations('SystemMessages.Errors');
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error(t('unauthorized'));
+
     const existing = await prisma.expense.findUnique({
         where: { id },
         include: { shift: true }
@@ -174,8 +181,6 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
         });
 
         // 2. Find and reverse the associated treasury transaction(s)
-        // Since createExpense creates a transaction with type: 'EXPENSE' and description containing the expense description
-        // we can reverse any transactions created at the exact same moment or just do a generic search.
         const linkedTransactions = await tx.transaction.findMany({
             where: {
                 type: 'EXPENSE',
@@ -208,7 +213,26 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
             });
         }
 
-        // 4. Finally, hard delete the expense (accounting journals cascade or can be orphaned)
+        // 4. Reverse Journal Entry for GL Synchronization
+        const expenseGlCode = EXPENSE_CATEGORY_MAP[existing.category as keyof typeof EXPENSE_CATEGORY_MAP]?.glCode ?? '5200';
+        
+        // Find the original journal entry's branchId
+        const originalJE = await tx.journalEntry.findFirst({
+            where: { expenseId: existing.id }
+        }) as any;
+
+        await AccountingEngine.recordTransaction({
+            description: `REVERSED: Expense deletion - ${existing.description}`,
+            reference: `REV-${existing.id}`,
+            expenseId: existing.id,
+            branchId: originalJE?.branchId ?? currentUser.branchId ?? undefined,
+            lines: [
+                { accountCode: expenseGlCode, debit: 0, credit: Number(existing.amount), description: `Reversal: ${existing.category}` },
+                { accountCode: '1000', debit: Number(existing.amount), credit: 0, description: 'Cash Restored' }
+            ]
+        }, tx);
+
+        // 5. Finally, hard delete the expense
         await tx.expense.delete({ where: { id } });
     });
 
@@ -230,51 +254,10 @@ export const closeShift = async (...args: Parameters<typeof closeShiftAction>) =
 
 
 // Add transaction to treasury
+// @deprecated Use addTreasuryTransaction from treasury.ts instead for unified accounting
 export const addTransaction = secureAction(async (type: string, amount: number, description: string, method: string, treasuryId?: string) => {
-    // 🆕 If no treasuryId provided, try to find default for current user's branch
-    let finalTreasuryId = treasuryId;
-    if (!finalTreasuryId) {
-        const { getCurrentUser } = await import('./auth');
-        const user = await getCurrentUser();
-        if (user?.branchId) {
-            const defaultTreasury = await prisma.treasury.findFirst({
-                where: { branchId: user.branchId, isDefault: true }
-            });
-            if (defaultTreasury) finalTreasuryId = defaultTreasury.id;
-        }
-    }
-
-    await prisma.$transaction(async (tx) => {
-        await tx.transaction.create({
-            data: {
-                type,
-                amount: new Decimal(amount),
-                description,
-                paymentMethod: method,
-                treasuryId: finalTreasuryId
-            }
-        });
-
-        // 🆕 Update Balance if linked
-        if (finalTreasuryId) {
-            // Logic: IN/CAPITAL/SALE = + | OUT/EXPENSE/REFUND = -
-            const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(type);
-            if (isPositive) {
-                await tx.treasury.update({
-                    where: { id: finalTreasuryId },
-                    data: { balance: { increment: amount } }
-                });
-            } else {
-                await tx.treasury.update({
-                    where: { id: finalTreasuryId },
-                    data: { balance: { decrement: amount } }
-                });
-            }
-        }
-    });
-
-    revalidatePath('/accounting', 'page');
-    return { success: true, message: "Transaction added" };
+    const { addTreasuryTransaction } = await import("./treasury");
+    return addTreasuryTransaction(type, amount, description, method, treasuryId);
 }, { permission: 'ACCOUNTING_MANAGE' });
 
 // Update transaction with audit

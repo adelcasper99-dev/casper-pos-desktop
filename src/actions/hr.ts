@@ -5,7 +5,9 @@ import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { Decimal } from "decimal.js";
+import { calculatePayroll } from "@/lib/payroll-math";
 
 const db = prisma as any;
 
@@ -13,49 +15,75 @@ const db = prisma as any;
  * Shared logic for calculating net salary for an employee in a target month.
  */
 async function calculateNetDue(u: any, startDate: Date, endDate: Date) {
-    const { Decimal } = await import("decimal.js");
+    const totalDaysInMonth = differenceInDays(endDate, startDate) + 1;
+    let daysHiredInMonth = totalDaysInMonth;
     
-    let baseSalary = new Decimal(u.salary?.toString() || '0');
-    const hireDate = u.hireDate ? new Date(u.hireDate) : null;
-    
-    // Prorate salary if hired in current month
-    if (hireDate) {
+    // Prorate if hired in current month
+    if (u.hireDate) {
+        const hireDate = new Date(u.hireDate);
         if (hireDate > endDate) {
-            baseSalary = new Decimal(0);
+            daysHiredInMonth = 0;
         } else if (hireDate > startDate) {
-            const daysWorked = Math.max(0, 31 - hireDate.getDate());
-            baseSalary = baseSalary.times(daysWorked).dividedBy(30);
+            daysHiredInMonth = differenceInDays(endDate, hireDate) + 1;
         }
     }
 
-    let totalBonuses = new Decimal(0);
-    let totalDeductions = new Decimal(0);
+    const monthlyOffDays = u.monthlyOffDays ?? 4;
+    // Scalar proration of off-days if not hired for full month
+    const effectiveOffDays = (daysHiredInMonth / totalDaysInMonth) * monthlyOffDays;
+    const workingDays = Math.max(0, daysHiredInMonth - effectiveOffDays);
 
-    // Attendance
-    u.dailyLogs?.forEach((log: any) => {
-        totalBonuses = totalBonuses.plus(log.bonus.toString());
-        const logDeduction = new Decimal(log.deduction.toString());
-        if (log.status === 'ABSENT' && logDeduction.isZero()) {
-            totalDeductions = totalDeductions.plus(baseSalary.dividedBy(30));
-        } else {
-            totalDeductions = totalDeductions.plus(logDeduction);
-        }
-    });
+    const employeeInput = {
+        id: u.id,
+        name: u.name || u.username,
+        role: u.role?.name || "Staff",
+        salary: Number(u.salary || 0),
+        absentDays: u.dailyLogs?.filter((l: any) => l.status === 'ABSENT').length || 0,
+        lateMinutes: 0, // Not tracked in basic logs yet
+        offDays: u.dailyLogs?.filter((l: any) => l.status === 'OFF').length || 0,
+        extraOffDays: 0, // Derived
+        leaveDays: u.dailyLogs?.filter((l: any) => l.status === 'LEAVE').length || 0,
+        overtimeHours: 0,
+        bonus: 0,
+        deduct: 0,
+        manualDeduction: u.dailyLogs?.reduce((sum: number, l: any) => sum + Number(l.deduction || 0), 0) || 0,
+        manualBonus: u.dailyLogs?.reduce((sum: number, l: any) => sum + Number(l.bonus || 0), 0) || 0,
+    };
 
-    // Transactions
+    // 2. Call centralized payroll engine (Unification B23)
+    // We pass empty rules for now as they aren't in DB, but the engine handles base math
+    const payroll = calculatePayroll(
+        employeeInput as any,
+        employeeInput.salary,
+        workingDays,
+        8, // Default 8 hours
+        [] // No dynamic rules yet
+    );
+
+    let totalPaid = new Decimal(0);
+    let totalOtherAdditions = new Decimal(0);
+    let totalOtherDeductions = new Decimal(0);
+
+    // 3. Aggregate Transactions (Payments vs Adjustments)
     u.employeeTransactions?.forEach((tx: any) => {
-        if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
-            totalBonuses = totalBonuses.plus(tx.amount.toString());
-        } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION') || tx.type === 'SALARY_PAYMENT') {
-            totalDeductions = totalDeductions.plus(tx.amount.toString());
+        const amt = new Decimal(tx.amount.toString());
+        if (tx.type === 'SALARY_PAYMENT') {
+            totalPaid = totalPaid.plus(amt);
+        } else if (tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type.endsWith('_REVERSAL')) {
+            totalOtherAdditions = totalOtherAdditions.plus(amt);
+        } else if (tx.type === 'DEDUCTION' || tx.type === 'PENALTY' || tx.type.endsWith('_DEDUCTION')) {
+            totalOtherDeductions = totalOtherDeductions.plus(amt);
         }
     });
+
+    const netSalaryCalculated = new Decimal(payroll.finalSalary);
 
     return {
-        baseSalary,
-        totalBonuses,
-        totalDeductions,
-        netDue: baseSalary.plus(totalBonuses).minus(totalDeductions)
+        baseSalary: new Decimal(payroll.baseSalary),
+        totalBonuses: new Decimal(payroll.totalAdditions).plus(totalOtherAdditions),
+        totalDeductions: new Decimal(payroll.totalDeductions).plus(totalOtherDeductions),
+        totalPaid,
+        netDue: netSalaryCalculated.plus(totalOtherAdditions).minus(totalOtherDeductions).minus(totalPaid)
     };
 }
 
@@ -350,11 +378,12 @@ export const payEmployeeSalary = secureAction(async (data: {
                     type: 'SALARY_PAYMENT',
                     amount: data.amount,
                     description: data.notes || `سداد راتب عبر ${data.paymentMethod}`,
-                }
+                    branchId: session.user.branchId ?? null
+                } as any
             });
 
             // 2. Accounting Entry
-            // Debit: Salaries Expense (5200)
+            // Debit: Salaries Expense (5100)
             // Credit: Cash/Bank (Depends on method)
             const accountMap: Record<string, string> = {
                 CASH: '1000',
@@ -371,8 +400,9 @@ export const payEmployeeSalary = secureAction(async (data: {
             await AccountingEngine.recordTransaction({
                 description: `سداد راتب: ${data.userId}`,
                 reference: empTx.id,
+                branchId: session.user.branchId ?? undefined,
                 lines: [
-                    { accountCode: '5200', debit: data.amount, credit: 0, description: `سداد راتب للموظف ID: ${data.userId}` },
+                    { accountCode: '2200', debit: data.amount, credit: 0, description: `تخفيض مستحقات الرواتب للموظف ID: ${data.userId}` },
                     { accountCode: creditAccount, debit: 0, credit: data.amount, description: `وسيلة الدفع: ${data.paymentMethod}` }
                 ]
             }, tx);
@@ -424,3 +454,79 @@ export const getAllTreasuries = secureAction(async () => {
         return { success: false, error: "Failed to fetch treasuries" };
     }
 }, { permission: PERMISSIONS.HR_VIEW_ATTENDANCE, requireCSRF: false });
+
+/**
+ * Accrual Step (B24): Recognize Salary Expense and build Liability.
+ * Posts DR 5100 (Salaries) / CR 2200 (Accrued Salaries).
+ */
+export const accrueMonthSalary = secureAction(async (data: { month: number; year: number }) => {
+    const session = await getSession();
+    if (!session?.user) return { success: false, error: "Unauthorized" };
+
+    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
+    if (!isAdmin) return { success: false, error: "Forbidden: Admin access required" };
+
+    const startDate = startOfMonth(new Date(data.year, data.month));
+    const endDate = endOfMonth(startDate);
+    const monthKey = `${data.year}-${(data.month + 1).toString().padStart(2, '0')}`;
+
+    try {
+        const result = await (prisma as any).$transaction(async (tx: any) => {
+            // Check if already accrued
+            const existing = await tx.journalEntry.findFirst({
+                where: { reference: `PAYROLL-ACCRUAL-${monthKey}` }
+            });
+
+            if (existing) {
+                throw new Error(`تم إثبات استحقاق الرواتب لشهر ${monthKey} بالفعل.`);
+            }
+
+            // 1. Calculate totals for ALL active employees
+            const activeUsers = await tx.user.findMany({
+                where: { deletedAt: null, isFrozen: false },
+                include: {
+                    role: true,
+                    dailyLogs: { where: { date: { gte: startDate, lte: endDate } } },
+                    employeeTransactions: { where: { createdAt: { gte: startDate, lte: endDate } } }
+                }
+            });
+
+            let totalExpense = new Decimal(0);
+
+            for (const u of activeUsers) {
+                // We use calculateNetDue but ignoring payments for "Expense Accrual"
+                // Actually, the expense is Base + Additions - Manual Penalties (not payments)
+                const { baseSalary, totalBonuses, totalDeductions, totalPaid } = await calculateNetDue(u, startDate, endDate);
+                
+                // Gross Expense = Base + Bonuses - Penalties (not counting payments)
+                const netExpense = baseSalary.plus(totalBonuses).minus(totalDeductions.minus(totalPaid));
+                totalExpense = totalExpense.plus(netExpense);
+            }
+
+            if (totalExpense.lte(0)) throw new Error("لا يوجد مصروفات رواتب مستحقة لهذا الشهر.");
+
+            // 2. Post Journal Entry
+            const { AccountingEngine } = await import("@/lib/accounting/transaction-factory");
+            await AccountingEngine.recordTransaction({
+                description: `استحقاق رواتب شهر ${monthKey}`,
+                reference: `PAYROLL-ACCRUAL-${monthKey}`,
+                branchId: session.user.branchId ?? undefined,
+                lines: [
+                    { accountCode: '5100', debit: totalExpense.toNumber(), credit: 0, description: `إجمالي مصروفات الرواتب والأجور - شهر ${monthKey}` },
+                    { accountCode: '2200', debit: 0, credit: totalExpense.toNumber(), description: `مستحقات رواتب وأجور موظفين (خصوم متداولة)` }
+                ]
+            }, tx);
+
+            // 3. Mark transactions in this period as "Accrued" if needed
+            // For now, the reference check is enough.
+
+            return { totalAccrued: totalExpense.toNumber() };
+        });
+
+        revalidatePath("/(routes)/hr");
+        return { success: true, data: result };
+    } catch (error: any) {
+        console.error("Error accruing salary:", error);
+        return { success: false, error: error.message || "Internal Server Error" };
+    }
+}, { permission: PERMISSIONS.MANAGE_USERS, requireCSRF: false });

@@ -27,6 +27,7 @@ export const supplierSchema = z.object({
     email: z.string().email().optional().or(z.literal('')),
     address: z.string().optional(),
     linkedEmployeeId: z.string().uuid().optional().nullable(),
+    openingBalance: z.coerce.number().optional().default(0),
 });
 
 export const categorySchema = z.object({
@@ -52,6 +53,7 @@ export const purchaseSchema = z.object({
     warehouseId: z.string().optional(),
     items: z.array(purchaseItemSchema).min(1, "At least one item is required"),
     paidAmount: z.coerce.number().min(0).optional(),
+    taxAmount: z.coerce.number().min(0).optional(),
     deliveryCharge: z.coerce.number().min(0).optional(),
     paymentMethod: z.string().optional(),
     treasuryId: z.string().optional(),

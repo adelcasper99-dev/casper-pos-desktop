@@ -183,6 +183,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 tableId: rawData.tableId || null,
                 offlineFlag: rawData.offlineFlag || false,
                 syncStatus: rawData.offlineFlag ? 'SYNCED' : 'PENDING',
+                relatedSupplierId: (rawData.isSupplier && data.customer?.id) ? data.customer.id : null,
                 items: {
                     create: data.items.map((item) => ({
                         productId: item.id,
@@ -199,8 +200,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                         method: data.paymentMethod,
                         amount: new Decimal(totalAmount)
                     }
-                }
-            }
+                },
+                branchId: currentUser.branchId || null
+            } as any
         });
 
 
@@ -252,8 +254,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                                     type: 'SALES_DEDUCTION',
                                     description: `Internal Purchase (Supplier Offset): ${data.items.length} items`,
                                     referenceId: sale.id,
-                                    referenceType: 'SALE'
-                                }
+                                    referenceType: 'SALE',
+                                    branchId: currentUser.branchId || null
+                                } as any
                             });
                         }
                     }
@@ -292,8 +295,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                                 type: 'SALES_DEDUCTION',
                                 description: `مشتريات آجل - فاتورة #${sale.id.split('-')[0].toUpperCase()}`,
                                 referenceId: sale.id,
-                                referenceType: 'SALE'
-                            }
+                                referenceType: 'SALE',
+                                branchId: currentUser.branchId || null
+                            } as any
                         });
                     }
                 }
@@ -328,8 +332,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                                 fromWarehouseId: mainWarehouseId,
                                 toWarehouseId: null,
                                 quantity: item.quantity * comp.quantityIncluded,
-                                reason: `Bundle Sale (Force) #${sale.id.slice(0, 8)} — component of ${item.id.slice(0, 8)}`
-                            }
+                                reason: `Bundle Sale (Force) #${sale.id.slice(0, 8)} — component of ${item.id.slice(0, 8)}`,
+                                branchId: currentUser.branchId || null
+                            } as any
                         });
                     } else {
                         await decrementWarehouseStock(tx, comp.componentProductId, mainWarehouseId, item.quantity * comp.quantityIncluded);
@@ -365,8 +370,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                             fromWarehouseId: mainWarehouseId,
                             toWarehouseId: null,
                             quantity: item.quantity,
-                            reason: `Forced Sale #${sale.id.slice(0, 8)} (Override)`
-                        }
+                            reason: `Forced Sale #${sale.id.slice(0, 8)} (Override)`,
+                            branchId: currentUser.branchId || null
+                        } as any
                     });
                 } else {
                     await decrementWarehouseStock(tx, item.id, mainWarehouseId, item.quantity);
@@ -497,6 +503,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             syncPayments,
             discountAmount,
             totalCOGS,
+            taxAmount,
+            currentUser.branchId ?? undefined,
             tx
         );
 

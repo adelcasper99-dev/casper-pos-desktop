@@ -644,6 +644,19 @@ export const updateTicketStatus = secureAction(async (data: {
             data: updateData
         });
 
+        // B19 Fix: Record Maintenance COGS (Parts Cost) in GL when COMPLETED
+        if (status === 'COMPLETED' && existingTicket.status !== 'COMPLETED') {
+            const finalPartsCost = partsCost ?? Number(existingTicket.partsCost) ?? 0;
+            if (finalPartsCost > 0) {
+                await AccountingEngine.recordMaintenanceCOGS({
+                    ticketId: ticket.id,
+                    barcode: ticket.barcode,
+                    partsCost: finalPartsCost,
+                    branchId: user.branchId ?? undefined
+                }, tx);
+            }
+        }
+
         // Add history note
         await tx.ticketNote.create({
             data: {
@@ -900,7 +913,8 @@ export const refundTicket = secureAction(async (data: {
             method: refundMethod,
             description: `Refund: Ticket #${ticket.barcode}`,
             reference: ticketId,
-            ticketId: ticketId
+            ticketId: ticketId,
+            branchId: user.branchId ?? undefined
         }, tx);
 
         return payment;
@@ -1040,7 +1054,8 @@ export const softDeleteTicket = secureAction(async (data: {
                 description: `Delete Ticket: #${ticket.barcode}`,
                 reference: ticket.id,
                 ticketId: ticket.id,
-                cogsReversal: totalPartsCostReversal
+                cogsReversal: totalPartsCostReversal,
+                branchId: user.branchId ?? undefined
             }, tx);
         }
 
@@ -1415,8 +1430,9 @@ export const addTicketPart = secureAction(async (data: {
                         productId: data.productId!,
                         fromWarehouseId: finalWarehouseId,
                         quantity: data.quantity,
-                        reason: `Used in Ticket #${ticket.barcode}`
-                    }
+                        reason: `Used in Ticket #${ticket.barcode}`,
+                        branchId: user.branchId || null
+                    } as any
                 });
 
                 await tx.product.update({
@@ -1794,8 +1810,9 @@ export const processTicketPayment = secureAction(async (data: {
                         type: txType,
                         referenceId: ticket.id,
                         referenceType: isActuallyRefund ? 'TICKET_REFUND' : 'TICKET',
-                        description: txDesc
-                    }
+                        description: txDesc,
+                        branchId: (await getCurrentUser())?.branchId || null
+                    } as any
                 });
             }
 
@@ -1952,13 +1969,35 @@ export const processTicketPayment = secureAction(async (data: {
                 });
             }
 
-            // Unified Accounting Integration
-            await AccountingEngine.recordRefund({
+            // Unified Accounting Integration (Fix B17 & B18)
+            if (isActuallyRefund) {
+                await AccountingEngine.recordRefund({
+                    amount: Math.abs(effectiveAmount),
+                    method: paymentMethod,
+                    description: `Ticket #${ticket.barcode} Refund`,
+                    reference: ticket.id,
+                    ticketId: ticket.id,
+                    branchId: currentUser.branchId ?? undefined
+                }, tx);
+            } else {
+                await AccountingEngine.recordMaintenancePayment({
+                    amount: effectiveAmount,
+                    method: paymentMethod,
+                    description: `Ticket #${ticket.barcode} ${paymentType}`,
+                    reference: ticket.id,
+                    ticketId: ticket.id,
+                    branchId: currentUser.branchId ?? undefined
+                }, tx);
+            }
+        } else if (paymentMethod === 'ACCOUNT' && effectiveAmount !== 0) {
+            // B18 Fix: Record deferred revenue in GL
+            await AccountingEngine.recordMaintenancePayment({
                 amount: effectiveAmount,
                 method: paymentMethod,
-                description: `Ticket #${ticket.barcode} ${isActuallyRefund ? 'Refund' : 'Payment'}`,
+                description: `Ticket #${ticket.barcode} Account Deferred`,
                 reference: ticket.id,
-                ticketId: ticket.id
+                ticketId: ticket.id,
+                branchId: currentUser.branchId ?? undefined
             }, tx);
         }
 
@@ -2388,7 +2427,8 @@ export const fullTicketReturn = secureAction(async (data: {
                 description: `Full Return: Ticket #${ticket.barcode}`,
                 reference: ticket.id,
                 ticketId: ticket.id,
-                cogsReversal: totalPartsCostReversal
+                cogsReversal: totalPartsCostReversal,
+                branchId: user.branchId ?? undefined
             }, tx);
         }
 
@@ -2616,6 +2656,7 @@ export const partialRefundTicket = secureAction(async (data: {
 
         let totalRefundAmount = new Decimal(0);
         let totalCogsReversal = new Decimal(0);
+        let totalSpoilageAmount = new Decimal(0);
 
         for (const returnItem of items) {
             const part = ticket.parts.find(p => p.id === returnItem.itemId);
@@ -2645,7 +2686,13 @@ export const partialRefundTicket = secureAction(async (data: {
                     reason: `Partial Refund: Ticket #${ticket.barcode}`,
                     performedById: currentUser.id
                 });
-                totalCogsReversal = totalCogsReversal.plus(new Decimal(part.cost).times(returnItem.quantity));
+                
+                const itemCost = new Decimal(part.cost).times(returnItem.quantity);
+                if (returnItem.isDamaged) {
+                    totalSpoilageAmount = totalSpoilageAmount.plus(itemCost);
+                } else {
+                    totalCogsReversal = totalCogsReversal.plus(itemCost);
+                }
             }
 
             totalRefundAmount = totalRefundAmount.plus(new Decimal(part.price).times(returnItem.quantity));
@@ -2719,7 +2766,9 @@ export const partialRefundTicket = secureAction(async (data: {
                 description: `Partial Refund: Ticket #${ticket.barcode}`,
                 reference: ticket.id,
                 ticketId: ticket.id,
-                cogsReversal: totalCogsReversal.toNumber()
+                cogsReversal: totalCogsReversal.toNumber(),
+                spoilageAmount: totalSpoilageAmount.toNumber(),
+                branchId: currentUser.branchId ?? undefined
             }, tx);
         }
 

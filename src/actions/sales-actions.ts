@@ -247,6 +247,7 @@ export const refundSale = secureAction(async (data: {
                 warehouseId: sale.warehouseId,
                 totalAmount: new Decimal(-remainingTotalAmount),
                 paymentMethod: finalRefundMethod,
+                branchId: (sale as any).branchId || currentUser.branchId || null,
                 status: 'REFUNDED',
                 subTotal: new Decimal(new Decimal(sale.subTotal || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated subtotal
                 taxAmount: new Decimal(new Decimal(sale.taxAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated tax
@@ -272,7 +273,7 @@ export const refundSale = secureAction(async (data: {
                         };
                     }).filter((i: any) => i.quantity > 0)
                 }
-            }
+            } as any
         });
 
         // ─── REFUND transaction record (Cash portion only) ───
@@ -335,28 +336,26 @@ export const refundSale = secureAction(async (data: {
                 where: { id: sale.customerId },
                 data: { balance: { decrement: amountToAccount } }
             });
+        }
 
-            if ((sale.customer as any)?.linkedEmployeeId) {
-                await (tx as any).employeeTransaction.create({
-                    data: {
-                        userId: (sale.customer as any).linkedEmployeeId,
-                        amount: new Decimal(amountToAccount),
-                        type: 'SALES_DEDUCTION_REVERSAL',
-                        referenceId: sale.id,
-                        referenceType: 'SALE_REFUND',
-                        description: `عكس مشتريات آجل - مرتجع فاتورة #${sale.id.split('-')[0].toUpperCase()}`
-                    }
-                });
-            }
+        // 🆕 Supplier Offset Reversal (B44)
+        if ((sale as any).relatedSupplierId) {
+            await tx.supplier.update({
+                where: { id: (sale as any).relatedSupplierId },
+                data: { balance: { decrement: remainingTotalAmount } }
+            });
+
+            await tx.supplierPayment.create({
+                data: {
+                    supplierId: (sale as any).relatedSupplierId,
+                    amount: new Decimal(remainingTotalAmount),
+                    method: 'ADJUSTMENT',
+                    notes: `Refund Adjustment for Sale #${sale.id.split('-')[0]}`
+                }
+            });
         }
 
         // 4. Reverse inventory (Restoring only the REMAINING items)
-        const defectiveWarehouse = isDamaged 
-            ? await tx.warehouse.findFirst({ where: { type: 'DEFECTIVE', branchId: currentUser.branchId || undefined } as any }) || 
-              await tx.warehouse.findFirst({ where: { name: { contains: 'Defective' }, branchId: currentUser.branchId || undefined } }) || 
-              await tx.warehouse.findFirst({ where: { name: { contains: 'تالف' }, branchId: currentUser.branchId || undefined } })
-            : null;
-
         for (const item of (returnSale as any).items) {
             const product = await tx.product.findUnique({ 
                 where: { id: item.productId }, 
@@ -368,9 +367,8 @@ export const refundSale = secureAction(async (data: {
                 continue;
             }
 
-            const targetWarehouseId = isDamaged && defectiveWarehouse ? defectiveWarehouse.id : sale.warehouseId;
-            const stockCondition = isDamaged ? 'DEFECTIVE' : 'GOOD';
-
+            const targetWarehouseId = sale.warehouseId;
+            const stockCondition = 'GOOD';
             const isBundle = product?.isBundle;
 
             // V-07 audit fix: ensure valid DB userId for StockMovement constraint
@@ -380,58 +378,126 @@ export const refundSale = secureAction(async (data: {
                 performedById = fallback?.id || undefined;
             }
 
-            if (isBundle) {
-                // BUNDLE: restore components for the REMAINING quantity
-                const components = await (tx as any).bundleItem.findMany({
-                    where: { bundleProductId: item.productId },
-                    include: { componentProduct: { select: { id: true, trackStock: true } } }
-                });
-                for (const comp of components) {
-                    if (!comp.componentProduct.trackStock) continue;
-                    const restoreQty = item.quantity * comp.quantityIncluded;
-                    await tx.product.update({
-                        where: { id: comp.componentProductId },
-                        data: { stock: { increment: restoreQty } }
+            const warehouse = await tx.warehouse.findUnique({
+                where: { id: sale.warehouseId },
+                select: { branchId: true }
+            });
+
+            if (isDamaged) {
+                // BUG B13 FIX: Route directly to Wastage (Do NOT restore to stock)
+                if (isBundle) {
+                    const components = await (tx as any).bundleItem.findMany({
+                        where: { bundleProductId: item.productId },
+                        include: { componentProduct: { select: { id: true, trackStock: true } } }
                     });
-                    await tx.stock.upsert({
-                        where: { productId_warehouseId: { productId: comp.componentProductId, warehouseId: targetWarehouseId } },
-                        update: { quantity: { increment: restoreQty } },
-                        create: { productId: comp.componentProductId, warehouseId: targetWarehouseId, quantity: restoreQty }
+                    for (const comp of components) {
+                        if (!comp.componentProduct.trackStock) continue;
+                        const wasteQty = item.quantity * comp.quantityIncluded;
+                        
+                        await tx.stockWastage.create({
+                            data: {
+                                productId: comp.componentProductId,
+                                warehouseId: sale.warehouseId,
+                                quantity: wasteQty,
+                                reason: 'تالف مرتجع مبيعات (POS)',
+                                reportedBy: performedById!,
+                                branchId: warehouse?.branchId || null
+                            } as any
+                        });
+
+                        await tx.stockMovement.create({
+                            data: {
+                                type: 'WASTAGE',
+                                productId: comp.componentProductId,
+                                fromWarehouseId: sale.warehouseId,
+                                quantity: wasteQty,
+                                reason: `Wastage (Damaged Return): Sale #${sale.id.split('-')[0]} — component of bundle ${item.productId.slice(0, 8)}`,
+                                performedById: performedById,
+                                branchId: warehouse?.branchId || null
+                            } as any
+                        });
+                    }
+                } else {
+                    await tx.stockWastage.create({
+                        data: {
+                            productId: item.productId,
+                            warehouseId: sale.warehouseId,
+                            quantity: item.quantity,
+                            reason: 'تالف مرتجع مبيعات (POS)',
+                            reportedBy: performedById!,
+                            branchId: warehouse?.branchId || null
+                        } as any
                     });
+
                     await tx.stockMovement.create({
                         data: {
-                            type: 'REFUND',
-                            productId: comp.componentProductId,
-                            toWarehouseId: targetWarehouseId,
-                            quantity: restoreQty,
-                            condition: stockCondition,
-                            reason: `Refund (Remaining): Sale #${sale.id.split('-')[0]} — component of bundle ${item.productId.slice(0, 8)}`,
-                            performedById: performedById
+                            type: 'WASTAGE',
+                            productId: item.productId,
+                            fromWarehouseId: sale.warehouseId,
+                            quantity: item.quantity,
+                            reason: `Wastage (Damaged Return): Sale #${sale.id.split('-')[0]}`,
+                            performedById: performedById,
+                            branchId: warehouse?.branchId || null
                         } as any
                     });
                 }
             } else {
-                // REGULAR product: restore REMAINING quantity
-                await tx.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { increment: item.quantity } }
-                });
-                await tx.stock.upsert({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: targetWarehouseId } },
-                    update: { quantity: { increment: item.quantity } },
-                    create: { productId: item.productId, warehouseId: targetWarehouseId, quantity: item.quantity }
-                });
-                await tx.stockMovement.create({
-                    data: {
-                        type: 'REFUND',
-                        productId: item.productId,
-                        toWarehouseId: targetWarehouseId,
-                        quantity: item.quantity,
-                        condition: stockCondition,
-                        reason: `Refund (Remaining): Sale #${sale.id.split('-')[0]}`,
-                        performedById: performedById
-                    } as any
-                });
+                // NOT DAMAGED: Restore to stock normally
+                if (isBundle) {
+                    // BUNDLE: restore components for the REMAINING quantity
+                    const components = await (tx as any).bundleItem.findMany({
+                        where: { bundleProductId: item.productId },
+                        include: { componentProduct: { select: { id: true, trackStock: true } } }
+                    });
+                    for (const comp of components) {
+                        if (!comp.componentProduct.trackStock) continue;
+                        const restoreQty = item.quantity * comp.quantityIncluded;
+                        await tx.product.update({
+                            where: { id: comp.componentProductId },
+                            data: { stock: { increment: restoreQty } }
+                        });
+                        await tx.stock.upsert({
+                            where: { productId_warehouseId: { productId: comp.componentProductId, warehouseId: targetWarehouseId } },
+                            update: { quantity: { increment: restoreQty } },
+                            create: { productId: comp.componentProductId, warehouseId: targetWarehouseId, quantity: restoreQty }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                type: 'REFUND',
+                                productId: comp.componentProductId,
+                                toWarehouseId: targetWarehouseId,
+                                quantity: restoreQty,
+                                condition: stockCondition,
+                                reason: `Refund (Remaining): Sale #${sale.id.split('-')[0]} — component of bundle ${item.productId.slice(0, 8)}`,
+                                performedById: performedById,
+                                branchId: warehouse?.branchId || (sale as any).branchId || null
+                            } as any
+                        });
+                    }
+                } else {
+                    // REGULAR product: restore REMAINING quantity
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: item.quantity } }
+                    });
+                    await tx.stock.upsert({
+                        where: { productId_warehouseId: { productId: item.productId, warehouseId: targetWarehouseId } },
+                        update: { quantity: { increment: item.quantity } },
+                        create: { productId: item.productId, warehouseId: targetWarehouseId, quantity: item.quantity }
+                    });
+                    await tx.stockMovement.create({
+                        data: {
+                            type: 'REFUND',
+                            productId: item.productId,
+                            toWarehouseId: targetWarehouseId,
+                            quantity: item.quantity,
+                            condition: stockCondition,
+                            reason: `Refund (Remaining): Sale #${sale.id.split('-')[0]}`,
+                            performedById: performedById,
+                            branchId: warehouse?.branchId || (sale as any).branchId || null
+                        } as any
+                    });
+                }
             }
         }
 
@@ -482,10 +548,12 @@ export const refundSale = secureAction(async (data: {
             cashPortion: finalAmountToCash,
             arPortion: amountToAccount,
             walletPortion: amountToWallet,
+            branchId: (sale as any).branchId || currentUser.branchId || undefined,
             items: (returnSale as any).items.map((i: any) => ({
                 productId: i.productId,
                 quantity: i.quantity,
-                unitCost: Number(i.unitCost)
+                unitCost: Number(i.unitCost),
+                isDamaged
             })),
             reason: reason || 'Customer refund'
         }, tx);
@@ -765,11 +833,7 @@ export const partialRefundSale = secureAction(async (data: {
             });
         }
 
-        // 7. Stock Reversal with Defective Routing
-        const defectiveWh = await tx.warehouse.findFirst({ where: { type: 'DEFECTIVE', branchId: currentUser.branchId || undefined } as any }) || 
-                           await tx.warehouse.findFirst({ where: { name: { contains: 'Defective' }, branchId: currentUser.branchId || undefined } }) || 
-                           await tx.warehouse.findFirst({ where: { name: { contains: 'تالف' }, branchId: currentUser.branchId || undefined } });
-
+        // 7. Stock Reversal with Wastage Routing
         for (const p of processedItems) {
             const product = await tx.product.findUnique({ 
                 where: { id: p.productId }, 
@@ -778,8 +842,8 @@ export const partialRefundSale = secureAction(async (data: {
 
             if (product?.itemType === 'SERVICE' || product?.trackStock === false) continue;
 
-            const targetWhId = p.isDamaged && defectiveWh ? defectiveWh.id : sale.warehouseId;
-            const stockCondition = p.isDamaged ? 'DEFECTIVE' : 'GOOD';
+            const targetWhId = sale.warehouseId;
+            const stockCondition = 'GOOD';
 
             // V-07 audit fix: ensure valid DB userId for StockMovement constraint
             let performedById: string | undefined = currentUser.id;
@@ -788,50 +852,103 @@ export const partialRefundSale = secureAction(async (data: {
                 performedById = fallback?.id || undefined;
             }
 
-            if (product?.isBundle) {
-                const components = await (tx as any).bundleItem.findMany({
-                    where: { bundleProductId: p.productId },
-                    include: { componentProduct: { select: { id: true, trackStock: true } } }
-                });
-                for (const comp of components) {
-                    if (!comp.componentProduct.trackStock) continue;
-                    const restoreQty = p.refundQty * comp.quantityIncluded;
-                    await tx.product.update({ where: { id: comp.componentProductId }, data: { stock: { increment: restoreQty } } });
-                    await tx.stock.upsert({
-                        where: { productId_warehouseId: { productId: comp.componentProductId, warehouseId: targetWhId } },
-                        update: { quantity: { increment: restoreQty } },
-                        create: { productId: comp.componentProductId, warehouseId: targetWhId, quantity: restoreQty }
+            if (p.isDamaged) {
+                // BUG B13 FIX: Route directly to Wastage (Do NOT restore to stock)
+                if (product?.isBundle) {
+                    const components = await (tx as any).bundleItem.findMany({
+                        where: { bundleProductId: p.productId },
+                        include: { componentProduct: { select: { id: true, trackStock: true } } }
+                    });
+                    for (const comp of components) {
+                        if (!comp.componentProduct.trackStock) continue;
+                        const wasteQty = p.refundQty * comp.quantityIncluded;
+                        await tx.stockWastage.create({
+                            data: {
+                                productId: comp.componentProductId,
+                                warehouseId: sale.warehouseId,
+                                quantity: wasteQty,
+                                reason: 'تالف مرتجع مبيعات جزئي (POS)',
+                                reportedBy: performedById!
+                            }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                type: 'WASTAGE',
+                                productId: comp.componentProductId,
+                                fromWarehouseId: sale.warehouseId,
+                                quantity: wasteQty,
+                                reason: `Wastage (Damaged Return): Sale #${sale.id.split('-')[0]} — component of bundle ${p.productId.slice(0, 8)}`,
+                                performedById: performedById
+                            } as any
+                        });
+                    }
+                } else {
+                    await tx.stockWastage.create({
+                        data: {
+                            productId: p.productId,
+                            warehouseId: sale.warehouseId,
+                            quantity: p.refundQty,
+                            reason: 'تالف مرتجع مبيعات جزئي (POS)',
+                            reportedBy: performedById!
+                        }
                     });
                     await tx.stockMovement.create({
                         data: {
-                            type: 'REFUND',
-                            productId: comp.componentProductId,
-                            toWarehouseId: targetWhId,
-                            quantity: restoreQty,
-                            condition: stockCondition,
-                            reason: `Partial Refund bundle component: Sale #${sale.id.split('-')[0]}`,
+                            type: 'WASTAGE',
+                            productId: p.productId,
+                            fromWarehouseId: sale.warehouseId,
+                            quantity: p.refundQty,
+                            reason: `Wastage (Damaged Return): doc #${returnSale.id.split('-')[0]}`,
                             performedById: performedById
                         } as any
                     });
                 }
             } else {
-                await tx.product.update({ where: { id: p.productId }, data: { stock: { increment: p.refundQty } } });
-                await tx.stock.upsert({
-                    where: { productId_warehouseId: { productId: p.productId, warehouseId: targetWhId } },
-                    update: { quantity: { increment: p.refundQty } },
-                    create: { productId: p.productId, warehouseId: targetWhId, quantity: p.refundQty }
-                });
-                await tx.stockMovement.create({
-                    data: {
-                        type: 'REFUND',
-                        productId: p.productId,
-                        toWarehouseId: targetWhId,
-                        quantity: p.refundQty,
-                        condition: stockCondition,
-                        reason: `Partial Refund doc #${returnSale.id.split('-')[0]}`,
-                        performedById: performedById
-                    } as any
-                });
+                if (product?.isBundle) {
+                    const components = await (tx as any).bundleItem.findMany({
+                        where: { bundleProductId: p.productId },
+                        include: { componentProduct: { select: { id: true, trackStock: true } } }
+                    });
+                    for (const comp of components) {
+                        if (!comp.componentProduct.trackStock) continue;
+                        const restoreQty = p.refundQty * comp.quantityIncluded;
+                        await tx.product.update({ where: { id: comp.componentProductId }, data: { stock: { increment: restoreQty } } });
+                        await tx.stock.upsert({
+                            where: { productId_warehouseId: { productId: comp.componentProductId, warehouseId: targetWhId } },
+                            update: { quantity: { increment: restoreQty } },
+                            create: { productId: comp.componentProductId, warehouseId: targetWhId, quantity: restoreQty }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                type: 'REFUND',
+                                productId: comp.componentProductId,
+                                toWarehouseId: targetWhId,
+                                quantity: restoreQty,
+                                condition: stockCondition,
+                                reason: `Partial Refund bundle component: Sale #${sale.id.split('-')[0]}`,
+                                performedById: performedById
+                            } as any
+                        });
+                    }
+                } else {
+                    await tx.product.update({ where: { id: p.productId }, data: { stock: { increment: p.refundQty } } });
+                    await tx.stock.upsert({
+                        where: { productId_warehouseId: { productId: p.productId, warehouseId: targetWhId } },
+                        update: { quantity: { increment: p.refundQty } },
+                        create: { productId: p.productId, warehouseId: targetWhId, quantity: p.refundQty }
+                    });
+                    await tx.stockMovement.create({
+                        data: {
+                            type: 'REFUND',
+                            productId: p.productId,
+                            toWarehouseId: targetWhId,
+                            quantity: p.refundQty,
+                            condition: stockCondition,
+                            reason: `Partial Refund doc #${returnSale.id.split('-')[0]}`,
+                            performedById: performedById
+                        } as any
+                    });
+                }
             }
         }
 
@@ -846,9 +963,11 @@ export const partialRefundSale = secureAction(async (data: {
             items: processedItems.map(p => ({
                 productId: p.productId,
                 quantity: p.refundQty,
-                unitCost: p.unitCost.toNumber()
+                unitCost: p.unitCost.toNumber(),
+                isDamaged: p.isDamaged
             })),
-            reason: reason || 'Partial Refund'
+            reason: reason || 'Partial Refund',
+            branchId: currentUser.branchId ?? undefined
         }, tx);
 
         await tx.shift.update({

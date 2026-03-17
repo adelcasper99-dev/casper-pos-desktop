@@ -26,8 +26,9 @@ export const createEmployeeDeduction = secureAction(async (data: {
                 type,
                 referenceId,
                 referenceType,
-                description
-            }
+                description,
+                branchId: (await getCurrentUser())?.branchId || null
+            } as any
         });
 
         revalidatePath(`/hq/employees/${userId}`);

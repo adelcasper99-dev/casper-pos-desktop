@@ -126,7 +126,21 @@ export async function addTreasuryTransaction(
       }
 
       // ── Accounting Integration ──
-      const debitAccount = paymentMethod === 'CASH' ? '1000' : '1010'; // Basic Mapping
+      const accountMap: Record<string, string> = {
+        CASH: '1000',
+        VISA: '1010',
+        CARD: '1010',
+        INSTAPAY: '1020',
+        WALLET: '1020'
+      };
+      const debitAccount = accountMap[paymentMethod as keyof typeof accountMap] || '1000';
+
+      // Look up branch for treasury
+      let targetBranchId: string | undefined = undefined;
+      if (treasuryId) {
+        const wh = await tx.treasury.findUnique({ where: { id: treasuryId }, select: { branchId: true } });
+        targetBranchId = wh?.branchId || undefined;
+      }
 
       if (finalType === 'OUT') {
         // Expense/Withdrawal
@@ -138,6 +152,7 @@ export async function addTreasuryTransaction(
           description: `Treasury Out: ${description}`,
           reference: dbTx.id,
           date: new Date(),
+          branchId: targetBranchId,
           lines: [
             { accountCode: glCode, debit: numericAmount, credit: 0, description },
             { accountCode: debitAccount, debit: 0, credit: numericAmount, description: `${paymentMethod} Withdrawal` }
@@ -151,6 +166,7 @@ export async function addTreasuryTransaction(
           description: `Treasury In: ${description}`,
           reference: dbTx.id,
           date: new Date(),
+          branchId: targetBranchId,
           lines: [
             { accountCode: debitAccount, debit: numericAmount, credit: 0, description: `${paymentMethod} Deposit` },
             { accountCode: creditAccount, debit: 0, credit: numericAmount, description: categoryUI }
@@ -265,7 +281,16 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
 
       // 4. Reverse Accounting Entries (Integration)
       const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
-      await FinancialReversalService.reverseAccountingEntries(tx, id, reason);
+      
+      // B26: If HQ Transfer, reverse the sibling transaction as well
+      if (['INTER_HQ_IN', 'INTER_HQ_OUT'].includes(existing.type)) {
+          await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason);
+          if (existing.relatedTransactionId) {
+              await FinancialReversalService.reverseAccountingEntries(tx, existing.relatedTransactionId, reason);
+          }
+      } else {
+          await FinancialReversalService.reverseAccountingEntries(tx, id, reason);
+      }
     });
 
     revalidatePath("/treasury");

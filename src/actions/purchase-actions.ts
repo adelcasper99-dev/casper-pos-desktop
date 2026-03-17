@@ -162,6 +162,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 isReturn: true,
                 // @ts-ignore
                 parentId: id,
+                branchId: (invoice as any).branchId || currentUser.branchId || null,
                 items: {
                     create: invoice.items.map((i: any) => {
                         // Check if this specific item has remaining qty
@@ -177,7 +178,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                         };
                     }).filter(i => i.quantity > 0)
                 }
-            }
+            } as any
         });
 
         // 2. Reverse Inventory (Restoring only the REMAINING items)
@@ -247,22 +248,18 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             }
         }
 
-        // 6. Accounting Reversal (Remaining AP + Cash split)
-        const unpaidAmount = new Decimal(remainingTotalAmount).minus(remainingPaidAmount);
+        // 6. Accounting Reversal (Full AP Credit)
+        // Since we skip treasury cash refund and leave the money in the supplier's balance,
+        // it acts as a reduction in Accounts Payable (Debt).
         const accountingLines = [];
-        
-        if (unpaidAmount.gt(0)) {
-            accountingLines.push({ accountCode: '2000', debit: unpaidAmount.toNumber(), credit: 0, description: 'AP Reversed (Void Remaining)' });
-        }
-        if (remainingPaidAmount.gt(0)) {
-            accountingLines.push({ accountCode: '1000', debit: remainingPaidAmount.toNumber(), credit: 0, description: 'Cash Refund Received (Void Remaining)' });
-        }
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: remainingTotalAmount.toNumber(), description: 'Inventory Asset Reversed (Void Remaining)' });
+        accountingLines.push({ accountCode: '2000', debit: remainingTotalAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: remainingTotalAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
             reference: returnInvoice.id,
             purchaseId: returnInvoice.id,
+            branchId: (returnInvoice as any).branchId ?? (currentUser.branchId || undefined),
             lines: accountingLines
         }, tx);
 
@@ -390,6 +387,7 @@ export const partialReturnPurchase = secureAction(async (data: {
                 isReturn: true,
                 // @ts-ignore
                 parentId: purchaseId,
+                branchId: (invoice as any).branchId || currentUser.branchId || null,
                 items: {
                     create: processedItems.map(p => ({
                         productId: p.productId,
@@ -397,7 +395,7 @@ export const partialReturnPurchase = secureAction(async (data: {
                         unitCost: new Decimal(p.unitCost)
                     }))
                 }
-            }
+            } as any
         });
 
         // 4. Update Original Invoice Status (but keep totals)
@@ -451,19 +449,14 @@ export const partialReturnPurchase = secureAction(async (data: {
 
         // 7. Accounting Entry for the Return Invoice
         const accountingLines = [];
-        if (debtReduction.gt(0)) {
-            accountingLines.push({ accountCode: '2000', debit: debtReduction.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        }
-        if (cashReversal.gt(0)) {
-            accountingLines.push({ accountCode: '1000', debit: cashReversal.toNumber(), credit: 0, description: 'Cash Refund Received' });
-        }
-        // Always credit inventory for the full return amount
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reduced' });
+        accountingLines.push({ accountCode: '2000', debit: returnTotal.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
-            description: `Return Invoice: ${returnInvoice.invoiceNumber}`,
+            description: `Partial Return Invoice: ${returnInvoice.invoiceNumber}`,
             reference: returnInvoice.id,
             purchaseId: returnInvoice.id,
+            branchId: currentUser.branchId ?? undefined,
             lines: accountingLines
         }, tx);
 

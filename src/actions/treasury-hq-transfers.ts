@@ -118,6 +118,24 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
                 user: user?.username || user?.name || 'system'
             }
         });
+
+        // Add Accounting GL Entry
+        const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
+        
+        // Use the actual GL code from each treasury if available, otherwise fallback
+        const fromGl = fromTreasury.glCode || '1000';
+        const toGl = toTreasury.glCode || '1000';
+
+        await AccountingEngine.recordTransaction({
+            description: `HQ Transfer: ${fromTreasury.branch.name} -> ${toTreasury.branch.name} (${paymentMethod})`,
+            reference: outgoingTx.id, // Linking to the outbound transaction
+            date: new Date(),
+            branchId: fromTreasury.branchId,
+            lines: [
+                { accountCode: toGl, debit: amount, credit: 0, description: `Inbound HQ Transfer to ${toTreasury.branch.name}` },
+                { accountCode: fromGl, debit: 0, credit: amount, description: `Outbound HQ Transfer from ${fromTreasury.branch.name}` }
+            ]
+        }, tx);
     });
 
     return {
