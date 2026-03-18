@@ -149,8 +149,10 @@ export class AutoJournalService {
   }
 
   /**
-   * Create journal entry for Customer Credit (AR Increase)
-   * Odoo style: Debit Customer AR, Credit Sales/Service Revenue
+   * Create journal entry for Customer Credit (AR Increase or Store Credit)
+   * Odoo style: 
+   * - If Store Credit Liability: Debit Customer AR (1100), Credit Store Credit Liability (2150)
+   * - If regular AR: Debit Customer AR (1100), Credit Sales/Service Revenue (4000)
    */
   static async recordCustomerCredit(
     tx: any,
@@ -164,6 +166,12 @@ export class AutoJournalService {
     }
   ) {
     const amountNum = Number(params.amount);
+    
+    // Determine credit account based on description (if it's store credit or refund)
+    // RF-02: Ensure Store Credit goes to Liability (2150) not Revenue (4000)
+    const isStoreCredit = params.description?.toLowerCase().includes('store credit');
+    const creditAccountCode = isStoreCredit ? '2150' : '4000';
+    const creditAccountName = isStoreCredit ? 'Store Credit Liability' : 'Sales Revenue';
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -180,10 +188,10 @@ export class AutoJournalService {
               description: 'Customer AR' 
             },
             { 
-              accountId: await this.getAccountId(tx, '4000'), 
+              accountId: await this.getAccountId(tx, creditAccountCode), 
               debit: 0, 
               credit: amountNum, 
-              description: 'Sales Revenue' 
+              description: creditAccountName 
             }
           ]
         }

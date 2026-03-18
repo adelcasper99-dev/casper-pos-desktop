@@ -33,6 +33,7 @@ interface ProcessSaleData extends z.infer<typeof saleSchema> {
     offlineFlag?: boolean;
     isSupplier?: boolean;
     csrfToken?: string;
+    id?: string; // Used for idempotency during offline sync
 }
 
 export const processSale = secureAction(async (rawData: ProcessSaleData) => {
@@ -60,12 +61,23 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     const currentShift = shiftResult.shift;
 
-    // 1. Separate "force", "warranty" and "treasuryId" from Schema validation
-    // We treat 'rawData' as { items: [], ...others, force?: boolean, warranty?: {...}, treasuryId?: string }
-    const { force, warranty, treasuryId, ...schemaData } = rawData;
+    // 1. Separate "force", "warranty", "treasuryId" and "id" from Schema validation
+    const { force, warranty, treasuryId, id: providedId, ...schemaData } = rawData;
     const data = saleSchema.parse(schemaData);
 
     const result = await prisma.$transaction(async (tx) => {
+        // Idempotency guard for offline sync
+        if (providedId) {
+            const existingSale = await tx.sale.findUnique({
+                where: { id: providedId },
+                include: { items: true, payments: true }
+            });
+            if (existingSale) {
+                logger.info(`[POS] Duplicate sync prevented for offline sale ${providedId}`);
+                // Return exactly what the endpoint expects to indicate success but avoid double charging
+                return { ...existingSale, isIdempotentHit: true };
+            }
+        }
         // 0. Ensure Main Warehouse exists/get it
         // 🆕 Updated logic: Look for default warehouse of the current USER branch strictly first
         // If the user has a branch, we MUST use that branch's default warehouse.
@@ -101,8 +113,10 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         }
 
 
-        // Recalculate Totals for Integrity
-        const subTotalAmount = data.items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
+        // Recalculate Totals for Integrity (S-03 using Decimal for precision)
+        const subTotalAmount = data.items
+            .reduce((acc, item) => acc.plus(new Decimal(String(item.price)).times(item.quantity)), new Decimal(0))
+            .toNumber();
         const discountAmount = data.discountAmount || 0;
 
         // Guard: Discount cannot exceed subtotal
@@ -165,6 +179,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         const sale = await tx.sale.create({
             data: {
+                ...(providedId ? { id: providedId } : {}), // O-01 Idempotency Key
                 customerId: (data.customer?.id && data.customer.id.trim() !== "" && !rawData.isSupplier) ? data.customer.id : null,
                 warehouseId: mainWarehouseId,
                 totalAmount: new Decimal(totalAmount),
@@ -400,6 +415,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 case 'CASH': cashIncrement += amt; break;
                 case 'VISA':
                 case 'CARD': cardIncrement += amt; break;
+                case 'VODAFONE_CASH':
                 case 'WALLET': walletIncrement += amt; break;
                 case 'INSTAPAY': instapayIncrement += amt; break;
                 case 'ACCOUNT':

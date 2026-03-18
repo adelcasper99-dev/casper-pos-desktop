@@ -9,7 +9,8 @@ export const ACCOUNT_TYPES = {
 export const DEFAULT_ACCOUNTS = [
     // Assets (1000-1999)
     { code: '1000', name: 'Cash in Hand', type: ACCOUNT_TYPES.ASSET, isSystem: true },
-    { code: '1010', name: 'Petty Cash', type: ACCOUNT_TYPES.ASSET, isSystem: true },
+    { code: '1010', name: 'Bank / Card Settlements', type: ACCOUNT_TYPES.ASSET, isSystem: true },
+    { code: '1015', name: 'Petty Cash Fund', type: ACCOUNT_TYPES.ASSET, isSystem: false },
     { code: '1020', name: 'Cash in Treasury / Wallet', type: ACCOUNT_TYPES.ASSET, isSystem: true },
     { code: '1100', name: 'Accounts Receivable', type: ACCOUNT_TYPES.ASSET, isSystem: true },
     { code: '1200', name: 'Inventory Asset', type: ACCOUNT_TYPES.ASSET, isSystem: true },

@@ -42,6 +42,7 @@ export class SyncWorker {
             for (const sale of pendingSales) {
                 try {
                     const payload = {
+                        id: sale.id, // O-01 Idempotency check 
                         items: sale.items.map(i => ({ id: i.productId, quantity: i.quantity, price: i.unitPrice })),
                         paymentMethod: sale.paymentMethod as any,
                         totalAmount: sale.totalAmount,

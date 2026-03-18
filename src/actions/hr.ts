@@ -298,6 +298,12 @@ export const payEmployeeSalary = secureAction(async (data: {
             return { success: false, error: "Treasury is required for cash payments" };
         }
 
+        // Soft Guard (E-03): In a full payroll run, data.amount should be validated against
+        // calculatePayroll(employee, ...). Since this is a manual override payment endpoint,
+        // we allow arbitrary amounts but flag it for audit visibility.
+        const { logger } = await import('@/lib/logger');
+        logger.info(`[HR] Manual Salary Payment: User ${data.userId} paid ${data.amount} via ${data.paymentMethod}`);
+
         const result = await (prisma as any).$transaction(async (tx: any) => {
             // 1. Create Employee Transaction (Ledger) - with auto journal
             const empTx = await financialRepo.createEmployeeTransaction(tx, {
@@ -329,7 +335,7 @@ export const payEmployeeSalary = secureAction(async (data: {
                 reference: empTx.id,
                 branchId: session.user.branchId ?? undefined,
                 lines: [
-                    { accountCode: '2200', debit: data.amount, credit: 0, description: `تخفيض مستحقات الرواتب للموظف ID: ${data.userId}` },
+                    { accountCode: '5100', debit: data.amount, credit: 0, description: `إثبات مصروف الرواتب للموظف ID: ${data.userId}` },
                     { accountCode: creditAccount, debit: 0, credit: data.amount, description: `وسيلة الدفع: ${data.paymentMethod}` }
                 ]
             }, tx);

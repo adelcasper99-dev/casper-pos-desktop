@@ -752,9 +752,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     const user = await getCurrentUser();
 
     // Calculate Totals
-    const subtotal = items.reduce((acc: number, item) => acc + (item.quantity * item.unitCost), 0);
-    const deliveryCharge = header.deliveryCharge || 0;
-    const totalAmount = subtotal + deliveryCharge;
+    const subtotal = items.reduce((acc: Decimal, item) => acc.plus(new Decimal(String(item.unitCost)).times(item.quantity)), new Decimal(0));
+    const deliveryCharge = new Decimal(header.deliveryCharge || 0);
+    const totalAmount = subtotal.plus(deliveryCharge).toNumber();
     const paidAmount = header.paidAmount || 0;
 
     let status = "PENDING";
@@ -1101,9 +1101,9 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             });
         }
 
-        const subtotal = processedItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
-        const deliveryCharge = header.deliveryCharge || 0;
-        const totalAmount = subtotal + deliveryCharge;
+        const subtotal = processedItems.reduce((acc: Decimal, i) => acc.plus(new Decimal(String(i.unitCost)).times(i.quantity)), new Decimal(0));
+        const deliveryCharge = new Decimal(header.deliveryCharge || 0);
+        const totalAmount = subtotal.plus(deliveryCharge).toNumber();
         const paidAmount = header.paidAmount || 0;
         let status = "PENDING";
         if (paidAmount >= totalAmount) status = "PAID";
@@ -1372,15 +1372,6 @@ export const getWarehouses = secureAction(async () => {
         include: { branch: true },
         orderBy: { isDefault: 'desc' }
     });
-
-    try {
-        const fs = require('fs');
-        const dbState = {
-            allBranches: await prisma.branch.findMany(),
-            allWarehouses: warehouses,
-        };
-        fs.writeFileSync('C:\\Users\\ozza\\.gemini\\antigravity\\brain\\47ae2f5f-ec29-4607-84f9-2ac1dbec6764\\db_dump.json', JSON.parse(JSON.stringify(dbState, (k, v) => typeof v === 'bigint' ? v.toString() : v)));
-    } catch (e) {}
 
     return { data: warehouses, isHQUser };
 }, { requireCSRF: false });
@@ -2146,8 +2137,8 @@ export const bulkImportPurchases = secureAction(async (data: {
                 });
             }
 
-            const subtotal = finalItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
-            const totalAmount = subtotal + invoice.deliveryCharge;
+            const subtotal = finalItems.reduce((acc: Decimal, i) => acc.plus(new Decimal(String(i.unitCost)).times(i.quantity)), new Decimal(0));
+            const totalAmount = subtotal.plus(new Decimal(String(invoice.deliveryCharge))).toNumber();
             let status = "PENDING";
             if (invoice.paidAmount >= totalAmount) status = "PAID";
             else if (invoice.paidAmount > 0) status = "PARTIAL";

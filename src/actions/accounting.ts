@@ -61,7 +61,8 @@ export const createExpense = secureAction(async (data: {
                 amount: new Decimal(data.amount),
                 paymentMethod: data.paymentMethod || 'CASH',
                 description: `Expense: ${data.description}`,
-                treasuryId: data.treasuryId || null
+                treasuryId: data.treasuryId || null,
+                expenseId: expense.id
             }
         });
 
@@ -95,6 +96,7 @@ export const createExpense = secureAction(async (data: {
             description: `Expense: ${data.description}`,
             reference: expense.id,
             expenseId: expense.id,
+            branchId: currentUser.branchId ?? undefined, // Expense GL must carry branchId for P&L isolation
             lines: [
                 { accountCode: '5200', debit: data.amount, credit: 0, description: data.category },
                 { accountCode: '1000', debit: 0, credit: data.amount, description: 'Cash Paid' }
@@ -185,14 +187,16 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
             }
         });
 
-        // 2. Find and reverse the associated treasury transaction(s)
-        // Since createExpense creates a transaction with type: 'EXPENSE' and description containing the expense description
-        // we can reverse any transactions created at the exact same moment or just do a generic search.
+        // 2. Find and reverse the associated journal entries (GL)
+        const { FinancialReversalService } = await import('@/lib/financial-reversal-service');
+        await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason || 'Parent expense deleted');
+
+        // 3. Reverse associated treasury transactions linked via expenseId
         const linkedTransactions = await tx.transaction.findMany({
             where: {
                 type: 'EXPENSE',
-                amount: existing.amount,
-                description: `Expense: ${existing.description}`
+                deletedAt: null,
+                expenseId: existing.id
             }
         });
 
@@ -212,30 +216,13 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
             }
         }
 
-        // 3. Reverse shift totalExpenses if active
+        // 4. Reverse shift totalExpenses if active
         if (existing.shiftId && existing.shift?.status === 'OPEN') {
             await tx.shift.update({
                 where: { id: existing.shiftId },
                 data: { totalExpenses: { decrement: existing.amount } }
             });
         }
-
-        // 4. Reverse Journal Entry for GL Synchronization
-        // Find the original journal entry's branchId
-        const originalJE = await tx.journalEntry.findFirst({
-            where: { expenseId: existing.id }
-        }) as any;
-
-        await AccountingEngine.recordTransaction({
-            description: `REVERSED: Expense deletion - ${existing.description}`,
-            reference: `REV-${existing.id}`,
-            expenseId: existing.id,
-            branchId: originalJE?.branchId ?? currentUser.branchId ?? undefined,
-            lines: [
-                { accountCode: '5200', debit: 0, credit: Number(existing.amount), description: `Reversal: ${existing.category}` },
-                { accountCode: '1000', debit: Number(existing.amount), credit: 0, description: 'Cash Restored' }
-            ]
-        }, tx);
 
         // 5. Finally, hard delete the expense
         await tx.expense.delete({ where: { id } });
@@ -498,20 +485,20 @@ export const getTrialBalance = secureAction(async (filters?: { from?: Date; to?:
     });
 
     const balances = accounts.map(account => {
-        const totalDebit = account.journalLines.reduce((sum, l) => sum + Number(l.debit), 0);
-        const totalCredit = account.journalLines.reduce((sum, l) => sum + Number(l.credit), 0);
+        const totalDebit = account.journalLines.reduce((sum, l) => sum.plus(new Decimal(String(l.debit))), new Decimal(0));
+        const totalCredit = account.journalLines.reduce((sum, l) => sum.plus(new Decimal(String(l.credit))), new Decimal(0));
         const balance = account.type === 'ASSET' || account.type === 'EXPENSE'
-            ? totalDebit - totalCredit
-            : totalCredit - totalDebit;
+            ? totalDebit.minus(totalCredit)
+            : totalCredit.minus(totalDebit);
 
         return {
             code: account.code,
             name: account.name,
             type: account.type,
-            debit: totalDebit,
-            credit: totalCredit,
-            balance: Math.abs(balance),
-            balanceType: balance >= 0 ? 'DR' : 'CR'
+            debit: totalDebit.toNumber(),
+            credit: totalCredit.toNumber(),
+            balance: balance.abs().toNumber(),
+            balanceType: balance.gte(0) ? 'DR' : 'CR'
         };
     });
 
