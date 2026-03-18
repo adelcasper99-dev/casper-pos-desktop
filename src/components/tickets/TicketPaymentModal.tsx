@@ -196,32 +196,54 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         });
 
         if (res.success) {
-            // CONSOLIDATED FLOW: If this is a final repair payment (not deposit) 
-            // and the balance is now zero, transition status to PAID_DELIVERED
-            const newAmountPaid = (Number(ticket.amountPaid) || 0) + effectivePayment;
-            const isFullyPaid = newAmountPaid >= Number(ticket.repairPrice);
-
-            if (paymentType === 'PAYMENT' && isFullyPaid) {
-                // Status transition is now handled atomically in the backend processTicketPayment
-            }
-
+            // ... (previous logic)
             toast.success(t('paymentSuccess'));
             setSuccess(true);
             onSuccess?.();
             router.refresh();
-            
-            // Auto close after small delay to let user see success state/toast
-            setTimeout(() => {
-                onClose();
-            }, 800);
+
+            // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
+            // Only auto-print when explicitly enabled to avoid unexpected behavior
+            if (settings?.autoPrintTicket === true) {
+                // We use a small delay to ensure the success state is rendered or the state is ready
+                setTimeout(() => {
+                    handlePrint(true);
+                    // Close slightly later after print job is sent
+                    setTimeout(() => {
+                        onClose();
+                    }, 1200);
+                }, 500);
+            } else {
+                // Auto close after small delay to let user see success state/toast
+                setTimeout(() => {
+                    onClose();
+                }, 800);
+            }
         } else {
             toast.error((res as any).error || t('paymentError'));
         }
         setIsLoading(false);
     };
 
-    const handlePrint = async () => {
-        if (!settings) return;
+    const handlePrint = async (isAutoPrint = false) => {
+        // If settings not loaded, try to load them or use defaults
+        let currentSettings = settings;
+        if (!currentSettings) {
+            try {
+                const res = await getEffectiveStoreSettings();
+                if (res.success) {
+                    currentSettings = res.data;
+                    setSettings(res.data);
+                }
+            } catch (e) {
+                console.warn('Failed to load settings for printing:', e);
+            }
+        }
+
+        if (!currentSettings) {
+            console.warn('Cannot print: settings not available');
+            return;
+        }
 
         try {
             // Prepare the Updated Ticket Object for Printing
@@ -256,13 +278,16 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             const htmlContent = renderToStaticMarkup(
                 <TicketPrintTemplate
                     ticket={updatedTicket}
-                    settings={settings}
+                    settings={currentSettings}
                     translations={translations}
                 />
             );
 
-            await printService.printHTML(htmlContent, undefined, { paperWidthMm: 80 });
-            toast.success("Print job sent successfully");
+            await printService.printHTML(htmlContent, undefined, {
+                paperWidthMm: 80,
+                strictlySilent: isAutoPrint // 🛡️ [DEFINITIVE] Use strictlySilent for auto-print
+            });
+            if (!isAutoPrint) toast.success("Print job sent successfully");
         } catch (error) {
             console.error("Print Error:", error);
             toast.error("Failed to print receipt");
@@ -295,7 +320,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                             {t('close')}
                         </Button>
                         <Button
-                            onClick={handlePrint}
+                            onClick={() => handlePrint()}
                             className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)]"
                         >
                             <Printer className="w-4 h-4 mr-2" />
@@ -476,9 +501,9 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         <div className="space-y-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl animate-fly-in">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Checkbox 
-                                        id="warranty-toggle" 
-                                        checked={warrantyEnabled} 
+                                    <Checkbox
+                                        id="warranty-toggle"
+                                        checked={warrantyEnabled}
                                         onCheckedChange={(val) => setWarrantyEnabled(val as boolean)}
                                         className="border-emerald-500/50 data-[state=checked]:bg-emerald-500 data-[state=checked]:text-black"
                                     />
@@ -497,15 +522,15 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 <div className="space-y-3 pt-3 border-t border-emerald-500/10 animate-fade-in">
                                     <div className="grid grid-cols-4 gap-2">
                                         {[30, 60, 90, 180].map(d => (
-                                            <Button 
-                                                key={d} 
-                                                variant="outline" 
+                                            <Button
+                                                key={d}
+                                                variant="outline"
                                                 size="sm"
                                                 onClick={() => setWarrantyDays(d)}
                                                 className={clsx(
                                                     "h-8 text-[9px] font-black rounded-lg border transition-all",
-                                                    warrantyDays === d 
-                                                        ? "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20" 
+                                                    warrantyDays === d
+                                                        ? "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20"
                                                         : "bg-white/5 border-white/5 hover:border-emerald-500/30 text-zinc-400"
                                                 )}
                                             >
@@ -513,7 +538,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                             </Button>
                                         ))}
                                     </div>
-                                    
+
                                     <div className="flex items-center justify-between px-1">
                                         <div className="flex items-center gap-2">
                                             <ShieldCheck className="w-3 h-3 text-emerald-500" />
@@ -614,8 +639,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         disabled={isLoading}
                         className={clsx(
                             "flex-[2] font-black h-14 shadow-lg border-0 transition-all",
-                            netDelta < 0 
-                                ? "bg-red-600 hover:bg-red-500 shadow-red-500/20 text-white" 
+                            netDelta < 0
+                                ? "bg-red-600 hover:bg-red-500 shadow-red-500/20 text-white"
                                 : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-500/20 text-white"
                         )}
                     >
@@ -624,8 +649,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         )}
                         {(isWarrantyReturn || netDelta < 0) ? (
                             netDelta > 0 ? (t('collectDifference') || "Collect Difference").toUpperCase() :
-                            netDelta < 0 ? (t('refundCustomer') || "Refund Customer").toUpperCase() :
-                            (t('settleAndClose') || "Settle & Close").toUpperCase()
+                                netDelta < 0 ? (t('refundCustomer') || "Refund Customer").toUpperCase() :
+                                    (t('settleAndClose') || "Settle & Close").toUpperCase()
                         ) : t('confirmPayment').toUpperCase()}
                     </Button>
                 </div>

@@ -243,6 +243,13 @@ async function createEmployeeTransactionJournal(
  */
 export function createAccountingMiddleware() {
   return async (params: any, next: any) => {
+    // 🛡️ RECURSION GUARD: Ignore operations triggered internally by this middleware
+    if (params.args?.data?._isAccountingInternal) {
+      // Remove the internal flag before passing to Prisma to avoid schema validation errors
+      delete params.args.data._isAccountingInternal;
+      return await next(params);
+    }
+
     // Call the actual operation first
     const result = await next(params);
 
@@ -251,11 +258,9 @@ export function createAccountingMiddleware() {
       return result;
     }
 
-    // Get the transaction client - try to get from params, otherwise use prisma directly
-    // The tx is available in params.tx when inside a transaction
+    // Get the transaction client
     let tx = (params as any).tx;
     if (!tx) {
-      // Not in a transaction - we'll need to use prisma directly
       tx = prisma;
     }
 
@@ -263,7 +268,7 @@ export function createAccountingMiddleware() {
       // Handle CustomerTransaction
       if (params.model === 'CustomerTransaction') {
         const data = params.args.data as any;
-        if (data && !data.journalEntries?.create) { // Avoid double-entry if already creating journal
+        if (data && !data.journalEntries?.create) {
           await createCustomerTransactionJournal(tx, {
             id: result.id,
             customerId: result.customerId,
@@ -295,7 +300,19 @@ export function createAccountingMiddleware() {
       if (params.model === 'EmployeeTransaction') {
         const data = params.args.data as any;
         if (data && !data.journalEntries?.create) {
-          await createEmployeeTransactionJournal(tx, {
+          // Pass the recursion guard flag to the next level
+          const internalTx = tx.$withExtensions ? tx.$withExtensions({
+            query: {
+              journalEntry: {
+                async create({ args, query }: any) {
+                  args.data._isAccountingInternal = true;
+                  return query(args);
+                }
+              }
+            }
+          }) : tx;
+
+          await createEmployeeTransactionJournal(internalTx, {
             id: result.id,
             userId: result.userId,
             type: result.type,
@@ -306,7 +323,6 @@ export function createAccountingMiddleware() {
         }
       }
     } catch (error) {
-      // Log but don't fail the main transaction
       console.error('[Accounting Middleware] Error creating journal entry:', error);
     }
 

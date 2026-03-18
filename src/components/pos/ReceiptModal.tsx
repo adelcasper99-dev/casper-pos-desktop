@@ -70,9 +70,11 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
         }
     }, [isOpen, settingsProp]);
 
-    // Auto-print if enabled
+    // Auto-print if enabled AND not already handled by parent
     useEffect(() => {
-        if (isOpen && settings?.autoPrint && saleData && !printAttempted) {
+        const isAlreadyHandled = saleData?.autoPrintAttempted || saleData?.disableAutoPrint;
+        if (isOpen && settings?.autoPrint && saleData && !printAttempted && !isAlreadyHandled) {
+            console.log("[ReceiptModal] Auto-printing (not handled by parent)");
             setPrintAttempted(true);
             setTimeout(() => handlePrint(), 500);
         }

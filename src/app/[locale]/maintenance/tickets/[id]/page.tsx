@@ -84,7 +84,7 @@ function SectionHeader({ children, icon: Icon, className }: { children: React.Re
 
 function DataRow({ label, children, action, className, align = 'start' }: { label: string; children: React.ReactNode; action?: React.ReactNode; className?: string; align?: 'start' | 'center' }) {
     return (
-        <div className={cn("flex flex-col py-2.5 gap-1 group/row border-b border-white/[0.08] hover:bg-white/[0.02] px-3 -mx-3 rounded-lg transition-all", 
+        <div className={cn("flex flex-col py-2.5 gap-1 group/row border-b border-white/[0.08] hover:bg-white/[0.02] px-3 -mx-3 rounded-lg transition-all",
             align === 'center' ? "items-center text-center" : "items-start text-right",
             className
         )}>
@@ -139,10 +139,10 @@ function getActiveStepIndex(status: string): number {
 
 // ─── Vertical Scrollspy Stepper ───────────────────────────────────────────────
 const STEPPER_STEPS = [
-    { label: 'استلام الجهاز', sub: 'Intake',       sectionId: 'section-device',   icon: Smartphone },
-    { label: 'الفحص والأمان', sub: 'Diagnosis',    sectionId: 'section-security', icon: Lock        },
-    { label: 'قطع الغيار',   sub: 'Parts',         sectionId: 'section-parts',    icon: Plus        },
-    { label: 'سجل العمليات', sub: 'Notes',          sectionId: 'section-notes',    icon: RotateCcw   },
+    { label: 'استلام الجهاز', sub: 'Intake', sectionId: 'section-device', icon: Smartphone },
+    { label: 'الفحص والأمان', sub: 'Diagnosis', sectionId: 'section-security', icon: Lock },
+    { label: 'قطع الغيار', sub: 'Parts', sectionId: 'section-parts', icon: Plus },
+    { label: 'سجل العمليات', sub: 'Notes', sectionId: 'section-notes', icon: RotateCcw },
 ];
 
 function ScrollStepper({ activeIndex }: { activeIndex: number }) {
@@ -158,7 +158,7 @@ function ScrollStepper({ activeIndex }: { activeIndex: number }) {
 
             <div className="flex flex-col gap-5 relative z-10">
                 {STEPPER_STEPS.map((step, i) => {
-                    const isDone   = i < activeIndex;
+                    const isDone = i < activeIndex;
                     const isActive = i === activeIndex;
                     const StepIcon = step.icon;
 
@@ -172,7 +172,7 @@ function ScrollStepper({ activeIndex }: { activeIndex: number }) {
                             <div className={cn(
                                 'relative flex items-center justify-center w-7 h-7 rounded-full shrink-0 border transition-all duration-300',
                                 isActive && 'bg-cyan-400 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.5)]',
-                                isDone   && 'bg-white border-white',
+                                isDone && 'bg-white border-white',
                                 !isActive && !isDone && 'bg-transparent border-zinc-700 group-hover:border-zinc-500',
                             )}>
                                 {isDone
@@ -189,7 +189,7 @@ function ScrollStepper({ activeIndex }: { activeIndex: number }) {
                                 <span className={cn(
                                     'text-[11px] font-black leading-tight transition-colors',
                                     isActive && 'text-cyan-400',
-                                    isDone   && 'text-zinc-300',
+                                    isDone && 'text-zinc-300',
                                     !isActive && !isDone && 'text-zinc-600 group-hover:text-zinc-400',
                                 )}>
                                     {step.label}
@@ -241,6 +241,7 @@ export default function TicketDetailPage() {
     const [editingDuration, setEditingDuration] = useState(false);
     const [durationInput, setDurationInput] = useState('');
     const [showPrintOptions, setShowPrintOptions] = useState(false);
+    const [isSilentPrint, setIsSilentPrint] = useState(false);
     const [defaultPrintMode, setDefaultPrintMode] = useState<'receipt' | 'label'>('receipt');
 
     useEffect(() => {
@@ -249,15 +250,26 @@ export default function TicketDetailPage() {
 
     useEffect(() => {
         const shouldPrint = searchParams.get('print') === 'true';
-        const autoPrintEnabled = settings?.autoPrint ?? true;
-        
-        if (shouldPrint && ticket && !loading && !hasPrinted && autoPrintEnabled) {
+
+        // If print=true in URL, show print options regardless of settings
+        // This ensures the print dialog works immediately after ticket creation
+        if (shouldPrint && ticket && !loading && !hasPrinted) {
+            setIsSilentPrint(true);
             setShowPrintOptions(true);
             setHasPrinted(true);
             // Clean URL
             const url = new URL(window.location.href);
             url.searchParams.delete('print');
             window.history.replaceState({}, '', url.toString());
+            return;
+        }
+
+        // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
+        const autoPrintEnabled = settings?.autoPrintTicket === true;
+        if (autoPrintEnabled && ticket && !loading && !hasPrinted) {
+            setIsSilentPrint(true);
+            setShowPrintOptions(true);
+            setHasPrinted(true);
         }
     }, [searchParams, ticket, loading, hasPrinted, settings]);
 
@@ -442,147 +454,147 @@ export default function TicketDetailPage() {
 
                     {/* Scrollable main content */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 relative">
-                    {/* Header Banner (Invoice Style) */}
-                    <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-6">
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <h2 className="text-4xl font-black text-white tabular-nums tracking-tighter">#{ticket.barcode}</h2>
-                                {ticket.parentTicketId && (
-                                    <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-black tracking-widest leading-none h-6 mt-1">مرتجع ضمان</Badge>
-                                )}
-                                {ticket.returnTickets && ticket.returnTickets.length > 0 && (
-                                    <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-1 rounded-md font-black flex items-center gap-1.5 mt-1 h-6">
-                                        يوجد {ticket.returnTickets.length} مرتجع (
-                                        {ticket.returnTickets.map((rt: any, i: number) => (
-                                            <span 
-                                                key={rt.id} 
-                                                className="cursor-pointer hover:text-emerald-300 hover:underline mx-0.5"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    router.push(`/ar/maintenance/tickets/${rt.id}`);
-                                                }}
-                                            >
-                                                #{rt.barcode}{i < ticket.returnTickets.length - 1 ? ',' : ''}
-                                            </span>
-                                        ))}
-                                        )
-                                    </div>
-                                )}
+                        {/* Header Banner (Invoice Style) */}
+                        <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-6">
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <h2 className="text-4xl font-black text-white tabular-nums tracking-tighter">#{ticket.barcode}</h2>
+                                    {ticket.parentTicketId && (
+                                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-black tracking-widest leading-none h-6 mt-1">مرتجع ضمان</Badge>
+                                    )}
+                                    {ticket.returnTickets && ticket.returnTickets.length > 0 && (
+                                        <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-1 rounded-md font-black flex items-center gap-1.5 mt-1 h-6">
+                                            يوجد {ticket.returnTickets.length} مرتجع (
+                                            {ticket.returnTickets.map((rt: any, i: number) => (
+                                                <span
+                                                    key={rt.id}
+                                                    className="cursor-pointer hover:text-emerald-300 hover:underline mx-0.5"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.push(`/ar/maintenance/tickets/${rt.id}`);
+                                                    }}
+                                                >
+                                                    #{rt.barcode}{i < ticket.returnTickets.length - 1 ? ',' : ''}
+                                                </span>
+                                            ))}
+                                            )
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-3">
+                                    <span className="text-[11px] font-black uppercase text-cyan-500 tracking-[0.2em]">{tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}</span>
+                                    <div className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+                                    <span className="text-[11px] font-black uppercase text-zinc-500 tracking-[0.2em]">تاريخ الاستلام: {new Date(ticket.createdAt).toLocaleDateString('ar-EG')}</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-3 mt-3">
-                                <span className="text-[11px] font-black uppercase text-cyan-500 tracking-[0.2em]">{tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}</span>
-                                <div className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
-                                <span className="text-[11px] font-black uppercase text-zinc-500 tracking-[0.2em]">تاريخ الاستلام: {new Date(ticket.createdAt).toLocaleDateString('ar-EG')}</span>
+                            <div className="flex items-center gap-4">
+                                <div className="flex flex-col text-left">
+                                    <span className="text-xs font-black text-zinc-500 mb-1">الحالة</span>
+                                    <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 px-3 py-1 rounded-lg text-xs font-black tracking-wide">
+                                        {tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}
+                                    </Badge>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex flex-col text-left">
-                                <span className="text-xs font-black text-zinc-500 mb-1">الحالة</span>
-                                <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 px-3 py-1 rounded-lg text-xs font-black tracking-wide">
-                                    {tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}
-                                </Badge>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div id="section-device" className="grid grid-cols-2 gap-x-16 gap-y-12">
-                        {/* Device Specifications */}
-                        <section>
-                            <SectionHeader icon={Smartphone}>مواصفات الجهاز</SectionHeader>
-                            <div className="space-y-1 pr-4">
-                                <DataRow label="الماركة والموديل">{ticket.deviceBrand} {ticket.deviceModel}</DataRow>
-                                <DataRow label="الرقم التعريفي (IMEI)">
-                                    <span className="font-mono text-zinc-400 tabular-nums">{ticket.deviceImei || '-'}</span>
-                                </DataRow>
-                                <div className="py-4">
-                                    <span className="text-xs font-black text-zinc-600 block mb-2 px-1">وصف العطل</span>
-                                    <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/10 text-sm text-zinc-300 leading-relaxed font-bold shadow-inner">
-                                        "{ticket.issueDescription}"
+                        <div id="section-device" className="grid grid-cols-2 gap-x-16 gap-y-12">
+                            {/* Device Specifications */}
+                            <section>
+                                <SectionHeader icon={Smartphone}>مواصفات الجهاز</SectionHeader>
+                                <div className="space-y-1 pr-4">
+                                    <DataRow label="الماركة والموديل">{ticket.deviceBrand} {ticket.deviceModel}</DataRow>
+                                    <DataRow label="الرقم التعريفي (IMEI)">
+                                        <span className="font-mono text-zinc-400 tabular-nums">{ticket.deviceImei || '-'}</span>
+                                    </DataRow>
+                                    <div className="py-4">
+                                        <span className="text-xs font-black text-zinc-600 block mb-2 px-1">وصف العطل</span>
+                                        <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/10 text-sm text-zinc-300 leading-relaxed font-bold shadow-inner">
+                                            "{ticket.issueDescription}"
+                                        </div>
                                     </div>
+                                </div>
+                            </section>
+
+                            {/* Security Protocols */}
+                            <section id="section-security">
+                                <SectionHeader icon={Lock}>بروتوكولات الأمان</SectionHeader>
+                                <div className="space-y-1 pr-4">
+                                    <DataRow
+                                        label="رمز القفل المباشر"
+                                        align="center"
+                                        action={
+                                            <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white">
+                                                {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </Button>
+                                        }
+                                    >
+                                        <span className="font-mono font-black tracking-widest text-zinc-100 text-lg">
+                                            {showSecurityCode ? ticket.securityCode || '0000' : '••••'}
+                                        </span>
+                                    </DataRow>
+                                    <DataRow
+                                        label="نمط الفتح المرسوم"
+                                        align="center"
+                                        action={
+                                            <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-zinc-700 h-8 w-8 hover:text-white">
+                                                {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </Button>
+                                        }
+                                    >
+                                        <span className="text-[11px] font-black text-orange-500/60 uppercase tracking-widest">
+                                            {showPattern ? ticket.patternData || 'No Pattern' : 'Hidden'}
+                                        </span>
+                                    </DataRow>
+                                </div>
+                            </section>
+                        </div>
+
+                        {/* Spare Parts (Full Width in Main Content) */}
+                        <section id="section-parts" className="pt-8 border-t border-white/5">
+                            <SectionHeader icon={Plus}>إدارة قطع الغيار والخدمات</SectionHeader>
+                            <div className="pr-2">
+                                <TicketPartsManager
+                                    ticketId={ticket.id}
+                                    parts={ticket.parts || []}
+                                    status={ticket.status}
+                                    technicianId={ticket.technicianId}
+                                    technicianName={ticket.technician?.name}
+                                    onChangeTechnician={() => setShowTechModal(true)}
+                                    onUpdate={loadData}
+                                    isWarrantyTicket={!!ticket.parentTicketId}
+                                />
+                            </div>
+                        </section>
+
+                        {/* Timeline (Bottom) */}
+                        <section id="section-notes" className="pt-8 border-t border-white/5">
+                            <SectionHeader icon={RotateCcw}>سجل العمليات (Notes)</SectionHeader>
+                            <div className="bg-zinc-900 border border-white/10 rounded-[24px] flex flex-col h-[350px] overflow-hidden shadow-2xl">
+                                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 custom-scrollbar text-right">
+                                    {ticket.notes?.map((note: any) => (
+                                        <div key={note.id} className="relative pr-5 border-r border-white/10 pb-3 last:pb-0">
+                                            <div className="absolute top-0 right-[-3px] w-1.5 h-1.5 rounded-full bg-zinc-700 border border-black" />
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{note.author}</span>
+                                                <span className="text-[9px] text-zinc-700 font-mono font-bold">{new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                            <p className="text-xs text-zinc-400 font-bold leading-relaxed">{note.text}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="p-3 bg-zinc-950 border-t border-white/10 flex gap-2 backdrop-blur-2xl">
+                                    <Input
+                                        placeholder="إضافة تعليق..."
+                                        value={noteText}
+                                        onChange={(e) => setNoteText(e.target.value)}
+                                        className="bg-black border-white/10 h-11 rounded-xl text-xs focus:ring-1 focus:ring-white/20 focus:border-white/20 transition-all font-bold"
+                                    />
+                                    <Button onClick={handleAddNote} size="icon" className="h-11 w-11 bg-white text-black hover:bg-zinc-200 shrink-0 rounded-xl transition-all shadow-xl shadow-white/5">
+                                        <Send className="w-4 h-4 rtl:rotate-180" />
+                                    </Button>
                                 </div>
                             </div>
                         </section>
-
-                        {/* Security Protocols */}
-                        <section id="section-security">
-                            <SectionHeader icon={Lock}>بروتوكولات الأمان</SectionHeader>
-                            <div className="space-y-1 pr-4">
-                                <DataRow
-                                    label="رمز القفل المباشر"
-                                    align="center"
-                                    action={
-                                        <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white">
-                                            {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </Button>
-                                    }
-                                >
-                                    <span className="font-mono font-black tracking-widest text-zinc-100 text-lg">
-                                        {showSecurityCode ? ticket.securityCode || '0000' : '••••'}
-                                    </span>
-                                </DataRow>
-                                <DataRow
-                                    label="نمط الفتح المرسوم"
-                                    align="center"
-                                    action={
-                                        <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-zinc-700 h-8 w-8 hover:text-white">
-                                            {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </Button>
-                                    }
-                                >
-                                    <span className="text-[11px] font-black text-orange-500/60 uppercase tracking-widest">
-                                        {showPattern ? ticket.patternData || 'No Pattern' : 'Hidden'}
-                                    </span>
-                                </DataRow>
-                            </div>
-                        </section>
-                    </div>
-
-                    {/* Spare Parts (Full Width in Main Content) */}
-                    <section id="section-parts" className="pt-8 border-t border-white/5">
-                        <SectionHeader icon={Plus}>إدارة قطع الغيار والخدمات</SectionHeader>
-                        <div className="pr-2">
-                            <TicketPartsManager
-                                ticketId={ticket.id}
-                                parts={ticket.parts || []}
-                                status={ticket.status}
-                                technicianId={ticket.technicianId}
-                                technicianName={ticket.technician?.name}
-                                onChangeTechnician={() => setShowTechModal(true)}
-                                onUpdate={loadData}
-                                isWarrantyTicket={!!ticket.parentTicketId}
-                            />
-                        </div>
-                    </section>
-
-                    {/* Timeline (Bottom) */}
-                    <section id="section-notes" className="pt-8 border-t border-white/5">
-                        <SectionHeader icon={RotateCcw}>سجل العمليات (Notes)</SectionHeader>
-                        <div className="bg-zinc-900 border border-white/10 rounded-[24px] flex flex-col h-[350px] overflow-hidden shadow-2xl">
-                            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 custom-scrollbar text-right">
-                                {ticket.notes?.map((note: any) => (
-                                    <div key={note.id} className="relative pr-5 border-r border-white/10 pb-3 last:pb-0">
-                                        <div className="absolute top-0 right-[-3px] w-1.5 h-1.5 rounded-full bg-zinc-700 border border-black" />
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{note.author}</span>
-                                            <span className="text-[9px] text-zinc-700 font-mono font-bold">{new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                        </div>
-                                        <p className="text-xs text-zinc-400 font-bold leading-relaxed">{note.text}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="p-3 bg-zinc-950 border-t border-white/10 flex gap-2 backdrop-blur-2xl">
-                                <Input
-                                    placeholder="إضافة تعليق..."
-                                    value={noteText}
-                                    onChange={(e) => setNoteText(e.target.value)}
-                                    className="bg-black border-white/10 h-11 rounded-xl text-xs focus:ring-1 focus:ring-white/20 focus:border-white/20 transition-all font-bold"
-                                />
-                                <Button onClick={handleAddNote} size="icon" className="h-11 w-11 bg-white text-black hover:bg-zinc-200 shrink-0 rounded-xl transition-all shadow-xl shadow-white/5">
-                                    <Send className="w-4 h-4 rtl:rotate-180" />
-                                </Button>
-                            </div>
-                        </div>
-                    </section>
                     </div>
 
                     {/* ── Left: Sticky Scrollspy Stepper ── */}
@@ -693,7 +705,7 @@ export default function TicketDetailPage() {
                                     <div className="flex items-center justify-between px-1">
                                         <label className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">الفني المسؤول</label>
                                         {ticket.isWarrantyReturn && ['ADMIN', 'مدير النظام', 'المالك', '*'].includes(user?.role) && (
-                                            <button 
+                                            <button
                                                 onClick={() => setShowTechModal(true)}
                                                 className="text-[9px] font-black uppercase text-orange-400 hover:text-orange-300 transition-colors"
                                             >
@@ -701,11 +713,11 @@ export default function TicketDetailPage() {
                                             </button>
                                         )}
                                     </div>
-                                    <Select 
-                                        defaultValue={ticket.technicianId || ''} 
+                                    <Select
+                                        defaultValue={ticket.technicianId || ''}
                                         onValueChange={handleAssign}
                                         disabled={
-                                            ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED', 'VOIDED', 'RETURNED_FOR_REFIX'].includes(ticket.status) || 
+                                            ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED', 'VOIDED', 'RETURNED_FOR_REFIX'].includes(ticket.status) ||
                                             (ticket.isWarrantyReturn && !['ADMIN', 'مدير النظام', 'المالك', '*'].includes(user?.role))
                                         }
                                     >
@@ -728,10 +740,14 @@ export default function TicketDetailPage() {
             {/* Modals Section */}
             <TicketPrintOptionsModal
                 isOpen={showPrintOptions}
-                onClose={() => setShowPrintOptions(false)}
+                onClose={() => {
+                    setShowPrintOptions(false)
+                    setIsSilentPrint(false)
+                }}
                 ticket={ticket}
                 settings={settings}
                 defaultMode={defaultPrintMode}
+                silent={isSilentPrint}
             />
 
             <TicketPaymentModal

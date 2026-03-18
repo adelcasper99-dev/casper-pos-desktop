@@ -29,6 +29,7 @@ export default function PrinterSettings() {
     const [labelPrinter, setLabelPrinter] = useState<string>('');
     const [enableThermal, setEnableThermal] = useState<boolean>(true);
     const [enableA4, setEnableA4] = useState<boolean>(true);
+    const [defaultCopies, setDefaultCopies] = useState<number>(1);
 
     useEffect(() => {
         loadSettings();
@@ -45,14 +46,17 @@ export default function PrinterSettings() {
             if (registry.labelPrinter) setLabelPrinter(registry.labelPrinter);
             setEnableThermal(registry.enableThermal !== false); // Default to true
             setEnableA4(registry.enableA4 !== false); // Default to true
+            if (registry.defaultCopies) setDefaultCopies(registry.defaultCopies);
         } else {
             // Fallback for immediate load after migration
             const savedThermal = localStorage.getItem('thermal_printer');
             const savedA4 = localStorage.getItem('a4_printer');
             const savedLabel = localStorage.getItem('printer_label');
+            const savedCopies = localStorage.getItem('casper_default_print_copies');
             if (savedThermal) setThermalPrinter(savedThermal);
             if (savedA4) setA4Printer(savedA4);
             if (savedLabel) setLabelPrinter(savedLabel);
+            if (savedCopies) setDefaultCopies(parseInt(savedCopies, 10) || 1);
         }
     };
 
@@ -128,8 +132,11 @@ export default function PrinterSettings() {
             receiptFormat: receiptFormat,
             labelPrinter: labelPrinter,
             enableThermal: enableThermal,
-            enableA4: enableA4
+            enableA4: enableA4,
+            defaultCopies: defaultCopies
         });
+        // Sync legacy key
+        localStorage.setItem('casper_default_print_copies', defaultCopies.toString());
         toast.success("Printer preferences saved to this device registry");
     };
 
@@ -244,7 +251,12 @@ export default function PrinterSettings() {
                                     <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">{enableThermal ? 'Active' : 'Hidden'}</span>
                                     <Switch
                                         checked={enableThermal}
-                                        onCheckedChange={(val) => setEnableThermal(val)}
+                                        onCheckedChange={(val) => {
+                                            setEnableThermal(val);
+                                            if (!val && receiptFormat === 'thermal') {
+                                                setReceiptFormat('a4');
+                                            }
+                                        }}
                                     />
                                 </div>
                             </div>
@@ -279,7 +291,12 @@ export default function PrinterSettings() {
                                     <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">{enableA4 ? 'Active' : 'Hidden'}</span>
                                     <Switch
                                         checked={enableA4}
-                                        onCheckedChange={(val) => setEnableA4(val)}
+                                        onCheckedChange={(val) => {
+                                            setEnableA4(val);
+                                            if (!val && receiptFormat === 'a4') {
+                                                setReceiptFormat('thermal');
+                                            }
+                                        }}
                                     />
                                 </div>
                             </div>
@@ -331,6 +348,37 @@ export default function PrinterSettings() {
                                     ))}
                                 </SelectContent>
                             </Select>
+                        </div>
+
+                        <hr className="border-white/5" />
+
+                        {/* Print Copies Control */}
+                        <div className="space-y-2">
+                            <Label>عدد نسخ الطباعة (Default Print Copies)</Label>
+                            <div className="flex items-center gap-3">
+                                <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => setDefaultCopies(prev => Math.max(1, prev - 1))}
+                                    className="border-white/10 bg-white/5 hover:bg-white/10"
+                                >
+                                    -
+                                </Button>
+                                <div className="w-12 text-center text-lg font-bold text-cyan-400">
+                                    {defaultCopies}
+                                </div>
+                                <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => setDefaultCopies(prev => Math.min(10, prev + 1))}
+                                    className="border-white/10 bg-white/5 hover:bg-white/10"
+                                >
+                                    +
+                                </Button>
+                                <span className="text-xs text-zinc-500">
+                                    (سيتم طباعة هذا العدد تلقائياً في كل عملية بيع)
+                                </span>
+                            </div>
                         </div>
                     </div>
 

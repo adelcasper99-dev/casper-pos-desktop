@@ -392,7 +392,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
         });
 
         return ticket;
-    });
+    }, { timeout: 60000 });
 
     revalidatePath("/ar/maintenance/tickets");
     revalidateTag("dashboard");
@@ -676,7 +676,7 @@ export const updateTicketStatus = secureAction(async (data: {
         });
 
         return ticket;
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     revalidatePath("/ar/maintenance/tickets");
@@ -727,7 +727,7 @@ export const undoTicketStatus = secureAction(async (data: {
         });
 
         return updatedTicket;
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     revalidatePath("/ar/maintenance/tickets");
@@ -926,7 +926,7 @@ export const refundTicket = secureAction(async (data: {
         }, tx);
 
         return payment;
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/tickets/${ticketId}`);
     return { success: true, refund: result };
@@ -1110,7 +1110,7 @@ export const softDeleteTicket = secureAction(async (data: {
         });
 
         return deletedTicket;
-    });
+    }, { timeout: 60000 });
 
     revalidatePath('/ar/maintenance/tickets');
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
@@ -1313,7 +1313,7 @@ export const applyCustomerCredit = secureAction(async (data: {
                 paymentStatus: newStatus
             }
         });
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath("/customers");
@@ -1458,7 +1458,7 @@ export const addTicketPart = secureAction(async (data: {
                         status: 'ACTIVE'
                     }
                 });
-            });
+            }, { timeout: 60000 });
             sourceWarehouseId = finalWarehouseId; // Update local variable for subsequent logic
         }
     } else {
@@ -1562,7 +1562,7 @@ export const refundTicketPart = secureAction(async (data: {
                 commissionAmount: part.ticket?.technicianId ? new Decimal(calculateCommission(netPro, Number(part.ticket.commissionRate || 0))) : undefined
             }
         });
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     return { success: true };
@@ -1653,7 +1653,7 @@ export const removeTicketPart = secureAction(async (data: {
             where: { id: ticketId },
             data: updateFields
         });
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     return { success: true };
@@ -1814,7 +1814,7 @@ export const processTicketPayment = secureAction(async (data: {
                         referenceId: ticket.id,
                         referenceType: isActuallyRefund ? 'TICKET_REFUND' : 'TICKET',
                         description: txDesc,
-                        branchId: (await getCurrentUser())?.branchId || null
+                        branchId: currentUser?.branchId || null
                     } as any
                 });
             }
@@ -2059,7 +2059,7 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         return updatedTicket;
-    });
+    }, { timeout: 60000 });
 
     await updateShiftHeartbeat(currentShift.id).catch(console.error);
 
@@ -2578,7 +2578,7 @@ export const fullTicketReturn = secureAction(async (data: {
         }
 
         return { success: true };
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     revalidatePath(`/maintenance/tickets/${ticketId}`);
@@ -2887,7 +2887,7 @@ export const partialRefundTicket = secureAction(async (data: {
         }
 
         return { success: true, refundedAmount: totalRefundAmount.toNumber() };
-    });
+    }, { timeout: 60000 });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);

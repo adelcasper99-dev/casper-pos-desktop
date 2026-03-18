@@ -1,9 +1,9 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslations } from "@/lib/i18n-mock";
 import GlassModal from "../ui/GlassModal";
+import { toast } from "sonner";
 import { Banknote, CreditCard, Clock, Truck, Loader2, Store, User, Smartphone, ArrowRightLeft, XCircle, Shield, CalendarCheck, UserCircle, Printer, CheckCircle } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { processSale } from "@/actions/pos";
@@ -13,8 +13,7 @@ import clsx from "clsx";
 import ReceiptModal from "./ReceiptModal";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
-
-
+import { Zap } from "lucide-react";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
 
 import { useRouter } from "next/navigation";
@@ -59,6 +58,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     const [isDelivery, setIsDelivery] = useState(false);
     const [saleResult, setSaleResult] = useState<any>(null); // Store sale result for receipt
     const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
+    const [isSpeedPrinting, setIsSpeedPrinting] = useState(false);
 
     // Fetch Treasuries
     useEffect(() => {
@@ -194,6 +194,76 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         setCanForce(false);
     }, [customerName, customerPhone, customerAddress, isOpen]);
 
+    // Handle Auto-Print
+    // Auto-Print handled directly in handleCheckout for better response
+    // Logic removed from here to prevent duplicate execution and modal flashing
+
+    const handleSilentPrint = async (data: any) => {
+        if (isSpeedPrinting) return;
+        setIsSpeedPrinting(true);
+        console.log("[POS AutoPrint] handleSilentPrint starting...");
+        try {
+            const { printService } = await import('@/lib/print-service');
+            const { generateThermalReceiptHTML } = await import('./ThermalReceiptTemplate');
+            const { generateA4ReceiptHTML } = await import('./A4ReceiptTemplate');
+
+            const registry = printService.getRegistry();
+            const thermalEnabled = registry?.enableThermal !== false;
+            const a4Enabled = registry?.enableA4 !== false;
+            
+            let receiptFormat = registry?.receiptFormat || 'thermal';
+            
+            // Logic to respect enabled flags
+            if (thermalEnabled && !a4Enabled) {
+                receiptFormat = 'thermal';
+            } else if (!thermalEnabled && a4Enabled) {
+                receiptFormat = 'a4';
+            }
+
+            const copies = parseInt(localStorage.getItem('casper_default_print_copies') || '1', 10);
+
+            console.log("[POS AutoPrint] Final configuration:", { 
+                receiptFormat, 
+                thermalEnabled,
+                a4Enabled,
+                thermalPrinter: registry?.thermalPrinter,
+                a4Printer: registry?.a4Printer
+            });
+
+            if (receiptFormat === 'a4' && a4Enabled) {
+                const a4Html = generateA4ReceiptHTML({ saleData: data, settings });
+                const printer = registry?.a4Printer || '';
+                if (!printer) console.warn("[POS AutoPrint] No A4 printer configured");
+                // Strictly silent print to avoid windows dialog
+                await printService.printHTML(a4Html, printer, { paperWidthMm: 210, strictlySilent: true });
+            } else {
+                const widthToUse = settings?.paperSize === '58mm' ? 58 : 80;
+                const thermalPrinter = registry?.thermalPrinter || registry?.receiptPrinter || localStorage.getItem('printer_receipt') || '';
+                
+                if (!thermalPrinter || thermalPrinter === 'none') {
+                    console.warn("[POS AutoPrint] No thermal printer configured");
+                    toast.error("يرجى تعيين الطابعة من إعدادات الطابعات");
+                    return;
+                }
+
+                // Strictly silent print to avoid windows dialog
+                const thermalHtml = generateThermalReceiptHTML({ saleData: data, settings });
+                for (let i = 0; i < copies; i++) {
+                    console.log(`[POS AutoPrint] Printing copy ${i+1}/${copies} to ${thermalPrinter}`);
+                    await printService.printStrictlySilent(thermalHtml, thermalPrinter, { paperWidthMm: widthToUse });
+                }
+            }
+            // Success toast is already handled globally in the useEffect caller if needed, 
+            // but we can keep a small one here for manual triggers
+            if (!settings?.autoPrint) toast.success("تم إرسال الطباعة بنجاح");
+        } catch (e) {
+            console.error("Silent print failed:", e);
+            toast.error("فشلت الطباعة التلقائية");
+        } finally {
+            setIsSpeedPrinting(false);
+        }
+    };
+
     // ... (Calculations stay same)
     // Recalculate Totals
     const subTotal = getTotal();
@@ -276,6 +346,18 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
             clearCart();
             // Refresh to update shift totals in header
             router.refresh();
+
+            // 🚀 SILENT AUTO-CLOSE: If autoPrint is enabled, skip the success UI entirely
+            if (settings?.autoPrint) {
+                console.log("[POS AutoPrint] Auto-close active. Skipping success UI.");
+                handleSilentPrint(result.saleId ? { ...payload, invoiceNumber: `S-${result.saleId.split('-')[0].toUpperCase()}` } : payload);
+                setTimeout(() => {
+                    setSaleResult(null);
+                    onClose();
+                    toast.success(`${t('saleCompleted') || "تمت العملية"}`);
+                }, 100);
+                return;
+            }
         } else {
             // Enhanced Visual Alert
             const msg = result?.error || result?.message || "Transaction failed";
@@ -312,21 +394,30 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 w-full gap-3 pt-4">
+                    <div className="grid grid-cols-2 w-full gap-3 pt-4">
+                        <button
+                            onClick={() => handleSilentPrint(saleResult)}
+                            disabled={isSpeedPrinting}
+                            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-bold py-4 rounded-xl flex items-center justify-center gap-2 border border-purple-500/20 transition-all shadow-[0_0_15px_rgba(168,85,247,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isSpeedPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                            {t('speedPrint') || "طباعة سريعة"}
+                        </button>
+
                         <button
                             onClick={() => {
                                 // Explicit trigger for ReceiptModal logic
-                                setSaleResult({ ...saleResult, showPrint: true });
+                                setSaleResult({ ...saleResult, showPrint: true, disableAutoPrint: true });
                             }}
                             className="glass-card bg-white/5 hover:bg-white/10 text-white font-bold py-4 flex items-center justify-center gap-2 transition-all"
                         >
                             <Printer className="w-5 h-5" />
-                            {t('printReceipt') || "Print Receipt"}
+                            {t('normalPrint') || "خيارات الطباعة"}
                         </button>
 
                         <button
                             onClick={() => { setSaleResult(null); onClose(); }}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,255,0.3)] transition-all"
+                            className="col-span-2 bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,255,0.3)] transition-all"
                         >
                             {t('nextSale') || "Next Sale"}
                         </button>
