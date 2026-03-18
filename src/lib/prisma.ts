@@ -45,7 +45,7 @@ export const prisma =
         // @ts-ignore - Transaction configuration for interactive transactions
         transactionOptions: {
             maxWait: 5000, // 5s to wait for a connection
-            timeout: 30000, // 30s for the transaction to complete
+            timeout: 60000, // 60s for the transaction to complete
         },
     });
 

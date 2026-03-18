@@ -250,6 +250,17 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 />
                             </div>
 
+                            <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
+                                <div className="space-y-0.5">
+                                    <Label className="text-sm font-medium text-white">{t('autoPrintTicket')}</Label>
+                                    <p className="text-xs text-zinc-400">{t('autoPrintTicketDesc')}</p>
+                                </div>
+                                <Switch
+                                    checked={form.autoPrintTicket || false}
+                                    onCheckedChange={(checked) => handleChange('autoPrintTicket', checked)}
+                                />
+                            </div>
+
                             {Number(form.taxRate) > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                                     <div className="space-y-1">

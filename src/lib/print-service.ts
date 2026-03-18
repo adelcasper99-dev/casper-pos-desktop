@@ -464,6 +464,14 @@ class PrintService {
     return false;
   }
 
+  /**
+   * Forcefully silent print for POS / Tickets.
+   * If silent fail, it returns false rather than showing a dialog.
+   */
+  async printStrictlySilent(html: string, printerName: string, options?: { paperWidthMm?: number }): Promise<boolean> {
+      return await this.printSilentHTML(html, printerName, options);
+  }
+
   async saveToPDF(html: string, filename?: string): Promise<{ success: boolean; path?: string; error?: string }> {
     if (!this.isElectron()) {
       return { success: false, error: 'PDF export is only available in Desktop version' };
@@ -475,7 +483,7 @@ class PrintService {
    * Main entry point for receipt printing.
    * Tries silent print first; falls back to iframe print dialog.
    */
-  async printHTML(html: string, printerName?: string, options?: { paperWidthMm?: number }): Promise<void> {
+  async printHTML(html: string, printerName?: string, options?: { paperWidthMm?: number, strictlySilent?: boolean }): Promise<void> {
     // Resolve printer name from args > registry > localStorage
     const registry = this.getRegistry();
     const targetPrinter = printerName
@@ -491,10 +499,21 @@ class PrintService {
 
       const success = await Promise.race([printPromise, timeoutPromise]);
       if (success) return;
-      console.warn('[PrintService] Silent print timed out or failed — falling back to iframe dialog');
+      console.warn('[PrintService] Silent print timed out or failed');
     }
 
-    // ─── Fallback: Invisible iframe print dialog ──────────────────────
+    // 🛡️ [Electron/Strict] BLOCK FALLBACK DIALOG
+    if (this.isElectron() || options?.strictlySilent) {
+        if (!targetPrinter) {
+             logger.error('❌ [PrintService] No printer specified for silent print. Aborting to avoid dialog.');
+        } else {
+             logger.error('❌ [PrintService] Silent print failed for ' + targetPrinter + '. Aborting fallback.');
+        }
+        return;
+    }
+
+    // ─── Fallback: Invisible iframe print dialog (Only for Web/Fallback) ──────────────────────
+    console.log('[PrintService] Falling back to browser print dialog...');
     return new Promise((resolve, reject) => {
       try {
         const iframe = document.createElement('iframe');

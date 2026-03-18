@@ -10,64 +10,83 @@ import { ensureMainBranch, syncMainBranchDetails } from "@/lib/ensure-main-branc
 
 import { getSession } from "@/lib/auth";
 
+/**
+ * Get store settings - PUBLIC endpoint (no auth required but protected by CSRF)
+ * Used by client components for read-only access to store configuration
+ */
 export const getStoreSettings = secureAction(async () => {
-    let settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
-
-    if (!settings) {
-        settings = await prisma.storeSettings.create({
-            data: {
-                id: "settings",
-                name: "Casper Store",
-                currency: "EGP",
-                taxRate: 0.0
-            }
+    try {
+        let settings = await prisma.storeSettings.findUnique({
+            where: { id: "settings" }
         });
-    }
 
-    // Ensure one main branch exists (single-branch mode)
-    await ensureMainBranch();
-
-    // Serialize Decimal fields for client consumption
-    return {
-        data: {
-            ...settings,
-            taxRate: Number(settings.taxRate)
+        if (!settings) {
+            settings = await prisma.storeSettings.create({
+                data: {
+                    id: "settings",
+                    name: "Casper Store",
+                    currency: "EGP",
+                    taxRate: 0.0
+                }
+            });
         }
-    };
-}, { requireCSRF: false }); // Public read (mostly, or restrict to logged in users via secureAction default)
+
+        // Ensure one main branch exists (single-branch mode)
+        await ensureMainBranch();
+
+        // Serialize Decimal fields for client consumption
+        return {
+            success: true,
+            data: {
+                ...settings,
+                taxRate: Number(settings.taxRate)
+            }
+        };
+    } catch (error: any) {
+        console.error("Error fetching store settings:", error);
+        return { success: false, error: error.message };
+    }
+}, { requireCSRF: false });
 
 export const getEffectiveStoreSettings = secureAction(async () => {
-    // 1. Get Base Settings
-    const baseSettingsRes = await getStoreSettings();
-    if (!baseSettingsRes.success || !baseSettingsRes.data) {
-        const { getTranslations } = await import('@/lib/i18n-mock');
-        const t = await getTranslations('SystemMessages.Errors');
-        throw new Error(t('generic'));
-    }
-
-    // Initialize settings
-    let settings: any = { ...baseSettingsRes.data };
-
-    // 2. Get User Session to check for Branch Override
-    const session = await getSession();
-    const branchId = session?.user?.branchId;
-
-    if (branchId) {
-        const branch = await prisma.branch.findUnique({ where: { id: branchId } });
-        if (branch) {
-            settings = {
-                ...settings,
-                // Override with branch specific values if they exist (single-branch mode)
-                name: branch.name || settings.name,
-                address: branch.address || settings.address,
-                phone: branch.phone || settings.phone,
-            };
+    try {
+        // 1. Get Base Settings
+        const baseSettingsRes = await getStoreSettings();
+        if (!baseSettingsRes.success || !baseSettingsRes.data) {
+            const { getTranslations } = await import('@/lib/i18n-mock');
+            const t = await getTranslations('SystemMessages.Errors');
+            return { success: false, error: t('generic') };
         }
-    }
 
-    return { data: settings };
+        // Initialize settings
+        let settings: any = { ...baseSettingsRes.data };
+
+        // 2. Get User Session to check for Branch Override
+        try {
+            const session = await getSession();
+            const branchId = session?.user?.branchId;
+
+            if (branchId) {
+                const branch = await prisma.branch.findUnique({ where: { id: branchId } });
+                if (branch) {
+                    settings = {
+                        ...settings,
+                        // Override with branch specific values if they exist (single-branch mode)
+                        name: branch.name || settings.name,
+                        address: branch.address || settings.address,
+                        phone: branch.phone || settings.phone,
+                    };
+                }
+            }
+        } catch (sessionError) {
+            // Ignore session errors for unauthenticated users
+        }
+
+        return { success: true, data: settings };
+    } catch (error: any) {
+        console.error("Error fetching effective store settings:", error);
+        return { success: false, error: error.message };
+    }
 }, { requireCSRF: false });
 
 export const updateStoreSettings = secureAction(async (data: any) => {
@@ -85,6 +104,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             receiptFooter: validated.receiptFooter ?? undefined,
             logoUrl: validated.logoUrl ?? undefined,
             autoPrint: validated.autoPrint ?? undefined,
+            autoPrintTicket: validated.autoPrintTicket ?? undefined,
             paperSize: validated.paperSize ?? undefined,
             features: validated.features ?? undefined,
             labelTemplate: validated.labelTemplate ?? undefined,
@@ -92,7 +112,6 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             locationLng: validated.locationLng ?? undefined,
             locationRadius: validated.locationRadius ?? undefined,
             allowNegativeStock: validated.allowNegativeStock ?? undefined,
-            // @ts-ignore
             blindCloseEnabled: validated.blindCloseEnabled ?? undefined,
         },
         create: {
@@ -106,6 +125,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             receiptFooter: validated.receiptFooter || "Thank you for shopping with us!",
             logoUrl: validated.logoUrl || null,
             autoPrint: validated.autoPrint || false,
+            autoPrintTicket: validated.autoPrintTicket || false,
             paperSize: validated.paperSize || "80mm",
             features: validated.features || "{}",
             labelTemplate: validated.labelTemplate || null,
@@ -113,7 +133,6 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             locationLng: validated.locationLng || 46.6753,
             locationRadius: validated.locationRadius || 500,
             allowNegativeStock: validated.allowNegativeStock || false,
-            // @ts-ignore
             blindCloseEnabled: true,
         }
     });

@@ -103,6 +103,13 @@ export default function POSClientAPI({
                 isCheckoutOpen || isTableModalOpen || isCategoryModalOpen || isSpeedPrintModalOpen || showHeldCarts ||
                 !!document.querySelector('[role="dialog"]');
 
+            // 🛡️ BLOCK NATIVE BROWSER PRINT (Ctrl+P)
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                handleSpeedPrint();
+                return;
+            }
+
             // 0. Escape -> Clear overlays
             if (e.key === 'Escape') {
                 if (isCheckoutOpen) setIsCheckoutOpen(false);
@@ -374,20 +381,47 @@ export default function POSClientAPI({
     const handleSpeedPrint = async () => {
         if (items.length === 0 || isPrinting) return;
 
-        // Open ReceiptModal instead of printing directly
-        setSpeedPrintData({
-            items,
-            tableName,
-            customerName,
-            customerBalance,
-            customerPhone,
-            date: new Date().toISOString(),
-            invoiceNumber: "DRAFT",
-            subTotal: subTotal,
-            discountAmount: discountAmount,
-            totalAmount: finalTotal
-        });
-        setIsSpeedPrintModalOpen(true);
+        setIsPrinting(true);
+        try {
+            const { printService } = await import('@/lib/print-service');
+            const { generateThermalReceiptHTML } = await import('@/components/pos/ThermalReceiptTemplate');
+            
+            const registry = printService.getRegistry();
+            const widthToUse = settings?.paperSize === '58mm' ? 58 : 80;
+            const thermalPrinter = registry?.thermalPrinter || registry?.receiptPrinter || localStorage.getItem('printer_receipt') || '';
+            
+            if (!thermalPrinter || thermalPrinter === 'none') {
+                toast.error("يرجى تعيين الطابعة من إعدادات الطابعات");
+                return;
+            }
+
+            const saleData = {
+                items,
+                tableName,
+                customerName,
+                customerBalance,
+                customerPhone,
+                date: new Date().toISOString(),
+                invoiceNumber: "DRAFT",
+                subTotal: subTotal,
+                discountAmount: discountAmount,
+                totalAmount: finalTotal
+            };
+
+            const html = generateThermalReceiptHTML({ saleData, settings });
+            const copies = parseInt(localStorage.getItem('casper_default_print_copies') || '1', 10);
+
+            for (let i = 0; i < copies; i++) {
+                await printService.printStrictlySilent(html, thermalPrinter, { paperWidthMm: widthToUse });
+            }
+            
+            toast.success("تم إرسال الطباعة السريعة بنجاح");
+        } catch (error) {
+            console.error("Speed print failed:", error);
+            toast.error("فشلت الطباعة السريعة");
+        } finally {
+            setIsPrinting(false);
+        }
     };
 
     // Handle adding a product — fetches bundle components if needed
@@ -774,18 +808,6 @@ export default function POSClientAPI({
                 settings={settings}
                 csrfToken={csrfToken}
             />
-
-            {isSpeedPrintModalOpen && speedPrintData && (
-                <ReceiptModal
-                    isOpen={isSpeedPrintModalOpen}
-                    onClose={() => {
-                        setIsSpeedPrintModalOpen(false);
-                        setSpeedPrintData(null);
-                    }}
-                    saleData={speedPrintData}
-                    settings={settings}
-                />
-            )}
 
             <CategoryModal
                 isOpen={isCategoryModalOpen}

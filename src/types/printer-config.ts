@@ -29,6 +29,9 @@ export interface PrinterRegistry {
     /** Selected paper size (80mm, 58mm, 100mm) */
     paperSize?: string;
 
+    /** Default number of copies to print */
+    defaultCopies?: number;
+
     /** Last seen QZ Tray version */
     qzVersion?: string;
 
