@@ -144,25 +144,31 @@ function checkForConflictMarkers(files) {
         if (file.endsWith('.md') || file.endsWith('.png') || file.endsWith('.jpg') ||
             file.endsWith('.jpeg') || file.endsWith('.gif') || file.endsWith('.svg') ||
             file.endsWith('.ico') || file.endsWith('.woff') || file.endsWith('.woff2') ||
-            file.endsWith('.ttf') || file.endsWith('.eot')) {
-            continue;
+            file.endsWith('.ttf') || file.endsWith('.eot') || file.endsWith('.js') ||
+            file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.tsx')) {
+            // Note: We still check .js/.ts files because they commonly have conflicts
+            // But we'll be more precise about marker detection below
         }
 
         try {
             const content = execSync(`git show :${file}`, { encoding: 'utf-8' });
 
-            // Check for conflict markers
-            if (content.includes('<<<<<<<') || content.includes('=======') || content.includes('>>>>>>>')) {
-                // Find line numbers
-                const lines = content.split('\n');
-                const markers = [];
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    if (line.includes('<<<<<<<') || line.includes('=======') || line.includes('>>>>>>>')) {
-                        markers.push({ line: i + 1, content: line.trim() });
-                    }
+            // Check for conflict markers at the START of lines (with optional whitespace)
+            // This avoids false positives from strings containing these patterns
+            const lines = content.split('\n');
+            const markers = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                
+                // Only flag if line starts with conflict marker (after optional whitespace)
+                if (trimmed.startsWith('<<<<<<<') || trimmed.startsWith('=======') || trimmed.startsWith('>>>>>>>')) {
+                    markers.push({ line: i + 1, content: line.trim() });
                 }
+            }
 
+            if (markers.length > 0) {
                 conflicts.push({
                     file,
                     markers
