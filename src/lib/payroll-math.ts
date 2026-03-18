@@ -22,6 +22,11 @@ export function calculatePayroll(
     const workingDaysDec = new Decimal(workingDays);
     const workingHoursDec = new Decimal(workingHours);
 
+    // 1. Division by zero guard (E-02)
+    if (workingDaysDec.lte(0) || workingHoursDec.lte(0)) {
+        throw new Error(`Invalid payroll configuration: workingDays=${workingDays}, workingHours=${workingHours}`);
+    }
+
     // Calculate base rates with Decimal precision
     const dailySalary = baseSalaryDec.dividedBy(workingDaysDec);
     const hourlySalary = dailySalary.dividedBy(workingHoursDec);

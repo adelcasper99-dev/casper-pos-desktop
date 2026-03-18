@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from "@/lib/prisma";
+import Decimal from "decimal.js";
 import { startOfDay, endOfDay, subDays, eachDayOfInterval, format } from 'date-fns';
 
 
@@ -59,6 +60,31 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
         // ─────────────────────────────────────────────────────────────────────
         // 🔧 MAINTENANCE REVENUE: Tickets (DELIVERED or PAID_DELIVERED)
         // ─────────────────────────────────────────────────────────────────────
+        // R-01: Source Service Revenue strictly from GL (4100) to ensure P&L matching
+        const { AccountingEngine } = await import("@/lib/accounting/transaction-factory");
+        const serviceRevenueCode = '4100';
+        
+        // Find the account ID for 4100
+        const serviceRevenueAcc = await prisma.account.findFirst({
+            where: { code: serviceRevenueCode }
+        });
+        
+        let totalTicketRevenue = 0;
+        if (serviceRevenueAcc) {
+            // Sum all credits (revenue) minus debits (refunds/voids) to 4100 within date range
+            const serviceMvmt = await prisma.journalLine.aggregate({
+                where: {
+                    accountId: serviceRevenueAcc.id,
+                    journalEntry: {
+                        date: { gte: startDate, lte: endDate },
+                        ...ticketBranchFilter
+                    }
+                },
+                _sum: { credit: true, debit: true }
+            });
+            totalTicketRevenue = Number(serviceMvmt._sum.credit || 0) - Number(serviceMvmt._sum.debit || 0);
+        }
+
         const tickets = await prisma.ticket.findMany({
             where: {
                 createdAt: { gte: startDate, lte: endDate },
@@ -76,8 +102,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             }
         });
 
-        const totalTicketRevenue = tickets.reduce((sum, t) => sum + Number(t.repairPrice), 0);
-        const totalTicketPartsCost = tickets.reduce((sum, t) => sum + Number(t.partsCost || 0), 0);
+        const totalTicketPartsCost = tickets.reduce((sum, t) => sum.plus(new Decimal(t.partsCost ? String(t.partsCost) : '0')), new Decimal(0)).toNumber();
         const ticketCount = tickets.length;
 
         if (filters?.categoryId || filters?.productId) {
@@ -93,8 +118,8 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 select: { unitPrice: true, unitCost: true, quantity: true, saleId: true }
             });
 
-            totalSalesRevenue = filteredItems.reduce((sum, item) => sum + (Number(item.unitPrice) * item.quantity), 0);
-            totalCOGS = filteredItems.reduce((sum, item) => sum + (Number(item.unitCost) * item.quantity), 0);
+            totalSalesRevenue = filteredItems.reduce((sum, item) => sum.plus(new Decimal(String(item.unitPrice)).times(item.quantity)), new Decimal(0)).toNumber();
+            totalCOGS = filteredItems.reduce((sum, item) => sum.plus(new Decimal(String(item.unitCost)).times(item.quantity)), new Decimal(0)).toNumber();
             saleCount = new Set(filteredItems.map(i => i.saleId)).size;
 
             const expensesAgg = await prisma.expense.aggregate({
@@ -111,7 +136,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 },
                 select: { unitCost: true, quantity: true }
             });
-            totalPurchases = filteredPurchaseItems.reduce((sum, item) => sum + (Number(item.unitCost) * item.quantity), 0);
+            totalPurchases = filteredPurchaseItems.reduce((sum, item) => sum.plus(new Decimal(String(item.unitCost)).times(item.quantity)), new Decimal(0)).toNumber();
 
         } else {
             // -------------------------------------------------------------
@@ -166,10 +191,14 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // 🎯 COMBINED KPIs
+        // 🎯 COMBINED KPIs (Using Decimal for precision)
         // ─────────────────────────────────────────────────────────────────────
-        const totalRevenue = totalSalesRevenue + totalTicketRevenue;
-        const netProfit = totalRevenue - totalExpenses - totalCOGS - totalTicketPartsCost;
+        const totalRevenue = new Decimal(totalSalesRevenue).plus(totalTicketRevenue).toNumber();
+        const netProfit = new Decimal(totalRevenue)
+            .minus(totalExpenses)
+            .minus(totalCOGS)
+            .minus(totalTicketPartsCost)
+            .toNumber();
 
         // ─────────────────────────────────────────────────────────────────────
         // 📈 TREND DATA: Daily Revenue (POS + Maintenance)
@@ -192,11 +221,11 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 const dayEnd = endOfDay(day);
                 const dayPOS = filteredItemsForTrend
                     .filter(item => item.sale.createdAt >= dayStart && item.sale.createdAt <= dayEnd)
-                    .reduce((sum, item) => sum + (Number(item.unitPrice) * item.quantity), 0);
+                    .reduce((sum: Decimal, item) => sum.plus(new Decimal(String(item.unitPrice)).times(item.quantity)), new Decimal(0));
                 const dayMaint = tickets
                     .filter(t => t.createdAt >= dayStart && t.createdAt <= dayEnd)
-                    .reduce((sum, t) => sum + Number(t.repairPrice), 0);
-                return { date: format(day, 'yyyy-MM-dd'), revenue: dayPOS + dayMaint, posRevenue: dayPOS, maintenanceRevenue: dayMaint };
+                    .reduce((sum: Decimal, t) => sum.plus(new Decimal(String(t.repairPrice || 0))), new Decimal(0));
+                return { date: format(day, 'yyyy-MM-dd'), revenue: dayPOS.plus(dayMaint).toNumber(), posRevenue: dayPOS.toNumber(), maintenanceRevenue: dayMaint.toNumber() };
             });
         } else {
             const baseJournalEntryWhereForTrend = {
@@ -222,11 +251,11 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 const dayEnd = endOfDay(day);
                 const dayPOS = journalLinesForTrend
                     .filter(line => line.journalEntry.date >= dayStart && line.journalEntry.date <= dayEnd)
-                    .reduce((sum, line) => sum + Number(line.credit || 0), 0);
+                    .reduce((sum: Decimal, line) => sum.plus(new Decimal(String(line.credit || 0))), new Decimal(0));
                 const dayMaint = tickets
                     .filter(t => t.createdAt >= dayStart && t.createdAt <= dayEnd)
-                    .reduce((sum, t) => sum + Number(t.repairPrice), 0);
-                return { date: format(day, 'yyyy-MM-dd'), revenue: dayPOS + dayMaint, posRevenue: dayPOS, maintenanceRevenue: dayMaint };
+                    .reduce((sum: Decimal, t) => sum.plus(new Decimal(String(t.repairPrice || 0))), new Decimal(0));
+                return { date: format(day, 'yyyy-MM-dd'), revenue: dayPOS.plus(dayMaint).toNumber(), posRevenue: dayPOS.toNumber(), maintenanceRevenue: dayMaint.toNumber() };
             });
         }
 
@@ -289,7 +318,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 include: {
                     sale: { include: { warehouse: { include: { branch: true } } } },
                     purchase: { include: { warehouse: { include: { branch: true } } } },
-                    lines: true
+                    lines: { include: { account: true } }
                 },
                 orderBy: { date: 'desc' },
                 take: TAKE_LIMIT
@@ -299,13 +328,13 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 let type = 'JOURNAL', amount = 0, branch = 'الفرع الرئيسي', method = 'دفتر القيود', description = entry.description;
                 if (entry.sale) {
                     type = 'SALE'; branch = entry.sale.warehouse?.branch?.name ?? branch; method = entry.sale.paymentMethod;
-                    amount = Number(entry.lines.find(l => l.accountId === '4000')?.credit || entry.sale.totalAmount);
+                    amount = Number(entry.lines.find(l => l.account?.code === '4000')?.credit || entry.sale.totalAmount);
                 } else if (entry.purchase) {
                     type = 'PURCHASE'; branch = entry.purchase.warehouse?.branch?.name ?? branch; method = entry.purchase.paymentMethod;
-                    amount = -Number(entry.lines.find(l => l.accountId === '1200')?.debit || entry.purchase.totalAmount);
+                    amount = -Number(entry.lines.find(l => l.account?.code === '1200')?.debit || entry.purchase.totalAmount);
                 } else {
-                    if (entry.lines.some(l => ['5100', '5200', '5300', '5400'].includes(l.accountId) && l.debit.greaterThan(0))) {
-                        type = 'EXPENSE'; amount = -Number(entry.lines.find(l => ['5100', '5200', '5300', '5400'].includes(l.accountId))?.debit || 0);
+                    if (entry.lines.some(l => ['5100', '5200', '5300', '5400'].includes(l.account?.code || '') && l.debit.greaterThan(0))) {
+                        type = 'EXPENSE'; amount = -Number(entry.lines.find(l => ['5100', '5200', '5300', '5400'].includes(l.account?.code || ''))?.debit || 0);
                     } else {
                         amount = entry.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
                     }

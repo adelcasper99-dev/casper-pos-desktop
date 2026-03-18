@@ -619,6 +619,8 @@ model Transaction {
   treasuryId           String?
   treasury             Treasury? @relation(fields: [treasuryId], references: [id])
   shift                Shift?    @relation(fields: [shiftId], references: [id])
+  expenseId            String?
+  expense              Expense?  @relation(fields: [expenseId], references: [id], onDelete: SetNull)
   referenceId          String?
   referenceType        String?
   isReversed           Boolean   @default(false)
@@ -639,6 +641,7 @@ model Expense {
   shift          Shift?         @relation("ShiftExpenses", fields: [shiftId], references: [id])
   branch         Branch?        @relation(fields: [branchId], references: [id])
   journalEntries JournalEntry[]
+  transactions   Transaction[]
 }
 
 model ActionLog {
@@ -741,6 +744,8 @@ model Ticket {
   previousStatus     String?
   parentTicketId     String?
   isWarrantyReturn   Boolean              @default(false)
+  slaDeadlineAt      DateTime?            // T-01 SLA Tracking
+  slaBreachedAt      DateTime?            // T-01 SLA Tracking
   feedback           Feedback?
   logs               NotificationLog[]
   payments           RepairPayment[]

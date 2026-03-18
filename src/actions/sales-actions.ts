@@ -19,6 +19,10 @@ import {
     calculateProratedRefundValue,
     calculateCogsReversal
 } from '@/utils/refund-calculations';
+import { 
+    createCustomerTransactionJournal,
+    createSupplierPaymentJournal 
+} from '@/lib/accounting/inline-journal-helpers';
 
 interface SalesHistoryFilters {
     startDate?: string;
@@ -157,9 +161,10 @@ export const refundSale = secureAction(async (data: {
     refundMethod?: 'CASH' | 'STORE_CREDIT';
     isDamaged?: boolean;
     treasuryId?: string;
+    idempotencyKey?: string;
     csrfToken?: string;
 }) => {
-    const { saleId, reason, refundMethod = 'CASH', isDamaged = false, treasuryId } = data;
+    const { saleId, reason, refundMethod = 'CASH', isDamaged = false, treasuryId, idempotencyKey } = data;
     const currentUser = await getCurrentUser();
 
     if (!currentUser) {
@@ -175,6 +180,16 @@ export const refundSale = secureAction(async (data: {
 
     // Execute atomic refund transaction
     const result = await prisma.$transaction(async (tx) => {
+        // RF-03: Idempotency Lock Check
+        if (idempotencyKey) {
+            const existingRefund = await (tx.sale as any).findFirst({
+                where: { parentId: saleId, isReturn: true, refundReason: { contains: `[IDEM:${idempotencyKey}]` } }
+            });
+            if (existingRefund) {
+                return { isIdempotentHit: true, ...existingRefund };
+            }
+        }
+
         // 1. Fetch original sale
         const sale = await (tx.sale.findUnique as any)({
             where: { id: saleId },
@@ -249,6 +264,7 @@ export const refundSale = secureAction(async (data: {
                 paymentMethod: finalRefundMethod,
                 branchId: (sale as any).branchId || currentUser.branchId || null,
                 status: 'REFUNDED',
+                refundReason: `${reason || 'بدون سبب'} ${idempotencyKey ? `[IDEM:${idempotencyKey}]` : ''}`,
                 subTotal: new Decimal(new Decimal(sale.subTotal || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated subtotal
                 taxAmount: new Decimal(new Decimal(sale.taxAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated tax
                 discountAmount: new Decimal(new Decimal(sale.discountAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated discount
@@ -314,7 +330,7 @@ export const refundSale = secureAction(async (data: {
                 data: { walletBalance: { increment: amountToWallet } } as any
             });
 
-            await tx.customerTransaction.create({
+            const walletTx = await tx.customerTransaction.create({
                 data: {
                     customerId: sale.customerId,
                     type: 'CREDIT',
@@ -324,11 +340,21 @@ export const refundSale = secureAction(async (data: {
                     createdBy: currentUser.id
                 }
             });
+            // Auto-create journal entry
+            await createCustomerTransactionJournal(tx, {
+                customerTransactionId: walletTx.id,
+                customerId: sale.customerId,
+                type: 'CREDIT',
+                amount: amountToWallet,
+                description: `Store Credit: ${walletTx.description}`,
+                reference: returnSale.id,
+                branchId: (sale as any).branchId
+            });
         }
 
         // 3. Handle Customer Account Reversal (credit portion or full ACCOUNT sale)
         if (sale.customerId && amountToAccount > 0) {
-            await tx.customerTransaction.create({
+            const accountTx = await tx.customerTransaction.create({
                 data: {
                     customerId: sale.customerId,
                     type: 'CREDIT',
@@ -337,6 +363,16 @@ export const refundSale = secureAction(async (data: {
                     reference: returnSale.id,
                     createdBy: currentUser.id
                 }
+            });
+            // Auto-create journal entry
+            await createCustomerTransactionJournal(tx, {
+                customerTransactionId: accountTx.id,
+                customerId: sale.customerId,
+                type: 'REFUND',
+                amount: amountToAccount,
+                description: `Refund: ${accountTx.description}`,
+                reference: returnSale.id,
+                branchId: (sale as any).branchId
             });
 
             await tx.customer.update({
@@ -352,13 +388,22 @@ export const refundSale = secureAction(async (data: {
                 data: { balance: { decrement: remainingTotalAmount } }
             });
 
-            await tx.supplierPayment.create({
+            const supplierPay = await tx.supplierPayment.create({
                 data: {
                     supplierId: (sale as any).relatedSupplierId,
                     amount: new Decimal(remainingTotalAmount),
                     method: 'ADJUSTMENT',
                     notes: `Refund Adjustment for Sale #${sale.id.split('-')[0]}`
                 }
+            });
+            // Auto-create journal entry
+            await createSupplierPaymentJournal(tx, {
+                supplierPaymentId: supplierPay.id,
+                supplierId: (sale as any).relatedSupplierId,
+                amount: remainingTotalAmount,
+                method: 'ADJUSTMENT',
+                notes: supplierPay.notes || undefined,
+                branchId: (sale as any).branchId || undefined
             });
         }
 

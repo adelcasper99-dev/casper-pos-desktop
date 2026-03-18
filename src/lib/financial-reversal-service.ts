@@ -93,25 +93,38 @@ export class FinancialReversalService {
         reason: string
     ) {
         // Find journal entries where reference field in DB matches referenceId
-        // In our schema, JournalEntry has a 'reference' string field
         const entries = await tx.journalEntry.findMany({
-            where: { reference: referenceId }
+            where: { reference: referenceId },
+            include: { lines: true }
         });
 
         for (const entry of entries) {
-            // We can either delete (cascade deletes lines) or mark as void if schema supported it.
-            // Currently schema doesn't have a 'void' flag, so we delete or contra-entry.
-            // Deletion is cleaner for cleanup.
-            await tx.journalEntry.delete({
-                where: { id: entry.id }
-            });
+            // Reversing via contra-entry instead of hard delete to preserve audit trail
+            if (entry.lines.length > 0) {
+                await tx.journalEntry.create({
+                    data: {
+                        description: `VOID: ${entry.description} — ${reason}`,
+                        reference: `VOID-${entry.reference || entry.id.slice(0, 8)}`,
+                        branchId: entry.branchId,
+                        date: new Date(),
+                        lines: {
+                            create: entry.lines.map((l: any) => ({
+                                accountId: l.accountId,
+                                debit: l.credit,      // swapped
+                                credit: l.debit,      // swapped
+                                description: `VOID: ${l.description || reason}`
+                            }))
+                        }
+                    }
+                });
+            }
 
             // Audit
             await tx.auditLog.create({
                 data: {
                     entityType: "JOURNAL_ENTRY",
                     entityId: entry.id,
-                    action: "VOID",
+                    action: "VOID_CONTRA_REVERSAL",
                     previousData: JSON.stringify(entry),
                     reason: reason,
                 }

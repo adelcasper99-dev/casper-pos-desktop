@@ -7,6 +7,7 @@ import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { getCurrentUser } from "./auth";
 import { PERMISSIONS } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
+import { financialRepo } from "@/lib/repositories/financial-repo";
 
 
 // ──────────────────────────────────────────────
@@ -275,18 +276,17 @@ export const issueStoreCredit = secureAction(
       });
       if (!customer) throw new Error("العميل غير موجود في النظام");
 
-      // 1. CustomerTransaction — type CREDIT
-      await tx.customerTransaction.create({
-        data: {
-          customerId,
-          type: "CREDIT",
-          amount: amountDecimal,
-          description:
-            `رصيد مرتجع (Store Credit) — مرجع: ${sourceId.slice(0, 8).toUpperCase()}` +
-            (reason ? ` | ${reason}` : ""),
-          reference: sourceId,
-          createdBy: currentUser.id,
-        },
+      // 1. CustomerTransaction — type CREDIT - with auto journal
+      await financialRepo.createCustomerTransaction(tx, {
+        customerId,
+        type: "CREDIT",
+        amount: amountDecimal,
+        description:
+          `رصيد مرتجع (Store Credit) — مرجع: ${sourceId.slice(0, 8).toUpperCase()}` +
+          (reason ? ` | ${reason}` : ""),
+        reference: sourceId,
+        createdBy: currentUser.id,
+        branchId: currentUser.branchId || null
       });
 
       // 2. Decrement balance (credit = we owe customer)

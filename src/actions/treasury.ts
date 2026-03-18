@@ -209,6 +209,12 @@ export async function updateTreasuryTransaction(
 ) {
   try {
     const existing = await prisma.transaction.findUnique({ where: { id } });
+    
+    // TR-03 Guard: Prohibit amount edits on posted transactions
+    if (existing && Number(existing.amount) !== data.amount) {
+        return { success: false, error: 'لا يمكن تعديل مبلغ حركة مُرحَّلة. يرجى إلغاء الحركة وإعادة ترحيلها.' };
+    }
+
     if (existing) {
       await prisma.auditLog.create({
         data: {
@@ -493,6 +499,21 @@ export async function transferBetweenTreasuries(data: {
           treasuryId: data.toTreasuryId,
         },
       });
+
+      // 3. Accounting: Record inter-fund transfer
+      const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
+      const glMap: Record<string, string> = { CASH: '1000', VISA: '1010', CARD: '1010', INSTAPAY: '1020', WALLET: '1020' };
+      const glCode = glMap[method] ?? '1000';
+      const fromBranchId = fromTreasury.branchId ?? undefined;
+      await AccountingEngine.recordTransaction({
+          description: `Inter-Fund Transfer: ${fromTreasury.name} → ${toTreasury.name}`,
+          reference: `TRF-${Date.now()}`,
+          branchId: fromBranchId,
+          lines: [
+              { accountCode: glCode, debit: data.amount, credit: 0,           description: `Received by ${toTreasury.name}` },
+              { accountCode: glCode, debit: 0,           credit: data.amount, description: `Sent from ${fromTreasury.name}` }
+          ]
+      }, tx);
     });
 
     revalidatePath("/treasury");

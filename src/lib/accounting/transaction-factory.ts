@@ -324,6 +324,7 @@ export class AccountingEngine {
         return this.recordTransaction({
             description: `Maintenance COGS: Ticket #${barcode}`,
             reference: ticketId,
+            branchId, // R-02
             ticketId,
             lines: [
                 { accountCode: '5000', debit: cost.toNumber(), credit: 0, description: 'Cost of Parts Used' },

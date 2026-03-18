@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Decimal } from "@prisma/client/runtime/library";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { secureAction } from "@/lib/safe-action";
+import { financialRepo } from "@/lib/repositories/financial-repo";
 
 import { productSchema, supplierSchema, categorySchema, purchaseSchema, warehouseSchema } from "@/lib/validation/inventory";
 import { CACHE_TAGS } from "@/lib/cache-keys";
@@ -56,14 +57,13 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
         });
 
         if (validated.openingBalance && validated.openingBalance !== 0) {
-            // 1. Create opening transaction record
-            await tx.supplierPayment.create({
-                data: {
-                    supplierId: s.id,
-                    amount: new Decimal(validated.openingBalance),
-                    method: 'OPENING_BALANCE',
-                    notes: 'Initial Opening Balance'
-                }
+            // 1. Create opening transaction record - with auto journal
+            await financialRepo.createSupplierPayment(tx, {
+                supplierId: s.id,
+                amount: validated.openingBalance,
+                method: 'OPENING_BALANCE',
+                notes: 'Initial Opening Balance',
+                branchId: (await getCurrentUser())?.branchId || null
             });
 
             // 2. Accounting Sync: DR 3000 (Equity) / CR 2000 (AP)
@@ -160,14 +160,13 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
     }
 
     await prisma.$transaction(async (tx) => {
-        // 1. Create Payment Record
-        const payment = await tx.supplierPayment.create({
-            data: {
-                supplierId,
-                amount: new Decimal(amount),
-                method: method,
-                notes: `Manual Payment - ${method}`
-            }
+        // 1. Create Payment Record - with auto journal
+        const payment = await financialRepo.createSupplierPayment(tx, {
+            supplierId,
+            amount: amount,
+            method: method,
+            notes: `Manual Payment - ${method}`,
+            branchId: user?.branchId || null
         });
 
         // 2. Decrease Supplier Balance (Debt decreases when we pay)
@@ -753,9 +752,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     const user = await getCurrentUser();
 
     // Calculate Totals
-    const subtotal = items.reduce((acc: number, item) => acc + (item.quantity * item.unitCost), 0);
-    const deliveryCharge = header.deliveryCharge || 0;
-    const totalAmount = subtotal + deliveryCharge;
+    const subtotal = items.reduce((acc: Decimal, item) => acc.plus(new Decimal(String(item.unitCost)).times(item.quantity)), new Decimal(0));
+    const deliveryCharge = new Decimal(header.deliveryCharge || 0);
+    const totalAmount = subtotal.plus(deliveryCharge).toNumber();
     const paidAmount = header.paidAmount || 0;
 
     let status = "PENDING";
@@ -884,15 +883,14 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             data: { balance: { increment: totalAmount - paidAmount } }
         });
 
-        // F. Record Payment (Optimized)
+        // F. Record Payment (Optimized) - with auto journal
         if (paidAmount > 0) {
-            await tx.supplierPayment.create({
-                data: {
-                    supplierId: header.supplierId,
-                    amount: paidAmount,
-                    method: header.paymentMethod || "CASH",
-                    notes: `Invoice Payment #${finalInvoiceNumber}`
-                }
+            await financialRepo.createSupplierPayment(tx, {
+                supplierId: header.supplierId,
+                amount: paidAmount,
+                method: header.paymentMethod || "CASH",
+                notes: `Invoice Payment #${finalInvoiceNumber}`,
+                branchId: user?.branchId || null
             });
 
             // Treasury Logic
@@ -1103,9 +1101,9 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             });
         }
 
-        const subtotal = processedItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
-        const deliveryCharge = header.deliveryCharge || 0;
-        const totalAmount = subtotal + deliveryCharge;
+        const subtotal = processedItems.reduce((acc: Decimal, i) => acc.plus(new Decimal(String(i.unitCost)).times(i.quantity)), new Decimal(0));
+        const deliveryCharge = new Decimal(header.deliveryCharge || 0);
+        const totalAmount = subtotal.plus(deliveryCharge).toNumber();
         const paidAmount = header.paidAmount || 0;
         let status = "PENDING";
         if (paidAmount >= totalAmount) status = "PAID";
@@ -1136,13 +1134,13 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
 
         if (paidAmount > oldInvoice.paidAmount.toNumber()) {
             const diffAmount = paidAmount - oldInvoice.paidAmount.toNumber();
-            await tx.supplierPayment.create({
-                data: {
-                    supplierId: header.supplierId,
-                    amount: diffAmount,
-                    method: header.paymentMethod || "CASH",
-                    notes: `Update Invoice Payment #${header.invoiceNumber || id}`
-                }
+            // Update payment - with auto journal
+            await financialRepo.createSupplierPayment(tx, {
+                supplierId: header.supplierId,
+                amount: diffAmount,
+                method: header.paymentMethod || "CASH",
+                notes: `Update Invoice Payment #${header.invoiceNumber || id}`,
+                branchId: user?.branchId || null
             });
 
             if (user?.branchId || treasuryId) {
@@ -1374,15 +1372,6 @@ export const getWarehouses = secureAction(async () => {
         include: { branch: true },
         orderBy: { isDefault: 'desc' }
     });
-
-    try {
-        const fs = require('fs');
-        const dbState = {
-            allBranches: await prisma.branch.findMany(),
-            allWarehouses: warehouses,
-        };
-        fs.writeFileSync('C:\\Users\\ozza\\.gemini\\antigravity\\brain\\47ae2f5f-ec29-4607-84f9-2ac1dbec6764\\db_dump.json', JSON.parse(JSON.stringify(dbState, (k, v) => typeof v === 'bigint' ? v.toString() : v)));
-    } catch (e) {}
 
     return { data: warehouses, isHQUser };
 }, { requireCSRF: false });
@@ -2148,8 +2137,8 @@ export const bulkImportPurchases = secureAction(async (data: {
                 });
             }
 
-            const subtotal = finalItems.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
-            const totalAmount = subtotal + invoice.deliveryCharge;
+            const subtotal = finalItems.reduce((acc: Decimal, i) => acc.plus(new Decimal(String(i.unitCost)).times(i.quantity)), new Decimal(0));
+            const totalAmount = subtotal.plus(new Decimal(String(invoice.deliveryCharge))).toNumber();
             let status = "PENDING";
             if (invoice.paidAmount >= totalAmount) status = "PAID";
             else if (invoice.paidAmount > 0) status = "PARTIAL";

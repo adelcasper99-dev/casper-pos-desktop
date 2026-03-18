@@ -1098,6 +1098,10 @@ export const softDeleteTicket = secureAction(async (data: {
             }
         });
 
+        // 6. Comprehensive Accounting Reversal (T-02)
+        const { FinancialReversalService } = await import('@/lib/financial-reversal-service');
+        await FinancialReversalService.reverseAccountingEntries(tx, ticketId, `مسح التذكرة: ${reason}`);
+
         // --- Part 5: Final Audit Log ---
         await tx.auditLog.create({
             data: {

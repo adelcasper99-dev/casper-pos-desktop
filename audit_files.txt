@@ -1,0 +1,8 @@
+commit 3336d842cb4ff792f25f10885a6e44646b1bd13a
+Merge: 73e224d 3a5c12c
+Author: Adel OzZa <adelcasper99@gmail.com>
+Date:   Wed Mar 18 11:24:24 2026 +0200
+
+    Merge remote-tracking branch 'origin/main' into main
+
+src/lib/prisma.ts
