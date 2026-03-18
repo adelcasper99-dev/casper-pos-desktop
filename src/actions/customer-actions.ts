@@ -8,6 +8,7 @@ import { getTranslations } from '@/lib/i18n-mock';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
+import { financialRepo } from '@/lib/repositories/financial-repo';
 import { z } from 'zod';
 
 
@@ -129,18 +130,15 @@ export const createCustomer = secureAction(async ({ name, phone, address, linked
             });
 
             if (openingBalance && openingBalance !== 0) {
-                // 1. Create opening transaction record
-                const transaction = await tx.customerTransaction.create({
-                    data: {
-                        customerId: c.id,
-                        type: 'OPENING_BALANCE',
-                        amount: openingBalance,
-                        description: 'Initial Opening Balance'
-                    }
-                });
-
-                // 2. Accounting Sync: DR 1100 (AR) / CR 3000 (Equity)
+                // 1. Create opening transaction record - with auto journal
                 const currentUser = await getCurrentUser();
+                const transaction = await financialRepo.createCustomerTransaction(tx, {
+                    customerId: c.id,
+                    type: 'OPENING_BALANCE',
+                    amount: openingBalance,
+                    description: 'Initial Opening Balance',
+                    branchId: currentUser?.branchId || null
+                });
                 await AccountingEngine.recordTransaction({
                     description: `Opening Balance: ${c.name}`,
                     reference: transaction.id,
@@ -325,16 +323,15 @@ export const recordCustomerPayment = secureAction(async (data: {
 
     // Atomic transaction for all updates
     const result = await prisma.$transaction(async (tx) => {
-        // 1. Create CREDIT transaction (reduces what customer owes)
-        const transaction = await tx.customerTransaction.create({
-            data: {
-                customerId,
-                type: 'CREDIT',
-                amount,
-                description: `Payment received - ${paymentMethod}`,
-                reference,
-                createdBy: currentUser.id
-            }
+        // 1. Create CREDIT transaction (reduces what customer owes) - with auto journal
+        const transaction = await financialRepo.createCustomerTransaction(tx, {
+            customerId,
+            type: 'CREDIT',
+            amount,
+            description: `Payment received - ${paymentMethod}`,
+            reference,
+            createdBy: currentUser.id,
+            branchId: currentUser.branchId || null
         });
 
         // 2. Reduce customer balance
@@ -490,15 +487,15 @@ export const adjustAccountBalance = secureAction(async (data: {
             });
             name = customer.name;
 
-            // 1. Sub-ledger entry
-            const transaction = await tx.customerTransaction.create({
-                data: {
-                    customerId: entityId,
-                    type: amount > 0 ? 'DEBIT' : 'CREDIT',
-                    amount: absAmount,
-                    description: `${type}: ${reason}`,
-                    createdBy: currentUser.id
-                }
+            // 1. Sub-ledger entry - with auto journal
+            const transaction = await financialRepo.createCustomerTransaction(tx, {
+                customerId: entityId,
+                type: amount > 0 ? 'DEBIT' : 'CREDIT',
+                amount: absAmount,
+                description: `${type}: ${reason}`,
+                createdBy: currentUser.id,
+                branchId: currentUser.branchId || null,
+                skipJournal: true // Skip auto-journal since we have manual GL entry below
             });
 
             // 2. GL Entry
@@ -528,14 +525,14 @@ export const adjustAccountBalance = secureAction(async (data: {
             });
             name = supplier.name;
 
-            // 1. Sub-ledger entry (using SupplierPayment as a generic txn log)
-            const payment = await tx.supplierPayment.create({
-                data: {
-                    supplierId: entityId,
-                    amount: new Decimal(absAmount),
-                    method: 'ADJUSTMENT',
-                    notes: `${type}: ${reason}`
-                }
+            // 1. Sub-ledger entry (using SupplierPayment as a generic txn log) - with auto journal
+            const payment = await financialRepo.createSupplierPayment(tx, {
+                supplierId: entityId,
+                amount: absAmount,
+                method: 'ADJUSTMENT',
+                notes: `${type}: ${reason}`,
+                branchId: currentUser.branchId || null,
+                skipJournal: true // Skip auto-journal since we have manual GL entry below
             });
 
             // 2. GL Entry

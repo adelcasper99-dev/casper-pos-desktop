@@ -6,6 +6,7 @@ import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
+import { financialRepo } from "@/lib/repositories/financial-repo";
 
 const db = prisma as any;
 import { calculateNetDue } from "@/lib/salary-utils";
@@ -298,14 +299,14 @@ export const payEmployeeSalary = secureAction(async (data: {
         }
 
         const result = await (prisma as any).$transaction(async (tx: any) => {
-            // 1. Create Employee Transaction (Ledger)
-            const empTx = await tx.employeeTransaction.create({
-                data: {
-                    userId: data.userId,
-                    type: 'SALARY_PAYMENT',
-                    amount: data.amount,
-                    description: data.notes || `سداد راتب عبر ${data.paymentMethod}`,
-                }
+            // 1. Create Employee Transaction (Ledger) - with auto journal
+            const empTx = await financialRepo.createEmployeeTransaction(tx, {
+                userId: data.userId,
+                type: 'SALARY_PAYMENT',
+                amount: data.amount,
+                description: data.notes || `سداد راتب عبر ${data.paymentMethod}`,
+                branchId: session?.user?.branchId || null,
+                skipJournal: true // Skip auto-journal since we have manual accounting below
             });
 
             // 2. Accounting Entry
