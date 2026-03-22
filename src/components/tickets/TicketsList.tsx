@@ -151,7 +151,9 @@ export default function TicketsList() {
             'PICKED_UP': t('status.pickedUp'),
             'CANCELLED': t('status.cancelled'),
             'REJECTED': t('status.rejected'),
-            'RETURNED_FOR_REFIX': t('status.returnedForRefix')
+            'RETURNED_FOR_REFIX': t('status.returnedForRefix'),
+            'WARRANTY': t('filters.warranty'),
+            'RETURNS': t('filters.returns')
         }
         return statusMap[status] || status.toUpperCase()
     }
@@ -345,17 +347,13 @@ export default function TicketsList() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
                             <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">{t('table.status')}</DropdownMenuLabel>
-                            {['all', 'new', 'in_progress', 'waiting_for_parts', 'completed', 'ready_at_branch', 'picked_up', 'delivered', 'paid_delivered', 'warranty', 'returns', 'rejected'].map(st => (
+                            {['all', 'new', 'in_progress', 'waiting_for_parts', 'completed', 'delivered', 'paid_delivered', 'warranty', 'returns', 'rejected', 'cancelled'].map(st => (
                                 <DropdownMenuItem 
                                     key={st} 
                                     onClick={() => handleFilterChange(st)}
                                     className={statusFilter === st ? "bg-white/10" : ""}
                                 >
-                                    {st === 'all' ? t('filters.all') : (
-                                        st === 'in_progress' ? t('filters.inProgress') :
-                                            st === 'paid_delivered' ? t('status.paidDelivered') :
-                                                getStatusLabel(st.toUpperCase())
-                                    )}
+                                    {st === 'all' ? t('filters.all') : getStatusLabel(st.toUpperCase())}
                                 </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>

@@ -6,6 +6,7 @@ import { secureAction } from '@/lib/safe-action';
 import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
 import { getTranslations } from "@/lib/i18n-mock";
+import { Decimal } from "@prisma/client/runtime/library";
 
 /**
  * Inter-HQ Fund Transfer Action
@@ -47,11 +48,14 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
         throw new Error(t('notFound'));
     }
 
+    const fromBalance = new Decimal(fromTreasury.balance.toString());
+    const amountDec = new Decimal(amount);
+
     // Verify source treasury has sufficient balance
-    if (Number(fromTreasury.balance) < amount) {
+    if (fromBalance.lt(amountDec)) {
         const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
         if (!canGoNegative) {
-            throw new Error(t('insufficientFunds', { available: Number(fromTreasury.balance), required: amount }));
+            throw new Error(t('insufficientFunds', { available: fromBalance.toNumber(), required: amount }));
         }
     }
 
@@ -65,20 +69,20 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
         // Deduct from source treasury
         await tx.treasury.update({
             where: { id: fromTreasuryId },
-            data: { balance: { decrement: amount } }
+            data: { balance: { decrement: amountDec } }
         });
 
         // Add to destination treasury
         await tx.treasury.update({
             where: { id: toTreasuryId },
-            data: { balance: { increment: amount } }
+            data: { balance: { increment: amountDec } }
         });
 
         // Create outgoing transaction
         const outgoingTx = await tx.transaction.create({
             data: {
                 type: 'INTER_HQ_OUT',
-                amount,
+                amount: amountDec,
                 description: `Transfer to ${toTreasury.branch.name} - ${description}${approverNotes ? ` | Notes: ${approverNotes}` : ''}`,
                 paymentMethod,
                 treasuryId: fromTreasuryId,
@@ -90,7 +94,7 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
         await tx.transaction.create({
             data: {
                 type: 'INTER_HQ_IN',
-                amount,
+                amount: amountDec,
                 description: `Transfer from ${fromTreasury.branch.name} - ${description}${approverNotes ? ` | Notes: ${approverNotes}` : ''}`,
                 paymentMethod,
                 treasuryId: toTreasuryId,
@@ -106,13 +110,13 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
                 entityId: `${fromTreasuryId}-${toTreasuryId}`,
                 action: 'INTER_HQ_TRANSFER',
                 previousData: JSON.stringify({
-                    fromBalance: Number(fromTreasury.balance),
-                    toBalance: Number(toTreasury.balance)
+                    fromBalance: fromBalance.toNumber(),
+                    toBalance: new Decimal(toTreasury.balance.toString()).toNumber()
                 }),
                 newData: JSON.stringify({
-                    fromBalance: Number(fromTreasury.balance) - amount,
-                    toBalance: Number(toTreasury.balance) + amount,
-                    amount,
+                    fromBalance: fromBalance.sub(amountDec).toNumber(),
+                    toBalance: new Decimal(toTreasury.balance.toString()).add(amountDec).toNumber(),
+                    amount: amountDec.toNumber(),
                     paymentMethod
                 }),
                 reason: description,
@@ -135,8 +139,8 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
             date: new Date(),
             branchId: fromTreasury.branchId,
             lines: [
-                { accountCode: toGl, debit: amount, credit: 0, description: `Inbound HQ Transfer to ${toTreasury.branch.name}` },
-                { accountCode: fromGl, debit: 0, credit: amount, description: `Outbound HQ Transfer from ${fromTreasury.branch.name}` }
+                { accountCode: toGl, debit: amountDec.toNumber(), credit: 0, description: `Inbound HQ Transfer to ${toTreasury.branch.name}` },
+                { accountCode: fromGl, debit: 0, credit: amountDec.toNumber(), description: `Outbound HQ Transfer from ${fromTreasury.branch.name}` }
             ]
         }, tx);
     });

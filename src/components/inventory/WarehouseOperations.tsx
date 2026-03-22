@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowRightLeft, Package, AlertTriangle, ScanBarcode } from "lucide-react";
+import { ArrowRightLeft, Package, AlertTriangle, ScanBarcode, X } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { adjustStock, getWarehouseStock } from "@/actions/inventory";
 import { transferStock } from "@/actions/inventory-transfer";
@@ -29,6 +29,10 @@ interface Product {
     name: string;
     sku: string;
     stock: number; // Global stock
+    costPrice?: number;
+    sellPrice?: number;
+    sellPrice2?: number;
+    sellPrice3?: number;
 }
 
 export default function WarehouseOperations({
@@ -71,7 +75,7 @@ export default function WarehouseOperations({
 
     const [fromId, setFromId] = useState("");
     const [toId, setToId] = useState("");
-    const [transferItems, setTransferItems] = useState<{ productId: string; quantity: number }[]>([]);
+    const [transferItems, setTransferItems] = useState<{ productId: string; quantity: number; priceTier?: string }[]>([]);
 
     // Filtered lists for Transfer
     const fromWarehouses = getWarehousesForBranch(fromBranchId);
@@ -121,7 +125,7 @@ export default function WarehouseOperations({
     const filteredProducts = search ? products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.includes(search)).slice(0, 5) : [];
 
     const handleAddTransferItem = (p: Product) => {
-        setTransferItems(prev => [...prev, { productId: p.id, quantity: 1 }]);
+        setTransferItems(prev => [...prev, { productId: p.id, quantity: 1, priceTier: 'Cost' }]);
         setSearch("");
     };
 
@@ -309,9 +313,36 @@ export default function WarehouseOperations({
                                     <div key={idx} className="flex justify-between items-center bg-muted/50 p-3 rounded-xl border border-border">
                                         <div>
                                             <span className="text-sm font-bold block text-foreground">{p?.name || item.productId}</span>
-                                            <span className="text-xs text-muted-foreground">Max: {maxQty}</span>
+                                            <span className="text-xs text-muted-foreground mr-2">Max: {maxQty}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
+                                            <div className="flex flex-col gap-1 mx-2">
+                                                <span className="text-[10px] text-muted-foreground uppercase text-center mb-0.5">Price Tier</span>
+                                                <div className="flex items-center gap-1 bg-background p-1 rounded-lg border border-border flex-wrap max-w-[200px] justify-center">
+                                                    {['Cost', 'Sell 1', 'Sell 2', 'Sell 3'].map(tier => {
+                                                        let label = `Cost (${p?.costPrice ?? 0})`;
+                                                        if (tier === 'Sell 1') label = `S1 (${p?.sellPrice ?? 0})`;
+                                                        if (tier === 'Sell 2') label = `S2 (${p?.sellPrice2 ?? 0})`;
+                                                        if (tier === 'Sell 3') label = `S3 (${p?.sellPrice3 ?? 0})`;
+                                                        
+                                                        const isActive = (item.priceTier || 'Cost') === tier;
+                                                        
+                                                        return (
+                                                            <button 
+                                                                key={tier}
+                                                                onClick={(e) => {
+                                                                    const newItems = [...transferItems];
+                                                                    newItems[idx].priceTier = tier;
+                                                                    setTransferItems(newItems);
+                                                                }}
+                                                                className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${isActive ? 'bg-cyan-500 text-black font-semibold shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                             <button
                                                 onClick={() => {
                                                     const newItems = [...transferItems];
@@ -348,10 +379,13 @@ export default function WarehouseOperations({
                                                 +
                                             </button>
                                             <button
-                                                onClick={() => setTransferItems(prev => prev.filter((_, i) => i !== idx))}
-                                                className="h-9 w-9 flex items-center justify-center text-red-400 hover:bg-red-500/10 rounded-lg ml-2"
+                                                onClick={() => {
+                                                    const newItems = transferItems.filter((_, i) => i !== idx);
+                                                    setTransferItems(newItems);
+                                                }}
+                                                className="h-9 px-2 flex items-center justify-center bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg ml-2 transition-colors"
                                             >
-                                                ×
+                                                <X className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </div>

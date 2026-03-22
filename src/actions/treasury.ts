@@ -6,6 +6,7 @@ import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { EXPENSE_CATEGORY_MAP, INCOMING_CATEGORIES } from "@/shared/constants/accounting-mappings";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
+import { Decimal } from "@prisma/client/runtime/library";
 
 // ─── Get Treasury Data ────────────────────────────────────────────────────────
 export async function getTreasuryData(filters?: {
@@ -48,8 +49,10 @@ export async function getTreasuryData(filters?: {
     const byMethod = transactions.reduce(
       (acc, t) => {
         const isPositive = POSITIVE_TYPES.includes(t.type);
-        const delta = isPositive ? Number(t.amount) : -Number(t.amount);
-        acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + delta;
+        const amount = new Decimal(t.amount.toString());
+        const existing = new Decimal(acc[t.paymentMethod] || 0);
+        const delta = isPositive ? amount : amount.negated();
+        acc[t.paymentMethod] = existing.add(delta).toNumber();
         return acc;
       },
       { CASH: 0, VISA: 0, WALLET: 0, INSTAPAY: 0 } as Record<string, number>
@@ -109,7 +112,7 @@ export async function addTreasuryTransaction(
     }
 
     const isPositive = POSITIVE_TYPES.includes(finalType);
-    const numericAmount = Number(amount);
+    const decimalAmount = new Decimal(amount);
 
     const currentUser = await getCurrentUser();
 
@@ -117,18 +120,18 @@ export async function addTreasuryTransaction(
       // ── V-X: Negative Balance Check ──
       if (treasuryId && !isPositive) {
         const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
-        const currentBalance = Number(treasury?.balance || 0);
+        const currentBalance = new Decimal(treasury?.balance?.toString() || "0");
         
-        if (currentBalance < numericAmount) {
+        if (currentBalance.lt(decimalAmount)) {
           const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
           if (!canGoNegative) {
-            throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance}). ولا تملك صلاحية السحب بالسالب.`);
+            throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
           }
         }
       }
 
       const dbTx = await tx.transaction.create({
-        data: { type: finalType, amount: numericAmount, description, paymentMethod, treasuryId },
+        data: { type: finalType, amount: decimalAmount, description, paymentMethod, treasuryId },
       });
 
       if (treasuryId) {
@@ -136,8 +139,8 @@ export async function addTreasuryTransaction(
           where: { id: treasuryId },
           data: {
             balance: isPositive
-              ? { increment: numericAmount }
-              : { decrement: numericAmount },
+              ? { increment: decimalAmount }
+              : { decrement: decimalAmount },
           },
         });
       }
@@ -171,8 +174,8 @@ export async function addTreasuryTransaction(
           date: new Date(),
           branchId: targetBranchId,
           lines: [
-            { accountCode: glCode, debit: numericAmount, credit: 0, description },
-            { accountCode: debitAccount, debit: 0, credit: numericAmount, description: `${paymentMethod} Withdrawal` }
+            { accountCode: glCode, debit: decimalAmount.toNumber(), credit: 0, description },
+            { accountCode: debitAccount, debit: 0, credit: decimalAmount.toNumber(), description: `${paymentMethod} Withdrawal` }
           ]
         }, tx);
       } else if (isPositive) {
@@ -185,8 +188,8 @@ export async function addTreasuryTransaction(
           date: new Date(),
           branchId: targetBranchId,
           lines: [
-            { accountCode: debitAccount, debit: numericAmount, credit: 0, description: `${paymentMethod} Deposit` },
-            { accountCode: creditAccount, debit: 0, credit: numericAmount, description: categoryUI }
+            { accountCode: debitAccount, debit: decimalAmount.toNumber(), credit: 0, description: `${paymentMethod} Deposit` },
+            { accountCode: creditAccount, debit: 0, credit: decimalAmount.toNumber(), description: categoryUI }
           ]
         }, tx);
       }
@@ -211,7 +214,7 @@ export async function updateTreasuryTransaction(
     const existing = await prisma.transaction.findUnique({ where: { id } });
     
     // TR-03 Guard: Prohibit amount edits on posted transactions
-    if (existing && Number(existing.amount) !== data.amount) {
+    if (existing && !new Decimal(existing.amount.toString()).eq(data.amount)) {
         return { success: false, error: 'لا يمكن تعديل مبلغ حركة مُرحَّلة. يرجى إلغاء الحركة وإعادة ترحيلها.' };
     }
 
@@ -223,7 +226,7 @@ export async function updateTreasuryTransaction(
           action: "UPDATE",
           previousData: JSON.stringify({
             type: existing.type,
-            amount: Number(existing.amount),
+            amount: new Decimal(existing.amount.toString()).toNumber(),
             description: existing.description,
             paymentMethod: existing.paymentMethod,
           }),
@@ -264,8 +267,9 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
     const IN_TYPES = new Set([
       'IN', 'SALE', 'CAPITAL', 'CUSTOMER_PAYMENT', 'SAFE_DROP', 'TRANSFER_IN',
     ]);
-    const absAmount = Math.abs(Number(existing.amount));
-    const isIncome = IN_TYPES.has(existing.type) && Number(existing.amount) > 0;
+    const amountDec = new Decimal(existing.amount.toString());
+    const absAmount = amountDec.abs();
+    const isIncome = IN_TYPES.has(existing.type) && amountDec.gt(0);
 
     await prisma.$transaction(async (tx) => {
       // 1. Audit trail
@@ -276,7 +280,7 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
           action: "SOFT_DELETE",
           previousData: JSON.stringify({
             type: existing.type,
-            amount: Number(existing.amount),
+            amount: amountDec.toNumber(),
             treasuryId: existing.treasuryId,
             description: existing.description,
           }),
@@ -291,16 +295,16 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
       });
 
       // 3. Reverse the physical balance if the transaction belongs to a treasury
-      if (existing.treasuryId && absAmount > 0) {
+      if (existing.treasuryId && absAmount.gt(0)) {
         const treasury = await tx.treasury.findUnique({ where: { id: existing.treasuryId } });
-        const currentBalance = Number(treasury?.balance || 0);
+        const currentBalance = new Decimal(treasury?.balance?.toString() || "0");
 
         // If deleting income, balance will DECREASE.
-        if (isIncome && currentBalance < absAmount) {
+        if (isIncome && currentBalance.lt(absAmount)) {
           const currentUser = await getCurrentUser();
           const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
           if (!canGoNegative) {
-             throw new Error(`حذف هذه الحركة سيؤدي لرصيد سالب (${currentBalance - absAmount}). ولا تملك صلاحية السحب بالسالب.`);
+             throw new Error(`حذف هذه الحركة سيؤدي لرصيد سالب (${currentBalance.sub(absAmount).toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
           }
         }
 
@@ -457,12 +461,15 @@ export async function transferBetweenTreasuries(data: {
     if (!fromTreasury || fromTreasury.deletedAt) return { success: false, error: "الخزنة المصدر غير موجودة" };
     if (!toTreasury || toTreasury.deletedAt) return { success: false, error: "الخزنة الهدف غير موجودة" };
     
+    const amountDec = new Decimal(data.amount);
+    const fromBalance = new Decimal(fromTreasury.balance.toString());
+
     // Check permission for negative balance
-    if (Number(fromTreasury.balance) < data.amount) {
+    if (fromBalance.lt(amountDec)) {
       const currentUser = await getCurrentUser();
       const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
       if (!canGoNegative) {
-        return { success: false, error: `رصيد الخزنة غير كافٍ. الرصيد الحالي: ${Number(fromTreasury.balance).toFixed(2)}. ولا تملك صلاحية السحب بالسالب.` };
+        return { success: false, error: `رصيد الخزنة غير كافٍ. الرصيد الحالي: ${fromBalance.toFixed(2)}. ولا تملك صلاحية السحب بالسالب.` };
       }
     }
 
@@ -473,12 +480,12 @@ export async function transferBetweenTreasuries(data: {
       // 1. Deduct from source
       await tx.treasury.update({
         where: { id: data.fromTreasuryId },
-        data: { balance: { decrement: data.amount } },
+        data: { balance: { decrement: amountDec } },
       });
       await tx.transaction.create({
         data: {
           type: "TRANSFER_OUT",
-          amount: data.amount,
+          amount: amountDec,
           description: desc,
           paymentMethod: method,
           treasuryId: data.fromTreasuryId,
@@ -488,12 +495,12 @@ export async function transferBetweenTreasuries(data: {
       // 2. Add to destination
       await tx.treasury.update({
         where: { id: data.toTreasuryId },
-        data: { balance: { increment: data.amount } },
+        data: { balance: { increment: amountDec } },
       });
       await tx.transaction.create({
         data: {
           type: "TRANSFER_IN",
-          amount: data.amount,
+          amount: amountDec,
           description: desc,
           paymentMethod: method,
           treasuryId: data.toTreasuryId,
@@ -510,8 +517,8 @@ export async function transferBetweenTreasuries(data: {
           reference: `TRF-${Date.now()}`,
           branchId: fromBranchId,
           lines: [
-              { accountCode: glCode, debit: data.amount, credit: 0,           description: `Received by ${toTreasury.name}` },
-              { accountCode: glCode, debit: 0,           credit: data.amount, description: `Sent from ${fromTreasury.name}` }
+              { accountCode: glCode, debit: amountDec.toNumber(), credit: 0,           description: `Received by ${toTreasury.name}` },
+              { accountCode: glCode, debit: 0,           credit: amountDec.toNumber(), description: `Sent from ${fromTreasury.name}` }
           ]
       }, tx);
     });

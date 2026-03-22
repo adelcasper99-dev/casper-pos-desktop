@@ -12,6 +12,7 @@ import { Decimal } from "decimal.js";
 const TransferItemSchema = z.object({
     productId: z.string(),
     quantity: z.number().min(1),
+    priceTier: z.string().optional(),
 });
 
 const TransferStockSchema = z.object({
@@ -159,7 +160,7 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                     }
                 });
 
-                // Calculate Value for Inter-branch GL
+                // Calculate Value for Inter-branch GL (STRICTLY COST PRICE TO PREVENT LEDGER IMBALANCE)
                 if (isInterBranch) {
                     const product = await tx.product.findUnique({
                         where: { id: item.productId },
@@ -169,6 +170,8 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                     totalTransferValue = totalTransferValue.add(itemValue);
                 }
 
+                const priceLabel = item.priceTier ? ` (Valued at ${item.priceTier})` : '';
+
                 // Log Movement
                 await tx.stockMovement.create({
                     data: {
@@ -177,7 +180,7 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                         fromWarehouseId: sourceWarehouseId!,
                         toWarehouseId: destWarehouseId!,
                         quantity: item.quantity,
-                        reason: `Transfer from ${sourceName} (${sourceType}) to ${destName} (${destinationType})`,
+                        reason: `Transfer from ${sourceName} (${sourceType}) to ${destName} (${destinationType})${priceLabel}`,
                         performedById,
                         branchId: sourceBranchId
                     } as any

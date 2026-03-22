@@ -5,6 +5,8 @@
  * taxes, and determining deferred-payment split amounts.
  */
 
+import { Decimal } from '@prisma/client/runtime/library';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Prorated Item Refund
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,19 +15,12 @@
  * Calculates the exact refund value for a specific set of returned items,
  * absorbing any global invoice discount and tax proportionally.
  *
- * Example:
- *   Invoice subtotal = 1000, discount = 100, tax = 90
- *   Returning items worth 200 (20% of invoice)
- *   → proratedDiscount = 100 × 0.20 = 20
- *   → proratedTax      =  90 × 0.20 = 18
- *   → refundValue      = 200 - 20 + 18 = 198
- *
  * @param itemPrice         Unit price of the item that is being refunded
  * @param refundQty         Number of units being returned
  * @param saleSubTotal      Total invoice subtotal (sum of all item lines, before discount/tax)
  * @param saleDiscountAmount Total global discount amount applied to the invoice
  * @param saleTaxAmount     Total tax amount applied to the invoice
- * @returns Exact refund value rounded to 2 decimal places
+ * @returns Exact refund value
  */
 export function calculateProratedRefundValue(
     itemPrice: number,
@@ -34,17 +29,18 @@ export function calculateProratedRefundValue(
     saleDiscountAmount: number,
     saleTaxAmount: number
 ): number {
-    const lineTotalValue = itemPrice * refundQty;
+    const lineTotalValue = new Decimal(itemPrice).mul(refundQty);
+    const subTotalDec = new Decimal(saleSubTotal);
 
     // Avoid division-by-zero when invoice has no items
-    const weightRatio = saleSubTotal > 0 ? lineTotalValue / saleSubTotal : 0;
+    const weightRatio = subTotalDec.gt(0) ? lineTotalValue.div(subTotalDec) : new Decimal(0);
 
-    const proratedDiscount = saleDiscountAmount * weightRatio;
-    const proratedTax = saleTaxAmount * weightRatio;
+    const proratedDiscount = new Decimal(saleDiscountAmount).mul(weightRatio);
+    const proratedTax = new Decimal(saleTaxAmount).mul(weightRatio);
 
-    const finalRefundValue = lineTotalValue - proratedDiscount + proratedTax;
+    const finalRefundValue = lineTotalValue.sub(proratedDiscount).add(proratedTax);
 
-    return parseFloat(finalRefundValue.toFixed(2));
+    return finalRefundValue.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toNumber();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,18 +74,24 @@ export function splitDeferredRefund(
     refundTotal: number,
     originalPaidCash: number
 ): DeferredRefundSplit {
+    const refundTotalDec = new Decimal(refundTotal);
+
     if (paymentMethod === 'ACCOUNT') {
-        return { amountToCash: 0, amountToAccount: refundTotal };
+        return { amountToCash: 0, amountToAccount: refundTotalDec.toNumber() };
     }
 
     if (paymentMethod === 'DEFERRED') {
-        const amountToCash = Math.min(refundTotal, originalPaidCash);
-        const amountToAccount = parseFloat((refundTotal - amountToCash).toFixed(2));
-        return { amountToCash: parseFloat(amountToCash.toFixed(2)), amountToAccount };
+        const paidCashDec = new Decimal(originalPaidCash);
+        const amountToCashDec = Decimal.min(refundTotalDec, paidCashDec);
+        const amountToAccountDec = refundTotalDec.sub(amountToCashDec);
+        return { 
+            amountToCash: amountToCashDec.toNumber(), 
+            amountToAccount: amountToAccountDec.toNumber() 
+        };
     }
 
     // CASH, VISA, INSTAPAY, WALLET — full cash refund
-    return { amountToCash: refundTotal, amountToAccount: 0 };
+    return { amountToCash: refundTotalDec.toNumber(), amountToAccount: 0 };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,8 +112,8 @@ export interface RefundItem {
  */
 export function calculateCogsReversal(items: RefundItem[]): number {
     const total = items.reduce(
-        (sum, item) => sum + item.unitCost * item.refundQty,
-        0
+        (sum, item) => sum.add(new Decimal(item.unitCost).mul(item.refundQty)),
+        new Decimal(0)
     );
-    return parseFloat(total.toFixed(2));
+    return total.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toNumber();
 }

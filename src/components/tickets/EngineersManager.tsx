@@ -37,7 +37,8 @@ export default function EngineersManager() {
         username: '',
         password: '',
         createWarehouse: false,
-        branchId: ''
+        branchId: '',
+        defaultPriceTier: 'COST'
     })
 
     useEffect(() => {
@@ -174,7 +175,8 @@ export default function EngineersManager() {
                     setEditingId(null)
                     setFormData({
                         name: '', phone: '', skills: '', commissionRate: 0, lossRate: 70,
-                        username: '', password: '', createWarehouse: true, branchId: branches[0]?.id || ''
+                        username: '', password: '', createWarehouse: true, branchId: branches[0]?.id || '',
+                        defaultPriceTier: 'COST'
                     })
                     setIsDialogOpen(true)
                 }} className="w-full sm:w-auto bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-0 text-white font-bold h-11 px-6">
@@ -190,11 +192,14 @@ export default function EngineersManager() {
                             <CardTitle className="text-lg font-bold text-white truncate pr-4">
                                 {eng.name}
                             </CardTitle>
-                            {eng.warehouse && (
+                             {eng.warehouse && (
                                 <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/5 text-cyan-400 text-[10px] uppercase tracking-wider">
                                     {eng.warehouse.name}
                                 </Badge>
                             )}
+                            <Badge variant="outline" className="border-white/10 bg-white/5 text-white/40 text-[10px] uppercase">
+                                {eng.defaultPriceTier || 'COST'}
+                            </Badge>
                         </CardHeader>
                         <CardContent>
                             <div className="flex items-center justify-between text-sm text-white/60 font-bold mb-4">
@@ -220,10 +225,11 @@ export default function EngineersManager() {
                                             skills: eng.skills || '',
                                             commissionRate: Number(eng.commissionRate),
                                             lossRate: Number(eng.lossRate || 70),
-                                            username: eng.user?.username || '',
+                                             username: eng.user?.username || '',
                                             password: '',
                                             createWarehouse: false,
-                                            branchId: eng.user?.branchId || ''
+                                            branchId: eng.user?.branchId || '',
+                                            defaultPriceTier: eng.defaultPriceTier || 'COST'
                                         })
                                         setIsDialogOpen(true)
                                     }}
@@ -273,21 +279,40 @@ export default function EngineersManager() {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label className="text-white font-bold">{t('form.branch')}</Label>
-                        <Select
-                            value={formData.branchId}
-                            onValueChange={(val) => setFormData({ ...formData, branchId: val })}
-                        >
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white">
-                                <SelectValue placeholder={t('form.branch')} />
-                            </SelectTrigger>
-                            <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                                {branches.map((b) => (
-                                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-white font-bold">{t('form.branch')}</Label>
+                            <Select
+                                value={formData.branchId}
+                                onValueChange={(val) => setFormData({ ...formData, branchId: val })}
+                            >
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white">
+                                    <SelectValue placeholder={t('form.branch')} />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                    {branches.map((b) => (
+                                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-white font-bold">شريحة سعر النقل</Label>
+                            <Select
+                                value={formData.defaultPriceTier}
+                                onValueChange={(val) => setFormData({ ...formData, defaultPriceTier: val })}
+                            >
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white">
+                                    <SelectValue placeholder="اختر الشريحة" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                    <SelectItem value="COST">سعر التكلفة (COST)</SelectItem>
+                                    <SelectItem value="SELL_1">سعر 1 (SELL 1)</SelectItem>
+                                    <SelectItem value="SELL_2">سعر 2 (SELL 2)</SelectItem>
+                                    <SelectItem value="SELL_3">سعر 3 (SELL 3)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">

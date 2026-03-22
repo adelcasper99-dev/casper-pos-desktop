@@ -122,3 +122,20 @@ export function formatCommissionBreakdown(data: {
     commissionAmount: `EGP ${data.commissionAmount.toFixed(2)}`
   };
 }
+/**
+ * Gets the final total price of a ticket for display and profit calculation.
+ * Prioritizes finalCustomerPrice (Actual agreed price) and falls back to repairPrice (Legacy/Estimated price).
+ */
+export function getTicketFinalPrice(ticket: { 
+  finalCustomerPrice?: Decimal | number | null; 
+  repairPrice: Decimal | number | null; 
+}): number {
+  const finalPrice = Number(ticket.finalCustomerPrice || 0);
+  const repairPrice = Number(ticket.repairPrice || 0);
+  
+  // Use final customer price if it's set and greater than zero
+  if (finalPrice > 0) return finalPrice;
+  
+  // Fallback to repair overall price
+  return repairPrice;
+}

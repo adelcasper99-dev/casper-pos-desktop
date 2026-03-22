@@ -99,12 +99,14 @@ export default function EmployeeProfileClient({
     const [isSaleDetailOpen, setIsSaleDetailOpen] = useState(false)
     const [viewSale, setViewSale] = useState<any>(null)
     const [loadingSale, setLoadingSale] = useState(false)
+    const [isRefreshing, setIsRefreshing] = useState(false)
     const [pendingAction, setPendingAction] = useState<{ 
         type: 'DELETE_TX' | 'TOGGLE_FREEZE', 
         data?: any 
     } | null>(null)
 
     const refreshData = async () => {
+        setIsRefreshing(true)
         try {
             const res = await getEmployeeProfileData(userId, monthStr)
             if (res.success && res.data) {
@@ -112,6 +114,8 @@ export default function EmployeeProfileClient({
             }
         } catch (error) {
             console.error("Failed to refresh data:", error)
+        } finally {
+            setIsRefreshing(false)
         }
     }
 
@@ -172,16 +176,14 @@ export default function EmployeeProfileClient({
         }),
         // Manual & System Transactions
         ...transactions.map(tx => {
-            const isDeduction = tx.type.endsWith('_DEDUCTION');
-            const isReversal = tx.type.endsWith('_REVERSAL');
+            const isDeduction = tx.type.endsWith('_DEDUCTION') || tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' || tx.type === 'CLAWBACK' || tx.type === 'DEDUCTION';
+            const isReversal = tx.type.endsWith('_REVERSAL') && tx.type !== 'MAINTENANCE_COMMISSION_REVERSAL';
+            const isAddition = tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type === 'MAINTENANCE_COMMISSION';
             
             let finalAmount = Number(tx.amount);
             if (isDeduction) finalAmount = -Math.abs(finalAmount);
-            if (isReversal) finalAmount = Math.abs(finalAmount);
-
-            if (!isDeduction && !isReversal) {
-                finalAmount = (tx.type === 'BONUS' || tx.type === 'ADDITION') ? tx.amount : -tx.amount;
-            }
+            else if (isReversal || isAddition) finalAmount = Math.abs(finalAmount);
+            else finalAmount = -Math.abs(finalAmount);
 
             return {
                 id: tx.id,
@@ -189,33 +191,12 @@ export default function EmployeeProfileClient({
                 description: tx.description || "حركة مالية",
                 type: tx.type,
                 amount: finalAmount,
-                status: (isDeduction || isReversal) ? "POS" : "MANUAL",
+                status: (tx as any).status || ((isDeduction || isReversal) ? "POS" : "MANUAL"),
                 referenceId: tx.referenceId,
                 referenceType: tx.referenceType
             };
         }),
-        ...clawbacks.map(cb => ({
-            date: new Date(cb.updatedAt).toLocaleDateString('en-CA'),
-            description: `خسارة مرتجع تذكرة #${cb.barcode} (${cb.returnReason || 'عطل فني'})`,
-            type: "CLAWBACK",
-            amount: -cb.commissionClawback,
-            status: "OPERATIONS",
-            id: undefined,
-            referenceId: cb.id,
-            referenceType: 'TICKET'
-        })),
-        // 3. Maintenance Profits (Commissions)
-        ...tickets.filter(t => (t.status === 'COMPLETED' || t.status === 'PAID_DELIVERED') && Number(t.commissionAmount) > 0).map(t => ({
-            date: t.completedAt ? new Date(t.completedAt).toLocaleDateString('en-CA') : new Date(t.updatedAt).toLocaleDateString('en-CA'),
-            description: `ربح صيانة تذكرة #${t.barcode}`,
-            type: "MAINTENANCE_COMMISSION",
-            amount: Number(t.commissionAmount),
-            status: "OPERATIONS",
-            id: undefined,
-            referenceId: t.id,
-            referenceType: 'TICKET'
-        }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     const handleViewReference = async (id: string, type: string) => {
         if (type === 'TICKET') {
@@ -345,6 +326,14 @@ export default function EmployeeProfileClient({
                 </div>
 
                 <div className="flex flex-wrap gap-3 z-10">
+                    <Button 
+                        onClick={refreshData}
+                        disabled={isRefreshing}
+                        className="bg-zinc-800 text-white border border-white/10 hover:bg-zinc-700 font-bold rounded-xl px-4"
+                    >
+                        <RefreshCw className={clsx("w-4 h-4 mr-2", isRefreshing && "animate-spin")} />
+                        تحديث البيانات
+                    </Button>
                     <button 
                         onClick={() => {
                             setPendingAction({ type: 'TOGGLE_FREEZE' })
@@ -638,6 +627,9 @@ export default function EmployeeProfileClient({
                                         <th className="p-4 border-b border-white/5">الجهاز / العميل</th>
                                         <th className="p-4 border-b border-white/5">التاريخ</th>
                                         <th className="p-4 border-b border-white/5">الحالة</th>
+                                        <th className="p-4 border-b border-white/5 text-center">إجمالي التذكرة</th>
+                                        <th className="p-4 border-b border-white/5 text-center text-zinc-400">صافي (صيانة)</th>
+                                        <th className="p-4 border-b border-white/5 text-center">عمولة المهندس</th>
                                         <th className="p-4 border-b border-white/5">الإجراء</th>
                                     </tr>
                                 </thead>
@@ -664,6 +656,18 @@ export default function EmployeeProfileClient({
                                                     {ticket.status}
                                                 </Badge>
                                             </td>
+                                            <td className="p-4 text-center font-black text-white tabular-nums">
+                                                {Number(ticket.totalAmount || 0).toLocaleString()} EGP
+                                            </td>
+                                            <td className="p-4 text-center font-bold text-zinc-400 tabular-nums text-xs">
+                                                {Number(ticket.laborAmount || 0).toLocaleString()} EGP
+                                            </td>
+                                            <td className={clsx(
+                                                "p-4 text-center font-black tabular-nums",
+                                                Number(ticket.displayCommission || 0) >= 0 ? "text-cyan-400" : "text-rose-400"
+                                            )}>
+                                                {Number(ticket.displayCommission || 0).toLocaleString()} EGP
+                                            </td>
                                             <td className="p-4">
                                                 <button className="text-[10px] font-bold text-zinc-400 hover:text-white flex items-center gap-1 transition-colors">
                                                     <Search className="w-3 h-3" /> فتح التذكرة
@@ -672,13 +676,30 @@ export default function EmployeeProfileClient({
                                         </tr>
                                     )) : (
                                         <tr>
-                                            <td colSpan={5} className="p-20 text-center text-zinc-600">
+                                            <td colSpan={7} className="p-20 text-center text-zinc-600">
                                                 <Wrench className="w-12 h-12 opacity-20 mx-auto mb-4" />
                                                 <p className="font-bold tracking-widest uppercase text-xs">لا توجد عمليات مسجلة</p>
                                             </td>
                                         </tr>
                                     )}
                                 </tbody>
+                                {data.tickets.length > 0 && (
+                                    <tfoot className="bg-white/5 border-t border-white/10">
+                                        <tr>
+                                            <td colSpan={4} className="p-4 text-left font-bold text-zinc-400 uppercase tracking-widest">الإجمالي للمحدد:</td>
+                                            <td className="p-4 text-center font-black text-xl text-white tabular-nums">
+                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.totalAmount || 0), 0).toLocaleString()} EGP
+                                            </td>
+                                            <td className="p-4 text-center font-bold text-lg text-zinc-400 tabular-nums">
+                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.laborAmount || 0), 0).toLocaleString()} EGP
+                                            </td>
+                                            <td className="p-4 text-center font-black text-xl text-cyan-400 tabular-nums">
+                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.displayCommission || 0), 0).toLocaleString()} EGP
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                )}
                             </table>
                         </div>
                     </Card>

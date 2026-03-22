@@ -10,8 +10,9 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import GlassModal from "@/components/ui/GlassModal";
 import { toast } from "sonner";
 import { useCSRF } from "@/contexts/CSRFContext";
-import { addTicketPart, removeTicketPart, refundTicketPart, getProductsForSelector } from "@/actions/ticket-actions";
+import { addTicketPart, removeTicketPart, getProductsForSelector } from "@/actions/ticket-actions";
 import { transferPartToTechnicianQuick } from "@/actions/technician-custody-actions";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import {
     Table,
     TableBody,
@@ -40,6 +41,7 @@ interface TicketPart {
     price: number;
     status?: 'ACTIVE' | 'REFUNDED';
     isDamaged?: boolean;
+    createdAt?: string | Date; // To compare against ticket.lastReturnedAt
     product?: {
         name: string;
         sku: string;
@@ -55,6 +57,7 @@ interface TicketPartsManagerProps {
     onUpdate?: () => void;
     status: string;
     isWarrantyTicket?: boolean;
+    lastReturnedAt?: string | Date | null;
 }
 
 export default function TicketPartsManager({
@@ -65,7 +68,8 @@ export default function TicketPartsManager({
     onChangeTechnician,
     onUpdate,
     status,
-    isWarrantyTicket
+    isWarrantyTicket,
+    lastReturnedAt
 }: TicketPartsManagerProps) {
     const isLocked = ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'CANCELLED', 'REJECTED', 'VOIDED'].includes(status);
     const { token: csrfToken } = useCSRF();
@@ -84,7 +88,8 @@ export default function TicketPartsManager({
 
     const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [markAsDamaged, setMarkAsDamaged] = useState(false);
+    const [showDamagedConfirm, setShowDamagedConfirm] = useState(false);
+    const [lossPercent, setLossPercent] = useState(70);
 
     useEffect(() => {
         if (isAddingPart) {
@@ -163,25 +168,40 @@ export default function TicketPartsManager({
     };
 
     const handleRemoveClick = (partId: string) => {
-        setMarkAsDamaged(false);
         setDeletingPartId(partId);
     };
 
-    const confirmRemove = async () => {
+    const confirmRemove = async (isDamaged: boolean) => {
         if (!deletingPartId) return;
-        setIsDeleting(true);
-        const res = await removeTicketPart({ 
-            partId: deletingPartId, 
-            isDamaged: markAsDamaged,
-            csrfToken: csrfToken ?? undefined 
-        });
-        if (res.success) { 
-            toast.success(markAsDamaged ? "تم الحذف وتسجيله تالف" : "تم الحذف وإرجاع للمخزن"); 
-            router.refresh(); 
-            onUpdate?.(); 
+        
+        // Show secondary confirmation for damaged parts if not already showing
+        if (isDamaged && !showDamagedConfirm) {
+            setShowDamagedConfirm(true);
+            return;
         }
-        setDeletingPartId(null);
-        setIsDeleting(false);
+
+        setIsDeleting(true);
+        try {
+            const res = await removeTicketPart({ 
+                partId: deletingPartId, 
+                isDamaged,
+                lossRateOverride: isDamaged ? lossPercent : undefined,
+                csrfToken: csrfToken ?? undefined 
+            });
+            if (res.success) { 
+                toast.success(isDamaged ? `تم الحذف وتسجيله تالف (تحمل المهندس: ${lossPercent}%)` : "تم الحذف وإرجاع للمخزن"); 
+                router.refresh(); 
+                onUpdate?.(); 
+            } else {
+                toast.error("حدث خطأ أثناء الحذف");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "حدث خطأ غير متوقع");
+        } finally {
+            setIsDeleting(false);
+            setDeletingPartId(null);
+            setShowDamagedConfirm(false);
+        }
     };
 
     return (
@@ -235,88 +255,120 @@ export default function TicketPartsManager({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {parts.map((part) => {
-                                    const isRefunded = part.status === 'REFUNDED';
-                                    const isWarrantyPart = !isRefunded && Number(part.price) === 0 && isWarrantyTicket;
-                                    
+                                {(() => {
+                                    const originalParts = parts.filter(p => !lastReturnedAt || new Date(p.createdAt || 0) < new Date(lastReturnedAt));
+                                    const newParts = parts.filter(p => lastReturnedAt && new Date(p.createdAt || 0) >= new Date(lastReturnedAt));
+
+                                    const renderRow = (part: TicketPart, isNewAddition: boolean) => {
+                                        const isRefunded = part.status === 'REFUNDED';
+                                        const isWarrantyPart = !isRefunded && Number(part.price) === 0 && isWarrantyTicket;
+                                        
+                                        return (
+                                            <TableRow key={part.id} className={cn(
+                                                "border-white/10 group transition-all duration-300",
+                                                isRefunded ? "bg-red-950/20 opacity-60 grayscale border-l-4 border-l-red-500" : "hover:bg-white/[0.03]",
+                                                isNewAddition && !isRefunded ? "border-l-4 border-l-cyan-500/50 bg-cyan-500/[0.02]" : ""
+                                            )}>
+                                                <TableCell className="py-4 px-6 relative">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <div className={cn(
+                                                            "font-black text-sm transition-colors flex items-center gap-2",
+                                                            isRefunded ? "text-zinc-500 line-through" : "text-white group-hover:text-cyan-400"
+                                                        )}>
+                                                            {part.product?.name || (part as any).name}
+                                                            
+                                                            {isRefunded && (
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-tighter shadow-sm animate-pulse">
+                                                                    <AlertCircle className="w-3 h-3" /> مرتجع
+                                                                </span>
+                                                            )}
+                                                            
+                                                            {isWarrantyPart && (
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase tracking-tighter shadow-sm">
+                                                                    <ShieldCheck className="w-3 h-3" /> بديل ضمان
+                                                                </span>
+                                                            )}
+
+                                                            {isNewAddition && !isWarrantyPart && (
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-tighter shadow-sm">
+                                                                    <Plus className="w-3 h-3" /> إضافة جديدة
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className={cn(
+                                                            "text-[10px] font-bold uppercase tracking-widest opacity-80",
+                                                            isRefunded ? "text-zinc-600" : "text-zinc-600"
+                                                        )}>
+                                                            {formatCurrency(Number(part.price))} / الوحدة
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className={cn(
+                                                    "text-center font-mono text-xs font-black",
+                                                    isRefunded ? "text-zinc-600" : "text-zinc-400"
+                                                )}>{part.quantity}</TableCell>
+                                                <TableCell className="text-left px-6">
+                                                    <span className={cn(
+                                                        "font-mono font-black text-sm tracking-tighter",
+                                                        isRefunded ? "text-zinc-600 line-through decoration-red-500/50" : 
+                                                        isWarrantyPart ? "text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "text-white"
+                                                    )}>
+                                                        {formatCurrency(part.quantity * Number(part.price))}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-6 text-left">
+                                                    <div className="flex items-center justify-end">
+                                                        {!isRefunded && !isLocked && (
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="sm"
+                                                                onClick={() => handleRemoveClick(part.id)} 
+                                                                className="h-10 px-4 text-red-500/80 hover:text-white hover:bg-red-500/20 rounded-xl font-black border border-red-500/10 transition-all flex items-center gap-2 group/btn shadow-sm bg-red-500/5 active:scale-95 touch-manipulation"
+                                                            >
+                                                                <Trash2 className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" />
+                                                                <span className="text-xs tracking-tight">إزالة / مرتجع</span>
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    };
+
                                     return (
-                                        <TableRow key={part.id} className={cn(
-                                            "border-white/10 group transition-all duration-300",
-                                            isRefunded ? "bg-red-950/20 opacity-60 grayscale border-l-4 border-l-red-500" : "hover:bg-white/[0.03]"
-                                        )}>
-                                            <TableCell className="py-4 px-6 relative">
-                                                <div className="flex flex-col gap-1.5">
-                                                    <div className={cn(
-                                                        "font-black text-sm transition-colors flex items-center gap-2",
-                                                        isRefunded ? "text-zinc-500 line-through" : "text-white group-hover:text-cyan-400"
-                                                    )}>
-                                                        {part.product?.name || (part as any).name}
-                                                        
-                                                        {isRefunded && (
-                                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-tighter shadow-sm animate-pulse">
-                                                                <AlertCircle className="w-3 h-3" /> مرتجع تالف
-                                                            </span>
-                                                        )}
-                                                        
-                                                        {isWarrantyPart && (
-                                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase tracking-tighter shadow-sm">
-                                                                <ShieldCheck className="w-3 h-3" /> بديل ضمان
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className={cn(
-                                                        "text-[10px] font-bold uppercase tracking-widest opacity-80",
-                                                        isRefunded ? "text-zinc-600" : "text-zinc-600"
-                                                    )}>
-                                                        {formatCurrency(Number(part.price))} / الوحدة
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className={cn(
-                                                "text-center font-mono text-xs font-black",
-                                                isRefunded ? "text-zinc-600" : "text-zinc-400"
-                                            )}>{part.quantity}</TableCell>
-                                            <TableCell className="text-left px-6">
-                                                <span className={cn(
-                                                    "font-mono font-black text-sm tracking-tighter",
-                                                    isRefunded ? "text-zinc-600 line-through decoration-red-500/50" : 
-                                                    isWarrantyPart ? "text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "text-white"
-                                                )}>
-                                                    {formatCurrency(part.quantity * Number(part.price))}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="px-6 text-left">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {!isRefunded && !isLocked && (
-                                                        <button 
-                                                            onClick={async () => {
-                                                                if (!confirm("هل تريد إرجاع هذا البند كمرتجع تالف؟")) return;
-                                                                const res = await refundTicketPart({ partId: part.id, csrfToken: csrfToken ?? undefined });
-                                                                if (res.success) {
-                                                                    toast.success("تم الإرجاع بنجاح");
-                                                                    router.refresh();
-                                                                    onUpdate?.();
-                                                                }
-                                                            }}
-                                                            className="opacity-0 group-hover:opacity-100 p-2 text-orange-500/70 hover:text-orange-400 transition-all bg-orange-500/5 rounded-lg hover:bg-orange-500/10"
-                                                            title="إرجاع تالف"
-                                                        >
-                                                            <RotateCcw className="w-4 h-4" />
-                                                        </button>
+                                        <>
+                                            {/* Original Parts Section */}
+                                            {originalParts.length > 0 && (
+                                                <>
+                                                    {lastReturnedAt && (
+                                                        <TableRow className="bg-white/[0.01] hover:bg-white/[0.01] border-b border-white/5">
+                                                            <TableCell colSpan={4} className="py-2 px-6">
+                                                                <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2">
+                                                                    القطع الأصلية <span className="text-[8px] bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">قبل المرتجع</span>
+                                                                </span>
+                                                            </TableCell>
+                                                        </TableRow>
                                                     )}
-                                                    
-                                                    <button 
-                                                        onClick={() => handleRemoveClick(part.id)} 
-                                                        disabled={isLocked}
-                                                        className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-400 transition-all bg-white/5 rounded-lg hover:bg-red-500/10 disabled:cursor-not-allowed"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
+                                                    {originalParts.map(p => renderRow(p, false))}
+                                                </>
+                                            )}
+
+                                            {/* New Additions Section */}
+                                            {newParts.length > 0 && (
+                                                <>
+                                                    <TableRow className="bg-cyan-500/[0.02] hover:bg-cyan-500/[0.02] border-y border-cyan-500/10">
+                                                        <TableCell colSpan={4} className="py-2 px-6">
+                                                            <span className="text-[10px] font-black uppercase text-cyan-500 tracking-widest flex items-center gap-2">
+                                                                القطع المضافة حديثاً <span className="text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">بعد المرتجع</span>
+                                                            </span>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                    {newParts.map(p => renderRow(p, true))}
+                                                </>
+                                            )}
+                                        </>
                                     );
-                                })}
+                                })()}
                             </TableBody>
                         </Table>
                         <div className="p-6 bg-zinc-950 border-t border-white/10 flex justify-between items-center">
@@ -419,39 +471,90 @@ export default function TicketPartsManager({
             </GlassModal>
 
             {/* DELETE CONFIRMATION MODAL */}
-            <GlassModal isOpen={!!deletingPartId} onClose={() => !isDeleting && setDeletingPartId(null)} title="تأكيد الحذف">
-                <div className="space-y-4 pt-4 text-right" dir="rtl">
-                    <p className="text-zinc-400 text-sm font-bold">هل أنت متأكد من حذف هذا البند من التذكرة؟</p>
-                    
-                    <div className="flex items-center gap-3 p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl cursor-pointer hover:bg-orange-500/10 transition-all select-none" onClick={() => setMarkAsDamaged(!markAsDamaged)}>
-                        <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${markAsDamaged ? 'bg-orange-500 border-orange-500' : 'border-white/10'}`}>
-                            {markAsDamaged && <div className="w-2 h-2 bg-black rounded-full" />}
-                        </div>
-                        <div className="flex flex-col">
-                            <span className={`text-sm font-black transition-colors ${markAsDamaged ? 'text-orange-400' : 'text-zinc-400'}`}>تسجيل القطعة تالفة / مستبدلة (Talf)</span>
-                            <span className="text-[10px] text-zinc-600 font-bold">سيتم خصمها من المخزن كفواقد ولن تعود للمخزون الصالح</span>
-                        </div>
+            <GlassModal isOpen={!!deletingPartId && !showDamagedConfirm} onClose={() => !isDeleting && setDeletingPartId(null)} title="تأكيد حذف أو استرجاع البند">
+                <div className="space-y-6 pt-4 text-right" dir="rtl">
+                    <div className="bg-red-500/5 border border-red-500/10 p-4 rounded-2xl">
+                        <p className="text-zinc-300 text-sm font-black mb-1">هل أنت متأكد من رغبتك في تعديل التذكرة؟</p>
+                        <p className="text-[11px] text-zinc-500 font-medium">سيؤدي هذا الإجراء لتعديل إجمالي التذكرة وقد يتطلب تسوية مالية مع العميل.</p>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
+                    <div className="flex flex-col gap-3">
+                        {/* Option 1: Return to Stock */}
                         <Button 
-                            onClick={confirmRemove} 
-                            className={`flex-1 font-black h-12 rounded-xl transition-all ${markAsDamaged ? 'bg-orange-600/20 text-orange-500 hover:bg-orange-600 hover:text-white border border-orange-500/20' : 'bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20'}`}
+                            onClick={() => confirmRemove(false)} 
+                            className="h-24 bg-cyan-600/10 text-cyan-400 hover:bg-cyan-600 hover:text-white border border-cyan-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 group transition-all"
                             disabled={isDeleting}
                         >
-                            {isDeleting ? "جاري المعالجة..." : markAsDamaged ? "تأكيد واستبدال (تالف)" : "نعم، احذف وأرجع للمخزن"}
+                            <span className="text-xl font-black italic tracking-tight">إرجاع للمخزن (سليمة)</span>
+                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest group-hover:opacity-100 transition-opacity">تسترد القطعة لعهدة المهندس مجدداً</span>
                         </Button>
+
+                        {/* Option 2: Mark as Damaged */}
+                        <Button 
+                            onClick={() => confirmRemove(true)} 
+                            className="h-24 bg-orange-600/10 text-orange-500 hover:bg-orange-600 hover:text-white border border-orange-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 group transition-all"
+                            disabled={isDeleting}
+                        >
+                            <span className="text-xl font-black italic tracking-tight">تسجيل كـ تالف (هالك)</span>
+                            <span className="text-[10px] opacity-60 font-black uppercase tracking-widest group-hover:opacity-100 transition-opacity text-orange-400/70">⚠️ القطعة غير قابلة للاسترجاع (Wastage)</span>
+                        </Button>
+
+                        {/* Cancel Button */}
                         <Button 
                             variant="ghost" 
                             onClick={() => setDeletingPartId(null)} 
-                            className="px-8 text-zinc-500 hover:text-white h-12 rounded-xl font-bold bg-white/5"
+                            className="h-16 text-zinc-500 hover:text-white rounded-2xl font-black bg-white/5 mt-2"
                             disabled={isDeleting}
                         >
-                            إلغاء
+                            إلغاء الإجراء
                         </Button>
                     </div>
                 </div>
             </GlassModal>
+
+            <ConfirmationModal 
+                isOpen={showDamagedConfirm}
+                onClose={() => setShowDamagedConfirm(false)}
+                onConfirm={() => confirmRemove(true)}
+                title="تأكيد المرتجع التالف (Loss Share)"
+                message="تنبيه هام: سيتم استهلاك هذه القطعة آلياً في العهدة كبند تالف. يتم تحديد نسبة التحمل أدناه لخصمها من حساب المهندس."
+                confirmText="تأكيد الخصم والتالف"
+                cancelText="تراجع"
+                variant="warning"
+                loading={isDeleting}
+            >
+                <div className="flex flex-col gap-3 p-4 bg-white/5 rounded-2xl border border-white/10 mt-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-zinc-400 font-bold text-xs uppercase tracking-wider">نسبة تحمل المهندس</span>
+                        <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full border border-white/5">
+                            <input 
+                                type="number" 
+                                value={lossPercent}
+                                onChange={(e) => setLossPercent(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                className="w-12 bg-transparent text-amber-500 font-black text-right outline-none"
+                            />
+                            <span className="text-amber-500/50 font-black">%</span>
+                        </div>
+                    </div>
+                    
+                    {/* Visual Progress Bar for Split */}
+                    <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex">
+                        <div 
+                            className="h-full bg-amber-500 transition-all duration-300" 
+                            style={{ width: `${lossPercent}%` }} 
+                        />
+                        <div 
+                            className="h-full bg-zinc-600 transition-all duration-300" 
+                            style={{ width: `${100 - lossPercent}%` }} 
+                        />
+                    </div>
+                    
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
+                        <span className="text-amber-500">تحمل المهندس: {lossPercent}%</span>
+                        <span className="text-zinc-500">تحمل المركز: {100 - lossPercent}%</span>
+                    </div>
+                </div>
+            </ConfirmationModal>
         </div>
     );
 }

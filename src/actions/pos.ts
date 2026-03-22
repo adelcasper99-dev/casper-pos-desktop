@@ -114,16 +114,21 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
 
         // Recalculate Totals for Integrity (S-03 using Decimal for precision)
-        const subTotalAmount = data.items
-            .reduce((acc, item) => acc.plus(new Decimal(String(item.price)).times(item.quantity)), new Decimal(0))
-            .toNumber();
-        const discountAmount = data.discountAmount || 0;
+        const subTotalAmountDecimal = data.items
+            .reduce((acc, item) => acc.plus(new Decimal(String(item.price)).times(item.quantity)), new Decimal(0));
+        const discountAmountDecimal = new Decimal(data.discountAmount || 0);
 
         // Guard: Discount cannot exceed subtotal
-        const effectiveSubTotal = Math.max(0, subTotalAmount - discountAmount);
+        const effectiveSubTotalDecimal = Decimal.max(0, subTotalAmountDecimal.sub(discountAmountDecimal));
 
-        const taxAmount = effectiveSubTotal * (taxRate / 100);
-        const totalAmount = effectiveSubTotal + taxAmount;
+        const taxRateDecimal = new Decimal(taxRate).div(100);
+        const taxAmountDecimal = effectiveSubTotalDecimal.mul(taxRateDecimal);
+        const totalAmountDecimal = effectiveSubTotalDecimal.add(taxAmountDecimal);
+
+        const subTotalAmount = subTotalAmountDecimal.toNumber();
+        const discountAmount = discountAmountDecimal.toNumber();
+        const taxAmount = taxAmountDecimal.toNumber();
+        const totalAmount = totalAmountDecimal.toNumber();
 
         // 1. Fetch product details for COGS snapshot and bundle detection
         const productIds = data.items.map(item => item.id);
@@ -227,14 +232,14 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         // 2. Deduction Logic (Employee Salary or Customer Account)
         const paymentsToProcess = data.payments || [{ method: data.paymentMethod, amount: totalAmount }];
-        let amountToAccount = 0;
+        let amountToAccount = new Decimal(0);
         for (const p of paymentsToProcess) {
             if (p.method === 'ACCOUNT' || p.method === 'DEFERRED') {
-                amountToAccount += Number(p.amount);
+                amountToAccount = amountToAccount.add(new Decimal(String(p.amount)));
             }
         }
 
-        if (amountToAccount > 0) {
+        if (amountToAccount.gt(0)) {
             const customerId = data.customer?.id;
 
             if (customerId) {
@@ -500,12 +505,12 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         }
 
         // Calculate total COGS for Phase 2.1 (Bypass Services)
-        let totalCOGS = 0;
+        let totalCOGS = new Decimal(0);
         for (const item of data.items) {
             const productInfo = productInfoMap.get(item.id) as any;
             if (productInfo?.itemType !== 'SERVICE') {
-                const cost = costPriceMap.get(item.id) || 0;
-                totalCOGS += (cost * item.quantity);
+                const cost = new Decimal(costPriceMap.get(item.id) || 0);
+                totalCOGS = totalCOGS.add(cost.times(item.quantity));
             }
         }
 
@@ -519,9 +524,9 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         await AccountingEngine.recordSale(
             sale.id,
             syncPayments,
-            discountAmount,
+            discountAmountDecimal,
             totalCOGS,
-            taxAmount,
+            taxAmountDecimal,
             currentUser.branchId ?? undefined,
             tx
         );

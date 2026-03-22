@@ -666,6 +666,7 @@ model Technician {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   warehouseId           String?
+  defaultPriceTier      String                 @default("COST") // COST, SELL_1, SELL_2, SELL_3
   deletedAt             DateTime?
   warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
   user                  User                   @relation(fields: [userId], references: [id])
@@ -724,6 +725,13 @@ model Ticket {
   paymentStatus      String               @default("unpaid")
   paymentMethod      String?
   amountPaid         Decimal              @default(0.00)
+  finalCustomerPrice Decimal              @default(0.00)
+  techBillingPrice   Decimal              @default(0.00)
+  partCostPrice      Decimal              @default(0.00)
+  laborPoolAmount    Decimal              @default(0.00)
+  techCommissionAmount Decimal            @default(0.00)
+  centerLaborProfit  Decimal              @default(0.00)
+  centerPartProfit   Decimal              @default(0.00)
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?
@@ -791,9 +799,11 @@ model TicketPart {
   name        String?
   quantity    Int        @default(1)
   refundedQty Int        @default(0)
-  cost        Decimal    @default(0.00)
-  price       Decimal    @default(0.00)
-  createdAt   DateTime   @default(now())
+  cost            Decimal    @default(0.00)
+  price           Decimal    @default(0.00)
+  baseCostPrice   Decimal    @default(0.00) // Original purchase cost
+  transferPrice   Decimal    @default(0.00) // Price charged to technician
+  createdAt       DateTime   @default(now())
   status      String     @default("ACTIVE")
   isDamaged   Boolean    @default(false)
   deletedAt   DateTime?

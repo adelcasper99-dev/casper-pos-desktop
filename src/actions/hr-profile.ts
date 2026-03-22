@@ -7,6 +7,7 @@ import { Decimal } from 'decimal.js'
 import { Ticket } from '@prisma/client'
 import { unstable_noStore as noStore } from 'next/cache';
 import { calculateNetDue } from '@/lib/salary-utils';
+import { getTicketFinalPrice } from '@/lib/commission-validation';
 
 export async function getEmployeeProfileData(userId: string, monthStr: string) {
     const session = await getSession()
@@ -70,9 +71,18 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                 // Technically already filtered by query, but double check
                 if (user.hireDate && t.createdAt < new Date(user.hireDate)) return;
 
-                if (t.status === 'COMPLETED' || t.status === 'PAID_DELIVERED') {
+                if (t.status === 'PAID_DELIVERED') {
                     totalCompleted++
-                    maintenanceCommissions = maintenanceCommissions.plus(t.commissionAmount?.toString() || '0')
+                    let comm = Number(t.commissionAmount || 0);
+                    if (comm === 0 && user.technician?.commissionRate) {
+                        const transferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
+                        const netProfit = Number(t.repairPrice || 0) - transferVal;
+                        if (netProfit > 0) {
+                            comm = (netProfit * Number(user.technician.commissionRate)) / 100;
+                            comm = Math.round(comm * 100) / 100;
+                        }
+                    }
+                    maintenanceCommissions = maintenanceCommissions.plus(comm)
                 }
                 if (t.isWarrantyReturn || t.returnCount > 0) totalReturns++
                 
@@ -122,63 +132,114 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
         }) : []
 
         // KPI Calculations
-        let { baseSalary, totalBonuses, totalDeductions, netDue: netAccrued } = await calculateNetDue({
+        const { baseSalary, totalBonuses, totalDeductions, netDue: netAccrued, kpis } = await calculateNetDue({
             salary: user.salary,
             hireDate: user.hireDate,
             dailyLogs: attendanceLogs,
-            employeeTransactions: transactions
+            employeeTransactions: transactions,
+            technician: user.technician ? {
+                id: user.technician.id,
+                commissionRate: user.technician.commissionRate,
+                tickets: tickets
+            } : undefined
         }, startDate, endDate);
 
+        // Synthesize virtual ledger entries for tickets that haven't been "posted" to EmployeeTransaction yet
+        // This ensures the "Detailed Ledger" in the UI is truly complete.
+        const virtualEntries: any[] = [];
+        if (user.technician) {
+            tickets.forEach(t => {
+                if (t.status === 'PAID_DELIVERED') {
+                    const hasComm = transactions.some(tx => tx.referenceId === t.id && tx.type === 'MAINTENANCE_COMMISSION');
+                    if (!hasComm) {
+                        let comm = Number(t.commissionAmount || 0);
+                        if (comm === 0 && user.technician?.commissionRate) {
+                            const techBilling = Number((t as any).techBillingPrice || t.partsCost || 0);
+                            const repairPrice = Number(t.repairPrice || 0);
+                            const netProfit = repairPrice - techBilling;
+                            if (netProfit > 0) {
+                                comm = (netProfit * Number(user.technician.commissionRate)) / 100;
+                                comm = Math.round(comm * 100) / 100;
+                            }
+                        }
+                        if (comm > 0) {
+                            virtualEntries.push({
+                                id: `v-comm-${t.id}`,
+                                type: 'MAINTENANCE_COMMISSION',
+                                amount: comm,
+                                description: `عمولة صيانة: ${t.barcode}`,
+                                createdAt: t.completedAt || t.updatedAt,
+                                isVirtual: true,
+                                status: 'OPERATIONS',
+                                referenceId: t.id,
+                                referenceType: 'TICKET'
+                            });
+                        }
+                    }
+                }
 
-        const hireDateStr = user.hireDate ? new Date(user.hireDate).toLocaleDateString('en-CA') : null;
-
-        // Sum from clawbacks
-        // (Clawbacks are already filtered by date in the query above)
-        clawbacks.forEach(cb => {
-            const cbDateStr = new Date(cb.updatedAt).toLocaleDateString('en-CA');
-            if (hireDateStr && cbDateStr < hireDateStr) return;
-
-            // Already handled by MAINTENANCE_COMMISSION_REVERSAL if recorded, 
-            // but we add it if it's not yet in the transactions list
-            if (!transactions.some(tx => tx.referenceId === cb.id && tx.type === 'MAINTENANCE_COMMISSION_REVERSAL')) {
-                totalDeductions = totalDeductions.plus(cb.commissionClawback.toString())
-            }
-        })
-
-        // Add maintenance commissions to bonuses ONLY if they aren't already in ledger
-        // This handles legacy tickets before the automated linkage
-        if (!transactions.some(tx => tx.type === 'MAINTENANCE_COMMISSION')) {
-            totalBonuses = totalBonuses.plus(maintenanceCommissions)
+                if (Number(t.commissionClawback || 0) > 0) {
+                    const hasClaw = transactions.some(tx => tx.referenceId === t.id && tx.type === 'MAINTENANCE_COMMISSION_REVERSAL');
+                    if (!hasClaw) {
+                        virtualEntries.push({
+                            id: `v-claw-${t.id}`,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: Number(t.commissionClawback),
+                            description: `خصم مرتجع صيانة: ${t.barcode}`,
+                            createdAt: t.updatedAt,
+                            isVirtual: true,
+                            status: 'OPERATIONS',
+                            referenceId: t.id,
+                            referenceType: 'TICKET'
+                        });
+                    }
+                }
+            });
         }
-
-        // netAccrued is already calculated by salary-utils but we update it 
-        // if legacy commissions or clawbacks were added above
-        netAccrued = baseSalary.plus(totalBonuses).minus(totalDeductions);
-
-        // Success Ratio logic
-        const successRatio = totalCompleted > 0 
-            ? Math.max(0, ((totalCompleted - totalReturns) / totalCompleted) * 100) 
-            : 100
 
         return {
             success: true,
             data: {
                 user: JSON.parse(JSON.stringify(user)),
                 attendanceLogs: JSON.parse(JSON.stringify(attendanceLogs)),
-                tickets: JSON.parse(JSON.stringify(tickets)),
-                transactions: JSON.parse(JSON.stringify(transactions)),
+                tickets: JSON.parse(JSON.stringify(tickets.map(t => {
+                    const clawbackVal = new Decimal(t.commissionClawback || 0);
+                    const isLoss = t.status === 'RETURNED' || t.status === 'VOIDED' || t.isWarrantyReturn || clawbackVal.greaterThan(0);
+                    const isEligible = t.status === 'PAID_DELIVERED';
+                    
+                    let commission = Math.abs(new Decimal(t.commissionAmount || 0).toNumber());
+                    if (commission === 0 && user.technician?.commissionRate) {
+                        const currentTransferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
+                        const netProfit = Number(t.repairPrice || 0) - currentTransferVal;
+                        if (netProfit > 0) {
+                            commission = (netProfit * Number(user.technician.commissionRate)) / 100;
+                            commission = Math.round(commission * 100) / 100;
+                        }
+                    }
+
+                    const finalPrice = getTicketFinalPrice(t as any);
+                    const transferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
+                    const laborAmount = (isEligible || isLoss) ? (finalPrice - transferVal) : 0;
+
+                    return {
+                        ...t,
+                        totalAmount: (isEligible || isLoss) ? finalPrice : 0,
+                        laborAmount: laborAmount,
+                        displayCommission: isLoss 
+                            ? -Math.abs(clawbackVal.toNumber() || commission)
+                            : (isEligible ? commission : 0)
+                    }
+                }))),
+                transactions: JSON.parse(JSON.stringify([...transactions, ...virtualEntries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))),
                 clawbacks: JSON.parse(JSON.stringify(clawbacks)),
                 kpis: {
+                    ...kpis,
                     contractualSalary: user.salary ? Number(user.salary) : 0,
                     baseSalary: baseSalary.toNumber(),
                     netAccrued: netAccrued.toNumber(),
                     totalDeductions: totalDeductions.toNumber(),
-                    totalBonuses: totalBonuses.toNumber(), // Added
-                    maintenanceCommissions: maintenanceCommissions.toNumber(), // Added
-                    completedTickets: totalCompleted,
-                    returnCount: totalReturns,
-                    successRatio: Math.round(successRatio * 100) / 100,
-                    workflowGaps: totalDelayed
+                    totalBonuses: totalBonuses.toNumber(),
+                    workflowGaps: kpis.delayedTickets
                 }
             }
         }

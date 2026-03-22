@@ -145,8 +145,9 @@ export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
-export const paySupplier = secureAction(async (data: { supplierId: string, amount: number, method?: string, csrfToken?: string }) => {
+export const paySupplier = secureAction(async (data: { supplierId: string, amount: number | string | Decimal, method?: string, csrfToken?: string }) => {
     const { supplierId, amount, method = "CASH" } = data;
+    const amountDec = new Decimal(amount.toString());
     // 0. Find Default Treasury for this branch (Critical for Treasury Tracking)
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
@@ -163,7 +164,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         // 1. Create Payment Record - with auto journal
         const payment = await financialRepo.createSupplierPayment(tx, {
             supplierId,
-            amount: amount,
+            amount: amountDec,
             method: method,
             notes: `Manual Payment - ${method}`,
             branchId: user?.branchId || null
@@ -174,7 +175,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             where: { id: supplierId },
             data: {
                 balance: {
-                    decrement: amount
+                    decrement: amountDec
                 }
             }
         });
@@ -184,7 +185,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         await tx.transaction.create({
             data: {
                 type: 'OUT',
-                amount: new Decimal(amount),
+                amount: amountDec,
                 description: `Supplier Payment (${method})`,
                 paymentMethod: method,
                 treasuryId: defaultTreasuryId // 🔗 LINKED
@@ -194,15 +195,16 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         // 🆕 Update Treasury Balance (Real Money Movement)
         if (defaultTreasuryId) {
             const treasury = await tx.treasury.findUnique({ where: { id: defaultTreasuryId } });
-            if (treasury && Number(treasury.balance) < amount) {
+            const currentBalance = new Decimal(treasury?.balance?.toString() || "0");
+            if (currentBalance.lt(amountDec)) {
                 const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
                 if (!canGoNegative) {
-                    throw new Error("Insufficient treasury balance");
+                    throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
                 }
             }
             await tx.treasury.update({
                 where: { id: defaultTreasuryId },
-                data: { balance: { decrement: amount } }
+                data: { balance: { decrement: amountDec } }
             });
         }
 
@@ -223,8 +225,8 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             reference: payment.id,
             branchId: user?.branchId ?? undefined,
             lines: [
-                { accountCode: '2000', debit: amount, credit: 0, description: `Accounts Payable Reduced` },
-                { accountCode: creditAccount, debit: 0, credit: amount, description: `Payment via ${method}` }
+                { accountCode: '2000', debit: amountDec.toNumber(), credit: 0, description: `Accounts Payable Reduced` },
+                { accountCode: creditAccount, debit: 0, credit: amountDec.toNumber(), description: `Payment via ${method}` }
             ]
         }, tx);
 
@@ -375,13 +377,14 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
         // 6. Record Accounting Reversal
         try {
             const creditAccount = payment.method === 'CASH' ? '1000' : '1010';
+            const paymentAmountDec = new Decimal(payment.amount.toString());
             await AccountingEngine.recordTransaction({
                 description: `VOID Supplier Payment - ${payment.supplierId.substring(0, 8)}`,
                 reference: payment.supplierId,
                 branchId: user?.branchId ?? undefined,
                 lines: [
-                    { accountCode: '2000', debit: 0, credit: Number(payment.amount), description: 'Accounts Payable Restored' },
-                    { accountCode: creditAccount, debit: Number(payment.amount), credit: 0, description: 'Cash/Bank Restored' }
+                    { accountCode: '2000', debit: 0, credit: paymentAmountDec.toNumber(), description: 'Accounts Payable Restored' },
+                    { accountCode: creditAccount, debit: paymentAmountDec.toNumber(), credit: 0, description: 'Cash/Bank Restored' }
                 ]
             }, tx as any);
         } catch (err) {
@@ -753,13 +756,13 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
 
     // Calculate Totals
     const subtotal = items.reduce((acc: Decimal, item) => acc.plus(new Decimal(String(item.unitCost)).times(item.quantity)), new Decimal(0));
-    const deliveryCharge = new Decimal(header.deliveryCharge || 0);
-    const totalAmount = subtotal.plus(deliveryCharge).toNumber();
-    const paidAmount = header.paidAmount || 0;
+    const deliveryChargeDec = new Decimal(header.deliveryCharge || 0);
+    const totalAmountDec = subtotal.plus(deliveryChargeDec);
+    const paidAmountDec = new Decimal(header.paidAmount || 0);
 
     let status = "PENDING";
-    if (paidAmount >= totalAmount) status = "PAID";
-    else if (paidAmount > 0) status = "PARTIAL";
+    if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
+    else if (paidAmountDec.gt(0)) status = "PARTIAL";
 
     // Prepare Products Lookup (Batch Read)
     const skusToCheck = items.filter(i => !i.productId && i.sku).map(i => i.sku as string);
@@ -859,9 +862,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 supplierId: header.supplierId,
                 invoiceNumber: finalInvoiceNumber,
                 warehouseId: warehouseId!, // We ensured it exists
-                totalAmount: totalAmount,
-                deliveryCharge: deliveryCharge,
-                paidAmount: paidAmount,
+                totalAmount: totalAmountDec,
+                deliveryCharge: deliveryChargeDec,
+                paidAmount: paidAmountDec,
                 status: status,
                 paymentMethod: header.paymentMethod || "CASH",
                 branchId: wh?.branchId || null,
@@ -880,14 +883,14 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         // E. Update Supplier Balance
         await tx.supplier.update({
             where: { id: header.supplierId },
-            data: { balance: { increment: totalAmount - paidAmount } }
+            data: { balance: { increment: totalAmountDec.minus(paidAmountDec) } }
         });
 
         // F. Record Payment (Optimized) - with auto journal
-        if (paidAmount > 0) {
+        if (paidAmountDec.gt(0)) {
             await financialRepo.createSupplierPayment(tx, {
                 supplierId: header.supplierId,
-                amount: paidAmount,
+                amount: paidAmountDec,
                 method: header.paymentMethod || "CASH",
                 notes: `Invoice Payment #${finalInvoiceNumber}`,
                 branchId: user?.branchId || null
@@ -915,7 +918,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                     await tx.transaction.create({
                         data: {
                             type: 'OUT',
-                            amount: new Decimal(paidAmount),
+                            amount: paidAmountDec,
                             description: `Supplier Payment: Invoice #${finalInvoiceNumber}`,
                             paymentMethod: header.paymentMethod || "CASH",
                             treasuryId: treasury.id
@@ -924,7 +927,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
 
                     await tx.treasury.update({
                         where: { id: treasury.id },
-                        data: { balance: { decrement: paidAmount } }
+                        data: { balance: { decrement: paidAmountDec } }
                     });
                 }
             }
@@ -988,9 +991,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         await AccountingEngine.recordPurchase(
             invoice.id,
             finalInvoiceNumber || 'PURCHASE',
-            totalAmount,
-            paidAmount,
-            header.taxAmount || 0,
+            totalAmountDec,
+            paidAmountDec,
+            new Decimal(header.taxAmount || 0),
             user?.branchId ?? undefined,
             tx
         );
@@ -1060,7 +1063,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             )
         ]);
 
-        const oldNet = oldInvoice.totalAmount.toNumber() - oldInvoice.paidAmount.toNumber();
+        const oldNet = new Decimal(oldInvoice.totalAmount.toString()).minus(oldInvoice.paidAmount.toString());
         await tx.supplier.update({
             where: { id: oldInvoice.supplierId },
             data: { balance: { decrement: oldNet } }
@@ -1102,12 +1105,12 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         }
 
         const subtotal = processedItems.reduce((acc: Decimal, i) => acc.plus(new Decimal(String(i.unitCost)).times(i.quantity)), new Decimal(0));
-        const deliveryCharge = new Decimal(header.deliveryCharge || 0);
-        const totalAmount = subtotal.plus(deliveryCharge).toNumber();
-        const paidAmount = header.paidAmount || 0;
+        const deliveryChargeDec = new Decimal(header.deliveryCharge || 0);
+        const totalAmountDec = subtotal.plus(deliveryChargeDec);
+        const paidAmountDec = new Decimal(header.paidAmount || 0);
         let status = "PENDING";
-        if (paidAmount >= totalAmount) status = "PAID";
-        else if (paidAmount > 0) status = "PARTIAL";
+        if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
+        else if (paidAmountDec.gt(0)) status = "PARTIAL";
 
         await tx.purchaseInvoice.update({
             where: { id },
@@ -1115,9 +1118,9 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                 supplierId: header.supplierId,
                 invoiceNumber: header.invoiceNumber,
                 warehouseId: warehouseId!,
-                totalAmount,
-                deliveryCharge,
-                paidAmount,
+                totalAmount: totalAmountDec,
+                deliveryCharge: deliveryChargeDec,
+                paidAmount: paidAmountDec,
                 status,
                 paymentMethod: header.paymentMethod,
                 items: {
@@ -1132,12 +1135,12 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             }
         });
 
-        if (paidAmount > oldInvoice.paidAmount.toNumber()) {
-            const diffAmount = paidAmount - oldInvoice.paidAmount.toNumber();
+        if (paidAmountDec.gt(oldInvoice.paidAmount.toString())) {
+            const diffAmountDec = paidAmountDec.minus(oldInvoice.paidAmount.toString());
             // Update payment - with auto journal
             await financialRepo.createSupplierPayment(tx, {
                 supplierId: header.supplierId,
-                amount: diffAmount,
+                amount: diffAmountDec,
                 method: header.paymentMethod || "CASH",
                 notes: `Update Invoice Payment #${header.invoiceNumber || id}`,
                 branchId: user?.branchId || null
@@ -1155,20 +1158,20 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                     await tx.transaction.create({
                         data: {
                             type: 'OUT',
-                            amount: new Decimal(diffAmount),
+                            amount: diffAmountDec,
                             description: `Supplier Payment: Update Invoice #${header.invoiceNumber || id}`,
                             paymentMethod: header.paymentMethod || "CASH",
                             treasuryId: treasury.id
                         }
                     });
-                    await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: diffAmount } } });
+                    await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: diffAmountDec } } });
                 }
             }
         }
 
         await tx.supplier.update({
             where: { id: header.supplierId },
-            data: { balance: { increment: totalAmount - paidAmount } }
+            data: { balance: { increment: totalAmountDec.minus(paidAmountDec) } }
         });
 
         const sortedItems = [...processedItems].sort((a, b) => a.productId.localeCompare(b.productId));
@@ -1195,9 +1198,9 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         await AccountingEngine.recordPurchase(
             id,
             header.invoiceNumber || 'PURCHASE',
-            totalAmount,
-            paidAmount,
-            header.taxAmount || 0,
+            totalAmountDec,
+            paidAmountDec,
+            new Decimal(header.taxAmount || 0),
             user?.branchId ?? undefined,
             tx
         );
@@ -1222,8 +1225,8 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
                 data: { quantity: { decrement: item.quantity } }
             });
         }
-        const net = old.totalAmount.toNumber() - old.paidAmount.toNumber();
-        await tx.supplier.update({ where: { id: old.supplierId }, data: { balance: { decrement: net } } });
+        const netDec = new Decimal(old.totalAmount.toString()).minus(old.paidAmount.toString());
+        await tx.supplier.update({ where: { id: old.supplierId }, data: { balance: { decrement: netDec } } });
         
         const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
         await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase voided");
@@ -1895,12 +1898,12 @@ export const reportWastage = secureAction(async (data: {
         });
 
         // 7. Accounting Entry for Spoilage (B11)
-        const totalCost = Number(product.costPrice || 0) * data.quantity;
-        if (totalCost > 0) {
+        const totalCostDec = new Decimal(product.costPrice?.toString() || "0").times(data.quantity);
+        if (totalCostDec.gt(0)) {
             const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
             await AccountingEngine.recordWastage({
                 wastageId: wastage.id,
-                amount: totalCost,
+                amount: totalCostDec,
                 description: `إهلاك مخزون (${product.name}) - ${data.reason}`,
                 branchId: warehouse?.branchId || undefined
             }, tx);
@@ -2138,10 +2141,11 @@ export const bulkImportPurchases = secureAction(async (data: {
             }
 
             const subtotal = finalItems.reduce((acc: Decimal, i) => acc.plus(new Decimal(String(i.unitCost)).times(i.quantity)), new Decimal(0));
-            const totalAmount = subtotal.plus(new Decimal(String(invoice.deliveryCharge))).toNumber();
+            const totalAmountDec = subtotal.plus(new Decimal(String(invoice.deliveryCharge)));
+            const paidAmountDec = new Decimal(String(invoice.paidAmount));
             let status = "PENDING";
-            if (invoice.paidAmount >= totalAmount) status = "PAID";
-            else if (invoice.paidAmount > 0) status = "PARTIAL";
+            if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
+            else if (paidAmountDec.gt(0)) status = "PARTIAL";
 
             await prisma.$transaction(async (tx) => {
                 const newInvoice = await tx.purchaseInvoice.create({
@@ -2149,7 +2153,7 @@ export const bulkImportPurchases = secureAction(async (data: {
                         supplierId: supplier.id,
                         invoiceNumber: invoice.invoiceNumber || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                         warehouseId: warehouseId!,
-                        totalAmount,
+                        totalAmount: totalAmountDec,
                         deliveryCharge: invoice.deliveryCharge,
                         paidAmount: invoice.paidAmount,
                         status,
@@ -2168,7 +2172,7 @@ export const bulkImportPurchases = secureAction(async (data: {
 
                 await tx.supplier.update({
                     where: { id: supplier.id },
-                    data: { balance: { increment: totalAmount - invoice.paidAmount } }
+                    data: { balance: { increment: totalAmountDec.minus(paidAmountDec) } }
                 });
 
                 // Parallel stock updates allowed here since they target different products usually

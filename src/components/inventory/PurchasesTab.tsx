@@ -8,9 +8,10 @@ import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
 import {
     Loader2, Edit, Pencil, Plus, ShoppingCart, FileText,
     Calendar, Trash2, X, Search, Wand2, Check, Box,
-    Printer, Filter, Upload,
+    Printer, Filter, Upload, Tag,
     Calendar as CalendarIcon
 } from "lucide-react";
+import { BarcodePrintDialog } from "@/components/inventory/BarcodePrintDialog";
 import {
     startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
     startOfMonth, endOfMonth, isWithinInterval, format
@@ -153,6 +154,9 @@ export default function PurchasesTab({
     const [showBulkUpload, setShowBulkUpload] = useState(false);
     const [settings, setSettings] = useState<any>(null);
     const [refundInvoice, setRefundInvoice] = useState<{ id: string } | null>(null);
+    const [showBarcodePrint, setShowBarcodePrint] = useState(false);
+    const [selectedTableInvoice, setSelectedTableInvoice] = useState<any>(null);
+    const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
 
     useEffect(() => {
         getStoreSettings().then(res => {
@@ -346,26 +350,69 @@ export default function PurchasesTab({
             const printer = registry?.a4Printer && registry.a4Printer !== 'none' ? registry.a4Printer : undefined;
 
             await toast.promise(
-                printService.printHTML(html, printer || '', { paperWidthMm: 210 }),
+                printService.printHTML(html, printer, { paperWidthMm: 210 }),
                 {
-                    loading: tPOS('printing') || 'Printing...',
-                    success: tPOS('sentToPrinter') || 'Sent to printer',
-                    error: (err: any) => `Print failed: ${err?.message || 'Unknown error'}`
+                    loading: t('printing') || "جاري الطباعة...",
+                    success: t('printSuccess') || "تم إرسال الفاتورة للطابعة",
+                    error: (err: any) => (err?.message || t('printError') || "فشل إرسال الفاتورة للطابعة")
                 }
             );
-        } catch (e) {
-            console.error("Print Error:", e);
-            // Fallback for non-electron environments if printHTML fails
-            const printWindow = window.open('', '', 'width=800,height=600');
-            if (printWindow) {
-                printWindow.document.write(html);
-                printWindow.document.close();
-                printWindow.focus();
-                setTimeout(() => {
-                    printWindow.print();
-                    printWindow.close();
-                }, 250);
-            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleTablePrint = async (id: string) => {
+        setLoadingInvoiceId(id);
+        try {
+            const res = await getPurchase(id);
+            if (!res.success || !res.data) throw new Error(res.error || "Failed to fetch invoice");
+
+            const inv = res.data;
+            const purchaseData = {
+                invoiceNumber: inv.invoiceNumber,
+                supplierName: inv.supplier?.name || "N/A",
+                supplierPhone: inv.supplier?.phone || "",
+                supplierAddress: inv.supplier?.address || "",
+                date: new Date(inv.purchaseDate),
+                status: inv.status,
+                items: inv.items.map((item: any) => ({
+                    productId: item.productId,
+                    name: item.product?.name || "N/A",
+                    sku: item.product?.sku || "N/A",
+                    unitCost: Number(item.unitCost),
+                    quantity: item.quantity
+                })),
+                totalAmount: Number(inv.totalAmount),
+                paidAmount: Number(inv.paidAmount),
+                deliveryCharge: Number(inv.deliveryCharge)
+            };
+
+            const html = generateA4PurchaseHTML({ purchaseData, settings });
+            const registry = printService.getRegistry();
+            const printer = registry?.a4Printer && registry.a4Printer !== 'none' ? registry.a4Printer : undefined;
+
+            await printService.printHTML(html, printer, { paperWidthMm: 210 });
+            toast.success(t('printSuccess') || "تم إرسال الفاتورة للطابعة");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to print invoice");
+        } finally {
+            setLoadingInvoiceId(null);
+        }
+    };
+
+    const handleTableBarcode = async (id: string) => {
+        setLoadingInvoiceId(id);
+        try {
+            const res = await getPurchase(id);
+            if (!res.success || !res.data) throw new Error(res.error || "Failed to fetch invoice");
+
+            setSelectedTableInvoice(res.data);
+            setShowBarcodePrint(true);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to prepare barcode dialog");
+        } finally {
+            setLoadingInvoiceId(null);
         }
     };
 
@@ -399,6 +446,19 @@ export default function PurchasesTab({
         totalPaid: filteredInvoices.reduce((acc, inv) => acc + (inv.status !== 'VOIDED' ? inv.paidAmount : 0), 0),
     };
     const totalPending = stats.totalPurchases - stats.totalPaid;
+
+    const barcodeItems = selectedTableInvoice ? selectedTableInvoice.items : cart;
+    const barcodeProducts = barcodeItems.map((item: any) => ({
+        id: item.productId || item.product?.id || `temp-${item.sku}`,
+        name: item.product?.name || item.name,
+        sku: item.product?.sku || item.sku,
+        sellPrice: Number(item.product?.sellPrice || item.sellPrice || 0)
+    }));
+    const barcodeQuantities = barcodeItems.reduce((acc: any, item: any) => {
+        const id = item.productId || item.product?.id || `temp-${item.sku}`;
+        acc[id] = item.quantity;
+        return acc;
+    }, {});
 
     return (
         <div className="space-y-6 animate-fly-in" dir="rtl">
@@ -650,6 +710,26 @@ export default function PurchasesTab({
                                     <td className="p-4 text-center">
                                         <div className="flex gap-2 justify-center">
                                             <button
+                                                onClick={() => handleTablePrint(inv.id)}
+                                                disabled={loadingInvoiceId === inv.id}
+                                                className="bg-muted hover:bg-zinc-500 text-muted-foreground hover:text-white p-2 rounded-lg transition-colors"
+                                                title={t('printInvoice')}
+                                            >
+                                                {loadingInvoiceId === inv.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Printer className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => handleTableBarcode(inv.id)}
+                                                disabled={loadingInvoiceId === inv.id}
+                                                className="bg-muted hover:bg-cyan-500 text-muted-foreground hover:text-black p-2 rounded-lg transition-colors"
+                                                title={t('printBarcodes')}
+                                            >
+                                                <Tag className="w-4 h-4" />
+                                            </button>
+                                            <button
                                                 onClick={() => handleEdit(inv.id)}
                                                 className="bg-muted hover:bg-cyan-500 text-muted-foreground hover:text-black p-2 rounded-lg transition-colors"
                                                 title={t('editInvoice')}
@@ -703,7 +783,16 @@ export default function PurchasesTab({
                             <h2 className="text-xl font-bold">
                                 {editingInvoiceId ? t('editInvoice') : t('createInvoice')}
                             </h2>
-                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                {cart.length > 0 && (
+                                    <button
+                                        onClick={() => setShowBarcodePrint(true)}
+                                        className="p-2 hover:bg-muted rounded-full"
+                                        title={t('printBarcodes') || "طباعة الباركود"}
+                                    >
+                                        <Tag className="w-5 h-5 text-cyan-400" />
+                                    </button>
+                                )}
                                 <button onClick={handlePrint} className="p-2 hover:bg-muted rounded-full" title={t('printInvoice')}>
                                     <Printer className="w-5 h-5 text-muted-foreground" />
                                 </button>
@@ -897,6 +986,18 @@ export default function PurchasesTab({
                         />
                     </div>
                 </div>
+            )}
+
+            {/* Barcode Print Dialog */}
+            {showBarcodePrint && barcodeItems.length > 0 && (
+                <BarcodePrintDialog
+                    products={barcodeProducts}
+                    initialQuantities={barcodeQuantities}
+                    onClose={() => {
+                        setShowBarcodePrint(false);
+                        setSelectedTableInvoice(null);
+                    }}
+                />
             )}
         </div>
     );

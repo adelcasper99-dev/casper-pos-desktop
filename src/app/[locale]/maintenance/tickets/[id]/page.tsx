@@ -57,6 +57,11 @@ function serializeTicket(ticket: any) {
         netProfit: Number(ticket.netProfit || 0),
         amountPaid: Number(ticket.amountPaid || 0),
         expectedDuration: Number(ticket.expectedDuration || 0),
+        finalCustomerPrice: Number(ticket.finalCustomerPrice || 0),
+        laborPoolAmount: Number(ticket.laborPoolAmount || 0),
+        techCommissionAmount: Number(ticket.techCommissionAmount || 0),
+        centerLaborProfit: Number(ticket.centerLaborProfit || 0),
+        centerPartProfit: Number(ticket.centerPartProfit || 0),
     };
 }
 
@@ -562,6 +567,7 @@ export default function TicketDetailPage() {
                                     onChangeTechnician={() => setShowTechModal(true)}
                                     onUpdate={loadData}
                                     isWarrantyTicket={!!ticket.parentTicketId}
+                                    lastReturnedAt={ticket.lastReturnedAt}
                                 />
                             </div>
                         </section>
@@ -650,6 +656,32 @@ export default function TicketDetailPage() {
                                 </span>
                                 <span className="text-sm font-black text-cyan-400 uppercase tracking-widest relative z-10">EGP</span>
                             </div>
+
+                            {/* Profit Distribution Snapshot (New: CP-02) */}
+                            {ticket.status === 'PAID_DELIVERED' && ticket.finalCustomerPrice > 0 && (
+                                <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/5 space-y-3 animate-fly-in shadow-lg">
+                                    <h4 className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                        <Database className="w-3 h-3" />
+                                        توزيع الأرباح النهائي
+                                    </h4>
+                                    
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center px-1">
+                                            <span className="text-[10px] text-zinc-500 font-bold">وعاء المصنعية</span>
+                                            <span className="text-xs font-black text-white">{ticket.laborPoolAmount.toLocaleString()} <span className="text-[9px] text-zinc-600">EGP</span></span>
+                                        </div>
+                                        <div className="flex justify-between items-center px-1">
+                                            <span className="text-[10px] text-emerald-500/70 font-bold">عمولة المهندس</span>
+                                            <span className="text-xs font-black text-emerald-400">-{ticket.techCommissionAmount.toLocaleString()} <span className="text-[9px] text-zinc-600">EGP</span></span>
+                                        </div>
+                                        <Separator className="bg-white/5" />
+                                        <div className="flex justify-between items-center px-1 pt-1">
+                                            <span className="text-[10px] text-cyan-500 font-bold">صافي ربح المركز</span>
+                                            <span className="text-sm font-black text-white">{(ticket.centerLaborProfit + ticket.centerPartProfit).toLocaleString()} <span className="text-[9px] text-zinc-600 uppercase">EGP</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Paid Amount Summary Row */}
                             {Number(ticket.amountPaid) > 0 && (

@@ -84,7 +84,9 @@ export const searchProductsForCustody = secureAction(async (data: {
                 categoryColor: p.category?.color,
                 availableQuantity: stock?.quantity || 0,
                 costPrice: Number(p.costPrice),
-                sellPrice: Number(p.sellPrice)
+                sellPrice: Number(p.sellPrice),
+                sellPrice2: Number(p.sellPrice2),
+                sellPrice3: Number(p.sellPrice3)
             };
         });
 
@@ -101,7 +103,7 @@ export const searchProductsForCustody = secureAction(async (data: {
 export const transferCustodyToTech = secureAction(async (data: {
     technicianId: string,
     sourceWarehouseId: string,
-    items: { productId: string, quantity: number }[],
+    items: { productId: string, quantity: number, priceTier?: string }[],
     csrfToken?: string
 }) => {
     const { technicianId, sourceWarehouseId, items } = data;
@@ -167,6 +169,8 @@ export const transferCustodyToTech = secureAction(async (data: {
                 }
             });
 
+            const priceLabel = item.priceTier ? ` (Valued at ${item.priceTier})` : '';
+
             // 4. Record stock movement
             await tx.stockMovement.create({
                 data: {
@@ -175,7 +179,7 @@ export const transferCustodyToTech = secureAction(async (data: {
                     fromWarehouseId: sourceWarehouseId,
                     toWarehouseId: destWarehouseId,
                     quantity: item.quantity,
-                    reason: `Custody handover to technician: ${tech.name}`,
+                    reason: `Custody handover to technician: ${tech.name}${priceLabel}`,
                     branchId: sourceWh?.branchId || null
                 } as any
             });
