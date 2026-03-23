@@ -195,6 +195,7 @@ export function ThermalPrintLabel({
         const style = {
             fontSize: `${el.fontSize}pt`,
             fontWeight: el.fontWeight,
+            textAlign: el.textAlign || 'left',
             whiteSpace: 'nowrap' as const,
             lineHeight: 1,
             fontFamily: 'Arial, sans-serif'
@@ -220,7 +221,7 @@ export function ThermalPrintLabel({
         const id = el.id?.toLowerCase() || '';
 
         if (id === 'productname') text = product.name;
-        else if (id === 'price') text = formatCurrency(Number(product.price));
+        else if (id === 'price') text = `LE ${Number(product.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
         else if (id === 'sku') text = product.sku;
         else if (id === 'storename') text = storeName;
         else text = el.label;
@@ -338,7 +339,7 @@ export function ThermalPrintLabel({
                             {product.name}
                         </div>
                         <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1 }}>
-                            {formatCurrency(Number(product.price))}
+                            LE {Number(product.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </div>
                     </div>
                 </div>

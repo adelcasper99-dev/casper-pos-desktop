@@ -18,6 +18,7 @@ export interface LabelElement {
   fontSize?: number; // pt (for text)
   fontFamily?: string;
   fontWeight?: 'normal' | 'bold';
+  textAlign?: 'left' | 'center' | 'right';
   rotation?: 0 | 90 | 180 | 270;
   visible: boolean;
   sampleData?: string;
@@ -61,6 +62,57 @@ export interface LabelTemplate {
   dimensions: LabelDimensions;
   elements: LabelElement[];
 }
+
+/**
+ * OZZA Store 50x30mm Professional Template
+ */
+export const OZZA_STORE_50X30: LabelTemplate = {
+  dimensions: { width: 50, height: 30 },
+  page: { width: 50, height: 30 },
+  margin: { top: 0, right: 0, bottom: 0, left: 0 },
+  elements: [
+    {
+      id: "storeName",
+      label: "اسم المتجر",
+      type: "text",
+      x: 3.5, y: 1, width: 43,
+      fontSize: 14, fontWeight: "bold", textAlign: "center",
+      visible: true
+    },
+    {
+      id: "barcode",
+      label: "الباركود",
+      type: "barcode",
+      x: 11.5, y: 7, width: 27, height: 10,
+      visible: true
+    },
+    {
+      id: "productName",
+      label: "اسم المنتج",
+      type: "text",
+      x: 3.5, y: 19, width: 43,
+      fontSize: 12, fontWeight: "bold", textAlign: "center",
+      visible: true
+    },
+    {
+      id: "price",
+      label: "السعر",
+      type: "text",
+      x: 3.5, y: 24, width: 43,
+      fontSize: 14, fontWeight: "bold", textAlign: "center",
+      visible: true
+    },
+    {
+      id: "sku",
+      label: "SKU",
+      type: "text",
+      x: 4, y: 1, width: 28, // height in vertical
+      fontSize: 8, fontWeight: "bold", textAlign: "center",
+      rotation: 90,
+      visible: true
+    }
+  ]
+};
 
 /**
  * Migrates a potential legacy template to the new structure

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Printer, CheckCircle, AlertCircle, Download, Globe } from 'lucide-react';
 import { printService } from '@/lib/print-service';
-import { type LabelTemplate, migrateTemplate } from '@/lib/label-commands';
+import { type LabelTemplate, migrateTemplate, OZZA_STORE_50X30 } from '@/lib/label-commands';
 import { getEffectiveStoreSettings } from '@/actions/settings';
 import { useTranslations } from '@/lib/i18n-mock';
 import { ThermalPrintLabel } from './ThermalPrintLabel';
@@ -41,7 +41,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
   const [showQzModal, setShowQzModal] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [storeName, setStoreName] = useState("CASPER POS");
-  const [labelTemplate, setLabelTemplate] = useState<LabelTemplate | undefined>(undefined);
+  const [labelTemplate, setLabelTemplate] = useState<LabelTemplate>(OZZA_STORE_50X30);
 
   // Print method selection
   const [printMethod, setPrintMethod] = useState<'browser' | 'qz'>('browser'); // Default to browser
@@ -63,7 +63,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
           const tpl = typeof result.data.labelTemplate === 'string'
             ? JSON.parse(result.data.labelTemplate)
             : result.data.labelTemplate;
-          setLabelTemplate(migrateTemplate(tpl)); // Ensure migration
+          if (tpl) setLabelTemplate(migrateTemplate(tpl)); // Ensure migration
         } catch (e) {
           console.error("Error parsing label template", e);
         }
@@ -251,52 +251,73 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
                 </h3>
                 <div className="bg-zinc-950/50 rounded-2xl p-8 border border-white/10 flex items-center justify-center min-h-[400px]">
                   <div className="space-y-8">
-                    {products.map((product) => (
-                      <div key={product.id} className="bg-white rounded-lg p-1 border-4 border-zinc-400 overflow-hidden shadow-2xl relative" style={{ width: '250px', height: '130px' }}>
-                        {/* Preview of 58mm x 30mm label (scaled for screen) */}
-                        <div className="flex h-full text-black" dir="rtl">
-                          {/* Right Side: SKU (Vertical) for RTL */}
-                          <div className="w-[15%] h-full flex items-center justify-center border-l border-black ml-1 bg-gray-50">
-                            <div
-                              className="text-[10px] font-bold whitespace-nowrap text-zinc-800 font-mono"
-                              style={{ writingMode: 'vertical-rl', transform: 'rotate(0deg)' }}
-                            >
-                              {editableData[product.id]?.sku || product.sku}
-                            </div>
-                          </div>
+                    {products.map((product) => {
+                      const width = labelTemplate.dimensions.width;
+                      const height = labelTemplate.dimensions.height;
+                      // Scale factor for preview (mm to pixels)
+                      const scale = 4; 
 
-                          {/* Left Side: Content */}
-                          <div className="flex-1 flex flex-col items-center justify-start h-full pt-1 overflow-hidden">
-                            {/* Store Name */}
-                            <div className="text-[10px] font-bold text-center leading-none mb-1 w-full truncate px-1 uppercase tracking-tight">
-                              {storeName}
-                            </div>
+                      return (
+                        <div 
+                          key={product.id} 
+                          className="bg-white rounded shadow-2xl relative overflow-hidden text-black" 
+                          style={{ 
+                            width: `${width * scale}px`, 
+                            height: `${height * scale}px`,
+                          }}
+                        >
+                          {labelTemplate.elements.filter(el => el.visible).map(el => {
+                              const elX = el.x * scale;
+                              const elY = el.y * scale;
+                              const elW = el.width ? el.width * scale : undefined;
+                              
+                              let content: React.ReactNode = "";
+                              const id = el.id?.toLowerCase() || '';
+                              
+                              if (el.type === 'barcode') {
+                                return (
+                                  <div key={el.id} style={{ position: 'absolute', left: elX, top: elY, width: elW }}>
+                                    <Barcode
+                                      value={editableData[product.id]?.sku || product.sku}
+                                      width={1}
+                                      height={(el.height || 10) * scale * 0.8}
+                                      fontSize={0}
+                                      margin={0}
+                                      displayValue={false}
+                                    />
+                                  </div>
+                                );
+                              }
 
-                            {/* Barcode */}
-                            <div className="flex justify-center mb-1 scale-110">
-                              <Barcode
-                                value={editableData[product.id]?.sku || product.sku}
-                                width={1}
-                                height={35}
-                                fontSize={8}
-                                margin={0}
-                                displayValue={false}
-                              />
-                            </div>
+                              if (id === 'productname') content = editableData[product.id]?.name || product.name;
+                              else if (id === 'price') content = `LE ${(editableData[product.id]?.price ?? product.sellPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                              else if (id === 'sku') content = editableData[product.id]?.sku || product.sku;
+                              else if (id === 'storename') content = storeName;
+                              else content = el.label;
 
-                            {/* Product Name */}
-                            <div className="text-[11px] font-bold text-center leading-tight line-clamp-2 px-1 mb-1 h-8 flex items-center justify-center">
-                              {(editableData[product.id]?.name || product.name)}
-                            </div>
-
-                            {/* Price */}
-                            <div className="text-[14px] font-black leading-tight text-cyan-700 bg-cyan-50 px-3 rounded-full border border-cyan-100">
-                              LE {(editableData[product.id]?.price ?? product.sellPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </div>
-                          </div>
+                              return (
+                                <div 
+                                  key={el.id}
+                                  style={{
+                                    position: 'absolute',
+                                    left: elX,
+                                    top: elY,
+                                    width: elW,
+                                    fontSize: `${(el.fontSize || 10) * (scale / 4) * 1.2}pt`,
+                                    fontWeight: el.fontWeight,
+                                    textAlign: el.textAlign || 'left',
+                                    transform: `rotate(${el.rotation || 0}deg)`,
+                                    transformOrigin: 'top left',
+                                    lineHeight: 1
+                                  }}
+                                >
+                                  {content}
+                                </div>
+                              );
+                          })}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="bg-cyan-500/5 p-4 rounded-xl border border-cyan-500/10 max-w-[250px]">
                       <p className="text-xs text-zinc-400 text-center leading-relaxed">
                         {t('previewNote')}
