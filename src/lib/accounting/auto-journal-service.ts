@@ -117,14 +117,12 @@ export class AutoJournalService {
       ticketId: string;
       barcode: string;
       amount: number | Decimal;
-      method: string;
       techBillingPrice: number | Decimal;
       techCommissionAmount: number | Decimal;
       centerLaborProfit: number | Decimal;
       branchId?: string;
     }
   ) {
-    const glCode = PAYMENT_GL_MAP[params.method] ?? '1000';
     const amountNum = Number(params.amount);
     const techBillingNum = Number(params.techBillingPrice);
     const techCommNum = Number(params.techCommissionAmount);
@@ -138,28 +136,28 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, glCode), 
+              accountId: await this.getAccountId(tx, '4100'), // Service Revenue (WIP)
               debit: amountNum, 
               credit: 0, 
-              description: 'Customer Payment Received' 
+              description: 'Service Revenue Reclassification' 
             },
             { 
-              accountId: await this.getAccountId(tx, '1100'), // AR
+              accountId: await this.getAccountId(tx, '4000'), // Sales Revenue
               debit: 0, 
               credit: techBillingNum, 
-              description: 'Tech Custody Settlement' 
+              description: 'Parts Revenue Dist' 
             },
             { 
-              accountId: await this.getAccountId(tx, '2100'), // Payables
+              accountId: await this.getAccountId(tx, '2200'), // Accrued Salaries (Liability)
               debit: 0, 
               credit: techCommNum, 
-              description: 'Tech Commission Accrued' 
+              description: 'Technician Commission Accrued' 
             },
             { 
-              accountId: await this.getAccountId(tx, '4000'), // Revenue
+              accountId: await this.getAccountId(tx, '4000'), // Sales Revenue
               debit: 0, 
               credit: centerProfitNum, 
-              description: 'Center Labor Profit' 
+              description: 'Center Labor Profit realized' 
             }
           ]
         }

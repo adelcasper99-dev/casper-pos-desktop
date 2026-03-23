@@ -34,6 +34,8 @@ export interface CartProduct {
     sku: string;
     name: string;
     sellPrice: number;
+    sellPrice2: number;
+    sellPrice3: number;
     stock: number;
     trackStock?: boolean;
 }

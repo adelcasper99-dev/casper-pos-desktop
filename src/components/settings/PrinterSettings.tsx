@@ -29,6 +29,7 @@ export default function PrinterSettings() {
     const [labelPrinter, setLabelPrinter] = useState<string>('');
     const [enableThermal, setEnableThermal] = useState<boolean>(true);
     const [enableA4, setEnableA4] = useState<boolean>(true);
+    const [enableSpeedPrint, setEnableSpeedPrint] = useState<boolean>(true);
     const [defaultCopies, setDefaultCopies] = useState<number>(1);
 
     useEffect(() => {
@@ -46,6 +47,7 @@ export default function PrinterSettings() {
             if (registry.labelPrinter) setLabelPrinter(registry.labelPrinter);
             setEnableThermal(registry.enableThermal !== false); // Default to true
             setEnableA4(registry.enableA4 !== false); // Default to true
+            setEnableSpeedPrint(registry.enableSpeedPrint !== false); // Default to true
             if (registry.defaultCopies) setDefaultCopies(registry.defaultCopies);
         } else {
             // Fallback for immediate load after migration
@@ -133,6 +135,7 @@ export default function PrinterSettings() {
             labelPrinter: labelPrinter,
             enableThermal: enableThermal,
             enableA4: enableA4,
+            enableSpeedPrint: enableSpeedPrint,
             defaultCopies: defaultCopies
         });
         // Sync legacy key
@@ -378,6 +381,22 @@ export default function PrinterSettings() {
                                 <span className="text-xs text-zinc-500">
                                     (سيتم طباعة هذا العدد تلقائياً في كل عملية بيع)
                                 </span>
+                            </div>
+                        </div>
+
+                        <hr className="border-white/5" />
+
+                        {/* Quick Print Toggle */}
+                        <div className="space-y-2">
+                             <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label>الطباعة السريعة (Quick Print Button)</Label>
+                                    <p className="text-[10px] text-zinc-500">إظهار زر الطباعة المباشرة في شاشة البيع (Bypass checkout modal)</p>
+                                </div>
+                                <Switch
+                                    checked={enableSpeedPrint}
+                                    onCheckedChange={setEnableSpeedPrint}
+                                />
                             </div>
                         </div>
                     </div>

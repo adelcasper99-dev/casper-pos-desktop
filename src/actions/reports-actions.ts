@@ -274,7 +274,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             });
             const recentSales = await prisma.sale.findMany({
                 where: { id: { in: saleIdsWithItems.map(i => i.saleId) } },
-                include: { warehouse: { include: { branch: true } } },
+                select: { id: true, createdAt: true, isReturn: true, totalAmount: true, paymentMethod: true, warehouse: { include: { branch: true } } },
                 orderBy: { createdAt: 'desc' }
             });
 
@@ -290,14 +290,14 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             });
             const recentPurchases = await prisma.purchaseInvoice.findMany({
                 where: { id: { in: purchaseIdsWithItems.map(i => i.purchaseInvoiceId) } },
-                include: { warehouse: { include: { branch: true } } },
+                select: { id: true, purchaseDate: true, isReturn: true, totalAmount: true, paymentMethod: true, warehouse: { include: { branch: true } } },
                 orderBy: { purchaseDate: 'desc' }
             });
             const recentExpenses = await prisma.expense.findMany({ where: expenseWhere, orderBy: { date: 'desc' }, take: TAKE_LIMIT });
 
             transactions = [
-                ...recentSales.map(s => ({ id: s.id, date: s.createdAt.toISOString(), type: 'SALE', amount: Number(s.totalAmount), branch: s.warehouse?.branch?.name ?? 'الفرع الرئيسي', method: s.paymentMethod })),
-                ...recentPurchases.map(p => ({ id: p.id, date: p.purchaseDate.toISOString(), type: 'PURCHASE', amount: -Number(p.totalAmount), branch: p.warehouse?.branch?.name ?? 'الفرع الرئيسي', method: p.paymentMethod })),
+                ...recentSales.map(s => ({ id: s.id, date: s.createdAt.toISOString(), type: 'SALE', isReturn: (s as any).isReturn, amount: Number(s.totalAmount), branch: s.warehouse?.branch?.name ?? 'الفرع الرئيسي', method: s.paymentMethod })),
+                ...recentPurchases.map(p => ({ id: p.id, date: p.purchaseDate.toISOString(), type: 'PURCHASE', isReturn: (p as any).isReturn, amount: -Number(p.totalAmount), branch: p.warehouse?.branch?.name ?? 'الفرع الرئيسي', method: p.paymentMethod })),
                 ...recentExpenses.map(e => ({ id: e.id, date: e.date.toISOString(), type: 'EXPENSE', amount: -Number(e.amount), description: e.description, category: e.category, method: e.paymentMethod })),
                 ...tickets.slice(0, TAKE_LIMIT).map(t => ({ id: t.id, date: t.createdAt.toISOString(), type: 'MAINTENANCE', amount: Number(t.repairPrice), branch: t.currentBranch?.name ?? 'الفرع الرئيسي', method: 'صيانة' }))
             ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, TAKE_LIMIT);
@@ -316,8 +316,8 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             const recentEntries = await prisma.journalEntry.findMany({
                 where: baseJournalEntryWhereForList,
                 include: {
-                    sale: { include: { warehouse: { include: { branch: true } } } },
-                    purchase: { include: { warehouse: { include: { branch: true } } } },
+                    sale: { select: { isReturn: true, warehouse: { include: { branch: true } }, paymentMethod: true, totalAmount: true } },
+                    purchase: { select: { isReturn: true, warehouse: { include: { branch: true } }, paymentMethod: true, totalAmount: true } },
                     lines: { include: { account: true } }
                 },
                 orderBy: { date: 'desc' },
@@ -335,11 +335,13 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 } else {
                     if (entry.lines.some(l => ['5100', '5200', '5300', '5400'].includes(l.account?.code || '') && l.debit.greaterThan(0))) {
                         type = 'EXPENSE'; amount = -Number(entry.lines.find(l => ['5100', '5200', '5300', '5400'].includes(l.account?.code || ''))?.debit || 0);
+                    } else if (entry.lines.some(l => l.account?.code === '4400' && l.credit.greaterThan(0))) {
+                        type = 'INCOME'; amount = Number(entry.lines.find(l => l.account?.code === '4400')?.credit || 0);
                     } else {
                         amount = entry.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
                     }
                 }
-                return { id: entry.id, date: entry.date.toISOString(), type, amount, branch, method, description, reference: entry.reference };
+                return { id: entry.id, date: entry.date.toISOString(), type, isReturn: entry.sale?.isReturn || entry.purchase?.isReturn || false, amount, branch, method, description, reference: entry.reference };
             });
 
             const maintenanceTx = tickets.slice(0, TAKE_LIMIT).map(t => ({

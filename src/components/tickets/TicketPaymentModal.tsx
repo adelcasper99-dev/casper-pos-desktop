@@ -580,9 +580,14 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                             <ShieldCheck className="w-3 h-3 text-emerald-500" />
                                             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black">{t('expiryDate') || "تاريخ الانتهاء"}</span>
                                         </div>
-                                        <span className="text-xs font-black text-emerald-400 tracking-tighter">
-                                            {warrantyExpiryDate.toLocaleDateString('ar-EG')}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-xs font-black text-emerald-400 tracking-tighter">
+                                                {warrantyExpiryDate.toLocaleDateString('ar-EG')}
+                                            </span>
+                                            <span className="text-[8px] text-zinc-500 uppercase font-black tracking-widest leading-none">
+                                                (يبدأ من اليوم)
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             )}

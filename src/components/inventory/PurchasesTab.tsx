@@ -8,7 +8,7 @@ import { getBranchTreasuriesForDropdown } from "@/actions/treasury";
 import {
     Loader2, Edit, Pencil, Plus, ShoppingCart, FileText,
     Calendar, Trash2, X, Search, Wand2, Check, Box,
-    Printer, Filter, Upload, Tag,
+    Printer, Filter, Upload, Tag, ArrowUpDown, ChevronUp,
     Calendar as CalendarIcon
 } from "lucide-react";
 import { BarcodePrintDialog } from "@/components/inventory/BarcodePrintDialog";
@@ -30,7 +30,7 @@ import { useTranslations } from "@/lib/i18n-mock";
 import { usePurchaseForm } from "@/hooks/usePurchaseForm";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 import { toast } from "sonner";
-import { safeRandomUUID, formatCurrency } from "@/lib/utils";
+import { safeRandomUUID, formatCurrency, cn } from "@/lib/utils";
 import { ReasonDialog } from "@/components/ui/ReasonDialog";
 import {
     DropdownMenu,
@@ -157,6 +157,24 @@ export default function PurchasesTab({
     const [showBarcodePrint, setShowBarcodePrint] = useState(false);
     const [selectedTableInvoice, setSelectedTableInvoice] = useState<any>(null);
     const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
+
+    // Sorting State
+    const [sortBy, setSortBy] = useState<'purchaseDate' | 'invoiceNumber' | 'totalAmount' | 'paidAmount' | 'balance'>('purchaseDate');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    const handleSort = (key: any) => {
+        if (sortBy === key) {
+            setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(key);
+            setSortOrder('asc');
+        }
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortBy !== key) return <ChevronDown className="w-3.5 h-3.5 opacity-20" />;
+        return sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-cyan-400" /> : <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />;
+    };
 
     useEffect(() => {
         getStoreSettings().then(res => {
@@ -424,22 +442,42 @@ export default function PurchasesTab({
         ).slice(0, 50)
         : [];
 
-    const filteredInvoices = activeInvoices.filter((inv: any) => {
-        // Status Filter
-        if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
-        if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
-        if (statusFilter === 'RETURNS' && !inv.isReturn && !['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) return false;
+    const filteredInvoices = [...(activeInvoices || [])]
+        .filter((inv: any) => {
+            // Status Filter
+            if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
+            if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
+            if (statusFilter === 'RETURNS' && !inv.isReturn && !['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) return false;
 
-        // Date Filter
-        if (dateRange?.from && dateRange?.to) {
-            return isWithinInterval(new Date(inv.purchaseDate), {
-                start: dateRange.from,
-                end: dateRange.to
-            });
-        }
+            // Date Filter
+            if (dateRange?.from && dateRange?.to) {
+                return isWithinInterval(new Date(inv.purchaseDate), {
+                    start: dateRange.from,
+                    end: dateRange.to
+                });
+            }
 
-        return true;
-    });
+            return true;
+        })
+        .sort((a, b) => {
+            let aValue: any = (a as any)[sortBy];
+            let bValue: any = (b as any)[sortBy];
+
+            if (sortBy === 'balance') {
+                aValue = Number(a.totalAmount) - Number(a.paidAmount);
+                bValue = Number(b.totalAmount) - Number(b.paidAmount);
+            } else if (sortBy === 'purchaseDate') {
+                aValue = new Date(a.purchaseDate).getTime();
+                bValue = new Date(b.purchaseDate).getTime();
+            } else if (sortBy === 'totalAmount' || sortBy === 'paidAmount') {
+                aValue = Number(aValue);
+                bValue = Number(bValue);
+            }
+
+            if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
 
     const stats = {
         totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (inv.status !== 'VOIDED' ? inv.totalAmount : 0), 0),
@@ -643,76 +681,105 @@ export default function PurchasesTab({
                     <p>{t('noInvoices')}</p>
                 </div>
             ) : (
-                <div className="glass-card overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-bold">
+                <div className="table-container max-h-[600px] custom-scrollbar overflow-y-auto">
+                    <table className="zebra-table sticky-header w-full text-left table-fixed">
+                        <thead className="bg-transparent text-zinc-300 text-[11px] uppercase tracking-wider border-b border-white/5">
                             <tr>
-                                <th className="p-4 text-start">{t('table.date')}</th>
-                                <th className="p-4 text-start">{t('table.invoice')}</th>
-                                <th className="p-4 text-start">{t('table.supplier')}</th>
-                                <th className="p-4 text-start">{t('table.branch')}</th>
-                                <th className="p-4 text-start">{t('table.warehouse')}</th>
-                                <th className="p-4 text-center">{t('table.status')}</th>
-                                <th className="p-4 text-end">{t('table.delivery')}</th>
-                                <th className="p-4 text-end">{t('table.total')}</th>
-                                <th className="p-4 text-end">{t('table.paid')}</th>
-                                <th className="p-4 text-end">{t('table.balance')}</th>
-                                <th className="p-4 w-10"></th>
+                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('purchaseDate')}>
+                                    <div className="flex items-center gap-2">
+                                        {getSortIcon('purchaseDate')}
+                                        {t('table.date')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('invoiceNumber')}>
+                                    <div className="flex items-center gap-2">
+                                        {getSortIcon('invoiceNumber')}
+                                        {t('table.invoice')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 text-start font-black">{t('table.supplier')}</th>
+                                <th className="px-6 py-4 text-start font-black">{t('table.branch')}</th>
+                                <th className="px-6 py-4 text-start font-black">{t('table.warehouse')}</th>
+                                <th className="px-6 py-4 text-center font-black">{t('table.status')}</th>
+                                <th className="px-6 py-4 text-end font-black">{t('table.delivery')}</th>
+                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('totalAmount')}>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {getSortIcon('totalAmount')}
+                                        {t('table.total')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('paidAmount')}>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {getSortIcon('paidAmount')}
+                                        {t('table.paid')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('balance')}>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {getSortIcon('balance')}
+                                        {t('table.balance')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 w-10"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-border">
+                        <tbody className="divide-y divide-white/5">
                             {filteredInvoices.map((inv: PurchaseInvoice) => (
-                                <tr key={inv.id} className={clsx(
-                                    "hover:bg-muted/30 transition-colors group",
-                                    inv.status === 'VOIDED' && "opacity-50 bg-muted/10"
+                                <tr key={inv.id} className={cn(
+                                    "group hover:bg-white/[0.02] transition-colors border-white/5",
+                                    inv.status === 'VOIDED' && "opacity-50 grayscale"
                                 )}>
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-2 text-zinc-400">
-                                            <Calendar className="w-3 h-3" />
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-2 text-zinc-400 font-mono text-xs">
+                                            <Calendar className="w-3.5 h-3.5 opacity-50" />
                                             {format(new Date(inv.purchaseDate), 'yyyy/MM/dd')}
                                         </div>
                                     </td>
-                                    <td className="p-4 font-mono text-xs text-muted-foreground">
-                                        {inv.invoiceNumber || <span className="text-muted-foreground/50 italic">Auto</span>}
+                                    <td className="px-6 py-4 font-mono text-sm text-cyan-500/80">
+                                        {inv.invoiceNumber || <span className="opacity-30 italic">Auto</span>}
                                     </td>
-                                    <td className="p-4 font-medium text-foreground">{inv.supplier.name}</td>
-                                    <td className="p-4 text-muted-foreground">
-                                        <div className="text-sm font-medium">{inv.warehouse?.branch?.name || '-'}</div>
-                                        <div className="text-xs text-muted-foreground">{inv.warehouse?.branch?.code}</div>
+                                    <td className="px-6 py-4 text-start">
+                                        <div className="text-sm font-black text-white group-hover:text-cyan-400 transition-colors">
+                                            {inv.supplier.name}
+                                        </div>
                                     </td>
-                                    <td className="p-4 text-muted-foreground">
-                                        <div className="text-sm font-medium">{inv.warehouse?.name || '-'}</div>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm font-bold text-white/90">{inv.warehouse?.branch?.name || '-'}</div>
+                                        <div className="text-[10px] text-white/40 tracking-widest">{inv.warehouse?.branch?.code}</div>
                                     </td>
-                                    <td className="p-4 text-center">
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm text-white/70">{inv.warehouse?.name || '-'}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
                                         <span className={clsx(
-                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap",
-                                            inv.status === 'VOIDED' ? "bg-rose-500/20 text-rose-400 line-through opacity-60" :
-                                            (inv.isReturn || ['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" :
-                                            inv.status === 'PAID' ? "bg-emerald-500/20 text-emerald-400" :
-                                            inv.status === 'PARTIAL' ? "bg-amber-500/20 text-amber-400" :
-                                            "bg-blue-500/20 text-blue-400"
+                                            "inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border",
+                                            inv.status === 'VOIDED' ? "bg-rose-500/10 text-rose-400 border-rose-500/20 line-through opacity-60" :
+                                            (inv.isReturn || ['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) ? "bg-orange-500/10 text-orange-400 border-orange-500/20" :
+                                            inv.status === 'PAID' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                                            inv.status === 'PARTIAL' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                            "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
                                         )}>
                                             {t(`statuses.${inv.status}`) || inv.status}
                                         </span>
                                     </td>
-                                    <td className="p-4 text-end font-mono text-muted-foreground text-xs">
+                                    <td className="px-6 py-4 text-end font-mono text-white/40 text-xs">
                                         {formatCurrency(inv.deliveryCharge || 0, settings?.currency)}
                                     </td>
-                                    <td className="p-4 text-end font-mono text-cyan-500 font-bold">
+                                    <td className="px-6 py-4 text-end font-mono text-cyan-400 font-bold">
                                         {formatCurrency(inv.totalAmount, settings?.currency)}
                                     </td>
-                                    <td className="p-4 text-end font-mono text-muted-foreground">
+                                    <td className="px-6 py-4 text-end font-mono text-white/50">
                                         {formatCurrency(inv.paidAmount, settings?.currency)}
                                     </td>
-                                    <td className="p-4 text-end font-mono text-red-400">
+                                    <td className="px-6 py-4 text-end font-mono text-rose-400 font-bold">
                                         {formatCurrency(Number(inv.totalAmount) - Number(inv.paidAmount), settings?.currency)}
                                     </td>
-                                    <td className="p-4 text-center">
-                                        <div className="flex gap-2 justify-center">
+                                    <td className="px-6 py-4">
+                                        <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
                                             <button
                                                 onClick={() => handleTablePrint(inv.id)}
                                                 disabled={loadingInvoiceId === inv.id}
-                                                className="bg-muted hover:bg-zinc-500 text-muted-foreground hover:text-white p-2 rounded-lg transition-colors"
+                                                className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
                                                 title={t('printInvoice')}
                                             >
                                                 {loadingInvoiceId === inv.id ? (
@@ -724,14 +791,14 @@ export default function PurchasesTab({
                                             <button
                                                 onClick={() => handleTableBarcode(inv.id)}
                                                 disabled={loadingInvoiceId === inv.id}
-                                                className="bg-muted hover:bg-cyan-500 text-muted-foreground hover:text-black p-2 rounded-lg transition-colors"
+                                                className="p-1.5 hover:bg-cyan-500/10 rounded-lg text-white/40 hover:text-cyan-400 transition-colors"
                                                 title={t('printBarcodes')}
                                             >
                                                 <Tag className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleEdit(inv.id)}
-                                                className="bg-muted hover:bg-cyan-500 text-muted-foreground hover:text-black p-2 rounded-lg transition-colors"
+                                                className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
                                                 title={t('editInvoice')}
                                             >
                                                 <Pencil className="w-4 h-4" />
@@ -740,10 +807,10 @@ export default function PurchasesTab({
                                                 onClick={() => setRefundInvoice({ id: inv.id })}
                                                 disabled={inv.status === 'VOIDED'}
                                                 className={clsx(
-                                                    "p-2 rounded-lg transition-colors",
+                                                    "p-1.5 rounded-lg transition-colors",
                                                     inv.status === 'VOIDED'
-                                                        ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-30"
-                                                        : "bg-muted hover:bg-orange-500 text-muted-foreground hover:text-black"
+                                                        ? "opacity-10 cursor-not-allowed"
+                                                        : "hover:bg-rose-500/10 text-white/40 hover:text-rose-500"
                                                 )}
                                                 title={inv.status === 'VOIDED' ? t('alreadyVoided') : t('voidInvoice')}
                                             >

@@ -628,24 +628,12 @@ export const updateTicketStatus = secureAction(async (data: {
             updateData.completedById = technicianId || existingTicket.technicianId;
             if (repairPrice !== undefined) updateData.repairPrice = new Decimal(repairPrice);
             if (partsCost !== undefined) updateData.partsCost = new Decimal(partsCost);
-
-            // Auto-set 30-day warranty on completion if not explicitly set
-            if (!existingTicket.warrantyExpiryDate) {
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 30);
-                updateData.warrantyExpiryDate = expiry;
-            }
+            // Warranty date is now set ONLY upon payment/delivery confirmation to ensure it starts from the receipt date.
         }
 
         if (status === 'DELIVERED') {
             updateData.deliveredAt = new Date();
-
-            // Auto-set 30-day warranty on delivery if not explicitly set
-            if (!existingTicket.warrantyExpiryDate) {
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 30);
-                updateData.warrantyExpiryDate = expiry;
-            }
+            // Warranty date is now set ONLY upon payment/delivery confirmation to ensure it starts from the receipt date.
         }
 
         const ticket = await tx.ticket.update({
@@ -923,6 +911,7 @@ export const refundTicket = secureAction(async (data: {
             description: `Refund: Ticket #${ticket.barcode}`,
             reference: ticketId,
             ticketId: ticketId,
+            cogsReversal: 0, // No COGS reversal on simple refund
             branchId: user.branchId ?? undefined
         }, tx);
 
@@ -1207,7 +1196,7 @@ export const markForReRepair = secureAction(async (data: {
                     type: 'MAINTENANCE_COMMISSION',
                     amount: -clawbackAmount, // Negative amount for debit
                     description: `Clawback: Warranty Rework for Ticket #${ticket.barcode}`,
-                    referenceId: ticketId,
+                    referenceId: ticket.id,
                     referenceType: 'TICKET_REWORK',
                     branchId: ticket.currentBranchId || undefined
                 }
@@ -2010,13 +1999,6 @@ export const processTicketPayment = secureAction(async (data: {
                 data: {
                     customerId: effectiveCustomerId,
                     // 💰 [STANDARD] CREDIT increases wallet/balance. DEBIT increases debt.
-                    type: isDeferred ? 'DEBIT' : (isActuallyRefund ? 'CREDIT' : 'CREDIT'), 
-                    // Wait, if it's a regular payment (isActuallyRefund: false), it should be CREDIT (reduces balance).
-                    // If it's a refund (isActuallyRefund: true), it should also be CREDIT (increases wallet/reduces debt).
-                    // Actually, the current logic is complex. Let's simplify:
-                    // Payment Received -> CREDIT (Decreases AR)
-                    // Refund Issued -> CREDIT (Decreases AR / Increases Wallet)
-                    // Deferred Purchase -> DEBIT (Increases AR)
                     type: isDeferred ? 'DEBIT' : 'CREDIT',
                     amount: new Prisma.Decimal(Math.abs(effectiveAmount)),
                     description,
@@ -2064,7 +2046,6 @@ export const processTicketPayment = secureAction(async (data: {
                 ticketId: ticket.id,
                 barcode: ticket.barcode,
                 amount: finalCustomerPrice,
-                method: paymentMethod,
                 techBillingPrice,
                 techCommissionAmount,
                 centerLaborProfit,
@@ -2082,9 +2063,10 @@ export const processTicketPayment = secureAction(async (data: {
                 ...(paymentStatus === 'paid' && paymentType === 'PAYMENT' ? { 
                     status: 'PAID_DELIVERED',
                     deliveredAt: new Date(),
-                    warrantyExpiryDate: warranty?.warrantyExpiryDate ?? (function() {
+                    warrantyExpiryDate: (function() {
                         const d = new Date();
-                        d.setDate(d.getDate() + 30);
+                        const days = warranty?.warrantyDays || 30;
+                        d.setDate(d.getDate() + days);
                         return d;
                     })(),
                     ...distributionData
@@ -2301,6 +2283,20 @@ export const addCollaborator = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, technicianId, commissionRate } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    // Branch Security: Ensure ticket exists and is in the user's branch
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentBranchId: true }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
+        throw new Error("Unauthorized: Ticket belongs to another branch");
+    }
 
     // Check if collaborator already exists
     const existing = await prisma.ticketCollaborator.findUnique({
@@ -2315,7 +2311,7 @@ export const addCollaborator = secureAction(async (data: {
         data: {
             ticketId,
             technicianId,
-            commissionRate
+            commissionRate: new Decimal(commissionRate)
         },
         include: { technician: true }
     });
@@ -2333,6 +2329,20 @@ export const removeCollaborator = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, technicianId } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    // Branch Security
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentBranchId: true }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
+        throw new Error("Unauthorized: Ticket belongs to another branch");
+    }
 
     try {
         await prisma.ticketCollaborator.delete({
@@ -2360,12 +2370,26 @@ export const updateCollaboratorCommission = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, technicianId, commissionRate } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    // Branch Security
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentBranchId: true }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
+        throw new Error("Unauthorized: Ticket belongs to another branch");
+    }
 
     await prisma.ticketCollaborator.update({
         where: {
             ticketId_technicianId: { ticketId, technicianId }
         },
-        data: { commissionRate }
+        data: { commissionRate: new Decimal(commissionRate) }
     });
 
     revalidatePath(`/maintenance/tickets/${ticketId}`);
@@ -2402,7 +2426,7 @@ export const getReturnedTickets = secureAction(async () => {
         const where: Prisma.TicketWhereInput = {
             OR: [
                 { returnCount: { gt: 0 } },
-                { status: { in: ['RETURNED_FOR_REFIX', 'RETURNED', 'RETURNED_WARRANTY'] } }
+                { status: { in: ['RETURNED_FOR_REFIX', 'RETURNED', 'RETURNED_WARRANTY', 'VOIDED'] } }
             ]
         };
 
@@ -2433,7 +2457,8 @@ export const getReturnedTickets = secureAction(async () => {
                 returnReason: t.returnReason,
                 issueDescription: t.issueDescription,
                 status: t.status,
-                technicianName: t.technician?.name || null
+                technicianName: t.technician?.name || null,
+                createdAt: t.createdAt
             })),
             count: tickets.length
         });
@@ -2453,7 +2478,6 @@ export const getWarrantyTickets = secureAction(async () => {
         const branchFilter = getBranchFilter(currentUser);
 
         const where: Prisma.TicketWhereInput = {
-            warrantyExpiryDate: { gt: new Date() },
             status: { in: ['DELIVERED', 'COMPLETED', 'PICKED_UP', 'PAID_DELIVERED'] }
         };
 

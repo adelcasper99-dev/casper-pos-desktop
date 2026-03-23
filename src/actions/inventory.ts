@@ -696,12 +696,21 @@ export async function getBundleAvailability(bundleProductId: string): Promise<nu
 
 // --- Categories ---
 
-export const createCategory = secureAction(async (data: z.infer<typeof categorySchema>) => {
-    const validated = categorySchema.parse(data);
+export const getAllCategories = secureAction(async () => {
+    const categories = await prisma.category.findMany({
+        orderBy: { name: 'asc' },
+    });
+    return { success: true, categories };
+}, { permission: 'INVENTORY_VIEW' });
+
+export const createCategory = secureAction(async (data: z.infer<typeof categorySchema> & { csrfToken?: string }) => {
+    const { csrfToken: _csrf, ...categoryData } = data;
+    const validated = categorySchema.parse(categoryData);
     const category = await prisma.category.create({
         data: {
             name: validated.name,
-            color: validated.color || "#06b6d4"
+            color: validated.color || "#06b6d4",
+            parentId: validated.parentId || null
         }
     });
     revalidatePath('/inventory', 'page');
@@ -714,14 +723,39 @@ export const createCategory = secureAction(async (data: z.infer<typeof categoryS
 export const updateCategory = secureAction(async (data: { id: string } & z.infer<typeof categorySchema> & { csrfToken?: string }) => {
     const { id, ...categoryData } = data;
     const validated = categorySchema.parse(categoryData);
+    
+    // Prevent self-referencing and circular deps at a basic level
+    if (validated.parentId === id) {
+        throw new Error("Category cannot be its own parent.");
+    }
+
     await prisma.category.update({
         where: { id },
-        data: validated
+        data: {
+            name: validated.name,
+            color: validated.color,
+            isHidden: validated.isHidden,
+            parentId: validated.parentId || null
+        }
     });
     revalidatePath('/inventory', 'page');
     revalidatePath('/pos', 'page');
     revalidateTag(CACHE_TAGS.CATEGORIES);
     revalidateTag("dashboard");
+    return { success: true };
+}, { permission: 'INVENTORY_MANAGE' });
+
+/**
+ * Toggle visibility of a category (used for quick right-click hiding in POS)
+ */
+export const toggleCategoryVisibility = secureAction(async (data: { id: string, isHidden: boolean, csrfToken?: string }) => {
+    await prisma.category.update({
+        where: { id: data.id },
+        data: { isHidden: data.isHidden }
+    });
+    revalidatePath('/pos', 'page');
+    revalidatePath('/inventory', 'page');
+    revalidateTag(CACHE_TAGS.CATEGORIES);
     return { success: true };
 }, { permission: 'INVENTORY_MANAGE' });
 
@@ -1677,7 +1711,7 @@ export const getProducts = secureAction(async (params: {
     warehouseId?: string;
     startDate?: string;
     endDate?: string;
-    sortBy?: 'name' | 'createdAt' | 'stock';
+    sortBy?: 'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice';
     sortOrder?: 'asc' | 'desc';
 } = {}) => {
     const page = params.page || 1;

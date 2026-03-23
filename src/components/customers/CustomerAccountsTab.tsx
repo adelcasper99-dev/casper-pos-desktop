@@ -5,8 +5,9 @@ import { useTranslations } from '@/lib/i18n-mock';
 import {
     Search, Filter, CreditCard, History, User, Phone,
     ArrowUpRight, ArrowDownLeft, MoreHorizontal, Settings,
-    FileText, ShoppingBag, Wallet, Info
+    FileText, ShoppingBag, Wallet, Info, ChevronUp, ChevronDown, ArrowUpDown
 } from 'lucide-react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,10 @@ export default function CustomerAccountsTab() {
     const [searchQuery, setSearchQuery] = useState('');
     const [hasBalanceOnly, setHasBalanceOnly] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' | null }>({ 
+        key: 'balance', 
+        direction: 'desc' 
+    });
 
     // Selection for Modals
     const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -165,6 +170,45 @@ export default function CustomerAccountsTab() {
     // Calculate Totals
     const totalOwed = customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
     const totalCredit = customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
+    
+    // Sorting Logic
+    const sortedCustomers = useMemo(() => {
+        if (!sortConfig.key || !sortConfig.direction) return customers;
+
+        return [...customers].sort((a, b) => {
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
+
+            // Handle numeric values
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+                return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+            }
+
+            // Handle string values (Name)
+            aVal = String(aVal).toLowerCase();
+            bVal = String(bVal).toLowerCase();
+
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [customers, sortConfig]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(prev => {
+            if (prev.key === key) {
+                if (prev.direction === 'desc') return { key, direction: 'asc' };
+                if (prev.direction === 'asc') return { key: '', direction: null };
+            }
+            return { key, direction: 'desc' };
+        });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
+        if (sortConfig.direction === 'asc') return <ChevronUp className="w-4 h-4 text-white" />;
+        return <ChevronDown className="w-4 h-4 text-white" />;
+    };
 
     return (
         <div className="space-y-6">
@@ -226,14 +270,15 @@ export default function CustomerAccountsTab() {
             <Card className="bg-card/30 backdrop-blur-md border-primary/10">
                 <CardContent className="pt-6">
                     <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                        <div className="relative w-full md:w-96">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                        <div className="relative w-full md:w-[480px] group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-primary opacity-50 group-focus-within:opacity-100 transition-opacity" />
                             <Input
                                 placeholder={t('searchPlaceholder')}
-                                className="pl-9 bg-background/50 border-primary/20 focus:border-primary focus:ring-1 focus:ring-primary shadow-inner"
+                                className="pl-11 h-12 bg-background/40 backdrop-blur-md border border-primary/10 focus:border-primary/40 focus:ring-0 focus:ring-offset-0 shadow-inner rounded-xl transition-all"
                                 value={searchQuery}
                                 onChange={handleSearchChange}
                             />
+                            <div className="absolute inset-0 rounded-xl bg-primary/5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity" />
                         </div>
                         <div className="flex items-center gap-3">
                             <Button
@@ -253,19 +298,61 @@ export default function CustomerAccountsTab() {
             </Card>
 
             {/* Customers Table */}
-            <Card className="bg-card/50 backdrop-blur-xl border-primary/20 shadow-2xl overflow-hidden rounded-2xl">
+            <div className="glass-card overflow-hidden rounded-xl border border-white/5 bg-black/20 shadow-2xl">
                 <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader className="bg-primary/10">
-                            <TableRow className="border-b border-primary/10">
-                                <TableHead className="text-right text-primary font-bold">{t('table.name')}</TableHead>
-                                <TableHead className="text-right text-primary font-bold">{t('table.phone')}</TableHead>
-                                <TableHead className="text-right text-primary font-bold">{t('table.balance')}</TableHead>
-                                <TableHead className="text-right text-primary font-bold">{t('table.creditLimit')}</TableHead>
-                                <TableHead className="text-center text-primary font-bold">{t('table.actions')}</TableHead>
+                    <Table className="w-full text-right text-sm text-zinc-400">
+                        <TableHeader className="bg-white/5 text-zinc-300 border-b border-white/5">
+                            <TableRow className="hover:bg-transparent border-none">
+                                <TableHead 
+                                    className={cn(
+                                        "px-6 py-4 font-black cursor-pointer hover:bg-white/5 transition-all text-sm group/head",
+                                        sortConfig.key === 'name' ? 'text-white' : 'text-zinc-400'
+                                    )}
+                                    onClick={() => handleSort('name')}
+                                >
+                                    <div className="flex items-center justify-start gap-2.5">
+                                        {getSortIcon('name')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortConfig.key === 'name' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.name')}</span>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="px-6 py-4 text-start text-zinc-400 font-black text-sm">{t('table.phone')}</TableHead>
+                                <TableHead 
+                                    className={cn(
+                                        "px-6 py-4 font-black cursor-pointer hover:bg-white/5 transition-all text-sm group/head",
+                                        sortConfig.key === 'balance' ? 'text-white' : 'text-zinc-400'
+                                    )}
+                                    onClick={() => handleSort('balance')}
+                                >
+                                    <div className="flex items-center justify-start gap-2.5">
+                                        {getSortIcon('balance')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortConfig.key === 'balance' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.balance')}</span>
+                                    </div>
+                                </TableHead>
+                                <TableHead 
+                                    className={cn(
+                                        "px-6 py-4 font-black cursor-pointer hover:bg-white/5 transition-all text-sm group/head",
+                                        sortConfig.key === 'creditLimit' ? 'text-white' : 'text-zinc-400'
+                                    )}
+                                    onClick={() => handleSort('creditLimit')}
+                                >
+                                    <div className="flex items-center justify-start gap-2.5">
+                                        {getSortIcon('creditLimit')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortConfig.key === 'creditLimit' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.creditLimit')}</span>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="px-6 py-4 text-center text-zinc-400 font-black text-sm">{t('table.actions')}</TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
+                        <TableBody className="divide-y divide-zinc-800 bg-black/10">
                             {loading ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-64">
@@ -287,53 +374,61 @@ export default function CustomerAccountsTab() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                customers.map((customer, idx) => (
+                                sortedCustomers.map((customer, idx) => (
                                     <TableRow
                                         key={customer.id}
-                                        className="group hover:bg-primary/5 transition-colors border-b border-primary/5"
+                                        className="hover:bg-white/5 even:bg-white/[0.03] transition-colors border-none group"
                                     >
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-sm shadow-inner group-hover:scale-110 transition-transform">
+                                        <TableCell className="px-6 py-5">
+                                            <div className="flex items-center justify-start gap-4">
+                                                <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center text-primary font-black text-lg shadow-xl group-hover:scale-110 transition-transform">
                                                     {customer.name.substring(0, 1).toUpperCase()}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-foreground font-bold">{customer.name}</span>
-                                                    <span className="text-xs text-muted-foreground italic font-mono opacity-70">{customer.email || '—'}</span>
+                                                    <span className="text-foreground font-black text-base tracking-tight leading-none mb-1">{customer.name}</span>
+                                                    <span className="text-[11px] text-muted-foreground italic font-bold opacity-40 tracking-tight">{customer.email || '—'}</span>
                                                 </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2 text-muted-foreground font-mono">
-                                                <Phone className="w-3 h-3 text-primary opacity-60" />
-                                                {customer.phone}
+                                        <TableCell className="px-6 py-5">
+                                            <div className="flex items-center justify-start gap-3 text-foreground font-black text-sm">
+                                                <span>{customer.phone}</span>
+                                                <div className="p-1.5 rounded-lg bg-primary/5 border border-primary/10">
+                                                    <Phone className="w-3.5 h-3.5 text-primary opacity-80" />
+                                                </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-right font-mono">
-                                            <div className="flex flex-col items-end gap-1">
+                                        <TableCell className="px-6 py-5">
+                                            <div className="flex flex-col items-start gap-1.5">
                                                 <Badge
-                                                    variant={customer.balance > 0 ? "destructive" : "default"}
+                                                    variant={customer.balance === 0 ? "outline" : (customer.balance > 0 ? "destructive" : "default")}
                                                     className={cn(
-                                                        "min-w-[100px] justify-center text-sm py-1 font-black",
-                                                        customer.balance <= 0 && "bg-emerald-500/20 text-emerald-500 border-emerald-500/40 hover:bg-emerald-500/30",
-                                                        customer.balance > 0 && "bg-rose-500/20 text-rose-500 border-rose-500/40 hover:bg-rose-500/30"
+                                                        "min-w-[130px] justify-center text-lg py-2.5 font-black shadow-2xl transition-all",
+                                                        customer.balance < 0 && "bg-emerald-500/20 text-emerald-500 border-emerald-500/40 hover:bg-emerald-500/30 shadow-emerald-500/10",
+                                                        customer.balance > 0 && "bg-rose-500/20 text-rose-500 border-rose-500/40 hover:bg-rose-500/30 shadow-rose-500/10",
+                                                        customer.balance === 0 && "bg-primary/5 text-primary/60 border-primary/20 shadow-none opacity-80"
                                                     )}
                                                 >
-                                                    {Math.abs(customer.balance).toFixed(2)}
+                                                    {Math.abs(customer.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </Badge>
-                                                {customer.balance < 0 && <span className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-tighter">رصيد للعميل</span>}
-                                                {customer.balance > 0 && <span className="text-[10px] text-rose-500/70 font-bold uppercase tracking-tighter">مديونية مستحقة</span>}
+                                                {customer.balance < 0 && <span className="text-[10px] text-emerald-500/90 font-black uppercase tracking-tighter bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shadow-sm animate-in fade-in slide-in-from-right-1">رصيد للعميل</span>}
+                                                {customer.balance > 0 && <span className="text-[10px] text-rose-500/90 font-black uppercase tracking-tighter bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20 shadow-sm animate-in fade-in slide-in-from-right-1">مديونية مستحقة</span>}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-right text-muted-foreground font-mono italic">
+                                        <TableCell className="px-6 py-5">
                                             {customer.creditLimit ? (
-                                                <span className="flex items-center justify-end gap-1">
-                                                    <Info className="w-3 h-3 text-primary opacity-50" />
-                                                    {Number(customer.creditLimit).toLocaleString()}
-                                                </span>
-                                            ) : t('details.unlimited')}
+                                                <div className="flex flex-col items-start leading-none gap-1">
+                                                    <span className="flex items-center justify-start gap-1.5 font-black text-zinc-300">
+                                                        <Info className="w-3.5 h-3.5 text-primary opacity-50" />
+                                                        {Number(customer.creditLimit).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[9px] uppercase tracking-widest opacity-40 font-bold">{t('table.creditLimit')}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs opacity-30 font-bold uppercase tracking-widest">{t('details.unlimited')}</span>
+                                            )}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-6 py-5">
                                             <div className="flex items-center justify-center gap-2">
                                                 <Button
                                                     size="sm"
@@ -378,11 +473,11 @@ export default function CustomerAccountsTab() {
                         </TableBody>
                     </Table>
                 </div>
-            </Card>
+            </div>
 
             {/* Payment Modal */}
             <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-                <DialogContent className="sm:max-w-[425px] bg-card/95 backdrop-blur-2xl border-primary/20 shadow-2xl rounded-3xl">
+                <DialogContent className="sm:max-w-[425px] bg-zinc-950/95 backdrop-blur-2xl border-white/10 shadow-2xl rounded-3xl text-white">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-xl font-black text-foreground">
                             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
@@ -451,7 +546,7 @@ export default function CustomerAccountsTab() {
 
             {/* Credit Limit Modal */}
             <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
-                <DialogContent className="sm:max-w-[425px] bg-card/95 backdrop-blur-2xl border-primary/20 shadow-2xl rounded-3xl">
+                <DialogContent className="sm:max-w-[425px] bg-zinc-950/95 backdrop-blur-2xl border-white/10 shadow-2xl rounded-3xl text-white">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-xl font-black text-foreground">
                             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">

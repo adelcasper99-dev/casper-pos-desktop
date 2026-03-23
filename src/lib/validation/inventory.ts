@@ -33,6 +33,8 @@ export const supplierSchema = z.object({
 export const categorySchema = z.object({
     name: z.string().min(1, "Category Name is required"),
     color: z.string().optional(),
+    isHidden: z.boolean().optional().default(false),
+    parentId: z.string().optional().nullable(),
 });
 
 const purchaseItemSchema = z.object({

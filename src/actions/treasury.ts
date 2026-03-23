@@ -94,7 +94,8 @@ export async function addTreasuryTransaction(
   paymentMethod: string,
   treasuryId?: string,
   expenseCategory?: string, // Added for Phase 3
-  incomingCategoryId?: string // Added for Phase 1 deposits
+  incomingCategoryId?: string, // Added for Phase 1 deposits
+  shiftId?: string // 🆕 Added for POS linkage
 ) {
   try {
     const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT"];
@@ -117,10 +118,31 @@ export async function addTreasuryTransaction(
     const currentUser = await getCurrentUser();
 
     await prisma.$transaction(async (tx) => {
+      let finalTreasuryId = treasuryId;
+
+      // ── V-X: Treasury ID Resolution (P2003 Fix) ──
+      // If treasuryId is missing but shiftId is present, find the branch's default CASH treasury
+      if (!finalTreasuryId && shiftId) {
+        const shift = await tx.shift.findUnique({
+          where: { id: shiftId },
+          include: { user: { select: { branchId: true } } }
+        });
+        if (shift?.user?.branchId) {
+          const defaultTreasury = await tx.treasury.findFirst({
+            where: { branchId: shift.user.branchId, isDefault: true, paymentMethod: 'CASH' }
+          });
+          finalTreasuryId = defaultTreasury?.id;
+        }
+      }
+
       // ── V-X: Negative Balance Check ──
-      if (treasuryId && !isPositive) {
-        const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
-        const currentBalance = new Decimal(treasury?.balance?.toString() || "0");
+      if (finalTreasuryId && !isPositive) {
+        const treasury = await tx.treasury.findUnique({ where: { id: finalTreasuryId } });
+        if (!treasury) {
+          // If we resolved an ID but it's not found, or passed one that's bad
+          throw new Error("Invalid Treasury ID provided for the active shift's branch.");
+        }
+        const currentBalance = new Decimal(treasury.balance?.toString() || "0");
         
         if (currentBalance.lt(decimalAmount)) {
           const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
@@ -131,12 +153,19 @@ export async function addTreasuryTransaction(
       }
 
       const dbTx = await tx.transaction.create({
-        data: { type: finalType, amount: decimalAmount, description, paymentMethod, treasuryId },
+        data: { 
+          type: finalType, 
+          amount: decimalAmount, 
+          description, 
+          paymentMethod, 
+          treasuryId: finalTreasuryId || undefined,
+          shiftId // 🆕 Link to active shift if provided
+        },
       });
 
-      if (treasuryId) {
+      if (finalTreasuryId) {
         await tx.treasury.update({
-          where: { id: treasuryId },
+          where: { id: finalTreasuryId },
           data: {
             balance: isPositive
               ? { increment: decimalAmount }

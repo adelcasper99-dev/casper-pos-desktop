@@ -12,18 +12,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function InventoryPage() {
     const t = await getTranslations('Inventory');
-    const suppliersRaw = await prisma.supplier.findMany();
-    const suppliers = suppliersRaw.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        phone: s.phone,
-        email: s.email,
-        address: s.address,
-        balance: s.balance.toNumber(),
-        linkedEmployeeId: s.linkedEmployeeId,
-        createdAt: s.createdAt
-    }));
-
     const categories = await prisma.category.findMany();
 
     // Fetch user and branches
@@ -110,7 +98,6 @@ export default async function InventoryPage() {
     const isSuperAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'Admin';
     const permissions = {
         canManageCategories: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_MANAGE_CATEGORIES),
-        canViewSuppliers: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.SUPPLIER_VIEW),
     };
 
     return (
@@ -121,7 +108,6 @@ export default async function InventoryPage() {
             </div>
 
             <ClientHelper
-                suppliers={suppliers}
                 categories={categories}
                 products={products}
                 warehouses={warehouses}

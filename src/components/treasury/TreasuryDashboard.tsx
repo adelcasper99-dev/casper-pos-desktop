@@ -617,7 +617,7 @@ export default function TreasuryDashboard({
                                 displayedTx.map(tx => {
                                     const isPos = POSITIVE_TYPES.includes(tx.type);
                                     return (
-                                        <tr key={tx.id} className="hover:bg-muted/30 transition-colors group">
+                                        <tr key={tx.id} className="hover:bg-muted/30 even:bg-white/[0.03] transition-colors group">
                                             <td className="p-4 font-mono text-xs text-muted-foreground" suppressHydrationWarning>
                                                 {new Date(tx.createdAt).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "medium" })}
                                             </td>

@@ -200,7 +200,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 customerPhone: data.customer?.phone,
                 customerAddress: data.customer?.address,
                 warrantyDays: warranty?.warrantyDays || null,
-                warrantyExpiryDate: warranty?.warrantyExpiryDate || null,
+                warrantyExpiryDate: (warranty?.warrantyDays ? (function() {
+                    const d = new Date();
+                    d.setDate(d.getDate() + (warranty.warrantyDays || 30));
+                    return d;
+                })() : null),
                 tableName: rawData.tableName || null,
                 tableId: rawData.tableId || null,
                 offlineFlag: rawData.offlineFlag || false,
@@ -478,11 +482,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         for (const p of paymentsToProcess) {
             const amt = Number(p.amount);
             if (amt > 0) {
-                // Determine if this specific payment record uses the explicitly passed treasuryId
-                // (usually only the main payment method would, but for simplicity we bind it to the matching method)
                 const isMainPayment = p.method === data.paymentMethod;
                 const assignedTreasuryId = getTreasuryForMethod(p.method, isMainPayment ? treasuryId : undefined);
-
                 await tx.transaction.create({
                     data: {
                         type: 'SALE',

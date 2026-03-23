@@ -55,6 +55,7 @@ export default function TicketsList() {
     const [deletingTicket, setDeletingTicket] = useState<any>(null)
     const [showEditModal, setShowEditModal] = useState(false)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: 'createdAt', direction: 'desc' });
 
     const [serverStats, setServerStats] = useState({ delivered: 0, returns: 0, ratio: '0.0', totalPaid: 0 });
 
@@ -192,21 +193,53 @@ export default function TicketsList() {
         return { level: 'low', color: 'text-emerald-500', icon: Clock };
     }
 
-    const sortedTickets = (sortByUrgency ? [...tickets].filter(t => {
-        const u = getUrgencyInfo(t);
-        return u !== null && u.status !== 'normal';
-    }) : [...tickets])
-        .sort((a, b) => {
-            if (!sortByUrgency) return 0;
-            const urgencyA = getUrgencyInfo(a);
-            const urgencyB = getUrgencyInfo(b);
-            if (!urgencyA && !urgencyB) return 0;
-            if (!urgencyA) return 1;
-            if (!urgencyB) return -1;
-            const timeA = new Date(a.createdAt).getTime() + (a.expectedDuration * 60000);
-            const timeB = new Date(b.createdAt).getTime() + (b.expectedDuration * 60000);
-            return timeA - timeB;
+    const handleSort = (key: string) => {
+        setSortConfig(prev => {
+            if (prev.key === key) {
+                if (prev.direction === 'asc') return { key, direction: 'desc' };
+                if (prev.direction === 'desc') return { key: '', direction: null };
+            }
+            return { key, direction: 'asc' };
         });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortConfig.key !== key) return <ChevronDown className="w-3.5 h-3.5 opacity-20" />;
+        return sortConfig.direction === 'asc' ? <ChevronDown className="w-3.5 h-3.5 text-cyan-400 rotate-180 transition-transform" /> : <ChevronDown className="w-3.5 h-3.5 text-cyan-400 transition-transform" />;
+    };
+
+    const sortedTickets = useMemo(() => {
+        let items = [...tickets];
+        
+        if (sortByUrgency) {
+            items = items.filter(t => {
+                const u = getUrgencyInfo(t);
+                return u !== null && u.status !== 'normal';
+            }).sort((a, b) => {
+                const timeA = new Date(a.createdAt).getTime() + (a.expectedDuration * 60000);
+                const timeB = new Date(b.createdAt).getTime() + (b.expectedDuration * 60000);
+                return timeA - timeB;
+            });
+            return items;
+        }
+
+        if (sortConfig.key && sortConfig.direction) {
+            items.sort((a, b) => {
+                let aVal: any = a[sortConfig.key];
+                let bVal: any = b[sortConfig.key];
+
+                if (sortConfig.key === 'amountDue') {
+                    aVal = a.repairPrice - (a.amountPaid || 0);
+                    bVal = b.repairPrice - (b.amountPaid || 0);
+                }
+
+                if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return items;
+    }, [tickets, sortByUrgency, sortConfig]);
 
     return (
         <div className="space-y-6">
@@ -380,23 +413,53 @@ export default function TicketsList() {
                 <div className="text-center py-12 text-muted-foreground">{t('search.noResults')}</div>
             ) : (
                 <div className="glass-card overflow-hidden rounded-xl border border-white/5 bg-black/20 shadow-xl">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-zinc-400 table-fixed">
+                    <div className="table-container max-h-[600px] custom-scrollbar overflow-y-auto">
+                        <table className="zebra-table sticky-header w-full text-left text-sm text-zinc-400 table-fixed">
                             <colgroup><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[100px]" /><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[180px]" /><col className="w-[180px]" /><col className="w-[120px]" /><col className="w-[50px]" /></colgroup>
-                            <thead className="bg-white/5 text-zinc-300 uppercase font-medium text-xs tracking-wider border-b border-white/5">
-                                <tr>
-                                    <th className="px-6 py-4">{t('table.status')}</th>
-                                    <th className="px-6 py-4">{t('table.date')}</th>
-                                    <th className="px-6 py-4">{t('table.ticketInfo')}</th>
-                                    <th className="px-6 py-4">{t('table.paidAmount')}</th>
-                                    <th className="px-6 py-4">{t('table.amountDue')}</th>
-                                    <th className="px-6 py-4">{t('table.customer')}</th>
-                                    <th className="px-6 py-4">{t('table.device')}</th>
-                                    <th className="px-6 py-4">{t('table.timeToFix')}</th>
-                                    <th className="px-6 py-4 w-[50px]"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-800 bg-black/10">
+                                <thead className="bg-transparent text-zinc-300 uppercase font-black text-[11px] tracking-wider border-b border-white/5">
+                                    <tr>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('status')}>
+                                            <div className="flex items-center gap-2">
+                                                {getSortIcon('status')}
+                                                {t('table.status')}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('createdAt')}>
+                                            <div className="flex items-center gap-2">
+                                                {getSortIcon('createdAt')}
+                                                {t('table.date')}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4 text-start">{t('table.ticketInfo')}</th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('amountPaid')}>
+                                            <div className="flex items-center gap-2">
+                                                {getSortIcon('amountPaid')}
+                                                {t('table.paidAmount')}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('amountDue')}>
+                                            <div className="flex items-center gap-2">
+                                                {getSortIcon('amountDue')}
+                                                {t('table.amountDue')}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('customerName')}>
+                                            <div className="flex items-center gap-2">
+                                                {getSortIcon('customerName')}
+                                                {t('table.customer')}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4 text-start">{t('table.device')}</th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
+                                            <div className="flex items-center gap-2">
+                                                {getSortIcon('expectedDuration')}
+                                                {t('table.timeToFix')}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4 w-[50px]"></th>
+                                    </tr>
+                                </thead>
+                            <tbody className="divide-y divide-white/5">
                                 {sortedTickets.map((ticket) => {
                                     const urgency = getUrgencyInfo(ticket);
                                     const risk = getRiskInfo(ticket);
@@ -447,18 +510,18 @@ export default function TicketsList() {
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-medium text-zinc-200 group-hover:text-cyan-500 transition-colors truncate">{ticket.customerName}</span>
+                                                        <span className="font-black text-zinc-200 group-hover:text-cyan-500 transition-colors truncate">{ticket.customerName}</span>
                                                         {ticket.customer?.linkedEmployeeId && (
                                                             <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
                                                                 موظف داخلي
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <span className="text-xs text-zinc-500">{ticket.customerPhone}</span>
+                                                    <span className="text-xs text-zinc-500 font-bold">{ticket.customerPhone}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-zinc-300 truncate block">{ticket.deviceBrand} {ticket.deviceModel}</span>
+                                                <span className="text-zinc-300 truncate block font-bold">{ticket.deviceBrand} {ticket.deviceModel}</span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className={`flex items-center gap-1 ${urgency ? urgency.color : 'text-zinc-400'}`}>

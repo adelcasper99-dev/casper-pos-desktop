@@ -107,6 +107,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                             { id: 'reports', color: 'data-[state=checked]:bg-indigo-500' },
                             { id: 'returns', color: 'data-[state=checked]:bg-amber-500' },
                             { id: 'logs', color: 'data-[state=checked]:bg-slate-500' },
+                            { id: 'pos_price_tiers', color: 'data-[state=checked]:bg-cyan-600' },
                         ].map((module) => (
                             <div key={module.id} className="flex items-center justify-between p-3 border border-white/5 rounded-xl bg-zinc-900/30 group hover:bg-zinc-900/50 transition-colors">
                                 <div className="flex flex-col">

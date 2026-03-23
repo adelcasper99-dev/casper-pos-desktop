@@ -95,8 +95,23 @@ export default function ProductsTab({
     const [dateFilter, setDateFilter] = useState<string>("all");
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [filterWarehouseId, setFilterWarehouseId] = useState<string>("");
-    const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'stock'>('name');
+    const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+    const handleSort = (key: any) => {
+        if (sortBy === key) {
+            setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(key);
+            setSortOrder('asc');
+        }
+        setPage(1);
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortBy !== key) return <ChevronDown className="w-3.5 h-3.5 opacity-20" />;
+        return sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-cyan-400" /> : <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />;
+    };
 
     // Fetch Warehouses for filter
     const { data: warehousesData } = useQuery({
@@ -458,17 +473,13 @@ export default function ProductsTab({
                 onSuccess={() => { refetch(); }}
             />
 
-            {/* Old search bar removed - integrated above */}
-            <div className="hidden">
-            </div>
-
             {/* Products Grid */}
-            <div className="glass-card overflow-hidden border border-border bg-card shadow-sm rounded-xl flex flex-col min-h-[500px]">
-                <div className="flex-1">
-                    <table className="w-full text-start">
-                        <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
+            <div className="glass-card overflow-hidden border border-white/5 bg-black/20 shadow-2xl rounded-xl flex flex-col min-h-[500px]">
+                <div className="table-container max-h-[700px] custom-scrollbar overflow-y-auto">
+                    <table className="zebra-table sticky-header w-full text-start">
+                        <thead className="bg-transparent text-zinc-300 text-[11px] uppercase tracking-wider border-b border-white/5">
                             <tr>
-                                <th className="p-4 w-12">
+                                <th className="px-6 py-4 text-center w-[80px]">
                                     <input
                                         type="checkbox"
                                         checked={selectedProducts.size === products.length && products.length > 0}
@@ -479,31 +490,63 @@ export default function ProductsTab({
                                                 setSelectedProducts(new Set());
                                             }
                                         }}
-                                        className="w-4 h-4 cursor-pointer"
+                                        className="w-4 h-4 cursor-pointer accent-cyan-500"
                                     />
                                 </th>
-                                <th className="p-4 text-start font-medium">{t('sku')}</th>
-                                <th className="p-4 text-start font-medium">{t('name')}</th>
-                                <th className="p-4 text-start font-medium">{t('category')}</th>
-                                <th className="p-4 text-center font-medium">{t('stock')}</th>
-                                {canViewPrice1 && <th className="p-4 text-end font-medium">{t('price1')}</th>}
-                                {canViewPrice2 && <th className="p-4 text-end font-medium">{t('price2')}</th>}
-                                {canViewPrice3 && <th className="p-4 text-end font-medium">{t('price3')}</th>}
-                                {canManage && <th className="p-4 w-10"></th>}
+                                <th className="px-6 py-4 text-start font-black w-[150px] cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('sku')}>
+                                    <div className="flex items-center gap-2">
+                                        {getSortIcon('sku')}
+                                        {t('sku')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
+                                    <div className="flex items-center gap-2">
+                                        {getSortIcon('name')}
+                                        {t('name')}
+                                    </div>
+                                </th>
+                                <th className="px-6 py-4 text-start font-black w-[150px]">{t('category')}</th>
+                                <th className="px-6 py-4 text-center font-black w-[120px] cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('stock')}>
+                                    <div className="flex items-center justify-center gap-2">
+                                        {getSortIcon('stock')}
+                                        {t('stock')}
+                                    </div>
+                                </th>
+                                {canViewCost && (
+                                    <th className="px-6 py-4 text-end font-black w-[130px] cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('costPrice')}>
+                                        <div className="flex items-center justify-end gap-2 text-end">
+                                            {getSortIcon('costPrice')}
+                                            {t('cost')}
+                                        </div>
+                                    </th>
+                                )}
+                                {canViewPrice1 && (
+                                    <th className="px-6 py-4 text-end font-black w-[130px] cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('sellPrice')}>
+                                        <div className="flex items-center justify-end gap-2 text-end">
+                                            {getSortIcon('sellPrice')}
+                                            {t('price1')}
+                                        </div>
+                                    </th>
+                                )}
+                                {canViewPrice2 && <th className="px-6 py-4 text-end font-black w-[130px]">{t('price2')}</th>}
+                                {canViewPrice3 && <th className="px-6 py-4 text-end font-black w-[130px]">{t('price3')}</th>}
+                                {canManage && <th className="px-6 py-4 text-end font-black w-[150px]">{tCommon('actions')}</th>}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-border text-sm">
+                        <tbody className="divide-y divide-white/5">
                             {products.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7 + (canViewPrice1 ? 1 : 0) + (canViewPrice2 ? 1 : 0) + (canViewPrice3 ? 1 : 0)} className="p-10 text-center text-muted-foreground">
-                                        <Box className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                                        {t('noProducts')}
+                                    <td colSpan={12} className="p-10 text-center text-zinc-500 italic font-bold">
+                                        <div className="flex flex-col items-center gap-2 opacity-20">
+                                            <Box className="w-12 h-12" />
+                                            <span>{t('noProducts')}</span>
+                                        </div>
                                     </td>
                                 </tr>
                             ) : (
                                 products.map((p: any) => (
-                                    <tr key={p.id} className="hover:bg-muted/50 transition-colors group">
-                                        <td className="p-4">
+                                    <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors border-white/5">
+                                        <td className="px-6 py-4">
                                             <input
                                                 type="checkbox"
                                                 checked={selectedProducts.has(p.id)}
@@ -516,67 +559,91 @@ export default function ProductsTab({
                                                     }
                                                     setSelectedProducts(newSelected);
                                                 }}
-                                                className="w-4 h-4 cursor-pointer"
+                                                className="w-4 h-4 cursor-pointer accent-cyan-500 bg-white/5 border-white/10 rounded"
                                             />
                                         </td>
-                                        <td className="p-4 font-mono text-primary/80 font-medium">{p.sku}</td>
-                                        <td className="p-4 font-medium text-foreground">{p.name}</td>
-                                        <td className="p-4 text-muted-foreground">
-                                            {categories.find(c => c.id === p.categoryId)?.name || '-'}
+                                        <td className="px-6 py-4 font-mono text-sm text-cyan-500/80">{p.sku}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm font-black text-white group-hover:text-cyan-400 transition-colors">
+                                                {p.name}
+                                            </div>
                                         </td>
-                                        <td className="p-4 text-center">
+                                        <td className="px-6 py-4">
+                                            <span className="text-xs font-medium text-white/40 bg-white/5 px-2 py-1 rounded border border-white/10 uppercase tracking-wider">
+                                                {categories.find(c => c.id === p.categoryId)?.name || '-'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
                                             {p.trackStock === false ? (
-                                                <span className="px-2 py-1 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-500 flex items-center justify-center gap-1">
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]">
                                                     <InfinityIcon className="w-3 h-3" />
                                                     {t('serviceLabel')}
                                                 </span>
                                             ) : (
-                                                <span className={clsx("px-2 py-1 rounded-full text-xs font-bold", p.stock < 5 ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600')}>
+                                                <span className={cn(
+                                                    "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border",
+                                                    p.stock > 10 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                                                    p.stock > 0 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                                    "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                                                )}>
                                                     {p.stock}
                                                 </span>
                                             )}
                                         </td>
-                                        {canViewPrice1 && <td className="p-4 text-end font-bold text-foreground">{formatCurrency(p.sellPrice, currency)}</td>}
-                                        {canViewPrice2 && <td className="p-4 text-end font-mono text-muted-foreground">{formatCurrency(p.sellPrice2 || 0, currency)}</td>}
-                                        {canViewPrice3 && <td className="p-4 text-end font-mono text-muted-foreground">{formatCurrency(p.sellPrice3 || 0, currency)}</td>}
+                                        {canViewCost && (
+                                            <td className="px-6 py-4 text-end font-mono font-bold text-amber-500/80">
+                                                {formatCurrency(p.costPrice, currency)}
+                                            </td>
+                                        )}
+                                        {canViewPrice1 && (
+                                            <td className="px-6 py-4 text-end font-mono font-bold text-white/90">
+                                                {formatCurrency(p.sellPrice, currency)}
+                                            </td>
+                                        )}
+                                        {canViewPrice2 && (
+                                            <td className="px-6 py-4 text-end font-mono text-sm text-white/40">
+                                                {formatCurrency(p.sellPrice2 || 0, currency)}
+                                            </td>
+                                        )}
+                                        {canViewPrice3 && (
+                                            <td className="px-6 py-4 text-end font-mono text-sm text-white/40">
+                                                {formatCurrency(p.sellPrice3 || 0, currency)}
+                                            </td>
+                                        )}
                                         {canManage && (
-                                            <td className="p-4 text-center flex gap-2 justify-end">
-                                                <button
-                                                    onClick={() => setQuickPrintProduct(p)}
-                                                    className="p-2 hover:bg-cyan-500/10 rounded-lg text-muted-foreground hover:text-cyan-500 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                    title={t('quickPrint')}
-                                                >
-                                                    <Printer className="w-4 h-4" />
-                                                </button>
-
-                                                <button
-                                                    onClick={() => setEditingProduct(p)}
-                                                    className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                    title={tCommon('edit')}
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-
-                                                {warehouseId && csrfToken && hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE) && (
+                                            <td className="px-6 py-4 text-end">
+                                                <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                                     <button
-                                                        onClick={() => setWastageProduct(p)}
-                                                        className="px-3 py-1 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-md text-xs font-medium flex items-center gap-1 transition-colors"
+                                                        onClick={() => setQuickPrintProduct(p)}
+                                                        className="p-1.5 hover:bg-cyan-500/10 rounded-lg text-white/40 hover:text-cyan-400 transition-colors"
+                                                        title={t('quickPrint')}
                                                     >
-                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                        {t('wastage')}
+                                                        <Printer className="w-4 h-4" />
                                                     </button>
-                                                )}
-
-                                                <button
-                                                    onClick={() => handleDelete(p.id)}
-                                                    disabled={deletingId === p.id}
-                                                    className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                    title={tCommon('delete')}
-                                                >
-                                                    {deletingId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                                </button>
+                                                    <button
+                                                        onClick={() => setEditingProduct(p)}
+                                                        className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
+                                                        title={tCommon('edit')}
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    {warehouseId && csrfToken && hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE) && (
+                                                        <button
+                                                            onClick={() => setWastageProduct(p)}
+                                                            className="px-3 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-md text-xs font-bold border border-rose-500/20 transition-all"
+                                                        >
+                                                            {t('reportWastage')}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleDelete(p.id)}
+                                                        disabled={deletingId === p.id}
+                                                        className="p-1.5 hover:bg-rose-500/10 rounded-lg text-rose-400 hover:text-rose-500 transition-colors"
+                                                        title={tCommon('delete')}
+                                                    >
+                                                        {deletingId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                                    </button>
+                                                </div>
                                             </td>
                                         )}
                                     </tr>
@@ -587,24 +654,24 @@ export default function ProductsTab({
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="border-t border-border p-4 flex items-center justify-between bg-muted/20">
-                    <div className="text-sm text-muted-foreground">
+                <div className="border-t border-white/5 p-4 flex items-center justify-between bg-black/20">
+                    <div className="text-sm text-zinc-500 font-bold">
                         {t('pageInfo', { page: pagination.page, total: pagination.totalPages || 1 })}
                     </div>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page === 1 || isQueryLoading}
-                            className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors"
+                            className="p-2.5 rounded-xl hover:bg-white/10 disabled:opacity-20 transition-all active:scale-90"
                         >
-                            <ChevronLeft className="w-4 h-4" />
+                            <ChevronLeft className="w-5 h-5 text-zinc-400" />
                         </button>
                         <button
                             onClick={() => setPage(p => p + 1)}
                             disabled={page >= (pagination.totalPages || 1) || isQueryLoading}
-                            className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors"
+                            className="p-2.5 rounded-xl hover:bg-white/10 disabled:opacity-20 transition-all active:scale-90"
                         >
-                            <ChevronRight className="w-4 h-4" />
+                            <ChevronRight className="w-5 h-5 text-zinc-400" />
                         </button>
                     </div>
                 </div>

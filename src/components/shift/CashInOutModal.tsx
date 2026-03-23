@@ -40,7 +40,8 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
                 "CASH",
                 treasuryId,
                 type === "OUT" ? category : undefined,
-                type === "IN" ? category : undefined
+                type === "IN" ? category : undefined,
+                currentShiftId // 🆕 Pass Shift ID for POS linkage
             );
 
             if (result.success) {

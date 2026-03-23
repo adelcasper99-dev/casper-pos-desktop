@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { RefreshCw, Calendar, User, Wrench, AlertTriangle, Loader2, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, Calendar, User, Wrench, AlertTriangle, Loader2, Search, X, ChevronDown, Filter } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n-mock';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,20 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker';
+import {
+    startOfDay, endOfDay, startOfWeek, endOfWeek,
+    startOfMonth, endOfMonth, subDays
+} from 'date-fns';
+import { DateRange } from "react-day-picker";
+import { cn } from '@/lib/utils';
 import { getReturnedTickets } from '@/actions/ticket-actions';
 
 interface ReturnedTicket {
@@ -31,16 +45,22 @@ interface ReturnedTicket {
     issueDescription: string;
     status: string;
     technicianName: string | null;
+    createdAt: Date;
 }
 
 export default function ReturnedTicketsTab() {
     const t = useTranslations('returns');
+    const tt = useTranslations('Tickets');
     const [tickets, setTickets] = useState<ReturnedTicket[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
+    
+    // Date Filtering - To match TicketsList
+    const [dateFilter, setDateFilter] = useState<string>("all");
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     useEffect(() => {
         fetchReturnedTickets();
@@ -59,37 +79,49 @@ export default function ReturnedTicketsTab() {
         setLoading(false);
     };
 
+    useEffect(() => {
+        console.log("Current Tickets in State:", tickets.length);
+        if (tickets.length > 0) {
+            console.log("Sample Ticket lastReturnedAt:", tickets[0].lastReturnedAt);
+        }
+    }, [tickets]);
+
     const isUnderWarranty = (expiryDate: Date | null) => {
         if (!expiryDate) return false;
         return new Date(expiryDate) > new Date();
     };
 
-    // Filter Logic
-    const filteredTickets = tickets.filter(ticket => {
-        // 1. Search Query
-        const query = searchQuery.toLowerCase();
-        const matchesSearch =
-            ticket.customerName.toLowerCase().includes(query) ||
-            ticket.customerPhone.includes(query) ||
-            ticket.deviceBrand.toLowerCase().includes(query) ||
-            ticket.deviceModel.toLowerCase().includes(query) ||
-            ticket.barcode.toLowerCase().includes(query);
+    // Advanced Filter Logic
+    const filteredTickets = useMemo(() => {
+        return tickets.filter(ticket => {
+            // 1. Search Query
+            const query = searchQuery.toLowerCase();
+            const matchesSearch =
+                ticket.customerName.toLowerCase().includes(query) ||
+                ticket.customerPhone.includes(query) ||
+                ticket.deviceBrand.toLowerCase().includes(query) ||
+                ticket.deviceModel.toLowerCase().includes(query) ||
+                ticket.barcode.toLowerCase().includes(query);
 
-        if (!matchesSearch) return false;
+            if (!matchesSearch) return false;
 
-        // 2. Status Filter
-        const underWarranty = isUnderWarranty(ticket.warrantyExpiryDate);
+            // 2. Status Filter
+            const underWarranty = isUnderWarranty(ticket.warrantyExpiryDate);
+            if (filterStatus === 'warranty' && !underWarranty) return false;
+            if (filterStatus === 'outOfWarranty' && underWarranty) return false;
 
-        switch (filterStatus) {
-            case 'warranty':
-                return underWarranty;
-            case 'outOfWarranty':
-                return !underWarranty;
-            case 'all':
-            default:
-                return true;
-        }
-    });
+            // 3. Date Filter
+            if (dateRange?.from) {
+                const ticketDate = ticket.lastReturnedAt ? new Date(ticket.lastReturnedAt) : new Date(ticket.createdAt);
+                const start = startOfDay(new Date(dateRange.from));
+                const end = dateRange.to ? endOfDay(new Date(dateRange.to)) : endOfDay(new Date(dateRange.from));
+                
+                if (ticketDate < start || ticketDate > end) return false;
+            }
+
+            return true;
+        });
+    }, [tickets, searchQuery, filterStatus, dateRange]);
 
     if (loading) {
         return (
@@ -99,67 +131,147 @@ export default function ReturnedTicketsTab() {
         );
     }
 
-    if (tickets.length === 0) {
-        return (
-            <Card className="p-12 text-center bg-muted/30 border-dashed">
-                <RefreshCw className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-bold text-foreground mb-2">
-                    {t('noReturns')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                    {t('noReturnsDesc')}
-                </p>
-            </Card>
-        );
-    }
-
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-foreground">{t('tabTitle')}</h2>
-                    <p className="text-sm text-muted-foreground">
-                        {t('count', { count: filteredTickets.length })}
+                    <p className="text-sm text-zinc-500">
+                        {filteredTickets.length} أجهزة مرتجعة تم العثور عليها
                     </p>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-4 items-center glass-card p-4 flex-wrap">
-                {/* Search Input */}
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+            {/* Robust Filters - Aligned with TicketsList */}
+            <div className="flex gap-4 items-center flex-wrap">
+                <div className="relative flex-1 min-w-[300px] group/search">
+                    <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
                     <Input
-                        placeholder={t('searchPlaceholder')}
-                        className="pl-9 solid-input bg-zinc-900/50 border-white/10"
+                        placeholder={tt('search.placeholder')}
+                        className="ps-12 solid-input h-10 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute end-4 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all active:scale-90"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
 
-                {/* Filter Buttons */}
+                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                    <Button
+                        variant={dateFilter === "today" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("today");
+                            setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+                        }}
+                    >
+                        اليوم
+                    </Button>
+                    <Button
+                        variant={dateFilter === "yesterday" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            const yesterday = subDays(new Date(), 1);
+                            setDateFilter("yesterday");
+                            setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
+                        }}
+                    >
+                        أمس
+                    </Button>
+                    <Button
+                        variant={dateFilter === "week" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("week");
+                            setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
+                        }}
+                    >
+                        الأسبوع
+                    </Button>
+                    <Button
+                        variant={dateFilter === "month" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("month");
+                            setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+                        }}
+                    >
+                        الشهر
+                    </Button>
+
+                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+
+                    <FlatpickrRangePicker
+                        onRangeChange={(dates) => {
+                            if (dates.length === 2) {
+                                setDateRange({ from: dates[0], to: dates[1] });
+                                setDateFilter("custom");
+                            } else if (dates.length === 1) {
+                                setDateRange({ from: dates[0], to: undefined });
+                                setDateFilter("custom");
+                            } else {
+                                setDateRange(undefined);
+                                setDateFilter("all");
+                            }
+                        }}
+                        onClear={() => {
+                            setDateRange(undefined);
+                            setDateFilter("all");
+                        }}
+                        initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
+                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                    />
+                </div>
+
                 <div className="flex gap-2 flex-wrap">
-                    {['all', 'warranty', 'outOfWarranty'].map(status => (
-                        <Button
-                            key={status}
-                            variant={filterStatus === status ? 'default' : 'outline'}
-                            onClick={() => setFilterStatus(status)}
-                            size="sm"
-                            className={filterStatus === status
-                                ? "bg-cyan-500 text-black hover:bg-cyan-400 border-0"
-                                : "bg-transparent border-white/10 text-zinc-400 hover:text-white hover:bg-white/5"}
-                        >
-                            {t(`filter.${status}`)}
-                        </Button>
-                    ))}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
+                                <Filter className="w-4 h-4" />
+                                <span>{filterStatus === 'all' ? tt('filters.all') : tt(`filters.${filterStatus}`)}</span>
+                                <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">حالة الضمان</DropdownMenuLabel>
+                            {['all', 'warranty', 'outOfWarranty'].map(st => (
+                                <DropdownMenuItem 
+                                    key={st} 
+                                    onClick={() => setFilterStatus(st)}
+                                    className={filterStatus === st ? "bg-white/10" : ""}
+                                >
+                                    {st === 'all' ? tt('filters.all') : st === 'warranty' ? 'ضمن الضمان' : 'خارج الضمان'}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchReturnedTickets} 
+                        className="h-10 px-4 bg-zinc-900/50 border-white/10 hover:bg-white/5"
+                    >
+                        <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+                    </Button>
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="glass-card overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-                <Table>
-                    <TableHeader className="bg-muted/50">
-                        <TableRow>
+            {/* Table with Zebra Styling */}
+            <div className="glass-card overflow-hidden rounded-xl border border-white/5 bg-black/20 shadow-xl">
+                <Table className="zebra-table">
+                    <TableHeader className="bg-transparent text-zinc-300 uppercase font-black text-[11px] tracking-wider border-b border-white/5">
+                        <TableRow className="hover:bg-transparent border-white/5">
                             <TableHead className="w-[50px] text-center">#</TableHead>
                             <TableHead>{t('table.device')}</TableHead>
                             <TableHead>{t('table.customer')}</TableHead>
@@ -171,9 +283,12 @@ export default function ReturnedTicketsTab() {
                     </TableHeader>
                     <TableBody>
                         {filteredTickets.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                                    {t('noReturns')}
+                            <TableRow className="hover:bg-transparent border-white/5">
+                                <TableCell colSpan={7} className="h-32 text-center text-zinc-500 font-medium">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <AlertTriangle className="w-8 h-8 opacity-20" />
+                                        لم يتم العثور على أجهزة مرتجعة تطابق الفلاتر المختارة
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -183,19 +298,19 @@ export default function ReturnedTicketsTab() {
                                 return (
                                     <TableRow
                                         key={ticket.id}
-                                        className="cursor-pointer hover:bg-muted/30 transition-colors group"
+                                        className="cursor-pointer hover:bg-white/5 transition-colors group border-white/5"
                                     // onClick={() => router.push(`/tickets/${ticket.id}`)} // If we want navigation
                                     >
-                                        <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                                        <TableCell className="text-center font-mono text-xs text-zinc-500">
                                             {index + 1}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-foreground group-hover:text-cyan-400 transition-colors">{ticket.deviceBrand} {ticket.deviceModel}</span>
+                                                <span className="font-bold text-zinc-200 group-hover:text-cyan-400 transition-colors">{ticket.deviceBrand} {ticket.deviceModel}</span>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs text-muted-foreground font-mono">{ticket.barcode}</span>
+                                                    <span className="text-xs text-zinc-500 font-mono italic">{ticket.barcode}</span>
                                                     {ticket.returnCount > 1 && (
-                                                        <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
+                                                        <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-yellow-500/10 text-yellow-500 border-yellow-500/20 font-black">
                                                             {ticket.returnCount}x
                                                         </Badge>
                                                     )}
@@ -204,13 +319,13 @@ export default function ReturnedTicketsTab() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="text-sm font-medium">{ticket.customerName}</span>
-                                                <span className="text-xs text-muted-foreground">{ticket.customerPhone}</span>
+                                                <span className="text-sm font-bold text-zinc-300">{ticket.customerName}</span>
+                                                <span className="text-xs text-zinc-500 font-medium">{ticket.customerPhone}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex items-center gap-2 text-muted-foreground">
-                                                <Calendar className="w-3 h-3" />
+                                            <div className="flex items-center gap-2 text-zinc-400 font-medium">
+                                                <Calendar className="w-3.5 h-3.5" />
                                                 <span className="text-sm">
                                                     {ticket.lastReturnedAt ? new Date(ticket.lastReturnedAt).toLocaleDateString() : '-'}
                                                 </span>
@@ -219,35 +334,37 @@ export default function ReturnedTicketsTab() {
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 {ticket.returnReason ? (
-                                                    <div className="flex items-center gap-1.5 text-orange-400">
-                                                        <AlertTriangle className="w-3 h-3" />
-                                                        <span className="text-sm truncate max-w-[150px]" title={ticket.returnReason}>
+                                                    <div className="flex items-center gap-1.5 text-orange-400/80">
+                                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                                        <span className="text-sm font-medium truncate max-w-[150px]" title={ticket.returnReason}>
                                                             {ticket.returnReason}
                                                         </span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-muted-foreground">-</span>
+                                                    <span className="text-zinc-600">-</span>
                                                 )}
                                             </div>
                                         </TableCell>
                                         <TableCell>
                                             <Badge
-                                                className={`${underWarranty
-                                                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                                                    : 'bg-red-500/20 text-red-400 border-red-500/30'
-                                                    }`}
+                                                className={cn(
+                                                    "font-black border",
+                                                    underWarranty
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                        : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                                )}
                                             >
-                                                {underWarranty ? t('filter.warranty') : t('filter.outOfWarranty')}
+                                                {underWarranty ? 'ضمن الضمان' : 'خارج الضمان'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
                                             {ticket.technicianName ? (
-                                                <div className="flex items-center gap-2 text-purple-400">
-                                                    <Wrench className="w-3 h-3" />
+                                                <div className="flex items-center gap-2 text-purple-400/80 font-bold">
+                                                    <Wrench className="w-3.5 h-3.5" />
                                                     <span className="text-sm">{ticket.technicianName}</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-muted-foreground">-</span>
+                                                <span className="text-zinc-600">-</span>
                                             )}
                                         </TableCell>
                                     </TableRow>

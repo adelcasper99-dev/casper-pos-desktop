@@ -26,6 +26,7 @@ export default async function POSPage() {
         canChangePrice: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHANGE_PRICE),
         canDiscount: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DISCOUNT),
         canViewCost: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_VIEW_COST),
+        canSelectPriceTier: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_SELECT_PRICE_TIER),
         maxDiscount: session?.user?.maxDiscount ?? 0,
         maxDiscountAmount: session?.user?.maxDiscountAmount ?? 0,
     };
@@ -74,6 +75,7 @@ export default async function POSPage() {
             categoryId: p.categoryId,
             costPrice: p.costPrice.toNumber(),
             sellPrice: p.sellPrice.toNumber(),
+            sellPrice2: p.sellPrice2?.toNumber() || 0,
             sellPrice3: p.sellPrice3?.toNumber() || 0,
             minStock: p.minStock,
             trackStock: (p as any).trackStock ?? true,

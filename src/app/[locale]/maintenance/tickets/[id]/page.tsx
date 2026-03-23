@@ -557,7 +557,7 @@ export default function TicketDetailPage() {
                         {/* Spare Parts (Full Width in Main Content) */}
                         <section id="section-parts" className="pt-8 border-t border-white/5">
                             <SectionHeader icon={Plus}>إدارة قطع الغيار والخدمات</SectionHeader>
-                            <div className="pr-2">
+                            <div className="pr-2 space-y-6">
                                 <TicketPartsManager
                                     ticketId={ticket.id}
                                     parts={ticket.parts || []}
@@ -568,6 +568,13 @@ export default function TicketDetailPage() {
                                     onUpdate={loadData}
                                     isWarrantyTicket={!!ticket.parentTicketId}
                                     lastReturnedAt={ticket.lastReturnedAt}
+                                />
+
+                                <CollaboratorManager 
+                                    ticketId={ticket.id}
+                                    collaborators={ticket.collaborators || []}
+                                    technicians={technicians}
+                                    onUpdate={loadData}
                                 />
                             </div>
                         </section>

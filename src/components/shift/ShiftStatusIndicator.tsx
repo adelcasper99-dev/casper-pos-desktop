@@ -422,7 +422,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 isOpen={showCashInOutModal}
                 onClose={() => setShowCashInOutModal(false)}
                 currentShiftId={shift.id}
-                treasuryId={shift.registerId} // Link to register treasury if possible
+                // Treasury resolved automatically in backend from shift context
             />
         </>
     );
