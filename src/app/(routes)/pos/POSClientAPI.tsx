@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2, ZoomIn, ZoomOut, Database } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, PauseCircle, PlayCircle, XCircle, User, Phone, Printer, Infinity, Loader2, ZoomIn, ZoomOut, Database, ChevronRight, Eye, EyeOff } from "lucide-react";
 
 import { useCartStore } from "@/store/cart";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -29,21 +29,29 @@ export default function POSClientAPI({
     settings, 
     csrfToken, 
     floors = [], 
-    permissions = { canCheckout: true, canHoldCart: true, canDineIn: true, canPrintReceipt: true, canChangePrice: true, canDiscount: true, canViewCost: false, maxDiscount: 0, maxDiscountAmount: 0 },
+    permissions = { canCheckout: true, canHoldCart: true, canDineIn: true, canPrintReceipt: true, canChangePrice: true, canDiscount: true, canViewCost: false, canSelectPriceTier: false, maxDiscount: 0, maxDiscountAmount: 0 },
     posDefaultName
 }: any) {
     const t = useTranslations("POS");
     const router = useRouter();
     const formatCurrency = useFormatCurrency();
     const [search, setSearch] = useState("");
-    const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [activeParentId, setActiveParentId] = useState<string | null>(null);
+    const [showHidden, setShowHidden] = useState(false);
+    const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [showHeldCarts, setShowHeldCarts] = useState(false);
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-    const [categoryToEdit, setCategoryToEdit] = useState<{ id: string; name: string; color: string } | null>(null);
+    const [categoryToEdit, setCategoryToEdit] = useState<any>(null);
     // Local categories state for instant UI updates after create/edit
-    const [localCategories, setLocalCategories] = useState<{ id: string; name: string; color: string }[]>(initialCategories || []);
+    const [localCategories, setLocalCategories] = useState<any[]>(initialCategories || []);
+
+    // Sync local state when server data changes (RSC Revalidation)
+    useEffect(() => {
+        setLocalCategories(initialCategories || []);
+    }, [initialCategories]);
+
     const [isPrinting, setIsPrinting] = useState(false);
     const [gridCols, setGridCols] = useState(5); // Default grid columns
 
@@ -53,6 +61,15 @@ export default function POSClientAPI({
 
     const [isSpeedPrintModalOpen, setIsSpeedPrintModalOpen] = useState(false);
     const [speedPrintData, setSpeedPrintData] = useState<any>(null);
+    const [isSpeedPrintEnabled, setIsSpeedPrintEnabled] = useState(true);
+
+    // Initial load of speed print setting from registry
+    useEffect(() => {
+        const registry = printService.getRegistry();
+        if (registry) {
+            setIsSpeedPrintEnabled(registry.enableSpeedPrint !== false);
+        }
+    }, []);
 
     // Keyboard Shortcuts State
     const [qtyModeId, setQtyModeId] = useState<string | null>(null);
@@ -64,7 +81,7 @@ export default function POSClientAPI({
         customerId, customerName, customerPhone, customerBalance, setCustomer,
         tableId, tableName, setTable,
         discountAmount, discountPercentage, setDiscount,
-        lastAddedId
+        lastAddedId, priceTier, setPriceTier, showCostPrice, toggleCostPrice
     } = useCartStore();
 
     const [orderMode, setOrderMode] = useState<"takeaway" | "dine-in">("takeaway");
@@ -106,7 +123,11 @@ export default function POSClientAPI({
             // 🛡️ BLOCK NATIVE BROWSER PRINT (Ctrl+P)
             if (e.ctrlKey && e.key === 'p') {
                 e.preventDefault();
-                handleSpeedPrint();
+                if (isSpeedPrintEnabled) {
+                    handleSpeedPrint();
+                } else {
+                    toast.info(t('speedPrintDisabled') || "Quick Print is disabled");
+                }
                 return;
             }
 
@@ -324,10 +345,32 @@ export default function POSClientAPI({
                 return false;
             }
             const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.includes(search)) || (p.barcode && p.barcode.includes(search));
-            const matchesCategory = selectedCategory ? p.categoryId === selectedCategory : true;
-            return matchesSearch && matchesCategory;
+            
+            // If searching, ignore category filter
+            if (search.length > 0) return matchesSearch;
+
+            // Updated category filtering: RECURSIVE
+            // If selectedCategory is a parent, include products from its subcategories
+            if (selectedCategory) {
+                const subIds = localCategories
+                    .filter(c => c.parentId === selectedCategory)
+                    .map(c => c.id);
+                const matches = p.categoryId === selectedCategory || subIds.includes(p.categoryId);
+                return matchesSearch && matches;
+            }
+            
+            return matchesSearch;
         });
-    }, [displayProducts, search, selectedCategory]);
+    }, [displayProducts, search, selectedCategory, localCategories]);
+
+    const topLevelCategories = useMemo(() => {
+        return localCategories.filter(c => c.parentId === null && (showHidden ? true : !c.isHidden));
+    }, [localCategories, showHidden]);
+
+    const activeSubCategories = useMemo(() => {
+        if (!activeParentId) return [];
+        return localCategories.filter(c => c.parentId === activeParentId && (showHidden ? true : !c.isHidden));
+    }, [localCategories, activeParentId, showHidden]);
 
     // Grid Cell Renderer - This is no longer needed with VirtuosoGrid's itemContent
     // const Cell = ({ columnIndex, rowIndex, style, data }: any) => {
@@ -377,9 +420,18 @@ export default function POSClientAPI({
             return feats.enableTables === true;
         } catch { return false; }
     }, [settings?.features]);
+    
+    const isPriceTiersEnabled = useMemo(() => {
+        try {
+            const feats = typeof settings?.features === 'string'
+                ? JSON.parse(settings.features)
+                : (settings?.features || {});
+            return feats.pos_price_tiers === true && permissions.canSelectPriceTier;
+        } catch { return false; }
+    }, [settings?.features, permissions.canSelectPriceTier]);
 
     const handleSpeedPrint = async () => {
-        if (items.length === 0 || isPrinting) return;
+        if (items.length === 0 || isPrinting || !isSpeedPrintEnabled) return;
 
         setIsPrinting(true);
         try {
@@ -511,6 +563,29 @@ export default function POSClientAPI({
                                 {t('dineIn') || 'Dine-In'}
                             </button>
                         </div>
+                        
+                        {isPriceTiersEnabled && (
+                             <div className="flex bg-black/40 rounded-xl p-1 border border-white/10 shrink-0 animate-in fade-in slide-in-from-top-1">
+                                {[
+                                    { id: 'sellPrice', label: 'جمله' },
+                                    { id: 'sellPrice2', label: 'نص جمله' },
+                                    { id: 'sellPrice3', label: 'قطاعى' }
+                                ].map((tier) => (
+                                    <button
+                                        key={tier.id}
+                                        onClick={() => setPriceTier(tier.id as any)}
+                                        className={clsx(
+                                            "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all duration-300 uppercase tracking-widest",
+                                            priceTier === tier.id 
+                                                ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(0,242,255,0.3)]" 
+                                                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                                        )}
+                                    >
+                                        {tier.label}
+                                    </button>
+                                ))}
+                             </div>
+                        )}
 
                         {(orderMode === 'dine-in' || tableId) && (
                             <button
@@ -538,6 +613,15 @@ export default function POSClientAPI({
                                 >
                                     <PauseCircle className="w-3 h-3" />
                                     {heldCarts.length} {t('held')}
+                                </button>
+                            )}
+                            {permissions.canViewCost && (
+                                <button
+                                    onClick={() => toggleCostPrice()}
+                                    className="p-1 hover:bg-white/10 rounded-lg text-zinc-500 hover:text-cyan-400 transition-colors mr-2"
+                                    title={showCostPrice ? t('hideCost') : t('showCost')}
+                                >
+                                    {showCostPrice ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             )}
                             <button onClick={clearCart} className="text-zinc-500 hover:text-red-400 text-xs font-bold hover:underline px-2 transition-colors">
@@ -776,13 +860,35 @@ export default function POSClientAPI({
                         <div className="flex flex-col gap-3">
                             <div className="flex gap-2 h-14 w-full">
                                 <button
-                                    onClick={handleSpeedPrint}
-                                    disabled={items.length === 0 || isPrinting || !permissions.canPrintReceipt}
-                                    className="w-16 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 font-bold rounded-xl flex items-center justify-center border border-purple-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all relative"
-                                    title={t('speedPrint') || "Speed Print"}
+                                    onClick={() => isSpeedPrintEnabled && handleSpeedPrint()}
+                                    disabled={items.length === 0 || isPrinting || !permissions.canPrintReceipt || !isSpeedPrintEnabled}
+                                    className={clsx(
+                                        "w-16 font-bold rounded-xl flex items-center justify-center border transition-all relative",
+                                        isSpeedPrintEnabled 
+                                            ? "bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 border-purple-500/20" 
+                                            : "bg-zinc-500/5 text-zinc-500 border-zinc-500/10 opacity-40 hover:opacity-100"
+                                    )}
+                                    title={isSpeedPrintEnabled ? (t('speedPrint') || "Speed Print") : (t('speedPrintDisabled') || "Speed Print Disabled")}
                                 >
                                     {isPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-6 h-6" />}
                                     <span className="absolute -top-1 -left-1 text-[8px] bg-purple-500 text-white px-1 rounded font-bold uppercase pointer-events-none">R-CTRL</span>
+                                    
+                                    {/* Small toggle dot on the button itself or just next to it */}
+                                    <div 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const newVal = !isSpeedPrintEnabled;
+                                            setIsSpeedPrintEnabled(newVal);
+                                            printService.updateRegistry({ enableSpeedPrint: newVal });
+                                            toast.info(newVal ? t('speedPrintEnabled') : t('speedPrintDisabled'));
+                                        }}
+                                        className={clsx(
+                                            "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-black flex items-center justify-center cursor-pointer transition-colors z-30",
+                                            isSpeedPrintEnabled ? "bg-green-500" : "bg-zinc-600"
+                                        )}
+                                    >
+                                        <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                                    </div>
                                 </button>
                                 <button onClick={() => holdCart()} disabled={items.length === 0 || isPrinting || !permissions.canHoldCart} className="w-16 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center border border-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all relative" title="Hold Cart">
                                     <PauseCircle className="w-6 h-6" />
@@ -829,6 +935,9 @@ export default function POSClientAPI({
                         }
                     });
                 }}
+                onAddSubCategory={(parentId) => {
+                    setCategoryToEdit({ id: "", name: "", color: "#06b6d4", parentId });
+                }}
             />
 
             {/* RIGHT SIDE: Product Grid */}
@@ -846,25 +955,44 @@ export default function POSClientAPI({
                     }
                 }}
             >
-                {/* Categories */}
+                {/* Sidebar Categories (Top Level Only) */}
                 <div className="w-40 border-r border-white/5 glass-card bg-black/40 backdrop-blur-3xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full rounded-none">
-                    <button onClick={() => setSelectedCategory(null)} className={clsx("w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 border border-white/5", selectedCategory === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground")}>
+                    <button 
+                        onClick={() => {
+                            setSelectedCategory(null);
+                            setActiveParentId(null);
+                            setSearch("");
+                        }} 
+                        className={clsx(
+                            "w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 border border-white/5", 
+                            selectedCategory === null && activeParentId === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                        )}
+                    >
                         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
                         {t('allCategories')}
                     </button>
-                    {localCategories.map((c: any) => (
+
+                    {topLevelCategories.map((c: any) => (
                         <button
                             key={c.id}
-                            onClick={() => setSelectedCategory(c.id)}
+                            onClick={() => {
+                                setActiveParentId(c.id);
+                                setSelectedCategory(c.id);
+                                setSearch("");
+                            }}
                             onContextMenu={(e) => {
                                 e.preventDefault();
                                 setCategoryToEdit(c);
                                 setIsCategoryModalOpen(true);
                             }}
-                            className={clsx("w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/10 backdrop-blur-xl", selectedCategory === c.id ? "scale-[1.02] ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.2)]" : "hover:scale-[1.02] opacity-80 hover:opacity-100")}
+                            className={clsx(
+                                "w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/10 backdrop-blur-xl", 
+                                activeParentId === c.id ? "scale-[1.02] ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.2)]" : "hover:scale-[1.02] opacity-80 hover:opacity-100",
+                                c.isHidden && "opacity-40 grayscale"
+                            )}
                             style={{ 
-                                backgroundColor: `${c.color || "#06b6d4"}33`, // Add 33 (20% alpha) to hex color
-                                color: selectedCategory === c.id ? "#fff" : "rgba(255,255,255,0.7)", 
+                                backgroundColor: `${c.color || "#06b6d4"}33`, 
+                                color: activeParentId === c.id ? "#fff" : "rgba(255,255,255,0.7)", 
                                 borderLeft: `4px solid ${c.color || "#06b6d4"}`
                             }}
                         >
@@ -873,14 +1001,19 @@ export default function POSClientAPI({
                         </button>
                     ))}
 
-                    {/* Add Category Button */}
+                    <button 
+                        onClick={() => setShowHidden(!showHidden)}
+                        className="mt-auto p-2 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase font-black text-center"
+                    >
+                        {showHidden ? (t('hideHidden') || "Hide Disabled") : (t('showHidden') || "View All")}
+                    </button>
+
                     <button
                         onClick={() => {
                             setCategoryToEdit(null);
                             setIsCategoryModalOpen(true);
                         }}
                         className="w-full h-16 rounded-xl flex items-center justify-center bg-zinc-800/50 border border-dashed border-zinc-700 text-zinc-500 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-zinc-800 transition-all shrink-0 group border-2"
-                        title={t('addCategory') || "Add Category"}
                     >
                         <Plus className="w-6 h-6 group-hover:scale-125 transition-transform" />
                     </button>
@@ -888,7 +1021,7 @@ export default function POSClientAPI({
 
                 {/* Products */}
                 <div className="flex-1 flex flex-col gap-4 h-full overflow-hidden p-4">
-                    {/* Search Header */}
+                    {/* Search Header & Horizontal Sub-category Filter Bar */}
                     <div className="flex flex-col gap-3">
                         <div className="flex justify-between items-center bg-black/20 p-2 rounded-xl border border-white/5 mb-1">
                             {posDefaultName && (
@@ -903,6 +1036,7 @@ export default function POSClientAPI({
                                 <DesktopStatus />
                             </div>
                         </div>
+
                         <div className="flex gap-3">
                             <div className="glass-card bg-white/5 backdrop-blur-md flex items-center gap-3 py-3 px-4 flex-[2] transition-all focus-within:border-cyan-500/50">
                                 <Search className="w-5 h-5 text-muted-foreground" />
@@ -914,33 +1048,55 @@ export default function POSClientAPI({
                                     className="bg-transparent outline-none w-full placeholder:text-muted-foreground text-foreground"
                                 />
                             </div>
-
-                            {/* New Customer Search Component */}
                             <div className="flex-[2]">
                                 <CustomerSearch />
                             </div>
-
-                            {/* Zoom Controls */}
                             <div className="flex bg-card border border-border rounded-xl overflow-hidden shadow-sm shrink-0 items-center">
-                                <button
-                                    onClick={() => setGridCols(prev => Math.min(8, prev + 1))}
-                                    disabled={gridCols >= 8}
-                                    title="Zoom Out (Smaller Items)"
-                                    className="p-3 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
+                                <button onClick={() => setGridCols(prev => Math.min(8, prev + 1))} disabled={gridCols >= 8} className="p-3 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-30">
                                     <ZoomOut className="w-5 h-5" />
                                 </button>
                                 <div className="w-px h-6 bg-border mx-1"></div>
-                                <button
-                                    onClick={() => setGridCols(prev => Math.max(2, prev - 1))}
-                                    disabled={gridCols <= 2}
-                                    title="Zoom In (Larger Items)"
-                                    className="p-3 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
+                                <button onClick={() => setGridCols(prev => Math.max(2, prev - 1))} disabled={gridCols <= 2} className="p-3 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-30">
                                     <ZoomIn className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
+
+                        {/* HORIZONTAL PILL BAR FOR SUBCATEGORIES */}
+                        {activeSubCategories.length > 0 && (
+                            <div className="flex flex-col gap-2 mt-2 animate-slide-down">
+                                <div className="text-[9px] font-black text-zinc-500 uppercase tracking-widest px-2">{t('subCategories') || "Sub-Categories"}</div>
+                                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
+                                    {/* 'All' pill for this group */}
+                                    <button
+                                        onClick={() => setSelectedCategory(activeParentId)}
+                                        className={clsx(
+                                            "px-6 py-3 rounded-xl text-sm font-black uppercase transition-all whitespace-nowrap border shrink-0 shadow-lg",
+                                            selectedCategory === activeParentId ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-105" : "bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-white"
+                                        )}
+                                    >
+                                        {t('all') || "All"}
+                                    </button>
+                                    {activeSubCategories.map((sub: any) => (
+                                        <button
+                                            key={sub.id}
+                                            onClick={() => setSelectedCategory(sub.id)}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                setCategoryToEdit(sub);
+                                                setIsCategoryModalOpen(true);
+                                            }}
+                                            className={clsx(
+                                                "px-6 py-3 rounded-xl text-sm font-black uppercase transition-all whitespace-nowrap border shrink-0 shadow-lg",
+                                                selectedCategory === sub.id ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-105" : "bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-white"
+                                            )}
+                                        >
+                                            {sub.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* VIRTUALIZED GRID (Virtuoso) */}
@@ -992,8 +1148,8 @@ export default function POSClientAPI({
                                     <div className="mt-auto w-full">
                                         <div className={`font-bold line-clamp-2 text-foreground group-hover:text-primary transition-colors ${gridCols >= 6 ? 'text-xs' : 'text-sm'}`}>{p.name}</div>
                                         <div className="flex justify-between items-center mt-1">
-                                            <div className="text-cyan-400 font-mono text-sm">{formatCurrency(p.sellPrice)}</div>
-                                            {permissions.canViewCost && p.costPrice > 0 && (
+                                            <div className="text-cyan-400 font-mono text-sm">{formatCurrency(p[priceTier] || p.sellPrice)}</div>
+                                            {permissions.canViewCost && showCostPrice && p.costPrice > 0 && (
                                                 <div className="text-muted-foreground opacity-60 text-[10px] font-mono" title={t('costPrice') || "Cost"}>{formatCurrency(p.costPrice)}</div>
                                             )}
                                         </div>

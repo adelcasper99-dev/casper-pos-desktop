@@ -18,15 +18,19 @@ interface Product {
 
 interface BarcodePrintDialogProps {
   products: Product[];
+  initialQuantities?: Record<string, number>;
   onClose: () => void;
 }
 
-export function BarcodePrintDialog({ products, onClose }: BarcodePrintDialogProps) {
+export function BarcodePrintDialog({ products, initialQuantities, onClose }: BarcodePrintDialogProps) {
   const t = useTranslations('Inventory.labels');
   const tCommon = useTranslations('Common');
 
   const [quantities, setQuantities] = useState<Record<string, number>>(
-    products.reduce((acc, p) => ({ ...acc, [p.id]: 1 }), {})
+    products.reduce((acc, p) => ({ 
+      ...acc, 
+      [p.id]: initialQuantities?.[p.id] ?? 1 
+    }), {})
   );
 
   // Editable label data

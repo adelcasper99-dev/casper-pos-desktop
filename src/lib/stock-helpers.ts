@@ -85,8 +85,9 @@ export async function handleReturnedPartStock(
 ): Promise<void> {
     const { productId, warehouseId, quantity, isDamaged, reason, performedById, branchId } = data;
     
+    // 1. Log Movement/Wastage
     if (isDamaged) {
-        // Log as wastage
+        // Log as wastage for accounting (Center loss)
         await tx.stockWastage.create({
             data: {
                 productId,
@@ -97,44 +98,32 @@ export async function handleReturnedPartStock(
                 branchId: branchId || null
             } as any
         });
+    }
 
+    // 2. Return to Custody (Warehouse)
+    let targetWhId = warehouseId;
+    if (!targetWhId) {
+        const fallbackWh = await tx.warehouse.findFirst({
+            where: { isMaintenanceDefault: true }
+        });
+        targetWhId = fallbackWh?.id || null;
+    }
+
+    if (targetWhId) {
+        // Increment stock in the technician's warehouse (Always return to custody)
+        await incrementWarehouseStock(tx, productId, targetWhId, quantity);
+        
         await tx.stockMovement.create({
             data: {
-                type: 'WASTAGE',
+                type: isDamaged ? 'WASTAGE_RETURN' : 'REFUND',
                 productId,
-                fromWarehouseId: warehouseId || undefined,
+                toWarehouseId: targetWhId,
                 quantity,
+                condition: isDamaged ? 'DAMAGED' : 'GOOD',
                 reason,
                 performedById,
                 branchId: branchId || null
             } as any
         });
-    } else {
-        // Return to stock
-        let targetWhId = warehouseId;
-        if (!targetWhId) {
-            // Context-aware fallback: Only allow maintenance fallback for handleReturnedPartStock
-            // which is primarily used in ticket actions.
-            const fallbackWh = await tx.warehouse.findFirst({
-                where: { isMaintenanceDefault: true }
-            });
-            targetWhId = fallbackWh?.id || null;
-        }
-
-        if (targetWhId) {
-            await incrementWarehouseStock(tx, productId, targetWhId, quantity);
-            
-            await tx.stockMovement.create({
-                data: {
-                    type: 'REFUND',
-                    productId,
-                    toWarehouseId: targetWhId,
-                    quantity,
-                    reason,
-                    performedById,
-                    branchId: branchId || null
-                } as any
-            });
-        }
     }
 }

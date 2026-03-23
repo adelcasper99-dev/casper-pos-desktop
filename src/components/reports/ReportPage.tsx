@@ -17,7 +17,14 @@ import {
     BarChart2,
     Package,
     Tag,
-    Download
+    Download,
+    ChevronUp,
+    ChevronDown,
+    ArrowUpDown,
+    Clock,
+    User,
+    Wrench,
+    Wallet
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,7 +66,8 @@ import {
 import { Combobox } from "@/components/ui/combobox"
 import { printZReport } from "@/lib/print-zreport"
 import { toast } from "sonner"
-import { format } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
+import { ar } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
 const translateMethod = (method: string) => {
@@ -102,6 +110,18 @@ export default function ReportPage({ initialData, branches, categories = [], pro
     const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '')
     const [swipeState, setSwipeState] = useState<{ id: string, startX: number }>({ id: '', startX: 0 })
     const [isExporting, setIsExporting] = useState(false)
+
+    // Sorting States
+    const [txSort, setTxSort] = useState<{ key: string, order: 'asc' | 'desc' }>({ key: 'date', order: 'desc' })
+    const [auditSort, setAuditSort] = useState<{ key: string, order: 'asc' | 'desc' }>({ key: 'date', order: 'desc' })
+    const [catSort, setCatSort] = useState<{ key: string, order: 'asc' | 'desc' }>({ key: 'totalRevenue', order: 'desc' })
+    const [prodSort, setProdSort] = useState<{ key: string, order: 'asc' | 'desc' }>({ key: 'totalRevenue', order: 'desc' })
+    const [shiftSort, setShiftSort] = useState<{ key: string, order: 'asc' | 'desc' }>({ key: 'openedAt', order: 'desc' })
+
+    const SortIcon = ({ current, target, order }: { current: string, target: string, order: 'asc' | 'desc' }) => {
+        if (current !== target) return <ChevronDown className="w-3 h-3 opacity-20" />;
+        return order === 'asc' ? <ChevronUp className="w-3 h-3 text-cyan-400" /> : <ChevronDown className="w-3 h-3 text-cyan-400" />;
+    };
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -156,14 +176,21 @@ export default function ReportPage({ initialData, branches, categories = [], pro
     const exportToExcel = () => {
         setIsExporting(true);
         setTimeout(() => {
-            const data = transactions.map((t: any) => ({
-                "التاريخ": format(new Date(t.date), 'yyyy-MM-dd HH:mm'),
-                "النوع": t.type === 'SALE' ? 'بيع' : t.type === 'PURCHASE' ? 'شراء' : 'مصروف',
-                "الفرع": t.branch || '',
-                "طريقة الدفع": translateMethod(t.method),
-                "المبلغ": t.amount,
-                "الحالة": "مكتمل"
-            }));
+            const data = transactions.map((t: any) => {
+                const typeStr =
+                    t.type === 'SALE' ? (t.isReturn ? 'مرتجع مبيعات' : 'فاتورة بيع') :
+                        t.type === 'PURCHASE' ? (t.isReturn ? 'مرتجع مشتريات' : 'فاتورة شراء') :
+                            t.type === 'MAINTENANCE' ? 'صيانة' :
+                                t.type === 'INCOME' ? 'إيرادات أخرى' : 'صرف مصروف';
+                return {
+                    "التاريخ": format(new Date(t.date), 'yyyy-MM-dd HH:mm'),
+                    "النوع": typeStr,
+                    "الفرع": t.branch || '',
+                    "طريقة الدفع": translateMethod(t.method),
+                    "المبلغ": t.amount,
+                    "الحالة": "مكتمل"
+                };
+            });
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "المعاملات المالية");
@@ -286,22 +313,70 @@ export default function ReportPage({ initialData, branches, categories = [], pro
     const activeTypeFilter = searchParams.get('type') || "all";
     const activeMethodFilter = searchParams.get('method') || "all";
 
-    const transactions = rawTransactions.filter((t: any) => {
-        let match = true;
-        if (activeSearchQuery) {
-            match = match && (
-                t.id.toLowerCase().includes(activeSearchQuery) ||
-                (t.description && t.description.toLowerCase().includes(activeSearchQuery)) ||
-                (t.method && translateMethod(t.method).toLowerCase().includes(activeSearchQuery))
-            );
+    const transactions = [...rawTransactions]
+        .filter((t: any) => {
+            let match = true;
+            if (activeSearchQuery) {
+                match = match && (
+                    t.id.toLowerCase().includes(activeSearchQuery) ||
+                    (t.description && t.description.toLowerCase().includes(activeSearchQuery)) ||
+                    (t.method && translateMethod(t.method).toLowerCase().includes(activeSearchQuery))
+                );
+            }
+            if (activeTypeFilter !== 'all') {
+                match = match && t.type === activeTypeFilter;
+            }
+            if (activeMethodFilter !== 'all') {
+                match = match && translateMethod(t.method) === activeMethodFilter;
+            }
+            return match;
+        })
+        .sort((a, b) => {
+            const aValue = a[txSort.key];
+            const bValue = b[txSort.key];
+            if (aValue < bValue) return txSort.order === 'asc' ? -1 : 1;
+            if (aValue > bValue) return txSort.order === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    const sortedAuditLogs = [...(auditLogs || [])].sort((a, b) => {
+        const aValue = a[auditSort.key];
+        const bValue = b[auditSort.key];
+        if (aValue < bValue) return auditSort.order === 'asc' ? -1 : 1;
+        if (aValue > bValue) return auditSort.order === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const sortedSalesByCategory = [...(salesByCategory || [])].sort((a, b) => {
+        let aValue = a[catSort.key];
+        let bValue = b[catSort.key];
+        if (catSort.key === 'profit') {
+            aValue = a.totalRevenue - a.totalCost;
+            bValue = b.totalRevenue - b.totalCost;
         }
-        if (activeTypeFilter !== 'all') {
-            match = match && t.type === activeTypeFilter;
+        if (aValue < bValue) return catSort.order === 'asc' ? -1 : 1;
+        if (aValue > bValue) return catSort.order === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const sortedSalesByProduct = [...(salesByProduct || [])].sort((a, b) => {
+        let aValue = a[prodSort.key];
+        let bValue = b[prodSort.key];
+        if (prodSort.key === 'profit') {
+            aValue = a.totalRevenue - a.totalCost;
+            bValue = b.totalRevenue - b.totalCost;
         }
-        if (activeMethodFilter !== 'all') {
-            match = match && translateMethod(t.method) === activeMethodFilter;
-        }
-        return match;
+        if (aValue < bValue) return prodSort.order === 'asc' ? -1 : 1;
+        if (aValue > bValue) return prodSort.order === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const sortedShifts = [...(shifts || [])].sort((a, b) => {
+        const aValue = a[shiftSort.key];
+        const bValue = b[shiftSort.key];
+        if (aValue < bValue) return shiftSort.order === 'asc' ? -1 : 1;
+        if (aValue > bValue) return shiftSort.order === 'asc' ? 1 : -1;
+        return 0;
     });
 
     return (
@@ -664,8 +739,9 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                                         </SelectTrigger>
                                         <SelectContent className="bg-zinc-900 border-white/10 text-zinc-300 text-xs">
                                             <SelectItem value="all">كل الأنواع</SelectItem>
-                                            <SelectItem value="SALE">بيع</SelectItem>
-                                            <SelectItem value="PURCHASE">شراء</SelectItem>
+                                            <SelectItem value="SALE">بيعات ومرتجعات</SelectItem>
+                                            <SelectItem value="PURCHASE">مشتريات</SelectItem>
+                                            <SelectItem value="INCOME">إيرادات أخرى</SelectItem>
                                             <SelectItem value="EXPENSE">مصروف</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -700,69 +776,113 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-md shadow-md">
-                                        <TableRow className="border-white/5 hover:bg-transparent h-[50px]">
-                                            <TableHead className="text-right text-zinc-500 font-medium whitespace-nowrap">التاريخ والوقت</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">نوع الحركة</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الفرع / المستودع</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">طريقة الدفع</TableHead>
-                                            <TableHead className="text-left text-zinc-500 font-medium">المبلغ الإجمالي</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الحالة</TableHead>
+                                    <TableHeader className="bg-white/5">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-12">
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head whitespace-nowrap" onClick={() => {
+                                                const order = txSort.key === 'date' && txSort.order === 'asc' ? 'desc' : 'asc';
+                                                setTxSort({ key: 'date', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">
+                                                    <SortIcon current={txSort.key} target="date" order={txSort.order} />
+                                                    التاريخ والوقت
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head whitespace-nowrap" onClick={() => {
+                                                const order = txSort.key === 'type' && txSort.order === 'asc' ? 'desc' : 'asc';
+                                                setTxSort({ key: 'type', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">
+                                                    <SortIcon current={txSort.key} target="type" order={txSort.order} />
+                                                    نوع الحركة
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">الفرع / المستودع</div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">طريقة الدفع</div>
+                                            </TableHead>
+                                            <TableHead className="text-left cursor-pointer hover:bg-white/5 transition-colors group/head whitespace-nowrap" onClick={() => {
+                                                const order = txSort.key === 'amount' && txSort.order === 'asc' ? 'desc' : 'asc';
+                                                setTxSort({ key: 'amount', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">
+                                                    <SortIcon current={txSort.key} target="amount" order={txSort.order} />
+                                                    المبلغ الإجمالي
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">الحالة</div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
+                                    <TableBody className="divide-y divide-white/5 bg-[#0a0a0a]/40">
                                         {transactions.length > 0 ? (
                                             transactions.map((t: any) => (
                                                 <TableRow
                                                     key={t.id}
-                                                    className="border-white/5 hover:bg-white/[0.05] transition-colors group h-[55px] cursor-pointer touch-pan-y"
+                                                    className="border-white/5 hover:bg-white/[0.05] even:bg-white/[0.02] transition-all group h-[55px] cursor-pointer"
                                                     onTouchStart={(e) => handleTouchStart(e, t.id)}
                                                     onTouchEnd={(e) => handleTouchEnd(e, t.id)}
                                                 >
-                                                    <TableCell className="text-right text-zinc-400 text-xs py-4 whitespace-nowrap">
-                                                        {format(new Date(t.date), 'yyyy/MM/dd | HH:mm')}
+                                                    <TableCell className="text-right py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2 text-zinc-400 font-mono text-[11px]">
+                                                            <CalendarIcon className="w-3 h-3 opacity-30" />
+                                                            {format(new Date(t.date), 'yyyy/MM/dd | HH:mm')}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center gap-2">
                                                             <div className={cn(
-                                                                "p-1.5 rounded bg-zinc-900 border border-white/5",
+                                                                "p-1.5 rounded-lg bg-zinc-900 border border-white/5 group-hover:border-zinc-700 transition-colors",
                                                                 t.type === 'SALE' ? "text-cyan-400" :
-                                                                    t.type === 'PURCHASE' ? "text-amber-400" : "text-rose-400"
+                                                                    t.type === 'PURCHASE' ? "text-amber-400" :
+                                                                        t.type === 'INCOME' ? "text-emerald-400" : "text-rose-400"
                                                             )}>
-                                                                {t.type === 'SALE' ? <TrendingUp className="w-3 h-3" /> :
-                                                                    t.type === 'PURCHASE' ? <ShoppingCart className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                                                                {t.type === 'SALE' ? <TrendingUp className="w-3.5 h-3.5" /> :
+                                                                    t.type === 'PURCHASE' ? <ShoppingCart className="w-3.5 h-3.5" /> :
+                                                                        t.type === 'INCOME' ? <DollarSign className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
                                                             </div>
-                                                            <span className="text-xs font-semibold text-zinc-200">
-                                                                {t.type === 'SALE' ? 'فاتورة بيع' : t.type === 'PURCHASE' ? 'فاتورة شراء' : 'صرف مصروف'}
+                                                            <span className="text-xs font-black text-zinc-200 group-hover:text-cyan-400 transition-colors uppercase tracking-tight">
+                                                                {t.type === 'SALE' ? (t.isReturn ? 'مرتجع مبيعات' : 'فاتورة بيع') :
+                                                                    t.type === 'PURCHASE' ? (t.isReturn ? 'مرتجع مشتريات' : 'فاتورة شراء') :
+                                                                        t.type === 'MAINTENANCE' ? 'صيانة' :
+                                                                            t.type === 'INCOME' ? 'إيرادات أخرى' : 'صرف مصروف'}
                                                             </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-zinc-400 text-xs">
-                                                        {t.branch || 'المخزن الافتراضي'}
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center gap-2 text-xs text-zinc-500 font-bold">
+                                                            <Package className="w-3 h-3 opacity-20" />
+                                                            {t.branch || 'المخزن الافتراضي'}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <Badge variant="outline" className="text-[10px] border-white/5 bg-zinc-900 text-zinc-500 px-2 py-0">
+                                                        <Badge variant="outline" className="text-[10px] font-black border-white/5 bg-zinc-900/50 text-zinc-500 px-2 py-0.5 tracking-tighter uppercase">
                                                             {translateMethod(t.method)}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className={cn(
-                                                        "text-left font-mono font-bold text-sm",
+                                                        "text-left font-mono font-black text-sm",
                                                         t.amount > 0 ? "text-emerald-400" : "text-rose-400"
                                                     )}>
-                                                        {t.amount > 0 ? '+' : ''}{Math.abs(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                        <span className="text-[10px] mr-1 opacity-50 font-sans">EGP</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {t.amount > 0 ? <TrendingUp className="w-3 h-3 opacity-50" /> : <TrendingDown className="w-3 h-3 opacity-50" />}
+                                                            {t.amount > 0 ? '+' : ''}{Math.abs(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            <span className="text-[10px] opacity-30 font-sans font-normal tracking-widest mr-1">EGP</span>
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
-                                                            <span className="text-xs text-emerald-500 font-medium">مكتمل</span>
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
+                                                            <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">مكتمل</span>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="h-32 text-center text-zinc-600 text-sm italic">
+                                                <TableCell colSpan={6} className="h-32 text-center text-zinc-600 text-sm italic font-bold">
                                                     لم يتم العثور على حركات مالية مسجلة...
                                                 </TableCell>
                                             </TableRow>
@@ -782,37 +902,69 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="bg-zinc-950/50">
-                                        <TableRow className="border-white/5 hover:bg-transparent h-[50px]">
-                                            <TableHead className="text-right text-zinc-500 font-medium whitespace-nowrap">التاريخ والوقت</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">العملية</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الكيان (Entity)</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">السبب / التفاصيل</TableHead>
+                                    <TableHeader className="bg-white/5">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-12">
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head whitespace-nowrap px-4" onClick={() => {
+                                                const order = auditSort.key === 'date' && auditSort.order === 'asc' ? 'desc' : 'asc';
+                                                setAuditSort({ key: 'date', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={auditSort.key} target="date" order={auditSort.order} />
+                                                    التاريخ والوقت
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head whitespace-nowrap px-4" onClick={() => {
+                                                const order = auditSort.key === 'action' && auditSort.order === 'asc' ? 'desc' : 'asc';
+                                                setAuditSort({ key: 'action', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={auditSort.key} target="action" order={auditSort.order} />
+                                                    العملية
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head whitespace-nowrap px-4" onClick={() => {
+                                                const order = auditSort.key === 'entity' && auditSort.order === 'asc' ? 'desc' : 'asc';
+                                                setAuditSort({ key: 'entity', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={auditSort.key} target="entity" order={auditSort.order} />
+                                                    الكيان (Entity)
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap px-4">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">السبب / التفاصيل</div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
-                                        {auditLogs.length > 0 ? (
-                                            auditLogs.map((log: any) => (
-                                                <TableRow key={log.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
-                                                    <TableCell className="text-right text-zinc-400 text-xs py-4 whitespace-nowrap">
-                                                        {format(new Date(log.date), 'yyyy/MM/dd | HH:mm')}
+                                    <TableBody className="divide-y divide-white/5 bg-[#0a0a0a]/40">
+                                        {sortedAuditLogs.length > 0 ? (
+                                            sortedAuditLogs.map((log: any) => (
+                                                <TableRow key={log.id} className="border-white/5 hover:bg-white/[0.04] even:bg-white/[0.02] transition-all group h-[55px]">
+                                                    <TableCell className="text-right py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2 text-zinc-500 font-mono text-[10px]">
+                                                            <Clock className="w-3 h-3 opacity-30" />
+                                                            {format(new Date(log.date), 'yyyy/MM/dd | HH:mm')}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <Badge variant="outline" className="text-[10px] border-rose-500/20 bg-rose-500/10 text-rose-400 px-2 py-0">
+                                                        <Badge variant="outline" className="text-[10px] font-black border-rose-500/10 bg-rose-500/10 text-rose-400 px-2 py-0.5 tracking-tighter uppercase">
                                                             {log.action}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-zinc-400 text-xs font-mono">
-                                                        {log.entity}
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono font-bold">
+                                                            <Filter className="w-3 h-3 opacity-20" />
+                                                            {log.entity}
+                                                        </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-zinc-300 text-xs max-w-md truncate">
+                                                    <TableCell className="text-right text-zinc-300 text-xs max-w-md truncate font-medium">
                                                         {log.reason || '-'}
                                                     </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="h-24 text-center text-zinc-600 text-sm italic">
+                                                <TableCell colSpan={4} className="h-24 text-center text-zinc-600 text-sm italic font-bold">
                                                     لا توجد عمليات حساسة مسجلة في هذه الفترة...
                                                 </TableCell>
                                             </TableRow>
@@ -847,43 +999,98 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="bg-zinc-950/50">
-                                        <TableRow className="border-white/5 hover:bg-transparent h-[48px]">
-                                            <TableHead className="text-right text-zinc-500 font-medium">الفئة</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">عدد الأصناف</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الكمية المباعة</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الإيرادات</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">التكلفة</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الربح</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">هامش الربح</TableHead>
+                                    <TableHeader className="bg-white/5">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-12">
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = catSort.key === 'categoryName' && catSort.order === 'asc' ? 'desc' : 'asc';
+                                                setCatSort({ key: 'categoryName', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={catSort.key} target="categoryName" order={catSort.order} />
+                                                    الفئة
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = catSort.key === 'productCount' && catSort.order === 'asc' ? 'desc' : 'asc';
+                                                setCatSort({ key: 'productCount', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={catSort.key} target="productCount" order={catSort.order} />
+                                                    الأصناف
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = catSort.key === 'totalQty' && catSort.order === 'asc' ? 'desc' : 'asc';
+                                                setCatSort({ key: 'totalQty', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={catSort.key} target="totalQty" order={catSort.order} />
+                                                    الكمية
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = catSort.key === 'totalRevenue' && catSort.order === 'asc' ? 'desc' : 'asc';
+                                                setCatSort({ key: 'totalRevenue', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={catSort.key} target="totalRevenue" order={catSort.order} />
+                                                    الإيرادات
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = catSort.key === 'totalCost' && catSort.order === 'asc' ? 'desc' : 'asc';
+                                                setCatSort({ key: 'totalCost', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={catSort.key} target="totalCost" order={catSort.order} />
+                                                    التكلفة
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = catSort.key === 'profit' && catSort.order === 'asc' ? 'desc' : 'asc';
+                                                setCatSort({ key: 'profit', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-cyan-500">
+                                                    <SortIcon current={catSort.key} target="profit" order={catSort.order} />
+                                                    الربح
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap px-4">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">الهامش</div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
-                                        {salesByCategory.length > 0 ? salesByCategory.map((cat: any) => {
+                                    <TableBody className="divide-y divide-white/5 bg-[#0a0a0a]/40">
+                                        {sortedSalesByCategory.length > 0 ? sortedSalesByCategory.map((cat: any) => {
                                             const profit = cat.totalRevenue - cat.totalCost;
                                             const margin = cat.totalRevenue > 0 ? ((profit / cat.totalRevenue) * 100).toFixed(1) : '0';
                                             return (
-                                                <TableRow key={cat.categoryName} className="border-white/5 hover:bg-white/[0.03] transition-colors">
+                                                <TableRow key={cat.categoryName} className="border-white/5 hover:bg-white/[0.03] transition-colors h-14 group/row">
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.categoryColor ?? '#555' }} />
-                                                            <span className="font-semibold text-zinc-200 text-sm">{cat.categoryName}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_10px_rgba(255,255,255,0.1)]" style={{ backgroundColor: cat.categoryColor ?? '#555' }} />
+                                                            <span className="font-black text-zinc-200 text-sm group-hover/row:text-emerald-400 transition-colors">{cat.categoryName}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-zinc-400 text-sm">{cat.productCount}</TableCell>
-                                                    <TableCell className="text-right text-zinc-300 font-bold">{cat.totalQty.toLocaleString()}</TableCell>
-                                                    <TableCell className="text-right text-emerald-400 font-mono font-bold">{cat.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                                    <TableCell className="text-right text-rose-400 font-mono">{cat.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                                    <TableCell className="text-right font-mono font-bold" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right text-zinc-500 text-xs font-bold">{cat.productCount}</TableCell>
+                                                    <TableCell className="text-right text-zinc-300 font-black font-mono">{cat.totalQty.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right text-emerald-400 font-mono font-black">{cat.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right text-rose-400/70 font-mono text-[11px]">-{cat.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right font-mono font-black text-sm" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>
+                                                        <div className="flex items-center gap-1 justifying-end">
+                                                            <Wallet className="w-3 h-3 opacity-30" />
+                                                            {profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-right">
-                                                        <Badge variant="outline" className={cn("text-[10px] px-2 py-0", Number(margin) >= 20 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : Number(margin) >= 10 ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-rose-500/30 bg-rose-500/10 text-rose-400")}>
+                                                        <Badge variant="outline" className={cn("text-[10px] px-2.5 py-0.5 font-black border-none tracking-tighter", Number(margin) >= 20 ? "bg-emerald-500/10 text-emerald-400" : Number(margin) >= 10 ? "bg-amber-500/10 text-amber-400" : "bg-rose-500/10 text-rose-400")}>
                                                             {margin}%
                                                         </Badge>
                                                     </TableCell>
                                                 </TableRow>
                                             );
                                         }) : (
-                                            <TableRow><TableCell colSpan={7} className="h-24 text-center text-zinc-600 italic text-sm">لا توجد بيانات مبيعات في هذه الفترة</TableCell></TableRow>
+                                            <TableRow><TableCell colSpan={7} className="h-24 text-center text-zinc-600 italic text-sm font-bold">لا توجد بيانات مبيعات في هذه الفترة</TableCell></TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
@@ -911,43 +1118,93 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="bg-zinc-950/50">
-                                        <TableRow className="border-white/5 hover:bg-transparent h-[48px]">
-                                            <TableHead className="text-right text-zinc-500 font-medium w-10">#</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الصنف</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الفئة</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الكمية</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الإيرادات</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">التكلفة</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الربح</TableHead>
+                                    <TableHeader className="bg-white/5">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-12">
+                                            <TableHead className="text-right text-zinc-500 font-black text-[10px] w-10 uppercase tracking-widest px-4">#</TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = prodSort.key === 'name' && prodSort.order === 'asc' ? 'desc' : 'asc';
+                                                setProdSort({ key: 'name', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={prodSort.key} target="name" order={prodSort.order} />
+                                                    الصنف
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = prodSort.key === 'categoryName' && prodSort.order === 'asc' ? 'desc' : 'asc';
+                                                setProdSort({ key: 'categoryName', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={prodSort.key} target="categoryName" order={prodSort.order} />
+                                                    الفئة
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = prodSort.key === 'totalQty' && prodSort.order === 'asc' ? 'desc' : 'asc';
+                                                setProdSort({ key: 'totalQty', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={prodSort.key} target="totalQty" order={prodSort.order} />
+                                                    الكمية
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = prodSort.key === 'totalRevenue' && prodSort.order === 'asc' ? 'desc' : 'asc';
+                                                setProdSort({ key: 'totalRevenue', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={prodSort.key} target="totalRevenue" order={prodSort.order} />
+                                                    الإيرادات
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = prodSort.key === 'totalCost' && prodSort.order === 'asc' ? 'desc' : 'asc';
+                                                setProdSort({ key: 'totalCost', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={prodSort.key} target="totalCost" order={prodSort.order} />
+                                                    التكلفة
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4" onClick={() => {
+                                                const order = prodSort.key === 'profit' && prodSort.order === 'asc' ? 'desc' : 'asc';
+                                                setProdSort({ key: 'profit', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-cyan-500 uppercase tracking-widest">
+                                                    <SortIcon current={prodSort.key} target="profit" order={prodSort.order} />
+                                                    الربح
+                                                </div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
-                                        {salesByProduct.length > 0 ? salesByProduct.map((p: any, idx: number) => {
+                                    <TableBody className="divide-y divide-white/5 bg-[#0a0a0a]/40">
+                                        {sortedSalesByProduct.length > 0 ? sortedSalesByProduct.map((p: any, idx: number) => {
                                             const profit = p.totalRevenue - p.totalCost;
                                             return (
-                                                <TableRow key={p.productId} className="border-white/5 hover:bg-white/[0.03] transition-colors">
-                                                    <TableCell className="text-center text-zinc-600 text-xs font-mono">{idx + 1}</TableCell>
+                                                <TableRow key={p.productId} className="border-white/5 hover:bg-white/[0.04] transition-all h-14 group/row">
+                                                    <TableCell className="text-center text-zinc-600 text-[10px] font-mono font-bold">{idx + 1}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <div>
-                                                            <div className="font-semibold text-zinc-200 text-sm">{p.name}</div>
-                                                            <div className="text-[10px] text-zinc-600 font-mono">{p.sku}</div>
+                                                        <div className="flex flex-col">
+                                                            <div className="font-black text-zinc-200 text-sm group-hover/row:text-cyan-400 transition-colors uppercase tracking-tight">{p.name}</div>
+                                                            <div className="text-[10px] text-zinc-600 font-mono tracking-tighter">{p.sku}</div>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center gap-1.5">
+                                                        <div className="flex items-center gap-2">
                                                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.categoryColor ?? '#555' }} />
-                                                            <span className="text-xs text-zinc-400">{p.categoryName}</span>
+                                                            <span className="text-[11px] text-zinc-400 font-bold">{p.categoryName}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right font-bold text-zinc-200">{p.totalQty.toLocaleString()}</TableCell>
-                                                    <TableCell className="text-right text-emerald-400 font-mono font-bold">{p.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                                    <TableCell className="text-right text-rose-400 font-mono">{p.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                                    <TableCell className="text-right font-mono font-bold" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right font-black text-zinc-200 font-mono text-sm">{p.totalQty.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right text-emerald-400 font-mono font-black">{p.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right text-rose-400/70 font-mono text-[11px]">-{p.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                                    <TableCell className="text-right font-mono font-black text-sm" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>
+                                                        {profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </TableCell>
                                                 </TableRow>
                                             );
                                         }) : (
-                                            <TableRow><TableCell colSpan={7} className="h-24 text-center text-zinc-600 italic text-sm">لا توجد بيانات مبيعات في هذه الفترة</TableCell></TableRow>
+                                            <TableRow><TableCell colSpan={7} className="h-24 text-center text-zinc-600 italic text-sm font-bold">لا توجد بيانات مبيعات في هذه الفترة</TableCell></TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
@@ -981,86 +1238,137 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="bg-zinc-950/50">
-                                        <TableRow className="border-white/5 hover:bg-transparent h-[50px]">
-                                            <TableHead className="text-right text-zinc-500 font-medium whitespace-nowrap">رقم / تاريخ الفتح</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الكاشير</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">الحالة / الإغلاق</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">العهدة / المبيعات</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">المبلغ الفعلي (بالدرج)</TableHead>
-                                            <TableHead className="text-right text-zinc-500 font-medium">العجز / الزيادة</TableHead>
-                                            <TableHead className="text-center text-zinc-500 font-medium w-[120px]">إجراءات</TableHead>
+                                    <TableHeader className="bg-white/5">
+                                        <TableRow className="border-white/5 hover:bg-transparent h-12">
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4 whitespace-nowrap" onClick={() => {
+                                                const order = shiftSort.key === 'id' && shiftSort.order === 'asc' ? 'desc' : 'asc';
+                                                setShiftSort({ key: 'id', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={shiftSort.key} target="id" order={shiftSort.order} />
+                                                    رقم / تاريخ الفتح
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4 whitespace-nowrap" onClick={() => {
+                                                const order = shiftSort.key === 'cashierName' && shiftSort.order === 'asc' ? 'desc' : 'asc';
+                                                setShiftSort({ key: 'cashierName', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={shiftSort.key} target="cashierName" order={shiftSort.order} />
+                                                    الكاشير
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4 whitespace-nowrap" onClick={() => {
+                                                const order = shiftSort.key === 'status' && shiftSort.order === 'asc' ? 'desc' : 'asc';
+                                                setShiftSort({ key: 'status', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={shiftSort.key} target="status" order={shiftSort.order} />
+                                                    الحالة / الإغلاق
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:bg-white/5 transition-colors group/head px-4 whitespace-nowrap" onClick={() => {
+                                                const order = shiftSort.key === 'totalSales' && shiftSort.order === 'asc' ? 'desc' : 'asc';
+                                                setShiftSort({ key: 'totalSales', order });
+                                            }}>
+                                                <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                                    <SortIcon current={shiftSort.key} target="totalSales" order={shiftSort.order} />
+                                                    العهدة / المبيعات
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap px-4">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">المبلغ الفعلي (بالدرج)</div>
+                                            </TableHead>
+                                            <TableHead className="text-right whitespace-nowrap px-4">
+                                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-rose-500">العجز / الزيادة</div>
+                                            </TableHead>
+                                            <TableHead className="text-center text-zinc-500 font-black text-[10px] w-[120px] uppercase tracking-widest px-4">إجراءات</TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
-                                        {shifts && shifts.length > 0 ? (
-                                            shifts.map((s: any) => (
-                                                <TableRow key={s.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
-                                                    <TableCell className="text-right text-zinc-400 text-xs py-3">
-                                                        <div className="font-mono text-[10px] text-zinc-600 mb-1 leading-none">{s.id.substring(0, 8).toUpperCase()}</div>
-                                                        <div className="whitespace-nowrap font-medium text-zinc-300">{format(new Date(s.openedAt), 'yyyy/MM/dd | HH:mm')}</div>
+                                    <TableBody className="divide-y divide-white/5 bg-[#0a0a0a]/40">
+                                        {sortedShifts && sortedShifts.length > 0 ? (
+                                            sortedShifts.map((s: any) => (
+                                                <TableRow key={s.id} className="border-white/5 hover:bg-white/[0.04] even:bg-white/[0.03] transition-all group/row h-16">
+                                                    <TableCell className="text-right py-3 px-4">
+                                                        <div className="font-mono text-[9px] text-zinc-600 mb-1 leading-none tracking-tighter uppercase">{s.id.substring(0, 8)}</div>
+                                                        <div className="whitespace-nowrap font-black text-zinc-200 text-xs">
+                                                            {format(new Date(s.openedAt), 'yyyy/MM/dd | HH:mm')}
+                                                        </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center shrink-0">
-                                                                <span className="text-xs font-bold text-zinc-300">
-                                                                    {(s.cashierName || s.user?.name || s.user?.username || 'U')[0].toUpperCase()}
-                                                                </span>
+                                                    <TableCell className="text-right px-4">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-8 h-8 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 group-hover/row:border-purple-500/50 transition-colors overflow-hidden relative">
+                                                                {s.user?.image ? (
+                                                                    <img src={s.user.image} alt={s.cashierName} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <span className="text-xs font-black text-zinc-500">
+                                                                        {(s.cashierName || s.user?.name || 'U')[0].toUpperCase()}
+                                                                    </span>
+                                                                )}
+                                                                <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 to-transparent opacity-0 group-hover/row:opacity-100 transition-opacity" />
                                                             </div>
-                                                            <span className="text-sm font-medium text-zinc-200 truncate max-w-[120px]">
-                                                                {s.cashierName || s.user?.name || s.user?.username || 'غير معروف'}
+                                                            <span className="text-xs font-black text-zinc-200 group-hover/row:text-purple-400 transition-colors">
+                                                                {s.cashierName || s.user?.name || 'غير معروف'}
                                                             </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="space-y-1">
-                                                            <Badge variant="outline" className={cn("text-[10px] px-2 py-0 h-5 border-none",
-                                                                s.status === 'CLOSED' ? "bg-emerald-500/10 text-emerald-400" :
-                                                                    s.status === 'FORCE_CLOSED' ? "bg-rose-500/10 text-rose-400" :
-                                                                        "bg-amber-500/10 text-amber-400"
-                                                            )}>
-                                                                {s.status === 'CLOSED' ? 'مغلقة' : s.status === 'FORCE_CLOSED' ? 'إغلاق إجباري' : 'مفتوحة'}
-                                                            </Badge>
-                                                            {s.closedAt && (
-                                                                <div className="text-[10px] text-zinc-500 whitespace-nowrap">
-                                                                    {format(new Date(s.closedAt), 'yyyy/MM/dd | HH:mm')}
+                                                    <TableCell className="text-right px-4">
+                                                        {s.status === 'OPEN' ? (
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">نشط الآن</span>
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-xs">
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center justify-between gap-4">
-                                                                <span className="text-zinc-500">العهدة:</span>
-                                                                <span className="text-zinc-300 font-mono">${Number(s.startCash).toFixed(2)}</span>
-                                                            </div>
-                                                            <div className="flex items-center justify-between gap-4">
-                                                                <span className="text-zinc-500">المبيعات:</span>
-                                                                <span className="text-zinc-300 font-mono">${Number(s.totalCashSales || 0).toFixed(2)}</span>
-                                                            </div>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-mono font-bold text-sm text-zinc-200">
-                                                        {s.status !== 'OPEN' ? `$${Number(s.actualCash || 0).toFixed(2)}` : <span className="text-zinc-600 text-xs italic">قيد العمل...</span>}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {s.status !== 'OPEN' && s.cashVariance !== undefined ? (
-                                                            <div className={cn(
-                                                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-bold font-mono min-w-[80px] justify-center",
-                                                                Number(s.cashVariance) > 0 ? "bg-emerald-500/10 text-emerald-400" :
-                                                                    Number(s.cashVariance) < 0 ? "bg-rose-500/10 text-rose-400" :
-                                                                        "bg-zinc-800 text-zinc-400 border border-white/5"
-                                                            )}>
-                                                                {Number(s.cashVariance) > 0 ? '+' : ''}{Number(s.cashVariance).toFixed(2)}
+                                                                <span className="text-[10px] text-zinc-600 font-mono">بدأت منذ {formatDistanceToNow(new Date(s.openedAt), { locale: ar, addSuffix: true })}</span>
                                                             </div>
                                                         ) : (
-                                                            <span className="text-zinc-600">-</span>
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <div className="flex items-center gap-1.5 opacity-60">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                                                                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">مغلقة</span>
+                                                                </div>
+                                                                <span className="text-[10px] text-zinc-500 font-mono">
+                                                                    {s.closedAt ? format(new Date(s.closedAt), 'yyyy/MM/dd | HH:mm') : '-'}
+                                                                </span>
+                                                            </div>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-right px-4">
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <div className="text-sm font-black text-zinc-200 font-mono">
+                                                                {(Number(s.totalCashSales || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                <span className="text-[9px] text-zinc-600 mr-1">EGP</span>
+                                                            </div>
+                                                            <div className="text-[10px] text-zinc-500 font-bold">عهدة: {Number(s.startCash || 0).toLocaleString()}</div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right px-4 font-black">
+                                                        <span className={cn(
+                                                            "text-sm font-mono",
+                                                            s.status === 'OPEN' ? "text-zinc-600 italic text-[11px]" : "text-zinc-300"
+                                                        )}>
+                                                            {s.status !== 'OPEN' ? (Number(s.actualCash || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'قيد العمل...'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right px-4">
+                                                        {s.status !== 'OPEN' && s.cashVariance !== undefined ? (
+                                                            <div className={cn(
+                                                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black font-mono min-w-[70px] justify-center tracking-tighter",
+                                                                Number(s.cashVariance) > 0 ? "bg-emerald-500/10 text-emerald-400" :
+                                                                    Number(s.cashVariance) < 0 ? "bg-rose-500/10 text-rose-400" :
+                                                                        "bg-zinc-800/50 text-zinc-500 border border-white/5"
+                                                            )}>
+                                                                {Number(s.cashVariance) > 0 ? '+' : ''}{Number(s.cashVariance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-zinc-700 font-black">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-center px-4">
                                                         <Button
                                                             variant="ghost"
-                                                            size="sm"
+                                                            size="icon"
+                                                            className="w-8 h-8 rounded-lg text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10 border border-transparent hover:border-purple-500/20 transition-all"
                                                             onClick={async () => {
                                                                 try {
                                                                     await printZReport(s);
@@ -1069,17 +1377,16 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                                                                     toast.error(err.message || "فشلت الطباعة");
                                                                 }
                                                             }}
-                                                            disabled={s.status === 'OPEN'}
-                                                            className="h-8 w-full border border-white/5 hover:bg-zinc-800 group-hover:border-purple-500/30 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-white/5"
+                                                            title="طباعة تقرير الإغلاق"
                                                         >
-                                                            <span className="text-xs">طباعة</span>
+                                                            <Printer className="w-4 h-4" />
                                                         </Button>
                                                     </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={7} className="h-32 text-center text-zinc-600 text-sm italic">
+                                                <TableCell colSpan={7} className="h-32 text-center text-zinc-600 text-sm italic font-bold">
                                                     لا توجد ورديات مسجلة...
                                                 </TableCell>
                                             </TableRow>

@@ -149,6 +149,8 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.branch") || "Branch"}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.salary") || "Salary"}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">الصافي المستحق</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">النجاح</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">الفجوات</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.status") || "Status"}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right rtl:text-left">{t("table.actions") || "Actions"}</th>
                                 </tr>
@@ -180,12 +182,12 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                                 ${filteredStaff.reduce((sum, s) => sum + Number(s.netDue), 0).toLocaleString()}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4" colSpan={2}></td>
+                                        <td className="px-6 py-4" colSpan={4}></td>
                                     </tr>
                                 )}
                                 {filteredStaff.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 italic">
+                                        <td colSpan={8} className="px-6 py-12 text-center text-zinc-500 italic">
                                             {t("noResults") || "No employees found matching your search."}
                                         </td>
                                     </tr>
@@ -250,6 +252,22 @@ function TableRow({ member, t }: { member: any, t: any }) {
                     member.netDue > 0 ? "text-emerald-400" : member.netDue < 0 ? "text-rose-400" : "text-zinc-500"
                 )}>
                     ${Number(member.netDue).toLocaleString()}
+                </div>
+            </td>
+            <td className="px-6 py-4">
+                <div className={clsx(
+                    "text-xs font-bold",
+                    member.kpis?.successRatio >= 90 ? "text-emerald-400" : member.kpis?.successRatio >= 70 ? "text-amber-400" : "text-rose-400"
+                )}>
+                    {member.kpis?.successRatio}%
+                </div>
+            </td>
+            <td className="px-6 py-4">
+                <div className={clsx(
+                    "font-mono text-xs font-bold",
+                    member.kpis?.delayedTickets > 0 ? "text-rose-400" : "text-zinc-500"
+                )}>
+                    {member.kpis?.delayedTickets}
                 </div>
             </td>
             <td className="px-6 py-4">

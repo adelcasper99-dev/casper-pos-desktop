@@ -581,7 +581,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 ))}
                             </div>
                             <p className="text-xs text-muted-foreground text-center" suppressHydrationWarning>
-                                📅 {t('warrantyExpires')}: {new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                                📅 {t('warrantyExpires')}: {new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000).toLocaleDateString()} (يبدأ من اليوم)
                             </p>
                         </div>
                     )}

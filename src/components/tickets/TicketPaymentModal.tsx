@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
     Plus, CreditCard, Banknote, ShieldAlert, Printer,
     CheckCircle2, UserPlus, Search, Loader2, ArrowRightLeft,
-    Smartphone, UserCircle, XCircle, CheckCircle, ShieldCheck
+    Smartphone, UserCircle, XCircle, CheckCircle, ShieldCheck, LayoutDashboard
 } from "lucide-react";
 import { addDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -105,8 +105,13 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                     if (match) setSelectedCustomer(match);
                 });
             }
+
+            // 🛡️ [NEW] Enforce ACCOUNT method for refunds (netDelta < 0)
+            if (netDelta < 0) {
+                setPaymentMethod("ACCOUNT");
+            }
         }
-    }, [isOpen, ticket]);
+    }, [isOpen, ticket, netDelta]); // Added netDelta dependency
 
     useEffect(() => {
         if (debouncedQuery.length >= 2) {
@@ -342,35 +347,40 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             <div className="space-y-5 py-4 overflow-y-auto max-h-[80vh] scrollbar-hide">
                 {/* Due Amount Highlight */}
                 <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-center">
-                    {(isWarrantyReturn || netDelta < 0) ? (
+                    {(isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
                         <div className="space-y-3">
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-zinc-400">{t('newTotalDue') || "New Repair Total"}</span>
                                 <span className="text-white font-bold">{formatCurrency(totalNewPrice)}</span>
                             </div>
-                            {isWarrantyReturn && (
+                            {isWarrantyReturn && inheritedCredit > 0 && (
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-zinc-400">{t('inheritedCredit') || "Previous Credit"}</span>
+                                    <span className="text-zinc-400">{t('inheritedCredit') || "Previous Ticket Credit"}</span>
                                     <span className="text-green-400 font-bold">{formatCurrency(inheritedCredit)}</span>
                                 </div>
                             )}
                             {currentPaid > 0 && (
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-zinc-400">{isWarrantyReturn ? (t('paidInReturn') || "Paid in Return") : (t('paidAmount') || "Total Paid")}</span>
+                                    <span className="text-zinc-400">{t('paidAmount') || "Previously Paid (Deposits/Originals)"}</span>
                                     <span className="text-cyan-400 font-bold">{formatCurrency(currentPaid)}</span>
                                 </div>
                             )}
                             <div className="pt-2 border-t border-white/5 flex justify-between items-center">
                                 <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-black">
-                                    {netDelta < 0 ? (t('refundAmount') || "Refund Amount") : (t('netAmount') || "Net Amount")}
+                                    {netDelta < 0 ? (t('refundAmount') || "Refund Amount") : (netDelta === 0 ? "Settled (No Due)" : (t('netAmount') || "Net Difference Due"))}
                                 </span>
                                 <span className={clsx(
                                     "text-2xl font-black",
-                                    netDelta > 0 ? "text-white" : netDelta < 0 ? "text-red-400" : "text-green-400"
+                                    netDelta > 0 ? "text-emerald-400" : netDelta < 0 ? "text-purple-400" : "text-cyan-400"
                                 )}>
                                     {formatCurrency(Math.abs(netDelta))}
                                 </span>
                             </div>
+                            {netDelta < 0 && (
+                                <p className="text-[9px] text-purple-400 font-bold uppercase tracking-tighter mt-1 animate-pulse">
+                                    {t('refundToWalletEnforcement') || "يتم إضافة المرتجع لرصيد العميل فقط حفاظاً على أمان الصندوق"}
+                                </p>
+                            )}
                         </div>
                     ) : (
                         <>
@@ -379,6 +389,29 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 {formatCurrency(balanceDue)}
                             </div>
                         </>
+                    )}
+
+                    {/* Financial Distribution Preview (New: CP-01) */}
+                    {paymentType === 'PAYMENT' && netDelta >= 0 && (
+                        <div className="mt-4 pt-4 border-t border-cyan-500/10 space-y-2 animate-fly-in">
+                            <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest flex items-center gap-1.5 justify-center">
+                                <LayoutDashboard className="w-3 h-3" />
+                                {t('profitDistribution') || "معاينة توزيع الارباح"}
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="p-2 rounded-lg bg-white/5 border border-white/5 flex flex-col items-center">
+                                    <span className="text-[9px] text-zinc-500 uppercase font-bold">{t('laborPool') || "وعاء المصنعية"}</span>
+                                    <span className="text-xs font-black text-white">{formatCurrency(totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0))}</span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-emerald-400">
+                                    <span className="text-[9px] uppercase font-bold text-zinc-500">{t('techShare') || "نصيب المهندس"}</span>
+                                    <span className="text-xs font-black">
+                                        {formatCurrency((totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0)) * (Number(ticket.commissionRate || 0) / 100))}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     )}
 
                     {/* Change Calculator */}
@@ -406,12 +439,15 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                             ].map((m) => (
                                 <button
                                     key={m.id}
+                                    disabled={netDelta < 0 && m.id !== 'ACCOUNT'}
                                     onClick={() => setPaymentMethod(m.id)}
                                     className={clsx(
                                         "flex flex-col items-center justify-center p-2 rounded-xl border transition-all gap-1.5 min-h-[70px]",
                                         paymentMethod === m.id
                                             ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
-                                            : 'bg-white/5 border-white/10 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'
+                                             : (netDelta < 0 && m.id !== 'ACCOUNT' 
+                                                ? 'bg-black/20 border-white/5 text-zinc-700 cursor-not-allowed opacity-50' 
+                                                : 'bg-white/5 border-white/10 text-zinc-500 hover:bg-white/10 hover:text-zinc-300')
                                     )}
                                 >
                                     <m.icon className="w-5 h-5" />
@@ -544,9 +580,14 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                             <ShieldCheck className="w-3 h-3 text-emerald-500" />
                                             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black">{t('expiryDate') || "تاريخ الانتهاء"}</span>
                                         </div>
-                                        <span className="text-xs font-black text-emerald-400 tracking-tighter">
-                                            {warrantyExpiryDate.toLocaleDateString('ar-EG')}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-xs font-black text-emerald-400 tracking-tighter">
+                                                {warrantyExpiryDate.toLocaleDateString('ar-EG')}
+                                            </span>
+                                            <span className="text-[8px] text-zinc-500 uppercase font-black tracking-widest leading-none">
+                                                (يبدأ من اليوم)
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -647,7 +688,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                             netDelta < 0 ? <ArrowRightLeft className="w-5 h-5 mr-2" /> : <CreditCard className="w-5 h-5 mr-2" />
                         )}
-                        {(isWarrantyReturn || netDelta < 0) ? (
+                        {(isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
                             netDelta > 0 ? (t('collectDifference') || "Collect Difference").toUpperCase() :
                                 netDelta < 0 ? (t('refundCustomer') || "Refund Customer").toUpperCase() :
                                     (t('settleAndClose') || "Settle & Close").toUpperCase()

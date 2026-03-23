@@ -32,6 +32,9 @@ export interface PrinterRegistry {
     /** Default number of copies to print */
     defaultCopies?: number;
 
+    /** Whether to show the Quick Print button in POS footer */
+    enableSpeedPrint?: boolean;
+
     /** Last seen QZ Tray version */
     qzVersion?: string;
 

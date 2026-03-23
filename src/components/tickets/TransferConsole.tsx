@@ -53,6 +53,11 @@ type TransferItem = {
     availableQty: number;
     transferQty: number;
     price: number;
+    costPrice?: number;
+    sellPrice?: number;
+    sellPrice2?: number;
+    sellPrice3?: number;
+    priceTier?: string;
 };
 
 type TransferConsoleProps = {
@@ -150,7 +155,12 @@ export default function TransferConsole({
                 sku: item.product.sku,
                 availableQty: item.quantity,
                 transferQty: 1,
-                price: Number(item.product.sellPrice)
+                price: Number(item.product.sellPrice),
+                costPrice: Number(item.product.costPrice),
+                sellPrice: Number(item.product.sellPrice),
+                sellPrice2: Number(item.product.sellPrice2),
+                sellPrice3: Number(item.product.sellPrice3),
+                priceTier: 'Cost'
             }];
         });
     };
@@ -197,7 +207,9 @@ export default function TransferConsole({
                 destinationType: dest.type,
                 items: stagingItems.map(i => ({
                     productId: i.productId,
-                    quantity: i.transferQty
+                    quantity: i.transferQty,
+                    priceTier: i.priceTier
+
                 })),
                 csrfToken
             });
@@ -366,7 +378,37 @@ export default function TransferConsole({
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
                                         <div className="font-medium text-white line-clamp-1">{item.productName}</div>
-                                        <div className="text-xs text-zinc-500 font-mono">{item.sku}</div>
+                                        <div className="text-xs text-zinc-500 font-mono mb-2">{item.sku}</div>
+                                        <div className="flex flex-col gap-1 w-full mt-1">
+                                            <span className="text-[10px] text-zinc-500 uppercase">تسعير النقل</span>
+                                            <div className="flex items-center gap-1 flex-wrap">
+                                                {['Cost', 'Sell 1', 'Sell 2', 'Sell 3'].map(tier => {
+                                                    let label = `تكلفة (${item.costPrice ?? 0})`;
+                                                    if (tier === 'Sell 1') label = `مفرق (${item.sellPrice ?? 0})`;
+                                                    if (tier === 'Sell 2') label = `جملة (${item.sellPrice2 ?? 0})`;
+                                                    if (tier === 'Sell 3') label = `نص جملة (${item.sellPrice3 ?? 0})`;
+                                                    
+                                                    const isActive = (item.priceTier || 'Cost') === tier;
+                                                    
+                                                    return (
+                                                        <button 
+                                                            key={tier}
+                                                            onClick={() => {
+                                                                const newItems = [...stagingItems];
+                                                                const idx = newItems.findIndex(i => i.id === item.id);
+                                                                if (idx !== -1) {
+                                                                    newItems[idx].priceTier = tier;
+                                                                    setStagingItems(newItems);
+                                                                }
+                                                            }}
+                                                            className={`px-2 py-1 text-[10px] rounded border transition-colors ${isActive ? 'bg-purple-600/30 border-purple-500/50 text-purple-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
                                     </div>
                                     <button onClick={() => removeFromStaging(item.id)} className="text-zinc-600 hover:text-red-400">
                                         <X className="w-5 h-5" />

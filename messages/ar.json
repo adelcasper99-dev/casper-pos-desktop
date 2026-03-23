@@ -127,6 +127,8 @@
         "items": "الأصناف",
         "held": "معلق",
         "clear": "مسح",
+        "showCost": "إظهار التكلفة",
+        "hideCost": "إخفاء التكلفة",
         "heldCartsTitle": "السلال المعلقة",
         "emptyCart": "السلة فارغة",
         "subtotal": "المجموع الفرعي",
@@ -209,6 +211,8 @@
         "orderTicketSent": "تم إرسال تذكرة الطلب للطابعة",
         "printOrderFailed": "فشل طباعة تذكرة الطلب",
         "speedPrint": "طباعة سريعة",
+        "speedPrintEnabled": "الطباعة السريعة: مفعلة",
+        "speedPrintDisabled": "الطباعة السريعة: معطلة",
         "normalPrint": "خيارات الطباعة",
         "speedPrintPreview": "معاينة الطباعة السريعة",
         "thermalRoll": "رول حراري (80mm)",
@@ -428,7 +432,15 @@
             "nameLabel": "اسم الفئة",
             "colorLabel": "اللون المميز",
             "placeholder": "اسم الفئة بالعربية...",
-            "cancel": "إلغاء"
+            "cancel": "إلغاء",
+            "subCategoryBadge": "فرعية",
+            "subCategories": "الفئات الفرعية",
+            "quickAddPlaceholder": "إضافة سريعة + (اضغط Enter)",
+            "noSubCategories": "لا توجد فئات فرعية مضافة",
+            "parentCategory": "الفئة الأب",
+            "isHidden": "إخفاء الفئة",
+            "delete": "حذف الفئة",
+            "confirmDelete": "هل أنت متأكد من حذف هذه الفئة؟ سيتم تحويل الفئات الفرعية (إن وجدت) إلى فئات رئيسية."
         },
         "warehouses": {
             "title": "مواقع المخازن",
@@ -1026,6 +1038,10 @@
             "dashboard": {
                 "name": "لوحة القيادة",
                 "desc": "نظرة عامة على أداء المتجر والبيع"
+            },
+            "pos_price_tiers": {
+                "name": "مستويات الأسعار في POS",
+                "desc": "تفعيل اختيار (جملة / نص جملة / قطاعي) في شاشة البيع"
             }
         }
     },
@@ -1175,6 +1191,18 @@
             "createWarrantyReturn": "إنشاء مرتجع صيانة",
             "warrantyExpiredTooltip": "الضمان منتهي — لا يمكن إنشاء مرتجع صيانة"
         },
+        "assistants": {
+            "title": "المهندسين المساعدين",
+            "add": "إضافة مساعد",
+            "remove": "حذف",
+            "noAssistants": "لا يوجد مساعدين معينين",
+            "selectAssistant": "اختر مساعداً",
+            "searchEngineer": "ابحث عن مهندس...",
+            "successAdded": "تم إضافة المساعد بنجاح",
+            "successRemoved": "تم حذف المساعد",
+            "confirmRemove": "هل أنت متأكد من حذف هذا المساعد؟",
+            "roleAssistant": "مهندس مساعد"
+        },
         "title": "تذاكر الصيانة",
         "subtitle": "إدارة إصلاحات الأجهزة وتعيينات الفنيين",
         "newTicket": "تذكرة جديدة",
@@ -1194,12 +1222,12 @@
         },
         "filters": {
             "all": "الكل",
-            "new": "جديدة",
-            "inProgress": "قيد التنفيذ",
-            "completed": "مكتملة",
-            "delivered": "مُسلّمة",
+            "new": "استلام",
+            "inProgress": "بدء الإصلاح",
+            "completed": "تم الإصلاح",
+            "delivered": "الدفع",
             "warranty": "الضمان",
-            "returns": "المرتجعات",
+            "returns": "مرتجع",
             "stale": "⚠️ متقادمة (30+ يوم)"
         },
         "status": {
@@ -1209,18 +1237,18 @@
             "diagnosing": "تحديد التكلفة والوقت",
             "pendingApproval": "فى انتظار",
             "inProgress": "بدء الإصلاح",
-            "qcPending": "في انتظار المراجعة",
-            "waitingForParts": "في انتظار القطع",
+            "qcPending": "فى انتظار",
+            "waitingForParts": "فى انتظار",
             "completed": "تم الإصلاح",
             "inTransitToBranch": "تم الإصلاح",
             "readyAtBranch": "تم الإصلاح",
             "delivered": "الدفع",
             "pickedUp": "الدفع",
             "cancelled": "ملغية",
-            "returnedForRefix": "مرتجع للإصلاح",
-            "paidDelivered": "قفل التذكرة",
+            "returnedForRefix": "مرتجع",
+            "paidDelivered": "مدفوع ومسلم",
             "rejected": "مرفوض",
-            "voided": "مرتجع (ملغية)"
+            "voided": "مرتجع ملغى"
         },
         "table": {
             "status": "الحالة",
@@ -1471,11 +1499,11 @@
                     "DIAGNOSING": "تحديد التكلفة",
                     "PENDING_APPROVAL": "فى انتظار",
                     "IN_PROGRESS": "بدء الإصلاح",
-                    "QC_PENDING": "في انتظار المراجعة",
+                    "QC_PENDING": "فى انتظار",
                     "COMPLETED": "تم الإصلاح",
-                    "READY_AT_BRANCH": "جاهز بالفرع",
-                    "DELIVERED": "تم التسليم",
-                    "PAID_DELIVERED": "تم الدفع والتسليم",
+                    "READY_AT_BRANCH": "تم الإصلاح",
+                    "DELIVERED": "الدفع",
+                    "PAID_DELIVERED": "مدفوع ومسلم",
                     "RETURNED": "مرتجع",
                     "CANCELLED": "ملغية",
                     "REJECTED": "مرفوض"

@@ -9,7 +9,7 @@ import {
 import { isBefore, startOfDay } from "date-fns";
 import { canTransition } from "@/lib/workflow";
 import { TicketStatus } from "@/lib/constants";
-import { updateTicketStatus, undoTicketStatus, initiateWarrantyReturn } from "@/actions/ticket-actions";
+import { updateTicketStatus, undoTicketStatus } from "@/actions/ticket-actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { WorkflowTicket } from '@/types/ticket';
@@ -26,7 +26,7 @@ import { useCSRF } from "@/contexts/CSRFContext";
 import TicketPaymentModal from "./TicketPaymentModal";
 import EstimationModal from "./EstimationModal";
 import TechnicianAssignmentModal from "./TechnicianAssignmentModal";
-import RefundTicketModal from "./RefundTicketModal";
+import { ReturnInitiationModal } from "./wizard/ReturnInitiationModal";
 
 interface WorkflowActionsProps {
     ticket: WorkflowTicket;
@@ -43,8 +43,7 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showEstimationModal, setShowEstimationModal] = useState(false);
     const [showTechModal, setShowTechModal] = useState(false);
-    const [showRefundModal, setShowRefundModal] = useState(false);
-    const [warrantyReturnLoading, setWarrantyReturnLoading] = useState(false);
+    const [showReturnModal, setShowReturnModal] = useState(false);
     const router = useRouter();
 
     if (!ticket || !user) return null;
@@ -180,61 +179,15 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        setShowRefundModal(true);
+                                        setShowReturnModal(true);
                                     }}
-                                    className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 h-8 rounded-lg px-2 flex gap-2 font-bold text-[10px] uppercase tracking-wider relative z-[100] cursor-pointer pointer-events-auto"
+                                    className="text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 h-8 rounded-lg px-2 flex gap-2 font-bold text-[10px] uppercase tracking-wider relative z-[100] cursor-pointer pointer-events-auto"
                                 >
                                     <RotateCcw className="w-3.5 h-3.5" />
-                                    {t('fullReturn')}
+                                    إجراء مرتجع
                                 </Button>
                             </div>
                         )}
-
-                        {/* WARRANTY RETURN BUTTON */}
-                        {(() => {
-                            const hasWarranty = !!ticket.warrantyExpiryDate;
-                            const isValidWarranty = hasWarranty && !isBefore(new Date(ticket.warrantyExpiryDate as Date), startOfDay(new Date()));
-
-                            const handleWarrantyReturn = async () => {
-                                setWarrantyReturnLoading(true);
-                                try {
-                                    const res = await initiateWarrantyReturn(ticket.id);
-                                    if (res.success && res.newTicketId) {
-                                        toast.success(`تم إنشاء تذكرة المرتجع: #${res.newBarcode}`);
-                                        router.push(`/ar/maintenance/tickets/${res.newTicketId}`);
-                                    } else {
-                                        toast.error(res.error || 'فشل إنشاء تذكرة المرتجع');
-                                    }
-                                } catch (err: any) {
-                                    toast.error(err.message || 'فشل إنشاء تذكرة المرتجع');
-                                } finally {
-                                    setWarrantyReturnLoading(false);
-                                }
-                            };
-
-                            return isValidWarranty ? (
-                                <Button
-                                    onClick={handleWarrantyReturn}
-                                    disabled={warrantyReturnLoading}
-                                    className="h-9 px-3 rounded-xl bg-orange-500/10 hover:bg-orange-500 border border-orange-500/30 text-orange-400 hover:text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-2 transition-all"
-                                >
-                                    {warrantyReturnLoading
-                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                        : <ShieldCheck className="w-3.5 h-3.5" />
-                                    }
-                                    {t('createWarrantyReturn')}
-                                </Button>
-                            ) : (
-                                <Button
-                                    disabled
-                                    title={t('warrantyExpiredTooltip')}
-                                    className="h-9 px-3 rounded-xl bg-zinc-800/50 border border-zinc-700/30 text-zinc-600 font-black text-[10px] uppercase tracking-wider flex items-center gap-2 cursor-not-allowed opacity-50"
-                                >
-                                    <ShieldCheck className="w-3.5 h-3.5" />
-                                    {t('createWarrantyReturn')}
-                                </Button>
-                            );
-                        })()}
                     </div>
                 )}
 
@@ -352,17 +305,13 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
                     onUpdate();
                 }}
             />
-            <RefundTicketModal 
-                isOpen={showRefundModal} 
-                onClose={() => setShowRefundModal(false)} 
-                ticket={{
-                    id: ticket.id,
-                    barcode: ticket.barcode,
-                    amountPaid: Number(ticket.amountPaid),
-                    repairPrice: Number(ticket.repairPrice)
-                }} 
+            <ReturnInitiationModal 
+                isOpen={showReturnModal}
+                onClose={() => setShowReturnModal(false)}
+                ticketId={ticket.id}
+                barcode={ticket.barcode}
                 onSuccess={() => {
-                    setShowRefundModal(false);
+                    setShowReturnModal(false);
                     onUpdate();
                 }}
             />

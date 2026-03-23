@@ -103,6 +103,72 @@ export class AutoJournalService {
   }
 
   /**
+   * Create journal entry for Ticket Profit & Commission Distribution
+   * 
+   * Balanced Entry:
+   * 1. Debit Cash/Bank (1000/1010/1020) - Total Amount
+   * 2. Credit Tech AR (1100) - Tech Billing Price (Settle part debt)
+   * 3. Credit Employee Payables (2100) - Tech Commission (Accrue liability)
+   * 4. Credit Maintenance Revenue (4000) - Center Labor Profit
+   */
+  static async recordTicketDistribution(
+    tx: any,
+    params: {
+      ticketId: string;
+      barcode: string;
+      amount: number | Decimal;
+      techBillingPrice: number | Decimal;
+      techCommissionAmount: number | Decimal;
+      centerLaborProfit: number | Decimal;
+      branchId?: string;
+    }
+  ) {
+    const amountNum = Number(params.amount);
+    const techBillingNum = Number(params.techBillingPrice);
+    const techCommNum = Number(params.techCommissionAmount);
+    const centerProfitNum = Number(params.centerLaborProfit);
+
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        description: `Maintenance Distribution: Ticket #${params.barcode}`,
+        reference: params.ticketId,
+        branchId: params.branchId,
+        lines: {
+          create: [
+            { 
+              accountId: await this.getAccountId(tx, '4100'), // Service Revenue (WIP)
+              debit: amountNum, 
+              credit: 0, 
+              description: 'Service Revenue Reclassification' 
+            },
+            { 
+              accountId: await this.getAccountId(tx, '4000'), // Sales Revenue
+              debit: 0, 
+              credit: techBillingNum, 
+              description: 'Parts Revenue Dist' 
+            },
+            { 
+              accountId: await this.getAccountId(tx, '2200'), // Accrued Salaries (Liability)
+              debit: 0, 
+              credit: techCommNum, 
+              description: 'Technician Commission Accrued' 
+            },
+            { 
+              accountId: await this.getAccountId(tx, '4000'), // Sales Revenue
+              debit: 0, 
+              credit: centerProfitNum, 
+              description: 'Center Labor Profit realized' 
+            }
+          ]
+        }
+      },
+      include: { lines: true }
+    });
+
+    return journalEntry;
+  }
+
+  /**
    * Create journal entry for Customer Receipt (Cash received)
    * Odoo style: Debit Cash, Credit Customer AR
    */
@@ -388,6 +454,51 @@ export class AutoJournalService {
         branchId: params.branchId || original.branchId,
         lines: {
           create: reversedLines
+        }
+      },
+      include: { lines: true }
+    });
+
+    return journalEntry;
+  }
+
+  /**
+   * Create journal entry for Stock Wastage / Loss
+   * Balanced Entry:
+   * 1. Debit Spoilage/Wastage Expense (5200)
+   * 2. Credit Inventory Assets (1200)
+   */
+  static async recordWastageLoss(
+    tx: any,
+    params: {
+      amount: number | Decimal;
+      description: string;
+      branchId?: string;
+      reference?: string;
+    }
+  ) {
+    const amountNum = Number(params.amount);
+    
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        description: params.description,
+        reference: params.reference,
+        branchId: params.branchId,
+        lines: {
+          create: [
+            { 
+              accountId: await this.getAccountId(tx, '5200'), // Spoilage/Wastage Expense
+              debit: amountNum, 
+              credit: 0, 
+              description: 'Stock Wastage Expense' 
+            },
+            { 
+              accountId: await this.getAccountId(tx, '1200'), // Inventory Asset
+              debit: 0, 
+              credit: amountNum, 
+              description: 'Inventory Value Reduced' 
+            }
+          ]
         }
       },
       include: { lines: true }

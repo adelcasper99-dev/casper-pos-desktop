@@ -12,6 +12,10 @@ export interface CartItem {
     trackStock?: boolean;
     isBundle?: boolean;
     bundleComponents?: { id: string; name: string; quantityIncluded: number }[];
+    priceTier?: 'sellPrice' | 'sellPrice2' | 'sellPrice3';
+    price1: number;
+    price2: number;
+    price3: number;
 }
 
 export interface HeldCart {
@@ -55,6 +59,7 @@ interface CartState {
     setCustomer: (name: string, phone: string, id?: string, balance?: number, linkedEmployeeId?: string, isSupplier?: boolean, address?: string) => void;
     setTable: (id?: string, name?: string) => void;
     setDiscount: (amount: number, percentage: number) => void;
+    toggleCostPrice: () => void;
 
     // Hold Cart Actions
     heldCarts: HeldCart[];
@@ -64,6 +69,11 @@ interface CartState {
 
     // Computed
     getTotal: () => number;
+    
+    // Price Tier
+    priceTier: 'sellPrice' | 'sellPrice2' | 'sellPrice3';
+    setPriceTier: (tier: 'sellPrice' | 'sellPrice2' | 'sellPrice3') => void;
+    showCostPrice: boolean;
 }
 
 export const useCartStore = create<CartState>()(
@@ -81,6 +91,8 @@ export const useCartStore = create<CartState>()(
             discountPercentage: 0,
             heldCarts: [],
             lastAddedId: null,
+            priceTier: 'sellPrice3', // Default to Retail (قطاعى)
+            showCostPrice: false,
 
             setCustomer: (name, phone, id, balance, linkedEmployeeId, isSupplier, address) => set({ 
                 customerName: name, 
@@ -118,21 +130,48 @@ export const useCartStore = create<CartState>()(
                         items: [
                             ...items,
                             {
-                                id: product.id,
-                                sku: product.sku,
-                                name: product.name,
-                                price: Number(product.sellPrice),
-                                quantity: 1,
-                                maxQuantity: product.stock,
-                                trackStock: product.trackStock,
-                                isBundle: !!(product as any).isBundle,
-                                bundleComponents: (product as any).bundleComponents || undefined,
-                            },
-                        ],
-                        lastAddedId: product.id,
-                    });
-                }
-            },
+                                 id: product.id,
+                                 sku: product.sku,
+                                 name: product.name,
+                                 price: Number(product[get().priceTier] || product.sellPrice),
+                                 quantity: 1,
+                                 maxQuantity: product.stock,
+                                 trackStock: product.trackStock,
+                                 isBundle: !!(product as any).isBundle,
+                                 bundleComponents: (product as any).bundleComponents || undefined,
+                                 priceTier: get().priceTier,
+                                 price1: Number(product.sellPrice),
+                                 price2: Number(product.sellPrice2),
+                                 price3: Number(product.sellPrice3),
+                             },
+                         ],
+                         lastAddedId: product.id,
+                     });
+                 }
+             },
+
+             toggleCostPrice: () => set((state) => ({ showCostPrice: !state.showCostPrice })),
+
+             setPriceTier: (tier) => {
+                 const items = get().items;
+                 const updatedItems = items.map(item => {
+                     let newPrice = item.price;
+                     if (tier === 'sellPrice') newPrice = item.price1;
+                     else if (tier === 'sellPrice2') newPrice = item.price2 || item.price1;
+                     else if (tier === 'sellPrice3') newPrice = item.price3 || item.price1;
+                     
+                     return { 
+                         ...item, 
+                         priceTier: tier,
+                         price: newPrice 
+                     };
+                 });
+                 
+                 set({ 
+                     priceTier: tier,
+                     items: updatedItems
+                 });
+             },
 
             updateQuantity: (productId, delta) => {
                 const items = get().items;

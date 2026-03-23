@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs'
 import { secureAction } from "@/lib/safe-action"
 import { PERMISSIONS } from "@/lib/permissions"
 import { serialize } from "@/lib/serialization"
+import { Decimal } from "@prisma/client/runtime/library"
 import { decrementWarehouseStock, incrementWarehouseStock } from "@/lib/stock-helpers"
 
 // Helper to calculate time diff in hours
@@ -93,6 +94,7 @@ export const upsertEngineer = secureAction(async (data: {
     password?: string,
     createWarehouse?: boolean,
     branchId: string,
+    defaultPriceTier?: string,
     csrfToken?: string,
 }) => {
     try {
@@ -137,6 +139,7 @@ export const upsertEngineer = secureAction(async (data: {
                         email: data.email,
                         skills: data.skills,
                         commissionRate: data.commissionRate,
+                        defaultPriceTier: data.defaultPriceTier || 'COST',
                         ...(userId ? { userId } : {}),
                         ...(warehouseId ? { warehouseId } : {})
                     }
@@ -149,6 +152,7 @@ export const upsertEngineer = secureAction(async (data: {
                         email: data.email,
                         skills: data.skills,
                         commissionRate: data.commissionRate,
+                        defaultPriceTier: data.defaultPriceTier || 'COST',
                         userId: userId!,
                         warehouseId: warehouseId || undefined
                     }
@@ -208,9 +212,6 @@ export const getBranches = async () => {
     }
 };
 
-/**
- * Get stock for a specific warehouse (used for technician custody)
- */
 export const getEngineerStock = secureAction(async (warehouseId: string) => {
     try {
         const stocks = await prisma.stock.findMany({
@@ -220,7 +221,10 @@ export const getEngineerStock = secureAction(async (warehouseId: string) => {
                     select: {
                         name: true,
                         sku: true,
+                        costPrice: true,
                         sellPrice: true,
+                        sellPrice2: true,
+                        sellPrice3: true,
                     }
                 }
             }
@@ -303,12 +307,21 @@ export const getEngineerDetails = secureAction(async (id: string) => {
         const avgTime = countWithTime > 0 ? (totalHours / countWithTime).toFixed(1) : "0.0";
 
         // 3. Fetch Stock Wastage (Loss)
-        // Wastage is linked to User, not Technician directly
         let lossCount = 0;
+        let lossAmount = new Decimal(0);
         if (engineer.userId) {
             lossCount = await prisma.stockWastage.count({
                 where: { reportedBy: engineer.userId }
             });
+
+            const deductions = await prisma.employeeTransaction.findMany({
+                where: { 
+                    userId: engineer.userId, 
+                    type: 'DEDUCTION' 
+                },
+                select: { amount: true }
+            });
+            lossAmount = deductions.reduce((sum, d) => sum.add(new Decimal(d.amount.toString())), new Decimal(0));
         }
 
         const { tickets, collaborations, ...serializedTech } = engineer as any;
@@ -323,6 +336,7 @@ export const getEngineerDetails = secureAction(async (id: string) => {
                 returnedTicketsCount: returnedTickets,
                 refundedTicketsCount: refundedTickets,
                 lossCount: lossCount,
+                lossAmount: lossAmount,
                 averageRepairTime: avgTime,
                 createdAt: engineer.createdAt,
                 updatedAt: engineer.updatedAt,

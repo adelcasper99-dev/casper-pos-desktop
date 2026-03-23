@@ -15,6 +15,7 @@ interface ConfirmationModalProps {
     cancelText?: string;
     loading?: boolean;
     variant?: 'danger' | 'warning' | 'info';
+    children?: ReactNode;
 }
 
 export default function ConfirmationModal({
@@ -26,7 +27,8 @@ export default function ConfirmationModal({
     confirmText = 'تأكيد',
     cancelText = 'إلغاء',
     loading = false,
-    variant = 'danger'
+    variant = 'danger',
+    children
 }: ConfirmationModalProps) {
     const variantStyles = {
         danger: {
@@ -59,6 +61,12 @@ export default function ConfirmationModal({
                         {message}
                     </p>
                 </div>
+
+                {children && (
+                    <div className="px-1">
+                        {children}
+                    </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                     <button

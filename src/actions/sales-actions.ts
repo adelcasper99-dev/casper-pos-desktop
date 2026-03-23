@@ -212,25 +212,25 @@ export const refundSale = secureAction(async (data: {
             where: { parentId: saleId, isReturn: true }
         });
 
-        const totalReturnedValue = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.totalAmount)), 0);
-        const totalReturnedPaid = (previousReturns as any[]).reduce((s, r) => s + Math.abs(Number(r.paidAmount)), 0);
+        const totalReturnedValue = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.totalAmount).abs()), new Decimal(0));
+        const totalReturnedPaid = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.paidAmount || 0).abs()), new Decimal(0));
         
-        const remainingTotalAmount = Math.max(0, Number(sale.totalAmount) - totalReturnedValue);
-        const originalPaidCashOverall: number = (sale.payments as any[]).filter(
+        const remainingTotalAmount = Decimal.max(0, new Decimal(sale.totalAmount).sub(totalReturnedValue));
+        const originalPaidCashOverall = (sale.payments as any[]).filter(
             (p: any) => p.method !== 'ACCOUNT' && p.method !== 'DEFERRED'
-        ).reduce((s: number, p: any) => s + Number(p.amount), 0);
+        ).reduce((s: Decimal, p: any) => s.plus(new Decimal(p.amount)), new Decimal(0));
 
-        const currentPaidCashRemaining = Math.max(0, originalPaidCashOverall - totalReturnedPaid);
+        const currentPaidCashRemaining = Decimal.max(0, originalPaidCashOverall.sub(totalReturnedPaid));
 
-        if (remainingTotalAmount <= 0) {
+        if (remainingTotalAmount.lte(0)) {
             throw new Error("هذه الفاتورة تم إرجاعها بالكامل بالفعل عبر مستندات مرتجع جزئية");
         }
 
         // 🔀 Determine how much of the REMAINING value is cash vs account
         const { amountToCash, amountToAccount } = splitDeferredRefund(
             sale.paymentMethod,
-            remainingTotalAmount,
-            currentPaidCashRemaining
+            remainingTotalAmount.toNumber(),
+            currentPaidCashRemaining.toNumber()
         );
 
         // If user wants store credit instead of cash, we re-route the cash portion to wallet
@@ -260,14 +260,14 @@ export const refundSale = secureAction(async (data: {
                 customerPhone: sale.customerPhone,
                 customerAddress: sale.customerAddress,
                 warehouseId: sale.warehouseId,
-                totalAmount: new Decimal(-remainingTotalAmount),
+                totalAmount: remainingTotalAmount.negated(),
                 paymentMethod: finalRefundMethod,
                 branchId: (sale as any).branchId || currentUser.branchId || null,
                 status: 'REFUNDED',
                 refundReason: `${reason || 'بدون سبب'} ${idempotencyKey ? `[IDEM:${idempotencyKey}]` : ''}`,
-                subTotal: new Decimal(new Decimal(sale.subTotal || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated subtotal
-                taxAmount: new Decimal(new Decimal(sale.taxAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated tax
-                discountAmount: new Decimal(new Decimal(sale.discountAmount || 0).negated().toNumber() * (remainingTotalAmount/Number(sale.totalAmount))), // Prorated discount
+                subTotal: new Decimal(sale.subTotal || 0).negated().mul(remainingTotalAmount.div(new Decimal(sale.totalAmount))), // Prorated subtotal
+                taxAmount: new Decimal(sale.taxAmount || 0).negated().mul(remainingTotalAmount.div(new Decimal(sale.totalAmount))), // Prorated tax
+                discountAmount: new Decimal(sale.discountAmount || 0).negated().mul(remainingTotalAmount.div(new Decimal(sale.totalAmount))), // Prorated discount
                 shiftId: currentShift.id,
                 customerId: sale.customerId,
                 userId: currentUser.id,

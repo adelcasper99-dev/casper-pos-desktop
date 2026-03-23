@@ -168,6 +168,14 @@
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Zebra Striping Palette */
+  --table-bg-main: #121212;
+  --table-row-odd: #1e1e1e;
+  --table-row-even: #252525;
+  --table-row-hover: #2c2c2c;
+  --table-header-bg: #000000;
+  --table-border: #333333;
 }
 
 /* Base Styles */
@@ -308,6 +316,45 @@ body {
   .no-drag {
     -webkit-app-region: no-drag;
     app-region: no-drag;
+  }
+
+  /* Zebra Striping & Sticky Header */
+  .zebra-table {
+    background-color: var(--table-bg-main);
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .zebra-table tbody tr:nth-child(odd) {
+    background-color: var(--table-row-odd);
+  }
+
+  .zebra-table tbody tr:nth-child(even) {
+    background-color: var(--table-row-even);
+  }
+
+  .zebra-table tbody tr {
+    border-bottom: 1px solid var(--table-border);
+    transition: background-color 0.2s ease;
+  }
+
+  .zebra-table tbody tr:hover {
+    background-color: var(--table-row-hover) !important;
+  }
+
+  .sticky-header thead th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background-color: var(--table-header-bg);
+    box-shadow: 0 1px 0 var(--table-border);
+  }
+
+  /* Mobile Optimization */
+  .table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

@@ -7,7 +7,7 @@ import {
     ChevronLeft, ChevronRight, FileText,
     CheckCircle2, XCircle, AlertCircle,
     Package, ArrowUpRight, ChevronDown,
-    Calendar as CalendarIcon, RotateCcw
+    Calendar as CalendarIcon, RotateCcw, Printer, Tag, Loader2
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -40,6 +40,10 @@ import { DateRange } from "react-day-picker"
 import { useTranslations } from '@/lib/i18n-mock';
 import PartialReturnPurchaseDialog from './PartialReturnPurchaseDialog';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
+import { BarcodePrintDialog } from '@/components/inventory/BarcodePrintDialog';
+import { generateA4PurchaseHTML } from '@/components/inventory/purchasing/A4PurchaseTemplate';
+import { printService } from '@/lib/print-service';
+import { getStoreSettings } from '@/actions/settings';
 
 interface PurchaseLogProps {
     initialPurchases: any[];
@@ -57,6 +61,15 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const [partialReturnPurchase, setPartialReturnPurchase] = useState<any>(null);
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
     const [voidItem, setVoidItem] = useState<{ id: string } | null>(null);
+    const [showBarcodePrint, setShowBarcodePrint] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
+    const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
+
+    useEffect(() => {
+        getStoreSettings().then(res => {
+            if (res.success) setSettings(res.data);
+        });
+    }, []);
     const t_logs = useTranslations("Logs");
 
     const getStatusLabel = (status: string, isReturn?: boolean) => {
@@ -124,6 +137,45 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         }
     }, [computedTotals.actualTotal, computedTotals.remaining]);
 
+    const handleDirectPrint = async (inv: any) => {
+        setLoadingInvoiceId(inv.id);
+        try {
+            const purchaseData = {
+                invoiceNumber: inv.invoiceNumber,
+                supplierName: inv.supplier?.name || "N/A",
+                supplierPhone: inv.supplier?.phone || "",
+                supplierAddress: inv.supplier?.address || "",
+                date: new Date(inv.purchaseDate),
+                status: inv.status,
+                items: inv.items.map((item: any) => ({
+                    productId: item.productId,
+                    name: item.product?.name || item.name || "N/A",
+                    sku: item.product?.sku || item.sku || "N/A",
+                    unitCost: Number(item.unitCost),
+                    quantity: item.quantity
+                })),
+                totalAmount: Number(inv.totalAmount),
+                paidAmount: Number(inv.paidAmount),
+                deliveryCharge: Number(inv.deliveryCharge)
+            };
+
+            const html = generateA4PurchaseHTML({ purchaseData, settings });
+            const registry = printService.getRegistry();
+            const printer = registry?.a4Printer && registry.a4Printer !== 'none' ? registry.a4Printer : undefined;
+
+            await printService.printHTML(html, printer, { paperWidthMm: 210 });
+            toast.success("تم إرسال الفاتورة للطابعة");
+        } catch (error: any) {
+            toast.error(error.message || "فشل طباعة الفاتورة");
+        } finally {
+            setLoadingInvoiceId(null);
+        }
+    };
+
+    const handleDirectBarcode = (inv: any) => {
+        setSelectedPurchase(inv);
+        setShowBarcodePrint(true);
+    };
     const handleVoid = async (id: string, reason?: string) => {
         if (!confirm("هل أنت متأكد من إلغاء هذه الفاتورة؟ سيتم سحب الكميات من المخزن وتعديل مديونية المورد.")) return;
 
@@ -370,9 +422,32 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
+                                                disabled={loadingInvoiceId === inv.id}
+                                                className="h-8 w-8 text-zinc-400 hover:bg-zinc-400/10"
+                                                title="طباعة A4"
+                                                onClick={(e) => { e.stopPropagation(); handleDirectPrint(inv); }}
+                                            >
+                                                {loadingInvoiceId === inv.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Printer className="w-4 h-4" />
+                                                )}
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-cyan-400 hover:bg-cyan-400/10"
+                                                title="طباعة باركود"
+                                                onClick={(e) => { e.stopPropagation(); handleDirectBarcode(inv); }}
+                                            >
+                                                <Tag className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 className="h-8 w-8 text-indigo-400 hover:bg-indigo-400/10"
                                                 title="عرض الأصناف"
-                                                onClick={() => setSelectedPurchase(inv)}
+                                                onClick={(e) => { e.stopPropagation(); setSelectedPurchase(inv); }}
                                             >
                                                 <Package className="w-4 h-4" />
                                             </Button>
@@ -383,7 +458,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                         size="icon"
                                                         className="h-8 w-8 text-orange-400 hover:bg-orange-400/10"
                                                         title="مرتجع جزئي"
-                                                        onClick={() => setPartialReturnPurchase(inv)}
+                                                        onClick={(e) => { e.stopPropagation(); setPartialReturnPurchase(inv); }}
                                                     >
                                                         <RotateCcw className="w-4 h-4" />
                                                     </Button>
@@ -392,7 +467,8 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                         size="icon"
                                                         className="h-8 w-8 text-cyan-400 hover:bg-cyan-400/10"
                                                         title="تعديل"
-                                                        onClick={() => {
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             // Navigation to edit mode in Purchasing Tab
                                                             toast.info("جاري التوجيه لصفحة التعديل...");
                                                             window.location.href = `/purchasing?edit=${inv.id}`;
@@ -521,18 +597,46 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                     إغلاق
                                 </Button>
                                 {selectedPurchase.status !== 'VOIDED' && !selectedPurchase.isReturn && (
-                                    <Button
-                                        className="flex-1 h-10 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl gap-2"
-                                        onClick={() => { setSelectedPurchase(null); setPartialReturnPurchase(selectedPurchase); }}
-                                    >
-                                        <RotateCcw className="w-4 h-4" />
-                                        مرتجع جزئي
-                                    </Button>
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            className="h-10 border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400 font-bold rounded-xl gap-2 px-4 whitespace-nowrap"
+                                            onClick={() => setShowBarcodePrint(true)}
+                                        >
+                                            <Printer className="w-4 h-4" />
+                                            طباعة الباركود
+                                        </Button>
+                                        <Button
+                                            className="flex-1 h-10 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl gap-2"
+                                            onClick={() => { setSelectedPurchase(null); setPartialReturnPurchase(selectedPurchase); }}
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                            مرتجع جزئي
+                                        </Button>
+                                    </>
                                 )}
                             </div>
                         </div>
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {/* Barcode Print Dialog */}
+            {showBarcodePrint && selectedPurchase && (
+                <BarcodePrintDialog
+                    products={selectedPurchase.items.map((item: any) => ({
+                        id: item.productId || item.product?.id || `temp-${item.sku}`,
+                        name: item.product?.name || item.name,
+                        sku: item.product?.sku || item.sku,
+                        sellPrice: Number(item.sellPrice || item.product?.sellPrice || 0)
+                    }))}
+                    initialQuantities={selectedPurchase.items.reduce((acc: any, item: any) => {
+                        const id = item.productId || item.product?.id || `temp-${item.sku}`;
+                        acc[id] = item.quantity;
+                        return acc;
+                    }, {})}
+                    onClose={() => setShowBarcodePrint(false)}
+                />
             )}
         </div>
     );

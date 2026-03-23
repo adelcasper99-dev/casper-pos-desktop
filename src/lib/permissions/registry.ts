@@ -49,6 +49,8 @@ export const PERMISSION_REGISTRY = {
     PRINT_RECEIPT: 'POS_PRINT_RECEIPT',
     /** Override default product prices */
     CHANGE_PRICE: 'POS_CHANGE_PRICE',
+    /** Select between different price tiers (Wholesale/Retail) */
+    SELECT_PRICE_TIER: 'POS_SELECT_PRICE_TIER',
   },
 
   /** Inventory Management */
@@ -314,6 +316,7 @@ function flattenRegistry() {
     POS_DINE_IN: PERMISSION_REGISTRY.POS.DINE_IN,
     POS_PRINT_RECEIPT: PERMISSION_REGISTRY.POS.PRINT_RECEIPT,
     POS_CHANGE_PRICE: PERMISSION_REGISTRY.POS.CHANGE_PRICE,
+    POS_SELECT_PRICE_TIER: PERMISSION_REGISTRY.POS.SELECT_PRICE_TIER,
 
     // INVENTORY
     INVENTORY_VIEW: PERMISSION_REGISTRY.INVENTORY.VIEW,
@@ -452,6 +455,7 @@ const PERMISSION_LABELS_AR: Record<string, string> = {
   POS_DINE_IN: 'إدارة الطاولات (Dine-in)',
   POS_PRINT_RECEIPT: 'طباعة الفواتير',
   POS_CHANGE_PRICE: 'تعديل أسعار المنتجات يدوياً',
+  POS_SELECT_PRICE_TIER: 'تغيير مستوى السعر في POS (جملة/قطاعي)',
   INVENTORY_VIEW: 'عرض المخزون والمنتجات',
   INVENTORY_MANAGE: 'إدارة المنتجات (إضافة/تعديل)',
   INVENTORY_DELETE: 'حذف المنتجات',

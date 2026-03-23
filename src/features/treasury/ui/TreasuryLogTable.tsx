@@ -54,7 +54,7 @@ export function TreasuryLogTable({ entries, loading }: TreasuryLogTableProps) {
                 </TableHeader>
                 <TableBody>
                     {entries.map((entry) => (
-                        <TableRow key={entry.id} className="border-white/5 hover:bg-white/5 transition-colors group">
+                        <TableRow key={entry.id} className="border-white/5 hover:bg-white/5 even:bg-white/[0.02] transition-colors group">
                             <TableCell className="text-right py-4">
                                 <div className="text-zinc-200 font-medium">
                                     {format(new Date(entry.createdAt), "yyyy/MM/dd")}

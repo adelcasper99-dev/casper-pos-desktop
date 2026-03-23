@@ -57,8 +57,8 @@ model User {
   maxDiscount          Decimal?              @default(0.00)
   maxDiscountAmount    Decimal?              @default(0.00)
   salary               Decimal?              @default(0.00)
-  hireDate             DateTime?
   monthlyOffDays       Int?                  @default(4)
+  hireDate             DateTime?
   actionLogs           ActionLog[]
   linkedCustomer       Customer?             @relation("CustomerEmployee")
   dailyLogs            DailyWorkLog[]
@@ -95,38 +95,38 @@ model Session {
 }
 
 model Branch {
-  id             String           @id @default(uuid())
-  name           String
-  code           String           @unique
-  address        String?
-  phone          String?
-  type           String           @default("STORE")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  deletedAt      DateTime?
-  parentBranchId String?
-  region         String?
-  sortOrder      Int?             @default(0)
-  territoryCode  String?
-  glCode         String?          @default("1200") // Default to Inventory Asset if not specified
-  parentBranch   Branch?          @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
-  childBranches  Branch[]         @relation("BranchHierarchy")
-  movementsTo    DeviceMovement[] @relation("ToBranch")
-  movementsFrom  DeviceMovement[] @relation("FromBranch")
-  journalEntries JournalEntry[]
-  stockRequests  StockRequest[]   @relation("RequestedByBranch")
-  currentTickets Ticket[]         @relation("CurrentLocation")
-  treasuries     Treasury[]
+  id                   String                @id @default(uuid())
+  name                 String
+  code                 String                @unique
+  address              String?
+  phone                String?
+  type                 String                @default("STORE")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  deletedAt            DateTime?
+  parentBranchId       String?
+  region               String?
+  sortOrder            Int?                  @default(0)
+  territoryCode        String?
+  glCode               String?               @default("1200")
+  parentBranch         Branch?               @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
+  childBranches        Branch[]              @relation("BranchHierarchy")
+  customerTransactions CustomerTransaction[]
+  movementsTo          DeviceMovement[]      @relation("ToBranch")
+  movementsFrom        DeviceMovement[]      @relation("FromBranch")
+  employeeTransactions EmployeeTransaction[]
+  expenses             Expense[]
+  journalEntries       JournalEntry[]
+  purchaseInvoices     PurchaseInvoice[]
+  sales                Sale[]
+  stockMovements       StockMovement[]
+  stockRequests        StockRequest[]        @relation("RequestedByBranch")
+  stockWastages        StockWastage[]
+  supplierPayments     SupplierPayment[]
+  currentTickets       Ticket[]              @relation("CurrentLocation")
+  treasuries           Treasury[]
   users                User[]
   warehouses           Warehouse[]
-  expenses             Expense[]
-  employeeTransactions EmployeeTransaction[]
-  stockWastages        StockWastage[]
-  stockMovements       StockMovement[]
-  sales                Sale[]
-  purchaseInvoices     PurchaseInvoice[]
-  customerTransactions CustomerTransaction[]
-  supplierPayments     SupplierPayment[]
 }
 
 model Warehouse {
@@ -142,8 +142,8 @@ model Warehouse {
   purchases            PurchaseInvoice[]
   sales                Sale[]
   stocks               Stock[]
-  movementsTo          StockMovement[]   @relation("ToWarehouse")
   movementsFrom        StockMovement[]   @relation("FromWarehouse")
+  movementsTo          StockMovement[]   @relation("ToWarehouse")
   fulfillmentRequests  StockRequest[]    @relation("FulfillingWarehouse")
   wastages             StockWastage[]
   technicians          Technician[]
@@ -170,17 +170,17 @@ model Customer {
 }
 
 model CustomerTransaction {
-  id          String   @id @default(uuid())
-  customerId  String
-  type        String
-  amount      Decimal
-  description String?
-  reference   String?
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  branchId    String?
-  customer    Customer @relation(fields: [customerId], references: [id])
-  branch      Branch?  @relation(fields: [branchId], references: [id])
+  id             String         @id @default(uuid())
+  customerId     String
+  type           String
+  amount         Decimal
+  description    String?
+  reference      String?
+  createdBy      String?
+  createdAt      DateTime       @default(now())
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  customer       Customer       @relation(fields: [customerId], references: [id])
   journalEntries JournalEntry[]
 
   @@index([customerId])
@@ -204,16 +204,16 @@ model Supplier {
 }
 
 model SupplierPayment {
-  id          String   @id @default(uuid())
-  supplierId  String
-  amount      Decimal
-  notes       String?
-  paymentDate DateTime @default(now())
-  method      String   @default("CASH")
-  branchId    String?
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
-  branch      Branch?  @relation(fields: [branchId], references: [id])
+  id             String         @id @default(uuid())
+  supplierId     String
+  amount         Decimal
+  notes          String?
+  paymentDate    DateTime       @default(now())
+  method         String         @default("CASH")
+  branchId       String?
   journalEntries JournalEntry[]
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  supplier       Supplier       @relation(fields: [supplierId], references: [id])
 
   @@index([supplierId])
   @@index([branchId])
@@ -232,29 +232,29 @@ model Account {
 }
 
 model JournalEntry {
-  id          String           @id @default(uuid())
-  date        DateTime         @default(now())
-  description String
-  reference   String?
-  branchId    String?
-  saleId      String?
-  purchaseId  String?
-  expenseId   String?
-  ticketId    String?
+  id                    String               @id @default(uuid())
+  date                  DateTime             @default(now())
+  description           String
+  reference             String?
+  branchId              String?
+  saleId                String?
+  purchaseId            String?
+  expenseId             String?
+  ticketId              String?
   customerTransactionId String?
   supplierPaymentId     String?
   employeeTransactionId String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  branch      Branch?          @relation(fields: [branchId], references: [id])
-  sale        Sale?            @relation(fields: [saleId], references: [id])
-  purchase    PurchaseInvoice? @relation(fields: [purchaseId], references: [id])
-  expense     Expense?         @relation(fields: [expenseId], references: [id])
-  ticket      Ticket?          @relation(fields: [ticketId], references: [id])
-  customerTransaction CustomerTransaction? @relation(fields: [customerTransactionId], references: [id])
-  supplierPayment     SupplierPayment?     @relation(fields: [supplierPaymentId], references: [id])
-  employeeTransaction EmployeeTransaction? @relation(fields: [employeeTransactionId], references: [id])
-  lines       JournalLine[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  employeeTransaction   EmployeeTransaction? @relation(fields: [employeeTransactionId], references: [id])
+  supplierPayment       SupplierPayment?     @relation(fields: [supplierPaymentId], references: [id])
+  customerTransaction   CustomerTransaction? @relation(fields: [customerTransactionId], references: [id])
+  ticket                Ticket?              @relation(fields: [ticketId], references: [id])
+  expense               Expense?             @relation(fields: [expenseId], references: [id])
+  purchase              PurchaseInvoice?     @relation(fields: [purchaseId], references: [id])
+  sale                  Sale?                @relation(fields: [saleId], references: [id])
+  branch                Branch?              @relation(fields: [branchId], references: [id])
+  lines                 JournalLine[]
 
   @@index([date])
   @@index([branchId])
@@ -275,11 +275,15 @@ model JournalLine {
 }
 
 model Category {
-  id        String    @id @default(uuid())
-  name      String
-  color     String?   @default("#06b6d4")
-  createdAt DateTime  @default(now())
-  products  Product[]
+  id            String     @id @default(uuid())
+  name          String
+  color         String?    @default("#06b6d4")
+  isHidden      Boolean    @default(false)
+  parentId      String?
+  createdAt     DateTime   @default(now())
+  parent        Category?  @relation("CategoryToSub", fields: [parentId], references: [id], onDelete: Cascade)
+  subCategories Category[] @relation("CategoryToSub")
+  products      Product[]
 }
 
 model Product {
@@ -338,22 +342,22 @@ model Stock {
 }
 
 model StockMovement {
-  id              String         @id @default(uuid())
+  id              String     @id @default(uuid())
   type            String
   productId       String
   fromWarehouseId String?
   toWarehouseId   String?
   quantity        Int
-  condition       String         @default("GOOD")
+  condition       String     @default("GOOD")
   reason          String?
-  createdAt       DateTime       @default(now())
+  createdAt       DateTime   @default(now())
   performedById   String?
   branchId        String?
-  toWarehouse     Warehouse?     @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
-  branch          Branch?        @relation(fields: [branchId], references: [id])
-  product         Product        @relation(fields: [productId], references: [id])
-  performedBy     User?          @relation(fields: [performedById], references: [id])
-  fromWarehouse   Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  performedBy     User?      @relation(fields: [performedById], references: [id])
+  product         Product    @relation(fields: [productId], references: [id])
+  branch          Branch?    @relation(fields: [branchId], references: [id])
+  toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
 }
 
 model StockRequest {
@@ -402,10 +406,10 @@ model StockWastage {
   reportedBy  String
   branchId    String?
   createdAt   DateTime  @default(now())
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  branch      Branch?   @relation(fields: [branchId], references: [id])
-  user        User      @relation(fields: [reportedBy], references: [id])
   product     Product   @relation(fields: [productId], references: [id])
+  user        User      @relation(fields: [reportedBy], references: [id])
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
   @@index([productId, createdAt])
   @@index([warehouseId, createdAt])
@@ -431,9 +435,9 @@ model PurchaseInvoice {
   isReturn       Boolean        @default(false)
   parentId       String?
   journalEntries JournalEntry[]
-  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
-  branch         Branch?        @relation(fields: [branchId], references: [id])
   supplier       Supplier       @relation(fields: [supplierId], references: [id])
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
   items          PurchaseItem[]
 }
 
@@ -478,11 +482,11 @@ model Sale {
   branchId           String?
   relatedSupplierId  String?
   journalEntries     JournalEntry[]
-  user               User?          @relation("SaleOwner", fields: [userId], references: [id])
-  branch             Branch?        @relation(fields: [branchId], references: [id])
-  warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
-  shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
   customer           Customer?      @relation(fields: [customerId], references: [id])
+  shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
+  warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
+  branch             Branch?        @relation(fields: [branchId], references: [id])
+  user               User?          @relation("SaleOwner", fields: [userId], references: [id])
   items              SaleItem[]
   payments           SalePayment[]
 
@@ -559,13 +563,13 @@ model Shift {
   totalTicketRevenueCash     Decimal           @default(0.00)
   totalTicketRevenueInstapay Decimal           @default(0.00)
   totalTicketRevenueWallet   Decimal           @default(0.00)
+  cashBreakdown              String?
   expenses                   Expense[]         @relation("ShiftExpenses")
   sales                      Sale[]            @relation("ShiftSales")
   user                       User              @relation("ShiftOwner", fields: [userId], references: [id])
   adjustments                ShiftAdjustment[]
   tickets                    Ticket[]          @relation("ShiftTickets")
   transactions               Transaction[]
-  cashBreakdown              String?
 
   @@index([userId, status])
   @@index([registerId, status])
@@ -617,13 +621,13 @@ model Transaction {
   relatedTransactionId String?
   shiftId              String?
   treasuryId           String?
-  treasury             Treasury? @relation(fields: [treasuryId], references: [id])
-  shift                Shift?    @relation(fields: [shiftId], references: [id])
   expenseId            String?
-  expense              Expense?  @relation(fields: [expenseId], references: [id], onDelete: SetNull)
   referenceId          String?
   referenceType        String?
   isReversed           Boolean   @default(false)
+  expense              Expense?  @relation(fields: [expenseId], references: [id])
+  shift                Shift?    @relation(fields: [shiftId], references: [id])
+  treasury             Treasury? @relation(fields: [treasuryId], references: [id])
 
   @@index([treasuryId, createdAt])
   @@index([referenceId, referenceType])
@@ -638,8 +642,8 @@ model Expense {
   paymentMethod  String         @default("CASH")
   shiftId        String?
   branchId       String?
-  shift          Shift?         @relation("ShiftExpenses", fields: [shiftId], references: [id])
   branch         Branch?        @relation(fields: [branchId], references: [id])
+  shift          Shift?         @relation("ShiftExpenses", fields: [shiftId], references: [id])
   journalEntries JournalEntry[]
   transactions   Transaction[]
 }
@@ -666,12 +670,13 @@ model Technician {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   warehouseId           String?
+  defaultPriceTier      String                 @default("COST")
   deletedAt             DateTime?
-  warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
   user                  User                   @relation(fields: [userId], references: [id])
+  warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
   TechnicianPerformance TechnicianPerformance?
-  completedTickets      Ticket[]               @relation("CompletedBy")
   tickets               Ticket[]
+  completedTickets      Ticket[]               @relation("CompletedBy")
   collaborations        TicketCollaborator[]
 }
 
@@ -694,75 +699,82 @@ model DevicePreset {
 }
 
 model Ticket {
-  id                 String               @id @default(uuid())
-  barcode            String               @unique
-  customerName       String
-  customerPhone      String
-  customerEmail      String?
-  customerId         String?
-  deviceBrand        String
-  deviceModel        String
-  deviceImei         String?
-  deviceColor        String?
-  securityCode       String?
-  patternData        String?
-  issueDescription   String
-  conditionNotes     String?
-  warrantyExpiry     DateTime?
-  status             String               @default("NEW")
-  currentBranchId    String
-  movementId         String?
-  technicianId       String?
-  completedById      String?
-  initialQuote       Decimal              @default(0.00)
-  repairPrice        Decimal              @default(0.00)
-  partsCost          Decimal              @default(0.00)
-  deposit            Decimal              @default(0.00)
-  commissionRate     Decimal              @default(0.00)
-  commissionAmount   Decimal              @default(0.00)
-  netProfit          Decimal              @default(0.00)
-  paymentStatus      String               @default("unpaid")
-  paymentMethod      String?
-  amountPaid         Decimal              @default(0.00)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  deletedAt          DateTime?
-  version            Int                  @default(1)
-  completedAt        DateTime?
-  deliveredAt        DateTime?
-  commissionClawback Decimal              @default(0.00)
-  lastReturnedAt     DateTime?
-  originalTechId     String?
-  returnCount        Int                  @default(0)
-  returnReason       String?
-  shiftId            String?
-  warrantyExpiryDate DateTime?
-  expectedDuration   Int?
-  startedAt          DateTime?
-  clientUserId       String?
-  clientSupplierId   String?
-  previousStatus     String?
-  parentTicketId     String?
-  isWarrantyReturn   Boolean              @default(false)
-  slaDeadlineAt      DateTime?            // T-01 SLA Tracking
-  slaBreachedAt      DateTime?            // T-01 SLA Tracking
-  feedback           Feedback?
-  logs               NotificationLog[]
-  payments           RepairPayment[]
-  completedBy        Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
-  parentTicket       Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
-  returnTickets      Ticket[]             @relation("TicketReturns")
-  currentBranch      Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
-  customer           Customer?            @relation(fields: [customerId], references: [id])
-  movement           DeviceMovement?      @relation(fields: [movementId], references: [id])
-  shift              Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
-  technician         Technician?          @relation(fields: [technicianId], references: [id])
-  clientUser         User?                @relation("ClientUser", fields: [clientUserId], references: [id])
-  clientSupplier     Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
-  collaborators      TicketCollaborator[]
-  notes              TicketNote[]
-  parts              TicketPart[]
-  journalEntries     JournalEntry[]
+  id                   String               @id @default(uuid())
+  barcode              String               @unique
+  customerName         String
+  customerPhone        String
+  customerEmail        String?
+  customerId           String?
+  deviceBrand          String
+  deviceModel          String
+  deviceImei           String?
+  deviceColor          String?
+  securityCode         String?
+  patternData          String?
+  issueDescription     String
+  conditionNotes       String?
+  warrantyExpiry       DateTime?
+  status               String               @default("NEW")
+  currentBranchId      String
+  movementId           String?
+  technicianId         String?
+  completedById        String?
+  initialQuote         Decimal              @default(0.00)
+  repairPrice          Decimal              @default(0.00)
+  partsCost            Decimal              @default(0.00)
+  deposit              Decimal              @default(0.00)
+  commissionRate       Decimal              @default(0.00)
+  commissionAmount     Decimal              @default(0.00)
+  netProfit            Decimal              @default(0.00)
+  paymentStatus        String               @default("unpaid")
+  paymentMethod        String?
+  amountPaid           Decimal              @default(0.00)
+  finalCustomerPrice   Decimal              @default(0.00)
+  techBillingPrice     Decimal              @default(0.00)
+  partCostPrice        Decimal              @default(0.00)
+  laborPoolAmount      Decimal              @default(0.00)
+  techCommissionAmount Decimal              @default(0.00)
+  centerLaborProfit    Decimal              @default(0.00)
+  centerPartProfit     Decimal              @default(0.00)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deletedAt            DateTime?
+  version              Int                  @default(1)
+  completedAt          DateTime?
+  deliveredAt          DateTime?
+  commissionClawback   Decimal              @default(0.00)
+  lastReturnedAt       DateTime?
+  originalTechId       String?
+  returnCount          Int                  @default(0)
+  returnReason         String?
+  shiftId              String?
+  warrantyExpiryDate   DateTime?
+  expectedDuration     Int?
+  startedAt            DateTime?
+  clientUserId         String?
+  clientSupplierId     String?
+  previousStatus       String?
+  parentTicketId       String?
+  isWarrantyReturn     Boolean              @default(false)
+  slaDeadlineAt        DateTime?
+  slaBreachedAt        DateTime?
+  feedback             Feedback?
+  journalEntries       JournalEntry[]
+  logs                 NotificationLog[]
+  payments             RepairPayment[]
+  clientSupplier       Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
+  clientUser           User?                @relation("ClientUser", fields: [clientUserId], references: [id])
+  technician           Technician?          @relation(fields: [technicianId], references: [id])
+  shift                Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
+  movement             DeviceMovement?      @relation(fields: [movementId], references: [id])
+  customer             Customer?            @relation(fields: [customerId], references: [id])
+  currentBranch        Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  parentTicket         Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
+  returnTickets        Ticket[]             @relation("TicketReturns")
+  completedBy          Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
+  collaborators        TicketCollaborator[]
+  notes                TicketNote[]
+  parts                TicketPart[]
 
   @@index([barcode])
   @@index([status, createdAt])
@@ -785,24 +797,26 @@ model NotificationLog {
 }
 
 model TicketPart {
-  id          String     @id @default(uuid())
-  ticketId    String
-  productId   String?
-  name        String?
-  quantity    Int        @default(1)
-  refundedQty Int        @default(0)
-  cost        Decimal    @default(0.00)
-  price       Decimal    @default(0.00)
-  createdAt   DateTime   @default(now())
-  status      String     @default("ACTIVE")
-  isDamaged   Boolean    @default(false)
-  deletedAt   DateTime?
-  warehouseId String?
-  addedById   String?
-  product     Product?   @relation(fields: [productId], references: [id])
-  ticket      Ticket     @relation(fields: [ticketId], references: [id])
-  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
-  addedBy     User?      @relation("PartAddedBy", fields: [addedById], references: [id])
+  id            String     @id @default(uuid())
+  ticketId      String
+  productId     String?
+  name          String?
+  quantity      Int        @default(1)
+  refundedQty   Int        @default(0)
+  cost          Decimal    @default(0.00)
+  price         Decimal    @default(0.00)
+  baseCostPrice Decimal    @default(0.00)
+  transferPrice Decimal    @default(0.00)
+  createdAt     DateTime   @default(now())
+  status        String     @default("ACTIVE")
+  isDamaged     Boolean    @default(false)
+  deletedAt     DateTime?
+  warehouseId   String?
+  addedById     String?
+  addedBy       User?      @relation("PartAddedBy", fields: [addedById], references: [id])
+  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id])
+  ticket        Ticket     @relation(fields: [ticketId], references: [id])
+  product       Product?   @relation(fields: [productId], references: [id])
 }
 
 model TicketCollaborator {
@@ -897,17 +911,17 @@ model DailyWorkLog {
 }
 
 model EmployeeTransaction {
-  id            String   @id @default(uuid())
-  userId        String
-  type          String
-  amount        Decimal
-  description   String?
-  referenceId   String?
-  referenceType String?
-  createdAt     DateTime @default(now())
-  branchId      String?
-  user          User     @relation(fields: [userId], references: [id])
-  branch        Branch?  @relation(fields: [branchId], references: [id])
+  id             String         @id @default(uuid())
+  userId         String
+  type           String
+  amount         Decimal
+  description    String?
+  referenceId    String?
+  referenceType  String?
+  createdAt      DateTime       @default(now())
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
   journalEntries JournalEntry[]
 
   @@index([userId])
@@ -962,10 +976,6 @@ model Table {
   updatedAt DateTime @updatedAt
   floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
 }
-
-// SQLite does not support native enums. Using String fields with conceptual enums.
-// ProductType: PHYSICAL | SERVICE | DIGITAL
-// StockCondition: GOOD | DEFECTIVE
 
 model LocalBackup {
   id              Int       @id @default(autoincrement())

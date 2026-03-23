@@ -25,7 +25,15 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
         include: {
             role: true,
             branch: true,
-            technician: true,
+            technician: {
+                include: {
+                    tickets: {
+                        where: {
+                            createdAt: { gte: startDate, lte: endDate }
+                        }
+                    }
+                }
+            },
             sessions: {
                 where: { expiresAt: { gt: new Date() } },
                 take: 1
@@ -47,7 +55,7 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
     const { Decimal } = await import("decimal.js");
 
     const staffData = await Promise.all(users.map(async (u: any) => {
-        const { baseSalary, netDue } = await calculateNetDue(u, startDate, endDate);
+        const { baseSalary, netDue, kpis } = await calculateNetDue(u, startDate, endDate);
 
         return {
             id: u.id,
@@ -58,6 +66,7 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
             salary: u.salary ? Number(u.salary) : 0,
             effectiveSalary: baseSalary.toNumber(),
             netDue: netDue.toNumber(),
+            kpis: kpis,
             status: u.sessions.length > 0 ? 'ONLINE' : 'OFFLINE',
             clockInTime: u.sessions.length > 0 ? u.sessions[0].createdAt : null,
             avatarSeed: u.username,
@@ -221,6 +230,13 @@ export const getHRDashboardSummary = secureAction(async (params?: { month?: numb
             },
             employeeTransactions: {
                 where: { createdAt: { gte: start, lte: end } }
+            },
+            technician: {
+                include: {
+                    tickets: {
+                        where: { createdAt: { gte: start, lte: end } }
+                    }
+                }
             }
         }
     });

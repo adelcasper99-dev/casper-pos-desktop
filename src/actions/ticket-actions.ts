@@ -2,6 +2,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { AutoJournalService } from "@/lib/accounting/auto-journal-service";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -628,24 +629,12 @@ export const updateTicketStatus = secureAction(async (data: {
             updateData.completedById = technicianId || existingTicket.technicianId;
             if (repairPrice !== undefined) updateData.repairPrice = new Decimal(repairPrice);
             if (partsCost !== undefined) updateData.partsCost = new Decimal(partsCost);
-
-            // Auto-set 30-day warranty on completion if not explicitly set
-            if (!existingTicket.warrantyExpiryDate) {
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 30);
-                updateData.warrantyExpiryDate = expiry;
-            }
+            // Warranty date is now set ONLY upon payment/delivery confirmation to ensure it starts from the receipt date.
         }
 
         if (status === 'DELIVERED') {
             updateData.deliveredAt = new Date();
-
-            // Auto-set 30-day warranty on delivery if not explicitly set
-            if (!existingTicket.warrantyExpiryDate) {
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 30);
-                updateData.warrantyExpiryDate = expiry;
-            }
+            // Warranty date is now set ONLY upon payment/delivery confirmation to ensure it starts from the receipt date.
         }
 
         const ticket = await tx.ticket.update({
@@ -923,6 +912,7 @@ export const refundTicket = secureAction(async (data: {
             description: `Refund: Ticket #${ticket.barcode}`,
             reference: ticketId,
             ticketId: ticketId,
+            cogsReversal: 0, // No COGS reversal on simple refund
             branchId: user.branchId ?? undefined
         }, tx);
 
@@ -1114,6 +1104,20 @@ export const softDeleteTicket = secureAction(async (data: {
             }
         });
 
+        // Reverse the original distribution journal entry if it exists
+        const lastEntry = await tx.journalEntry.findFirst({
+            where: { reference: ticketId, description: { startsWith: 'Maintenance Distribution' } },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (lastEntry) {
+            await AutoJournalService.reverseJournalEntry(tx, {
+                originalEntryId: lastEntry.id,
+                reason: `Ticket Voided (${reason})`,
+                branchId: ticket.currentBranchId || undefined
+            });
+        }
+
         return deletedTicket;
     }, { timeout: 60000 });
 
@@ -1171,6 +1175,34 @@ export const markForReRepair = secureAction(async (data: {
                 commissionClawback: { increment: clawbackAmount }
             }
         });
+
+        const lastEntry = await tx.journalEntry.findFirst({
+            where: { reference: ticketId },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (lastEntry) {
+            await AutoJournalService.reverseJournalEntry(tx, {
+                originalEntryId: lastEntry.id,
+                reason: `Warranty Rework (${returnReason})`,
+                branchId: ticket.currentBranchId || undefined
+            });
+        }
+
+        // 💰 [NEW] Record Actual Employee Transaction for the Clawback (Debit)
+        if (clawbackAmount > 0 && originalTechId) {
+            await tx.employeeTransaction.create({
+                data: {
+                    userId: originalTechId,
+                    type: 'MAINTENANCE_COMMISSION',
+                    amount: -clawbackAmount, // Negative amount for debit
+                    description: `Clawback: Warranty Rework for Ticket #${ticket.barcode}`,
+                    referenceId: ticket.id,
+                    referenceType: 'TICKET_REWORK',
+                    branchId: ticket.currentBranchId || undefined
+                }
+            });
+        }
 
         if (clawbackAmount > 0 && originalTechId) {
             await tx.auditLog.create({
@@ -1352,15 +1384,28 @@ export const addTicketPart = secureAction(async (data: {
         throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
     }
 
-    let cost = 0;
+    let baseCostPrice = 0;
+    let transferPrice = 0;
     let price = data.price || 0;
     let productName = data.name || "Unknown Item";
+
+    const tech = ticket.technicianId 
+        ? await prisma.technician.findUnique({ where: { id: ticket.technicianId } }) 
+        : null;
+    const tier = tech?.defaultPriceTier || 'COST';
 
     if (data.productId) {
         const product = await prisma.product.findUnique({ where: { id: data.productId } });
         if (!product) throw new Error("Product not found");
 
-        cost = Number(product.costPrice);
+        baseCostPrice = Number(product.costPrice);
+        
+        // Determine transfer price based on technician tier
+        if (tier === 'SELL_1') transferPrice = Number(product.sellPrice);
+        else if (tier === 'SELL_2') transferPrice = Number(product.sellPrice2);
+        else if (tier === 'SELL_3') transferPrice = Number(product.sellPrice3);
+        else transferPrice = Number(product.costPrice); // Default to COST
+
         if (!price) price = Number(product.sellPrice);
         productName = product.name;
 
@@ -1457,7 +1502,9 @@ export const addTicketPart = secureAction(async (data: {
                         productId: data.productId || undefined,
                         name: productName,
                         quantity: data.quantity,
-                        cost: new Decimal(cost),
+                        cost: new Decimal(transferPrice), // Legacy field uses transferPrice
+                        baseCostPrice: new Decimal(baseCostPrice),
+                        transferPrice: new Decimal(transferPrice),
                         price: new Decimal(price),
                         warehouseId: finalWarehouseId,
                         status: 'ACTIVE'
@@ -1473,7 +1520,9 @@ export const addTicketPart = secureAction(async (data: {
                 ticketId: ticket.id,
                 name: productName,
                 quantity: data.quantity,
-                cost: new Decimal(cost),
+                cost: new Decimal(transferPrice),
+                baseCostPrice: new Decimal(baseCostPrice),
+                transferPrice: new Decimal(transferPrice),
                 price: new Decimal(price),
                 status: 'ACTIVE'
             }
@@ -1547,13 +1596,51 @@ export const refundTicketPart = secureAction(async (data: {
                 quantity,
                 isDamaged: true,
                 reason: `Refunded/Defective in Ticket #${part.ticket.barcode}`,
-                performedById: user?.id || 'system'
+                performedById: user?.id || 'system',
+                branchId: part.ticket.currentBranchId
             });
+
+            // --- T-029: Automated Salary Deduction for Damaged Parts (With Percentage) ---
+            if (part.ticket?.technicianId) {
+                const partCost = new Decimal(part.baseCostPrice?.toString() || part.cost?.toString() || 0).mul(quantity);
+                const lossRate = Number(part.ticket.technician.lossRate || 100);
+                const techDeduction = partCost.mul(lossRate / 100);
+                const centerLoss = partCost.sub(techDeduction);
+                
+                // 1. Tech Share
+                if (techDeduction.gt(0)) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: part.ticket.technician.userId,
+                            type: 'DEDUCTION',
+                            amount: techDeduction,
+                            description: `خصم نسبة تحمل تالف (${lossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
+                            referenceId: part.ticket.id,
+                            referenceType: 'TICKET_PART_REFUND_DAMAGE',
+                            branchId: part.ticket.currentBranchId
+                        }
+                    });
+                }
+
+                // 2. Financial Ledger: Record FULL Wastage Expense to credit 1200 Inventory for the destroyed physical asset
+                if (partCost.gt(0)) {
+                    await AutoJournalService.recordWastageLoss(tx, {
+                        amount: partCost,
+                        description: `إثبات هالك كلي للقطعة (تحمل المهندس ${lossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
+                        branchId: part.ticket.currentBranchId,
+                        reference: part.ticket.id
+                    });
+                }
+            }
         }
 
         const activeParts = await tx.ticketPart.findMany({ where: { ticketId, status: 'ACTIVE' } });
         const totalCost = activeParts.reduce((sum, p) => sum + (Number(p.cost) * p.quantity), 0);
         const totalSell = activeParts.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0);
+        
+        // Tiered Pricing Summary
+        const techBillingPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.transferPrice?.toString() || p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+        const partCostPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.baseCostPrice?.toString() || p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
 
         const isFix = part.ticket?.status === 'RETURNED_FOR_REFIX';
         const netPro = calculateNetProfit(new Decimal(isFix ? Number(part.ticket?.repairPrice || 0) : totalSell), new Decimal(totalCost));
@@ -1580,9 +1667,10 @@ export const removeTicketPart = secureAction(async (data: {
     partId: string,
     warehouseId?: string,
     isDamaged?: boolean,
+    lossRateOverride?: number,
     csrfToken?: string
 }) => {
-    const { partId, warehouseId, isDamaged } = data;
+    const { partId, warehouseId, isDamaged, lossRateOverride } = data;
 
     const part = await prisma.ticketPart.findUnique({
         where: { id: partId },
@@ -1626,8 +1714,42 @@ export const removeTicketPart = secureAction(async (data: {
                 quantity,
                 isDamaged: !!isDamaged,
                 reason: `${isDamaged ? 'Replaced/Damaged' : 'Returned'} from Ticket #${part.ticket?.barcode || part.ticketId} (Part Removed)`,
-                performedById: user?.id || 'system'
+                performedById: user?.id || 'system',
+                branchId: part.ticket?.currentBranchId || undefined
             });
+
+            // --- T-029: Automated Salary Deduction for Damaged Parts (With Percentage Override) ---
+            if (isDamaged && part.ticket?.technicianId) {
+                const partCost = new Decimal(part.baseCostPrice?.toString() || part.cost?.toString() || 0).mul(quantity);
+                const effectiveLossRate = lossRateOverride ?? Number(part.ticket.technician.lossRate || 100);
+                const techDeduction = partCost.mul(effectiveLossRate / 100);
+                const centerLoss = partCost.sub(techDeduction);
+                
+                // 1. Tech Share
+                if (techDeduction.gt(0)) {
+                    await (tx as any).employeeTransaction.create({
+                        data: {
+                            userId: part.ticket.technician.userId,
+                            type: 'DEDUCTION',
+                            amount: techDeduction,
+                            description: `خصم نسبة تحمل تالف (${effectiveLossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
+                            referenceId: part.ticket.id,
+                            referenceType: 'TICKET_PART_DAMAGE',
+                            branchId: part.ticket.currentBranchId
+                        }
+                    });
+                }
+
+                // 2. Financial Ledger: Record FULL Wastage Expense to credit 1200 Inventory for the destroyed physical asset
+                if (partCost.gt(0)) {
+                    await AutoJournalService.recordWastageLoss(tx, {
+                        amount: partCost,
+                        description: `إثبات هالك كلي للقطعة (تحمل المهندس ${effectiveLossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
+                        branchId: part.ticket.currentBranchId,
+                        reference: part.ticket.id
+                    });
+                }
+            }
         }
 
         const activeParts = await tx.ticketPart.findMany({ 
@@ -1635,10 +1757,16 @@ export const removeTicketPart = secureAction(async (data: {
         });
         const totalPartsCost = activeParts.reduce((sum, p) => sum + (Number(p.cost) * p.quantity), 0);
         const totalSellPrice = activeParts.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0);
+        
+        // Tiered Pricing Summary
+        const techBillingPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.transferPrice?.toString() || p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+        const partCostPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.baseCostPrice?.toString() || p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
 
         const isWarrantyFix = part.ticket?.status === 'RETURNED_FOR_REFIX';
         const updateFields: Prisma.TicketUpdateInput = {
             partsCost: new Decimal(totalPartsCost),
+            techBillingPrice,
+            partCostPrice,
         };
 
         if (!isWarrantyFix) {
@@ -1743,9 +1871,9 @@ export const processTicketPayment = secureAction(async (data: {
 
     if (!ticket) throw new Error('Ticket not found');
 
-    // Relaxed validation: Allow 0 for warranty returns (even swap)
+    // Relaxed validation: Allow 0 for warranty returns or reworks (even swap)
     const isActuallyRefund = paymentType === 'REFUND' || amount < 0;
-    const isWarrantyEvenSwap = ticket.isWarrantyReturn && amount === 0;
+    const isWarrantyEvenSwap = (ticket.isWarrantyReturn || ticket.status === 'RETURNED_FOR_REFIX') && amount === 0;
 
     if (!isActuallyRefund && !isWarrantyEvenSwap && amount <= 0) {
         throw new Error('Payment amount must be greater than zero');
@@ -1871,13 +1999,58 @@ export const processTicketPayment = secureAction(async (data: {
             await tx.customerTransaction.create({
                 data: {
                     customerId: effectiveCustomerId,
-                    // Payment: CREDIT (reduces balance). Refund: DEBIT (increases balance).
-                    type: isDeferred ? 'DEBIT' : (isActuallyRefund ? 'DEBIT' : 'CREDIT'),
+                    // 💰 [STANDARD] CREDIT increases wallet/balance. DEBIT increases debt.
+                    type: isDeferred ? 'DEBIT' : 'CREDIT',
                     amount: new Prisma.Decimal(Math.abs(effectiveAmount)),
                     description,
                     reference: ticket.id,
-                    createdBy: currentUser.id
+                    createdBy: currentUser.id,
+                    branchId: currentUser.branchId || undefined
                 }
+            });
+        }
+
+        // --- Profit Distribution Calculation & Snapshotted Fields ---
+        // Triggered only when transitioning to PAID_DELIVERED
+        let distributionData = {};
+        if (paymentStatus === 'paid' && paymentType === 'PAYMENT') {
+            const activeParts = await tx.ticketPart.findMany({
+                where: { ticketId: ticket.id, status: 'ACTIVE' }
+            });
+
+            const techBillingPrice = activeParts.reduce((sum, p) => sum.add(p.transferPrice || p.cost || 0), new Prisma.Decimal(0));
+            const partCostPrice = activeParts.reduce((sum, p) => sum.add(p.baseCostPrice || p.cost || 0), new Prisma.Decimal(0));
+            const finalCustomerPrice = new Prisma.Decimal(newTotalPaid); // Assume total paid is final price
+            const laborPoolAmount = finalCustomerPrice.minus(techBillingPrice);
+            
+            // Re-calculate commission based on the new labor pool
+            const commissionRateDec = new Prisma.Decimal(ticket.commissionRate || 0);
+            const techCommissionAmount = laborPoolAmount.mul(commissionRateDec.div(100));
+            const centerLaborProfit = laborPoolAmount.minus(techCommissionAmount);
+            const centerPartProfit = techBillingPrice.minus(partCostPrice);
+
+            distributionData = {
+                finalCustomerPrice,
+                techBillingPrice,
+                partCostPrice,
+                laborPoolAmount,
+                techCommissionAmount,
+                centerLaborProfit,
+                centerPartProfit,
+                // Also update the legacy fields for backward compatibility/reporting
+                commissionAmount: techCommissionAmount,
+                netProfit: centerLaborProfit.plus(centerPartProfit)
+            };
+
+            // --- New: Record Balanced Journal Entry ---
+            await AutoJournalService.recordTicketDistribution(tx, {
+                ticketId: ticket.id,
+                barcode: ticket.barcode,
+                amount: finalCustomerPrice,
+                techBillingPrice,
+                techCommissionAmount,
+                centerLaborProfit,
+                branchId: currentUser?.branchId || null
             });
         }
 
@@ -1891,11 +2064,13 @@ export const processTicketPayment = secureAction(async (data: {
                 ...(paymentStatus === 'paid' && paymentType === 'PAYMENT' ? { 
                     status: 'PAID_DELIVERED',
                     deliveredAt: new Date(),
-                    warrantyExpiryDate: warranty?.warrantyExpiryDate ?? (function() {
+                    warrantyExpiryDate: (function() {
                         const d = new Date();
-                        d.setDate(d.getDate() + 30);
+                        const days = warranty?.warrantyDays || 30;
+                        d.setDate(d.getDate() + days);
                         return d;
-                    })()
+                    })(),
+                    ...distributionData
                 } : {})
             }
         });
@@ -1906,26 +2081,12 @@ export const processTicketPayment = secureAction(async (data: {
         const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
 
         if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
-            // 1. Record Main Technician Commission
+            // 1. Record Main Technician Commission (Note: Handled via recordTicketDistribution GL entries)
+            /* 
             if (ticket.technicianId && Number(ticket.commissionAmount) > 0) {
-                const tech = await tx.technician.findUnique({
-                    where: { id: ticket.technicianId },
-                    select: { userId: true }
-                });
-
-                if (tech) {
-                    await (tx as any).employeeTransaction.create({
-                        data: {
-                            userId: tech.userId,
-                            type: 'MAINTENANCE_COMMISSION',
-                            amount: ticket.commissionAmount,
-                            description: `عمولة صيانة تذكرة #${ticket.barcode}`,
-                            referenceId: ticket.id,
-                            referenceType: 'TICKET'
-                        }
-                    });
-                }
+                // ... (legacy logic)
             }
+            */
 
             // 2. Record Collaborators Commissions
             const collaborators = await tx.ticketCollaborator.findMany({
@@ -1934,17 +2095,18 @@ export const processTicketPayment = secureAction(async (data: {
             });
 
             for (const collab of collaborators) {
-                const repairPriceNum = Number(ticket.repairPrice) || 0;
-                const partsCostNum = Number(ticket.partsCost) || 0;
-                const netProfit = repairPriceNum - partsCostNum;
-                const collabCommission = (netProfit * Number(collab.commissionRate)) / 100;
+                const repairPriceDec = new Prisma.Decimal(ticket.repairPrice || 0);
+                const partsCostDec = new Prisma.Decimal(ticket.partsCost || 0);
+                const netProfitDec = repairPriceDec.minus(partsCostDec);
+                const collabRateDec = new Prisma.Decimal(collab.commissionRate || 0);
+                const collabCommissionDec = netProfitDec.mul(collabRateDec.div(100));
 
-                if (collabCommission > 0) {
+                if (collabCommissionDec.gt(0)) {
                     await (tx as any).employeeTransaction.create({
                         data: {
                             userId: collab.technician.userId,
                             type: 'MAINTENANCE_COMMISSION',
-                            amount: new Prisma.Decimal(collabCommission),
+                            amount: collabCommissionDec,
                             description: `عمولة تعاون (مساعد) تذكرة #${ticket.barcode}`,
                             referenceId: ticket.id,
                             referenceType: 'TICKET'
@@ -2122,6 +2284,20 @@ export const addCollaborator = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, technicianId, commissionRate } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    // Branch Security: Ensure ticket exists and is in the user's branch
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentBranchId: true }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
+        throw new Error("Unauthorized: Ticket belongs to another branch");
+    }
 
     // Check if collaborator already exists
     const existing = await prisma.ticketCollaborator.findUnique({
@@ -2136,7 +2312,7 @@ export const addCollaborator = secureAction(async (data: {
         data: {
             ticketId,
             technicianId,
-            commissionRate
+            commissionRate: new Decimal(commissionRate)
         },
         include: { technician: true }
     });
@@ -2154,6 +2330,20 @@ export const removeCollaborator = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, technicianId } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    // Branch Security
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentBranchId: true }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
+        throw new Error("Unauthorized: Ticket belongs to another branch");
+    }
 
     try {
         await prisma.ticketCollaborator.delete({
@@ -2181,12 +2371,26 @@ export const updateCollaboratorCommission = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, technicianId, commissionRate } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    // Branch Security
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentBranchId: true }
+    });
+
+    if (!ticket) throw new Error("Ticket not found");
+    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
+        throw new Error("Unauthorized: Ticket belongs to another branch");
+    }
 
     await prisma.ticketCollaborator.update({
         where: {
             ticketId_technicianId: { ticketId, technicianId }
         },
-        data: { commissionRate }
+        data: { commissionRate: new Decimal(commissionRate) }
     });
 
     revalidatePath(`/maintenance/tickets/${ticketId}`);
@@ -2217,12 +2421,13 @@ export const getAllTechnicians = secureAction(async () => {
  */
 export const getReturnedTickets = secureAction(async () => {
     try {
-        const branchFilter = await getBranchFilter();
+        const currentUser = await getCurrentUser();
+        const branchFilter = getBranchFilter(currentUser);
 
         const where: Prisma.TicketWhereInput = {
             OR: [
                 { returnCount: { gt: 0 } },
-                { status: { in: ['RETURNED_FOR_REFIX', 'RETURNED', 'RETURNED_WARRANTY'] } }
+                { status: { in: ['RETURNED_FOR_REFIX', 'RETURNED', 'RETURNED_WARRANTY', 'VOIDED'] } }
             ]
         };
 
@@ -2253,7 +2458,8 @@ export const getReturnedTickets = secureAction(async () => {
                 returnReason: t.returnReason,
                 issueDescription: t.issueDescription,
                 status: t.status,
-                technicianName: t.technician?.name || null
+                technicianName: t.technician?.name || null,
+                createdAt: t.createdAt
             })),
             count: tickets.length
         });
@@ -2269,10 +2475,10 @@ export const getReturnedTickets = secureAction(async () => {
  */
 export const getWarrantyTickets = secureAction(async () => {
     try {
-        const branchFilter = await getBranchFilter();
+        const currentUser = await getCurrentUser();
+        const branchFilter = getBranchFilter(currentUser);
 
         const where: Prisma.TicketWhereInput = {
-            warrantyExpiryDate: { gt: new Date() },
             status: { in: ['DELIVERED', 'COMPLETED', 'PICKED_UP', 'PAID_DELIVERED'] }
         };
 
@@ -2416,6 +2622,38 @@ export const fullTicketReturn = secureAction(async (data: {
                 }
             }
 
+            // 2.5 Reverse the original distribution journal entry
+            const lastEntry = await tx.journalEntry.findFirst({
+                where: { reference: ticket.id },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            if (lastEntry) {
+                await AutoJournalService.reverseJournalEntry(tx, {
+                    originalEntryId: lastEntry.id,
+                    reason: `Full Return Refund (${reason})`,
+                    branchId: ticket.currentBranchId || undefined
+                });
+            }
+
+            // 💰 [NEW] Record Actual Employee Transaction for the Commission Reversal (Clawback)
+            if (Number(ticket.commissionAmount) > 0 && ticket.technicianId) {
+                const tech = await tx.technician.findUnique({ where: { id: ticket.technicianId } });
+                if (tech) {
+                    await tx.employeeTransaction.create({
+                        data: {
+                            userId: tech.userId,
+                            type: 'MAINTENANCE_COMMISSION',
+                            amount: -Number(ticket.commissionAmount), // Debit the full commission
+                            description: `Clawback: Full Return for Ticket #${ticket.barcode}`,
+                            referenceId: ticket.id,
+                            referenceType: 'TICKET_RETURN',
+                            branchId: ticket.currentBranchId || undefined
+                        }
+                    });
+                }
+            }
+
             // 3. Update Shift Balances (Standardized to use totalRefunds)
             const absAmount = new Decimal(amountToRefund);
             if (refundMethod === 'ACCOUNT' || refundMethod === 'DEFERRED') {
@@ -2497,7 +2735,7 @@ export const fullTicketReturn = secureAction(async (data: {
                 reference: ticket.id,
                 ticketId: ticket.id,
                 cogsReversal: totalPartsCostReversal,
-                branchId: user.branchId ?? undefined
+                branchId: currentUser.branchId ?? undefined
             }, tx);
         }
 
@@ -2511,12 +2749,35 @@ export const fullTicketReturn = secureAction(async (data: {
                 amountPaid: new Decimal(0),
                 repairPrice: new Decimal(0),
                 partsCost: new Decimal(0),
+                techBillingPrice: new Decimal(0),
+                partCostPrice: new Decimal(0),
                 netProfit: new Decimal(0),
                 commissionAmount: new Decimal(0),
                 commissionClawback: new Decimal(originalCommission), // Record clawback
                 returnReason: reason,
                 lastReturnedAt: new Date(),
                 returnCount: { increment: 1 }
+            }
+        });
+
+        // 3.5 Void Sequels (Re-fixes/Warranty Returns)
+        // If this is a parent, void all its children. 
+        // If this is a child, the user likely wants to void the whole chain or just this branch?
+        // Usually, Full Return means the whole operation is cancelled.
+        await tx.ticket.updateMany({
+            where: {
+                parentTicketId: ticket.id,
+                status: { not: TicketStatus.VOIDED }
+            },
+            data: {
+                status: TicketStatus.VOIDED,
+                repairPrice: new Decimal(0),
+                partsCost: new Decimal(0),
+                techBillingPrice: new Decimal(0),
+                partCostPrice: new Decimal(0),
+                netProfit: new Decimal(0),
+                commissionAmount: new Decimal(0),
+                returnReason: `Parent Ticket #${ticket.barcode} - Full Refunded/Returned`
             }
         });
 

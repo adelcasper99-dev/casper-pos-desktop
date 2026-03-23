@@ -1,17 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Package, Palette, Truck, Box } from "lucide-react";
+import { Package, Palette } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import clsx from "clsx";
 
 import ProductsTab from "@/components/inventory/ProductsTab";
 import CategoriesTab from "@/components/inventory/CategoriesTab";
 import WarehouseClient from "@/components/inventory/WarehouseClient";
-import SuppliersTab from "@/components/inventory/SuppliersTab";
 
 export default function InventoryTabs({
-    suppliers,
     categories,
     products,
     warehouses,
@@ -19,10 +17,10 @@ export default function InventoryTabs({
     user,
     features,
     currency = "EGP",
-    permissions = { canManageCategories: true, canViewSuppliers: true }
+    permissions = { canManageCategories: true }
 }: any) {
     const t = useTranslations('Inventory');
-    const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES' | 'SUPPLIERS'>('STOCK');
+    const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES'>('STOCK');
     const [stockTab, setStockTab] = useState<'PRODUCTS' | 'CATEGORIES'>('PRODUCTS');
 
     return (
@@ -46,17 +44,6 @@ export default function InventoryTabs({
                         )}
                     >
                         {t('tabs.locations')}
-                    </button>
-                )}
-                {permissions.canViewSuppliers && (
-                    <button
-                        onClick={() => setActiveSection('SUPPLIERS')}
-                        className={clsx(
-                            "px-4 py-2 font-bold rounded-lg transition-all",
-                            activeSection === 'SUPPLIERS' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "hover:bg-white/5 text-zinc-400"
-                        )}
-                    >
-                        {t('tabs.suppliers') || "الموردين"}
                     </button>
                 )}
             </div>
@@ -119,16 +106,6 @@ export default function InventoryTabs({
                             products={products}
                             csrfToken={csrfToken}
                             branchId={warehouses?.[0]?.branchId}
-                        />
-                    </div>
-                )}
-
-                {activeSection === 'SUPPLIERS' && (
-                    <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                        <SuppliersTab
-                            suppliers={suppliers}
-                            csrfToken={csrfToken}
-                            currency={currency}
                         />
                     </div>
                 )}

@@ -31,10 +31,13 @@ type ProductItem = {
     availableQuantity: number;
     costPrice: number;
     sellPrice: number;
+    sellPrice2: number;
+    sellPrice3: number;
 };
 
 type CartItem = ProductItem & {
     cartQuantity: number;
+    priceTier: 'Cost' | 'Sell 1' | 'Sell 2' | 'Sell 3';
 };
 
 export default function TechnicianCustodyTab() {
@@ -106,7 +109,7 @@ export default function TechnicianCustodyTab() {
                 }
                 return prev.map(p => p.id === product.id ? { ...p, cartQuantity: p.cartQuantity + 1 } : p);
             }
-            return [...prev, { ...product, cartQuantity: 1 }];
+            return [...prev, { ...product, cartQuantity: 1, priceTier: 'Cost' }];
         });
     };
 
@@ -123,6 +126,10 @@ export default function TechnicianCustodyTab() {
         }));
     };
 
+    const updatePriceTier = (productId: string, tier: 'Cost' | 'Sell 1' | 'Sell 2' | 'Sell 3') => {
+        setCart(prev => prev.map(p => p.id === productId ? { ...p, priceTier: tier } : p));
+    };
+
     const handleTransfer = () => {
         if (!selectedTechId) { toast.error("اختار مهندس"); return; }
         if (!selectedSourceWarehouseId) { toast.error("اختار المخزن المصدر"); return; }
@@ -132,7 +139,7 @@ export default function TechnicianCustodyTab() {
             const result = await transferCustodyToTech({
                 technicianId: selectedTechId,
                 sourceWarehouseId: selectedSourceWarehouseId,
-                items: cart.map(item => ({ productId: item.id, quantity: item.cartQuantity })),
+                items: cart.map(item => ({ productId: item.id, quantity: item.cartQuantity, priceTier: item.priceTier })),
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -342,7 +349,16 @@ export default function TechnicianCustodyTab() {
                                 <div key={item.id} className="bg-zinc-800 p-4 rounded-xl border border-white/10 flex items-center justify-between">
                                     <div className="flex-1">
                                         <h4 className="font-medium text-white text-sm">{item.name}</h4>
-                                        <p className="text-xs text-zinc-500">{item.sku}</p>
+                                        <p className="text-xs text-zinc-500 mb-2">{item.sku}</p>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] text-zinc-500 uppercase">تسعير النقل</span>
+                                            <div className="flex items-center gap-1 flex-wrap">
+                                                <button onClick={() => updatePriceTier(item.id, 'Cost')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Cost' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>التكلفة ({item.costPrice})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 1')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Sell 1' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>مفرق ({item.sellPrice})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 2')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Sell 2' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>جملة ({item.sellPrice2})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 3')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Sell 3' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>نص جملة ({item.sellPrice3})</button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="flex items-center bg-black rounded-lg p-1">
@@ -400,6 +416,7 @@ export default function TechnicianCustodyTab() {
                 onClose={() => setIsTransferConsoleOpen(false)}
                 availableSources={transferEntities}
                 availableDestinations={transferEntities}
+                csrfToken={csrfToken || undefined}
                 onTransferComplete={() => {
                     getTechniciansForCustody().then(res => {
                         if ((res as any)?.data) setTechnicians((res as any).data);
