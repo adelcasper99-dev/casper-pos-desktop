@@ -16,7 +16,8 @@ import { logger } from "@/lib/logger";
 import { calculateNetProfit, calculateCommission } from "@/lib/commission-validation";
 import { getBranchFilter } from "@/lib/data-filters";
 import { TicketStatus } from "@/lib/constants";
-import { handleReturnedPartStock } from "@/lib/stock-helpers";
+import { handleReturnedPartStock, decrementWarehouseStock, incrementWarehouseStock } from "@/lib/stock-helpers";
+
 
 // Helper to get next sequential ticket number (T-001, T-002...) with collision protection
 async function getNextTicketNumber() {
@@ -2897,3 +2898,5 @@ export const partialRefundTicket = secureAction(async (data: {
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     return result;
 }, { permission: PERMISSIONS.TICKET_EDIT });
+
+

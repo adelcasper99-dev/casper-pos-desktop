@@ -975,3 +975,22 @@ model LocalBackup {
   integrityStatus String    @default("UNCHECKED")
   lastRestoredAt  DateTime?
 }
+
+model SparePart {
+  id          String   @id @default(cuid())
+  category    String
+  productName String
+  brand       String
+  quantity    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  costPrice   String   @default("0")
+  sellPrice   String   @default("0")
+  price1      String   @default("0")
+  price2      String   @default("0")
+  price3      String   @default("0")
+
+  @@index([brand])
+  @@index([category])
+  @@index([productName])
+}

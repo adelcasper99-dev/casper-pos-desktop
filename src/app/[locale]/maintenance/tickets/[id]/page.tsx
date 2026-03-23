@@ -559,6 +559,7 @@ export default function TicketDetailPage() {
                                     status={ticket.status}
                                     technicianId={ticket.technicianId}
                                     technicianName={ticket.technician?.name}
+                                    technicianWarehouseId={ticket.technician?.warehouseId}
                                     onChangeTechnician={() => setShowTechModal(true)}
                                     onUpdate={loadData}
                                     isWarrantyTicket={!!ticket.parentTicketId}
