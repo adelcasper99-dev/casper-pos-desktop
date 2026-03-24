@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from '@/lib/i18n-mock';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { updateSparePartPrices } from '@/actions/spare-parts';
+import { updateSparePart } from '@/actions/spare-parts';
 import GlassModal from '@/components/ui/GlassModal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,26 +27,47 @@ interface Props {
     part: SparePart;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    brands: string[];
 }
 
-export function EditPriceDialog({ part, open, onOpenChange }: Props) {
+export function EditPriceDialog({ part, open, onOpenChange, brands }: Props) {
     const t = useTranslations('SpareParts');
     const router = useRouter();
     const [isPending, setIsPending] = useState(false);
 
+    const [productName, setProductName] = useState(part.productName);
+    const [brand, setBrand] = useState(part.brand);
+    const [quantity, setQuantity] = useState(part.quantity);
     const [costPrice, setCostPrice] = useState(part.costPrice);
     const [sellPrice, setSellPrice] = useState(part.sellPrice);
     const [price1, setPrice1] = useState(part.price1 || '0');
     const [price2, setPrice2] = useState(part.price2 || '0');
     const [price3, setPrice3] = useState(part.price3 || '0');
 
+    // Reset form when part changes
+    useEffect(() => {
+        if (part) {
+            setProductName(part.productName);
+            setBrand(part.brand);
+            setQuantity(part.quantity);
+            setCostPrice(part.costPrice);
+            setSellPrice(part.sellPrice);
+            setPrice1(part.price1 || '0');
+            setPrice2(part.price2 || '0');
+            setPrice3(part.price3 || '0');
+        }
+    }, [part]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsPending(true);
 
         try {
-            const result = await updateSparePartPrices({
+            const result = await updateSparePart({
                 id: part.id,
+                productName,
+                brand,
+                quantity,
                 costPrice,
                 sellPrice,
                 price1,
@@ -63,7 +84,7 @@ export function EditPriceDialog({ part, open, onOpenChange }: Props) {
             }
         } catch (error) {
             toast.error(t('updateError'));
-            console.error('Error updating prices:', error);
+            console.error('Error updating part:', error);
         } finally {
             setIsPending(false);
         }
@@ -73,12 +94,51 @@ export function EditPriceDialog({ part, open, onOpenChange }: Props) {
         <GlassModal
             isOpen={open}
             onClose={() => onOpenChange(false)}
-            title={t('editPrice')}
+            title={t('editPart')}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="p-3 bg-muted/50 rounded-lg border border-border">
-                    <p className="text-sm font-bold text-foreground">{part.productName}</p>
-                    <p className="text-xs text-muted-foreground">{part.brand}</p>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-productName">{t('productName')}</Label>
+                    <Input
+                        id="edit-productName"
+                        value={productName}
+                        onChange={(e) => setProductName(e.target.value)}
+                        placeholder={t('productNamePlaceholder')}
+                        required
+                        className="glass-input"
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-brand">{t('brand')}</Label>
+                        <Input
+                            id="edit-brand"
+                            list="edit-brands-list"
+                            value={brand}
+                            onChange={(e) => setBrand(e.target.value)}
+                            placeholder={t('brandPlaceholder')}
+                            required
+                            className="glass-input"
+                        />
+                        <datalist id="edit-brands-list">
+                            {brands.map((b) => (
+                                <option key={b} value={b} />
+                            ))}
+                        </datalist>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-quantity">{t('quantity')}</Label>
+                        <Input
+                            id="edit-quantity"
+                            value={quantity}
+                            onChange={(e) => setQuantity(e.target.value)}
+                            placeholder={t('quantityPlaceholder')}
+                            required
+                            className="glass-input"
+                        />
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

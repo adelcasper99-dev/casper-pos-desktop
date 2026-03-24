@@ -39,8 +39,9 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { EditPriceDialog } from './EditPriceDialog';
+import { ImportCSVModal } from './ImportCSVModal';
 import { AddPartDialog } from './AddPartDialog';
-import { Edit, Search, Trash2, ChevronLeft, ChevronRight, Plus, Smartphone, Package } from 'lucide-react';
+import { Edit, Search, Trash2, ChevronLeft, ChevronRight, Plus, Smartphone, Package, Upload } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n-mock';
 import { deleteSparePart } from '@/actions/spare-parts';
 import { toast } from 'sonner';
@@ -71,16 +72,16 @@ interface Props {
     };
 }
 
-function SortableBrandButton({ 
-    id, 
-    label, 
-    active, 
-    onClick 
-}: { 
-    id: string; 
-    label: string; 
-    active: boolean; 
-    onClick: () => void 
+function SortableBrandButton({
+    id,
+    label,
+    active,
+    onClick
+}: {
+    id: string;
+    label: string;
+    active: boolean;
+    onClick: () => void
 }) {
     const {
         attributes,
@@ -98,10 +99,10 @@ function SortableBrandButton({
     };
 
     return (
-        <div 
-            ref={setNodeRef} 
-            style={style} 
-            {...attributes} 
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
             {...listeners}
             className="touch-none"
         >
@@ -114,8 +115,8 @@ function SortableBrandButton({
                 }}
                 className={clsx(
                     "h-7 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all cursor-grab active:cursor-grabbing",
-                    active 
-                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]" 
+                    active
+                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
                         : "bg-white/5 text-muted-foreground border-transparent hover:bg-white/10"
                 )}
             >
@@ -141,7 +142,8 @@ export function SparePartsSearch({
     const [selectedBrand, setSelectedBrand] = useState(initialBrand);
     const [editingPart, setEditingPart] = useState<SparePart | null>(null);
     const [isAddOpen, setIsAddOpen] = useState(false);
-    
+    const [isImportOpen, setIsImportOpen] = useState(false);
+
     // Sortable brands state
     const [orderedBrands, setOrderedBrands] = useState<string[]>([]);
 
@@ -177,7 +179,7 @@ export function SparePartsSearch({
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        
+
         if (over && active.id !== over.id) {
             setOrderedBrands((items) => {
                 const oldIndex = items.indexOf(active.id as string);
@@ -249,6 +251,11 @@ export function SparePartsSearch({
                 brands={brands}
             />
 
+            <ImportCSVModal
+                open={isImportOpen}
+                onOpenChange={setIsImportOpen}
+            />
+
             {/* Header Section */}
             <div className="flex justify-between items-center bg-muted/30 p-4 rounded-2xl border border-border" dir="rtl">
                 <div className="flex items-center gap-3 text-muted-foreground">
@@ -267,6 +274,14 @@ export function SparePartsSearch({
                 >
                     <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
                     {t('addPart')}
+                </Button>
+                <Button
+                    onClick={() => setIsImportOpen(true)}
+                    variant="outline"
+                    className="h-10 px-4 rounded-xl border-border hover:bg-white/10"
+                >
+                    <Upload className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                    {t('importCSV')}
                 </Button>
             </div>
 
@@ -320,26 +335,26 @@ export function SparePartsSearch({
                     onClick={() => handleBrandChange('all')}
                     className={clsx(
                         "h-7 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all",
-                        selectedBrand === 'all' 
-                            ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" 
+                        selectedBrand === 'all'
+                            ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
                             : "bg-white/5 text-muted-foreground border-transparent hover:bg-white/10"
                     )}
                 >
                     {t('allBrands')}
                 </Button>
 
-                <DndContext 
+                <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragEnd={handleDragEnd}
                 >
-                    <SortableContext 
+                    <SortableContext
                         items={orderedBrands}
                         strategy={horizontalListSortingStrategy}
                     >
                         <div className="flex flex-wrap gap-2">
                             {orderedBrands.map((brand) => (
-                                <SortableBrandButton 
+                                <SortableBrandButton
                                     key={brand}
                                     id={brand}
                                     label={brand}
@@ -435,10 +450,10 @@ export function SparePartsSearch({
                 <div className="text-xs text-muted-foreground font-medium">
                     {t('showing')} <span className="text-foreground font-bold">{(meta.page - 1) * meta.limit + 1}</span> {t('to')} <span className="text-foreground font-bold">{Math.min(meta.page * meta.limit, meta.total)}</span> {t('of')} <span className="text-foreground font-bold">{meta.total}</span> {t('results')}
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                     {isPending && <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent animate-spin rounded-full" />}
-                    
+
                     <div className="flex items-center gap-1">
                         <Button
                             variant="outline"
@@ -450,11 +465,11 @@ export function SparePartsSearch({
                             <ChevronRight className="h-4 w-4 ml-1" />
                             {t('previous')}
                         </Button>
-                        
+
                         <div className="px-4 text-xs font-bold text-muted-foreground">
                             {t('page')} <span className="text-cyan-400">{meta.page}</span> {t('of')} {meta.totalPages}
                         </div>
-                        
+
                         <Button
                             variant="outline"
                             size="sm"
@@ -475,6 +490,7 @@ export function SparePartsSearch({
                     part={editingPart}
                     open={!!editingPart}
                     onOpenChange={(open) => !open && setEditingPart(null)}
+                    brands={brands}
                 />
             )}
         </div>

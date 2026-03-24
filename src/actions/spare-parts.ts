@@ -23,7 +23,6 @@ export const getSpareParts = secureAction(async (filters?: {
     page?: number;
     limit?: number;
 }) => {
-    // ... same logic ...
     const page = filters?.page || 1;
     const limit = filters?.limit || 50;
     const skip = (page - 1) * limit;
@@ -95,30 +94,38 @@ export const getSparePart = secureAction(async (id: string) => {
     }
 }, { permission: 'INVENTORY_VIEW', requireCSRF: false });
 
-export const updateSparePartPrices = secureAction(async (data: {
+export const updateSparePart = secureAction(async (data: {
     id: string;
-    costPrice: string;
-    sellPrice: string;
+    productName?: string;
+    brand?: string;
+    quantity?: string;
+    costPrice?: string;
+    sellPrice?: string;
     price1?: string;
     price2?: string;
     price3?: string;
 }) => {
     try {
+        const updateData: any = {};
+
+        if (data.productName !== undefined) updateData.productName = data.productName;
+        if (data.brand !== undefined) updateData.brand = data.brand;
+        if (data.quantity !== undefined) updateData.quantity = data.quantity;
+        if (data.costPrice !== undefined) updateData.costPrice = data.costPrice;
+        if (data.sellPrice !== undefined) updateData.sellPrice = data.sellPrice;
+        if (data.price1 !== undefined) updateData.price1 = data.price1;
+        if (data.price2 !== undefined) updateData.price2 = data.price2;
+        if (data.price3 !== undefined) updateData.price3 = data.price3;
+
         await prisma.sparePart.update({
             where: { id: data.id },
-            data: {
-                costPrice: data.costPrice,
-                sellPrice: data.sellPrice,
-                price1: data.price1 || "0",
-                price2: data.price2 || "0",
-                price3: data.price3 || "0",
-            },
+            data: updateData,
         });
         revalidatePath('/spare-parts');
         return { success: true };
     } catch (error) {
-        console.error('Error updating spare part prices:', error);
-        return { success: false, error: 'Failed to update prices' };
+        console.error('Error updating spare part:', error);
+        return { success: false, error: 'Failed to update part' };
     }
 }, { permission: 'INVENTORY_MANAGE' });
 
@@ -140,7 +147,7 @@ export const addSparePart = secureAction(async (data: z.infer<typeof sparePartSc
         await prisma.sparePart.create({
             data: {
                 ...data,
-                category: 'داخلي', // Default category
+                category: 'داخلي',
             },
         });
         revalidatePath('/spare-parts');
@@ -148,5 +155,57 @@ export const addSparePart = secureAction(async (data: z.infer<typeof sparePartSc
     } catch (error) {
         console.error('Error adding spare part:', error);
         return { success: false, error: 'Failed to add part' };
+    }
+}, { permission: 'INVENTORY_MANAGE' });
+
+// Import multiple spare parts at once
+const importPartsSchema = z.object({
+    parts: z.array(z.object({
+        productName: z.string(),
+        brand: z.string(),
+        quantity: z.string(),
+        costPrice: z.string(),
+        sellPrice: z.string(),
+        price1: z.string().optional(),
+        price2: z.string().optional(),
+        price3: z.string().optional(),
+    })),
+});
+
+export const importSpareParts = secureAction(async (data: z.infer<typeof importPartsSchema>) => {
+    try {
+        const results = {
+            success: 0,
+            failed: 0,
+            errors: [] as string[]
+        };
+
+        for (const part of data.parts) {
+            try {
+                await prisma.sparePart.create({
+                    data: {
+                        productName: part.productName,
+                        brand: part.brand,
+                        quantity: part.quantity,
+                        costPrice: part.costPrice || '0',
+                        sellPrice: part.sellPrice || '0',
+                        price1: part.price1 || '0',
+                        price2: part.price2 || '0',
+                        price3: part.price3 || '0',
+                        category: 'داخلي',
+                    },
+                });
+                results.success++;
+            } catch (error: any) {
+                results.failed++;
+                results.errors.push(`Failed to import "${part.productName}": ${error.message}`);
+            }
+        }
+
+        revalidatePath('/spare-parts');
+        return { success: true, results };
+    } catch (error) {
+        console.error('Error importing spare parts:', error);
+        return { success: false, error: 'Failed to import parts' };
     }
 }, { permission: 'INVENTORY_MANAGE' });
