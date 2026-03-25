@@ -392,13 +392,20 @@ export const recordCustomerPayment = secureAction(async (data: {
         }
 
         // 6. Accounting Engine Sync
+        // Fix A: Use correct GL asset account based on paymentMethod
+        const customerGlMap: Record<string, string> = {
+            CASH: '1000', VISA: '1010', CARD: '1010',
+            MASTERCARD: '1010', BANK: '1010',
+            INSTAPAY: '1020', WALLET: '1020', VODAFONE_CASH: '1020'
+        };
+        const customerPaymentGlCode = customerGlMap[paymentMethod] ?? '1000';
         try {
             await AccountingEngine.recordTransaction({
                 description: `Customer Payment: ${customer.name}`,
                 reference: transaction.id,
                 branchId: currentUser.branchId ?? undefined,
                 lines: [
-                    { accountCode: '1000', debit: amount, credit: 0, description: `Cash Received (${paymentMethod})` },
+                    { accountCode: customerPaymentGlCode, debit: amount, credit: 0, description: `${paymentMethod} Received` },
                     { accountCode: '1100', debit: 0, credit: amount, description: 'Customer AR Reduced' }
                 ]
             }, tx);

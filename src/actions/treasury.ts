@@ -536,18 +536,22 @@ export async function transferBetweenTreasuries(data: {
         },
       });
 
-      // 3. Accounting: Record inter-fund transfer
+      // 3. Accounting: Record inter-fund transfer with correct per-treasury GL codes
       const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
       const glMap: Record<string, string> = { CASH: '1000', VISA: '1010', CARD: '1010', INSTAPAY: '1020', WALLET: '1020' };
-      const glCode = glMap[method] ?? '1000';
+      // Fix 2: Each treasury's own paymentMethod determines its GL account
+      const fromGlCode = glMap[fromTreasury.paymentMethod ?? 'CASH'] ?? '1000';
+      const toGlCode   = glMap[toTreasury.paymentMethod   ?? 'CASH'] ?? '1000';
       const fromBranchId = fromTreasury.branchId ?? undefined;
       await AccountingEngine.recordTransaction({
           description: `Inter-Fund Transfer: ${fromTreasury.name} → ${toTreasury.name}`,
           reference: `TRF-${Date.now()}`,
           branchId: fromBranchId,
           lines: [
-              { accountCode: glCode, debit: amountDec.toNumber(), credit: 0,           description: `Received by ${toTreasury.name}` },
-              { accountCode: glCode, debit: 0,           credit: amountDec.toNumber(), description: `Sent from ${fromTreasury.name}` }
+              // Debit the destination treasury's asset account (it gains cash)
+              { accountCode: toGlCode,   debit: amountDec.toNumber(), credit: 0,                   description: `Received by ${toTreasury.name}` },
+              // Credit the source treasury's asset account (it loses cash)
+              { accountCode: fromGlCode, debit: 0,                   credit: amountDec.toNumber(), description: `Sent from ${fromTreasury.name}` }
           ]
       }, tx);
     });

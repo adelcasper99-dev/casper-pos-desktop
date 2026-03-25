@@ -92,6 +92,14 @@ export const createExpense = secureAction(async (data: {
         }
 
         // 4. Create journal entry (inside transaction)
+        // Fix 1: Use correct GL asset account based on paymentMethod, not always '1000'
+        const glAccountMap: Record<string, string> = {
+            CASH: '1000', VISA: '1010', CARD: '1010',
+            MASTERCARD: '1010', BANK: '1010',
+            INSTAPAY: '1020', WALLET: '1020', VODAFONE_CASH: '1020'
+        };
+        const glCodeForPayment = glAccountMap[data.paymentMethod || 'CASH'] ?? '1000';
+
         await AccountingEngine.recordTransaction({
             description: `Expense: ${data.description}`,
             reference: expense.id,
@@ -99,7 +107,7 @@ export const createExpense = secureAction(async (data: {
             branchId: currentUser.branchId ?? undefined, // Expense GL must carry branchId for P&L isolation
             lines: [
                 { accountCode: '5200', debit: data.amount, credit: 0, description: data.category },
-                { accountCode: '1000', debit: 0, credit: data.amount, description: 'Cash Paid' }
+                { accountCode: glCodeForPayment, debit: 0, credit: data.amount, description: `${data.paymentMethod || 'CASH'} Paid` }
             ]
         }, tx);
 
@@ -294,6 +302,39 @@ export const addTransaction = secureAction(async (type: string, amount: number, 
                     data: { balance: { decrement: amount } }
                 });
             }
+        }
+
+        // Fix 3: Post GL journal entry for full auditability
+        // Wrapped in try/catch so a missing seedAccounts run won't break the treasury update
+        try {
+            const POSITIVE_TYPES = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'];
+            const isPositiveGL = POSITIVE_TYPES.includes(type);
+            const glAccountMap: Record<string, string> = {
+                CASH: '1000', VISA: '1010', CARD: '1010',
+                MASTERCARD: '1010', BANK: '1010',
+                INSTAPAY: '1020', WALLET: '1020', VODAFONE_CASH: '1020'
+            };
+            const assetAccount = glAccountMap[method] ?? '1000';
+
+            if (isPositiveGL) {
+                await AccountingEngine.recordTransaction({
+                    description,
+                    lines: [
+                        { accountCode: assetAccount, debit: amount, credit: 0,      description: `${method} Cash In` },
+                        { accountCode: '4400',        debit: 0,      credit: amount, description: 'Other Income' }
+                    ]
+                }, tx);
+            } else {
+                await AccountingEngine.recordTransaction({
+                    description,
+                    lines: [
+                        { accountCode: '5200',        debit: amount, credit: 0,      description: 'General Expense' },
+                        { accountCode: assetAccount,  debit: 0,      credit: amount, description: `${method} Cash Out` }
+                    ]
+                }, tx);
+            }
+        } catch (glError) {
+            console.error('[addTransaction] GL posting failed (non-fatal):', glError);
         }
     });
 

@@ -195,10 +195,15 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
         // 🎯 COMBINED KPIs (Using Decimal for precision)
         // ─────────────────────────────────────────────────────────────────────
         const totalRevenueDec = totalSalesRevenue.plus(totalTicketRevenue);
-        const netProfitDec = totalRevenueDec
+        let netProfitDec = totalRevenueDec
             .minus(totalExpenses)
-            .minus(totalCOGS)
-            .minus(totalTicketPartsCost);
+            .minus(totalCOGS);
+
+        // R-01: Only subtract parts cost separately if it's NOT already in totalCOGS
+        // (Leger aggregation for Account 5000 already includes Maintenance COGS)
+        if (filters?.categoryId || filters?.productId) {
+            netProfitDec = netProfitDec.minus(totalTicketPartsCost);
+        }
 
         // ─────────────────────────────────────────────────────────────────────
         // 📈 TREND DATA: Daily Revenue (POS + Maintenance)
@@ -373,6 +378,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                     totalRevenue: totalRevenueDec.toNumber(),
                     netProfit: netProfitDec.toNumber(),
                     totalExpenses: totalExpenses.toNumber(),
+                    totalCOGS: totalCOGS.toNumber(),
                     totalPurchases: totalPurchases.toNumber(),
                     count: saleCount + ticketCount,
                     // Separated

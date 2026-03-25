@@ -356,8 +356,9 @@ export const payEmployeeSalary = secureAction(async (data: {
                 ]
             }, tx);
 
-            // 3. Update Treasury if CASH
-            if (data.paymentMethod === 'CASH' && data.treasuryId) {
+            // 3. Update Treasury for all payment methods (not just CASH)
+            // Fix B: treasury deduction should apply regardless of method
+            if (data.treasuryId) {
                 const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
                 if (!treasury) throw new Error("Treasury not found");
                 if (Number(treasury.balance) < data.amount) {
@@ -372,12 +373,12 @@ export const payEmployeeSalary = secureAction(async (data: {
                     data: { balance: { decrement: data.amount } }
                 });
 
-                await tx.transaction.create({
+                await (tx as any).transaction.create({
                     data: {
                         type: 'EXPENSE',
                         amount: data.amount,
                         description: `سداد راتب: ${data.userId}`,
-                        paymentMethod: 'CASH',
+                        paymentMethod: data.paymentMethod,
                         treasuryId: data.treasuryId,
                         referenceId: empTx.id,
                         referenceType: 'SALARY_PAYMENT',

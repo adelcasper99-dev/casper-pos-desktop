@@ -27,8 +27,8 @@ export const EXPENSE_CATEGORY_MAP: Record<string, { glCode: string; labelAr: str
     'EQUIPMENT': { glCode: '1300', labelAr: 'شراء معدات/آلات', labelEn: 'Equipment Purchase' },
     'FURNITURE': { glCode: '1300', labelAr: 'شراء أثاث/ديكور', labelEn: 'Furniture Purchase' },
 
-    // ── 3100: Owner\'s Drawings (Personal) ──
-    'OWNER_DRAWING': { glCode: '3100', labelAr: 'مسحوبات شخصية', labelEn: 'Owner Drawings' },
+    // ── 3200: Owner's Drawings (Personal) ──
+    'OWNER_DRAWING': { glCode: '3200', labelAr: 'مسحوبات شخصية', labelEn: 'Owner Drawings' },
 };
 
 export const INCOME_CATEGORY_MAP: Record<string, { glCode: string; labelAr: string; labelEn: string }> = {

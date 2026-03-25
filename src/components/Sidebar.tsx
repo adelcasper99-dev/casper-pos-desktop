@@ -30,6 +30,7 @@ import {
     Clock,
     History as HistoryIcon,
     Undo2,
+    TrendingUp,
     type LucideIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -67,8 +68,12 @@ const MENU_ITEMS = [
     { key: "purchasing", href: "/purchasing", icon: Truck, permission: PERMISSION_REGISTRY.PURCHASING.VIEW },
     { key: "treasury", href: "/treasury", icon: Landmark, permission: PERMISSION_REGISTRY.TREASURY.VIEW },
     { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSION_REGISTRY.LOGS.VIEW },
-    { key: "reports", href: "/reports", icon: BarChart3, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
-    { key: "maintenance_dashboard", href: "/maintenance/dashboard", icon: Activity, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
+    // Reports Section
+    { key: "reports_main", href: "/reports", icon: BarChart3, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
+    { key: "reports_profit_loss", href: "/reports/profit-loss", icon: TrendingUp, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
+    { key: "reports_inventory", href: "/reports/inventory", icon: Package, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
+    { key: "reports_cash_flow", href: "/reports/cash-flow", icon: Landmark, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
+    { key: "maintenance_dashboard", href: "/dashboard/reports/maintenance-profit", icon: Activity, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
     { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSION_REGISTRY.TICKET.VIEW },
     { key: "returns", href: "/returns", icon: Undo2, permission: undefined },
 ];
@@ -127,10 +132,10 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
         const visibleItems = MENU_ITEMS.filter(item => {
             // 1. Check Feature Toggle (Enabled by default if not specified)
             // Handle linked modules
-            const featureKey = item.key.includes('maintenance') ? 'maintenance' : 
-                               item.key === 'returns' ? 'returns' :
-                               item.key === 'logs' ? 'reports' :
-                               item.key;
+            const featureKey = item.key.includes('maintenance') ? 'maintenance' :
+                item.key === 'returns' ? 'returns' :
+                    item.key === 'logs' ? 'reports' :
+                        item.key;
 
             if (item.key === 'returns') {
                 // Returns should be visible if POS OR Maintenance OR Purchasing is enabled
@@ -145,7 +150,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                 const hasMaintAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.TICKET.VIEW);
                 const hasPurchAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.PURCHASING.VIEW);
                 if (!hasPosAccess && !hasMaintAccess && !hasPurchAccess) return false;
-                
+
                 return true;
             } else if (features[featureKey] === false) {
                 return false;
