@@ -65,6 +65,16 @@ export default function TicketsList() {
     const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
     const [isSilentPrint, setIsSilentPrint] = useState(false)
 
+    // Helper: check if default printers are configured
+    const hasThermalPrinter = () =>
+        !!(localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer') || localStorage.getItem('casper_ticket_printer'));
+    const hasLabelPrinter = () =>
+        !!(localStorage.getItem('printer_label') || localStorage.getItem('casper_barcode_printer') || localStorage.getItem('casper_label_printer'));
+
+    // Clear the auto-print session guard so re-printing works
+    const clearPrintGuard = (ticketId: string) =>
+        sessionStorage.removeItem(`ticket_autoprint_${ticketId}`);
+
     const [serverStats, setServerStats] = useState({ delivered: 0, returns: 0, ratio: '0.0', totalPaid: 0 });
 
     const stats = useMemo(() => serverStats, [serverStats]);
@@ -575,29 +585,36 @@ export default function TicketsList() {
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator className="bg-white/5" />
                                                         <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation(); 
+                                                            e.stopPropagation();
+                                                            clearPrintGuard(ticket.id);
+                                                            const silent = hasThermalPrinter();
                                                             setPrintTicket(ticket); 
                                                             setPrintMode('receipt'); 
+                                                            setIsSilentPrint(silent);
                                                             setShowPrintOptions(true); 
-                                                            setIsSilentPrint(true);
                                                         }}>
                                                             <Printer className="mr-2 h-4 w-4" />
                                                             <span>{t('list.printReceipt')}</span>
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation(); 
+                                                            e.stopPropagation();
+                                                            clearPrintGuard(ticket.id);
+                                                            const silent = hasThermalPrinter();
                                                             setPrintTicket(ticket); 
                                                             setPrintMode('engineer'); 
+                                                            setIsSilentPrint(silent);
                                                             setShowPrintOptions(true); 
-                                                            setIsSilentPrint(true);
                                                         }}>
                                                             <SettingsIcon className="mr-2 h-4 w-4" />
                                                             <span>{t('list.printEngineer')}</span>
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation(); 
+                                                            e.stopPropagation();
+                                                            clearPrintGuard(ticket.id);
+                                                            const silent = hasLabelPrinter();
                                                             setPrintTicket(ticket); 
                                                             setPrintMode('label'); 
+                                                            setIsSilentPrint(silent);
                                                             setShowPrintOptions(true); 
                                                         }}>
                                                             <StickyNote className="mr-2 h-4 w-4" />
@@ -635,6 +652,7 @@ export default function TicketsList() {
                     settings={settings}
                     defaultMode={printMode}
                     silent={isSilentPrint}
+                    singleDocument={isSilentPrint}
                 />
             )}
 

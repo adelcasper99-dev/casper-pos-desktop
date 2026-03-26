@@ -351,7 +351,7 @@ const handleStandardPrint = async (event, html, printerName, options) => {
     const hasCustomPageSize = options?.pageSize && typeof options.pageSize === 'object';
     const labelWidth = hasCustomPageSize ? options.pageSize.width : 0;
     const labelHeight = hasCustomPageSize ? options.pageSize.height : 0;
-    
+
     log(`[StandardPrint] Custom pageSize: ${hasCustomPageSize}, width: ${labelWidth}µm, height: ${labelHeight}µm`);
 
     const printWindow = new BrowserWindow({
@@ -382,11 +382,11 @@ const handleStandardPrint = async (event, html, printerName, options) => {
             printBackground: true,
             color: true,
             margins: hasCustomPageSize ? { marginType: 'none' } : { marginType: 'none' },
-            ...(hasCustomPageSize ? { 
-                pageSize: { 
-                    width: labelWidth, 
-                    height: labelHeight 
-                } 
+            ...(hasCustomPageSize ? {
+                pageSize: {
+                    width: labelWidth,
+                    height: labelHeight
+                }
             } : { pageSize: 'A4' }),
             ...options
         };
@@ -453,7 +453,7 @@ const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
             margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }, // No margins for thermal
             pageSize: {
                 width: Math.round((paperWidthMm || 80) * 1000),
-                height: Math.round((paperWidthMm || 80) * 1000) // Square aspect ratio for thermal roll
+                height: 1000000 // Very tall height for continuous thermal roll - prevents page splitting
             }
         };
 
