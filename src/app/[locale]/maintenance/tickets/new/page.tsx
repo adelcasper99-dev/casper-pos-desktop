@@ -227,11 +227,15 @@ export default function NewTicketPage() {
                 toast.error(errorMsg);
                 setSubmitting(false);
             } else {
-                toast.success("Ticket created! Opening details...");
-                const ticketId = (res as any).id || (res as any).data?.id;
+                // 🛡️ FIX: Don't show success toast when auto-print is enabled - it causes confusion
+                // The print modal will show automatically
+                const ticketId = (res as any).ticketId || (res as any).data?.ticketId;
+
+                console.log('[AutoPrint] Ticket created, redirecting with print=true, ticketId:', ticketId);
 
                 if (ticketId) {
-                    router.push(`/${locale}/maintenance/tickets/${ticketId}?print=true`);
+                    // Use replace to avoid history stack issues
+                    router.replace(`/${locale}/maintenance/tickets/${ticketId}?print=true`);
                 } else {
                     router.push(`/${locale}/maintenance/tickets`);
                 }

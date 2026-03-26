@@ -114,14 +114,27 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                     console.log("[AutoPrint] Waiting for ticket/settings data...", { ticket: !!ticket, settings: !!settings });
                     toast.info("Waiting for data to load...", { id: "autoprint-loading", duration: 1000 });
                 }
+                // 🛡️ FIX: Don't return - schedule another attempt
+                if (isMounted) {
+                    timerId = setTimeout(() => {
+                        if (isMounted && isOpen) doAutoPrint();
+                    }, 1500);
+                }
                 return;
             }
 
-            const isOnline = await printService.isServerOnline();
+            // 🛡️ FIX: Check if running in Electron mode (desktop)
+            const isElectron = printService.isElectron();
+            if (isElectron) {
+                console.log("[AutoPrint] Running in Electron mode - using native print");
+            }
 
-            // 🛡️ Show error if QZ Tray is offline
+            // For Electron mode, we can skip the isServerOnline check since Electron has its own print channel
+            const isOnline = isElectron ? true : await printService.isServerOnline();
+
+            // 🛡️ Show error if print service is offline (not just QZ)
             if (!isOnline && (settings?.autoPrintTicket || silent)) {
-                toast.error("الطابعة غير متصلة. يرجى تشغيل QZ Tray أو برنامج الطباعة.", {
+                toast.error("الطابعة غير متصلة. يرجى تشغيل برنامج الطباعة.", {
                     id: "printer-offline-warning"
                 });
                 return;
@@ -288,6 +301,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         // Previously used printHTML → print:standard which hardcodes A4 pageSize
                         // in main.js, causing the thermal printer to receive an A4 job it can't render.
                         const paperWidthMm = settings?.paperSize === '58mm' ? 58 : 80;
+                        console.log('[AutoPrint] handlePrintReceipt - paperWidthMm:', paperWidthMm, 'settings:', settings);
                         const success = await printService.printThermal(fullReceiptHtml, printer, paperWidthMm);
                         if (!success) {
                             // Electron thermal failed — try the HTML path as fallback (QZ / Agent)

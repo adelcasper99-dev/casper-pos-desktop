@@ -430,6 +430,8 @@ class PrintService {
       } catch (err) {
         console.warn('[PrintService] Electron silent print failed, trying Agent...', err);
       }
+    } else {
+      console.log('[PrintService] Electron channel not available, checking other channels...');
     }
 
     // 2. Casper Agent
@@ -456,11 +458,15 @@ class PrintService {
         });
         logger.info(`✓ [QZ] Printed to "${printerName}"`);
         return true;
+      } else {
+        console.warn('[PrintService] QZ Tray is offline');
       }
     } catch (e) {
       console.warn('[PrintService] QZ print failed', e);
     }
 
+    // 🛡️ FIX: Log detailed error when all channels fail
+    logger.error(`❌ [PrintService] All print channels failed. Printer: "${printerName}", Options: ${JSON.stringify(options)}`);
     return false;
   }
 
@@ -492,14 +498,28 @@ class PrintService {
       || localStorage.getItem('printer_receipt')
       || undefined;
 
+    // 🛡️ FIX: Add diagnostic logging
+    console.log('[PrintService] printHTML called:', { 
+      printerName, 
+      targetPrinter, 
+      isElectron: this.isElectron(),
+      strictlySilent: options?.strictlySilent,
+      paperWidthMm: options?.paperWidthMm
+    });
+
     if (targetPrinter) {
       // 🛡️ HARDENING: Added a safety race to ensure the frontend doesn't hang if IPC doesn't return
       const printPromise = this.printSilentHTML(html, targetPrinter, options);
       const timeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 20000));
 
       const success = await Promise.race([printPromise, timeoutPromise]);
-      if (success) return;
+      if (success) {
+        console.log('[PrintService] Print succeeded');
+        return;
+      }
       console.warn('[PrintService] Silent print timed out or failed');
+    } else {
+      console.warn('[PrintService] No target printer resolved');
     }
 
     // 🛡️ [Electron/Strict] BLOCK FALLBACK DIALOG

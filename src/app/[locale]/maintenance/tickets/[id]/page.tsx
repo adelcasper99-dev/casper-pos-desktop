@@ -254,30 +254,61 @@ export default function TicketDetailPage() {
     }, [id]);
 
     useEffect(() => {
+        // 🛡️ FIX: Log state changes for debugging
+        console.log('[AutoPrint] ========== USE EFFECT RUNNING =========='); 
+        console.log('[AutoPrint] State:', { 
+            printParam: searchParams.get('print'), 
+            ticketExists: !!ticket, 
+            loading, 
+            hasPrinted, 
+            settingsExists: !!settings,
+            showPrintOptions 
+        });
+
+        // Don't run if still loading initial data
+        if (loading) {
+            console.log('[AutoPrint] Skipping - still loading');
+            return;
+        }
+
+        // Already shown
+        if (showPrintOptions) {
+            console.log('[AutoPrint] Already shown');
+            return;
+        }
+
         const shouldPrint = searchParams.get('print') === 'true';
+        console.log('[AutoPrint] shouldPrint:', shouldPrint);
 
         // If print=true in URL, show print options regardless of settings
         // This ensures the print dialog works immediately after ticket creation
-        if (shouldPrint && ticket && !loading && !hasPrinted) {
+        if (shouldPrint && ticket && !hasPrinted) {
+            console.log('[AutoPrint] ✓ Triggering from print=true URL param');
             setHasPrinted(true);
             setIsSilentPrint(true);
             setShowPrintOptions(true);
             
             // Clean URL
-            const url = new URL(window.location.href);
-            url.searchParams.delete('print');
-            window.history.replaceState({}, '', url.toString());
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('print');
+                window.history.replaceState({}, '', url.toString());
+            } catch (e) {
+                console.log('[AutoPrint] URL clean failed:', e);
+            }
             return;
         }
 
         // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
         const autoPrintEnabled = settings?.autoPrintTicket === true;
-        if (autoPrintEnabled && ticket && !loading && !hasPrinted) {
+        console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
+        if (autoPrintEnabled && ticket && !hasPrinted) {
+            console.log('[AutoPrint] ✓ Triggering from settings');
             setIsSilentPrint(true);
             setShowPrintOptions(true);
             setHasPrinted(true);
         }
-    }, [searchParams, ticket, loading, hasPrinted, settings]);
+    }, [searchParams, ticket, loading, hasPrinted, settings, showPrintOptions]);
 
     async function loadData() {
         if (!ticket) setLoading(true);
@@ -365,7 +396,9 @@ export default function TicketDetailPage() {
         }
     };
 
+    // Function to open print modal
     const openBarcodePrint = () => {
+        console.log('[TEST] Force opening print modal');
         setDefaultPrintMode('label');
         setIsSilentPrint(true);
         setShowPrintOptions(true);

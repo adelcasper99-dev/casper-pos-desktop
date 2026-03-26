@@ -44,6 +44,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const { token: csrfToken } = useCSRF();
     const [isLoading, setIsLoading] = useState(false);
     const [settings, setSettings] = useState<any>(null);
+    const [settingsLoading, setSettingsLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
     // Payment State
@@ -80,8 +81,10 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
     useEffect(() => {
         const loadSettings = async () => {
+            setSettingsLoading(true);
             const res = await getEffectiveStoreSettings();
             if (res.success) setSettings(res.data);
+            setSettingsLoading(false);
         };
         if (isOpen) {
             loadSettings();
@@ -210,7 +213,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
             // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
             // Only auto-print when explicitly enabled to avoid unexpected behavior
-            if (settings?.autoPrintTicket === true) {
+            // 🛡️ FIX: Wait for settings to load and check loading state
+            if (!settingsLoading && settings && settings.autoPrintTicket === true) {
                 // We use a small delay to ensure the success state is rendered or the state is ready
                 setTimeout(() => {
                     handlePrint(true);
@@ -219,6 +223,18 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         onClose();
                     }, 1200);
                 }, 500);
+            } else if (settingsLoading) {
+                // 🛡️ Settings still loading - wait for them to load then auto-print
+                const checkSettingsAndPrint = () => {
+                    if (settings && settings.autoPrintTicket === true) {
+                        handlePrint(true);
+                        setTimeout(() => onClose(), 1200);
+                    } else {
+                        onClose();
+                    }
+                };
+                // Wait a bit and check again
+                setTimeout(checkSettingsAndPrint, 1000);
             } else {
                 // Auto close after small delay to let user see success state/toast
                 setTimeout(() => {

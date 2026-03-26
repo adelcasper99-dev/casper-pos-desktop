@@ -438,10 +438,10 @@ const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
             deviceName: (printerName && printerName !== 'none' && printerName !== 'undefined') ? printerName : '',
             printBackground: true,
             color: false, // Thermal is B&W
-            margins: { marginType: 'default' }, // Hardware margins
+            margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }, // No margins for thermal
             pageSize: {
                 width: Math.round((paperWidthMm || 80) * 1000),
-                height: 297000
+                height: Math.round((paperWidthMm || 80) * 1000) // Square aspect ratio for thermal roll
             }
         };
 
