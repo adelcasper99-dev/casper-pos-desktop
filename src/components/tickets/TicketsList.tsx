@@ -493,6 +493,11 @@ export default function TicketsList() {
                                                 <Badge className={`${getStatusColor(ticket.status)} text-white font-bold border-0 hover:${getStatusColor(ticket.status)}`}>
                                                     {getStatusLabel(ticket.status)}
                                                 </Badge>
+                                                {ticket.status === 'REJECTED' && ticket.rejectionReason && (
+                                                    <div className="text-[10px] text-red-400 mt-1 max-w-[100px] truncate" title={ticket.rejectionReason}>
+                                                        📝 {ticket.rejectionReason}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="text-xs">{new Date(ticket.createdAt).toLocaleDateString()}</span>

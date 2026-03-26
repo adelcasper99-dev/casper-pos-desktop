@@ -727,6 +727,88 @@ export const undoTicketStatus = secureAction(async (data: {
 }, { permission: PERMISSIONS.TICKET_WORKFLOW });
 
 /**
+ * Reject a ticket with a required reason (Admin/Supervisor only)
+ */
+export const rejectTicket = secureAction(async (data: {
+    ticketId: string;
+    reason: string;
+    csrfToken?: string;
+}) => {
+    const { ticketId, reason } = data;
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Check if user is admin or supervisor
+    const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
+    if (!isAdmin) {
+        throw new Error("لا يمكنك رفض التذكرة. يتطلب الأمر صلاحية المدير أو المشرف");
+    }
+
+    // Validate reason is provided
+    if (!reason || reason.trim().length === 0) {
+        throw new Error("يرجى إدخال سبب الرفض");
+    }
+
+    const existingTicket = await prisma.ticket.findUnique({
+        where: { id: ticketId }
+    });
+
+    if (!existingTicket) throw new Error("Ticket not found");
+
+    // Check if ticket is already in a finalized state
+    if (['REJECTED', 'PAID_DELIVERED', 'VOIDED'].includes(existingTicket.status)) {
+        throw new Error("لا يمكن رفض هذه التذكرة في حالتها الحالية");
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+        const ticket = await tx.ticket.update({
+            where: { id: ticketId },
+            data: {
+                status: TicketStatus.REJECTED,
+                previousStatus: existingTicket.status,
+                rejectionReason: reason.trim(),
+                rejectedAt: new Date(),
+                rejectedBy: user.id
+            }
+        });
+
+        // Add history note
+        await tx.ticketNote.create({
+            data: {
+                ticketId,
+                text: `تم رفض التذكرة. السبب: ${reason.trim()}`,
+                author: user.name || user.username || "System",
+                isInternal: true
+            }
+        });
+
+        // Create audit log
+        await tx.auditLog.create({
+            data: {
+                user: user.id,
+                action: "TICKET_REJECTED",
+                entityType: "Ticket",
+                entityId: ticket.id,
+                newData: JSON.stringify({
+                    barcode: ticket.barcode,
+                    reason: reason.trim(),
+                    previousStatus: existingTicket.status
+                }),
+                branchId: user.branchId
+            }
+        });
+
+        return ticket;
+    }, { timeout: 60000 });
+
+    revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
+    revalidatePath("/ar/maintenance/tickets");
+    revalidateTag("dashboard");
+
+    return { success: true, ticket: result };
+}, { permission: PERMISSIONS.TICKET_EDIT });
+
+/**
  * Add a note to a ticket
  */
 export const addTicketNote = secureAction(async (data: {
@@ -1096,7 +1178,7 @@ export const softDeleteTicket = secureAction(async (data: {
         // --- Part 5: Final Audit Log ---
         await tx.auditLog.create({
             data: {
-                entityType: 'TICKET',
+                entity: 'TICKET',
                 entityId: ticketId,
                 action: 'SOFT_DELETE',
                 reason,
@@ -1207,7 +1289,7 @@ export const markForReRepair = secureAction(async (data: {
         if (clawbackAmount > 0 && originalTechId) {
             await tx.auditLog.create({
                 data: {
-                    entityType: 'COMMISSION_CLAWBACK',
+                    entity: 'COMMISSION_CLAWBACK',
                     entityId: ticketId,
                     action: clawbackOption === 'FULL' ? 'FULL_CLAWBACK' : 'PARTIAL_CLAWBACK',
                     previousData: JSON.stringify({

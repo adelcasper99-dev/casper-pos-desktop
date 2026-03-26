@@ -19,26 +19,26 @@ model SystemConfig {
 }
 
 model StoreSettings {
-  id                 String  @id @default("settings")
-  name               String  @default("Casper Store")
-  phone              String?
-  address            String?
-  taxRate            Decimal @default(0.00)
-  currency           String  @default("EGP")
-  receiptFooter      String  @default("Thank you for shopping with us!")
-  vatNumber          String?
-  logoUrl            String?
-  autoPrint          Boolean @default(false)
-  autoPrintTicket    Boolean @default(false)
+  id                    String  @id @default("settings")
+  name                  String  @default("Casper Store")
+  phone                 String?
+  address               String?
+  taxRate               Decimal @default(0.00)
+  currency              String  @default("EGP")
+  receiptFooter         String  @default("Thank you for shopping with us!")
+  vatNumber             String?
+  logoUrl               String?
+  autoPrint             Boolean @default(false)
+  autoPrintTicket       Boolean @default(false)
   autoPrintEngineerCopy Boolean @default(false)
-  paperSize          String  @default("80mm")
-  features           String  @default("{}")
-  locationLat        Float   @default(24.7136)
-  locationLng        Float   @default(46.6753)
-  locationRadius     Int     @default(500)
-  labelTemplate      String?
-  allowNegativeStock Boolean @default(false)
-  blindCloseEnabled  Boolean @default(true)
+  paperSize             String  @default("80mm")
+  features              String  @default("{}")
+  locationLat           Float   @default(24.7136)
+  locationLng           Float   @default(46.6753)
+  locationRadius        Int     @default(500)
+  labelTemplate         String?
+  allowNegativeStock    Boolean @default(false)
+  blindCloseEnabled     Boolean @default(true)
 }
 
 model User {
@@ -748,6 +748,9 @@ model Ticket {
   originalTechId       String?
   returnCount          Int                  @default(0)
   returnReason         String?
+  rejectionReason      String? // Reason when ticket is rejected
+  rejectedAt           DateTime? // When the ticket was rejected
+  rejectedBy           String? // User ID who rejected the ticket
   shiftId              String?
   warrantyExpiryDate   DateTime?
   expectedDuration     Int?

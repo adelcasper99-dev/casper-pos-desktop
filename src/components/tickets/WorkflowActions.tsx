@@ -32,10 +32,11 @@ interface WorkflowActionsProps {
     ticket: WorkflowTicket;
     user: UserSession;
     onUpdate: () => void;
+    onReject?: () => void;
     csrfToken?: string;
 }
 
-export default function WorkflowActions({ ticket, user, onUpdate }: Omit<WorkflowActionsProps, 'csrfToken'>) {
+export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Omit<WorkflowActionsProps, 'csrfToken'>) {
     const t = useTranslations('Tickets.workflow');
     const { token: csrfToken } = useCSRF();
     const [loading, setLoading] = useState<string | null>(null);
@@ -268,6 +269,20 @@ export default function WorkflowActions({ ticket, user, onUpdate }: Omit<Workflo
                     )
                 )}
             </div>
+
+            {/* Reject Button - Admin Only */}
+            {onReject && !['REJECTED', 'PAID_DELIVERED', 'VOIDED'].includes(ticket.status) && (
+                <div className="mt-3 pt-3 border-t border-white/10">
+                    <Button
+                        onClick={onReject}
+                        variant="outline"
+                        className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 h-10 rounded-lg flex items-center justify-center gap-2"
+                    >
+                        <XCircle className="w-4 h-4" />
+                        رفض التذكرة
+                    </Button>
+                </div>
+            )}
 
             <TicketPaymentModal 
                 isOpen={showPaymentModal} 

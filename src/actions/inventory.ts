@@ -278,14 +278,13 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             // Log to audit that this payment was auto-allocated
             await tx.auditLog.create({
                 data: {
-                    entityType: 'PURCHASE',
+                    entity: 'PURCHASE',
                     entityId: invoice.id,
                     action: 'AUTO_PAYMENT_ALLOCATION',
                     previousData: JSON.stringify({ paidAmount: paid.toNumber(), status: invoice.status }),
                     newData: JSON.stringify({ paidAmount: paid.plus(paymentToApply).toNumber(), status: newStatus }),
                     reason: `Auto-allocated from generic supplier payment of ${amount}`,
                     user: user?.id === 'super-admin' ? 'super-admin' : (user?.username || user?.name || 'system'),
-                    branchId: user?.branchId,
                     hqId: payment.id // Store Payment ID here for easy reversal
                 }
             });
@@ -399,13 +398,12 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
         // 8. Log the voiding event
         await tx.auditLog.create({
             data: {
-                entityType: 'SUPPLIER_PAYMENT',
+                entity: 'SUPPLIER_PAYMENT',
                 entityId: paymentId,
                 action: 'VOID_PAYMENT',
                 previousData: JSON.stringify(payment),
                 reason: 'User manual void',
-                user: user?.username || 'system',
-                branchId: user?.branchId
+                user: user?.username || 'system'
             }
         });
 

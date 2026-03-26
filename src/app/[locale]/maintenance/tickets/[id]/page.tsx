@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
     ArrowLeft, Printer, Shield, ShieldCheck, Lock, Smartphone, User,
     DollarSign, Send, CheckCircle, Receipt, Eye, EyeOff, Edit2,
-    RotateCcw, Save, X, ScanBarcode, Clock, Plus, Database, Settings as SettingsIcon
+    RotateCcw, Save, X, XCircle, ScanBarcode, Clock, Plus, Database, Settings as SettingsIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import WorkflowActions from "@/components/tickets/WorkflowActions";
 import TicketPaymentModal from "@/components/tickets/TicketPaymentModal";
 import ReturnForRepairModal from "@/components/tickets/ReturnForRepairModal";
 import RefundTicketModal from "@/components/tickets/RefundTicketModal";
+import RejectTicketModal from "@/components/tickets/RejectTicketModal";
 import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModal";
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
@@ -238,6 +239,7 @@ export default function TicketDetailPage() {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [showRefundModal, setShowRefundModal] = useState(false);
+    const [showRejectModal, setShowRejectModal] = useState(false);
     const [showTechModal, setShowTechModal] = useState(false);
     const [editingIssue, setEditingIssue] = useState(false);
     const [issueText, setIssueText] = useState('');
@@ -441,10 +443,17 @@ export default function TicketDetailPage() {
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
                             <h1 className="text-xl font-black text-white leading-none">#{ticket.barcode}</h1>
-                            <Badge className="bg-cyan-500/10 text-cyan-500 border-cyan-500/20 text-[10px] px-2 py-0">
+                            <Badge className={`${ticket.status === 'REJECTED' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20'} text-[10px] px-2 py-0`}>
                                 {tTickets(`status.${getStatusTranslationKey(ticket.status)}`)}
                             </Badge>
                         </div>
+                        {/* Show rejection reason if ticket is rejected */}
+                        {ticket.status === 'REJECTED' && ticket.rejectionReason && (
+                            <div className="text-xs text-red-400 font-medium mt-1 flex items-center gap-2 bg-red-500/10 px-2 py-1 rounded-lg">
+                                <XCircle className="w-3 h-3" />
+                                <span>سبب الرفض: {ticket.rejectionReason}</span>
+                            </div>
+                        )}
                         <div className="text-xs text-zinc-500 font-bold mt-1 flex items-center gap-3">
                             <span>{ticket.customerName} • {ticket.customerPhone}</span>
                             {maintenanceWhName && (
@@ -761,7 +770,12 @@ export default function TicketDetailPage() {
                                 </Button>
                             )}
                             <div className="w-full">
-                                <WorkflowActions ticket={ticket} user={user} onUpdate={loadData} />
+                                <WorkflowActions 
+                                    ticket={ticket} 
+                                    user={user} 
+                                    onUpdate={loadData}
+                                    onReject={['ADMIN', 'مدير النظام', 'المالك'].includes(user?.role) ? () => setShowRejectModal(true) : undefined}
+                                />
                             </div>
                         </div>
                     </div>
@@ -868,6 +882,20 @@ export default function TicketDetailPage() {
                     barcode: ticket.barcode,
                     amountPaid: Number(ticket.amountPaid),
                     repairPrice: Number(ticket.repairPrice)
+                }}
+                onSuccess={loadData}
+            />
+
+            <RejectTicketModal
+                isOpen={showRejectModal}
+                onClose={() => setShowRejectModal(false)}
+                ticket={{
+                    id: ticket.id,
+                    barcode: ticket.barcode,
+                    customerName: ticket.customerName,
+                    deviceBrand: ticket.deviceBrand,
+                    deviceModel: ticket.deviceModel,
+                    status: ticket.status
                 }}
                 onSuccess={loadData}
             />

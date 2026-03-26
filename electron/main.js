@@ -347,10 +347,17 @@ ipcMain.handle('printers:list', async () => {
 const handleStandardPrint = async (event, html, printerName, options) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
+    // Check if custom pageSize is provided in options
+    const hasCustomPageSize = options?.pageSize && typeof options.pageSize === 'object';
+    const labelWidth = hasCustomPageSize ? options.pageSize.width : 0;
+    const labelHeight = hasCustomPageSize ? options.pageSize.height : 0;
+    
+    log(`[StandardPrint] Custom pageSize: ${hasCustomPageSize}, width: ${labelWidth}µm, height: ${labelHeight}µm`);
+
     const printWindow = new BrowserWindow({
         show: false,
-        width: 1024,
-        height: 1024,
+        width: hasCustomPageSize ? Math.round(labelWidth / 38.1) : 1024,
+        height: hasCustomPageSize ? Math.round(labelHeight / 38.1) : 1024,
         webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
@@ -374,12 +381,17 @@ const handleStandardPrint = async (event, html, printerName, options) => {
             deviceName: printerName && printerName !== 'none' ? printerName : '',
             printBackground: true,
             color: true,
-            margins: { marginType: 'none' }, // Precision CSS margins
-            pageSize: 'A4',
+            margins: hasCustomPageSize ? { marginType: 'none' } : { marginType: 'none' },
+            ...(hasCustomPageSize ? { 
+                pageSize: { 
+                    width: labelWidth, 
+                    height: labelHeight 
+                } 
+            } : { pageSize: 'A4' }),
             ...options
         };
 
-        log(`Print [Standard/A4]: Sending to [${printerName}]`);
+        log(`Print [${hasCustomPageSize ? 'Label/Custom' : 'Standard/A4'}]: Sending to [${printerName}], pageSize: ${JSON.stringify(printOptions.pageSize)}`);
 
         return new Promise((resolve) => {
             const timeout = setTimeout(() => {
@@ -395,7 +407,7 @@ const handleStandardPrint = async (event, html, printerName, options) => {
             });
         });
     } catch (error) {
-        log(`Print [Standard/A4] Fatal Error: ${error.message}`);
+        log(`Print [${hasCustomPageSize ? 'Label/Custom' : 'Standard/A4'}] Fatal Error: ${error.message}`);
         if (!printWindow.isDestroyed()) printWindow.destroy();
         return { success: false, error: error.message };
     }
