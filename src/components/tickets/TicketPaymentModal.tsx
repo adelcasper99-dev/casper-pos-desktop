@@ -23,6 +23,7 @@ import { getEffectiveStoreSettings } from "@/actions/settings";
 import TicketPrintTemplate from "./TicketPrintTemplate";
 import { renderToStaticMarkup } from "react-dom/server";
 import { printService } from "@/lib/print-service";
+import { generateEngineerReceiptHTML } from "@/lib/ticket-print-helpers";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { searchCustomers } from "@/actions/customer-actions";
 import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
@@ -292,6 +293,16 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 paperWidthMm: 80,
                 strictlySilent: isAutoPrint // 🛡️ [DEFINITIVE] Use strictlySilent for auto-print
             });
+
+            // 🛡️ [NEW] Auto-print Engineer Copy if enabled in settings
+            if (currentSettings?.autoPrintEngineerCopy) {
+                const engineerHtml = generateEngineerReceiptHTML(updatedTicket, currentSettings);
+                await printService.printHTML(engineerHtml, undefined, {
+                    paperWidthMm: 80,
+                    strictlySilent: isAutoPrint
+                });
+            }
+
             if (!isAutoPrint) toast.success("Print job sent successfully");
         } catch (error) {
             console.error("Print Error:", error);

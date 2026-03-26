@@ -29,4 +29,8 @@ export interface Ticket {
     amountPaid: number;
     expectedDuration?: number | null;
     createdAt: Date | string;
+    employeeName?: string | null;
+    createdBy?: {
+        name: string;
+    } | null;
 }

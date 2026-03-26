@@ -11,6 +11,7 @@ export const settingsSchema = z.object({
     logoUrl: z.string().nullish(),
     autoPrint: z.boolean().optional(),
     autoPrintTicket: z.boolean().optional(),
+    autoPrintEngineerCopy: z.boolean().optional(),
     paperSize: z.string().optional(), // Required in DB with default
     features: z.string().optional(), // JSON string, Required in DB with default
     labelTemplate: z.any().optional(),

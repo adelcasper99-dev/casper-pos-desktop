@@ -979,6 +979,8 @@
         "hideLocationsTabDesc": "إخفاء تبويب المواقع من صفحة المخزون",
         "autoPrintTicket": "بطاقة وتذكرة الصيانة",
         "autoPrintTicketDesc": "الطباعة التلقائية لبطاقة الجهاز المستلم وملصق الباركود للصيانة",
+        "autoPrintEngineerCopy": "طباعة نسخة المهندس تلقائياً",
+        "autoPrintEngineerCopyDesc": "تفعيل طباعة نسخة المهندس مع إيصال العميل تلقائياً عند استلام الجهاز أو تحصيل الدفعة",
         "modulesManagement": "إدارة الموديولات",
         "modulesManagementDesc": "قم بتفعيل أو تعطيل الموديولات الرئيسية لتخصيص واجهة النظام حسب احتياجك.",
         "locationTitle": "إعدادات الموقع الجغرافي",
@@ -1280,7 +1282,10 @@
             "actions": "الإجراءات",
             "editDetails": "تعديل التفاصيل",
             "deleteTicket": "حذف التذكرة",
-            "viewDetails": "عرض التفاصيل"
+            "viewDetails": "عرض التفاصيل",
+            "printEngineer": "طباعة نسخة المهندس",
+            "printReceipt": "طباعة الإيصال",
+            "printLabel": "طباعة الملصق"
         },
         "warranty": {
             "noDevices": "لا توجد أجهزة في الضمان",
@@ -1358,7 +1363,11 @@
             "printOptions": {
                 "printLabel": "طباعة الملصق",
                 "invoiceDescription": "فاتورة العميل مع التفاصيل والتوزيع",
-                "barcodeDescription": "ملصق الباركود للجهاز"
+                "barcodeDescription": "ملصق الباركود للجهاز",
+                "printReceipt": "إيصال العميل",
+                "printEngineer": "نسخة المهندس",
+                "printBoth": "طباعة النسختين",
+                "customerOnly": "للعميل فقط"
             },
             "workflowHeader": "سير العمل",
             "workflowProgress": "تقدم العمل",

@@ -30,6 +30,7 @@ model StoreSettings {
   logoUrl            String?
   autoPrint          Boolean @default(false)
   autoPrintTicket    Boolean @default(false)
+  autoPrintEngineerCopy Boolean @default(false)
   paperSize          String  @default("80mm")
   features           String  @default("{}")
   locationLat        Float   @default(24.7136)

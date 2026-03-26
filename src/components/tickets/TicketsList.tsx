@@ -1,7 +1,8 @@
 import { useState, useEffect, useTransition, useMemo } from 'react'
 import {
     Search, User as UserIcon, Plus, Edit2, Trash2, MoreHorizontal,
-    Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download
+    Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download,
+    Printer, Settings as SettingsIcon, StickyNote
 } from "lucide-react"
 import { useRouter } from 'next/navigation'
 import { useDebouncedCallback } from 'use-debounce'
@@ -27,8 +28,10 @@ import {
 import { DateRange } from "react-day-picker"
 import { cn } from '@/lib/utils'
 import { getTickets as fetchTickets } from "@/actions/ticket-actions"
+import { getEffectiveStoreSettings } from "@/actions/settings"
 import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
+import TicketPrintOptionsModal from './TicketPrintOptionsModal'
 import { toast } from "sonner"
 
 export default function TicketsList() {
@@ -56,6 +59,11 @@ export default function TicketsList() {
     const [showEditModal, setShowEditModal] = useState(false)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({ key: 'createdAt', direction: 'desc' });
+    const [settings, setSettings] = useState<any>(null)
+    const [showPrintOptions, setShowPrintOptions] = useState(false)
+    const [printTicket, setPrintTicket] = useState<any>(null)
+    const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
+    const [isSilentPrint, setIsSilentPrint] = useState(false)
 
     const [serverStats, setServerStats] = useState({ delivered: 0, returns: 0, ratio: '0.0', totalPaid: 0 });
 
@@ -69,8 +77,19 @@ export default function TicketsList() {
     )
 
     useEffect(() => {
-        loadTickets()
+        loadData()
     }, [query, statusFilter, showStale, dateRange])
+
+    async function loadData() {
+        startTransition(async () => {
+            await Promise.all([loadTickets(), loadSettings()])
+        })
+    }
+
+    async function loadSettings() {
+        const res = await getEffectiveStoreSettings()
+        if (res?.data) setSettings(res.data)
+    }
 
     async function loadTickets() {
         setLoading(true)
@@ -550,6 +569,36 @@ export default function TicketsList() {
                                                             <span>{t('list.editDetails')}</span>
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator className="bg-white/5" />
+                                                        <DropdownMenuItem onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setPrintTicket(ticket); 
+                                                            setPrintMode('receipt'); 
+                                                            setShowPrintOptions(true); 
+                                                            setIsSilentPrint(true);
+                                                        }}>
+                                                            <Printer className="mr-2 h-4 w-4" />
+                                                            <span>{t('list.printReceipt')}</span>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setPrintTicket(ticket); 
+                                                            setPrintMode('engineer'); 
+                                                            setShowPrintOptions(true); 
+                                                            setIsSilentPrint(true);
+                                                        }}>
+                                                            <SettingsIcon className="mr-2 h-4 w-4" />
+                                                            <span>{t('list.printEngineer')}</span>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setPrintTicket(ticket); 
+                                                            setPrintMode('label'); 
+                                                            setShowPrintOptions(true); 
+                                                        }}>
+                                                            <StickyNote className="mr-2 h-4 w-4" />
+                                                            <span>Print Label</span>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator className="bg-white/5" />
                                                         <DropdownMenuItem
                                                             className="text-red-400 focus:text-red-400 focus:bg-red-400/10"
                                                             onClick={(e) => { e.stopPropagation(); setDeletingTicket(ticket); setShowDeleteDialog(true); }}
@@ -567,6 +616,21 @@ export default function TicketsList() {
                         </table>
                     </div>
                 </div>
+            )}
+
+            {showPrintOptions && printTicket && (
+                <TicketPrintOptionsModal
+                    isOpen={showPrintOptions}
+                    onClose={() => {
+                        setShowPrintOptions(false)
+                        setPrintTicket(null)
+                        setIsSilentPrint(false)
+                    }}
+                    ticket={printTicket}
+                    settings={settings}
+                    defaultMode={printMode}
+                    silent={isSilentPrint}
+                />
             )}
 
             {showEditModal && editingTicket && (

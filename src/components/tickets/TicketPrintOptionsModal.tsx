@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import GlassModal from "@/components/ui/GlassModal"
 import { Button } from "@/components/ui/button"
-import { Printer, StickyNote, CheckCircle, Loader2, Settings as SettingsIcon } from "lucide-react"
+import { Printer, StickyNote, CheckCircle, Loader2, Settings as SettingsIcon, User as UserIcon } from "lucide-react"
 import {
     Select,
     SelectContent,
@@ -17,27 +17,42 @@ import { toast } from "sonner";
 import { formatArabicPrintText } from "@/lib/arabic-reshaper";
 import TicketPrintTemplate from "./TicketPrintTemplate";
 import { printService } from "@/lib/print-service";
+import { 
+    generateTicketLabelHTML, 
+    generateTicketReceiptHTML, 
+    generateEngineerReceiptHTML,
+    generateCode128SVG
+} from "@/lib/ticket-print-helpers";
+import EngineerTicketReceipt from "./EngineerTicketReceipt";
+
+// Using shared generateTicketLabelHTML and generateCode128SVG
+
+// Using shared generateTicketReceiptHTML
+
+// Using shared generateEngineerReceiptHTML
 
 interface TicketPrintOptionsModalProps {
     isOpen: boolean
     onClose: () => void
     ticket: any
     settings?: any
-    defaultMode?: 'receipt' | 'label'
+    defaultMode?: 'receipt' | 'label' | 'engineer'
     silent?: boolean
 }
 
 export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, settings, defaultMode = 'receipt', silent = false }: TicketPrintOptionsModalProps) {
     const t = useTranslations('Common')
     const tPrint = useTranslations('Purchasing.Print.Ticket')
+    const tTicket = useTranslations('Tickets')
     const [isPrintingReceipt, setIsPrintingReceipt] = useState(false)
+    const [isPrintingEngineer, setIsPrintingEngineer] = useState(false)
     const [isPrintingLabel, setIsPrintingLabel] = useState(false)
     const [printers, setPrinters] = useState<string[]>([])
     const [selectedPrinter, setSelectedPrinter] = useState<string>("")
     const [selectedLabelPrinter, setSelectedLabelPrinter] = useState<string>("")
     const [qzStatus, setQzStatus] = useState<'loading' | 'connected' | 'error'>('loading')
     const printContentRef = useRef<HTMLDivElement>(null)
-    const [previewMode, setPreviewMode] = useState<'receipt' | 'label'>(defaultMode)
+    const [previewMode, setPreviewMode] = useState<'receipt' | 'label' | 'engineer'>(defaultMode)
 
     useEffect(() => {
         if (isOpen) {
@@ -68,6 +83,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                 const printerList = await printService.getPrinters();
                 setPrinters(printerList);
                 setQzStatus('connected');
+
             } catch (e) {
                 console.error("Failed to load printers", e);
                 setQzStatus('error');
@@ -78,23 +94,40 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
     // Auto-Print Effect
     useEffect(() => {
         let isMounted = true;
+        let timerId: any = null;
 
         const doAutoPrint = async () => {
+            if (!isOpen) return;
+
+            // 🔍 [DIAGNOSTIC] Provide early feedback if requested but stalling
+            if (silent) {
+                console.log("[AutoPrint] Sequence initiated (silent mode)");
+                toast.info("Preparing and checking printers...", {
+                    id: "preparing-print",
+                    duration: 1500
+                });
+            }
+
+            // 🛡️ Wait for both ticket and settings to be ready
+            if (!ticket || !settings) {
+                if (silent) {
+                    console.log("[AutoPrint] Waiting for ticket/settings data...", { ticket: !!ticket, settings: !!settings });
+                    toast.info("Waiting for data to load...", { id: "autoprint-loading", duration: 1000 });
+                }
+                return;
+            }
+
             const isOnline = await printService.isServerOnline();
 
             // 🛡️ Show error if QZ Tray is offline
-            if (isOpen && (settings?.autoPrintTicket || silent) && !isOnline) {
-                toast.error("الطابعة غير متصلة. يرجى تشغيل QZ Tray أو برنامج الطباعة.");
+            if (!isOnline && (settings?.autoPrintTicket || silent)) {
+                toast.error("الطابعة غير متصلة. يرجى تشغيل QZ Tray أو برنامج الطباعة.", {
+                    id: "printer-offline-warning"
+                });
                 return;
             }
 
-            // 🛡️ Wait for settings to be loaded before checking auto-print
-            if (!settings && isOpen) {
-                // Settings not yet loaded, skip auto-print to avoid race condition
-                return;
-            }
-
-            if (isOpen && (settings?.autoPrintTicket || silent) && isOnline) {
+            if ((settings?.autoPrintTicket || silent) && isOnline) {
                 const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);
 
                 if (!hasAutoPrintedSession) {
@@ -105,19 +138,25 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                             duration: 4000
                         });
 
-                        // 🛡️ PRINTER CHECK: Alert if no printer is set
+                        // 🛡️ [CONSISTENCY] Resolve printers once for the whole sequence
                         const registry = printService.getRegistry();
-                        const receiptPrinter = selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer');
-                        const labelPrinter = selectedLabelPrinter || registry?.labelPrinter || localStorage.getItem('printer_label') || localStorage.getItem('printer_barcode');
+                        const receiptPrinter = selectedPrinter || 
+                                              registry?.thermalPrinter || 
+                                              registry?.receiptPrinter || 
+                                              localStorage.getItem('thermal_printer') || 
+                                              localStorage.getItem('casper_receipt_printer');
+                                              
+                        const labelPrinter = selectedLabelPrinter || 
+                                            registry?.labelPrinter || 
+                                            localStorage.getItem('printer_label') || 
+                                            localStorage.getItem('printer_barcode');
 
-                        if (!receiptPrinter) {
+                        if (!receiptPrinter && !silent) {
                             toast.error("No receipt printer configured. Please set one in settings.");
-                            // Don't continue with printing if no printer is configured
-                            return;
                         }
 
-                        // 1. Print Receipt immediately
-                        await handlePrintReceipt(true); // pass true for silent
+                        // 1. Print Receipt & Engineer Copy (sequential)
+                        await handlePrintReceipt(true, settings?.autoPrintEngineerCopy || false); // true for silent, dynamic for both
 
                         // 2. Short delay so QZ doesn't choke on sequential jobs
                         if (isMounted) {
@@ -125,15 +164,15 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         }
 
                         // 3. Print Label
+                        // 🛡️ [FIX] Label HTML is now generated from data — no DOM scraping,
+                        // no React re-render race. setPreviewMode('label') is purely cosmetic.
                         if (isMounted) {
-                            setPreviewMode('label'); // Switch view for context
-                            // 🛡️ [FIX] Short delay for React to re-render the label component before innerHTML capture
-                            await new Promise(resolve => setTimeout(resolve, 500));
+                            setPreviewMode('label');
 
                             if (!labelPrinter || labelPrinter === 'none') {
                                 toast.error("No label printer configured. Skipping label auto-print.");
                             } else {
-                                await handlePrintLabel(true); // pass true for silent
+                                await handlePrintLabel(true);
                             }
                         }
 
@@ -151,20 +190,34 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         console.error("Auto print sequence failed", error);
                         toast.error("Auto-print failed. Please try manually.");
                     }
+                } else {
+                    if (silent) {
+                        console.log("[AutoPrint] Skipped: already printed in this session.");
+                        toast.info("Ticket already printed. Skipping auto-print.", { id: "autoprint-skipped", duration: 2000 });
+                    }
                 }
             }
         };
 
         if (isOpen && (settings?.autoPrintTicket || silent)) {
-            // ⏳ [FIX] Longer delay (2.2s) to allow "Ticket created" toast to be seen/start fading
-            // and ensure the page is fully ready
-            setTimeout(() => {
+            if (silent) {
+                toast.info("Auto-print starting...", {
+                    id: "autoprint-start",
+                    duration: 2000
+                });
+            }
+            
+            // ⏳ [FIX] Shorter delay (1s) for better responsiveness
+            timerId = setTimeout(() => {
                 if (isMounted) doAutoPrint();
-            }, 2200);
+            }, 1000);
         }
 
-        return () => { isMounted = false; };
-    }, [isOpen, settings?.autoPrintTicket, silent, qzStatus, ticket?.id]);
+        return () => { 
+            isMounted = false; 
+            if (timerId) clearTimeout(timerId);
+        };
+    }, [isOpen, settings, silent, qzStatus, ticket, ticket?.id]);
 
 
     const handlePrinterChange = (value: string) => {
@@ -207,82 +260,11 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
     };
 
 
-    const handlePrintReceipt = async (isAutoPrint = false) => {
+    const handlePrintReceipt = async (isAutoPrint = false, includeEngineer = true) => {
         setIsPrintingReceipt(true);
         try {
-            const contentHtml = printContentRef.current?.innerHTML || "";
-            const paperWidth = settings?.paperSize === '58mm' ? '58mm' : (settings?.paperSize === '100mm' ? '100mm' : '80mm');
-            const sharedStyles = `
-                @page { margin: 0; }
-                * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                body { 
-                    font-family: sans-serif; 
-                    padding: 0; 
-                    margin: 0; 
-                    margin-left: 4mm;
-                    width: ${paperWidth}; 
-                    direction: rtl; 
-                    background: transparent; 
-                    color: black;
-                    font-weight: 900;
-                }
-                .ticket-print-root {
-                    width: 100%;
-                    padding: 1mm;
-                }
-                .header { text-align: center; border-bottom: 2px solid black; margin-bottom: 10px; padding-bottom: 5px; }
-                .flex { display: flex; }
-                .justify-between { justify-content: space-between; }
-                .items-center { align-items: center; }
-                .flex-col { flex-direction: column; }
-                .text-center { text-align: center; }
-                .text-right { text-align: right; }
-                .font-bold { font-weight: bold; }
-                .font-black { font-weight: 900; }
-                .text-xs { font-size: 10px; }
-                .text-sm { font-size: 12px; }
-                .text-lg { font-size: 16px; }
-                .text-base { font-size: 14px; }
-                .bg-black { background-color: black !important; color: white !important; }
-                .text-white { color: white !important; }
-                .mb-1 { margin-bottom: 4px; }
-                .mb-2 { margin-bottom: 8px; }
-                .mb-3 { margin-bottom: 12px; }
-                .mb-4 { margin-bottom: 16px; }
-                .mt-1 { margin-top: 4px; }
-                .mt-2 { margin-top: 8px; }
-                .mt-3 { margin-top: 12px; }
-                .mt-4 { margin-top: 16px; }
-                .p-1 { padding: 4px; }
-                .p-2 { padding: 8px; }
-                .border-b { border-bottom: 1px solid black; }
-                .border-b-2 { border-bottom: 2px solid black; }
-                .border-t { border-top: 1px solid black; }
-                .border-2 { border: 2px solid black; }
-                .border-dashed { border-style: dashed; }
-                .rounded-sm { border-radius: 2px; }
-                .whitespace-pre-wrap { white-space: pre-wrap; }
-                .leading-tight { line-height: 1.2; }
-                .leading-none { line-height: 1; }
-                .italic { font-style: italic; }
-                .opacity-80 { opacity: 0.8; }
-                .opacity-90 { opacity: 0.9; }
-                .uppercase { text-transform: uppercase; }
-            `;
-
-            const fullReceiptHtml = `
-                <html>
-                <head>
-                    <title>Print Receipt</title>
-                    <style>${sharedStyles}</style>
-                </head>
-                <body>
-                    <div class="content">
-                        ${contentHtml}
-                    </div>
-                </body>
-                </html>
-            `;
+            // 1. Customer Receipt
+            const fullReceiptHtml = generateTicketReceiptHTML(ticket, settings);
 
             let isQzConnected = false;
             try {
@@ -293,16 +275,31 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
 
             if (isQzConnected) {
                 const registry = printService.getRegistry();
-                const receiptPrinter = selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer');
-                if (receiptPrinter) {
+                const printer = selectedPrinter || 
+                               registry?.thermalPrinter || 
+                               registry?.receiptPrinter || 
+                               localStorage.getItem('thermal_printer') || 
+                               localStorage.getItem('casper_receipt_printer');
+                if (printer) {
                     try {
-                        if (!isAutoPrint) toast.info("Printing via QZ Tray...");
-                        const isOnline = await printService.isServerOnline();
-                        if (isOnline) {
-                            // 🛡️ [DEFINITIVE] Use strictlySilent to avoid dialogs
-                            await printService.printHTML(fullReceiptHtml, receiptPrinter, { strictlySilent: isAutoPrint });
+                        if (!isAutoPrint) toast.info("Printing receipt...");
+                        // 🛡️ [FIX] Use printThermal — routes to print:thermal IPC in Electron
+                        // which sets the correct pageSize in microns for the roll (e.g. 80000µm wide).
+                        // Previously used printHTML → print:standard which hardcodes A4 pageSize
+                        // in main.js, causing the thermal printer to receive an A4 job it can't render.
+                        const paperWidthMm = settings?.paperSize === '58mm' ? 58 : 80;
+                        const success = await printService.printThermal(fullReceiptHtml, printer, paperWidthMm);
+                        if (!success) {
+                            // Electron thermal failed — try the HTML path as fallback (QZ / Agent)
+                            await printService.printHTML(fullReceiptHtml, printer, { paperWidthMm, strictlySilent: isAutoPrint });
                         }
                         if (!isAutoPrint) toast.success("Receipt sent to printer");
+                        
+                        // 2. Engineer Copy (Sequential)
+                        if (includeEngineer) {
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                            await handlePrintEngineer(isAutoPrint);
+                        }
                         return;
                     } catch (qzError) {
                         console.error("Print error:", qzError);
@@ -341,29 +338,96 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
         }
     }
 
+    const handlePrintEngineer = async (isAutoPrint = false) => {
+        setIsPrintingEngineer(true);
+        try {
+            const fullEngineerHtml = generateEngineerReceiptHTML(ticket, settings);
+
+            let isQzConnected = false;
+            try {
+                isQzConnected = typeof window !== 'undefined' && await printService.isServerOnline();
+            } catch (err) {
+                console.warn("QZ Connection check failed:", err);
+            }
+
+            if (isQzConnected) {
+                const registry = printService.getRegistry();
+                const receiptPrinter = selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer');
+                if (receiptPrinter) {
+                    try {
+                        if (!isAutoPrint) toast.info("Printing engineer copy...");
+                        const paperWidthMm = settings?.paperSize === '58mm' ? 58 : 80;
+                        const success = await printService.printThermal(fullEngineerHtml, receiptPrinter, paperWidthMm);
+                        if (!success) {
+                            await printService.printHTML(fullEngineerHtml, receiptPrinter, { paperWidthMm, strictlySilent: isAutoPrint });
+                        }
+                        if (!isAutoPrint) toast.success("Engineer copy sent to printer");
+                        return;
+                    } catch (qzError) {
+                        console.error("Print error:", qzError);
+                    }
+                }
+            }
+
+            if (isAutoPrint) return;
+
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            if (printWindow) {
+                printWindow.document.write(fullEngineerHtml.replace('</body>', `
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                                window.close();
+                            }, 500);
+                        };
+                    </script>
+                    </body>
+                `));
+                printWindow.document.close();
+            }
+        } catch (error) {
+            console.error("Print engineer error:", error);
+            toast.error("Printing failed.");
+        } finally {
+            setIsPrintingEngineer(false);
+        }
+    }
+
     const handlePrintLabel = async (isAutoPrint = false) => {
         setIsPrintingLabel(true);
         try {
             const isQzConnected = typeof window !== 'undefined' && await printService.isServerOnline();
             if (isQzConnected) {
                 const registry = printService.getRegistry();
-                const labelPrinter = selectedLabelPrinter || registry?.labelPrinter || localStorage.getItem('printer_label');
+                const labelPrinter = selectedLabelPrinter || 
+                                    registry?.labelPrinter || 
+                                    localStorage.getItem('printer_label') || 
+                                    localStorage.getItem('printer_barcode');
                 if (labelPrinter && labelPrinter !== 'none') {
-                    const labelHtml = printContentRef.current?.innerHTML || "";
-                    const fullLabelHtml = `
-                        <html>
-                        <head>
-                            <style>
-                                @page { size: 50mm 30mm; margin: 0; }
-                                body { margin: 0; padding: 0; background: transparent; transform: translateX(-2mm); }
-                                table { width: 100%; height: 100%; }
-                            </style>
-                        </head>
-                        <body>${labelHtml}</body>
-                        </html>
-                    `;
-                    // 🛡️ [DEFINITIVE] Use strictlySilent to avoid dialogs
-                    await printService.printHTML(fullLabelHtml, labelPrinter, { strictlySilent: isAutoPrint });
+                    // 🛡️ [FIX] Generate label HTML directly from ticket data.
+                    // Previously this scraped printContentRef.current.innerHTML which:
+                    //   (a) included unstyled Tailwind wrapper divs (no stylesheet in print doc)
+                    //   (b) had a body translateX(-2mm) that clipped content off the 50mm page
+                    //   (c) raced with react-barcode's async SVG render during auto-print
+                    const storeName = settings?.name || 'CASPER POS';
+                    const fullLabelHtml = generateTicketLabelHTML(ticket, storeName, translations);
+
+                    // 🛡️ [FIX] Force Native Electron Priority
+                    // The hardware feeds length-wise. We tell Electron it's 30mm wide and 50mm tall (portrait role).
+                    if (typeof window !== 'undefined' && window.electronAPI?.printStandard) {
+                        const result = await (window as any).electronAPI.printStandard(fullLabelHtml, labelPrinter, {
+                            pageSize: { width: 38100, height: 25400 }, // in microns for 38.1mm x 25.4mm
+                            margins: { marginType: 'none' },
+                            printBackground: true,
+                            silent: true,
+                            deviceName: labelPrinter
+                        });
+                        if (!result?.success) throw new Error(result?.error || 'Label print failed');
+                    } else {
+                        const success = await printService.printSilentHTML(fullLabelHtml, labelPrinter);
+                        if (!success) throw new Error('Label print fallback failed');
+                    }
                     if (!isAutoPrint) toast.success("Label printed successfully");
                 } else {
                     if (!isAutoPrint) await printStickLabelFallback();
@@ -431,12 +495,19 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
         });
     }
 
+    // 🚀 Suppress UI only if in silent mode AND we have a printer to actually do the job
+    const registry = printService.getRegistry();
+    const hasPrinter = (defaultMode === 'receipt' && (selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer'))) ||
+                       (defaultMode === 'label' && (selectedLabelPrinter || registry?.labelPrinter || localStorage.getItem('printer_label'))) ||
+                       (defaultMode === 'engineer' && (selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer')));
+
+    if (silent && hasPrinter) return null;
+
     return (
         <GlassModal
             isOpen={isOpen}
             onClose={onClose}
             title="Ticket Created"
-            className={silent ? "opacity-0 pointer-events-none" : ""}
         >
             <div className="flex flex-col items-center justify-center p-6 space-y-6">
                 <div className="flex flex-col items-center gap-2">
@@ -458,6 +529,16 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         RECEIPT
                     </button>
                     <button
+                        onClick={() => setPreviewMode('engineer')}
+                        className={`flex-1 flex items-center justify-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${previewMode === 'engineer'
+                            ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                            : 'hover:bg-white/5 text-zinc-400 hover:text-white'
+                            }`}
+                    >
+                        <SettingsIcon className="w-4 h-4 mr-2" />
+                        ENGINEER
+                    </button>
+                    <button
                         onClick={() => setPreviewMode('label')}
                         className={`flex-1 flex items-center justify-center py-2 px-3 rounded-lg text-xs font-bold transition-all ${previewMode === 'label'
                             ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
@@ -476,6 +557,12 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                             <div ref={printContentRef}>
                                 {previewMode === 'receipt' ? (
                                     <TicketPrintTemplate
+                                        ticket={ticket}
+                                        settings={settings}
+                                        translations={translations}
+                                    />
+                                ) : previewMode === 'engineer' ? (
+                                    <EngineerTicketReceipt
                                         ticket={ticket}
                                         settings={settings}
                                         translations={translations}
@@ -571,13 +658,33 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         Close
                     </Button>
                     {previewMode === 'receipt' ? (
+                        <div className="flex-[2] flex gap-2">
+                            <Button
+                                onClick={() => handlePrintReceipt(false, true)}
+                                disabled={isPrintingReceipt || isPrintingEngineer}
+                                className="flex-1 py-6 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 text-lg gap-2 shadow-lg shadow-cyan-500/20"
+                            >
+                                {isPrintingReceipt ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
+                                {isPrintingReceipt ? "Printing..." : "Print Both"}
+                            </Button>
+                            <Button
+                                onClick={() => handlePrintReceipt(false, false)}
+                                disabled={isPrintingReceipt}
+                                variant="outline"
+                                className="px-4 py-6 rounded-xl border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                                title="Print Customer Copy Only"
+                            >
+                                <UserIcon className="w-5 h-5" />
+                            </Button>
+                        </div>
+                    ) : previewMode === 'engineer' ? (
                         <Button
-                            onClick={() => handlePrintReceipt()}
-                            disabled={isPrintingReceipt}
-                            className="flex-[2] py-6 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 text-lg gap-2 shadow-lg shadow-cyan-500/20"
+                            onClick={() => handlePrintEngineer()}
+                            disabled={isPrintingEngineer}
+                            className="flex-[2] py-6 rounded-xl bg-orange-500 text-black font-bold hover:bg-orange-400 text-lg gap-2 shadow-lg shadow-orange-500/20"
                         >
-                            {isPrintingReceipt ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                            {isPrintingReceipt ? "Printing..." : "Print Receipt"}
+                            {isPrintingEngineer ? <Loader2 className="w-5 h-5 animate-spin" /> : <SettingsIcon className="w-5 h-5" />}
+                            {isPrintingEngineer ? t('loading') : tTicket('details.printOptions.printEngineer')}
                         </Button>
                     ) : (
                         <Button

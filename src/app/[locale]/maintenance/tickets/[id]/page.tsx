@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
     ArrowLeft, Printer, Shield, ShieldCheck, Lock, Smartphone, User,
     DollarSign, Send, CheckCircle, Receipt, Eye, EyeOff, Edit2,
-    RotateCcw, Save, X, ScanBarcode, Clock, Plus, Database
+    RotateCcw, Save, X, ScanBarcode, Clock, Plus, Database, Settings as SettingsIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -259,9 +259,10 @@ export default function TicketDetailPage() {
         // If print=true in URL, show print options regardless of settings
         // This ensures the print dialog works immediately after ticket creation
         if (shouldPrint && ticket && !loading && !hasPrinted) {
+            setHasPrinted(true);
             setIsSilentPrint(true);
             setShowPrintOptions(true);
-            setHasPrinted(true);
+            
             // Clean URL
             const url = new URL(window.location.href);
             url.searchParams.delete('print');
@@ -366,6 +367,7 @@ export default function TicketDetailPage() {
 
     const openBarcodePrint = () => {
         setDefaultPrintMode('label');
+        setIsSilentPrint(true);
         setShowPrintOptions(true);
     };
 
@@ -428,19 +430,27 @@ export default function TicketDetailPage() {
                 <div className="flex items-center gap-2">
                     <Button
                         variant="outline"
-                        size="icon"
                         onClick={openBarcodePrint}
-                        className="bg-purple-500/5 border-purple-500/20 text-purple-400 h-10 w-10 shrink-0"
+                        className="bg-purple-500/5 border-purple-500/20 text-purple-400 h-10 px-3 flex gap-2 items-center hover:bg-purple-500/10 transition-colors"
                     >
-                        <ScanBarcode className="h-5 w-5" />
+                        <ScanBarcode className="h-4 w-4" />
+                        <span className="text-xs font-bold">{t('printOptions.printLabel')}</span>
                     </Button>
                     <Button
                         variant="outline"
-                        size="icon"
-                        onClick={() => { setDefaultPrintMode('receipt'); setShowPrintOptions(true); }}
-                        className="bg-cyan-500/5 border-cyan-500/20 text-cyan-400 h-10 w-10 shrink-0"
+                        onClick={() => { setDefaultPrintMode('engineer' as any); setIsSilentPrint(true); setShowPrintOptions(true); }}
+                        className="bg-orange-500/5 border-orange-500/20 text-orange-400 h-10 px-3 flex gap-2 items-center hover:bg-orange-500/10 transition-colors"
                     >
-                        <Printer className="h-5 w-5" />
+                        <SettingsIcon className="h-4 w-4" />
+                        <span className="text-xs font-bold">{t('printOptions.printEngineer')}</span>
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={() => { setDefaultPrintMode('receipt'); setIsSilentPrint(true); setShowPrintOptions(true); }}
+                        className="bg-cyan-500/5 border-cyan-500/20 text-cyan-400 h-10 px-3 flex gap-2 items-center hover:bg-cyan-500/10 transition-colors"
+                    >
+                        <Printer className="h-4 w-4" />
+                        <span className="text-xs font-bold">{t('printOptions.printReceipt')}</span>
                     </Button>
                     <div className="h-8 w-[1px] bg-white/10 mx-1" />
                     <div className="flex -space-x-2 rtl:space-x-reverse shrink-0">
