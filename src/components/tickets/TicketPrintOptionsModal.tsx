@@ -288,7 +288,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
         setIsPrintingReceipt(true);
         try {
             // 1. Customer Receipt
-            const fullReceiptHtml = generateTicketReceiptHTML(ticket, settings);
+            const fullReceiptHtml = generateTicketReceiptHTML(ticket, settings, translations);
 
             let isQzConnected = false;
             try {

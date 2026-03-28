@@ -118,7 +118,7 @@ export function generateTicketLabelHTML(ticket: any, storeName = "CASPER POS", t
 </html>`;
 }
 
-export function generateTicketReceiptHTML(ticket: any, settings: any): string {
+export function generateTicketReceiptHTML(ticket: any, settings: any, translations?: any): string {
   const paperSize = settings?.paperSize || '80mm';
   const is58 = paperSize === '58mm';
   const pageW = is58 ? '58' : '80';
@@ -128,6 +128,7 @@ export function generateTicketReceiptHTML(ticket: any, settings: any): string {
   const logoUrl = settings?.logoUrl || '';
   const footer = settings?.receiptFooter || 'شكراً لثقتكم بنا';
   const printHeader = settings?.printHeader || '';
+  const t = translations || {};
 
   const dateStr = new Date(ticket.createdAt).toLocaleDateString('ar-EG', {
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -224,8 +225,16 @@ export function generateTicketReceiptHTML(ticket: any, settings: any): string {
             <div class="row"><span>المدفوع</span><span>${formatAmt(ticket.amountPaid || 0)}</span></div>
             <div class="row grand"><span>المتبقي</span><span>${formatAmt(balanceDue)}</span></div>
           </div>` : ''}
+          ${t.termsHeader ? `
+          <div class="section" style="border-bottom:none; font-size:9px; text-align:center; opacity:.8;">
+            <div style="font-weight:900;margin-bottom:1mm;">${t.termsHeader}</div>
+            <div>${t.terms1 || ''}</div>
+            <div>${t.terms2 || ''}</div>
+            <div>${t.terms3 || ''}</div>
+          </div>` : ''}
           <div class="footer">
             <div style="font-size:10px;">${footer}</div>
+            <div style="font-size:9px; font-weight:bold; margin-top:2mm; color:#444;">by Casper POS</div>
           </div>
     </div>
 </body>
@@ -330,6 +339,7 @@ export function generateEngineerReceiptHTML(ticket: any, settings: any): string 
       <div style="width:100%; margin:0 auto;">${barcodeSvg}</div>
       <div style="font-family:monospace; font-size:10px; margin-top:1mm; font-weight:900;">${ticket.barcode}</div>
       <div style="font-size:8px; opacity:0.5; margin-top:2mm; text-transform:uppercase;">Engineer Copy - Internal Record</div>
+      <div style="font-size:9px; font-weight:bold; margin-top:1.5mm; color:#444;">by Casper POS</div>
     </div>
 </body>
 </html>`;
@@ -453,6 +463,7 @@ export function generatePaidTicketReceiptHTML(ticket: any, settings: any, transl
     <div style="width:100%; margin:2mm auto 0;">${barcodeSvg}</div>
     <div style="font-family:monospace; font-size:10px; margin-top:1mm; font-weight:900;">${ticket.barcode}</div>
     <div style="font-size:8px; opacity:0.5; margin-top:2mm; text-transform:uppercase;">Thank you for your business</div>
+    <div style="font-size:9px; font-weight:bold; margin-top:1.5mm; color:#444;">by Casper POS</div>
   </div>
 </body>
 </html>`;

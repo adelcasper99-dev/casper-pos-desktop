@@ -127,7 +127,7 @@ export const updateSparePart = secureAction(async (data: {
         console.error('Error updating spare part:', error);
         return { success: false, error: 'Failed to update part' };
     }
-}, { permission: 'INVENTORY_MANAGE' });
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
 export const deleteSparePart = secureAction(async (id: string) => {
     try {
@@ -140,7 +140,7 @@ export const deleteSparePart = secureAction(async (id: string) => {
         console.error('Error deleting spare part:', error);
         return { success: false, error: 'Failed to delete part' };
     }
-}, { permission: 'INVENTORY_MANAGE' });
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
 export const addSparePart = secureAction(async (data: z.infer<typeof sparePartSchema>) => {
     try {
@@ -156,7 +156,7 @@ export const addSparePart = secureAction(async (data: z.infer<typeof sparePartSc
         console.error('Error adding spare part:', error);
         return { success: false, error: 'Failed to add part' };
     }
-}, { permission: 'INVENTORY_MANAGE' });
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
 
 // Import multiple spare parts at once
 const importPartsSchema = z.object({
@@ -208,4 +208,4 @@ export const importSpareParts = secureAction(async (data: z.infer<typeof importP
         console.error('Error importing spare parts:', error);
         return { success: false, error: 'Failed to import parts' };
     }
-}, { permission: 'INVENTORY_MANAGE' });
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });

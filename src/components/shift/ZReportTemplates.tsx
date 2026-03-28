@@ -118,7 +118,7 @@ export const generateZReportThermalHTML = ({ shift, settings }: ZReportTemplateP
         <div class="double-line"></div>
         <div class="section">
             <div class="row"><span>Generated:</span> <span>${new Date().toLocaleString()}</span></div>
-            <div class="center mt-2" style="font-size: 8px;">Powered by Casper POS</div>
+            <div class="center mt-2" style="font-size: 10px; font-weight: bold; color: #444;">by Casper POS</div>
             <div class="center mt-4">Signature: _______________</div>
         </div>
     </body>

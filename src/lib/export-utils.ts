@@ -1,6 +1,25 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
+
+// Excel Export
+export function exportToExcel(data: any[], filename: string) {
+  if (!data || data.length === 0) {
+    toast.error('No data to export');
+    return;
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  // Add right-to-left orientation for Arabic content
+  if (!worksheet['!views']) {
+    worksheet['!views'] = [{ rightToLeft: true }];
+  }
+  
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+  XLSX.writeFile(workbook, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+}
 
 // CSV Export
 export function exportToCSV(data: any[], filename: string) {

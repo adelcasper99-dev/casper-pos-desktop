@@ -276,8 +276,8 @@ export const generateA4PurchaseHTML = ({ purchaseData, settings }: TemplateProps
 
             <div class="footer">
                 ${settings?.receiptFooter || 'تم إنشاء هذه الفاتورة بواسطة نظام Casper POS'}
-                <div style="margin-top: 10px; font-size: 14px; color: #aaa;">
-                    Powered by Casper POS
+                <div style="margin-top: 15px; font-size: 14px; color: #aaa;">
+                    <strong style="color: #444;">by Casper POS</strong>
                 </div>
                 <div style="margin-top: 10px; font-size: 11px;">
                     تاريخ الطباعة: ${new Date().toLocaleString('ar-EG')}

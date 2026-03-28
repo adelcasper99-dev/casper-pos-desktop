@@ -609,86 +609,70 @@ export default function TicketDetailPage() {
                             <section id="section-security">
                                 <SectionHeader icon={Lock}>بروتوكولات الأمان</SectionHeader>
                                 <div className="space-y-1 pr-4">
-                                    <DataRow
-                                        label="رمز القفل المباشر"
-                                        align="center"
-                                        action={
-                                            <div className="flex items-center gap-1">
-                                                {editingSecurityCode ? (
-                                                    <>
-                                                        <Button variant="ghost" size="icon" onClick={handleSaveSecurityCode} className="text-green-500 h-8 w-8 hover:bg-green-500/10">
-                                                            <Save className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => setEditingSecurityCode(false)} className="text-red-500 h-8 w-8 hover:bg-red-500/10">
-                                                            <X className="w-4 h-4" />
-                                                        </Button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Button variant="ghost" size="icon" onClick={() => setEditingSecurityCode(true)} className="text-zinc-600 h-8 w-8 hover:text-white">
-                                                            <Edit2 className="w-3 h-3" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white">
-                                                            {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        }
-                                    >
-                                        {editingSecurityCode ? (
-                                            <Input
-                                                value={securityCodeInput}
-                                                onChange={(e) => setSecurityCodeInput(e.target.value)}
-                                                className="h-8 bg-zinc-800 border-zinc-700 text-center font-mono"
-                                                autoFocus
-                                            />
-                                        ) : (
-                                            <span className="font-mono font-black tracking-widest text-zinc-100 text-lg">
-                                                {showSecurityCode ? ticket.securityCode || '0000' : '••••'}
-                                            </span>
-                                        )}
+                                    <DataRow label="رمز القفل المباشر">
+                                        <div className="flex items-center gap-2">
+                                            {editingSecurityCode ? (
+                                                <>
+                                                    <Input
+                                                        value={securityCodeInput}
+                                                        onChange={(e) => setSecurityCodeInput(e.target.value)}
+                                                        className="h-8 bg-zinc-800 border-zinc-700 text-center font-mono w-32"
+                                                        autoFocus
+                                                    />
+                                                    <Button variant="ghost" size="icon" onClick={handleSaveSecurityCode} className="text-green-500 h-8 w-8 hover:bg-green-500/10 shrink-0">
+                                                        <Save className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setEditingSecurityCode(false)} className="text-red-500 h-8 w-8 hover:bg-red-500/10 shrink-0">
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="font-mono font-black tracking-widest text-zinc-100 text-lg">
+                                                        {showSecurityCode ? ticket.securityCode || '0000' : '••••'}
+                                                    </span>
+                                                    <Button variant="ghost" size="icon" onClick={() => setEditingSecurityCode(true)} className="text-zinc-600 h-8 w-8 hover:text-white shrink-0">
+                                                        <Edit2 className="w-3 h-3" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white shrink-0">
+                                                        {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
                                     </DataRow>
 
-                                    <DataRow
-                                        label="نمط الفتح المرسوم"
-                                        align="center"
-                                        action={
-                                            <div className="flex items-center gap-1">
-                                                {editingPattern ? (
-                                                    <>
-                                                        <Button variant="ghost" size="icon" onClick={handleSavePattern} className="text-green-500 h-8 w-8 hover:bg-green-500/10">
-                                                            <Save className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => setEditingPattern(false)} className="text-red-500 h-8 w-8 hover:bg-red-500/10">
-                                                            <X className="w-4 h-4" />
-                                                        </Button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Button variant="ghost" size="icon" onClick={() => setEditingPattern(true)} className="text-zinc-600 h-8 w-8 hover:text-white">
-                                                            <Edit2 className="w-3 h-3" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-zinc-700 h-8 w-8 hover:text-white">
-                                                            {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        }
-                                    >
-                                        {editingPattern ? (
-                                            <Input
-                                                value={patternInput}
-                                                onChange={(e) => setPatternInput(e.target.value)}
-                                                className="h-8 bg-zinc-800 border-zinc-700 text-center text-[10px]"
-                                                autoFocus
-                                            />
-                                        ) : (
-                                            <span className="text-[11px] font-black text-orange-500/60 uppercase tracking-widest">
-                                                {showPattern ? ticket.patternData || 'No Pattern' : 'Hidden'}
-                                            </span>
-                                        )}
+                                    <DataRow label="نمط الفتح المرسوم">
+                                        <div className="flex items-center gap-2">
+                                            {editingPattern ? (
+                                                <>
+                                                    <Input
+                                                        value={patternInput}
+                                                        onChange={(e) => setPatternInput(e.target.value)}
+                                                        className="h-8 bg-zinc-800 border-zinc-700 text-center text-[10px] w-32"
+                                                        autoFocus
+                                                    />
+                                                    <Button variant="ghost" size="icon" onClick={handleSavePattern} className="text-green-500 h-8 w-8 hover:bg-green-500/10 shrink-0">
+                                                        <Save className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setEditingPattern(false)} className="text-red-500 h-8 w-8 hover:bg-red-500/10 shrink-0">
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="text-[11px] font-black text-orange-500/60 uppercase tracking-widest">
+                                                        {showPattern ? ticket.patternData || 'No Pattern' : 'Hidden'}
+                                                    </span>
+                                                    <Button variant="ghost" size="icon" onClick={() => setEditingPattern(true)} className="text-zinc-600 h-8 w-8 hover:text-white shrink-0">
+                                                        <Edit2 className="w-3 h-3" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-zinc-700 h-8 w-8 hover:text-white shrink-0">
+                                                        {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
                                     </DataRow>
                                 </div>
                             </section>

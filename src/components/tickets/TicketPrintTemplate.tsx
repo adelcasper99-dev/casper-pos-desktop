@@ -195,7 +195,7 @@ export default function TicketPrintTemplate({ ticket, settings, translations }: 
                     <div className="font-bold text-[10px] mt-1 tracking-widest">{ticket.barcode}</div>
                 </div>
                 
-                <div className="text-[8px] mt-2 opacity-50 uppercase tracking-tighter">Powered by Casper POS</div>
+                <div className="text-[10px] font-bold mt-2 text-gray-700 tracking-tighter">by Casper POS</div>
             </div>
         </div>
     );

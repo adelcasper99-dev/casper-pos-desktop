@@ -246,8 +246,8 @@ export const generateA4StatementHTML = ({ supplierData, transactions, settings }
 
             <div class="footer">
                 ${settings?.receiptFooter || 'كشف حساب آلي من نظام Casper POS'}
-                <div style="margin-top: 10px; font-size: 14px; color: #aaa;">
-                    Powered by Casper POS
+                <div style="margin-top: 15px; font-size: 14px; color: #aaa;">
+                    <strong style="color: #444;">by Casper POS</strong>
                 </div>
                 <div style="margin-top: 10px; font-size: 11px;">
                     تمت الطباعة في: ${new Date().toLocaleString('ar-EG')}

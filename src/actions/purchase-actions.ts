@@ -47,7 +47,13 @@ export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ 
                 items: {
                     include: {
                         product: {
-                            select: { name: true, sku: true }
+                            select: {
+                                name: true,
+                                sku: true,
+                                stocks: {
+                                    select: { warehouseId: true, quantity: true }
+                                }
+                            }
                         }
                     }
                 }
@@ -147,6 +153,37 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             throw new Error("هذه الفاتورة تم إرجاعها بالكامل بالفعل عبر مستندات مرتجع جزئية");
         }
 
+        // 🔒 Pre-compute items to return, capped by actual warehouse stock
+        const returnableItems: { productId: string; quantity: number; unitCost: any }[] = [];
+        for (const i of invoice.items) {
+            const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
+                const matched = (ret.items || []).find((ii: any) => ii.productId === i.productId);
+                return sum + (matched?.quantity || 0);
+            }, 0);
+            const invoiceRemaining = Math.max(0, i.quantity - alreadyReturnedQty);
+            if (invoiceRemaining <= 0) continue;
+
+            // Cap by actual stock in warehouse
+            const stockRecord = await tx.stock.findFirst({
+                where: { productId: i.productId, warehouseId: invoice.warehouseId }
+            });
+            const actualStock = stockRecord ? Number(stockRecord.quantity) : 0;
+            const qtyToReturn = Math.min(invoiceRemaining, actualStock);
+            if (qtyToReturn <= 0) continue;
+
+            returnableItems.push({ productId: i.productId, quantity: qtyToReturn, unitCost: i.unitCost });
+        }
+
+        if (returnableItems.length === 0) {
+            throw new Error("لا توجد كميات متاحة للإرجاع في المخزون — ربما تم بيع جميع القطع مسبقاً.");
+        }
+
+        // Compute actual total based on returnable items only
+        const actualReturnAmount = returnableItems.reduce(
+            (acc, item) => acc.plus(new Decimal(item.unitCost).times(item.quantity)),
+            new Decimal(0)
+        );
+
         // ─── Create NEW Return Invoice document ───
         const timestamp = new Date().getTime().toString().slice(-4);
         const returnInvoice = await tx.purchaseInvoice.create({
@@ -154,8 +191,8 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
-                totalAmount: remainingTotalAmount.negated(),
-                paidAmount: new Decimal(0), // Full credit by default, unless handled below
+                totalAmount: actualReturnAmount.negated(),
+                paidAmount: new Decimal(0),
                 status: 'RETURN',
                 paymentMethod: invoice.paymentMethod,
                 // @ts-ignore
@@ -164,25 +201,17 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 parentId: id,
                 branchId: (invoice as any).branchId || currentUser.branchId || null,
                 items: {
-                    create: invoice.items.map((i: any) => {
-                        // Check if this specific item has remaining qty
-                        const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
-                            const matched = (ret.items || []).find((ii: any) => ii.productId === i.productId);
-                            return sum + (matched?.quantity || 0);
-                        }, 0);
-                        const availableQty = Math.max(0, i.quantity - alreadyReturnedQty);
-                        return {
-                            productId: i.productId,
-                            quantity: availableQty,
-                            unitCost: i.unitCost
-                        };
-                    }).filter(i => i.quantity > 0)
+                    create: returnableItems.map(item => ({
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        unitCost: item.unitCost
+                    }))
                 }
             } as any
         });
 
-        // 2. Reverse Inventory (Restoring only the REMAINING items)
-        for (const item of (returnInvoice as any).items) {
+        // 2. Reverse Inventory (only for items that are actually in stock)
+        for (const item of returnableItems) {
             await tx.product.update({
                 where: { id: item.productId },
                 data: { stock: { decrement: item.quantity } }
@@ -206,22 +235,15 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             });
         }
 
-        // 3. Supplier Balance Adjustment (Full return amount goes to balance/credit)
+        // 3. Supplier Balance Adjustment (based on actual returned amount)
         await tx.supplier.update({
             where: { id: invoice.supplierId },
-            data: { balance: { decrement: remainingTotalAmount } }
+            data: { balance: { decrement: actualReturnAmount } }
         });
 
-        // 4. Treasury Reversal (Optional: we skip this to allow full credit as per user request, 
-        // but if they specifically want cash back, they can record a separate treasury out.
-        // For standard ERP Return, it's usually Full Credit Note.)
-        /*
-        if (remainingPaidAmount > 0) {
-            // ... original treasury code ...
-        }
-        */
+        // 4. Treasury Reversal skipped — amount stays as credit in supplier balance
 
-        // 5. Update Status and items
+        // 5. Update Status
         await tx.purchaseInvoice.update({
             where: { id },
             data: {
@@ -232,28 +254,21 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             }
         });
 
-        // 5.1 Increment returnedQty on all original items
-        for (const item of invoice.items) {
-            const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
-                const matched = (ret.items || []).find((ii: any) => ii.productId === item.productId);
-                return sum + (matched?.quantity || 0);
-            }, 0);
-            const qtyToReturn = Math.max(0, item.quantity - alreadyReturnedQty);
-            
-            if (qtyToReturn > 0) {
+        // 5.1 Increment returnedQty on original items
+        for (const item of returnableItems) {
+            const originalItem = invoice.items.find((i: any) => i.productId === item.productId);
+            if (originalItem) {
                 await tx.purchaseItem.update({
-                    where: { id: item.id },
-                    data: { returnedQty: { increment: qtyToReturn } }
+                    where: { id: originalItem.id },
+                    data: { returnedQty: { increment: item.quantity } }
                 });
             }
         }
 
-        // 6. Accounting Reversal (Full AP Credit)
-        // Since we skip treasury cash refund and leave the money in the supplier's balance,
-        // it acts as a reduction in Accounts Payable (Debt).
+        // 6. Accounting Reversal
         const accountingLines = [];
-        accountingLines.push({ accountCode: '2000', debit: remainingTotalAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: remainingTotalAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        accountingLines.push({ accountCode: '2000', debit: actualReturnAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: '1200', debit: 0, credit: actualReturnAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
@@ -341,11 +356,30 @@ export const partialReturnPurchase = secureAction(async (data: {
                 return sum + (matchedItem?.quantity || 0);
             }, 0);
 
-            const availableQty = originalItem.quantity - alreadyReturned;
+            const availableFromInvoice = originalItem.quantity - alreadyReturned;
+
+            // 🔒 Check actual stock in warehouse — sold items cannot be returned to supplier
+            const stockRecord = await tx.stock.findFirst({
+                where: {
+                    productId: originalItem.productId,
+                    warehouseId: invoice.warehouseId
+                }
+            });
+            const currentStock = stockRecord ? Number(stockRecord.quantity) : 0;
+            const availableQty = Math.min(availableFromInvoice, currentStock);
 
             if (returnItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
             if (returnItem.quantity > availableQty) {
-                throw new Error(`الكمية المتبقية للإرجاع هي (${availableQty}). لا يمكن إرجاع (${returnItem.quantity}) من "${originalItem.product.name}"`);
+                if (currentStock < availableFromInvoice && returnItem.quantity > currentStock) {
+                    throw new Error(
+                        `لا يمكن إرجاع (${returnItem.quantity}) من "${originalItem.product.name}". ` +
+                        `الموجود فعلاً في المخزون (${currentStock}) فقط — ` +
+                        `${availableFromInvoice - currentStock} وحدة تم بيعها مسبقاً ولا يمكن إرجاعها.`
+                    );
+                }
+                throw new Error(
+                    `الكمية المتاحة للإرجاع هي (${availableQty}). لا يمكن إرجاع (${returnItem.quantity}) من "${originalItem.product.name}"`
+                );
             }
 
             const lineCost = new Decimal(originalItem.unitCost).times(returnItem.quantity);
