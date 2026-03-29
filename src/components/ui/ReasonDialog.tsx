@@ -44,30 +44,32 @@ export function ReasonDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md bg-zinc-950 border-white/10 text-white">
+            <DialogContent className="sm:max-w-md bg-card border-border text-foreground shadow-2xl rounded-2xl">
                 <DialogHeader>
-                    <DialogTitle>{title || t("reasonRequired") || "السبب مطلوب"}</DialogTitle>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                        {title || t("reasonRequired") || "السبب مطلوب"}
+                    </DialogTitle>
                 </DialogHeader>
-                <div className="py-4">
+                <div className="py-6">
                     <Textarea
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         placeholder={placeholder || t("enterReason") || "أدخل السبب هنا..."}
-                        className="bg-zinc-900 border-white/10 focus:border-indigo-500 min-h-[100px]"
+                        className="bg-muted border-border focus:border-primary min-h-[120px] rounded-xl text-sm leading-relaxed"
                         autoFocus
                     />
                 </div>
-                <DialogFooter className="flex gap-2">
+                <DialogFooter className="flex gap-3 sm:justify-start">
                     <Button
                         variant="ghost"
                         onClick={onClose}
-                        className="text-zinc-400 hover:text-white"
+                        className="flex-1 h-12 text-muted-foreground hover:bg-muted font-bold rounded-xl"
                     >
                         {cancelLabel || t("cancel") || "إلغاء"}
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                        className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl shadow-lg shadow-primary/20"
                     >
                         {confirmLabel || t("confirm") || "تأكيد"}
                     </Button>

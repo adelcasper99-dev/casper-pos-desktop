@@ -24,96 +24,140 @@ export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPage
     return (
         <div className="w-full px-4 md:px-8 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-8">
-                <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-widest">
-                        <Activity className="w-3 h-3" />
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border pb-8">
+                <div className="space-y-3">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest">
+                        <Activity className="w-3.5 h-3.5" />
                         مركز مراجعة العمليات
                     </div>
-                    <h1 className="text-4xl font-extrabold tracking-tight italic bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
-                        السجلات والتقارير <span className="text-zinc-600 font-light font-sans not-italic">Logs</span>
-                    </h1>
-                    <p className="text-zinc-500 font-medium max-w-lg">
-                        مراجعة، تعديل، ومرتجع فواتير البيع والشراء مع نظام تتبع آلي لضمان دقة المخزون والحسابات.
-                    </p>
+                    <div className="space-y-1">
+                        <h1 className="text-4xl font-black tracking-tight text-foreground">
+                            السجلات والتقارير <span className="text-muted-foreground font-light font-sans italic opacity-50">Logs</span>
+                        </h1>
+                        <p className="text-muted-foreground font-medium max-w-lg text-sm">
+                            مراجعة، تعديل، ومرتجع فواتير البيع والشراء مع نظام تتبع آلي لضمان دقة المخزون والحسابات.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="flex gap-4">
-                    <div className="glass-card flex items-center gap-4 px-6 py-3 border-white/5 bg-zinc-900/40 rounded-2xl">
-                        <div className="p-2 bg-emerald-500/10 rounded-xl">
-                            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    <div className="glass-card flex items-center gap-4 px-6 py-3 rounded-2xl border-border">
+                        <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                            <ShieldCheck className="w-5 h-5 text-emerald-500" />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-tighter">حالة الربط</span>
-                            <span className="text-sm font-bold text-emerald-400">نظام آمن ومفعل</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter opacity-70">حالة النظام</span>
+                            <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">تشفير آمن ونشط</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Summary Beam - High Impact Totals */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {activeTab === 'sales' ? (
+                    <>
+                        <div className="glass-card p-5 rounded-2xl flex items-center gap-5 group hover:border-cyan-500/50 transition-all duration-300">
+                            <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 group-hover:scale-110 transition-transform">
+                                <ShoppingBag className="w-6 h-6 text-cyan-500" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">إجمالي المبيعات</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-black text-foreground">
+                                        {salesTotals.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-muted-foreground">ج.م</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="glass-card p-5 rounded-2xl flex items-center gap-5 group hover:border-indigo-500/50 transition-all duration-300">
+                            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 group-hover:scale-110 transition-transform">
+                                <FileText className="w-6 h-6 text-indigo-500" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">العمليات المنفذة</span>
+                                <span className="text-2xl font-black text-foreground">{salesTotals.count}</span>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="glass-card p-5 rounded-2xl flex items-center gap-5 group hover:border-indigo-500/50 transition-all duration-300">
+                            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 group-hover:scale-110 transition-transform">
+                                <Truck className="w-6 h-6 text-indigo-500" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">إجمالي المشتريات</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-black text-foreground">
+                                        {purchaseTotals.actualTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-muted-foreground">ج.م</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="glass-card p-5 rounded-2xl flex items-center gap-5 group hover:border-rose-500/50 transition-all duration-300">
+                            <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 group-hover:scale-110 transition-transform">
+                                <ArrowDownLeft className="w-6 h-6 text-rose-500" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">مطبقي للموردين</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-black text-rose-600 dark:text-rose-400">
+                                        {purchaseTotals.remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-rose-500/60 font-sans italic">DR</span>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                <div className="glass-card p-5 rounded-2xl flex items-center gap-5 lg:col-span-2 bg-muted/40 border-dashed border-border group">
+                    <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">تحليل البيانات اللحظي</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground/80 leading-relaxed font-medium">
+                            يتم تحديث هذه البيانات ديناميكياً بناءً على معايير البحث والتصفية المختارة أدناه. استخدم التصفية للنتائج المحددة.
+                        </p>
                     </div>
                 </div>
             </div>
 
             {/* Main Tabs Layout */}
             <Tabs defaultValue="sales" className="w-full" onValueChange={setActiveTab}>
-                <div className="flex items-center justify-between mb-6">
-                    <TabsList className="bg-zinc-900/60 border border-white/5 p-1 h-12 rounded-xl">
+                <div className="flex items-center justify-between mb-8">
+                    <TabsList className="bg-muted border border-border p-1 h-14 rounded-2xl shadow-inner max-w-fit">
                         <TabsTrigger
                             value="sales"
-                            className="px-6 rounded-lg gap-2 font-bold data-[state=active]:bg-cyan-500 data-[state=active]:text-black transition-all"
+                            className="px-8 rounded-xl gap-2 font-black text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all duration-300"
                         >
                             <ShoppingBag className="w-4 h-4" />
                             فواتير البيع
                         </TabsTrigger>
                         <TabsTrigger
                             value="purchases"
-                            className="px-6 rounded-lg gap-2 font-bold data-[state=active]:bg-indigo-500 data-[state=active]:text-white transition-all"
+                            className="px-8 rounded-xl gap-2 font-black text-sm data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-lg transition-all duration-300"
                         >
                             <Truck className="w-4 h-4" />
                             فواتير المشتريات
                         </TabsTrigger>
                     </TabsList>
-
-                    <div className="hidden lg:flex items-center gap-6">
-                        {activeTab === 'sales' ? (
-                            <>
-                                <div className="flex flex-col text-right">
-                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">إجمالي المبيعات (الصافي)</span>
-                                    <span className="text-cyan-400 font-bold text-sm font-mono">
-                                        {salesTotals.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </span>
-                                </div>
-                                <div className="w-px h-8 bg-white/5" />
-                                <div className="flex flex-col text-right">
-                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">عدد العمليات</span>
-                                    <span className="text-zinc-300 font-bold text-sm font-mono">{salesTotals.count}</span>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex flex-col text-right">
-                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">إجمالي المشتريات الفعلي</span>
-                                    <span className="text-indigo-400 font-bold text-sm font-mono">
-                                        {purchaseTotals.actualTotal.toLocaleString()}
-                                    </span>
-                                </div>
-                                <div className="w-px h-8 bg-white/5" />
-                                <div className="flex flex-col text-right">
-                                    <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">المتبقي للموردين</span>
-                                    <span className="text-rose-400 font-bold text-sm font-mono">
-                                        {purchaseTotals.remaining.toLocaleString()}
-                                    </span>
-                                </div>
-                            </>
-                        )}
-                    </div>
                 </div>
 
-                <TabsContent value="sales" className="mt-0 ring-0 focus-visible:ring-0">
-                    <div className="animate-in fade-in zoom-in-95 duration-300">
+                <TabsContent value="sales" className="mt-0 outline-none ring-0 focus-visible:ring-0">
+                    <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
                         <SalesLog initialSales={sales} csrfToken={csrfToken} onTotalsChange={setSalesTotals} />
                     </div>
                 </TabsContent>
 
-                <TabsContent value="purchases" className="mt-0 ring-0 focus-visible:ring-0">
-                    <div className="animate-in fade-in zoom-in-95 duration-300">
+                <TabsContent value="purchases" className="mt-0 outline-none ring-0 focus-visible:ring-0">
+                    <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
                         <PurchaseLog initialPurchases={purchases} csrfToken={csrfToken} onTotalsChange={setPurchaseTotals} />
                     </div>
                 </TabsContent>

@@ -56,7 +56,7 @@ export default function TitleBar() {
         // Outer strip: draggable. dir="ltr" forces controls to the right even
         // in RTL (Arabic) layout — matching Windows native behaviour.
         <div
-            className="drag-region flex items-center justify-between w-full shrink-0 select-none bg-background/50 backdrop-blur-md border-b border-white/5"
+            className="drag-region flex items-center justify-between w-full shrink-0 select-none bg-white dark:bg-zinc-900/80 dark:backdrop-blur-md border-b border-slate-100 dark:border-white/5"
             style={{ height: 36, direction: "ltr", zIndex: 9999 }}
             aria-label="Title bar"
         >
@@ -68,7 +68,7 @@ export default function TitleBar() {
                     alt="Casper ERP"
                     className="w-5 h-5 object-contain"
                 />
-                <span className="text-xs font-bold tracking-widest text-foreground/70 uppercase">
+                <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
                     Casper ERP
                 </span>
             </div>
@@ -76,10 +76,10 @@ export default function TitleBar() {
             {/* ── Controls Group ───────────────────────────────────────── */}
             <div className="flex h-full no-drag" style={{ pointerEvents: "auto" }}>
                 {/* ── Zoom Controls ── */}
-                <div className="no-drag flex items-center gap-0.5 px-3 border-r border-white/5 bg-white/5 mr-1" style={{ pointerEvents: "auto", WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+                <div className="no-drag flex items-center gap-0.5 px-3 border-r border-slate-100 dark:border-white/5 mr-1" style={{ pointerEvents: "auto", WebkitAppRegion: "no-drag" } as React.CSSProperties}>
                     <button
                         onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
-                        className="no-drag p-1.5 rounded-md hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+                        className="no-drag p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-400 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white"
                         style={{ pointerEvents: "auto", WebkitAppRegion: "no-drag" } as React.CSSProperties}
                         title="Zoom Out (−)"
                     >
@@ -87,7 +87,7 @@ export default function TitleBar() {
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); handleZoomReset(); }}
-                        className="no-drag p-1.5 rounded-md hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+                        className="no-drag p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-400 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white"
                         style={{ pointerEvents: "auto", WebkitAppRegion: "no-drag" } as React.CSSProperties}
                         title="Reset Zoom"
                     >
@@ -95,7 +95,7 @@ export default function TitleBar() {
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
-                        className="no-drag p-1.5 rounded-md hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+                        className="no-drag p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-400 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white"
                         style={{ pointerEvents: "auto", WebkitAppRegion: "no-drag" } as React.CSSProperties}
                         title="Zoom In (+)"
                     >
@@ -106,20 +106,20 @@ export default function TitleBar() {
                 {/* ── Window Window Controls ── */}
                 <button
                     onClick={handleMinimize}
-                    className="flex items-center justify-center w-12 h-full hover:bg-white/10 transition-colors group"
+                    className="flex items-center justify-center w-12 h-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors group"
                     title="Minimize"
                 >
-                    <Minus className="w-4 h-4 text-zinc-400 group-hover:text-white" />
+                    <Minus className="w-4 h-4 text-slate-400 dark:text-zinc-400 group-hover:text-slate-700 dark:group-hover:text-white" />
                 </button>
                 <button
                     onClick={handleMaximize}
-                    className="flex items-center justify-center w-12 h-full hover:bg-white/10 transition-colors group"
+                    className="flex items-center justify-center w-12 h-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors group"
                     title={isMaximized ? "Restore" : "Maximize"}
                 >
                     {isMaximized ? (
-                        <Copy className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+                        <Copy className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400 group-hover:text-slate-700 dark:group-hover:text-white" />
                     ) : (
-                        <Square className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+                        <Square className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400 group-hover:text-slate-700 dark:group-hover:text-white" />
                     )}
                 </button>
                 <button
@@ -127,7 +127,7 @@ export default function TitleBar() {
                     className="flex items-center justify-center w-12 h-full hover:bg-red-500 transition-colors group"
                     title="Close"
                 >
-                    <X className="w-4 h-4 text-zinc-400 group-hover:text-white" />
+                    <X className="w-4 h-4 text-slate-400 dark:text-zinc-400 group-hover:text-white" />
                 </button>
             </div>
         </div>

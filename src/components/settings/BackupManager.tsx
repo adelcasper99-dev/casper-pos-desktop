@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, FolderOpen, Save, RefreshCw, AlertTriangle, Clock, Trash, RotateCcw } from "lucide-react";
+import { Database, FolderOpen, Save, RefreshCw, AlertTriangle, Clock, Trash, RotateCcw, CloudBackup, HardDrive, ShieldAlert, Zap, History, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { LocalPersistenceService } from "@/lib/local-persistence";
 import { resetDatabase } from "@/actions/database-reset";
+import { cn } from "@/lib/utils";
 
 export default function BackupManager() {
     const [backupPath, setBackupPath] = useState<string>('');
@@ -34,15 +34,9 @@ export default function BackupManager() {
         try {
             if (window.electronAPI?.config?.getConfig) {
                 const config = await window.electronAPI.config.getConfig();
-                if (config.backupPath) {
-                    setBackupPath(config.backupPath);
-                }
-                if (config.backupInterval) {
-                    setBackupInterval(config.backupInterval.toString());
-                }
-                if (config.maxBackups) {
-                    setMaxBackups(config.maxBackups.toString());
-                }
+                if (config.backupPath) setBackupPath(config.backupPath);
+                if (config.backupInterval) setBackupInterval(config.backupInterval.toString());
+                if (config.maxBackups) setMaxBackups(config.maxBackups.toString());
             }
         } catch (error) {
             console.error("Failed to load config", error);
@@ -55,11 +49,8 @@ export default function BackupManager() {
         try {
             if (window.electronAPI?.storage?.getAvailableBackups) {
                 const result = await window.electronAPI.storage.getAvailableBackups();
-                if (result.success) {
-                    setBackups(result.backups || []);
-                } else {
-                    toast.error(`Failed to load backups: ${result.error}`);
-                }
+                if (result.success) setBackups(result.backups || []);
+                else toast.error(`Failed to load backups: ${result.error}`);
             }
         } catch (error) {
             console.error("Failed to fetch backups", error);
@@ -72,9 +63,7 @@ export default function BackupManager() {
             return;
         }
         const folder = await window.electronAPI.config.selectBackupFolder();
-        if (folder) {
-            setBackupPath(folder);
-        }
+        if (folder) setBackupPath(folder);
     };
 
     const handleSaveConfig = async () => {
@@ -89,10 +78,9 @@ export default function BackupManager() {
             if (result.success) {
                 toast.success("Backup settings saved and applied.");
                 fetchBackups();
-                // Restart the timer immediately with new interval
                 LocalPersistenceService.startAutoBackup();
             } else {
-                toast.error(`Error saving limit: ${result.error}`);
+                toast.error(`Error saving: ${result.error}`);
             }
         } catch (error) {
             toast.error("An unexpected error occurred.");
@@ -103,13 +91,13 @@ export default function BackupManager() {
 
     const handleManualBackup = async () => {
         setIsSaving(true);
-        const toastId = toast.loading("Creating manual backup...");
+        const tid = toast.loading("Creating manual backup...");
         try {
             await LocalPersistenceService.backupToFilesystem(true);
-            toast.success("Backup created successfully.", { id: toastId });
+            toast.success("Backup created successfully.", { id: tid });
             fetchBackups();
         } catch (error: any) {
-            toast.error(error.message || "Manual backup failed.", { id: toastId });
+            toast.error(error.message || "Manual backup failed.", { id: tid });
         } finally {
             setIsSaving(false);
         }
@@ -117,21 +105,14 @@ export default function BackupManager() {
 
     const handleDelete = async (backupFilePath: string) => {
         if (!window.electronAPI?.storage?.deleteBackup) return;
-        if (!confirm("Are you sure you want to delete this backup file? This cannot be undone.")) {
-            return;
-        }
-
+        if (!confirm("Confirm removal of this historical node?")) return;
         setIsSaving(true);
         try {
             const result = await window.electronAPI.storage.deleteBackup(backupFilePath);
             if (result.success) {
                 toast.success("Backup deleted successfully.");
                 fetchBackups();
-            } else {
-                toast.error(`Failed to delete backup: ${result.error}`);
             }
-        } catch (error) {
-            toast.error("An unexpected error occurred while deleting.");
         } finally {
             setIsSaving(false);
         }
@@ -139,10 +120,7 @@ export default function BackupManager() {
 
     const handleRestore = async (backupFilePath: string) => {
         if (!window.electronAPI?.storage?.restoreFromBackup) return;
-        if (!confirm("CRITICAL WARNING: Restoring this backup will overwrite ALL current data created AFTER this backup Date/Time. The application will restart immediately. Are you absolutely sure?")) {
-            return;
-        }
-
+        if (!confirm("CRITICAL WARNING: Restoring will overwrite all current data. App will restart. Proceed?")) return;
         setIsRestoring(true);
         try {
             const result = await window.electronAPI.storage.restoreFromBackup(backupFilePath);
@@ -150,7 +128,6 @@ export default function BackupManager() {
                 toast.error(`Restore failed: ${result.error}`);
                 setIsRestoring(false);
             }
-            // If success, the app restarts
         } catch (error) {
             toast.error("Restore failed unexpectedly.");
             setIsRestoring(false);
@@ -159,251 +136,243 @@ export default function BackupManager() {
 
     const handleDatabaseReset = async () => {
         if (resetConfirmText !== 'RESET') {
-            toast.error("Please type 'RESET' to confirm.");
+            toast.error("Type 'RESET' to confirm factory purge.");
             return;
         }
-
-        if (!confirm(t('resetConfirm1') || "هل أنت متأكد من مسح جميع البيانات؟")) {
-            return;
-        }
-
+        if (!confirm(t('resetConfirm1') || "Purge all operational data?")) return;
         setIsResetting(true);
-        const toastId = toast.loading(t('resetting') || "Resetting database...");
+        const tid = toast.loading(t('resetting') || "Resetting database...");
         try {
             const result = await resetDatabase();
             if (result.success) {
-                toast.success(result.message || t('resetSuccess'), { id: toastId });
-                setResetConfirmText('');
-                // Optional: redirect or reload
+                toast.success(result.message || t('resetSuccess'), { id: tid });
                 setTimeout(() => window.location.reload(), 2000);
-            } else {
-                toast.error(result.error || t('resetError'), { id: toastId });
-            }
-        } catch (error: any) {
-            toast.error(error.message || t('resetError'), { id: toastId });
+            } else toast.error(result.error || t('resetError'), { id: tid });
         } finally {
             setIsResetting(false);
         }
     };
 
-    const formatSize = (bytes: number) => {
-        const mb = bytes / (1024 * 1024);
-        return `${mb.toFixed(2)} MB`;
-    };
-
     return (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+        <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-700 max-w-5xl mx-auto pb-20">
+            {/* Automated Persistence Configuration */}
+            <div className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/auto">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/auto:bg-cyan-500/10 transition-colors" />
+                
+                <div className="space-y-8 relative z-10">
+                    <div className="space-y-2">
+                        <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                            <Database className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+                            Autonomous Persistence
+                        </h3>
+                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Architectural data safety and automated local snapshots</p>
+                    </div>
 
-            {/* CONFIGURATION CARD */}
-            <Card className="glass-card bg-transparent border-white/10 text-white">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Database className="w-5 h-5 text-blue-400" />
-                        Local Fast Backups
-                    </CardTitle>
-                    <CardDescription className="text-zinc-400">
-                        Configure automated data safety. Casper POS can automatically backup your data at regular intervals.
-                        Select an external USB drive or a synced folder (like Dropbox) below.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Frequency */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-zinc-300">
-                                Backup Frequency
-                            </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Sequence Frequency</label>
                             <select
                                 value={backupInterval}
                                 onChange={(e) => setBackupInterval(e.target.value)}
-                                className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-cyan-500/50"
+                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
                             >
-                                <option value="15" className="bg-zinc-900">Every 15 Minutes</option>
-                                <option value="60" className="bg-zinc-900">Every 1 Hour</option>
-                                <option value="360" className="bg-zinc-900">Every 6 Hours</option>
-                                <option value="1440" className="bg-zinc-900">Daily</option>
+                                <option value="15" className="bg-card font-black">15 Minute Intervals</option>
+                                <option value="60" className="bg-card font-black">60 Minute Intervals</option>
+                                <option value="360" className="bg-card font-black">6 Hour Intervals</option>
+                                <option value="1440" className="bg-card font-black">24 Hour Intervals</option>
                             </select>
                         </div>
 
-                        {/* Max Backups */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-zinc-300">
-                                Keep Local Backups
-                            </label>
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Retention Depth</label>
                             <select
                                 value={maxBackups}
                                 onChange={(e) => setMaxBackups(e.target.value)}
-                                className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-cyan-500/50"
+                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
                             >
-                                <option value="10" className="bg-zinc-900">10 Most Recent</option>
-                                <option value="30" className="bg-zinc-900">30 Most Recent</option>
-                                <option value="50" className="bg-zinc-900">50 Most Recent</option>
-                                <option value="100" className="bg-zinc-900">100 Most Recent</option>
+                                <option value="10" className="bg-card font-black">10 Historical Nodes</option>
+                                <option value="30" className="bg-card font-black">30 Historical Nodes</option>
+                                <option value="50" className="bg-card font-black">50 Historical Nodes</option>
+                                <option value="100" className="bg-card font-black">100 Historical Nodes</option>
                             </select>
                         </div>
-
                     </div>
 
-                    {/* Destination */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-300">
-                            Backup Destination
-                        </label>
-                        <div className="flex gap-2">
-                            <Input
-                                readOnly
-                                value={backupPath || 'Internal Storage'}
-                                className="bg-black/20 border-white/10 font-mono text-sm text-zinc-300 flex-1 truncate"
-                            />
-                            <Button variant="secondary" onClick={handleSelectFolder} disabled={isLoading || isSaving}>
+                    <div className="space-y-3 pt-4">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Target Endpoint Destination</label>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex-1 relative group/input">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none opacity-40">
+                                    <HardDrive size={14} />
+                                </div>
+                                <input
+                                    readOnly
+                                    value={backupPath || 'INTERNAL_STORAGE_EMULATED'}
+                                    className="w-full bg-background/40 border border-border/40 rounded-2xl py-4 pl-12 pr-6 text-[10px] font-black font-mono text-cyan-400 group-hover/input:border-cyan-500/30 transition-all"
+                                />
+                            </div>
+                            <Button 
+                                variant="outline" 
+                                onClick={handleSelectFolder} 
+                                disabled={isLoading || isSaving}
+                                className="h-14 rounded-2xl px-8 border-border/40 hover:bg-card hover:border-cyan-500/40 font-black text-[10px] uppercase tracking-widest transition-all"
+                            >
                                 <FolderOpen className="w-4 h-4 mr-2" />
-                                Browse
+                                Browse Targets
                             </Button>
                         </div>
                     </div>
 
-                    <p className="text-xs text-zinc-500">
-                        A folder named "Casper Backups" will be created at the destination. Old backups are automatically pruned based on your retention limit to save disk space.
-                    </p>
-
-                    <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
-                        <Button
-                            variant="outline"
+                    <div className="flex flex-col sm:flex-row justify-end items-center gap-4 pt-10 border-t border-border/20">
+                         <Button
+                            variant="ghost"
                             onClick={handleManualBackup}
                             disabled={isSaving || !backupPath}
-                            className="border-cyan-600/50 text-cyan-400 hover:bg-cyan-600/10 hover:text-cyan-300"
+                            className={cn(
+                                "h-14 px-8 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all gap-3",
+                                isSaving ? "animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+                            )}
                         >
-                            <Save className="w-4 h-4 mr-2" />
-                            {isSaving ? '...' : 'Create Backup Now'}
+                            <Zap className="w-4 h-4" />
+                            Trigger Force Snapshot
                         </Button>
                         <Button
                             onClick={handleSaveConfig}
                             disabled={isSaving || !backupPath}
-                            className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                            className="h-14 px-12 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-primary/20 transition-all active:scale-95"
                         >
                             <Save className="w-4 h-4 mr-2" />
-                            {isSaving ? 'Saving...' : 'Apply Configuration'}
+                            Commit Integrity Policy
                         </Button>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            {/* RESTORE CARD */}
-            <Card className="glass-card bg-transparent border-white/10 text-white">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-orange-400">
-                        <AlertTriangle className="w-5 h-5" />
-                        Disaster Recovery
-                    </CardTitle>
-                    <CardDescription className="text-orange-200/70">
-                        Restoring a backup will instantly replace your current active database with the historical version.
-                        <strong> All changes made after the backup's timestamp will be permanently lost.</strong>
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="rounded-md border border-white/10 bg-black/20 overflow-hidden">
-                        <div className="grid grid-cols-12 gap-4 border-b border-white/10 bg-black/40 p-3 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                            <div className="col-span-6">Backup Timestamp</div>
-                            <div className="col-span-3 text-center">Size</div>
-                            <div className="col-span-3 text-right">Action</div>
+            {/* Disaster Recovery Interface */}
+            <div className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/recovery">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/recovery:bg-orange-500/10 transition-colors" />
+                
+                <div className="space-y-8 relative z-10">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                                <History className="w-6 h-6 text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.5)]" />
+                                Timeline Reconstruction
+                            </h3>
+                            <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded-full text-[8px] font-black uppercase text-orange-400 tracking-widest animate-pulse">
+                                State Critical
+                            </div>
+                        </div>
+                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Rollback environment to prior verified state nodes</p>
+                    </div>
+
+                    <div className="rounded-[2rem] border border-border/40 bg-background/20 overflow-hidden shadow-inner">
+                        <div className="grid grid-cols-12 gap-4 bg-muted/40 p-5 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] border-b border-border/20">
+                            <div className="col-span-6 ml-2">Temporal Marker</div>
+                            <div className="col-span-3 text-center">Payload Size</div>
+                            <div className="col-span-3 text-right mr-4">Protocols</div>
                         </div>
 
-                        <div className="max-h-[400px] overflow-y-auto">
+                        <div className="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-border/10">
                             {!backupPath && (
-                                <div className="p-8 text-center text-zinc-500 flex flex-col items-center justify-center">
-                                    <Database className="w-8 h-8 opacity-20 mb-2" />
-                                    <p>No custom backup destination configured.</p>
+                                <div className="p-20 text-center text-muted-foreground/30 flex flex-col items-center justify-center grayscale scale-75">
+                                    <Database className="w-16 h-16 mb-4 opacity-20" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">Target Endpoint Undefined</p>
                                 </div>
                             )}
                             {backupPath && backups.length === 0 && (
-                                <div className="p-8 text-center text-zinc-500">
-                                    No backups found in the configured destination.
+                                <div className="p-20 text-center text-muted-foreground/30 flex flex-col items-center justify-center grayscale scale-75">
+                                    <RotateCcw className="w-16 h-16 mb-4 opacity-20" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No Historical Nodes Cached</p>
                                 </div>
                             )}
-                            {backups.map((backup, index) => (
-                                <div key={backup.filename} className="grid grid-cols-12 gap-4 p-3 border-b border-white/5 items-center hover:bg-white/5 transition-colors">
-                                    <div className="col-span-6 flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
-                                            <Clock className="w-4 h-4" />
+                            {backups.map((backup) => (
+                                <div key={backup.filename} className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-orange-500/5 even:bg-white/[0.02] group/item transition-all duration-300">
+                                    <div className="col-span-6 flex items-center gap-5">
+                                        <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20 group-hover/item:scale-110 transition-transform shadow-lg shadow-orange-500/5">
+                                            <Clock className="w-5 h-5" />
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="font-medium text-zinc-200">
+                                            <span className="font-black text-foreground uppercase tracking-tight text-sm">
                                                 {format(new Date(backup.createdAt), "MMM d, yyyy")}
                                             </span>
-                                            <span className="text-xs text-zinc-500">
-                                                {format(new Date(backup.createdAt), "hh:mm:ss a")}
+                                            <span className="text-[10px] font-black font-mono text-muted-foreground uppercase opacity-40">
+                                                {format(new Date(backup.createdAt), "HH:mm:ss [UTC]")}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="col-span-3 text-center text-zinc-400 font-mono text-sm">
-                                        {formatSize(backup.sizeBytes)}
+                                    <div className="col-span-3 text-center">
+                                        <span className="text-xs font-black font-mono text-muted-foreground group-hover/item:text-orange-400 transition-colors">
+                                            {(backup.sizeBytes / (1024 * 1024)).toFixed(2)} MB
+                                        </span>
                                     </div>
-                                    <div className="col-span-3 text-right flex items-center justify-end gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
+                                    <div className="col-span-3 flex items-center justify-end gap-3 pr-2">
+                                        <button
                                             onClick={() => handleDelete(backup.path)}
-                                            disabled={isRestoring || isSaving}
-                                            className="text-red-500 hover:text-red-400 hover:bg-red-500/10 h-8 w-8 p-0"
-                                            title="Delete Backup"
-                                            type="button"
+                                            className="w-10 h-10 rounded-xl bg-card/40 border border-border/40 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition-all flex items-center justify-center shadow-lg"
+                                            title="Purge Node"
                                         >
                                             <Trash className="w-4 h-4" />
-                                        </Button>
+                                        </button>
                                         <Button
-                                            variant="destructive"
-                                            size="sm"
                                             onClick={() => handleRestore(backup.path)}
                                             disabled={isRestoring || isSaving}
-                                            className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-900 hover:border-red-600 h-8 text-xs"
+                                            className="h-10 px-8 rounded-xl bg-orange-600/10 hover:bg-orange-600 text-orange-400 hover:text-white border border-orange-900/50 hover:border-orange-500 font-black text-[10px] uppercase tracking-widest shadow-lg transition-all"
                                         >
-                                            <RefreshCw className={`w-3 h-3 mr-2 ${isRestoring ? 'animate-spin' : ''}`} />
-                                            {isRestoring ? '...' : 'Restore'}
+                                            {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                            Restore Node
                                         </Button>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-                </CardContent>
-            </Card>
-
-            {/* DANGER ZONE CARD */}
-            <Card className="glass-card bg-transparent border-red-500/20 text-white overflow-hidden">
-                <div className="bg-red-500/10 border-b border-red-500/20 p-4">
-                    <CardTitle className="flex items-center gap-2 text-red-500">
-                        <AlertTriangle className="w-5 h-5" />
-                        {t('dangerZone') || "منطقة الخطر"}
-                    </CardTitle>
-                    <CardDescription className="text-red-200/50 mt-1">
-                        {t('factoryResetDesc') || "سيتم حذف جميع المبيعات والمشتريات والمصروفات وحركات المخزون والورديات. سيتم تصفير الأرصدة وكميات المخزون. سيتم الاحتفاظ بالمنتجات والعملاء والموردين والإعدادات."}
-                    </CardDescription>
                 </div>
-                <CardContent className="p-6 space-y-4">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-300">
-                            {t('resetConfirm2') || "يرجى كتابة 'RESET' للتأكيد:"}
-                        </label>
-                        <div className="flex gap-2">
+            </div>
+
+            {/* Critical Danger Infrastructure */}
+            <div className="glass-card bg-rose-500/5 backdrop-blur-xl rounded-[2.5rem] border border-rose-500/30 overflow-hidden shadow-2xl group/danger">
+                <div className="bg-rose-500/10 p-8 border-b border-rose-500/30">
+                    <div className="flex items-center justify-between">
+                         <div className="space-y-2">
+                            <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3 text-rose-500">
+                                <ShieldAlert className="w-6 h-6 animate-pulse" />
+                                Factory Purge Protocols
+                            </h3>
+                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 opacity-60 ml-9">Absolute operational data wipe – Irreversible destruction</p>
+                         </div>
+                         <AlertTriangle className="w-10 h-10 text-rose-500/20" />
+                    </div>
+                </div>
+                <div className="p-8 space-y-8">
+                    <div className="p-6 rounded-3xl bg-background/40 border border-rose-500/20 text-[10px] font-medium text-rose-100/60 leading-relaxed uppercase tracking-widest space-y-2">
+                        <p>• All transaction logs, purchasing history, and expense audits will be destroyed.</p>
+                        <p>• Inventory quantities and treasury balances reset to null.</p>
+                        <p>• Master data (Products/Clients) and core system settings will be preserved.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">Authenticate Identity (Enter 'RESET')</label>
+                        <div className="flex flex-col sm:flex-row gap-4">
                             <Input
                                 value={resetConfirmText}
                                 onChange={(e) => setResetConfirmText(e.target.value.toUpperCase())}
-                                placeholder="RESET"
-                                className="bg-black/20 border-red-500/20 focus:border-red-500/50 text-red-400 font-bold tracking-widest"
+                                placeholder="TYPE_PURGE_COMMAND"
+                                className="h-14 bg-background/40 border-rose-500/20 focus:border-rose-500/60 text-rose-500 font-black tracking-[0.3em] rounded-2xl placeholder:opacity-20 flex-1"
                             />
                             <Button
                                 variant="destructive"
                                 onClick={handleDatabaseReset}
                                 disabled={isResetting || resetConfirmText !== 'RESET'}
-                                className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20"
+                                className="h-14 px-12 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-rose-900/50 hover:scale-[1.05] active:scale-95 transition-all gap-3"
                             >
-                                <RotateCcw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} />
-                                {isResetting ? (t('resetting') || 'Resetting...') : (t('resetButton') || 'تنفيذ إعادة الضبط')}
+                                {isResetting ? <Loader2 className="w-5 h-5 animate-spin" /> : <RotateCcw className="w-5 h-5" />}
+                                Initialize Reset
                             </Button>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div >
     );
 }

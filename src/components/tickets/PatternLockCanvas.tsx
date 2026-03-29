@@ -221,10 +221,10 @@ export default function PatternLockCanvas({
                 width={size}
                 height={size}
                 className={cn(
-                    "rounded-lg border-2 cursor-pointer",
+                    "rounded-2xl border-4 cursor-pointer transition-all",
                     disabled
-                        ? "border-zinc-700 bg-zinc-900/50 cursor-not-allowed"
-                        : "border-white/20 bg-zinc-900/80 hover:border-cyan-500/50"
+                        ? "border-slate-300 bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900/50 cursor-not-allowed"
+                        : "border-slate-300 bg-white dark:border-white/10 dark:bg-zinc-900 shadow-xl hover:border-cyan-500/50"
                 )}
                 style={{ touchAction: 'none' }} // Prevent scroll on touch
                 onMouseDown={handleStart}

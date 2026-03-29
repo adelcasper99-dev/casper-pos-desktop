@@ -91,11 +91,11 @@ export default async function PurchasingPage() {
     }));
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">{t('header.title')}</h1>
-                <p className="text-zinc-400 mt-1">{t('header.subtitle')}</p>
-            </div>
+        <div className="space-y-6 font-cairo">
+            <header className="flex flex-col gap-1">
+                <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">{t('header.title')}</h1>
+                <p className="text-muted-foreground font-bold text-sm">{t('header.subtitle')}</p>
+            </header>
 
             <PurchasingClient
                 suppliers={suppliers}

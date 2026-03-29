@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Warehouse, MapPin, Eye, Package, Edit2, Trash2, AlertCircle, Search } from "lucide-react";
+import { Plus, Warehouse, MapPin, Eye, Package, Edit2, Trash2, AlertCircle, Search, Loader2 } from "lucide-react";
 import GlassModal from "../ui/GlassModal";
 import { createWarehouse, updateWarehouse, deleteWarehouse, getWarehouseStock } from "@/actions/inventory";
 import clsx from "clsx";
@@ -139,54 +139,54 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-between items-center bg-muted/50 p-4 rounded-2xl border border-border" dir="rtl">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                    <Warehouse className="w-5 h-5 text-cyan-400" />
+            <div className="flex justify-between items-center bg-slate-100 dark:bg-muted/50 p-6 rounded-2xl border border-slate-200 dark:border-border shadow-sm">
+                <div className="flex items-center gap-3 text-slate-500 dark:text-muted-foreground">
+                    <Warehouse className="w-6 h-6 text-cyan-500" />
                     <div>
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">{t('title')}</h3>
-                        <p className="text-xs text-muted-foreground">{t('subtitle')}</p>
+                        <h3 className="text-lg font-black uppercase tracking-wider text-slate-900 dark:text-foreground">{t('title')}</h3>
+                        <p className="text-sm text-slate-500 dark:text-muted-foreground font-medium">{t('subtitle')}</p>
                     </div>
                 </div>
 
                 <button
                     onClick={openCreateModal}
-                    className="text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                    className="text-sm font-black bg-cyan-500 hover:bg-cyan-400 text-black px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
                 >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-5 h-5" />
                     {t('addLocation')}
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {warehouses.map((w) => (
-                    <div key={w.id} className="glass-card p-5 group hover:border-cyan-500/30 transition-all flex flex-col justify-between h-48 bg-card border-border relative">
+                    <div key={w.id} className="glass-card p-6 group hover:border-cyan-500/40 transition-all flex flex-col justify-between h-56 bg-white dark:bg-black/20 border-slate-200 dark:border-white/5 shadow-md relative rounded-2xl">
                         <div>
-                            <div className="flex justify-between items-start mb-2">
+                            <div className="flex justify-between items-start mb-3">
                                 <div className={clsx(
-                                    "w-10 h-1 rounded-full mb-3",
-                                    w.isDefault ? "bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]" : "bg-muted-foreground/30"
+                                    "w-12 h-1.5 rounded-full mb-4",
+                                    w.isDefault ? "bg-cyan-500 shadow-lg shadow-cyan-500/50" : "bg-slate-200 dark:bg-white/10"
                                 )} />
                                 <div className="flex gap-2 items-center">
-                                    {w.isDefault && <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-bold border border-cyan-500/20">{t('mainLabel')}</span>}
+                                    {w.isDefault && <span className="text-[10px] bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 px-3 py-1 rounded-full font-black border border-cyan-500/20 uppercase tracking-tighter">{t('mainLabel')}</span>}
                                     {!w.isDefault && (
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-2 items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
                                             <button
                                                 onClick={() => openEditModal(w)}
-                                                className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-cyan-400"
+                                                className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
                                                 title={t('editWarehouse')}
                                             >
-                                                <Edit2 className="w-3.5 h-3.5" />
+                                                <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(w.id)}
                                                 disabled={isDeleting && deletingId === w.id}
-                                                className="p-1.5 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive"
+                                                className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-red-600 transition-colors"
                                                 title={t('deleteWarehouse')}
                                             >
                                                 {isDeleting && deletingId === w.id ? (
-                                                    <div className="w-3.5 h-3.5 border-2 border-destructive border-t-transparent animate-spin rounded-full" />
+                                                    <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
                                                 ) : (
-                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    <Trash2 className="w-4 h-4" />
                                                 )}
                                             </button>
                                         </div>
@@ -194,29 +194,29 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                                 </div>
                             </div>
 
-                            <h4 className="font-bold text-lg text-foreground mb-1 truncate">{w.name}</h4>
+                            <h4 className="font-black text-xl text-slate-900 dark:text-white mb-2 truncate tracking-tight">{w.name}</h4>
                             {w.branch && (
-                                <p className="text-[10px] text-zinc-400 font-bold mb-1 uppercase tracking-wider">
-                                    الفرع: {w.branch.name}
+                                <p className="text-[10px] text-slate-400 dark:text-zinc-400 font-black mb-2 uppercase tracking-widest">
+                                    {tCommon('branch') || "Branch"}: {w.branch.name}
                                 </p>
                             )}
 
                             {w.address ? (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <MapPin className="w-3 h-3 text-muted-foreground" />
+                                <p className="text-sm text-slate-500 dark:text-muted-foreground flex items-center gap-2 font-medium">
+                                    <MapPin className="w-4 h-4 text-slate-400 dark:text-zinc-500" />
                                     {w.address}
                                 </p>
                             ) : (
-                                <p className="text-xs text-muted-foreground italic">{t('noAddress')}</p>
+                                <p className="text-sm text-slate-400 dark:text-muted-foreground italic font-medium">{t('noAddress')}</p>
                             )}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-border flex gap-2">
+                        <div className="mt-6 pt-5 border-t border-slate-100 dark:border-white/5 flex gap-3">
                             <button
                                 onClick={() => handleViewStock(w)}
-                                className="flex-1 text-xs bg-muted/50 hover:bg-muted text-muted-foreground py-2 rounded-lg flex items-center justify-center gap-2 transition-colors border border-border"
+                                className="flex-1 text-sm bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-zinc-400 py-3 rounded-xl flex items-center justify-center gap-2 transition-all border border-slate-200 dark:border-white/10 font-black active:scale-95"
                             >
-                                <Eye className="w-3 h-3" /> {t('viewStock')}
+                                <Eye className="w-4 h-4" /> {t('viewStock')}
                             </button>
                         </div>
                     </div>
@@ -229,11 +229,11 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                 onClose={() => setIsModalOpen(false)}
                 title={editingWarehouse ? t('editWarehouse') : t('newWarehouseTitle')}
             >
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('nameLabel')}</label>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">{t('nameLabel')}</label>
                         <input
-                            className="glass-input w-full"
+                            className="glass-input w-full font-black text-slate-900 dark:text-white"
                             placeholder={t('namePlaceholder')}
                             value={name}
                             onChange={e => setName(e.target.value)}
@@ -241,9 +241,9 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                         />
                     </div>
                     <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('addressLabel')}</label>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">{t('addressLabel')}</label>
                         <input
-                            className="glass-input w-full"
+                            className="glass-input w-full font-black text-slate-900 dark:text-white"
                             placeholder={t('addressPlaceholder')}
                             value={address}
                             onChange={e => setAddress(e.target.value)}
@@ -252,12 +252,12 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-3 rounded-xl flex justify-center items-center gap-2"
+                        className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-black py-4 rounded-xl flex justify-center items-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all mt-4"
                     >
-                        {loading ? t('saving') : (
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                             editingWarehouse
-                                ? <><Edit2 className="w-4 h-4" /> {t('updateWarehouse')}</>
-                                : <><Plus className="w-4 h-4" /> {t('createWarehouse')}</>
+                                ? <><Edit2 className="w-5 h-5" /> {t('updateWarehouse')}</>
+                                : <><Plus className="w-5 h-5" /> {t('createWarehouse')}</>
                         )}
                     </button>
                 </form>
@@ -268,14 +268,14 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                 onClose={closeStockView}
                 title={t('stockInWarehouse', { name: viewedWarehouse?.name || '...' })}
             >
-                <div className="space-y-4">
+                <div className="space-y-6">
                     {/* Filter Bar */}
-                    <div className="flex gap-2">
-                        <div className="relative flex-1">
-                            <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                    <div className="flex gap-3">
+                        <div className="relative flex-1 group">
+                            <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500 group-focus-within:text-cyan-500 transition-colors" />
                             <input 
                                 type="text"
-                                className="glass-input w-full ps-9 py-2 text-sm"
+                                className="glass-input w-full ps-12 py-3 text-sm font-black text-slate-900 dark:text-white"
                                 placeholder={t('search')}
                                 value={stockSearch}
                                 onChange={(e) => setStockSearch(e.target.value)}
@@ -284,7 +284,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                         <select 
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="glass-input text-xs py-2 bg-zinc-900 border-border"
+                            className="glass-input text-xs py-3 px-4 bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 font-black text-slate-900 dark:text-white rounded-xl"
                         >
                             <option value="all">{t('allCategories')}</option>
                             {categoryOptions.map(cat => (
@@ -294,52 +294,55 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                     </div>
 
                     {/* Quick Stats */}
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white/5 p-2 rounded-xl border border-white/10 text-center">
-                            <div className="text-[10px] text-muted-foreground uppercase font-bold">{t('totalItems')}</div>
-                            <div className="text-sm font-bold text-cyan-400">{totalItems}</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/10 text-center shadow-sm">
+                            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-widest mb-1">{t('totalItems')}</div>
+                            <div className="text-xl font-black text-cyan-600 dark:text-cyan-400">{totalItems}</div>
                         </div>
-                        <div className="bg-white/5 p-2 rounded-xl border border-white/10 text-center">
-                            <div className="text-[10px] text-muted-foreground uppercase font-bold">{t('totalQuantity')}</div>
-                            <div className="text-sm font-bold text-green-400">{totalQuantity}</div>
+                        <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/10 text-center shadow-sm">
+                            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-widest mb-1">{t('totalQuantity')}</div>
+                            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{totalQuantity}</div>
                         </div>
                     </div>
 
                     {stockLoading ? (
-                        <div className="p-8 text-center text-muted-foreground">{t('loadingStock')}</div>
+                        <div className="p-12 text-center text-slate-400 dark:text-muted-foreground font-black animate-pulse flex flex-col items-center gap-3">
+                            <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+                            {t('loadingStock')}
+                        </div>
                     ) : (
                         <div className="overflow-hidden">
                             {filteredStock.length === 0 ? (
-                                <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
-                                    <Package className="w-8 h-8 opacity-20 mb-2" />
-                                    <p>{t('noStockFound')}</p>
+                                <div className="p-16 text-center text-slate-300 dark:text-zinc-600 flex flex-col items-center">
+                                    <Package className="w-16 h-16 opacity-10 mb-4" />
+                                    <p className="font-black text-lg">{t('noStockFound')}</p>
                                 </div>
                             ) : (
-                                <div className="max-h-[50vh] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                                <div className="max-h-[55vh] overflow-y-auto pr-3 space-y-6 custom-scrollbar scroll-smooth">
                                     {Object.entries(groupedStock).map(([category, items]) => (
-                                        <div key={category} className="space-y-2">
-                                            <div className="flex items-center gap-2 px-1">
-                                                <div className="h-px flex-1 bg-white/5" />
-                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                                        <div key={category} className="space-y-3">
+                                            <div className="flex items-center gap-3 px-1">
+                                                <div className="h-px flex-1 bg-slate-100 dark:bg-white/5" />
+                                                <span className="text-[10px] font-black text-slate-400 dark:text-muted-foreground uppercase tracking-[0.2em] bg-slate-50 dark:bg-white/5 px-4 py-1.5 rounded-full border border-slate-200 dark:border-white/10 shadow-sm">
                                                     {category}
                                                 </span>
-                                                <div className="h-px flex-1 bg-white/5" />
+                                                <div className="h-px flex-1 bg-slate-100 dark:bg-white/5" />
                                             </div>
                                             
                                             {items.map(item => (
-                                                <div key={item.id} className="flex justify-between items-center bg-muted/30 hover:bg-muted/50 p-3 rounded-xl border border-border transition-colors">
+                                                <div key={item.id} className="flex justify-between items-center bg-white dark:bg-white/[0.02] hover:bg-slate-50 dark:hover:bg-white/[0.05] p-4 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm transition-all group/item">
                                                     <div>
-                                                        <div className="font-bold text-sm text-foreground">{item.name}</div>
-                                                        <div className="text-[10px] text-muted-foreground font-mono">{item.sku}</div>
+                                                        <div className="font-black text-base text-slate-900 dark:text-white group-hover/item:text-cyan-600 dark:group-hover/item:text-cyan-400 transition-colors">{item.name}</div>
+                                                        <div className="text-[10px] font-black text-slate-400 dark:text-muted-foreground font-mono uppercase tracking-wider">{item.sku}</div>
                                                     </div>
                                                     <div className="text-right">
                                                         <div className={clsx(
-                                                            "font-bold text-lg",
-                                                            item.quantity < 5 ? "text-destructive" : "text-cyan-400"
+                                                            "font-black text-2xl tracking-tight",
+                                                            item.quantity < 5 ? "text-rose-500" : "text-cyan-600 dark:text-cyan-400"
                                                         )}>
                                                             {item.quantity}
                                                         </div>
-                                                        <div className="text-[10px] text-muted-foreground uppercase tracking-tight">{t('inStock')}</div>
+                                                        <div className="text-[10px] font-black text-slate-400 dark:text-muted-foreground uppercase tracking-widest">{t('inStock')}</div>
                                                     </div>
                                                 </div>
                                             ))}

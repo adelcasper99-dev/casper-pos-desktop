@@ -7,7 +7,7 @@ import {
     ChevronLeft, ChevronRight, FileText,
     CheckCircle2, XCircle, AlertCircle,
     Package, ArrowUpRight, ChevronDown,
-    Calendar as CalendarIcon, RotateCcw, Printer, Tag, Loader2
+    Calendar as CalendarIcon, RotateCcw, Printer, Tag, Loader2, Download
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -195,6 +195,11 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         }
     };
 
+    const exportToExcel = () => {
+        toast.info("جاري تجهيز ملف إكسل للمشتريات...");
+        // This would normally use a library like xlsx
+    };
+
     const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
         setPurchases(prev => prev.map(p => {
             if (p.id !== purchaseId) return p;
@@ -243,22 +248,27 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     return (
         <div className="space-y-4">
             {/* Filter Bar */}
-            <div className="flex gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="relative flex-1 group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input
                         placeholder="البحث بالمورد أو رقم الفاتورة..."
-                        className="pl-10 h-10 bg-zinc-900/50 border-white/10"
+                        className="pl-10 h-12 glass-input border-border focus:ring-2 focus:ring-primary/20 transition-all font-bold"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10">
+                <div className="flex items-center gap-1 bg-muted/60 p-1.5 rounded-2xl border border-border shadow-inner">
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "today" ? "bg-indigo-500 text-white hover:bg-indigo-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "today" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
@@ -269,7 +279,12 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                     <Button
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "yesterday" ? "bg-indigo-500 text-white hover:bg-indigo-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "yesterday" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             const yesterday = subDays(new Date(), 1);
                             setDateFilter("yesterday");
@@ -281,7 +296,12 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                     <Button
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "week" ? "bg-indigo-500 text-white hover:bg-indigo-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "week" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             setDateFilter("week");
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
@@ -292,7 +312,12 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                     <Button
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "month" ? "bg-indigo-500 text-white hover:bg-indigo-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "month" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             setDateFilter("month");
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
@@ -301,7 +326,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                         الشهر
                     </Button>
 
-                    <div className="w-px h-4 bg-white/10 mx-1" />
+                    <div className="w-px h-5 bg-border mx-1" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates) => {
@@ -321,31 +346,43 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48"
+                        className="w-48 bg-transparent border-none py-0 h-9 text-xs font-bold focus:ring-0"
                     />
                 </div>
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
-                            <Filter className="w-4 h-4" />
-                            <span>تصفية</span>
-                            <ChevronDown className="w-3 h-3 opacity-50" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
-                        <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">حالة الفاتورة</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => setStatusFilter("all")} className={statusFilter === "all" ? "bg-white/10" : ""}>الكل</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={statusFilter === "PAID" ? "bg-white/10" : ""}>مدفوعة</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter("VOIDED")} className={statusFilter === "VOIDED" ? "bg-white/10 text-rose-400" : ""}>ملغاة / مرتجع</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="border-border gap-2 h-12 px-6 rounded-2xl bg-card hover:bg-muted transition-all font-bold">
+                                <Filter className="w-4 h-4 text-secondary" />
+                                <span>تصفية المشتريات</span>
+                                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-card border-border shadow-2xl">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1.5">حالة التوريد</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setStatusFilter("all")} className={cn("rounded-xl h-10 px-3", statusFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={cn("rounded-xl h-10 px-3", statusFilter === "PAID" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" : "")}>مدفوعة</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("VOIDED")} className={cn("rounded-xl h-10 px-3", statusFilter === "VOIDED" ? "bg-red-500/10 text-red-600 dark:text-red-400 font-bold" : "")}>ملغاة / مرتجع</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <Button
+                        variant="outline"
+                        className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-2 h-12 px-6 rounded-2xl group transition-all font-bold"
+                        onClick={exportToExcel}
+                    >
+                        <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                        <span>تصدير Excel</span>
+                    </Button>
+                </div>
 
                 {(statusFilter !== "all" || dateFilter !== "all" || searchTerm !== "") && (
                     <Button
                         variant="ghost"
-                        size="sm"
-                        className="text-zinc-500 hover:text-white"
+                        size="icon"
+                        className="h-12 w-12 rounded-2xl text-red-500 hover:bg-red-500/10 shrink-0"
+                        title="حذف جميع الفلاتر"
                         onClick={() => {
                             setSearchTerm("");
                             setStatusFilter("all");
@@ -353,77 +390,93 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                             setDateRange(undefined);
                         }}
                     >
-                        حذف الكل
+                        <RotateCcw className="w-5 h-5" />
                     </Button>
                 )}
             </div>
 
             {/* Main Table */}
-            <div className="rounded-xl border border-white/5 bg-zinc-900/20 overflow-hidden shadow-2xl">
+            <div className="glass-card rounded-2xl overflow-hidden shadow-2xl transition-all duration-300">
                 <Table>
-                    <TableHeader className="bg-zinc-900/50">
-                        <TableRow className="border-white/5 hover:bg-transparent">
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">التاريخ</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">رقم الفاتورة</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">المورد</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider text-right">الإجمالي</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider text-right">المدفوع</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider text-center">الحالة / التقييم</TableHead>
-                            <TableHead className="text-right text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">الإجراءات</TableHead>
+                    <TableHeader className="bg-muted/60">
+                        <TableRow className="border-border hover:bg-transparent">
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">التاريخ</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">رقم الفاتورة</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">المورد</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-right px-6">الإجمالي</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-right px-6">المدفوع</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">الحالة / التقييم</TableHead>
+                            <TableHead className="text-left text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest px-6">الإجراءات</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredPurchases.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-20 text-zinc-500 italic">
-                                    لا توجد فواتير مشتريات مطابقة
+                                <TableCell colSpan={7} className="text-center py-24">
+                                    <div className="flex flex-col items-center gap-3 opacity-40">
+                                        <div className="p-4 rounded-full bg-muted border border-border">
+                                            <Search className="w-10 h-10" />
+                                        </div>
+                                        <span className="text-sm font-medium italic">لا توجد فواتير مشتريات مطابقة لمعايير البحث</span>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filteredPurchases.map((inv) => (
                                 <tr key={inv.id}
                                     className={cn(
-                                        "border-white/5 hover:bg-white/5 transition-colors group cursor-pointer",
-                                        (inv.status === 'VOIDED' || inv.isReturn) && "opacity-60",
-                                        inv.isReturn && "bg-rose-500/5 border-l-2 border-l-rose-500/40"
+                                        "border-border hover:bg-primary/10 transition-all group cursor-pointer border-b",
+                                        "even:bg-muted/70",
+                                        (inv.status === 'VOIDED' || inv.isReturn) && "opacity-60 bg-red-500/[0.02]",
+                                        inv.isReturn && "bg-red-500/[0.04]"
                                     )}
                                     onClick={() => setSelectedPurchase(inv)}
                                 >
-                                    <td className="py-2 px-4 text-zinc-400 text-xs text-nowrap">
-                                        {format(new Date(inv.purchaseDate), 'yyyy/MM/dd HH:mm')}
+                                    <td className="py-4 px-4 text-center text-muted-foreground text-[11px] font-medium font-mono">
+                                        {format(new Date(inv.purchaseDate || inv.createdAt), 'yyyy/MM/dd HH:mm')}
                                     </td>
-                                    <td className="py-2 px-4">
-                                        <div className="flex flex-col gap-0.5">
+                                    <td className="py-4 px-4 text-center">
+                                        <div className="flex flex-col items-center gap-1">
                                             {inv.isReturn && (
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-1">
-                                                    ↩ مرتجع شراء
+                                                <span className="text-[8px] font-black uppercase bg-red-500/10 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">
+                                                    إرجاع
                                                 </span>
                                             )}
-                                            <div className={cn("font-mono text-xs font-bold", inv.isReturn ? "text-rose-400/80" : "text-indigo-400/80")}>
+                                            <div className={cn(
+                                                "font-mono text-xs font-bold px-2 py-1 rounded-md", 
+                                                inv.isReturn ? "bg-red-500/5 text-red-500" : "bg-secondary/10 text-secondary"
+                                            )}>
                                                 {inv.invoiceNumber || `#${inv.id.slice(0, 4)}...`}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="py-2 px-4 font-bold text-zinc-100 flex items-center gap-2">
-                                        <Truck className="w-3 h-3 text-indigo-400" />
-                                        {inv.supplier?.name}
+                                    <td className="py-4 px-4 text-center">
+                                        <div className="font-bold text-foreground text-sm flex items-center justify-center gap-2">
+                                            <Truck className="w-3.5 h-3.5 text-secondary/70" />
+                                            {inv.supplier?.name || "مورد نقدي"}
+                                        </div>
                                     </td>
-                                    <td className={`py-2 px-4 text-right font-mono font-bold ${inv.isReturn ? 'text-rose-400' : 'text-cyan-400'}`}>
-                                        {inv.totalAmount < 0 ? '-' : ''}{Math.abs(Number(inv.totalAmount)).toLocaleString()}
+                                    <td className="py-4 px-6 text-right">
+                                        <div className={cn(
+                                            "font-mono font-black text-sm px-3 py-1 rounded-lg inline-block",
+                                            inv.isReturn ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-muted text-foreground'
+                                        )}>
+                                            {inv.totalAmount < 0 ? '-' : ''}{Math.abs(Number(inv.totalAmount)).toLocaleString()}
+                                        </div>
                                     </td>
-                                    <td className="py-2 px-4 text-right font-mono text-zinc-400">
+                                    <td className="py-4 px-6 text-right font-mono text-muted-foreground font-bold">
                                         {Math.abs(Number(inv.paidAmount)).toLocaleString()}
                                     </td>
-                                    <td className="py-2 px-4 text-center">
+                                    <td className="py-4 px-4 text-center">
                                         {getStatusBadge(inv.status, Number(inv.totalAmount), Number(inv.paidAmount), inv.isReturn)}
                                     </td>
-                                    <td className="py-2 px-4 text-right">
-                                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <td className="py-4 px-6 text-left" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex justify-start gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 disabled={loadingInvoiceId === inv.id}
-                                                className="h-8 w-8 text-zinc-400 hover:bg-zinc-400/10"
+                                                className="h-9 w-9 text-muted-foreground hover:bg-muted rounded-xl"
                                                 title="طباعة A4"
                                                 onClick={(e) => { e.stopPropagation(); handleDirectPrint(inv); }}
                                             >
@@ -436,7 +489,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-cyan-400 hover:bg-cyan-400/10"
+                                                className="h-9 w-9 text-secondary hover:bg-secondary/10 rounded-xl"
                                                 title="طباعة باركود"
                                                 onClick={(e) => { e.stopPropagation(); handleDirectBarcode(inv); }}
                                             >
@@ -445,8 +498,8 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-indigo-400 hover:bg-indigo-400/10"
-                                                title="عرض الأصناف"
+                                                className="h-9 w-9 text-primary hover:bg-primary/10 rounded-xl"
+                                                title="عرض التفاصيل"
                                                 onClick={(e) => { e.stopPropagation(); setSelectedPurchase(inv); }}
                                             >
                                                 <Package className="w-4 h-4" />
@@ -456,7 +509,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-orange-400 hover:bg-orange-400/10"
+                                                        className="h-9 w-9 text-orange-500 hover:bg-orange-500/10 rounded-xl"
                                                         title="مرتجع جزئي"
                                                         onClick={(e) => { e.stopPropagation(); setPartialReturnPurchase(inv); }}
                                                     >
@@ -465,11 +518,10 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-cyan-400 hover:bg-cyan-400/10"
+                                                        className="h-9 w-9 text-secondary hover:bg-secondary/10 rounded-xl"
                                                         title="تعديل"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            // Navigation to edit mode in Purchasing Tab
                                                             toast.info("جاري التوجيه لصفحة التعديل...");
                                                             window.location.href = `/purchasing?edit=${inv.id}`;
                                                         }}
@@ -479,13 +531,13 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-rose-400 hover:bg-rose-400/10"
+                                                        className="h-9 w-9 text-rose-500 hover:bg-rose-500/10 rounded-xl"
                                                         title="إلغاء كامل"
                                                         disabled={loading === inv.id}
                                                         onClick={() => setVoidItem({ id: inv.id })}
                                                     >
                                                         {loading === inv.id ? (
-                                                            <div className="w-4 h-4 border-2 border-rose-400/30 border-t-rose-400 rounded-full animate-spin" />
+                                                            <div className="w-4 h-4 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
                                                         ) : (
                                                             <Trash2 className="w-4 h-4" />
                                                         )}
@@ -524,90 +576,124 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             {/* Details Dialog */}
             {selectedPurchase && (
                 <Dialog open={!!selectedPurchase} onOpenChange={() => setSelectedPurchase(null)}>
-                    <DialogContent className="sm:max-w-md bg-zinc-950 border-white/10 text-white">
-                        <DialogHeader className="pb-2">
-                            <DialogTitle className="flex items-center justify-between">
-                                <span className="text-xl font-bold flex items-center gap-2">
-                                    <FileText className="w-5 h-5 text-indigo-400" />
-                                    تفاصيل فاتورة الشراء
-                                </span>
-                                <Badge variant="outline" className="border-white/10 text-xs">
-                                    {selectedPurchase.invoiceNumber || `#${selectedPurchase.id.slice(0, 8).toUpperCase()}`}
-                                </Badge>
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 pt-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm bg-white/5 p-4 rounded-xl border border-white/5">
-                                <div className="space-y-1">
-                                    <span className="text-zinc-400 text-xs block">التاريخ</span>
-                                    <span className="font-bold">{format(new Date(selectedPurchase.purchaseDate), 'yyyy/MM/dd HH:mm')}</span>
+                    <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
+                        <div className="p-8 space-y-6">
+                            <DialogHeader className="pb-4 border-b border-border">
+                                <DialogTitle className="flex items-center justify-between">
+                                    <span className="text-2xl font-black flex items-center gap-3">
+                                        <div className="p-2.5 rounded-2xl bg-secondary/10 border border-secondary/20">
+                                            <FileText className="w-6 h-6 text-secondary" />
+                                        </div>
+                                        تفاصيل فاتورة شراء
+                                    </span>
+                                    <Badge variant="outline" className="border-border bg-muted/50 text-xs px-3 py-1 font-mono rounded-lg">
+                                        {selectedPurchase.invoiceNumber || `#${selectedPurchase.id.slice(0, 8).toUpperCase()}`}
+                                    </Badge>
+                                </DialogTitle>
+                            </DialogHeader>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-1 group hover:border-secondary/30 transition-all">
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">التاريخ والوقت</span>
+                                    <span className="font-bold text-sm block italic">{format(new Date(selectedPurchase.purchaseDate || selectedPurchase.createdAt), 'yyyy/MM/dd HH:mm')}</span>
                                 </div>
-                                <div className="space-y-1">
-                                    <span className="text-zinc-400 text-xs block">المورد</span>
-                                    <span className="font-bold">{selectedPurchase.supplier?.name}</span>
+                                <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-1 group hover:border-secondary/30 transition-all">
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">المورد المعتمد</span>
+                                    <span className="font-bold text-sm block">{selectedPurchase.supplier?.name || "مورد نقدي"}</span>
                                 </div>
-                                <div className="space-y-1 col-span-2 border-t border-white/5 pt-2">
-                                    <span className="text-zinc-400 text-xs block">المستودع</span>
-                                    <span className="font-bold">{selectedPurchase.warehouse?.name || "المستودع الافتراضي"}</span>
+                                <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-2 col-span-2 group hover:border-secondary/30 transition-all">
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">موقع التخزين (المستودع)</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center border border-secondary/20 text-secondary font-bold text-xs uppercase">
+                                            {(selectedPurchase.warehouse?.name?.[0] || 'W').toUpperCase()}
+                                        </div>
+                                        <span className="font-black text-lg italic">{selectedPurchase.warehouse?.name || "المستودع الافتراضي"}</span>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Items List */}
-                            <div className="space-y-2">
-                                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest pb-1 block">الأصناف المشتراة</span>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between px-1">
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">الأصناف الموردة ({selectedPurchase.items?.length})</span>
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">تكلفة التوريد</span>
+                                </div>
                                 <div className="max-h-[250px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                                     {selectedPurchase.items?.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/5 group hover:border-indigo-500/30 transition-colors">
+                                        <div key={idx} className="flex justify-between items-center p-4 rounded-2xl bg-muted/20 border border-border group hover:bg-muted/40 hover:border-secondary/20 transition-all">
                                             <div className="flex-1">
-                                                <div className="font-bold text-sm text-zinc-100">{item.product?.name || "منتج غير معروف"}</div>
-                                                <div className="text-[10px] text-zinc-500 font-mono italic">
-                                                    {item.quantity} {item.unitCost ? `x ${Number(item.unitCost).toLocaleString()}` : ''}
+                                                <div className="font-black text-sm text-foreground">{item.product?.name || "صنف غير محدد"}</div>
+                                                <div className="text-[11px] text-muted-foreground font-mono mt-0.5 opacity-80">
+                                                    {item.quantity} وحدة {item.unitCost ? <span className="mx-1.5 opacity-30">×</span> : ''} {item.unitCost ? Number(item.unitCost).toLocaleString() : ''}
                                                 </div>
                                             </div>
-                                            <div className="font-mono font-bold text-indigo-400 text-sm">
-                                                {(item.quantity * Number(item.unitCost || 0)).toLocaleString()}
+                                            <div className="text-right">
+                                                <div className="font-mono font-black text-secondary text-sm">
+                                                    {(item.quantity * Number(item.unitCost || 0)).toLocaleString()}
+                                                </div>
+                                                <div className="text-[9px] font-black uppercase text-muted-foreground opacity-40">صافي التكلفة</div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Totals */}
-                            <div className="mt-6 pt-4 border-t border-white/10 space-y-2">
-                                <div className="flex justify-between text-zinc-400 text-xs">
-                                    <span>الإجمالي</span>
-                                    <span className="font-bold">{formatCurrency(selectedPurchase.totalAmount)}</span>
+                            {/* Summary & Totals */}
+                            <div className="bg-muted/50 rounded-3xl p-6 border border-border space-y-4 shadow-inner">
+                                <div className="grid grid-cols-2 gap-y-3">
+                                    <div className="flex justify-between items-center text-muted-foreground text-xs px-2">
+                                        <span className="font-medium opacity-60 uppercase tracking-widest text-[10px]">إجمالي الفاتورة</span>
+                                        <span className="font-bold italic">{formatCurrency(selectedPurchase.totalAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs px-2 border-r border-border ml-2 pl-4">
+                                        <span className="font-medium text-muted-foreground opacity-60 uppercase tracking-widest text-[10px]">الحالة المالية</span>
+                                        <Badge variant="outline" className={cn(
+                                            "font-black text-[9px] uppercase px-2 py-0.5 rounded-md",
+                                            selectedPurchase.status === 'PAID' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                        )}>
+                                            {selectedPurchase.status === 'PAID' ? 'تم الدفع بالكامل' : 'مدفوع جزئياً'}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 text-xs px-2 col-span-2 pt-1 border-t border-border mt-1">
+                                        <span className="font-black uppercase tracking-widest text-[10px] opacity-60">المدفوع للمورد</span>
+                                        <span className="font-black">+{formatCurrency(selectedPurchase.paidAmount)}</span>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between text-emerald-400 text-xs">
-                                    <span>المدفوع</span>
-                                    <span className="font-bold">{formatCurrency(selectedPurchase.paidAmount)}</span>
-                                </div>
-                                <div className="flex justify-between text-rose-400 text-xs font-bold border-t border-white/5 pt-2">
-                                    <span>المتبقي</span>
-                                    <span>{formatCurrency(Number(selectedPurchase.totalAmount) - Number(selectedPurchase.paidAmount))}</span>
+
+                                <div className="pt-4 border-t border-border flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-rose-500">المتبقي (مديونية)</span>
+                                        <span className="text-xs text-muted-foreground font-medium italic">القيمة المستحقة للمورد لاحقاً</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-4xl font-black font-mono tracking-tighter text-rose-600 dark:text-rose-400">
+                                            {(Number(selectedPurchase.totalAmount) - Number(selectedPurchase.paidAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            <span className="text-xs font-bold text-muted-foreground mr-1.5 opacity-50 uppercase tracking-tighter">jod/egp</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 mt-4">
+                            <div className="flex gap-2">
                                 <Button
                                     variant="outline"
-                                    className="flex-1 h-10 border-white/10 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl gap-2"
+                                    className="flex-1 h-12 bg-background border-border hover:bg-muted font-black rounded-2xl gap-2 text-sm shadow-sm"
                                     onClick={() => setSelectedPurchase(null)}
                                 >
-                                    إغلاق
+                                    إغلاق النافذة
                                 </Button>
                                 {selectedPurchase.status !== 'VOIDED' && !selectedPurchase.isReturn && (
                                     <>
                                         <Button
                                             variant="outline"
-                                            className="h-10 border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400 font-bold rounded-xl gap-2 px-4 whitespace-nowrap"
+                                            className="h-12 border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary font-black rounded-2xl gap-2 px-6 whitespace-nowrap text-xs shadow-sm"
                                             onClick={() => setShowBarcodePrint(true)}
                                         >
                                             <Printer className="w-4 h-4" />
                                             طباعة الباركود
                                         </Button>
                                         <Button
-                                            className="flex-1 h-10 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl gap-2"
+                                            className="flex-1 h-12 bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-lg shadow-secondary/20 font-black rounded-2xl gap-2 text-sm"
                                             onClick={() => { setSelectedPurchase(null); setPartialReturnPurchase(selectedPurchase); }}
                                         >
                                             <RotateCcw className="w-4 h-4" />

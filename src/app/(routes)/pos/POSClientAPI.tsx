@@ -536,19 +536,19 @@ export default function POSClientAPI({
     if (!isMounted) return null;
 
     return (
-        <div className="flex h-full w-full gap-0">
+        <div className="flex h-full w-full gap-0 font-cairo" dir="rtl">
             {/* LEFT: Cart Sidebar */}
-            <div className="w-full md:w-[400px] flex flex-col h-full glass-card bg-black/40 border-r border-white/5 z-20 shadow-2xl shrink-0 rounded-none">
+            <div className="w-full md:w-[400px] flex flex-col h-full bg-zinc-50 dark:bg-zinc-950 border-l border-zinc-200 dark:border-white/10 z-20 shrink-0 rounded-none">
                 <div className="flex-1 flex flex-col overflow-hidden relative">
                     {/* Top Panel: Table Selection / Order Mode Toggle */}
-                    <div className="p-4 border-b border-border bg-card z-10 shadow-sm flex flex-col gap-3">
-                        <div className="flex bg-black/40 rounded-xl p-1 border border-white/10 shrink-0">
+                    <div className="p-4 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm flex flex-col gap-3 rounded-b-2xl z-10">
+                        <div className="flex bg-slate-50 dark:bg-black/40 rounded-xl p-1 border border-slate-200 dark:border-white/10 shrink-0">
                             <button
                                 onClick={() => {
                                     setTable(undefined, undefined);
                                     setOrderMode('takeaway');
                                 }}
-                                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${orderMode === 'takeaway' && !tableId ? 'bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)]' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-200 ${orderMode === 'takeaway' && !tableId ? 'bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(0,242,255,0.4)]' : 'text-slate-400 hover:text-slate-700 hover:bg-white dark:text-zinc-500 dark:hover:text-white dark:hover:bg-white/5'}`}
                             >
                                 {t('takeaway') || 'Takeaway'}
                             </button>
@@ -558,14 +558,14 @@ export default function POSClientAPI({
                                     if (!tableId) setIsTableModalOpen(true);
                                 }}
                                 disabled={!permissions.canDineIn}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${orderMode === 'dine-in' || tableId ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-500 hover:text-white'}`}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${orderMode === 'dine-in' || tableId ? 'bg-slate-800 text-white shadow-sm dark:bg-cyan-600' : 'text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-white'}`}
                             >
                                 {t('dineIn') || 'Dine-In'}
                             </button>
                         </div>
                         
                         {isPriceTiersEnabled && (
-                             <div className="flex bg-black/40 rounded-xl p-1 border border-white/10 shrink-0 animate-in fade-in slide-in-from-top-1">
+                             <div className="flex bg-slate-50 dark:bg-black/40 rounded-xl p-1 border border-slate-200 dark:border-white/10 shrink-0 animate-in fade-in slide-in-from-top-1">
                                 {[
                                     { id: 'sellPrice', label: 'جمله' },
                                     { id: 'sellPrice2', label: 'نص جمله' },
@@ -575,10 +575,10 @@ export default function POSClientAPI({
                                         key={tier.id}
                                         onClick={() => setPriceTier(tier.id as any)}
                                         className={clsx(
-                                            "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all duration-300 uppercase tracking-widest",
+                                            "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all duration-200 uppercase tracking-widest",
                                             priceTier === tier.id 
-                                                ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(0,242,255,0.3)]" 
-                                                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                                                ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(0,242,255,0.3)]" 
+                                                : "text-slate-400 hover:text-slate-700 hover:bg-white dark:text-zinc-500 dark:hover:text-zinc-300 dark:hover:bg-white/5"
                                         )}
                                     >
                                         {tier.label}
@@ -590,20 +590,20 @@ export default function POSClientAPI({
                         {(orderMode === 'dine-in' || tableId) && (
                             <button
                                 onClick={() => setIsTableModalOpen(true)}
-                                className="bg-black/50 border border-white/10 hover:border-cyan-500/50 rounded-xl p-3 text-white text-md font-bold w-full transition-colors flex items-center justify-between animate-in fade-in slide-in-from-top-1"
+                                className="bg-slate-50 dark:bg-black/50 border border-slate-200 dark:border-white/10 hover:border-slate-400 dark:hover:border-cyan-500/50 rounded-xl p-3 text-slate-800 dark:text-white text-md font-bold w-full transition-colors flex items-center justify-between animate-in fade-in slide-in-from-top-1"
                             >
                                 <span>{tableId ? tableName : (t('selectTable') || "Select Table (Required)")}</span>
-                                <span className="text-zinc-500 text-xs">{t('change') || 'Change'}</span>
+                                <span className="text-slate-400 dark:text-zinc-500 text-xs">{t('change') || 'Change'}</span>
                             </button>
                         )}
                     </div>
 
                     {/* Header */}
-                    <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md">
-                        <h2 className="font-bold flex items-center gap-2 text-lg text-foreground">
-                            <ShoppingCart className="w-5 h-5 text-cyan-400" />
+                    <div className="px-5 py-3 border-b border-zinc-200 dark:border-white/10 flex justify-between items-center bg-zinc-100/50 dark:bg-zinc-900/50">
+                        <h2 className="font-black flex items-center gap-2 text-base text-zinc-900 dark:text-white uppercase tracking-widest">
+                            <ShoppingCart className="w-5 h-5 text-zinc-400" strokeWidth={2} />
                             {t('items')}
-                            <span className="bg-cyan-500 text-black font-bold text-xs px-2 py-0.5 rounded-full">{items.length}</span>
+                            <span className="bg-zinc-900 dark:bg-white dark:text-zinc-900 text-white font-black text-xs px-2.5 py-0.5 rounded-full">{items.length}</span>
                         </h2>
                         <div className="flex items-center gap-2">
                             {heldCarts.length > 0 && (
@@ -632,22 +632,22 @@ export default function POSClientAPI({
 
                     {/* Held Carts Overlay */}
                     {showHeldCarts && (
-                        <div className="absolute top-14 left-0 w-full glass-card bg-black/60 shadow-2xl z-30 border-b border-white/10 p-3 space-y-2 animate-fly-in">
+                        <div className="absolute top-14 left-0 w-full bg-white dark:bg-black/60 dark:backdrop-blur-md border border-slate-200 dark:border-white/10 shadow-xl rounded-b-2xl z-30 border-b p-3 space-y-2 animate-fly-in">
                             <div className="flex justify-between items-center px-2">
-                                <span className="text-xs font-bold text-zinc-400">{t('heldCartsTitle')}</span>
-                                <button onClick={() => setShowHeldCarts(false)}><XCircle className="w-4 h-4 text-zinc-500" /></button>
+                                <span className="text-xs font-bold text-slate-400 dark:text-zinc-400">{t('heldCartsTitle')}</span>
+                                <button onClick={() => setShowHeldCarts(false)}><XCircle className="w-4 h-4 text-slate-400 dark:text-zinc-500" /></button>
                             </div>
                             {heldCarts.map(cart => (
-                                <div key={cart.id} className="bg-white/5 p-2 rounded-lg flex justify-between items-center border border-white/5 hover:border-white/20 transition-colors">
+                                <div key={cart.id} className="bg-slate-50 dark:bg-white/5 p-2 rounded-lg flex justify-between items-center border border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/20 transition-colors">
                                     <div>
-                                        <div className="text-sm font-bold text-white">{cart.name}</div>
-                                        <div className="text-xs text-zinc-500">{new Date(cart.date).toLocaleTimeString()} • {cart.items.length} Items</div>
+                                        <div className="text-sm font-bold text-slate-800 dark:text-white">{cart.name}</div>
+                                        <div className="text-xs text-slate-400 dark:text-zinc-500">{new Date(cart.date).toLocaleTimeString()} • {cart.items.length} Items</div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => { resumeCart(cart.id); setShowHeldCarts(false); }} className="p-1 bg-cyan-500/20 text-cyan-400 rounded hover:bg-cyan-500/30">
+                                        <button onClick={() => { resumeCart(cart.id); setShowHeldCarts(false); }} className="p-1 bg-slate-800 dark:bg-cyan-500/20 text-white dark:text-cyan-400 rounded hover:bg-slate-700 dark:hover:bg-cyan-500/30">
                                             <PlayCircle className="w-4 h-4" />
                                         </button>
-                                        <button onClick={() => removeHeldCart(cart.id)} className="p-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30">
+                                        <button onClick={() => removeHeldCart(cart.id)} className="p-1 bg-red-50 dark:bg-red-500/20 text-red-500 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-red-500/30 border border-red-200 dark:border-transparent">
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -657,30 +657,29 @@ export default function POSClientAPI({
                     )}
 
                     {/* Cart Items List */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-2 no-scrollbar bg-transparent">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 no-scrollbar bg-slate-50 dark:bg-transparent">
                         {items.length === 0 && (
-                            <div className="h-full flex flex-col items-center justify-center text-zinc-700 opacity-50">
-                                <ShoppingCart className="w-16 h-16 mb-4 opacity-50" />
-                                <p className="text-sm font-bold uppercase tracking-widest">{t('emptyCart')}</p>
+                            <div className="h-full flex flex-col items-center justify-center text-slate-300 dark:text-zinc-700">
+                                <ShoppingCart className="w-16 h-16 mb-4 opacity-50" strokeWidth={1.25} />
+                                <p className="text-sm font-semibold tracking-widest text-slate-400 dark:text-zinc-500">{t('emptyCart')}</p>
                             </div>
                         )}
                         {items.map((item) => (
-                            <div key={item.id} className="relative glass-card bg-white/5 backdrop-blur-md p-4 group overflow-hidden shadow-lg mb-3">
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+                            <div key={item.id} className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 shadow-sm p-4 group overflow-hidden rounded-2xl mb-3">
                                 {/* Bundle header row */}
                                 <div className="relative z-10 flex justify-between items-center">
                                     <div>
-                                        <div className="font-black text-lg text-foreground mb-1 truncate max-w-[180px]">
+                                        <div className="font-medium dark:font-bold text-base text-slate-700 dark:text-zinc-200 mb-1 truncate max-w-[180px]">
                                             {item.isBundle ? '📦 ' : ''}{item.name}
                                         </div>
                                         <div className="flex items-baseline gap-2">
-                                            <div className="text-cyan-400 font-black text-base font-mono">{formatCurrency(item.price)}</div>
-                                            <div className="text-zinc-500 text-xs font-bold">x {item.quantity}</div>
+                                            <div className="text-slate-800 dark:text-white font-semibold dark:font-black text-base font-mono">{formatCurrency(item.price)}</div>
+                                            <div className="text-slate-400 text-xs">x {item.quantity}</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <div className={clsx("flex items-center gap-2 bg-background/50 rounded-xl p-1.5 border transition-all duration-300 shadow-inner", qtyModeId === item.id ? "border-cyan-500 ring-2 ring-cyan-500/50 bg-cyan-950/20" : "border-border")}>
-                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-white/5 shrink-0 relative order-1">
+                                        <div className={clsx("flex items-center gap-2 bg-slate-100 dark:bg-zinc-800/50 rounded-xl p-1.5 border transition-all duration-300 shadow-inner", qtyModeId === item.id ? "border-pink-400 ring-2 ring-pink-400/20 dark:border-cyan-500 dark:ring-cyan-500/20" : "border-slate-200 dark:border-white/5")}>
+                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-white dark:bg-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-400 flex items-center justify-center transition-colors border border-slate-200 dark:border-white/5 shrink-0 relative order-1">
                                                 <Minus className="w-4 h-4" />
                                                 {qtyModeId === item.id && (
                                                     <span className="absolute -top-1 -left-1 text-[8px] bg-black/60 text-zinc-400 px-1 rounded border border-white/5 font-bold uppercase pointer-events-none">BS</span>
@@ -723,9 +722,9 @@ export default function POSClientAPI({
                                                         setIsCheckoutOpen(true); // Open checkout directly
                                                     }
                                                 }}
-                                                className={clsx("w-10 text-center text-lg font-black font-mono tracking-tight bg-transparent border-none outline-none focus:ring-0", qtyModeId === item.id ? "text-cyan-400" : "text-white")}
+                                                className={clsx("w-10 text-center text-base font-semibold font-mono tracking-tight bg-transparent border-none outline-none focus:ring-0 order-2", qtyModeId === item.id ? "text-pink-500 dark:text-cyan-400" : "text-slate-700 dark:text-white")}
                                             />
-                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition-colors border border-white/5 shadow-[0_0_10px_rgba(6,182,212,0.3)] shrink-0 order-3"><Plus className="w-4 h-4" /></button>
+                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-zinc-800 hover:bg-slate-700 dark:hover:bg-zinc-700 text-white flex items-center justify-center transition-colors border border-slate-700 dark:border-white/5 shrink-0 order-3"><Plus className="w-4 h-4" /></button>
                                         </div>
                                         <button onClick={() => removeFromCart(item.id)} className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 flex items-center justify-center border border-red-500/20 transition-all opacity-0 group-hover:opacity-100 relative">
                                             <Trash2 className="w-5 h-5" />
@@ -755,7 +754,7 @@ export default function POSClientAPI({
 
                     {/* Discount Input in Cart */}
                     {items.length > 0 && permissions.canDiscount && (
-                        <div className="px-4 py-3 bg-muted/20 border-t border-border">
+                        <div className="px-4 py-3 bg-white dark:bg-black/20 border-t-2 border-dashed border-zinc-100 dark:border-white/5">
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">{t('discount')}</span>
@@ -830,7 +829,7 @@ export default function POSClientAPI({
                     )}
 
                     {/* Footer */}
-                    <div className="p-5 border-t border-border bg-card shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-10">
+                    <div className="p-5 border-t border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] z-10">
                         {/* ... Footer content same as before ... */}
                         <div className="flex flex-col items-end mb-4 px-2 text-right">
                             <div className="flex justify-between w-full text-zinc-500 text-xs font-bold uppercase tracking-wider">
@@ -844,7 +843,7 @@ export default function POSClientAPI({
                                 </div>
                             )}
                             {taxRate > 0 && (
-                                <div className="flex justify-between w-full text-cyan-400 text-xs font-bold uppercase tracking-wider mt-1">
+                                <div className="flex justify-between w-full text-slate-400 text-xs font-medium uppercase tracking-wider mt-1">
                                     <span>{t('tax')} ({taxRate}%)</span>
                                     <span>{formatCurrency(taxAmount)}</span>
                                 </div>
@@ -897,10 +896,10 @@ export default function POSClientAPI({
                                 <button
                                     onClick={() => setIsCheckoutOpen(true)}
                                     disabled={items.length === 0 || isPrinting || !permissions.canCheckout}
-                                    className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xl tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,242,255,0.3)] hover:shadow-[0_0_30px_rgba(0,242,255,0.5)] transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none relative"
+                                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-lg tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none relative"
                                 >
-                                    <Banknote className="w-6 h-6" />{t('checkout')}
-                                    <span className="absolute top-2 right-3 text-[10px] bg-black/40 text-white px-1.5 py-0.5 rounded border border-white/20 font-black uppercase">ENTER</span>
+                                    <Banknote className="w-5 h-5" />{t('checkout')}
+                                    <span className="absolute top-2 right-3 text-[10px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded border border-white/10 font-medium uppercase">ENTER</span>
                                 </button>
                             </div>
                         </div>
@@ -942,7 +941,7 @@ export default function POSClientAPI({
 
             {/* RIGHT SIDE: Product Grid */}
             <div
-                className="flex-1 flex bg-muted/10"
+                className="flex-1 flex bg-zinc-100 dark:bg-zinc-950/50"
                 onClick={(e) => {
                     // Check if the click target or any parent is inhibiting focus (e.g., Customer Search)
                     if ((e.target as HTMLElement).closest('[data-inhibit-pos-focus="true"]')) {
@@ -956,7 +955,7 @@ export default function POSClientAPI({
                 }}
             >
                 {/* Sidebar Categories (Top Level Only) */}
-                <div className="w-40 border-r border-white/5 glass-card bg-black/40 backdrop-blur-3xl px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full rounded-none">
+                <div className="w-40 border-l border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-4 flex flex-col gap-2 overflow-y-auto no-scrollbar z-10 h-full rounded-none shadow-sm">
                     <button 
                         onClick={() => {
                             setSelectedCategory(null);
@@ -964,11 +963,12 @@ export default function POSClientAPI({
                             setSearch("");
                         }} 
                         className={clsx(
-                            "w-full h-16 rounded-xl flex items-center justify-center text-sm font-black transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 border border-white/5", 
-                            selectedCategory === null && activeParentId === null ? "bg-cyan-500 text-black shadow-[0_0_20px_rgba(0,242,255,0.4)] scale-[1.02]" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                            "w-full h-16 rounded-xl flex items-center justify-center text-sm font-bold dark:font-black transition-all duration-200 shadow-sm relative overflow-hidden group shrink-0 border", 
+                            selectedCategory === null && activeParentId === null 
+                                ? "bg-slate-900 text-white border-slate-900 shadow-md dark:bg-cyan-500 dark:text-black dark:border-cyan-400 dark:shadow-[0_0_200px_rgba(6,182,212,0.4)]" 
+                                : "bg-white dark:bg-white/5 text-slate-400 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-600 dark:hover:text-foreground border-slate-200 dark:border-white/10"
                         )}
                     >
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
                         {t('allCategories')}
                     </button>
 
@@ -986,24 +986,23 @@ export default function POSClientAPI({
                                 setIsCategoryModalOpen(true);
                             }}
                             className={clsx(
-                                "w-full h-24 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 shadow-xl relative overflow-hidden group shrink-0 text-center break-words p-2 border border-white/10 backdrop-blur-xl", 
-                                activeParentId === c.id ? "scale-[1.02] ring-2 ring-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.2)]" : "hover:scale-[1.02] opacity-80 hover:opacity-100",
+                                "w-full h-24 rounded-xl flex flex-col items-center justify-center text-[13px] font-bold dark:font-black transition-all duration-200 shadow-sm relative overflow-hidden group shrink-0 text-center break-words p-2 border", 
+                                activeParentId === c.id ? "scale-[1.02] ring-2 ring-pink-400/40 shadow-md" : "hover:scale-[1.02] opacity-90 hover:opacity-100",
                                 c.isHidden && "opacity-40 grayscale"
                             )}
                             style={{ 
-                                backgroundColor: `${c.color || "#06b6d4"}33`, 
-                                color: activeParentId === c.id ? "#fff" : "rgba(255,255,255,0.7)", 
-                                borderLeft: `4px solid ${c.color || "#06b6d4"}`
+                                backgroundColor: activeParentId === c.id ? `${c.color || "#94a3b8"}` : `${c.color || "#94a3b8"}22`, 
+                                color: activeParentId === c.id ? '#ffffff' : (activeParentId === c.id ? '#1e293b' : '#64748b'), 
+                                borderLeft: `6px solid ${c.color || "#94a3b8"}`
                             }}
                         >
-                            <div className="absolute inset-0 bg-white/5 group-hover:bg-white/10 transition-colors pointer-events-none" />
-                            <span className="relative z-10 drop-shadow-md text-sm uppercase tracking-wider font-black">{c.name}</span>
+                            <span className="relative z-10">{c.name}</span>
                         </button>
                     ))}
 
                     <button 
                         onClick={() => setShowHidden(!showHidden)}
-                        className="mt-auto p-2 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase font-black text-center"
+                        className="mt-auto p-2 text-[10px] text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors font-semibold text-center"
                     >
                         {showHidden ? (t('hideHidden') || "Hide Disabled") : (t('showHidden') || "View All")}
                     </button>
@@ -1013,7 +1012,7 @@ export default function POSClientAPI({
                             setCategoryToEdit(null);
                             setIsCategoryModalOpen(true);
                         }}
-                        className="w-full h-16 rounded-xl flex items-center justify-center bg-zinc-800/50 border border-dashed border-zinc-700 text-zinc-500 hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-zinc-800 transition-all shrink-0 group border-2"
+                        className="w-full h-16 rounded-xl flex items-center justify-center bg-white dark:bg-zinc-800/50 border border-dashed border-slate-300 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 hover:text-pink-400 dark:hover:text-cyan-400 hover:border-pink-300 dark:hover:border-cyan-500/50 hover:bg-pink-50 dark:hover:bg-zinc-800 transition-all shrink-0 group border-2"
                     >
                         <Plus className="w-6 h-6 group-hover:scale-125 transition-transform" />
                     </button>
@@ -1023,11 +1022,11 @@ export default function POSClientAPI({
                 <div className="flex-1 flex flex-col gap-4 h-full overflow-hidden p-4">
                     {/* Search Header & Horizontal Sub-category Filter Bar */}
                     <div className="flex flex-col gap-3">
-                        <div className="flex justify-between items-center bg-black/20 p-2 rounded-xl border border-white/5 mb-1">
+                        <div className="flex justify-between items-center bg-white dark:bg-black/20 p-2 rounded-xl border border-zinc-300 dark:border-white/5 shadow-sm mb-1">
                             {posDefaultName && (
-                                <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                                    <Database className="w-3.5 h-3.5 text-cyan-400" />
-                                    <span className="text-cyan-400 font-black text-[10px] uppercase tracking-widest">
+                                <div className="flex items-center gap-2 px-3 py-1 bg-pink-50 dark:bg-cyan-500/10 rounded-lg border border-pink-100 dark:border-cyan-500/20">
+                                    <Database className="w-3.5 h-3.5 text-pink-400 dark:text-cyan-400" />
+                                    <span className="text-pink-500 dark:text-cyan-400 font-bold dark:font-black text-[10px] uppercase tracking-widest">
                                         المخزن: {posDefaultName}
                                     </span>
                                 </div>
@@ -1038,14 +1037,14 @@ export default function POSClientAPI({
                         </div>
 
                         <div className="flex gap-3">
-                            <div className="glass-card bg-white/5 backdrop-blur-md flex items-center gap-3 py-3 px-4 flex-[2] transition-all focus-within:border-cyan-500/50">
-                                <Search className="w-5 h-5 text-muted-foreground" />
+                            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 shadow-sm flex items-center gap-3 py-3 px-4 flex-[2] transition-all focus-within:border-zinc-400 dark:focus-within:border-white/30 rounded-2xl">
+                                <Search className="w-5 h-5 text-zinc-400 dark:text-zinc-500" strokeWidth={2} />
                                 <input
                                     ref={searchInputRef}
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     placeholder={t('searchPlaceholder')}
-                                    className="bg-transparent outline-none w-full placeholder:text-muted-foreground text-foreground"
+                                    className="bg-transparent outline-none w-full placeholder:text-slate-300 dark:placeholder:text-muted-foreground text-slate-800 dark:text-foreground"
                                 />
                             </div>
                             <div className="flex-[2]">
@@ -1065,14 +1064,15 @@ export default function POSClientAPI({
                         {/* HORIZONTAL PILL BAR FOR SUBCATEGORIES */}
                         {activeSubCategories.length > 0 && (
                             <div className="flex flex-col gap-2 mt-2 animate-slide-down">
-                                <div className="text-[9px] font-black text-zinc-500 uppercase tracking-widest px-2">{t('subCategories') || "Sub-Categories"}</div>
+                                <div className="text-[9px] font-bold dark:font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest px-2">{t('subCategories') || "Sub-Categories"}</div>
                                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
-                                    {/* 'All' pill for this group */}
                                     <button
                                         onClick={() => setSelectedCategory(activeParentId)}
                                         className={clsx(
-                                            "px-6 py-3 rounded-xl text-sm font-black uppercase transition-all whitespace-nowrap border shrink-0 shadow-lg",
-                                            selectedCategory === activeParentId ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-105" : "bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-white"
+                                            "px-5 py-2.5 rounded-xl text-sm font-semibold dark:font-bold transition-all whitespace-nowrap border shrink-0 shadow-sm",
+                                            selectedCategory === activeParentId 
+                                                ? "bg-slate-900 text-white border-slate-900 dark:bg-cyan-500 dark:text-black dark:border-cyan-400" 
+                                                : "bg-white dark:bg-white/5 text-slate-400 dark:text-zinc-400 border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/10 hover:text-slate-600 dark:hover:text-white"
                                         )}
                                     >
                                         {t('all') || "All"}
@@ -1087,8 +1087,10 @@ export default function POSClientAPI({
                                                 setIsCategoryModalOpen(true);
                                             }}
                                             className={clsx(
-                                                "px-6 py-3 rounded-xl text-sm font-black uppercase transition-all whitespace-nowrap border shrink-0 shadow-lg",
-                                                selectedCategory === sub.id ? "bg-cyan-500 text-black border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] scale-105" : "bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:text-white"
+                                                "px-5 py-2.5 rounded-xl text-sm font-semibold dark:font-bold transition-all whitespace-nowrap border shrink-0 shadow-sm",
+                                                selectedCategory === sub.id 
+                                                    ? "bg-slate-900 text-white border-slate-900 dark:bg-cyan-500 dark:text-black dark:border-cyan-400" 
+                                                    : "bg-white dark:bg-white/5 text-slate-400 dark:text-zinc-400 border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/10 hover:text-slate-600 dark:hover:text-white"
                                             )}
                                         >
                                             {sub.name}
@@ -1120,10 +1122,10 @@ export default function POSClientAPI({
                                     key={p.id}
                                     onClick={() => handleAddProduct(p)}
                                     style={{ height: `${Math.max(120, 180 - gridCols * 10)}px` }}
-                                    className="w-full bg-card hover:bg-muted/50 p-4 rounded-2xl flex flex-col items-start gap-2 transition-all text-left group relative overflow-hidden shadow-sm border border-border"
+                                    className="w-full bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 p-4 rounded-3xl flex flex-col items-start gap-2 transition-all text-left group relative overflow-hidden shadow-sm border border-zinc-200 dark:border-white/10"
                                 >
                                     <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Plus className="w-5 h-5 text-cyan-400 bg-black/50 rounded-full" />
+                                        <Plus className="w-5 h-5 text-zinc-600 bg-zinc-100 rounded-full" strokeWidth={2} />
                                     </div>
 
                                     <div className="flex justify-between w-full">
@@ -1146,9 +1148,9 @@ export default function POSClientAPI({
                                     </div>
 
                                     <div className="mt-auto w-full">
-                                        <div className={`font-bold line-clamp-2 text-foreground group-hover:text-primary transition-colors ${gridCols >= 6 ? 'text-xs' : 'text-sm'}`}>{p.name}</div>
+                                        <div className={`font-medium dark:font-bold line-clamp-2 text-slate-600 dark:text-zinc-200 group-hover:text-slate-800 dark:group-hover:text-white transition-colors ${gridCols >= 6 ? 'text-xs' : 'text-sm'}`}>{p.name}</div>
                                         <div className="flex justify-between items-center mt-1">
-                                            <div className="text-cyan-400 font-mono text-sm">{formatCurrency(p[priceTier] || p.sellPrice)}</div>
+                                            <div className="text-slate-800 dark:text-white font-semibold dark:font-black font-mono text-sm">{formatCurrency(p[priceTier] || p.sellPrice)}</div>
                                             {permissions.canViewCost && showCostPrice && p.costPrice > 0 && (
                                                 <div className="text-muted-foreground opacity-60 text-[10px] font-mono" title={t('costPrice') || "Cost"}>{formatCurrency(p.costPrice)}</div>
                                             )}

@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Edit2, Trash2, Truck, Phone, Mail, MapPin, Check, Search, Filter, ChevronDown, X, Clock } from "lucide-react";
+import { Plus, Edit2, Trash2, Truck, Phone, Mail, MapPin, Check, Search, Filter, ChevronDown, X, Clock, Loader2 } from "lucide-react";
 import { createSupplier, updateSupplier, deleteSupplier, paySupplier } from "@/actions/inventory";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import GlassModal from "../ui/GlassModal";
-import { Loader2 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import { getEmployeesForLink } from "@/actions/customer-actions";
 import {
@@ -14,7 +13,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -39,7 +37,7 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     const [dateFilter, setDateFilter] = useState("all");
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
 
-    // Form State (Uncontrolled via FormData usually better for actions, but controlled for pre-filling edit)
+    // Form State
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
@@ -54,16 +52,13 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     const [loadingEmployees, setLoadingEmployees] = useState(false);
 
     const filteredSuppliers = suppliers.filter(s => {
-        // Search Filter
         const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              s.phone?.includes(searchTerm);
         if (!matchesSearch) return false;
 
-        // Balance Status Filter
         if (statusFilter === 'inDebt' && s.balance <= 0) return false;
         if (statusFilter === 'credit' && s.balance >= 0) return false;
 
-        // Date Filter
         if (dateRange?.from && dateRange?.to) {
             const createdDate = new Date(s.createdAt);
             return isWithinInterval(createdDate, {
@@ -111,7 +106,7 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
         if (isEmployee && selectedEmployeeId) {
             data.linkedEmployeeId = selectedEmployeeId;
         } else {
-            data.linkedEmployeeId = null; // Clear if toggled off
+            data.linkedEmployeeId = null;
         }
 
         let res;
@@ -139,9 +134,7 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
             const res = await deleteSupplier({ id, csrfToken });
             setLoading(false);
 
-            if (res?.success) {
-                // Success - data will refresh automatically via revalidation
-            } else {
+            if (!res?.success) {
                 alert(res?.error || "Failed to delete supplier");
             }
         }
@@ -196,25 +189,21 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
     }
 
     return (
-        <div className="space-y-4 animate-fly-in" dir="rtl">
-            {/* ... Header & Search ... */}
-
-            {/* List */}
-            {/* HEADER AND SEARCH CODE IS UNCHANGED - INSERTED HERE FOR CONTEXT ONLY IF NEEDED, BUT WE ARE REPLACING WHOLE FILE CONTENT BLOCK FOR SIMPLICITY IF CHUNKED, OR JUST APPENDING MODAL */}
-            {/* ACTUALLY, I NEED TO INJECT THE MODAL AT THE END AND THE BUTTON IN THE TABLE */}
-
+        <div className="space-y-6 animate-fly-in font-cairo" dir="rtl">
             {/* Header */}
-            <div className="flex justify-between items-center bg-muted/50 p-4 rounded-xl border border-border">
+            <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50 p-6 rounded-3xl border border-zinc-200 dark:border-white/10 shadow-sm">
                 <div>
-                    <h2 className="text-xl font-bold flex items-center gap-2">
-                        <Truck className="w-5 h-5 text-indigo-400" />
+                    <h2 className="text-2xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
+                        <div className="p-2.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20">
+                            <Truck className="w-6 h-6" />
+                        </div>
                         {t('title')}
                     </h2>
-                    <p className="text-muted-foreground text-sm">{t('subtitle')}</p>
+                    <p className="text-muted-foreground font-bold text-sm mt-1">{t('subtitle')}</p>
                 </div>
                 <button
                     onClick={() => setIsAddMode(true)}
-                    className="bg-cyan-500 text-black font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-cyan-400 ml-24"
+                    className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black px-6 py-3.5 rounded-2xl flex items-center gap-2 hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-zinc-900/10 text-[11px] uppercase tracking-widest"
                 >
                     <Plus className="w-4 h-4" />
                     {t('new')}
@@ -222,52 +211,62 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
             </div>
 
             {/* Stats Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-red-500/50 bg-red-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalDebt')}</span>
-                    <span className="text-xl font-mono font-bold text-red-500">{formatCurrency(stats.totalDebt, currency)}</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-rose-500/50">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">{t('stats.totalDebt')}</span>
+                    <span className="text-2xl font-black text-rose-600 dark:text-rose-500 font-mono">
+                        {formatCurrency(stats.totalDebt, currency)}
+                    </span>
                 </div>
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-indigo-500/50 bg-indigo-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.suppliersCount')}</span>
-                    <span className="text-xl font-bold text-indigo-400">{filteredSuppliers.length}</span>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-zinc-900/50 dark:border-b-white/50">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">{t('stats.suppliersCount')}</span>
+                    <span className="text-2xl font-black text-zinc-900 dark:text-white">
+                        {filteredSuppliers.length}
+                    </span>
                 </div>
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-emerald-500/50 bg-emerald-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">إجمالي لنا (دائن)</span>
-                    <span className="text-xl font-mono font-bold text-emerald-500">{formatCurrency(stats.totalCredit, currency)}</span>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-emerald-500/50">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">إجمالي لنا (دائن)</span>
+                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-500 font-mono">
+                        {formatCurrency(stats.totalCredit, currency)}
+                    </span>
                 </div>
             </div>
 
             {/* Search & Filters */}
             <div className="flex gap-4 items-center flex-wrap">
                 <div className="relative flex-1 min-w-[300px] group/search">
-                    <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
+                    <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-zinc-900 dark:group-focus-within/search:text-white transition-all pointer-events-none" />
                     <input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder={t('search')}
-                        className="w-full solid-input h-10 ps-12 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
+                        className="w-full h-12 ps-12 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:border-zinc-900 dark:focus:border-white transition-all font-bold rounded-2xl shadow-inner"
                     />
                 </div>
 
-                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
-                    <Button
-                        variant={dateFilter === "today" ? "default" : "ghost"}
-                        size="sm"
-                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-200 dark:border-white/10 flex-wrap shadow-inner">
+                    <button
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
                         }}
+                        className={clsx(
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "today" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
+                        )}
                     >
                         اليوم
-                    </Button>
+                    </button>
                     <button
                         onClick={() => {
                             const yesterday = subDays(new Date(), 1);
                             setDateFilter("yesterday");
                             setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
                         }}
-                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md transition-all", dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                        className={clsx(
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "yesterday" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
+                        )}
                     >
                         أمس
                     </button>
@@ -276,7 +275,10 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                             setDateFilter("week");
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
                         }}
-                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md transition-all", dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                        className={clsx(
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "week" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
+                        )}
                     >
                         الأسبوع
                     </button>
@@ -285,12 +287,15 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                             setDateFilter("month");
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
                         }}
-                        className={clsx("h-8 text-[11px] font-bold px-3 rounded-md transition-all", dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5")}
+                        className={clsx(
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "month" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
+                        )}
                     >
                         الشهر
                     </button>
 
-                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+                    <div className="w-px h-4 bg-zinc-200 dark:bg-white/10 mx-2 hidden sm:block" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates: Date[]) => {
@@ -307,16 +312,16 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                        className="w-48 bg-transparent border-0 text-xs h-10 text-zinc-900 dark:text-zinc-300 placeholder:text-zinc-400 font-bold"
                     />
                 </div>
 
                 <div className="flex gap-2">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
-                                <Filter className="w-4 h-4 text-muted-foreground" />
-                                <span className="font-bold">
+                            <Button variant="outline" className="border-zinc-200 dark:border-white/10 gap-3 h-12 px-6 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl shadow-inner">
+                                <Filter className="w-4 h-4 text-zinc-900 dark:text-white" />
+                                <span className="font-black text-xs uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
                                     {statusFilter === 'all' ? t('filters.all') : 
                                      statusFilter === 'inDebt' ? t('filters.inDebt') : 
                                      t('filters.credit')}
@@ -324,17 +329,17 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                                 <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
-                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">
+                        <DropdownMenuContent align="end" className="w-56 p-2 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-2xl shadow-2xl">
+                            <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-400 mb-2 px-3">
                                 {t('filters.status')}
                             </DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setStatusFilter('all')} className={statusFilter === 'all' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('all')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'all' ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filters.all')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter('inDebt')} className={statusFilter === 'inDebt' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('inDebt')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'inDebt' ? "bg-rose-500/10 text-rose-600" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filters.inDebt')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter('credit')} className={statusFilter === 'credit' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('credit')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'credit' ? "bg-emerald-500/10 text-emerald-600" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filters.credit')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -350,7 +355,7 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                                 setStatusFilter('all');
                                 setSearchTerm("");
                             }}
-                            className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-10 px-3 font-bold gap-2"
+                            className="bg-zinc-100 dark:bg-white/5 text-orange-600 dark:text-orange-400 hover:bg-orange-500 hover:text-white h-12 px-6 rounded-2xl font-black gap-2 transition-all"
                         >
                             <X className="w-4 h-4" /> {tCommon('clearFilters') || "مسح الفلاتر"}
                         </Button>
@@ -358,62 +363,68 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                 </div>
             </div>
 
-            <div className="glass-card overflow-hidden bg-card border border-border">
-                <table className="w-full text-start">
-                    <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
-                        <tr>
-                            <th className="p-3 text-start">{t('table.supplier')}</th>
-                            <th className="p-3 text-start">{t('table.contact')}</th>
-                            <th className="p-3 text-start">{t('table.address')}</th>
-                            <th className="p-3 text-end">{t('table.balance')}</th>
-                            <th className="p-3 text-end">{t('table.actions')}</th>
+            <div className="bg-white dark:bg-zinc-900/50 overflow-hidden rounded-3xl border border-zinc-200 dark:border-white/10 shadow-sm">
+                <table className="w-full text-right text-sm text-zinc-600 dark:text-zinc-400 zebra-table">
+                    <thead className="bg-zinc-50 dark:bg-zinc-900/80 text-zinc-900 dark:text-white border-b border-zinc-200 dark:border-white/10">
+                        <tr className="hover:bg-transparent border-none">
+                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest">{t('table.supplier')}</th>
+                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest">{t('table.contact')}</th>
+                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest">{t('table.address')}</th>
+                            <th className="px-6 py-4 text-end font-black text-[10px] uppercase tracking-widest">{t('table.balance')}</th>
+                            <th className="px-6 py-4 text-end font-black text-[10px] uppercase tracking-widest">{t('table.actions')}</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-border text-sm">
+                    <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
                         {filteredSuppliers.map((s) => (
-                            <tr key={s.id} className="hover:bg-muted/50 transition-colors group cursor-pointer" onClick={() => router.push(`/inventory/suppliers/${s.id}`)}>
-                                <td>
-                                    <div className="flex items-center gap-2 px-3 py-2">
-                                        <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold text-xs shrink-0">
+                            <tr key={s.id} className="hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group border-none" onClick={() => router.push(`/inventory/suppliers/${s.id}`)}>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black text-xs shrink-0 shadow-lg shadow-zinc-900/10">
                                             {s.name.slice(0, 2).toUpperCase()}
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold text-sm text-foreground">{s.name}</span>
+                                                <span className="font-black text-zinc-900 dark:text-white text-sm group-hover:underline transition-all cursor-pointer">{s.name}</span>
                                                 {s.linkedEmployeeId && (
-                                                    <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                        موظف داخلي
+                                                    <span className="text-[10px] bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-zinc-300 border border-zinc-200 dark:border-white/10 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">
+                                                        موظف
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="p-3 text-muted-foreground">
-                                    <div className="flex flex-col gap-0.5 text-xs">
-                                        <span className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {s.phone || "-"}</span>
-                                        <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> {s.email || "-"}</span>
+                                <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">
+                                    <div className="flex flex-col gap-1 text-[11px]">
+                                        <span className="flex items-center gap-2 font-bold"><Phone className="w-3.5 h-3.5 opacity-50" /> {s.phone || "-"}</span>
+                                        <span className="flex items-center gap-2 font-bold"><Mail className="w-3.5 h-3.5 opacity-50" /> {s.email || "-"}</span>
                                     </div>
                                 </td>
-                                <td className="p-3 text-muted-foreground max-w-[180px] truncate text-xs">
-                                    {s.address ? <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {s.address}</span> : "-"}
+                                <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400 max-w-[200px] truncate text-[11px] font-bold leading-relaxed">
+                                    {s.address ? <span className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 opacity-50 shrink-0" /> {s.address}</span> : "-"}
                                 </td>
-                                <td className="p-3 text-end font-mono font-bold text-sm">
+                                <td className="px-6 py-4 text-end">
                                     <div className="flex flex-col items-end">
-                                        <span className={s.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}>
+                                        <span className={clsx(
+                                            "text-sm font-black font-mono",
+                                            s.balance > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                                        )}>
                                             {formatCurrency(Math.abs(s.balance), currency)}
                                         </span>
-                                        {s.balance < 0 && <span className="text-[10px] text-emerald-500/70 font-bold">دائن لنا</span>}
-                                        {s.balance > 0 && <span className="text-[10px] text-rose-500/70 font-bold">مديونية</span>}
+                                        {s.balance < 0 && <span className="text-[10px] text-emerald-600 dark:text-emerald-500/70 font-black uppercase tracking-widest mt-0.5">لنا</span>}
+                                        {s.balance > 0 && <span className="text-[10px] text-rose-600 dark:text-rose-500/70 font-black uppercase tracking-widest mt-0.5">عليه</span>}
                                     </div>
                                 </td>
-                                <td className="p-3 text-end">
-                                    <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => startEdit(s)} className="p-1.5 hover:bg-muted rounded-lg text-cyan-500">
-                                            <Edit2 className="w-3.5 h-3.5" />
+                                <td className="px-6 py-4 text-end" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-end gap-2 translate-x-1">
+                                        <button onClick={() => startPayment(s)} className="w-9 h-9 flex items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition-all shadow-sm active:scale-90" title={tCommon('pay') || "دفع"}>
+                                            <div className="w-4 h-4 flex items-center justify-center font-bold font-mono text-xs">$</div>
                                         </button>
-                                        <button onClick={() => handleDelete(s.id)} className="p-1.5 hover:bg-muted rounded-lg text-red-500">
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                        <button onClick={() => startEdit(s)} className="w-9 h-9 flex items-center justify-center bg-zinc-100 dark:bg-white/5 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-zinc-900 rounded-xl transition-all shadow-sm active:scale-90">
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => handleDelete(s.id)} className="w-9 h-9 flex items-center justify-center bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all shadow-sm active:scale-90">
+                                            <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </td>
@@ -422,8 +433,11 @@ export default function SuppliersTab({ suppliers, csrfToken, currency = "EGP" }:
                     </tbody>
                 </table>
                 {filteredSuppliers.length === 0 && (
-                    <div className="p-8 text-center text-muted-foreground">
-                        {t('empty')}
+                    <div className="p-12 text-center">
+                        <div className="inline-flex p-4 rounded-full bg-zinc-50 dark:bg-white/5 mb-4">
+                            <Truck className="w-8 h-8 text-zinc-300 dark:text-zinc-600" />
+                        </div>
+                        <p className="text-zinc-500 dark:text-zinc-400 font-bold">{t('empty')}</p>
                     </div>
                 )}
             </div>

@@ -21,6 +21,7 @@ const EGYPTIAN_DENOMINATIONS: Denomination[] = [
 ];
 
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+import { clsx } from "clsx";
 
 interface CashCounterProps {
     onChange: (total: number, breakdown: Record<string, number>) => void;
@@ -66,25 +67,28 @@ export default function CashCounter({ onChange, onEnterAtEnd, initialBreakdown =
     };
 
     return (
-        <div className="space-y-3 bg-gray-900 bg-opacity-40 p-3 rounded-xl border border-gray-700" dir="rtl">
-            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 flex justify-between items-center px-1">
-                <span>عداد النقدية (Cash Counter)</span>
-                <span className="text-blue-400">العملة المصرية</span>
+        <div className="space-y-3 bg-slate-50 dark:bg-black/40 p-4 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm" dir="rtl">
+            <h4 className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-2 flex justify-between items-center px-1">
+                <span>عداد النقدية (CASH COUNTER)</span>
+                <span className="text-pink-400 dark:text-cyan-400">العملة المصرية</span>
             </h4>
             
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-3">
                 {EGYPTIAN_DENOMINATIONS.slice(0, 7).map((d, index) => {
                     const labelStr = d.label.toString();
                     const count = counts[labelStr] || 0;
                     const rowTotal = d.value * count;
 
                     return (
-                        <div key={labelStr} className={`flex flex-col gap-1 p-2 bg-gray-800 bg-opacity-40 rounded-lg border border-white/5 hover:border-blue-500/30 transition-all ${index >= 4 ? 'col-span-1 border-dashed' : ''}`}>
+                        <div key={labelStr} className={clsx(
+                            "flex flex-col gap-2 p-3 bg-white dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 hover:border-pink-300 dark:hover:border-cyan-500/50 transition-all",
+                            index >= 4 ? 'col-span-1 border-dashed' : ''
+                        )}>
                             <div className="flex justify-between items-center px-0.5">
-                                <span className="text-[11px] font-black text-gray-300">
+                                <span className="text-xs font-black text-slate-700 dark:text-zinc-200">
                                     {d.label}
                                 </span>
-                                <span className="text-[9px] font-mono text-blue-400">
+                                <span className="text-[10px] font-mono text-pink-400 dark:text-cyan-400 font-bold">
                                     {rowTotal > 0 ? rowTotal.toLocaleString() : ""}
                                 </span>
                             </div>
@@ -96,7 +100,7 @@ export default function CashCounter({ onChange, onEnterAtEnd, initialBreakdown =
                                 value={count === 0 ? "" : count}
                                 onChange={(e) => handleCountChange(labelStr, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, index, EGYPTIAN_DENOMINATIONS.slice(0, 7).length, onEnterAtEnd)}
-                                className="w-full bg-black/40 border border-white/10 rounded px-1 py-1 text-white text-center text-sm font-bold focus:ring-1 focus:ring-blue-500 outline-none placeholder:text-gray-700"
+                                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-slate-800 dark:text-white text-center text-sm font-bold focus:ring-1 focus:ring-pink-400 dark:focus:ring-cyan-500 focus:border-pink-400 dark:focus:border-cyan-500 outline-none placeholder:text-slate-300 dark:placeholder:text-zinc-600"
                                 placeholder="0"
                             />
                         </div>
@@ -104,10 +108,11 @@ export default function CashCounter({ onChange, onEnterAtEnd, initialBreakdown =
                 })}
             </div>
 
-            <div className="pt-2 border-t border-gray-700/50 flex justify-between items-center text-white px-1">
-                <span className="text-[11px] font-black text-gray-400">إجمالي النقدية</span>
-                <span className="text-xl font-black text-blue-500 drop-shadow-sm">
-                    {calculateTotal(counts).toLocaleString()} <span className="text-[10px] text-gray-500 font-normal">ج.م</span>
+            <div className="pt-3 mt-1 border-t border-slate-200 dark:border-white/5 flex justify-between items-center text-slate-700 dark:text-zinc-300 px-1">
+                <span className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">إجمالي النقدية</span>
+                <span className="text-2xl font-black text-slate-900 dark:text-white drop-shadow-sm tabular-nums flex items-baseline gap-2">
+                    {calculateTotal(counts).toLocaleString()} 
+                    <span className="text-xs text-slate-400 dark:text-zinc-500 font-bold uppercase">ج.م</span>
                 </span>
             </div>
         </div>

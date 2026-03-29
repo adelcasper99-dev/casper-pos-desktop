@@ -24,15 +24,15 @@ export default function PurchasingClient({
     const [activeTab, setActiveTab] = useState<'PURCHASES' | 'SUPPLIERS' | 'SERVICES'>('PURCHASES');
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 font-cairo">
             {/* TABS */}
-            <div className="flex justify-between items-center bg-white/5 p-2 rounded-2xl border border-white/10 overflow-x-auto">
+            <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded-2xl border border-zinc-200 dark:border-white/10 overflow-x-auto shadow-inner">
                 <div className="flex gap-2">
                     <button
                         onClick={() => setActiveTab('PURCHASES')}
                         className={clsx(
-                            "px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all whitespace-nowrap",
-                            activeTab === 'PURCHASES' ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(168,85,247,0.4)]" : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            "px-6 py-3 rounded-xl flex items-center gap-2 font-black transition-all whitespace-nowrap text-xs uppercase tracking-widest",
+                            activeTab === 'PURCHASES' ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
                         <ShoppingCart className="w-4 h-4" />
@@ -41,8 +41,8 @@ export default function PurchasingClient({
                     <button
                         onClick={() => setActiveTab('SUPPLIERS')}
                         className={clsx(
-                            "px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all whitespace-nowrap",
-                            activeTab === 'SUPPLIERS' ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(168,85,247,0.4)]" : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            "px-6 py-3 rounded-xl flex items-center gap-2 font-black transition-all whitespace-nowrap text-xs uppercase tracking-widest",
+                            activeTab === 'SUPPLIERS' ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
                         <Truck className="w-4 h-4" />
@@ -51,11 +51,11 @@ export default function PurchasingClient({
                     <button
                         onClick={() => setActiveTab('SERVICES')}
                         className={clsx(
-                            "px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all whitespace-nowrap",
-                            activeTab === 'SERVICES' ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(168,85,247,0.4)]" : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            "px-6 py-3 rounded-xl flex items-center gap-2 font-black transition-all whitespace-nowrap text-xs uppercase tracking-widest",
+                            activeTab === 'SERVICES' ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
-                        <ShoppingCart className="w-4 h-4" /> {/* Use a different icon? maybe Layers */}
+                        <ShoppingCart className="w-4 h-4" />
                         {t('tabs.services')}
                     </button>
                 </div>

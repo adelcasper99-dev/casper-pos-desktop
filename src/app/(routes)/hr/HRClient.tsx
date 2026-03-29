@@ -6,6 +6,7 @@ import EmployeeDirectory from "@/components/hr/EmployeeDirectory"
 import AttendanceManager from "@/components/hr/AttendanceManager"
 import { Users, Calendar, DollarSign, CalendarOff, ShoppingCart, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
 import { getHRDashboardSummary } from "@/actions/hr"
+import { cn } from "@/lib/utils"
 
 export default function HRClient({ csrfToken }: { csrfToken: string }) {
     const t = useTranslations("HR")
@@ -46,123 +47,119 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
     const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
 
     return (
-        <div className="p-6 w-full space-y-6 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                        {t("title") || "HR Dashboard"}
+        <div className="p-8 w-full space-y-8 animate-in fade-in duration-500 font-cairo" dir="rtl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-zinc-200 dark:border-white/5">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-3xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
+                        <div className="p-2.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20">
+                            <Users className="w-6 h-6" />
+                        </div>
+                        {t("title") || "شؤون الموظفين"}
                     </h1>
-                    <p className="text-muted-foreground">{t("subtitle") || "Manage staff directory and attendance"}</p>
+                    <p className="text-zinc-500 dark:text-zinc-400 font-bold text-sm tracking-wide mt-1">{t("subtitle") || "إدارة الموظفين والحضور اليومي"}</p>
                 </div>
 
                 {/* Date Filter */}
-                <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1.5 backdrop-blur-md shadow-lg">
+                <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-1.5 shadow-sm">
                     <button 
                         onClick={prevMonth}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                        className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
                     >
-                        <ChevronLeft className="w-4 h-4" />
+                        <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
                     </button>
-                    <div className="flex items-center gap-2 px-3 py-1 text-sm font-semibold min-w-[140px] justify-center text-white">
-                        <CalendarDays className="w-4 h-4 text-primary" />
-                        {currentDate.toLocaleDateString('ar-AR', { month: 'long', year: 'numeric' })}
+                    <div className="flex items-center gap-3 px-6 py-2 h-10 text-sm font-black min-w-[180px] justify-center text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 rounded-xl shadow-inner border border-zinc-100 dark:border-white/5 uppercase tracking-widest">
+                        <CalendarDays className="w-4 h-4 text-zinc-400" />
+                        {currentDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
                     </div>
                     <button 
                         onClick={nextMonth}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                        className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
                     >
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-5 h-5 rtl:rotate-180" />
                     </button>
+                    <div className="w-px h-4 bg-zinc-200 dark:bg-white/10 mx-1 hidden sm:block" />
                     <button 
                         onClick={() => setCurrentDate(new Date())}
-                        className="ml-2 px-3 py-1 text-[10px] uppercase font-bold tracking-wider bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-all"
+                        className="mr-1 px-5 h-10 text-[11px] uppercase font-black tracking-widest bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
                     >
-                        Today
+                        اليوم
                     </button>
                 </div>
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* اجمالى الصافى المستحق */}
-                <div className="bg-card/50 backdrop-blur-md p-5 rounded-2xl border border-white/5 flex flex-col gap-2 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-primary/20" />
-                    <div className="flex items-center gap-3 text-zinc-400">
-                        <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                            <DollarSign className="w-5 h-5" />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="font-medium text-sm">اجمالى الصافى المستحق</span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-[10px] font-bold text-emerald-500/80 tracking-wider">LIVE</span>
-                            </div>
-                        </div>
-                    </div>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-zinc-900/50 dark:border-b-white/50">
+                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
+                        <DollarSign className="w-3.5 h-3.5 text-zinc-400" />
+                        اجمالى الصافى المستحق
+                    </span>
                     {isLoadingSummary ? (
-                        <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse mt-1" />
+                        <div className="h-8 w-24 bg-zinc-200 dark:bg-white/10 rounded-lg animate-pulse" />
                     ) : (
-                        <div className="text-2xl font-bold font-mono tracking-tight text-white mt-1">
-                            ${summary.expectedSalaries.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
+                        <span className="text-2xl font-black text-zinc-900 dark:text-white font-mono flex items-center gap-1.5 tabular-nums">
+                            {summary.expectedSalaries.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-xs font-normal opacity-70 italic font-cairo">EGP</span>
+                        </span>
                     )}
                 </div>
 
                 {/* إجمالي الغيابات */}
-                <div className="bg-card/50 backdrop-blur-md p-5 rounded-2xl border border-white/5 flex flex-col gap-2 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-red-500/20" />
-                    <div className="flex items-center gap-3 text-zinc-400">
-                        <div className="p-2 rounded-xl bg-red-500/10 text-red-500">
-                            <CalendarOff className="w-5 h-5" />
-                        </div>
-                        <span className="font-medium text-sm">إجمالي الغيابات</span>
-                    </div>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-rose-500/50">
+                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
+                        <CalendarOff className="w-3.5 h-3.5 text-rose-500" />
+                        إجمالي الغيابات والشفتات المفقودة
+                    </span>
                     {isLoadingSummary ? (
-                        <div className="h-8 w-16 bg-white/5 rounded-lg animate-pulse mt-1" />
+                        <div className="h-8 w-16 bg-zinc-200 dark:bg-white/10 rounded-lg animate-pulse" />
                     ) : (
-                        <div className="text-2xl font-bold font-mono tracking-tight text-white mt-1">
+                        <span className="text-2xl font-black text-rose-600 dark:text-rose-500 font-mono flex items-center gap-1.5 tabular-nums">
                             {summary.totalAbsences}
-                        </div>
+                            <span className="text-xs font-normal opacity-70 italic font-cairo">غياب</span>
+                        </span>
                     )}
                 </div>
 
                 {/* مبيعات موظفين (آجل) */}
-                <div className="bg-card/50 backdrop-blur-md p-5 rounded-2xl border border-white/5 flex flex-col gap-2 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-emerald-500/20" />
-                    <div className="flex items-center gap-3 text-zinc-400">
-                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                            <ShoppingCart className="w-5 h-5" />
-                        </div>
-                        <span className="font-medium text-sm">مبيعات موظفين (آجل)</span>
-                    </div>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-primary/50">
+                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
+                        <ShoppingCart className="w-3.5 h-3.5 text-primary" />
+                        مبيعات موظفين (آجل)
+                    </span>
                     {isLoadingSummary ? (
-                        <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse mt-1" />
+                        <div className="h-8 w-24 bg-zinc-200 dark:bg-white/10 rounded-lg animate-pulse" />
                     ) : (
-                        <div className="text-2xl font-bold font-mono tracking-tight text-white mt-1 flex gap-2 items-baseline">
-                            ${summary.employeeCreditSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
+                        <span className="text-2xl font-black text-primary font-mono flex items-center gap-1.5 tabular-nums">
+                            {summary.employeeCreditSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-xs font-normal opacity-70 italic font-cairo">EGP</span>
+                        </span>
                     )}
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
+            <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 w-fit shadow-inner">
                 <button
                     onClick={() => setActiveTab('directory')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'directory'
-                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                        }`}
+                    className={cn(
+                        "flex items-center gap-3 px-8 h-12 rounded-xl text-sm font-black transition-all tracking-wide uppercase",
+                        activeTab === 'directory'
+                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10'
+                            : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/5'
+                    )}
                 >
                     <Users className="w-4 h-4" />
                     {t("tabs.directory")}
                 </button>
                 <button
                     onClick={() => setActiveTab('attendance')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'attendance'
-                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                        }`}
+                    className={cn(
+                        "flex items-center gap-3 px-8 h-12 rounded-xl text-sm font-black transition-all tracking-wide uppercase",
+                        activeTab === 'attendance'
+                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10'
+                            : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/5'
+                    )}
                 >
                     <Calendar className="w-4 h-4" />
                     {t("tabs.attendance")}
@@ -170,7 +167,7 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
             </div>
 
             {/* Content area */}
-            <div className="mt-6">
+            <div className="mt-8">
                 {activeTab === 'directory' && <EmployeeDirectory csrfToken={csrfToken} />}
                 {activeTab === 'attendance' && <AttendanceManager csrfToken={csrfToken} />}
             </div>

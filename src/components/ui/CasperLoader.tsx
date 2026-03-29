@@ -22,7 +22,7 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
         {/* Ghost 1 - Top Center */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2">
           <Image
-            src="/assets/casper-logo.png"
+            src="/assets/casper-icon.png"
             alt=""
             width={ghostSize}
             height={ghostSize}
@@ -32,7 +32,7 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
         {/* Ghost 2 - Bottom Right */}
         <div className="absolute bottom-[15%] right-0 rotate-[120deg] origin-center">
           <Image
-            src="/assets/casper-logo.png"
+            src="/assets/casper-icon.png"
             alt=""
             width={ghostSize}
             height={ghostSize}
@@ -42,7 +42,7 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
         {/* Ghost 3 - Bottom Left */}
         <div className="absolute bottom-[15%] left-0 -rotate-[120deg] origin-center">
           <Image
-            src="/assets/casper-logo.png"
+            src="/assets/casper-icon.png"
             alt=""
             width={ghostSize}
             height={ghostSize}

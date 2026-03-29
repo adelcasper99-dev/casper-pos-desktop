@@ -83,168 +83,182 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md bg-zinc-950 border border-white/10 text-white shadow-2xl">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-xl font-black">
-                        <RotateCcw className="w-5 h-5 text-red-400" />
-                        تأكيد المرتجع الكامل
-                    </DialogTitle>
-                    <p className="text-xs text-zinc-500 font-mono">
-                        فاتورة #{sale?.id.slice(0, 8).toUpperCase()} — إجمالي: {sale?.totalAmount.toLocaleString()}
-                    </p>
-                </DialogHeader>
+            <DialogContent className="sm:max-w-md bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
+                <div className="p-8 space-y-6">
+                    <DialogHeader className="pb-4 border-b border-border">
+                        <DialogTitle className="flex items-center gap-3 text-2xl font-black">
+                            <div className="p-2.5 rounded-2xl bg-red-500/10 border border-red-500/20">
+                                <RotateCcw className="w-6 h-6 text-red-500" />
+                            </div>
+                            مرتجع مبيعات كامل
+                        </DialogTitle>
+                        <div className="flex items-center justify-between mt-2 pt-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60 font-mono">
+                                فاتورة #{sale?.id.slice(0, 8).toUpperCase()}
+                            </span>
+                            <div className="font-mono font-black text-rose-600 dark:text-rose-400 text-sm">
+                                {sale?.totalAmount.toLocaleString()} EGP
+                            </div>
+                        </div>
+                    </DialogHeader>
 
-                <div className="space-y-4 py-4">
-                    {/* Treasury Selection */}
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest ml-1">
-                            وجهة استرداد المبلغ
-                        </label>
-                        <div className="grid grid-cols-1 gap-2">
-                            {fetching ? (
-                                <div className="h-20 bg-white/5 animate-pulse rounded-xl" />
-                            ) : (
-                                <>
-                                    {/* ── Store Credit Option (Always available if customer linked) ── */}
-                                    {sale?.customerId && (
-                                        <button
-                                            key={STORE_CREDIT_VIRTUAL_ID}
-                                            onClick={() => setSelectedTreasuryId(STORE_CREDIT_VIRTUAL_ID)}
-                                            className={cn(
-                                                "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
-                                                selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID
-                                                    ? "bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
-                                                    : "bg-white/5 border-white/5 hover:bg-white/10"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-3">
+                    <div className="space-y-4">
+                        {/* Treasury Selection */}
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">
+                                وجهة استرداد المبلغ المالي
+                            </label>
+                            <div className="grid grid-cols-1 gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                {fetching ? (
+                                    <div className="space-y-2">
+                                        {[1, 2, 3].map(i => <div key={i} className="h-16 bg-muted/40 animate-pulse rounded-2xl border border-border" />)}
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Store Credit Option */}
+                                        {sale?.customerId && (
+                                            <button
+                                                key={STORE_CREDIT_VIRTUAL_ID}
+                                                onClick={() => setSelectedTreasuryId(STORE_CREDIT_VIRTUAL_ID)}
+                                                className={cn(
+                                                    "flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 group text-right",
+                                                    selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID
+                                                        ? "bg-primary/10 border-primary/30 shadow-lg shadow-primary/5"
+                                                        : "bg-muted/40 border-border hover:bg-muted/60 hover:border-border/80"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={cn(
+                                                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                                                        selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "bg-card border border-border text-muted-foreground group-hover:border-primary/40"
+                                                    )}>
+                                                        <RotateCcw className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <div className={cn("text-sm font-black transition-colors", selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID ? "text-primary" : "text-foreground")}>رصيد المتجر (محفظة)</div>
+                                                        <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">STORE CREDIT — للاستخدام اللاحق</div>
+                                                    </div>
+                                                </div>
                                                 <div className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                    selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID ? "bg-cyan-500 text-white" : "bg-zinc-800 text-zinc-400"
-                                                )}>
-                                                    <RotateCcw className="w-4 h-4" />
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-bold">إعادة إلى رصيد المتجر</div>
-                                                    <div className="text-[10px] text-zinc-500 uppercase">STORE CREDIT — محفظة العميل</div>
-                                                </div>
-                                            </div>
-                                            {selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID && (
-                                                <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]" />
-                                            )}
-                                        </button>
-                                    )}
+                                                    "w-2.5 h-2.5 rounded-full transition-all duration-300",
+                                                    selectedTreasuryId === STORE_CREDIT_VIRTUAL_ID ? "bg-primary scale-110 shadow-[0_0_10px_theme(colors.primary.DEFAULT)]" : "bg-border scale-75"
+                                                )} />
+                                            </button>
+                                        )}
 
-                                    {/* ── Account option for credit sales ── */}
-                                    {isAccountSale && (
-                                        <button
-                                            key={ACCOUNT_VIRTUAL_ID}
-                                            onClick={() => setSelectedTreasuryId(ACCOUNT_VIRTUAL_ID)}
-                                            className={cn(
-                                                "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
-                                                selectedTreasuryId === ACCOUNT_VIRTUAL_ID
-                                                    ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
-                                                    : "bg-white/5 border-white/5 hover:bg-white/10"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-3">
+                                        {/* Account option */}
+                                        {isAccountSale && (
+                                            <button
+                                                key={ACCOUNT_VIRTUAL_ID}
+                                                onClick={() => setSelectedTreasuryId(ACCOUNT_VIRTUAL_ID)}
+                                                className={cn(
+                                                    "flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 group text-right",
+                                                    selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+                                                        ? "bg-amber-500/10 border-amber-500/30 shadow-lg shadow-amber-500/5"
+                                                        : "bg-muted/40 border-border hover:bg-muted/60 hover:border-border/80"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={cn(
+                                                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                                                        selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30" : "bg-card border border-border text-muted-foreground group-hover:border-amber-500/40"
+                                                    )}>
+                                                        <UserCheck className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <div className={cn("text-sm font-black transition-colors", selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>حساب العميل (آجل)</div>
+                                                        <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">ACCOUNT — خصم من المديونية</div>
+                                                    </div>
+                                                </div>
                                                 <div className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                    selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "bg-amber-500 text-white" : "bg-zinc-800 text-zinc-400"
-                                                )}>
-                                                    <UserCheck className="w-4 h-4" />
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-bold">خصم من حساب العميل (آجل)</div>
-                                                    <div className="text-[10px] text-zinc-500 uppercase">ACCOUNT — لا يمس الخزنة</div>
-                                                </div>
-                                            </div>
-                                            {selectedTreasuryId === ACCOUNT_VIRTUAL_ID && (
-                                                <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_10px_#f59e0b]" />
-                                            )}
-                                        </button>
-                                    )}
+                                                    "w-2.5 h-2.5 rounded-full transition-all duration-300",
+                                                    selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "bg-amber-500 scale-110 shadow-[0_0_10px_#f59e0b]" : "bg-border scale-75"
+                                                )} />
+                                            </button>
+                                        )}
 
-                                    {/* ── Physical treasuries ── */}
-                                    {treasuries.map((t) => (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => setSelectedTreasuryId(t.id)}
-                                            className={cn(
-                                                "flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-right",
-                                                selectedTreasuryId === t.id
-                                                    ? "bg-red-500/10 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
-                                                    : "bg-white/5 border-white/5 hover:bg-white/10"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-3">
+                                        {/* Physical treasuries */}
+                                        {treasuries.map((t) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setSelectedTreasuryId(t.id)}
+                                                className={cn(
+                                                    "flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 group text-right",
+                                                    selectedTreasuryId === t.id
+                                                        ? "bg-secondary/10 border-secondary/30 shadow-lg shadow-secondary/5"
+                                                        : "bg-muted/40 border-border hover:bg-muted/60 hover:border-border/80"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={cn(
+                                                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                                                        selectedTreasuryId === t.id ? "bg-secondary text-secondary-foreground shadow-lg shadow-secondary/30" : "bg-card border border-border text-muted-foreground group-hover:border-secondary/40"
+                                                    )}>
+                                                        {getIcon(t.paymentMethod)}
+                                                    </div>
+                                                    <div>
+                                                        <div className={cn("text-sm font-black transition-colors", selectedTreasuryId === t.id ? "text-secondary" : "text-foreground")}>{t.name}</div>
+                                                        <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">{t.paymentMethod} — صرف نقدي</div>
+                                                    </div>
+                                                </div>
                                                 <div className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                    selectedTreasuryId === t.id ? "bg-red-500 text-white" : "bg-zinc-800 text-zinc-400"
-                                                )}>
-                                                    {getIcon(t.paymentMethod)}
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-bold">{t.name}</div>
-                                                    <div className="text-[10px] text-zinc-500 uppercase">{t.paymentMethod}</div>
-                                                </div>
-                                            </div>
-                                            {selectedTreasuryId === t.id && (
-                                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
-                                            )}
-                                        </button>
-                                    ))}
-                                </>
-                            )}
+                                                    "w-2.5 h-2.5 rounded-full transition-all duration-300",
+                                                    selectedTreasuryId === t.id ? "bg-secondary scale-110 shadow-[0_0_10px_theme(colors.secondary.DEFAULT)]" : "bg-border scale-75"
+                                                )} />
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Reason Input */}
+                        <div className="space-y-2 group">
+                            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">
+                                تعليق أو سبب الارتجاع (اختياري)
+                            </label>
+                            <Input
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="وثق سبب الإرجاع هنا..."
+                                className="h-12 glass-input focus:ring-2 focus:ring-red-500/20 transition-all font-medium"
+                            />
+                        </div>
+
+                        <div className={cn(
+                            "p-5 border rounded-2xl flex items-start gap-3 shadow-inner",
+                            selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+                                ? "bg-amber-500/10 border-amber-500/20"
+                                : "bg-red-500/10 border-red-500/20"
+                        )}>
+                            <AlertCircle className={cn("w-5 h-5 shrink-0 mt-0.5", selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "text-amber-500" : "text-red-500")} />
+                            <p className="text-[11px] font-bold text-muted-foreground leading-relaxed">
+                                {selectedTreasuryId === ACCOUNT_VIRTUAL_ID
+                                    ? <>سيتم تخفيض مديونية العميل بقيمة <span className="text-amber-700 dark:text-amber-400 font-black px-1">{sale?.totalAmount.toLocaleString()}</span> ولن يتم صرف أي مبالغ نقدية من الخزينة.</>
+                                    : <>سيتم صرف مبلغ <span className="text-red-600 dark:text-red-400 font-black px-1">{sale?.totalAmount.toLocaleString()}</span> من خزينة <span className="font-black italic px-0.5 underline decoration-red-500/30">{selectedTreasuryName}</span> وتسجيل الفاتورة كمرتجع نهائي.</>
+                                }
+                            </p>
                         </div>
                     </div>
 
-                    {/* Reason Input */}
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest ml-1">
-                            سبب المرتجع (اختياري)
-                        </label>
-                        <Input
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="لماذا تم إرجاع هذه الفاتورة؟"
-                            className="bg-zinc-900 border-white/10 h-12 rounded-xl text-sm focus:border-red-500/50"
-                        />
-                    </div>
-
-                    <div className={cn(
-                        "p-3 border rounded-xl flex items-start gap-3",
-                        selectedTreasuryId === ACCOUNT_VIRTUAL_ID
-                            ? "bg-amber-500/5 border-amber-500/20"
-                            : "bg-red-500/5 border-red-500/20"
-                    )}>
-                        <AlertCircle className={cn("w-4 h-4 shrink-0 mt-0.5", selectedTreasuryId === ACCOUNT_VIRTUAL_ID ? "text-amber-400" : "text-red-400")} />
-                        <p className="text-[10px] text-zinc-400 leading-relaxed">
-                            {selectedTreasuryId === ACCOUNT_VIRTUAL_ID
-                                ? <>سيتم تخفيض رصيد العميل بمبلغ <b>{sale?.totalAmount.toLocaleString()}</b> — لن تتأثر أي خزنة نقدية.</>
-                                : <>سيتم خصم مبلغ <b>{sale?.totalAmount.toLocaleString()}</b> من خزينة <b>{selectedTreasuryName}</b> وسيتم تغيير حالة الفاتورة إلى مرتجع.</>
-                            }
-                        </p>
-                    </div>
+                    <DialogFooter className="gap-3 sm:flex-row-reverse sm:justify-start pt-4 border-t border-border">
+                        <Button
+                            onClick={handleConfirm}
+                            disabled={loading || !selectedTreasuryId}
+                            className="flex-1 h-14 bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 font-black rounded-2xl gap-2 transition-all active:scale-95"
+                        >
+                            {loading ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <RotateCcw className="w-5 h-5" />
+                            )}
+                            {loading ? 'جاري التنفيذ...' : 'تأكيد الارتجاع النهائي'}
+                        </Button>
+                        <Button variant="ghost" onClick={onClose} className="h-14 px-8 rounded-2xl text-muted-foreground hover:bg-muted font-bold transition-all">
+                            إلغاء النافذة
+                        </Button>
+                    </DialogFooter>
                 </div>
-
-                <DialogFooter className="gap-2 flex-row">
-                    <Button
-                        variant="ghost"
-                        onClick={onClose}
-                        className="flex-1 h-12 text-zinc-400 hover:text-white"
-                    >
-                        إلغاء
-                    </Button>
-                    <Button
-                        onClick={handleConfirm}
-                        disabled={loading || !selectedTreasuryId}
-                        className="flex-1 h-12 bg-red-600 hover:bg-red-500 text-white font-black gap-2 shadow-lg shadow-red-900/20 active:scale-95 transition-all"
-                    >
-                        {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                        {loading ? 'جارى التنفيذ...' : 'تأكيد الارتجاع'}
-                    </Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

@@ -65,7 +65,14 @@ export default function TicketsList() {
     const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
     const [isSilentPrint, setIsSilentPrint] = useState(false)
 
-    const [serverStats, setServerStats] = useState({ delivered: 0, returns: 0, ratio: '0.0', totalPaid: 0 });
+    const [serverStats, setServerStats] = useState({ 
+        delivered: 0, 
+        returns: 0, 
+        ratio: '0.0', 
+        totalPaid: 0,
+        highRiskCount: 0,
+        overdueCount: 0
+    });
 
     const stats = useMemo(() => serverStats, [serverStats]);
 
@@ -262,35 +269,32 @@ export default function TicketsList() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="glass-card p-4 flex items-center justify-between border border-white/5 bg-white/5 shadow-xl">
-                    <div>
-                        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{t('table.successRatio')}</p>
-                        <h3 className="text-2xl font-bold text-emerald-400 mt-1">{stats.ratio}%</h3>
-                    </div>
-                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-cairo">
+                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl">
+                        <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-0 font-black h-6">
                             {stats.delivered}
                         </Badge>
                     </div>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">{t('table.successRatio')}</p>
+                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.ratio}%</h3>
                 </div>
-                <div className="glass-card p-4 flex items-center justify-between border border-white/5 bg-white/5 shadow-xl">
-                    <div>
-                        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{t('filters.returns')}</p>
-                        <h3 className="text-2xl font-bold text-orange-400 mt-1">{stats.returns}</h3>
+                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-2xl">
+                        <AlertTriangle className="h-6 w-6 text-rose-500" />
                     </div>
-                    <div className="h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-                        <AlertTriangle className="h-5 w-5 text-orange-500" />
-                    </div>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">المخاطر (Risk)</p>
+                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.highRiskCount}</h3>
                 </div>
-                <div className="glass-card p-4 flex items-center justify-between border border-white/5 bg-white/5 shadow-xl">
-                    <div>
-                        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{t('table.totalPaidAmount')}</p>
-                        <h3 className="text-2xl font-bold text-cyan-400 mt-1">{stats.totalPaid?.toLocaleString()} <span className="text-xs">EGP</span></h3>
+                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-3 bg-cyan-50 dark:bg-cyan-500/10 rounded-2xl">
+                        <Clock className="h-6 w-6 text-cyan-500" />
                     </div>
-                    <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                        <Search className="h-5 w-5 text-cyan-500" />
-                    </div>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">الفجوات (Gaps)</p>
+                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.overdueCount}</h3>
                 </div>
             </div>
 
@@ -299,7 +303,7 @@ export default function TicketsList() {
                     <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
                     <Input
                         placeholder={t('search.placeholder')}
-                        className="ps-12 solid-input h-10 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
+                        className="ps-12 solid-input h-10 bg-slate-100 dark:bg-zinc-900/50 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-black rounded-xl"
                         value={searchTerm}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             setSearchTerm(e.target.value);
@@ -317,11 +321,22 @@ export default function TicketsList() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900/50 p-1 rounded-lg border border-slate-300 dark:border-white/10 flex-wrap">
+                    <Button
+                        variant={dateFilter === "all" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "all" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
+                        onClick={() => {
+                            setDateFilter("all");
+                            setDateRange(undefined);
+                        }}
+                    >
+                        الكل
+                    </Button>
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
@@ -332,7 +347,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
                         onClick={() => {
                             const yesterday = subDays(new Date(), 1);
                             setDateFilter("yesterday");
@@ -344,7 +359,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
                         onClick={() => {
                             setDateFilter("week");
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
@@ -355,7 +370,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-colors", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
                         onClick={() => {
                             setDateFilter("month");
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
@@ -391,19 +406,19 @@ export default function TicketsList() {
                 <div className="flex gap-2 flex-wrap">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
+                            <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black">
                                 <Filter className="w-4 h-4" />
                                 <span>{statusFilter === 'all' ? t('filters.all') : getStatusLabel(statusFilter.toUpperCase())}</span>
                                 <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
-                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">{t('table.status')}</DropdownMenuLabel>
+                        <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('table.status')}</DropdownMenuLabel>
                             {['all', 'new', 'in_progress', 'waiting_for_parts', 'completed', 'delivered', 'paid_delivered', 'warranty', 'returns', 'rejected', 'cancelled'].map(st => (
                                 <DropdownMenuItem 
                                     key={st} 
                                     onClick={() => handleFilterChange(st)}
-                                    className={statusFilter === st ? "bg-white/10" : ""}
+                                    className={cn("font-black", statusFilter === st ? "bg-slate-100 dark:bg-white/10" : "")}
                                 >
                                     {st === 'all' ? t('filters.all') : getStatusLabel(st.toUpperCase())}
                                 </DropdownMenuItem>
@@ -431,45 +446,45 @@ export default function TicketsList() {
             ) : sortedTickets.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">{t('search.noResults')}</div>
             ) : (
-                <div className="glass-card overflow-hidden rounded-xl border border-white/5 bg-black/20 shadow-xl">
-                    <div className="table-container max-h-[600px] custom-scrollbar overflow-y-auto">
-                        <table className="zebra-table sticky-header w-full text-left text-sm text-zinc-400 table-fixed">
-                            <colgroup><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[100px]" /><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[180px]" /><col className="w-[180px]" /><col className="w-[120px]" /><col className="w-[50px]" /></colgroup>
-                                <thead className="bg-transparent text-zinc-300 uppercase font-black text-[11px] tracking-wider border-b border-white/5">
+                <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden shadow-sm font-cairo">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="zebra-table w-full text-right text-sm text-zinc-900 dark:text-zinc-200 table-fixed" dir="rtl">
+                            <colgroup><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[100px]" /><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[180px]" /><col className="w-[180px]" /><col className="w-[120px]" /><col className="w-[160px]" /></colgroup>
+                                <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 uppercase font-black text-[11px] tracking-wider border-b border-zinc-200 dark:border-white/10">
                                     <tr>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('status')}>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('status')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('status')}
                                                 {t('table.status')}
                                             </div>
                                         </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('createdAt')}>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('createdAt')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('createdAt')}
                                                 {t('table.date')}
                                             </div>
                                         </th>
                                         <th className="px-6 py-4 text-start">{t('table.ticketInfo')}</th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('amountPaid')}>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('amountPaid')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('amountPaid')}
                                                 {t('table.paidAmount')}
                                             </div>
                                         </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('amountDue')}>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('amountDue')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('amountDue')}
                                                 {t('table.amountDue')}
                                             </div>
                                         </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('customerName')}>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerName')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('customerName')}
                                                 {t('table.customer')}
                                             </div>
                                         </th>
                                         <th className="px-6 py-4 text-start">{t('table.device')}</th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('expectedDuration')}
                                                 {t('table.timeToFix')}
@@ -478,7 +493,7 @@ export default function TicketsList() {
                                         <th className="px-6 py-4 w-[50px]"></th>
                                     </tr>
                                 </thead>
-                            <tbody className="divide-y divide-white/5">
+                            <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                                 {sortedTickets.map((ticket) => {
                                     const urgency = getUrgencyInfo(ticket);
                                     const risk = getRiskInfo(ticket);
@@ -487,9 +502,9 @@ export default function TicketsList() {
                                         <tr
                                             key={ticket.id}
                                             onClick={() => router.push(`/ar/maintenance/tickets/${ticket.id}`)}
-                                            className="hover:bg-white/5 transition-colors cursor-pointer group"
+                                            className="bg-white even:bg-slate-100 dark:bg-transparent dark:even:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer group"
                                         >
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4 whitespace-nowrap font-black">
                                                 <Badge className={`${getStatusColor(ticket.status)} text-white font-bold border-0 hover:${getStatusColor(ticket.status)}`}>
                                                     {getStatusLabel(ticket.status)}
                                                 </Badge>
@@ -499,120 +514,98 @@ export default function TicketsList() {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 font-black text-slate-700 dark:text-zinc-400">
                                                 <span className="text-xs">{new Date(ticket.createdAt).toLocaleDateString()}</span>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col gap-1">
-                                                    <span className="font-mono text-zinc-300 font-medium text-xs">#{ticket.barcode}</span>
+                                                    <span className="font-mono text-zinc-500 dark:text-zinc-400 font-black text-xs">#{ticket.barcode}</span>
                                                     {(() => {
                                                         const caseInfo = getCaseInfo(ticket);
                                                         const CaseIcon = caseInfo.icon;
                                                         return (
                                                             <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border w-fit ${caseInfo.color}`}>
                                                                 <CaseIcon className="w-3 h-3" />
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider">{caseInfo.label}</span>
+                                                                <span className="text-[10px] font-black uppercase tracking-wider">{caseInfo.label}</span>
                                                             </div>
                                                         );
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col gap-0.5">
-                                                    <span className="text-emerald-400 font-bold tabular-nums">{(ticket.amountPaid || 0).toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">EGP</span></span>
-                                                    <span className="text-[10px] text-zinc-600 tracking-tighter uppercase">{ticket.paymentStatus || 'unpaid'}</span>
+                                                    <span className="text-emerald-600 dark:text-emerald-400 font-black tabular-nums">{(ticket.amountPaid || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span></span>
+                                                    <span className="text-[10px] text-zinc-500 tracking-tighter uppercase">{ticket.paymentStatus || 'unpaid'}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col gap-0.5">
-                                                    <span className={`font-bold tabular-nums ${(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'text-rose-400' : 'text-zinc-500'}`}>
-                                                        {(ticket.repairPrice - (ticket.amountPaid || 0)).toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">EGP</span>
+                                                    <span className={`font-black tabular-nums ${(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500'}`}>
+                                                        {(ticket.repairPrice - (ticket.amountPaid || 0)).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
                                                     </span>
-                                                    <span className="text-[10px] text-zinc-600 tracking-tighter uppercase">{(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'pending' : 'settled'}</span>
+                                                    <span className="text-[10px] text-zinc-500 tracking-tighter uppercase">{(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'pending' : 'settled'}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-black text-zinc-200 group-hover:text-cyan-500 transition-colors truncate">{ticket.customerName}</span>
+                                                        <span className="font-black text-slate-900 dark:text-zinc-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors truncate">{ticket.customerName}</span>
                                                         {ticket.customer?.linkedEmployeeId && (
-                                                            <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                            <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-black whitespace-nowrap">
                                                                 موظف داخلي
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <span className="text-xs text-zinc-500 font-bold">{ticket.customerPhone}</span>
+                                                    <span className="text-xs text-slate-600 dark:text-zinc-500 font-black tracking-tight">{ticket.customerPhone}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-zinc-300 truncate block font-bold">{ticket.deviceBrand} {ticket.deviceModel}</span>
+                                                <span className="text-slate-900 dark:text-zinc-200 font-black uppercase truncate block">{ticket.deviceBrand} {ticket.deviceModel}</span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className={`flex items-center gap-1 ${urgency ? urgency.color : 'text-zinc-400'}`}>
-                                                    <Clock className="w-3 h-3" />
-                                                    <span className="text-sm font-medium">
+                                                <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    <span className="text-sm font-black">
                                                         {urgency ? urgency.label : (ticket.expectedDuration ? `${ticket.expectedDuration} min` : '-')}
                                                     </span>
                                                 </div>
                                             </td>
 
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                        <Button variant="ghost" className="h-8 w-8 p-0">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-[160px] bg-zinc-900 border-white/10 text-white">
-                                                        <DropdownMenuLabel>{t('list.actions')}</DropdownMenuLabel>
-                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/ar/maintenance/tickets/${ticket.id}`) }}>
-                                                            <Search className="mr-2 h-4 w-4" />
-                                                            <span>{t('list.viewDetails')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingTicket(ticket); setShowEditModal(true); }}>
-                                                            <Edit2 className="mr-2 h-4 w-4" />
-                                                            <span>{t('list.editDetails')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator className="bg-white/5" />
-                                                        <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation(); 
-                                                            setPrintTicket(ticket); 
-                                                            setPrintMode('receipt'); 
-                                                            setShowPrintOptions(true); 
-                                                            setIsSilentPrint(true);
-                                                        }}>
-                                                            <Printer className="mr-2 h-4 w-4" />
-                                                            <span>{t('list.printReceipt')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation(); 
-                                                            setPrintTicket(ticket); 
-                                                            setPrintMode('engineer'); 
-                                                            setShowPrintOptions(true); 
-                                                            setIsSilentPrint(true);
-                                                        }}>
-                                                            <SettingsIcon className="mr-2 h-4 w-4" />
-                                                            <span>{t('list.printEngineer')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation(); 
-                                                            setPrintTicket(ticket); 
-                                                            setPrintMode('label'); 
-                                                            setShowPrintOptions(true); 
-                                                        }}>
-                                                            <StickyNote className="mr-2 h-4 w-4" />
-                                                            <span>Print Label</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator className="bg-white/5" />
-                                                        <DropdownMenuItem
-                                                            className="text-red-400 focus:text-red-400 focus:bg-red-400/10"
-                                                            onClick={(e) => { e.stopPropagation(); setDeletingTicket(ticket); setShowDeleteDialog(true); }}
-                                                        >
-                                                            <Trash2 className="mr-2 h-4 w-4" />
-                                                            <span>{t('list.deleteTicket')}</span>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        className="h-8 w-8 p-0 text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 rounded-lg"
+                                                        onClick={() => router.push(`/ar/maintenance/tickets/${ticket.id}`)}
+                                                    >
+                                                        <Search className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
+                                                        onClick={(e) => { e.stopPropagation(); setPrintTicket(ticket); setPrintMode('receipt'); setShowPrintOptions(true); setIsSilentPrint(true); }}
+                                                    >
+                                                        <Printer className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        className="h-8 w-8 p-0 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg"
+                                                        onClick={(e) => { e.stopPropagation(); setEditingTicket(ticket); setShowEditModal(true); }}
+                                                    >
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        className="h-8 w-8 p-0 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg"
+                                                        onClick={(e) => { e.stopPropagation(); setDeletingTicket(ticket); setShowDeleteDialog(true); }}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );

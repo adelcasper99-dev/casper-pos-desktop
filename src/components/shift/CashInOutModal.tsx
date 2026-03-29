@@ -68,16 +68,24 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
         >
             <div className="space-y-5">
                 {/* Type Toggle */}
-                <div className="flex p-1 bg-white/5 rounded-2xl border border-white/5">
+                <div className="flex p-1 bg-slate-100 dark:bg-black/20 rounded-2xl border border-slate-200 dark:border-white/5 shadow-inner">
                     <button
                         onClick={() => { setType("OUT"); setCategory(""); }}
-                        className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${type === "OUT" ? "bg-red-500/20 text-red-500 shadow-lg" : "text-white/40 hover:text-white"}`}
+                        className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${
+                            type === "OUT" 
+                            ? "bg-white dark:bg-red-500/20 text-red-600 dark:text-red-400 shadow-md border border-slate-200 dark:border-red-500/30" 
+                            : "text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
+                        }`}
                     >
                         سحب / مصروف
                     </button>
                     <button
                         onClick={() => { setType("IN"); setCategory(""); }}
-                        className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${type === "IN" ? "bg-emerald-500/20 text-emerald-500 shadow-lg" : "text-white/40 hover:text-white"}`}
+                        className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${
+                            type === "IN" 
+                            ? "bg-white dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-md border border-slate-200 dark:border-emerald-500/30" 
+                            : "text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
+                        }`}
                     >
                         إيداع نقدي
                     </button>
@@ -85,20 +93,20 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
 
                 {/* Category Selection */}
                 <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-white/30 px-1">التصنيف</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 px-1">التصنيف</label>
                     <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full glass-input text-sm font-bold"
+                        className="w-full glass-input text-sm font-bold bg-white dark:bg-black/20 text-slate-900 dark:text-white border-slate-200 dark:border-white/10"
                     >
-                        <option value="" disabled className="bg-zinc-900">اختر التصنيف...</option>
+                        <option value="" disabled className="bg-white dark:bg-zinc-900">اختر التصنيف...</option>
                         {type === "IN" ? (
                             INCOMING_CATEGORIES.map(cat => (
-                                <option key={cat.id} value={cat.id} className="bg-zinc-900">{cat.uiLabel}</option>
+                                <option key={cat.id} value={cat.id} className="bg-white dark:bg-zinc-900">{cat.uiLabel}</option>
                             ))
                         ) : (
                             Object.entries(EXPENSE_CATEGORY_MAP).map(([id, cat]) => (
-                                <option key={id} value={id} className="bg-zinc-900">{cat.labelAr}</option>
+                                <option key={id} value={id} className="bg-white dark:bg-zinc-900">{cat.labelAr}</option>
                             ))
                         )}
                     </select>
@@ -106,15 +114,15 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
 
                 {/* Amount Input */}
                 <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-white/30 px-1">المبلغ</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 px-1">المبلغ</label>
                     <div className="relative">
-                        <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-black ${type === "IN" ? "text-emerald-500" : "text-red-500"}`}>$</span>
+                        <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-black text-lg ${type === "IN" ? "text-emerald-500" : "text-red-500"}`}>$</span>
                         <input
                             type="number"
                             step="0.01"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            className="w-full glass-input pl-10 text-2xl font-black text-center"
+                            className="w-full glass-input bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-zinc-600"
                             placeholder="0.00"
                         />
                     </div>
@@ -122,11 +130,11 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
 
                 {/* Description */}
                 <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-white/30 px-1">ملاحظات / بيان</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 px-1">ملاحظات / بيان</label>
                     <textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full glass-input h-20 resize-none text-sm"
+                        className="w-full glass-input bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 h-24 resize-none text-sm font-medium text-slate-800 dark:text-zinc-200 focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-zinc-600 p-4"
                         placeholder="اكتب تفاصيل العملية هنا..."
                     />
                 </div>
@@ -135,10 +143,10 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
                 <button
                     onClick={handleSave}
                     disabled={isLoading}
-                    className={`w-full py-4 rounded-2xl font-black transition-all shadow-2xl ${
+                    className={`w-full py-5 rounded-2xl font-black transition-all shadow-xl active:scale-[0.98] ${
                         type === "IN" 
-                        ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20" 
-                        : "bg-red-600 hover:bg-red-500 text-white shadow-red-500/20"
+                        ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20 dark:shadow-emerald-500/10" 
+                        : "bg-red-600 hover:bg-red-500 text-white shadow-red-500/20 dark:shadow-red-500/10"
                     }`}
                 >
                     {isLoading ? "جاري الحفظ..." : "تأكيد العملية"}

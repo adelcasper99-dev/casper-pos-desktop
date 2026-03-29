@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/utils';
 import {
     DndContext,
     closestCenter,
@@ -114,10 +115,10 @@ function SortableBrandButton({
                     onClick();
                 }}
                 className={clsx(
-                    "h-7 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all cursor-grab active:cursor-grabbing",
+                    "h-8 px-4 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all cursor-grab active:cursor-grabbing shadow-lg",
                     active
-                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
-                        : "bg-white/5 text-muted-foreground border-transparent hover:bg-white/10"
+                        ? "bg-primary/20 text-primary border-primary/30 shadow-primary/10"
+                        : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
                 )}
             >
                 {label}
@@ -257,61 +258,63 @@ export function SparePartsSearch({
             />
 
             {/* Header Section */}
-            <div className="flex justify-between items-center bg-muted/30 p-4 rounded-2xl border border-border" dir="rtl">
-                <div className="flex items-center gap-3 text-muted-foreground">
-                    <div className="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-                        <Smartphone className="w-5 h-5 text-cyan-400" />
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 glass-card bg-card/50 backdrop-blur-md p-5 rounded-2xl border border-border shadow-2xl transition-all" dir="rtl">
+                <div className="flex items-center gap-4 text-muted-foreground">
+                    <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20 shadow-inner">
+                        <Smartphone className="w-6 h-6 text-primary" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">{t('title')}</h3>
-                        <p className="text-xs text-muted-foreground">{t('subtitle')}</p>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('title')}</h3>
+                        <p className="text-xs font-medium text-muted-foreground/60">{t('subtitle')}</p>
                     </div>
                 </div>
 
-                <Button
-                    onClick={() => setIsAddOpen(true)}
-                    className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold h-10 px-6 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all"
-                >
-                    <Plus className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                    {t('addPart')}
-                </Button>
-                <Button
-                    onClick={() => setIsImportOpen(true)}
-                    variant="outline"
-                    className="h-10 px-4 rounded-xl border-border hover:bg-white/10"
-                >
-                    <Upload className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                    {t('importCSV')}
-                </Button>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <Button
+                        onClick={() => setIsAddOpen(true)}
+                        className="flex-1 md:flex-none bg-primary hover:bg-primary/90 text-white font-black h-11 px-8 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95"
+                    >
+                        <Plus className="w-4 h-4 ml-2" />
+                        {t('addPart')}
+                    </Button>
+                    <Button
+                        onClick={() => setIsImportOpen(true)}
+                        variant="outline"
+                        className="flex-1 md:flex-none h-11 px-6 rounded-xl border-border bg-muted/20 hover:bg-muted transition-all font-bold"
+                    >
+                        <Upload className="w-4 h-4 ml-2" />
+                        {t('importCSV')}
+                    </Button>
+                </div>
             </div>
 
             {/* Filters Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-muted/20 p-4 rounded-2xl border border-border/50" dir="rtl">
-                <div className="sm:col-span-2 space-y-1.5">
-                    <Label htmlFor="search" className="text-[10px] uppercase font-bold text-muted-foreground ml-1">{t('searchPlaceholder')}</Label>
-                    <div className="relative">
-                        <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 glass-card bg-card/40 backdrop-blur-sm p-6 rounded-2xl border border-border shadow-xl" dir="rtl">
+                <div className="sm:col-span-2 space-y-2.5">
+                    <Label htmlFor="search" className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mr-1">{t('searchPlaceholder')}</Label>
+                    <div className="relative group">
+                        <Search className="absolute right-3.5 top-3.5 h-4 w-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
                         <Input
                             id="search"
                             type="search"
                             placeholder={t('searchPlaceholder')}
                             value={search}
                             onChange={(e) => handleSearchChange(e.target.value)}
-                            className="glass-input pr-10"
+                            className="h-11 bg-muted/30 border-border rounded-xl pr-11 focus:ring-primary/20 transition-all font-medium placeholder:text-muted-foreground/30"
                         />
                     </div>
                 </div>
 
-                <div className="space-y-1.5">
-                    <Label htmlFor="brand" className="text-[10px] uppercase font-bold text-muted-foreground ml-1">{t('brand')}</Label>
+                <div className="space-y-2.5">
+                    <Label htmlFor="brand" className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mr-1">{t('brand')}</Label>
                     <Select value={selectedBrand} onValueChange={handleBrandChange}>
-                        <SelectTrigger id="brand" className="glass-input">
+                        <SelectTrigger id="brand" className="h-11 bg-muted/30 border-border rounded-xl focus:ring-primary/20 transition-all font-black text-foreground">
                             <SelectValue placeholder={t('allBrands')} />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-border">
-                            <SelectItem value="all">{t('allBrands')}</SelectItem>
+                        <SelectContent className="glass-card bg-card border-border shadow-2xl rounded-xl">
+                            <SelectItem value="all" className="font-bold">{t('allBrands')}</SelectItem>
                             {brands.map((brand) => (
-                                <SelectItem key={brand} value={brand}>
+                                <SelectItem key={brand} value={brand} className="font-bold">
                                     {brand}
                                 </SelectItem>
                             ))}
@@ -319,25 +322,25 @@ export function SparePartsSearch({
                     </Select>
                 </div>
 
-                <div className="flex items-end pb-0.5">
-                    <div className="w-full bg-white/5 border border-white/5 rounded-xl p-2.5 text-center">
-                        <div className="text-[10px] text-muted-foreground uppercase font-bold leading-none mb-1">{t('resultsCountLabel')}</div>
-                        <div className="text-sm font-bold text-cyan-400 leading-none">{meta.total}</div>
+                <div className="flex items-end">
+                    <div className="w-full bg-primary/5 border border-primary/20 rounded-xl p-3 text-center shadow-inner">
+                        <div className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter leading-none mb-1.5">{t('resultsCountLabel')}</div>
+                        <div className="text-lg font-black text-primary leading-none">{meta.total}</div>
                     </div>
                 </div>
             </div>
 
             {/* Fast Brand Search Buttons */}
-            <div className="flex flex-wrap gap-2 px-1" dir="rtl">
+            <div className="flex flex-wrap gap-2.5 px-1" dir="rtl">
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleBrandChange('all')}
                     className={clsx(
-                        "h-7 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all",
+                        "h-8 px-4 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all shadow-lg",
                         selectedBrand === 'all'
-                            ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
-                            : "bg-white/5 text-muted-foreground border-transparent hover:bg-white/10"
+                            ? "bg-primary/20 text-primary border-primary/30"
+                            : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
                     )}
                 >
                     {t('allBrands')}
@@ -368,49 +371,58 @@ export function SparePartsSearch({
             </div>
 
             {/* Results Table */}
-            <div className="rounded-2xl border border-border bg-card/50 overflow-hidden" dir="rtl">
+            <div className="glass-card rounded-2xl border border-border bg-card/50 backdrop-blur-xl overflow-hidden shadow-2xl transition-all duration-300" dir="rtl">
                 <Table>
-                    <TableHeader className="bg-muted/30">
-                        <TableRow className="hover:bg-transparent border-border/50">
-                            <TableHead className="text-right text-xs uppercase font-bold text-muted-foreground">{t('productName')}</TableHead>
-                            <TableHead className="w-[120px] text-center text-xs uppercase font-bold text-muted-foreground">{t('brand')}</TableHead>
-                            <TableHead className="w-[100px] text-center text-xs uppercase font-bold text-muted-foreground">{t('quantity')}</TableHead>
-                            <TableHead className="w-[120px] text-center text-xs uppercase font-bold text-muted-foreground">{t('sellPrice')}</TableHead>
-                            <TableHead className="w-[100px] text-center text-xs uppercase font-bold text-muted-foreground">{t('price1')}</TableHead>
-                            <TableHead className="w-[100px] text-center text-xs uppercase font-bold text-muted-foreground">{t('price2')}</TableHead>
-                            <TableHead className="w-[100px] text-center text-xs uppercase font-bold text-muted-foreground">{t('price3')}</TableHead>
-                            <TableHead className="w-[120px] text-center text-xs uppercase font-bold text-muted-foreground">{t('costPrice')}</TableHead>
-                            <TableHead className="w-[100px] text-center text-xs uppercase font-bold text-muted-foreground">{t('actions')}</TableHead>
+                    <TableHeader className="bg-muted/60">
+                        <TableRow className="hover:bg-transparent border-border h-14">
+                            <TableHead className="text-right text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('productName')}</TableHead>
+                            <TableHead className="w-[120px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('brand')}</TableHead>
+                            <TableHead className="w-[100px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('quantity')}</TableHead>
+                            <TableHead className="w-[120px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('sellPrice')}</TableHead>
+                            <TableHead className="w-[100px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('price1')}</TableHead>
+                            <TableHead className="w-[100px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('price2')}</TableHead>
+                            <TableHead className="w-[100px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('price3')}</TableHead>
+                            <TableHead className="w-[120px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('costPrice')}</TableHead>
+                            <TableHead className="w-[100px] text-center text-[10px] uppercase font-black text-foreground/80 tracking-widest">{t('actions')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {initialParts.map((part) => (
-                            <TableRow key={part.id} className="border-border/40 hover:bg-white/[0.02] transition-colors group odd:bg-white/[0.01]">
-                                <TableCell className="font-bold text-sm text-foreground py-4">
-                                    {part.productName}
+                            <TableRow 
+                                key={part.id} 
+                                className={cn(
+                                    "border-border/40 transition-all group h-14 hover:bg-primary/10",
+                                    "even:bg-muted/70"
+                                )}
+                            >
+                                <TableCell className="font-black text-sm text-foreground py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-1 h-6 bg-primary/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        {part.productName}
+                                    </div>
                                 </TableCell>
                                 <TableCell className="text-center">
-                                    <span className="text-[10px] bg-white/5 text-muted-foreground px-2 py-0.5 rounded-full border border-white/10 font-bold uppercase">
+                                    <span className="text-[10px] bg-muted border border-border text-muted-foreground px-2.5 py-1 rounded-lg font-black uppercase tracking-tight shadow-sm">
                                         {part.brand}
                                     </span>
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-sm text-zinc-400">
+                                <TableCell className="text-center font-mono text-sm font-black text-muted-foreground/80">
                                     {part.quantity}
                                 </TableCell>
                                 <TableCell className="text-center">
-                                    <div className="text-sm font-bold text-green-400">{part.sellPrice}</div>
+                                    <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">{part.sellPrice}</div>
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs text-zinc-400">
+                                <TableCell className="text-center font-mono text-[11px] font-bold text-muted-foreground/60">
                                     {part.price1 || '0'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs text-zinc-400">
+                                <TableCell className="text-center font-mono text-[11px] font-bold text-muted-foreground/60">
                                     {part.price2 || '0'}
                                 </TableCell>
-                                <TableCell className="text-center font-mono text-xs text-zinc-400">
+                                <TableCell className="text-center font-mono text-[11px] font-bold text-muted-foreground/60">
                                     {part.price3 || '0'}
                                 </TableCell>
                                 <TableCell className="text-center">
-                                    <div className="text-sm font-medium text-red-400/70">{part.costPrice}</div>
+                                    <div className="text-sm font-black text-rose-500/80 font-mono">{part.costPrice}</div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -446,28 +458,28 @@ export function SparePartsSearch({
             </div>
 
             {/* Pagination Container */}
-            <div className="flex items-center justify-between px-2 bg-muted/10 p-4 rounded-2xl border border-border/40" dir="rtl">
-                <div className="text-xs text-muted-foreground font-medium">
-                    {t('showing')} <span className="text-foreground font-bold">{(meta.page - 1) * meta.limit + 1}</span> {t('to')} <span className="text-foreground font-bold">{Math.min(meta.page * meta.limit, meta.total)}</span> {t('of')} <span className="text-foreground font-bold">{meta.total}</span> {t('results')}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card bg-card/60 backdrop-blur-md p-5 rounded-2xl border border-border shadow-xl px-6" dir="rtl">
+                <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
+                    {t('showing')} <span className="text-foreground font-black bg-muted px-2 py-1 rounded-lg border border-border mx-1">{(meta.page - 1) * meta.limit + 1}</span> {t('to')} <span className="text-foreground font-black bg-muted px-2 py-1 rounded-lg border border-border mx-1">{Math.min(meta.page * meta.limit, meta.total)}</span> {t('of')} <span className="text-primary font-black mx-1">{meta.total}</span> {t('results')}
                 </div>
 
-                <div className="flex items-center gap-4">
-                    {isPending && <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent animate-spin rounded-full" />}
+                <div className="flex items-center gap-6">
+                    {isPending && <div className="w-5 h-5 border-[3px] border-primary border-t-transparent animate-spin rounded-full shadow-[0_0_10px_rgba(var(--primary),0.3)]" />}
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handlePageChange(meta.page - 1)}
                             disabled={meta.page <= 1}
-                            className="glass-card hover:bg-white/5 border-border/50 h-8"
+                            className="bg-muted/50 hover:bg-muted border-border h-10 px-4 rounded-xl shadow-sm transition-all active:scale-95 disabled:opacity-50"
                         >
-                            <ChevronRight className="h-4 w-4 ml-1" />
-                            {t('previous')}
+                            <ChevronRight className="h-4 w-4 ml-1.5" />
+                            <span className="font-bold">{t('previous')}</span>
                         </Button>
 
-                        <div className="px-4 text-xs font-bold text-muted-foreground">
-                            {t('page')} <span className="text-cyan-400">{meta.page}</span> {t('of')} {meta.totalPages}
+                        <div className="px-6 h-10 flex items-center bg-muted/30 border border-border rounded-xl text-[11px] font-black text-muted-foreground uppercase tracking-widest shadow-inner">
+                            {t('page')} <span className="text-primary font-black mx-2 text-sm">{meta.page}</span> {t('of')} <span className="text-foreground font-black mx-2 text-sm font-mono">{meta.totalPages}</span>
                         </div>
 
                         <Button
@@ -475,10 +487,10 @@ export function SparePartsSearch({
                             size="sm"
                             onClick={() => handlePageChange(meta.page + 1)}
                             disabled={meta.page >= meta.totalPages}
-                            className="glass-card hover:bg-white/5 border-border/50 h-8"
+                            className="bg-muted/50 hover:bg-muted border-border h-10 px-4 rounded-xl shadow-sm transition-all active:scale-95 disabled:opacity-50"
                         >
-                            {t('next')}
-                            <ChevronLeft className="h-4 w-4 mr-1" />
+                            <span className="font-bold">{t('next')}</span>
+                            <ChevronLeft className="h-4 w-4 mr-1.5" />
                         </Button>
                     </div>
                 </div>

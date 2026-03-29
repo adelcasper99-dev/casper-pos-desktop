@@ -126,33 +126,33 @@ export default function EngineersManager() {
     return (
         <div className="space-y-6 animate-fly-in">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-white/5 border-white/5">
+                <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/5 shadow-sm">
                     <CardContent className="p-6 flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-bold text-white/70">{t('stats.totalEngineers')}</p>
-                            <h3 className="text-2xl font-bold text-white mt-1">{totalEngineers}</h3>
+                            <p className="text-sm font-black text-slate-500 dark:text-zinc-400">{t('stats.totalEngineers')}</p>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{totalEngineers}</h3>
                         </div>
                         <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
                             <UserIcon className="h-5 w-5 text-cyan-500" />
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-white/5 border-white/5">
+                <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/5 shadow-sm">
                     <CardContent className="p-6 flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-bold text-white/70">{t('stats.activeTickets')}</p>
-                            <h3 className="text-2xl font-bold text-white mt-1">{activeTicketsCount}</h3>
+                            <p className="text-sm font-black text-slate-500 dark:text-zinc-400">{t('stats.activeTickets')}</p>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{activeTicketsCount}</h3>
                         </div>
                         <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
                             <Wrench className="h-5 w-5 text-purple-500" />
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-white/5 border-white/5">
+                <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/5 shadow-sm">
                     <CardContent className="p-6 flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-bold text-white/70">{t('stats.avgCommission')}</p>
-                            <h3 className="text-2xl font-bold text-white mt-1">{avgCommission}%</h3>
+                            <p className="text-sm font-black text-slate-500 dark:text-zinc-400">{t('stats.avgCommission')}</p>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{avgCommission}%</h3>
                         </div>
                         <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/20">
                             <Percent className="h-5 w-5 text-green-500" />
@@ -161,12 +161,12 @@ export default function EngineersManager() {
                 </Card>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white/5 p-4 rounded-xl border border-white/5 shadow-xl bg-black/20">
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-100 dark:bg-zinc-900/50 p-4 rounded-xl border border-slate-200 dark:border-white/5 shadow-xl">
                 <div className="relative w-full sm:w-96 group/search">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 group-focus-within/search:text-cyan-500 transition-all" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-zinc-500 group-focus-within/search:text-cyan-500 transition-all font-black" />
                     <Input
                         placeholder={t('searchPlaceholder')}
-                        className="pl-9 bg-black/40 border-white/10 focus:border-cyan-500/50 transition-all rounded-xl"
+                        className="pl-9 bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 focus:border-cyan-500/50 transition-all rounded-xl font-black text-slate-900 dark:text-white"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -187,36 +187,36 @@ export default function EngineersManager() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredEngineers.map((eng) => (
-                    <Card key={eng.id} className="group bg-white/5 border-white/10 hover:border-cyan-500/30 transition-all duration-300 shadow-xl overflow-hidden glass-card">
+                    <Card key={eng.id} className="group bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 hover:border-cyan-500/30 transition-all duration-300 shadow-xl overflow-hidden glass-card">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-lg font-bold text-white truncate pr-4">
+                            <CardTitle className="text-lg font-black text-slate-900 dark:text-white truncate pr-4">
                                 {eng.name}
                             </CardTitle>
                              {eng.warehouse && (
-                                <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/5 text-cyan-400 text-[10px] uppercase tracking-wider">
+                                <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/5 text-cyan-600 dark:text-cyan-400 text-[10px] uppercase tracking-wider font-black">
                                     {eng.warehouse.name}
                                 </Badge>
                             )}
-                            <Badge variant="outline" className="border-white/10 bg-white/5 text-white/40 text-[10px] uppercase">
+                            <Badge variant="outline" className="border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-white/40 text-[10px] uppercase font-black">
                                 {eng.defaultPriceTier || 'COST'}
                             </Badge>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex items-center justify-between text-sm text-white/60 font-bold mb-4">
+                            <div className="flex items-center justify-between text-sm text-slate-600 dark:text-zinc-400 font-black mb-4">
                                 <span className="flex items-center">
-                                    <Clock className="w-3 h-3 mr-1" />
+                                    <Clock className="w-3.5 h-3.5 mr-1.5" />
                                     {eng.averageRepairTime}{t('avgTime')}
                                 </span>
-                                <span className="flex items-center text-cyan-400 font-bold">
-                                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                                <span className="flex items-center text-teal-600 dark:text-cyan-400 font-black">
+                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                                     {eng.completedTicketsCount} {tCommon('done') || 'done'}
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-white/5">
+                            <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
                                 <Button
                                     variant="ghost"
-                                    className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5 transition-all font-bold"
+                                    className="w-full justify-start text-slate-400 dark:text-white/50 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all font-black"
                                     onClick={() => {
                                         setEditingId(eng.id)
                                         setFormData({
@@ -239,7 +239,7 @@ export default function EngineersManager() {
                                 <Button
                                     asChild
                                     variant="ghost"
-                                    className="w-full justify-end text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/5 transition-all"
+                                    className="w-full justify-end text-cyan-600 dark:text-cyan-500 hover:text-cyan-700 dark:hover:text-cyan-400 hover:bg-cyan-500/5 transition-all font-black"
                                 >
                                     <Link href={`/${locale}/maintenance/tickets/engineers/${eng.id}`}>
                                         {tCommon('view')}
@@ -260,36 +260,36 @@ export default function EngineersManager() {
                 <form onSubmit={handleSave} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">{t('form.name')}</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">{t('form.name')}</Label>
                             <Input
                                 required
                                 value={formData.name}
                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                className="bg-black/40 border-white/10 text-white"
+                                className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black"
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">{t('form.phone')}</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">{t('form.phone')}</Label>
                             <Input
                                 required
                                 value={formData.phone}
                                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                className="bg-black/40 border-white/10 text-white"
+                                className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black"
                             />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">{t('form.branch')}</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">{t('form.branch')}</Label>
                             <Select
                                 value={formData.branchId}
                                 onValueChange={(val) => setFormData({ ...formData, branchId: val })}
                             >
-                                <SelectTrigger className="bg-black/40 border-white/10 text-white">
+                                <SelectTrigger className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black">
                                     <SelectValue placeholder={t('form.branch')} />
                                 </SelectTrigger>
-                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                <SelectContent className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white">
                                     {branches.map((b) => (
                                         <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                                     ))}
@@ -297,15 +297,15 @@ export default function EngineersManager() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">شريحة سعر النقل</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">شريحة سعر النقل</Label>
                             <Select
                                 value={formData.defaultPriceTier}
                                 onValueChange={(val) => setFormData({ ...formData, defaultPriceTier: val })}
                             >
-                                <SelectTrigger className="bg-black/40 border-white/10 text-white">
+                                <SelectTrigger className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black">
                                     <SelectValue placeholder="اختر الشريحة" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                <SelectContent className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white">
                                     <SelectItem value="COST">سعر التكلفة (COST)</SelectItem>
                                     <SelectItem value="SELL_1">سعر 1 (SELL 1)</SelectItem>
                                     <SelectItem value="SELL_2">سعر 2 (SELL 2)</SelectItem>
@@ -317,15 +317,15 @@ export default function EngineersManager() {
 
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">{t('form.skills')}</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">{t('form.skills')}</Label>
                             <Input
                                 value={formData.skills}
                                 onChange={e => setFormData({ ...formData, skills: e.target.value })}
-                                className="bg-black/40 border-white/10 text-white"
+                                className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black"
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">{t('form.commission')}</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">{t('form.commission')}</Label>
                             <div className="relative">
                                 <Input
                                     type="number"
@@ -333,13 +333,13 @@ export default function EngineersManager() {
                                     max="100"
                                     value={formData.commissionRate}
                                     onChange={e => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) })}
-                                    className="bg-black/40 border-white/10 text-white pr-8 font-bold"
+                                    className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white pr-8 font-black"
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 font-bold">%</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/50 font-black">%</span>
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-white font-bold">{t('form.lossRate')}</Label>
+                            <Label className="text-slate-900 dark:text-white font-black">{t('form.lossRate')}</Label>
                             <div className="relative">
                                 <Input
                                     type="number"
@@ -347,31 +347,31 @@ export default function EngineersManager() {
                                     max="100"
                                     value={formData.lossRate}
                                     onChange={e => setFormData({ ...formData, lossRate: parseFloat(e.target.value) })}
-                                    className="bg-black/40 border-white/10 text-white pr-8 font-bold"
+                                    className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white pr-8 font-black"
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 font-bold">%</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/50 font-black">%</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="border-t border-white/5 pt-4 mt-4">
-                        <h4 className="text-sm font-bold text-white mb-4">{t('form.loginSettings')}</h4>
+                    <div className="border-t border-slate-100 dark:border-white/5 pt-4 mt-4">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white mb-4">{t('form.loginSettings')}</h4>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-white font-bold">{t('form.username')}</Label>
+                                <Label className="text-slate-900 dark:text-white font-black">{t('form.username')}</Label>
                                 <Input
                                     value={formData.username}
                                     onChange={e => setFormData({ ...formData, username: e.target.value })}
-                                    className="bg-black/40 border-white/10 text-white"
+                                    className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-white font-bold">{t('form.password')}</Label>
+                                <Label className="text-slate-900 dark:text-white font-black">{t('form.password')}</Label>
                                 <Input
                                     type="password"
                                     value={formData.password}
                                     onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                    className="bg-black/40 border-white/10 text-white"
+                                    className="bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white font-black"
                                 />
                             </div>
                         </div>
@@ -384,9 +384,9 @@ export default function EngineersManager() {
                                 id="createWarehouse"
                                 checked={formData.createWarehouse}
                                 onChange={e => setFormData({ ...formData, createWarehouse: e.target.checked })}
-                                className="rounded border-white/10 bg-black/50 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-black"
+                                className="h-4 w-4 rounded border-slate-300 dark:border-white/10 bg-white dark:bg-black/50 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-white dark:focus:ring-offset-black"
                             />
-                            <Label htmlFor="createWarehouse" className="cursor-pointer text-white font-bold text-sm">{t('form.createWarehouse')}</Label>
+                            <Label htmlFor="createWarehouse" className="cursor-pointer text-slate-900 dark:text-white font-black text-sm">{t('form.createWarehouse')}</Label>
                         </div>
                     )}
 
@@ -403,7 +403,7 @@ export default function EngineersManager() {
                             </Button>
                         )}
                         <div className="flex gap-2 ml-auto">
-                            <Button type="button" variant="ghost" className="text-zinc-500 hover:text-white" onClick={() => setIsDialogOpen(false)}>
+                            <Button type="button" variant="ghost" className="text-slate-500 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-white font-black" onClick={() => setIsDialogOpen(false)}>
                                 {tCommon('cancel')}
                             </Button>
                             <Button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white px-8">

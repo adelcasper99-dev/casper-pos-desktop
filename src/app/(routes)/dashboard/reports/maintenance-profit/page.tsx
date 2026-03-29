@@ -93,40 +93,40 @@ export default function MaintenanceProfitPage() {
     };
 
     return (
-        <div className="p-6 space-y-8 bg-zinc-950 min-h-screen text-zinc-100">
+        <div className="p-6 space-y-8 min-h-screen transition-colors duration-300">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
-                    <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-foreground leading-tight">
                         تقرير أرباح الصيانة
                     </h1>
-                    <p className="text-zinc-400 text-sm font-medium">
+                    <p className="text-muted-foreground text-sm font-medium">
                         تحليل تفصيلي لأرباح العمالة وقطع الغيار وعمولات المهندسين
                     </p>
                 </div>
             </div>
 
             {/* Filter Bar */}
-            <div className="p-5 bg-zinc-900/50 backdrop-blur-md border border-white/5 rounded-2xl shadow-2xl ring-1 ring-white/5">
+            <div className="p-5 glass-card bg-card/50 backdrop-blur-md border border-border rounded-2xl shadow-2xl transition-all duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                     <div className="space-y-2.5">
                         <div className="flex items-center justify-between px-1">
-                            <Label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">الفترة الزمنية</Label>
+                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">الفترة الزمنية</Label>
                             <div className="flex gap-2">
                                 <button 
                                     onClick={() => applyPreset('today')}
-                                    className="text-[9px] font-bold text-zinc-400 hover:text-cyan-400 transition-colors uppercase tracking-tighter bg-white/5 px-2 py-0.5 rounded-md border border-white/5 hover:border-cyan-500/30"
+                                    className="text-[9px] font-black text-muted-foreground hover:text-primary transition-all uppercase tracking-tighter bg-muted/50 px-2 py-1 rounded-lg border border-border hover:border-primary/30"
                                 >
                                     اليوم
                                 </button>
                                 <button 
                                     onClick={() => applyPreset('yesterday')}
-                                    className="text-[9px] font-bold text-zinc-400 hover:text-cyan-400 transition-colors uppercase tracking-tighter bg-white/5 px-2 py-0.5 rounded-md border border-white/5 hover:border-cyan-500/30"
+                                    className="text-[9px] font-black text-muted-foreground hover:text-primary transition-all uppercase tracking-tighter bg-muted/50 px-2 py-1 rounded-lg border border-border hover:border-primary/30"
                                 >
                                     أمس
                                 </button>
                                 <button 
                                     onClick={() => applyPreset('month')}
-                                    className="text-[9px] font-bold text-zinc-400 hover:text-cyan-400 transition-colors uppercase tracking-tighter bg-white/5 px-2 py-0.5 rounded-md border border-white/5 hover:border-cyan-500/30"
+                                    className="text-[9px] font-black text-muted-foreground hover:text-primary transition-all uppercase tracking-tighter bg-muted/50 px-2 py-1 rounded-lg border border-border hover:border-primary/30"
                                 >
                                     الشهر
                                 </button>
@@ -143,20 +143,20 @@ export default function MaintenanceProfitPage() {
                                 }));
                             }}
                             placeholder="اختر الفترة"
-                            className="bg-zinc-900/80 border-white/5"
+                            className="bg-muted/30 border-border rounded-xl h-11"
                         />
                     </div>
 
                     <div className="space-y-2.5">
-                        <Label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest pr-1">المهندس المسئول</Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pr-1">المهندس المسئول</Label>
                         <Select 
                             value={filters.technicianId} 
                             onValueChange={(val) => setFilters(prev => ({ ...prev, technicianId: val }))}
                         >
-                            <SelectTrigger className="bg-zinc-900/80 border-white/5 text-zinc-200 h-11 rounded-xl focus:ring-cyan-500/20">
+                            <SelectTrigger className="bg-muted/30 border-border text-foreground h-11 rounded-xl focus:ring-primary/20 transition-all">
                                 <SelectValue placeholder="كل المهندسين" />
                             </SelectTrigger>
-                            <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-200">
+                            <SelectContent className="bg-card border-border text-foreground rounded-xl shadow-2xl">
                                 <SelectItem value="all">كل المهندسين</SelectItem>
                                 {technicians.map(tech => (
                                     <SelectItem key={tech.id} value={tech.id}>
@@ -168,16 +168,16 @@ export default function MaintenanceProfitPage() {
                     </div>
 
                     <div className="space-y-2.5">
-                        <Label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest pr-1">بحث بالعميل</Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pr-1">بحث بالعميل</Label>
                         <div className="relative group">
                             <Input 
-                                className="pr-10 bg-zinc-900/80 border-white/5 text-zinc-200 h-11 rounded-xl focus:ring-cyan-500/20 placeholder:text-zinc-600 transition-all"
+                                className="pr-10 bg-muted/30 border-border text-foreground h-11 rounded-xl focus:ring-primary/20 placeholder:text-muted-foreground/40 transition-all font-medium"
                                 placeholder="اسم أو هاتف العميل..."
                                 value={filters.customerName}
                                 onChange={(e) => setFilters(prev => ({ ...prev, customerName: e.target.value }))}
                                 onKeyDown={(e) => e.key === 'Enter' && fetchReport()}
                             />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-zinc-500 group-focus-within:text-cyan-500 transition-colors">
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-muted-foreground/30 group-focus-within:text-primary transition-colors">
                                 <Calendar className="w-4 h-4" />
                             </div>
                         </div>
@@ -207,10 +207,10 @@ export default function MaintenanceProfitPage() {
                     
                     <div className="flex flex-col gap-6">
                         <div className="flex items-center justify-between px-1">
-                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                                <div className="w-2 h-8 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+                            <h3 className="text-xl font-bold text-foreground flex items-center gap-3">
+                                <div className="w-2 h-8 bg-primary rounded-full shadow-[0_0_15px_rgba(var(--primary),0.5)]" />
                                 تفاصيل التذاكر 
-                                <span className="text-zinc-500 text-sm font-medium mr-2">({reportData.tickets.length})</span>
+                                <span className="text-muted-foreground text-sm font-medium mr-2">({reportData.tickets.length})</span>
                             </h3>
                         </div>
                         <MaintenanceProfitTable tickets={reportData.tickets} />

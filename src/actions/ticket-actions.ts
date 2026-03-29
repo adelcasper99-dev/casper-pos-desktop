@@ -198,6 +198,9 @@ export const getTickets = secureAction(async (filters?: {
         };
     });
 
+    const highRiskCount = processedTickets.filter(t => t.riskLevel === 'high').length;
+    const overdueCount = processedTickets.filter(t => t.isOverdue).length;
+
     const totalSummary = await prisma.ticket.aggregate({
         where,
         _sum: {
@@ -211,7 +214,9 @@ export const getTickets = secureAction(async (filters?: {
             delivered: deliveredCount,
             returns: returnCount,
             ratio: ratio.toFixed(1),
-            totalPaid: Number(totalSummary._sum.amountPaid || 0)
+            totalPaid: Number(totalSummary._sum.amountPaid || 0),
+            highRiskCount,
+            overdueCount
         }
     };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });

@@ -383,7 +383,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                         <p className="text-zinc-400 text-sm">{t('saleId')}: {saleResult.invoiceNumber}</p>
                     </div>
 
-                    <div className="w-full glass-card bg-white/5 border border-white/10 p-6 space-y-3">
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 p-6 space-y-3 rounded-2xl">
                         <div className="flex justify-between text-sm">
                             <span className="text-zinc-400">{t('totalAmount')}</span>
                             <span className="text-white font-bold text-lg">{formatCurrency(saleResult.totalAmount)}</span>
@@ -409,7 +409,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 // Explicit trigger for ReceiptModal logic
                                 setSaleResult({ ...saleResult, showPrint: true, disableAutoPrint: true });
                             }}
-                            className="glass-card bg-white/5 hover:bg-white/10 text-white font-bold py-4 flex items-center justify-center gap-2 transition-all"
+                            className="bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-zinc-300 dark:border-white/10"
                         >
                             <Printer className="w-5 h-5" />
                             {t('normalPrint') || "خيارات الطباعة"}
@@ -491,7 +491,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                 {/* Delivery Toggle & Form */}
                 {/* ... (Keep existing structure) ... */}
-                <div className="glass-card bg-white/5 backdrop-blur-md p-4">
+                <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl p-4">
                     <label className="flex items-center gap-3 cursor-pointer">
                         <input
                             type="checkbox"
@@ -514,7 +514,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 onChange={(e) => setName(e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, 1, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
                                 placeholder={t('customerName') || "الاسم"}
-                                className="glass-input w-full"
+                                className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-zinc-900 dark:text-white"
                                 required
                             />
                             <input
@@ -524,7 +524,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 onChange={(e) => setPhone(e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(e, 2, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
                                 placeholder={t('customerPhone')}
-                                className="glass-input w-full"
+                                className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-zinc-900 dark:text-white"
                                 required
                             />
                             <textarea
@@ -533,7 +533,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                                 placeholder={t('deliveryAddress')}
-                                className="glass-input w-full resize-none h-20"
+                                className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-zinc-900 dark:text-white resize-none h-20"
                                 onKeyDown={(e) => handleKeyDown(e, 3, 4, () => (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit())}
                                 required
                             ></textarea>
@@ -542,7 +542,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 </div>
 
                 {/* Warranty Selector */}
-                <div className="glass-card bg-white/5 backdrop-blur-md p-4 space-y-3">
+                <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl p-4 space-y-3">
                     <label className="flex items-center gap-3 cursor-pointer">
                         <input
                             type="checkbox"
@@ -614,7 +614,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                     {/* Quick Change Calculator (Visual Only) */}
                     {(paymentMethod === 'CASH' || paymentMethod === 'WALLET') && (
-                        <div className="mt-4 p-4 glass-card bg-black/40 border border-white/10 space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="mt-4 p-4 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
                             <h4 className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center justify-between">
                                 حاسبة الباقي (للمساعدة فقط)
                                 {receivedAmount !== '' && (
@@ -642,7 +642,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                                 }
                                             }}
                                             placeholder="0.00"
-                                            className="glass-input h-9 py-1 text-sm w-full pr-8"
+                                            className="h-10 py-1 text-sm w-full pr-8 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl px-3 text-zinc-900 dark:text-white font-mono"
                                             min="0"
                                             step="0.01"
                                         />
@@ -717,15 +717,15 @@ function PaymentMethod({ label, icon: Icon, active, onClick, disabled, warning, 
             onClick={onClick}
             disabled={disabled}
             className={clsx(
-                "flex flex-col items-center justify-center gap-2 p-4 glass-card border transition-all duration-300 relative group overflow-hidden",
+                "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden",
                 active
-                    ? "bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-[0_0_20px_rgba(0,242,255,0.15)] scale-[1.02]"
+                    ? "bg-cyan-500/10 border-cyan-500/50 text-cyan-500 dark:text-cyan-400 shadow-[0_0_20px_rgba(0,242,255,0.15)] scale-[1.02]"
                     : disabled
-                        ? "opacity-30 grayscale cursor-not-allowed border-white/5"
-                        : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:border-white/20"
+                        ? "opacity-30 grayscale cursor-not-allowed border-zinc-200 dark:border-white/5"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600"
             )}
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-br from-black/5 dark:from-white/5 to-transparent pointer-events-none" />
             
             <Icon className={clsx("w-6 h-6 transition-transform duration-300", active && "scale-110")} />
             <span className="text-[10px] font-bold uppercase text-center tracking-wider">{label}</span>

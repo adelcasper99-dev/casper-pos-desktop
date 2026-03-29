@@ -4,10 +4,12 @@ import TreasuryDashboard from "@/components/treasury/TreasuryDashboard";
 import { Landmark } from "lucide-react";
 import { requirePermission } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/permissions";
+import { useTranslations } from "@/lib/i18n-mock";
 
 export const dynamic = "force-dynamic";
 
 export default async function TreasuryPage() {
+    const t = useTranslations('Treasury');
     await requirePermission(PERMISSIONS.TREASURY_VIEW);
 
     const [dataResult, branches] = await Promise.all([
@@ -20,17 +22,17 @@ export default async function TreasuryPage() {
         : { byMethod: { CASH: 0, VISA: 0, WALLET: 0, INSTAPAY: 0 }, transactions: [], treasuries: [] };
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 min-h-screen font-cairo" dir="rtl">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl">
-                    <Landmark className="w-7 h-7 text-cyan-400" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">الخزينة</h1>
-                    <p className="text-sm text-muted-foreground">إدارة الأرصدة والحركات المالية</p>
-                </div>
-            </div>
+            <header className="flex flex-col gap-1">
+                <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white uppercase flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                        <Landmark className="w-8 h-8" />
+                    </div>
+                    {t('title') || "الخزينة"}
+                </h1>
+                <p className="text-muted-foreground font-bold text-sm ml-12">{t('subtitle') || "إدارة الأرصدة والحركات المالية"}</p>
+            </header>
 
             <TreasuryDashboard data={data as any} branches={branches} />
         </div>

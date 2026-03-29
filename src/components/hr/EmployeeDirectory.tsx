@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, ChevronLeft, LayoutGrid, List } from "lucide-react"
+import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, ChevronLeft, LayoutGrid, List, CalendarDays, Users } from "lucide-react"
 import { getStaffDirectory } from "@/actions/hr"
 import { useTranslations } from "@/lib/i18n-mock"
 import clsx from "clsx"
@@ -69,54 +69,48 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header & Search */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-card/50 backdrop-blur-md p-4 rounded-2xl border border-white/5 shadow-sm">
-                <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-                    <div>
-                        <h2 className="text-xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">{t("title")}</h2>
+            <div className="flex flex-col xl:flex-row gap-6 justify-between items-center bg-zinc-50 dark:bg-white/[0.02] p-6 rounded-[2rem] border border-zinc-200 dark:border-white/5 shadow-sm font-cairo">
+                <div className="flex flex-col md:flex-row items-center gap-6 w-full md:w-auto">
+                    <div className="transition-all">
+                        <h2 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t("title")}</h2>
                         <div className="flex items-center gap-2 mt-1">
-                            <p className="text-xs text-muted-foreground">{t("activeMembers", { count: staff.length })}</p>
-                            <span className="w-1 h-1 rounded-full bg-zinc-700" />
-                            <p className="text-[10px] text-zinc-500 flex items-center gap-1">
-                                {t("lastUpdate") || "Last updated"}: {mounted ? lastUpdated.toLocaleTimeString() : '--:--:--'}
+                            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t("activeMembers", { count: staff.length })}</p>
+                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                {t("lastUpdate") || "تزامن"}: <span className="text-zinc-900 dark:text-white">{mounted ? lastUpdated.toLocaleTimeString() : '--:--:--'}</span>
                                 {refreshing && <RefreshCw className="w-3 h-3 animate-spin text-primary" />}
                             </p>
                         </div>
                     </div>
 
                     {/* Date Navigation */}
-                    <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1.5 backdrop-blur-md">
+                    <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-1.5 shadow-sm">
                         <button 
                             onClick={prevMonth}
-                            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                            className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
                         >
-                            <ChevronLeft className="w-4 h-4" />
+                            <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
                         </button>
-                        <div className="flex items-center gap-2 px-3 py-1 text-sm font-semibold min-w-[120px] justify-center text-white">
-                            <Clock className="w-3.5 h-3.5 text-primary" />
+                        <div className="flex items-center gap-3 px-6 py-2 h-10 text-sm font-black min-w-[180px] justify-center text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 rounded-xl shadow-inner border border-zinc-100 dark:border-white/5 uppercase tracking-widest">
+                            <CalendarDays className="w-4 h-4 text-zinc-400" />
                             {filterDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
                         </div>
                         <button 
                             onClick={nextMonth}
-                            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                            className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
                         >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                        <button 
-                            onClick={() => setFilterDate(new Date())}
-                            className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-all"
-                        >
-                            {t("today") || "Today"}
+                            <ChevronRight className="w-5 h-5 rtl:rotate-180" />
                         </button>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-64">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-80">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
                         <input
                             type="text"
                             placeholder={t("searchPlaceholder")}
-                            className="w-full glass-input pl-10 h-9"
+                            className="w-full bg-white dark:bg-zinc-900 border-none rounded-2xl h-14 pl-12 pr-6 text-zinc-900 dark:text-white font-black text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -124,10 +118,10 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                     <button 
                         onClick={() => loadStaff(true)}
                         disabled={refreshing}
-                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors disabled:opacity-50 group"
-                        title="Refresh"
+                        className="p-4 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 border-none transition-all disabled:opacity-50 active:scale-95 shadow-sm"
+                        title="تحديث البيانات"
                     >
-                        <RefreshCw className={clsx("w-4 h-4 text-zinc-400 group-hover:text-white transition-colors", refreshing && "animate-spin")} />
+                        <RefreshCw className={clsx("w-6 h-6 text-zinc-500", refreshing && "animate-spin")} />
                     </button>
                 </div>
             </div>
@@ -139,56 +133,56 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                     ))}
                 </div>
             ) : (
-                <div className="bg-card/30 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden shadow-2xl">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left rtl:text-right border-collapse">
-                            <thead>
-                                <tr className="border-b border-white/5 bg-white/5">
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.employee") || "Employee"}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.role") || "Role"}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.branch") || "Branch"}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.salary") || "Salary"}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">الصافي المستحق</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">النجاح</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">الفجوات</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("table.status") || "Status"}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right rtl:text-left">{t("table.actions") || "Actions"}</th>
+                <div className="bg-zinc-50 dark:bg-white/[0.02] rounded-[2rem] border border-zinc-200 dark:border-white/5 overflow-hidden shadow-2xl">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left rtl:text-right border-collapse zebra-table sticky-header font-cairo">
+                            <thead className="z-20">
+                                <tr className="border-b-2 border-zinc-200 dark:border-white/5 bg-zinc-100/50 dark:bg-white/[0.03]">
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.employee") || "الموظف"}</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.role") || "الدور"}</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.branch") || "الفرع"}</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.salary") || "الاساسي"}</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">الصافي المستحق</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">النجاح</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">الفجوات</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.status") || "الحالة"}</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] text-right rtl:text-left">{t("table.actions") || "الإجراءات"}</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
                                 <AnimatePresence mode="popLayout">
                                     {filteredStaff.map((member) => (
                                         <TableRow key={member.id} member={member} t={t} />
                                     ))}
                                 </AnimatePresence>
                                 {filteredStaff.length > 0 && (
-                                    <tr className="bg-white/5 font-bold border-t-2 border-white/10 sticky bottom-0 backdrop-blur-md">
-                                        <td className="px-6 py-4 text-zinc-400">
-                                            {t("table.total") || "Total"}
+                                    <tr className="bg-zinc-100 dark:bg-white/[0.05] font-black border-t-2 border-zinc-200 dark:border-white/10 sticky bottom-0 backdrop-blur-md">
+                                        <td className="px-6 py-6 text-zinc-500 text-xs uppercase tracking-widest">
+                                            {t("table.total") || "الإجمالي"}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="px-2.5 py-1 rounded-full bg-zinc-500/10 text-zinc-400 text-xs border border-zinc-500/20">
-                                                {filteredStaff.length} {t("table.members") || "Members"}
+                                        <td className="px-6 py-6">
+                                            <span className="px-4 py-1 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-black tracking-widest uppercase">
+                                                {filteredStaff.length} {t("table.members") || "موظف"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4"></td>
-                                        <td className="px-6 py-4 text-zinc-400">
-                                            <div className="font-mono text-sm">
-                                                ${filteredStaff.reduce((sum, s) => sum + Number(s.salary || 0), 0).toLocaleString()}
+                                        <td className="px-6 py-6"></td>
+                                        <td className="px-6 py-6">
+                                            <div className="font-mono text-sm font-black tracking-tighter text-zinc-900 dark:text-white tabular-nums">
+                                                {filteredStaff.reduce((sum, s) => sum + Number(s.salary || 0), 0).toLocaleString()} EGP
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-emerald-400">
-                                            <div className="font-mono text-sm font-bold">
-                                                ${filteredStaff.reduce((sum, s) => sum + Number(s.netDue), 0).toLocaleString()}
+                                        <td className="px-6 py-6">
+                                            <div className="font-mono text-base font-black tracking-tighter text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                                {filteredStaff.reduce((sum, s) => sum + Number(s.netDue), 0).toLocaleString()} EGP
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4" colSpan={4}></td>
+                                        <td className="px-6 py-6" colSpan={4}></td>
                                     </tr>
                                 )}
                                 {filteredStaff.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-12 text-center text-zinc-500 italic">
-                                            {t("noResults") || "No employees found matching your search."}
+                                        <td colSpan={9} className="px-6 py-24 text-center font-black font-cairo text-zinc-400 uppercase tracking-widest">
+                                            {t("noResults") || "لم يتم العثور على موظفين"}
                                         </td>
                                     </tr>
                                 )}
@@ -211,80 +205,105 @@ function TableRow({ member, t }: { member: any, t: any }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            onClick={() => router.push(`/hr/employees/${member.id}`)}
-            className="group border-b border-white/5 hover:bg-white/[0.04] transition-all cursor-pointer active:scale-[0.995]"
+            className="group hover:bg-zinc-100 dark:hover:bg-white/[0.03] transition-all cursor-pointer"
         >
-            <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
+            <td className="px-6 py-6">
+                <div className="flex items-center gap-4">
                     <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center text-sm font-bold text-white group-hover:scale-105 transition-transform">
+                        <div className="w-12 h-12 rounded-[1rem] bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center text-sm font-black shadow-xl shadow-zinc-900/10 group-hover:scale-110 group-hover:rotate-6 transition-all">
                             {member.avatarSeed?.substring(0, 2).toUpperCase() || "CN"}
                         </div>
                         {isOnline && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-zinc-900 animate-pulse" />
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-4 border-white dark:border-zinc-950 animate-pulse" />
                         )}
                     </div>
                     <div className="flex flex-col">
-                        <span className="font-semibold text-white group-hover:text-primary transition-colors">{member.name}</span>
-                        <span className="text-[10px] text-zinc-500 font-mono italic">@{member.username}</span>
+                        <span className="font-black text-zinc-900 dark:text-white text-base leading-tight">{member.name}</span>
+                        <span className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mt-0.5">@{member.username}</span>
                     </div>
                 </div>
             </td>
-            <td className="px-6 py-4">
-                <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-medium border border-indigo-500/20">
+            <td className="px-6 py-6">
+                <span className="px-3 py-1 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
                     {member.role}
                 </span>
             </td>
-            <td className="px-6 py-4">
-                <div className="flex items-center gap-1.5 text-zinc-300 text-sm">
-                    <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+            <td className="px-6 py-6">
+                <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-xs font-black uppercase tracking-tight">
+                    <MapPin className="w-3.5 h-3.5" />
                     {member.branch}
                 </div>
             </td>
-            <td className="px-6 py-4">
-                <div className="font-mono text-white text-sm">
-                    ${Number(member.salary || 0).toLocaleString()}
+            <td className="px-6 py-6">
+                <div className="font-mono text-zinc-900 dark:text-white text-sm font-black tracking-tighter tabular-nums">
+                    {Number(member.salary || 0).toLocaleString()} EGP
                 </div>
             </td>
-            <td className="px-6 py-4">
+            <td className="px-6 py-6">
                 <div className={clsx(
-                    "font-mono text-sm font-bold",
-                    member.netDue > 0 ? "text-emerald-400" : member.netDue < 0 ? "text-rose-400" : "text-zinc-500"
+                    "font-mono text-base font-black tracking-tighter tabular-nums",
+                    member.netDue > 0 ? "text-emerald-600 dark:text-emerald-500" : member.netDue < 0 ? "text-rose-600 dark:text-rose-500" : "text-zinc-500"
                 )}>
-                    ${Number(member.netDue).toLocaleString()}
+                    {member.netDue > 0 ? "+" : ""}{Number(member.netDue).toLocaleString()} EGP
                 </div>
             </td>
-            <td className="px-6 py-4">
-                <div className={clsx(
-                    "text-xs font-bold",
-                    member.kpis?.successRatio >= 90 ? "text-emerald-400" : member.kpis?.successRatio >= 70 ? "text-amber-400" : "text-rose-400"
-                )}>
-                    {member.kpis?.successRatio}%
+            <td className="px-6 py-6">
+                <div className="flex items-center gap-2">
+                    <div className="w-16 h-2 bg-zinc-200 dark:bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                            className={clsx(
+                                "h-full transition-all duration-1000",
+                                member.kpis?.successRatio >= 90 ? "bg-emerald-500" : member.kpis?.successRatio >= 70 ? "bg-amber-500" : "bg-rose-500"
+                            )}
+                            style={{ width: `${member.kpis?.successRatio}%` }}
+                        />
+                    </div>
+                    <span className={clsx(
+                        "text-[10px] font-black font-mono tracking-tighter",
+                        member.kpis?.successRatio >= 90 ? "text-emerald-600 dark:text-emerald-500" : member.kpis?.successRatio >= 70 ? "text-amber-600 dark:text-amber-500" : "text-rose-600 dark:text-rose-500"
+                    )}>
+                        {member.kpis?.successRatio}%
+                    </span>
                 </div>
             </td>
-            <td className="px-6 py-4">
-                <div className={clsx(
-                    "font-mono text-xs font-bold",
-                    member.kpis?.delayedTickets > 0 ? "text-rose-400" : "text-zinc-500"
-                )}>
-                    {member.kpis?.delayedTickets}
-                </div>
+            <td className="px-6 py-6">
+                {member.kpis?.delayedTickets > 0 ? (
+                    <div className="px-3 py-1 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase tracking-widest border border-rose-500/20 shadow-sm flex items-center gap-2 w-fit">
+                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        {member.kpis?.delayedTickets} خطر
+                    </div>
+                ) : (
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">لا يوجد</span>
+                )}
             </td>
-            <td className="px-6 py-4">
+            <td className="px-6 py-6">
                 <div className={clsx(
-                    "flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-lg w-fit transition-all duration-500",
+                    "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl w-fit transition-all duration-500 border shadow-sm",
                     isOnline 
-                        ? "bg-green-500/10 text-green-400 border border-green-500/20 shadow-[0_0_12px_rgba(34,197,94,0.1)]" 
-                        : "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
+                        : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
                 )}>
-                    <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-green-400 animate-pulse" : "bg-zinc-600")} />
-                    {isOnline ? t("card.online") : t("card.offline")}
+                    <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-emerald-500 animate-pulse" : "bg-zinc-600")} />
+                    {isOnline ? "متصل" : "أوفلاين"}
                 </div>
             </td>
-            <td className="px-6 py-4 text-right rtl:text-left">
-                <button className="p-2 rounded-lg bg-white/5 group-hover:bg-primary group-hover:text-primary-foreground transition-all group/btn border border-white/5">
-                    <ChevronRight className="w-4 h-4 rtl:rotate-180 transition-transform group-hover/btn:translate-x-0.5 rtl:group-hover/btn:-translate-x-0.5" />
-                </button>
+            <td className="px-6 py-6 text-right rtl:text-left">
+                <div className="flex items-center gap-2 justify-end">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); router.push(`/hr/employees/${member.id}`); }}
+                        className="p-2.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:scale-110 active:scale-95 transition-all shadow-lg shadow-zinc-900/10"
+                        title="عرض الملف"
+                    >
+                        <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); /* Handle direct edit if needed */ }}
+                        className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all shadow-sm active:scale-95"
+                        title="تعديل سريع"
+                    >
+                        <Users className="w-5 h-5" />
+                    </button>
+                </div>
             </td>
         </motion.tr>
     )

@@ -152,17 +152,17 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
         <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
             <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" asChild className="text-zinc-400 hover:text-white hover:bg-white/10">
+                <Button variant="ghost" size="icon" asChild className="text-slate-400 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 h-10 w-10">
                     <Link href={`/ar/maintenance/tickets?tab=engineers`}>
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
                 </Button>
                 <div>
-                    <h1 className="text-2xl font-bold text-white">{engineer.name}</h1>
-                    <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">{engineer.name}</h1>
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400 text-sm font-black">
                         <span>{engineer.phone}</span>
                         {engineer.warehouse && (
-                            <Badge variant="outline" className="border-white/10 text-zinc-400">
+                            <Badge variant="outline" className="border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 bg-slate-50 dark:bg-transparent font-black">
                                 {engineer.warehouse.name}
                             </Badge>
                         )}
@@ -171,14 +171,14 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex gap-2 border-b border-white/10 pb-2 overflow-x-auto">
+            <div className="flex gap-2 border-b border-slate-200 dark:border-white/10 pb-2 overflow-x-auto">
                 {(['overview', 'stock', 'history', 'consumption'] as const).map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setViewTab(tab)}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${viewTab === tab
-                            ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/50'
-                            : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        className={`px-4 py-2 text-sm font-black rounded-lg transition-all whitespace-nowrap ${viewTab === tab
+                            ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20'
+                            : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
                             }`}
                     >
                         {t(`tabs.${tab}`)}
@@ -191,90 +191,90 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                 {viewTab === 'overview' && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in zoom-in-95 duration-300">
                         {/* Total Tickets */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-3">
-                                    <List className="w-6 h-6 text-blue-400" />
+                                <div className="w-12 h-12 rounded-full bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center mb-3">
+                                    <List className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.totalTicketsCount || 0}</div>
-                                <div className="text-sm text-zinc-400">{t('stats.totalTickets')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.totalTicketsCount || 0}</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.totalTickets')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Active/Pending Tickets */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-3">
-                                    <Activity className="w-6 h-6 text-amber-400" />
+                                <div className="w-12 h-12 rounded-full bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center mb-3">
+                                    <Activity className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.activeTicketsCount || 0}</div>
-                                <div className="text-sm text-zinc-400">{t('stats.activeTickets')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.activeTicketsCount || 0}</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.activeTickets')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Completed Tickets */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mb-3">
-                                    <Wrench className="w-6 h-6 text-cyan-400" />
+                                <div className="w-12 h-12 rounded-full bg-cyan-500/10 dark:bg-cyan-500/20 flex items-center justify-center mb-3">
+                                    <Wrench className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.completedTicketsCount || 0}</div>
-                                <div className="text-sm text-zinc-400">{t('stats.completed')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.completedTicketsCount || 0}</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.completed')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Average Time */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mb-3">
-                                    <Clock className="w-6 h-6 text-green-400" />
+                                <div className="w-12 h-12 rounded-full bg-green-500/10 dark:bg-green-500/20 flex items-center justify-center mb-3">
+                                    <Clock className="w-6 h-6 text-green-600 dark:text-green-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.averageRepairTime || "0.0"}h</div>
-                                <div className="text-sm text-zinc-400">{t('stats.avgTime')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.averageRepairTime || "0.0"}h</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.avgTime')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Commission */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center mb-3">
-                                    <Percent className="w-6 h-6 text-purple-400" />
+                                <div className="w-12 h-12 rounded-full bg-purple-500/10 dark:bg-purple-500/20 flex items-center justify-center mb-3">
+                                    <Percent className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.commissionRate}%</div>
-                                <div className="text-sm text-zinc-400">{t('form.commission')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.commissionRate}%</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('form.commission')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Returned */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center mb-3">
-                                    <RotateCcw className="w-6 h-6 text-orange-400" />
+                                <div className="w-12 h-12 rounded-full bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center mb-3">
+                                    <RotateCcw className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.returnedTicketsCount || 0}</div>
-                                <div className="text-sm text-zinc-400">{t('stats.returned')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.returnedTicketsCount || 0}</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.returned')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Refunded */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center mb-3">
-                                    <RefreshCcw className="w-6 h-6 text-pink-400" />
+                                <div className="w-12 h-12 rounded-full bg-pink-500/10 dark:bg-pink-500/20 flex items-center justify-center mb-3">
+                                    <RefreshCcw className="w-6 h-6 text-pink-600 dark:text-pink-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.refundedTicketsCount || 0}</div>
-                                <div className="text-sm text-zinc-400">{t('stats.refunded')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.refundedTicketsCount || 0}</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.refunded')}</div>
                             </CardContent>
                         </Card>
 
                         {/* Loss */}
-                        <Card className="bg-white/5 border-white/10">
+                        <Card className="bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-sm">
                             <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-3">
-                                    <AlertTriangle className="w-6 h-6 text-red-400" />
+                                <div className="w-12 h-12 rounded-full bg-red-500/10 dark:bg-red-500/20 flex items-center justify-center mb-3">
+                                    <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
                                 </div>
-                                <div className="text-3xl font-bold text-white">{engineer.lossCount || 0}</div>
-                                <div className="text-sm text-zinc-400">{t('stats.loss')}</div>
+                                <div className="text-3xl font-black text-slate-900 dark:text-white">{engineer.lossCount || 0}</div>
+                                <div className="text-sm font-black text-slate-500 dark:text-zinc-400 mt-1">{t('stats.loss')}</div>
                             </CardContent>
                         </Card>
                     </div>
@@ -286,7 +286,7 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-10 border-white/10 hover:bg-white/10 text-zinc-300"
+                                className="h-10 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 font-black"
                                 onClick={handlePrint}
                                 disabled={stock.length === 0 || isPrinting}
                             >
@@ -296,7 +296,7 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                             <Button
                                 size="sm"
                                 variant="secondary"
-                                className="h-10 border-white/10 hover:bg-white/10"
+                                className="h-10 bg-slate-100 dark:bg-white/10 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white font-black hover:bg-slate-200"
                                 onClick={() => setIsTransferConsoleOpen(true)}
                                 disabled={stock.length === 0}
                             >
@@ -305,33 +305,32 @@ export default function EngineerDetailsClient({ id }: EngineerDetailsClientProps
                         </div>
 
                         {stock.length === 0 ? (
-                            <div className="text-center py-12 text-zinc-500 italic border border-dashed border-white/10 rounded-lg">
+                            <div className="text-center py-12 text-slate-400 dark:text-zinc-500 italic border border-dashed border-slate-200 dark:border-white/10 rounded-lg">
                                 <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
                                 {t('details.noStock')}
                             </div>
                         ) : (
-                            <div className="border border-white/5 rounded-lg overflow-hidden">
-                                <table className="w-full text-sm text-left text-zinc-400">
-                                    <thead className="bg-white/5 text-xs uppercase">
+                            <div className="border border-slate-200 dark:border-white/5 rounded-lg overflow-hidden zebra-table">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 dark:bg-white/5 text-xs uppercase font-black text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-white/10">
                                         <tr>
-                                            <th className="p-3">{t('details.product')}</th>
-                                            <th className="p-3 text-center">{t('details.qty')}</th>
-                                            <th className="p-3 text-right">{t('details.value')}</th>
+                                            <th className="p-4">{t('details.product')}</th>
+                                            <th className="p-4 text-center">{t('details.qty')}</th>
+                                            <th className="p-4 text-right">{t('details.value')}</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                         {stock.map(s => (
-                                            <tr key={s.id} className="hover:bg-white/5 transition-colors">
-                                                <td className="p-3 text-white font-medium">{s.product.name}</td>
-                                                <td className="p-3 text-center">
-                                                    <Badge variant="outline" className="font-mono bg-white/5 border-white/10">
+                                            <tr key={s.id} className="transition-colors group">
+                                                <td className="p-4 text-slate-900 dark:text-white font-black">{s.product.name}</td>
+                                                <td className="p-4 text-center">
+                                                    <Badge variant="outline" className="font-mono bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white font-black">
                                                         {s.quantity}
                                                     </Badge>
                                                 </td>
-                                                <td className="p-3 text-right text-emerald-400 font-mono">
+                                                <td className="p-4 text-right text-emerald-600 dark:text-emerald-400 font-bold">
                                                     {formatCurrency(Number(s.product.sellPrice) * s.quantity)}
                                                 </td>
-
                                             </tr>
                                         ))}
                                     </tbody>

@@ -24,58 +24,58 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
             title: "إجمالي الإيرادات",
             value: formatCurrency(data.totalRevenue),
             icon: Activity,
-            color: "text-cyan-400",
+            color: "text-cyan-500",
             bg: "bg-cyan-500/10",
-            glow: "shadow-[0_0_20px_rgba(6,182,212,0.15)]"
+            glow: "shadow-cyan-500/10"
         },
         {
             title: "تكلفة قطع الغيار",
             value: formatCurrency(data.partsCOGS),
             icon: CreditCard,
-            color: "text-rose-400",
+            color: "text-rose-500",
             bg: "bg-rose-500/10",
-            glow: "shadow-[0_0_20px_rgba(244,63,94,0.15)]"
+            glow: "shadow-rose-500/10"
         },
         {
             title: "صافي ربح القطع",
             value: formatCurrency(data.partsNetProfit),
             icon: TrendingUp,
-            color: "text-orange-400",
+            color: "text-orange-500",
             bg: "bg-orange-500/10",
-            glow: "shadow-[0_0_20px_rgba(249,115,22,0.15)]"
+            glow: "shadow-orange-500/10"
         },
         {
             title: "عمولات المهندسين",
             value: formatCurrency(data.totalCommissions),
             icon: Users,
-            color: "text-fuchsia-400",
+            color: "text-fuchsia-500",
             bg: "bg-fuchsia-500/10",
-            glow: "shadow-[0_0_20px_rgba(217,70,239,0.15)]"
+            glow: "shadow-fuchsia-500/10"
         },
         {
             title: "ربح الصيانة (صافي)",
             value: formatCurrency(data.laborNetProfit),
             icon: Briefcase,
-            color: "text-emerald-400",
+            color: "text-emerald-500",
             bg: "bg-emerald-500/10",
-            glow: "shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+            glow: "shadow-emerald-500/10"
         },
         {
             title: "نسبة النجاح",
             value: `${data.successRatio}%`,
             icon: TrendingUp,
-            color: "text-amber-400",
+            color: "text-amber-500",
             bg: "bg-amber-500/10",
-            glow: "shadow-[0_0_20px_rgba(245,158,11,0.15)]"
+            glow: "shadow-amber-500/10"
         },
         {
             title: "صافي الربح العام",
             value: formatCurrency(data.totalNetProfit),
             icon: TrendingUp,
             color: "text-white",
-            bg: "bg-cyan-500",
+            bg: "bg-primary",
             highlight: true,
-            glow: "shadow-[0_0_30px_rgba(6,182,212,0.3)]"
+            glow: "shadow-primary/30"
         }
     ];
 
@@ -85,26 +85,26 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
                 <div 
                     key={i} 
                     className={cn(
-                        "relative group rounded-2xl p-0.5 overflow-hidden transition-all duration-300 hover:scale-[1.02]",
+                        "relative group rounded-2xl p-px overflow-hidden transition-all duration-300 hover:scale-[1.02] shadow-xl",
                         kpi.glow,
-                        kpi.highlight ? "xl:col-span-1 shadow-cyan-500/20" : ""
+                        kpi.highlight ? "xl:col-span-1" : ""
                     )}
                 >
                     {/* Glassmorphic Background */}
                     <div className={cn(
-                        "absolute inset-0 bg-gradient-to-br transition-opacity duration-300",
-                        kpi.highlight ? "from-cyan-600 to-cyan-800 opacity-100" : "from-zinc-900 to-zinc-950 opacity-100"
+                        "absolute inset-0 transition-opacity duration-300",
+                        kpi.highlight ? "bg-primary" : "bg-card/40 backdrop-blur-xl"
                     )} />
                     
                     {/* Inner Content */}
                     <div className={cn(
                         "relative h-full p-4 rounded-2xl flex flex-col justify-between border min-h-[110px]",
-                        kpi.highlight ? "border-white/20" : "border-white/5 bg-zinc-900/40 backdrop-blur-xl"
+                        kpi.highlight ? "border-white/20 bg-primary/10" : "border-border bg-card/50"
                     )}>
                         <div className="flex items-center justify-between mb-3">
                             <span className={cn(
-                                "text-[10px] font-bold uppercase tracking-widest",
-                                kpi.highlight ? "text-cyan-100/70" : "text-zinc-500"
+                                "text-[10px] font-black uppercase tracking-widest",
+                                kpi.highlight ? "text-white/70" : "text-muted-foreground"
                             )}>
                                 {kpi.title}
                             </span>
@@ -119,7 +119,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
                         
                         <div className={cn(
                             "text-lg font-black tracking-tight",
-                            kpi.highlight ? "text-white" : "text-zinc-100"
+                            kpi.highlight ? "text-white" : "text-foreground"
                         )}>
                             {kpi.value}
                         </div>
@@ -128,11 +128,11 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
             ))}
             {data.highRiskCount > 0 && (
                 <div className="col-span-full mt-2">
-                    <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-200 text-sm backdrop-blur-md animate-pulse">
+                    <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-600 dark:text-rose-200 text-sm backdrop-blur-md animate-pulse shadow-lg shadow-rose-500/10">
                         <div className="p-2 bg-rose-500/20 rounded-lg">
-                            <AlertTriangle className="w-4 h-4 text-rose-400" />
+                            <AlertTriangle className="w-4 h-4 text-rose-500" />
                         </div>
-                        <span className="font-medium">تنبيه: يوجد عدد {data.highRiskCount} تذاكر عالية المخاطر (تكرار مرتجع أو تأخير كبير).</span>
+                        <span className="font-black">تنبيه: يوجد عدد {data.highRiskCount} تذاكر عالية المخاطر (تكرار مرتجع أو تأخير كبير).</span>
                     </div>
                 </div>
             )}

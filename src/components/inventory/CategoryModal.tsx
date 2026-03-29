@@ -132,11 +132,11 @@ export default function CategoryModal({
         >
             <div className="space-y-6">
                 <div>
-                    <label className="text-xs text-muted-foreground uppercase font-bold mb-2 block">{t('nameLabel')}</label>
+                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">{t('nameLabel')}</label>
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="glass-input w-full"
+                        className="glass-input w-full font-black text-slate-900 dark:text-white"
                         placeholder={t('placeholder')}
                         autoFocus
                         onKeyDown={(e) => {
@@ -146,15 +146,15 @@ export default function CategoryModal({
                 </div>
 
                 <div>
-                    <label className="text-xs text-muted-foreground uppercase font-bold mb-2 block">{t('colorLabel')}</label>
+                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">{t('colorLabel')}</label>
                     <div className="grid grid-cols-5 gap-3">
                         {PRESET_COLORS.map((c) => (
                             <button
                                 key={c}
                                 onClick={() => setColor(c)}
                                 className={clsx(
-                                    "h-10 rounded-lg transition-all border-2",
-                                    color === c ? "border-foreground scale-110 shadow-lg" : "border-transparent opacity-70 hover:opacity-100"
+                                    "h-10 rounded-xl transition-all border-2 active:scale-90",
+                                    color === c ? "border-slate-900 dark:border-white scale-110 shadow-lg" : "border-transparent opacity-70 hover:opacity-100"
                                 )}
                                 style={{ backgroundColor: c }}
                             />
@@ -162,13 +162,13 @@ export default function CategoryModal({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                     <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-2 block">{t('parentLabel') || "Parent Category"}</label>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">{t('parentLabel') || "Parent Category"}</label>
                         <select
                             value={parentId || ""}
                             onChange={(e) => setParentId(e.target.value || null)}
-                            className="glass-input w-full"
+                            className="glass-input w-full font-black text-slate-900 dark:text-white [&>option]:text-black"
                         >
                             <option value="">{t('none') || "None (Top Level)"}</option>
                             {allCategories.filter(c => c.id !== initialData?.id).map(c => (
@@ -178,33 +178,36 @@ export default function CategoryModal({
                     </div>
 
                     <div>
-                        <label className="text-xs text-muted-foreground uppercase font-bold mb-2 block">{t('visibilityLabel') || "Visibility"}</label>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">{t('visibilityLabel') || "Visibility"}</label>
                         <button
                             type="button"
                             onClick={() => setIsHidden(!isHidden)}
                             className={clsx(
-                                "flex items-center gap-2 px-4 h-10 w-full rounded-lg font-bold text-sm transition-all border",
-                                isHidden ? "bg-red-500/10 border-red-500/50 text-red-400" : "bg-green-500/10 border-green-500/50 text-green-400"
+                                "flex items-center gap-2 px-4 h-12 w-full rounded-2xl font-black text-sm transition-all border shadow-sm",
+                                isHidden ? "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/50 text-rose-600 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
                             )}
                         >
-                            {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {isHidden ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             {isHidden ? (t("hidden") || "Hidden") : (t("visible") || "Visible")}
                         </button>
                     </div>
                 </div>
 
                 {initialData && (
-                    <div className="pt-2 border-t border-white/5 mt-4 space-y-3">
+                    <div className="pt-6 border-t border-slate-100 dark:border-white/5 mt-4 space-y-4">
                         <div className="flex justify-between items-center px-1">
-                            <label className="text-zinc-500 uppercase text-[10px] font-black tracking-widest">{t('subCategories') || "Sub-Categories"}</label>
-                            {loadingQuickAdd && <Loader2 className="w-3 h-3 text-cyan-500 animate-spin" />}
+                            <label className="text-slate-500 dark:text-zinc-500 uppercase text-[10px] font-black tracking-widest flex items-center gap-2">
+                                <Plus className="w-3 h-3" />
+                                {t('subCategories') || "Sub-Categories"}
+                            </label>
+                            {loadingQuickAdd && <Loader2 className="w-3.5 h-3.5 text-cyan-500 animate-spin" />}
                         </div>
                         
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                              {/* Inline Quick Add */}
                              <div className="relative group">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 bg-cyan-500/10 rounded-md">
-                                    <Plus className="w-5 h-5 text-cyan-400" />
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 bg-cyan-500/10 rounded-lg">
+                                    <Plus className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
                                 </div>
                                 <input
                                     placeholder={t("quickAddPlaceholder") || "QUICKADD + (Press Enter)"}
@@ -220,11 +223,8 @@ export default function CategoryModal({
                                                     csrfToken 
                                                 } as any);
                                                 if (res.success && res.category) {
-                                                    // toast (using alert for simple admin UI as sonner might not be imported here)
                                                     (e.target as HTMLInputElement).value = "";
-                                                    // Update local state directly to avoid race conditions
                                                     setAllCategories(prev => [...prev, res.category].sort((a, b) => a.name.localeCompare(b.name)));
-                                                    // Notify parent if needed (onSuccess is the prop in Admin version)
                                                     if (onSuccess) onSuccess(res.category);
                                                     router.refresh();
                                                 }
@@ -235,23 +235,23 @@ export default function CategoryModal({
                                             }
                                         }
                                     }}
-                                    className="h-12 w-full pl-12 bg-white/5 border border-white/5 focus:border-cyan-500/30 text-sm text-white placeholder:text-zinc-600 rounded-lg transition-all outline-none shadow-inner"
+                                    className="h-12 w-full pl-12 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 focus:border-cyan-500/30 text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 rounded-2xl transition-all outline-none shadow-inner"
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto no-scrollbar pr-1">
+                            <div className="grid grid-cols-2 gap-3 max-h-40 overflow-y-auto custom-scrollbar pr-1">
                                 {allCategories.filter(c => c.parentId === initialData.id).map(c => (
                                     <div 
                                         key={c.id} 
-                                        className="flex items-center gap-2 bg-white/5 border border-white/5 rounded-lg p-2 text-xs text-zinc-300 group hover:border-white/20 transition-all font-bold"
+                                        className="flex items-center gap-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl p-3 text-xs text-slate-700 dark:text-zinc-300 group hover:border-cyan-500/30 transition-all font-black shadow-sm"
                                     >
-                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                                        <div className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: c.color }} />
                                         <span className="truncate flex-1">{c.name}</span>
-                                        {c.isHidden && <EyeOff className="w-3 h-3 text-zinc-600 shrink-0" />}
+                                        {c.isHidden && <EyeOff className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-600 shrink-0" />}
                                     </div>
                                 ))}
                                 {allCategories.filter(c => c.parentId === initialData.id).length === 0 && (
-                                    <div className="col-span-2 py-3 text-center text-zinc-600 text-[10px] uppercase font-bold italic tracking-wider">
+                                    <div className="col-span-2 py-4 text-center text-slate-400 dark:text-zinc-600 text-[10px] uppercase font-black italic tracking-[0.2em]">
                                         {t("noSubCategories") || "No sub-categories yet"}
                                     </div>
                                 )}
@@ -260,30 +260,30 @@ export default function CategoryModal({
                     </div>
                 )}
 
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-3 items-center pt-2">
                     {initialData?.id && (
                         <button
                             onClick={handleDelete}
                             disabled={loading}
-                            className="mr-auto text-red-500 hover:text-red-400 hover:bg-red-500/10 gap-2 px-4 py-3 rounded-xl transition-all flex items-center text-xs font-bold"
+                            className="mr-auto text-rose-500 hover:text-white hover:bg-rose-500 gap-2 px-5 py-3.5 rounded-2xl transition-all flex items-center text-xs font-black shadow-sm active:scale-95"
                         >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                             {t('delete') || "Delete"}
                         </button>
                     )}
                     <button
                         onClick={onClose}
                         disabled={loading}
-                        className={clsx("bg-muted hover:bg-muted/80 text-muted-foreground font-bold py-3 rounded-xl transition-colors", !initialData?.id ? "flex-1" : "px-6")}
+                        className={clsx("bg-slate-100 dark:bg-muted hover:bg-slate-200 dark:hover:bg-muted/80 text-slate-500 dark:text-muted-foreground font-black py-3.5 rounded-2xl transition-all active:scale-95", !initialData?.id ? "flex-1" : "px-8")}
                     >
                         {t('cancel') || 'Cancel'}
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={loading || !name}
-                        className={clsx("bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]", !initialData?.id ? "flex-1" : "px-10")}
+                        className={clsx("bg-cyan-500 hover:bg-cyan-400 text-black font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-cyan-500/20 active:scale-95", !initialData?.id ? "flex-1" : "px-12")}
                     >
-                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Check className="w-5 h-5" />}
+                        {loading ? <Loader2 className="animate-spin w-6 h-6" /> : <Check className="w-6 h-6" />}
                         {t('saveCategory')}
                     </button>
                 </div>

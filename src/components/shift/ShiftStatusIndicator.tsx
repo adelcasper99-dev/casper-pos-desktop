@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { openShift, closeShift } from "@/actions/shift-management-actions";
 import { getEffectiveStoreSettings } from "@/actions/settings";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+import { clsx } from "clsx";
 import CashCounter from "./CashCounter";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
@@ -99,7 +100,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 actualCash: parseFloat(actualCash),
                 cashBreakdown,
                 notes: notes || undefined,
-                csrfToken // Added CSRF token
+                csrfToken
             });
 
             if (result.success) {
@@ -120,7 +121,6 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
                 router.refresh();
             } else {
-                // Display the actual error message
                 toast.error(result.message || result.error || "Failed to close shift");
             }
         } catch (error: any) {
@@ -134,32 +134,31 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     if (!shift) {
         return (
             <>
-                <div className="glass-card bg-black/40 text-white px-6 py-4 flex items-center justify-between shadow-2xl border border-white/5 backdrop-blur-3xl transition-all duration-500">
+                <div className="bg-white dark:bg-black/40 dark:backdrop-blur-3xl border-b border-slate-100 dark:border-white/5 shadow-sm dark:shadow-2xl text-slate-800 dark:text-white px-6 py-4 flex items-center justify-between transition-all duration-500">
                     <div className="flex items-center gap-4">
-                        {/* Open Shift Button on far left */}
                         <button
                             onClick={() => setShowOpenModal(true)}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all hover:scale-105 font-black shadow-[0_0_20px_rgba(0,242,255,0.3)] group"
+                            className="bg-slate-900 hover:bg-slate-800 dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-black px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all font-bold shadow-sm dark:shadow-[0_0_20px_rgba(0,242,255,0.3)] group"
                         >
-                            <div className="bg-black/10 p-1 rounded-lg group-hover:scale-110 transition-transform">
+                            <div className="p-1 rounded-lg group-hover:scale-110 transition-transform">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
-                            <span className="tracking-tight uppercase">{t('openShift')}</span>
+                            <span className="tracking-tight">{t('openShift')}</span>
                         </button>
-                        <div className="h-10 w-px bg-white/10 mx-2"></div>
+                        <div className="h-10 w-px bg-slate-200 dark:bg-white/10 mx-2"></div>
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2 mb-0.5">
-                                <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
-                                <span className="font-black text-sm tracking-wide uppercase text-yellow-500/90">{t('noActiveShift')}</span>
+                                <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse"></div>
+                                <span className="font-bold text-sm tracking-wide text-yellow-500">{t('noActiveShift')}</span>
                             </div>
-                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none px-4.5">System Ready for Session</span>
+                            <span className="text-[10px] font-medium text-slate-400 dark:text-white/40 uppercase tracking-widest leading-none px-4.5">System Ready for Session</span>
                         </div>
                     </div>
-                    <div className="p-2 bg-white/5 rounded-full border border-white/10 text-white/30">
+                    <div className="p-2 bg-slate-100 dark:bg-white/5 rounded-full border border-slate-200 dark:border-white/10 text-slate-400 dark:text-white/30">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                     </div>
                 </div>
@@ -197,7 +196,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                     className="w-full glass-input"
                                 >
                                     {registers.map(reg => (
-                                        <option key={reg.id} value={reg.id} className="bg-zinc-900">
+                                        <option key={reg.id} value={reg.id} className="bg-white text-slate-800">
                                             {reg.name}
                                         </option>
                                     ))}
@@ -210,7 +209,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 المبلغ العهدة (Start Cash)
                             </label>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                                 <input
                                     id="open-shift-start-cash"
                                     {...getNavProps(1)}
@@ -230,7 +229,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                         <button
                             onClick={handleOpenShift}
                             disabled={isLoading}
-                            className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(0,242,255,0.2)]"
+                            className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all shadow-sm"
                         >
                             {isLoading ? tVal('required') : t('confirmOpen')}
                         </button>
@@ -265,48 +264,48 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
     return (
         <>
-            <header className="w-full h-16 border-b border-white/5 bg-black/40 backdrop-blur-3xl px-6 flex items-center justify-between sticky top-0 z-[60] shadow-2xl transition-all duration-500">
+            <header className="w-full h-16 border-b border-slate-100 dark:border-white/5 bg-white dark:bg-black/40 dark:backdrop-blur-3xl px-6 flex items-center justify-between sticky top-0 z-[60] shadow-sm dark:shadow-2xl transition-all duration-500">
                 {/* RIGHT SECTION: Identity & Status */}
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col items-end">
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-white/40 tracking-widest uppercase">{shift.cashierName}</span>
-                            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
+                            <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">{shift.cashierName}</span>
+                            <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse"></div>
                         </div>
-                        <span className="text-[10px] font-black text-cyan-400 tracking-wider uppercase leading-none mt-0.5">{isMounted && `${hours}س ${mins}د`}</span>
+                        <span className="text-[10px] font-bold text-pink-400 tracking-wider uppercase leading-none mt-0.5">{isMounted && `${hours}س ${mins}د`}</span>
                     </div>
                 </div>
 
                 {/* CENTER SECTION: Horizontal Counters */}
-                <div className="flex items-center gap-8 divide-x divide-x-reverse divide-white/5 h-full py-3">
+                <div className="flex items-center gap-8 divide-x divide-x-reverse divide-slate-100 dark:divide-white/5 h-full py-3">
                     {/* Opening Cash */}
                     <div className="flex flex-col items-center px-6">
-                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">افتتاحي</span>
-                        <span className="text-sm font-black text-emerald-400/80 tabular-nums">${Number(shift.startCash || 0).toFixed(2)}</span>
+                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">افتتاحي</span>
+                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${Number(shift.startCash || 0).toFixed(2)}</span>
                     </div>
 
                     {/* Cash Sales */}
                     <div className="flex flex-col items-center px-6">
-                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">كاش</span>
-                        <span className="text-sm font-black text-emerald-400 tabular-nums">${Number(shift.totalCashSales || 0).toFixed(2)}</span>
+                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">كاش</span>
+                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${Number(shift.totalCashSales || 0).toFixed(2)}</span>
                     </div>
 
                     {/* Visa/Network */}
                     <div className="flex flex-col items-center px-6">
-                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">فيزا/شبكة</span>
-                        <span className="text-sm font-black text-cyan-400 tabular-nums">${Number(shift.totalCardSales || 0).toFixed(2)}</span>
+                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">فيزا/شبكة</span>
+                        <span className="text-sm font-semibold dark:font-black text-slate-600 dark:text-zinc-300 tabular-nums">${Number(shift.totalCardSales || 0).toFixed(2)}</span>
                     </div>
 
                     {/* Credit/Ajel */}
                     <div className="flex flex-col items-center px-6">
-                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">آجل</span>
-                        <span className="text-sm font-black text-amber-400 tabular-nums">${totalAccountSales.toFixed(2)}</span>
+                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">آجل</span>
+                        <span className="text-sm font-semibold dark:font-black text-amber-500 tabular-nums">${totalAccountSales.toFixed(2)}</span>
                     </div>
 
                     {/* Returns */}
                     <div className="flex flex-col items-center px-6">
-                        <span className="text-[9px] font-black text-white/30 tracking-[0.2em] uppercase mb-1">مرتجع</span>
-                        <span className="text-sm font-black text-rose-400 tabular-nums">-${(totalCashRefunds + totalAccountRefunds).toFixed(2)}</span>
+                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">مرتجع</span>
+                        <span className="text-sm font-semibold dark:font-black text-rose-500 tabular-nums">-${(totalCashRefunds + totalAccountRefunds).toFixed(2)}</span>
                     </div>
                 </div>
 
@@ -314,15 +313,18 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setShowCashInOutModal(true)}
-                        className="h-10 px-4 glass-card bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all duration-300"
+                        className="h-10 px-4 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-medium dark:font-bold transition-all"
                     >
                         سحب / إيداع
                     </button>
                     <button
                         onClick={() => setShowCloseModal(true)}
-                        className="h-10 px-6 bg-red-600/20 hover:bg-red-600/40 text-red-500 hover:text-red-400 border border-red-500/20 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all duration-300 shadow-[0_0_20px_rgba(220,38,38,0.1)] hover:shadow-[0_0_25px_rgba(220,38,38,0.2)]"
+                        className="h-10 px-6 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl border border-red-500/20 text-xs font-bold dark:font-black transition-all relative group overflow-hidden"
                     >
-                        إغلاق الوردية
+                        <div className="relative z-10 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                            إغلاق الوردية
+                        </div>
                     </button>
                 </div>
             </header>
@@ -357,44 +359,50 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                         }}
                     />
 
-                    <div className="glass-card bg-white/5 p-4 space-y-2">
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-center">
-                            Actual Cash Counted (رصيد الدرج النهائي)
+                    <div className="bg-slate-50 dark:bg-black/20 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-inner space-y-3">
+                        <label className="block text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest text-center">
+                            ACTUAL CASH COUNTED (رصيد الدرج النهائي)
                         </label>
                         <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-600 font-black text-lg">$</span>
                             <input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 value={actualCash}
                                 onChange={(e) => setActualCash(e.target.value)}
-                                className="w-full glass-input pl-10 text-2xl font-black text-center"
+                                className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-4 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white transition-all focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none"
                                 placeholder="0.00"
                             />
                         </div>
                     </div>
 
                     {!isBlindClose && (
-                        <div className="glass-card bg-black/40 p-4 space-y-2">
-                            <div className="flex justify-between text-xs">
-                                <span className="text-zinc-500">الرصيد المتوقع (Expected):</span>
-                                <span className="text-white font-bold">${expectedCashValue.toFixed(2)}</span>
+                        <div className="bg-slate-50/50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-2xl p-5 space-y-3">
+                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
+                                <span className="text-slate-400 dark:text-zinc-500">الرصيد المتوقع (Expected):</span>
+                                <span className="text-slate-700 dark:text-zinc-300 font-mono">${expectedCashValue.toFixed(2)}</span>
                             </div>
-                            <div className="h-px bg-white/5" />
-                            <div className="flex justify-between font-bold text-lg">
-                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-zinc-400"}>
-                                    {varianceValue < 0 ? "عجز:" : varianceValue > 0 ? "زيادة:" : "متطابق"}
+                            <div className="h-px bg-slate-200/50 dark:bg-white/5" />
+                            <div className="flex justify-between items-baseline pt-1">
+                                <span className={clsx(
+                                    "text-xs font-black uppercase tracking-widest",
+                                    varianceValue < 0 ? "text-red-500" : varianceValue > 0 ? "text-emerald-500" : "text-slate-400 dark:text-zinc-500"
+                                )}>
+                                    {varianceValue < 0 ? "عجز (Shortage):" : varianceValue > 0 ? "زيادة (Explus):" : "متطابق (Matched)"}
                                 </span>
-                                <span className={varianceValue < 0 ? "text-red-400" : varianceValue > 0 ? "text-green-400" : "text-white"}>
+                                <div className={clsx(
+                                    "text-2xl font-black font-mono",
+                                    varianceValue < 0 ? "text-red-500" : varianceValue > 0 ? "text-emerald-500" : "text-white"
+                                )}>
                                     {varianceValue > 0 ? "+" : ""}{varianceValue.toFixed(2)}
-                                </span>
+                                </div>
                             </div>
                         </div>
                     )}
 
                     <div className="space-y-2">
-                        <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500 px-1">
+                        <label className="block text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest px-1">
                             {t('notes')}
                         </label>
                         <textarea
@@ -403,17 +411,17 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, 1, 2, handleCloseShift)}
-                            className="w-full glass-input resize-none h-20"
-                            placeholder="Any notes..."
+                            className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-3 px-4 text-slate-800 dark:text-white text-sm font-medium resize-none h-24 focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-zinc-600"
+                            placeholder="Add any shift notes here..."
                         />
                     </div>
 
                     <button
                         onClick={handleCloseShift}
                         disabled={isLoading}
-                        className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)]"
+                        className="w-full py-5 bg-red-600 hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(220,38,38,0.3)] hover:shadow-[0_0_40px_rgba(220,38,38,0.5)] active:scale-[0.98] disabled:opacity-50"
                     >
-                        {isLoading ? tVal('required') : "إنهاء الوردية (Close Shift)"}
+                        {isLoading ? tVal('required') : "إنهاء الوردية (CLOSE SHIFT)"}
                     </button>
                 </div>
             </GlassModal>

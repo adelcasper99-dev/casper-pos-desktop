@@ -53,16 +53,18 @@ export function SortableSidebarItem({
             <Link
                 href={href.startsWith('/maintenance') || href.startsWith('/returns') ? `/${locale}${href}` : href}
                 className={cn(
-                    "relative flex items-center gap-4 p-4 rounded-xl transition-all duration-300 group overflow-hidden border border-border/50 shadow-md",
+                    "relative flex items-center gap-4 p-3 rounded-lg transition-all duration-200 group overflow-hidden",
                     isActive
-                        ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-[1.02] ring-1 ring-white/20"
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground hover:scale-[1.02]"
+                        ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)] dark:scale-[1.02]"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
                 )}
             >
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none opacity-50" />
-                <Icon className={cn("w-7 h-7 shrink-0 relative z-10", isActive && "text-black")} />
+                {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
+                )}
+                <Icon strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10")} />
                 <span className={cn(
-                    "text-base font-bold transition-opacity duration-200 whitespace-nowrap relative z-10 uppercase tracking-wide",
+                    "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
                     isExpanded ? "opacity-100" : "opacity-0 w-0"
                 )}>
                     {label}

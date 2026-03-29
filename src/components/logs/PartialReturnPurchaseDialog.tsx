@@ -128,121 +128,126 @@ export default function PartialReturnPurchaseDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !loading && !open && onClose()}>
-            <DialogContent className="sm:max-w-xl bg-zinc-950 border-white/10 text-white p-0 overflow-hidden flex flex-col max-h-[90vh]">
-                <DialogHeader className="p-6 pb-2">
-                    <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-                        <RotateCcw className="w-6 h-6 text-orange-400" />
-                        <span>مرتجع مشتريات جزئي</span>
-                        <Badge variant="outline" className="ml-auto border-white/10 text-zinc-400 font-mono">
-                            #{purchase.id.slice(0, 8).toUpperCase()}
-                        </Badge>
-                    </DialogTitle>
-                </DialogHeader>
+            <DialogContent className="sm:max-w-xl bg-card border-border text-foreground p-0 overflow-hidden flex flex-col max-h-[90vh] rounded-3xl shadow-2xl">
+                <div className="p-8 pb-4">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3 text-2xl font-black">
+                            <div className="p-2.5 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+                                <RotateCcw className="w-6 h-6 text-orange-500" />
+                            </div>
+                            <span>مرتجع مشتريات جزئي</span>
+                            <Badge variant="outline" className="mr-auto border-border bg-muted/50 text-xs px-3 py-1 font-mono rounded-lg">
+                                #{purchase.id.slice(0, 8).toUpperCase()}
+                            </Badge>
+                        </DialogTitle>
+                    </DialogHeader>
+                </div>
 
-                <div className="px-6 py-2 bg-orange-500/10 border-y border-orange-500/20 flex items-center gap-3">
-                    <AlertCircle className="w-5 h-5 text-orange-400 shrink-0" />
-                    <p className="text-xs text-orange-200/80 leading-relaxed font-medium">
-                        حدد الكميات التي تريد إرجاعها للمورد. سيتم تقليل المخزون وتعديل حساب المورد تلقائياً.
+                <div className="mx-8 px-5 py-3 bg-orange-500/10 border border-orange-500/20 rounded-2xl flex items-center gap-3 shadow-inner">
+                    <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0" />
+                    <p className="text-[11px] text-orange-800 dark:text-orange-200/80 leading-relaxed font-bold">
+                        حدد الكميات المراد إرجاعها للمورد. سيتم تحديث المخزون وموازنة حساب المورد تلقائياً فور التأكيد.
                     </p>
                 </div>
 
-                <div className="flex-1 p-6 overflow-y-auto">
-                    <div className="space-y-3">
-                        {items.map((item: any) => {
-                            const alreadyReturned = item.returnedQty || 0;
-                            const availableQty = item.quantity - alreadyReturned;
-                            const isSelected = selectedItems[item.id] > 0;
+                <div className="flex-1 px-8 py-6 overflow-y-auto space-y-3 custom-scrollbar">
+                    {items.map((item: any) => {
+                        const alreadyReturned = item.returnedQty || 0;
+                        const availableQty = item.quantity - alreadyReturned;
+                        const isSelected = selectedItems[item.id] > 0;
 
-                            if (availableQty <= 0) return null;
+                        if (availableQty <= 0) return null;
 
-                            return (
-                                <div
-                                    key={item.id}
-                                    className={cn(
-                                        "p-4 rounded-2xl border transition-all duration-200 flex items-center gap-4",
-                                        isSelected
-                                            ? "bg-orange-500/5 border-orange-500/40 shadow-[0_0_20px_rgba(249,115,22,0.05)]"
-                                            : "bg-white/5 border-white/5 hover:border-white/10"
-                                    )}
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-bold text-zinc-100 truncate">{item.product?.name}</div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-tighter">
-                                                السعر: {Number(item.unitCost).toLocaleString()}
-                                            </span>
-                                            <span className="w-1 h-1 rounded-full bg-zinc-700" />
-                                            <span className="text-[10px] text-orange-400 font-bold uppercase tracking-tighter">
-                                                المتاح: {availableQty}
-                                            </span>
-                                        </div>
+                        return (
+                            <div
+                                key={item.id}
+                                className={cn(
+                                    "p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4 group cursor-pointer",
+                                    isSelected
+                                        ? "bg-orange-500/10 border-orange-500/30 shadow-lg shadow-orange-500/5 scale-[1.01]"
+                                        : "bg-muted/40 border-border hover:bg-muted/60 hover:border-border/80"
+                                )}
+                                onClick={() => handleUpdateQty(item.id, 1, availableQty)}
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <div className={cn("font-black text-sm transition-colors", isSelected ? "text-orange-700 dark:text-orange-400" : "text-foreground")}>
+                                        {item.product?.name || "صنف غير معروف"}
                                     </div>
-
-                                    {/* Touch Optimized Stepper */}
-                                    <div className="flex items-center bg-zinc-900 border border-white/10 rounded-xl p-1 shrink-0">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-10 w-10 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg active:scale-95 transition-transform"
-                                            onClick={() => handleUpdateQty(item.id, -1, availableQty)}
-                                        >
-                                            <Minus className="w-4 h-4" />
-                                        </Button>
-
-                                        <div className="w-12 text-center font-mono font-bold text-lg select-none">
-                                            {selectedItems[item.id] || 0}
-                                        </div>
-
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-10 w-10 text-orange-400 hover:text-orange-300 hover:bg-orange-400/10 rounded-lg active:scale-95 transition-transform"
-                                            onClick={() => handleUpdateQty(item.id, 1, availableQty)}
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                        </Button>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] text-muted-foreground font-mono font-bold uppercase tracking-tighter opacity-80">
+                                            التكلفة: {Number(item.unitCost).toLocaleString()}
+                                        </span>
+                                        <span className="w-1 h-1 rounded-full bg-border" />
+                                        <span className="text-[10px] text-orange-600 dark:text-orange-400 font-black uppercase tracking-tighter">
+                                            المتاح: {availableQty} وحدة
+                                        </span>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+
+                                {/* Stepper */}
+                                <div className="flex items-center bg-card shadow-sm border border-border rounded-2xl p-1 gap-1" onClick={e => e.stopPropagation()}>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-10 w-10 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10 rounded-xl active:scale-95 transition-all"
+                                        onClick={() => handleUpdateQty(item.id, -1, availableQty)}
+                                    >
+                                        <Minus className="w-4 h-4" />
+                                    </Button>
+
+                                    <div className="w-8 text-center font-mono font-black text-lg text-foreground">
+                                        {selectedItems[item.id] || 0}
+                                    </div>
+
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-10 w-10 text-orange-500 hover:bg-orange-500/10 rounded-xl active:scale-95 transition-all"
+                                        onClick={() => handleUpdateQty(item.id, 1, availableQty)}
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
 
-                <div className="p-6 bg-zinc-900/50 border-t border-white/5 space-y-4">
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">سبب المرتجع</label>
+                <div className="p-8 bg-muted/30 border-t border-border space-y-5">
+                    <div className="space-y-2 group">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">سبب المرتجع</label>
                         <Input
-                            placeholder="مثال: أصناف تالفة، خطأ في التوريد..."
-                            className="h-12 bg-white/5 border-white/5 focus:border-orange-500/50 focus:ring-orange-500/20 rounded-xl text-sm"
+                            placeholder="وثق السبب هنا (مثال: أصناف تالفة، خطأ توريد)..."
+                            className="h-12 glass-input focus:ring-2 focus:ring-orange-500/20 transition-all font-medium"
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                         />
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-orange-500/10 rounded-2xl border border-orange-500/20">
-                        <div className="space-y-0.5">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-400/80 block">إجمالي المرتجع</span>
-                            <span className="text-2xl font-mono font-bold text-orange-400">
+                    <div className="flex items-center justify-between p-5 bg-orange-500/10 rounded-3xl border border-orange-500/20 shadow-inner">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 opacity-60">سيتم خصم مالي بقيمة</span>
+                            <span className="text-3xl font-black font-mono text-orange-600 dark:text-orange-400">
                                 {totalToReturn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                         </div>
 
                         <div className="flex gap-2">
                             <Button
-                                variant="ghost"
-                                className="h-14 px-6 text-zinc-400 hover:text-white font-bold rounded-xl"
+                                variant="outline"
+                                className="h-12 px-6 border-border bg-background hover:bg-muted font-black rounded-2xl text-sm transition-all"
                                 onClick={onClose}
                                 disabled={loading}
                             >
-                                إلغاء
+                                إغلاق
                             </Button>
                             <Button
-                                className="h-14 px-8 bg-orange-500 hover:bg-orange-400 text-black font-black text-base rounded-xl gap-2 shadow-[0_0_30px_rgba(249,115,22,0.2)] active:scale-98 transition-all"
+                                className="h-12 px-8 bg-orange-500 text-black hover:bg-orange-400 shadow-lg shadow-orange-500/20 font-black rounded-2xl gap-2 transition-all active:scale-95"
                                 onClick={handleReturn}
                                 disabled={loading || totalToReturn <= 0}
                             >
                                 {loading ? (
-                                    <div className="w-5 h-5 border-3 border-black/30 border-t-black rounded-full animate-spin" />
+                                    <div className="w-5 h-5 border-3 border-black/20 border-t-black rounded-full animate-spin" />
                                 ) : (
                                     <>
                                         <RotateCcw className="w-5 h-5" />

@@ -10,7 +10,8 @@ import {
     Minus,
     Loader2,
     ArrowRight,
-    ArrowDown
+    ArrowDown,
+    CheckCircle2
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -236,49 +237,49 @@ export default function TransferConsole({
             isOpen={isOpen}
             onClose={onClose}
             title={null}
-            className="max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden bg-zinc-950"
+            className="max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl"
         >
-            <div className="flex flex-col md:flex-row items-center p-6 border-b border-white/10 bg-zinc-900/50 gap-6">
+            <div className="flex flex-col md:flex-row items-center p-8 border-b border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-zinc-900/50 gap-8">
                 <div className="flex-1 w-full">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">{t('from')}</label>
+                    <label className="text-[10px] font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest mb-2.5 block">من</label>
                     <Select value={sourceId} onValueChange={setSourceId}>
-                        <SelectTrigger className="h-14 bg-black/40 border-white/10 text-white text-lg rounded-xl">
-                            <SelectValue placeholder={t('selectSource')} />
+                        <SelectTrigger className="h-16 bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white text-xl font-black rounded-2xl shadow-sm focus:ring-2 focus:ring-black/20 dark:focus:ring-white/20">
+                            <SelectValue placeholder="اختر المصدر" />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-zinc-800 text-white max-h-[400px]">
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase">{t('technicians')}</div>
+                        <SelectContent className="bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white max-h-[400px] rounded-2xl shadow-2xl">
+                            <div className="p-3 text-[10px] text-slate-400 dark:text-zinc-500 font-black uppercase tracking-wider">الفنيون</div>
                             {availableSources?.filter(s => s.type === 'ENGINEER').map(s => (
-                                <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={s.id} className="py-4 text-base font-black focus:bg-slate-50 dark:focus:bg-white/5">{s.name}</SelectItem>
                             ))}
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase border-t border-white/10 mt-2 pt-2">{t('warehouses')}</div>
+                            <div className="p-3 text-[10px] text-slate-400 dark:text-zinc-500 font-black uppercase border-t border-slate-200 dark:border-white/10 mt-2 pt-3 tracking-wider">المخازن</div>
                             {availableSources?.filter(s => s.type === 'WAREHOUSE').map(s => (
-                                <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={s.id} className="py-4 text-base font-black focus:bg-slate-50 dark:focus:bg-white/5">{s.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </div>
 
-                <div className="hidden md:block text-zinc-600">
-                    <ArrowRight className="w-8 h-8 rtl:rotate-180" />
+                <div className="hidden md:block text-slate-300 dark:text-zinc-600">
+                    <ArrowRightLeft className="w-10 h-10" />
                 </div>
-                <div className="md:hidden text-zinc-600">
-                    <ArrowDown className="w-8 h-8" />
+                <div className="md:hidden text-slate-300 dark:text-zinc-600">
+                    <ArrowDown className="w-10 h-10" />
                 </div>
 
                 <div className="flex-1 w-full">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">{t('to')}</label>
+                    <label className="text-[10px] font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest mb-2.5 block">إلى</label>
                     <Select value={destinationId} onValueChange={setDestinationId}>
-                        <SelectTrigger className="h-14 bg-black/40 border-white/10 text-white text-lg rounded-xl">
-                            <SelectValue placeholder={t('selectDestination')} />
+                        <SelectTrigger className="h-16 bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white text-xl font-black rounded-2xl shadow-sm focus:ring-2 focus:ring-black/20 dark:focus:ring-white/20">
+                            <SelectValue placeholder="اختر الوجهة" />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-zinc-800 text-white max-h-[400px]">
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase">{t('technicians')}</div>
+                        <SelectContent className="bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white max-h-[400px] rounded-2xl shadow-2xl">
+                            <div className="p-3 text-[10px] text-slate-400 dark:text-zinc-500 font-black uppercase tracking-wider">الفنيون</div>
                             {availableDestinations?.filter(s => s.type === 'ENGINEER').map(s => (
-                                <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={s.id} className="py-4 text-base font-black focus:bg-slate-50 dark:focus:bg-white/5">{s.name}</SelectItem>
                             ))}
-                            <div className="p-2 text-xs text-zinc-500 font-bold uppercase border-t border-white/10 mt-2 pt-2">{t('warehouses')}</div>
+                            <div className="p-3 text-[10px] text-slate-400 dark:text-zinc-500 font-black uppercase border-t border-slate-200 dark:border-white/10 mt-2 pt-3 tracking-wider">المخازن</div>
                             {availableDestinations?.filter(s => s.type === 'WAREHOUSE').map(s => (
-                                <SelectItem key={s.id} value={s.id} className="py-3 text-base">{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={s.id} className="py-4 text-base font-black focus:bg-slate-50 dark:focus:bg-white/5">{s.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -286,27 +287,27 @@ export default function TransferConsole({
             </div>
 
             <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-                <div className="flex-1 flex flex-col border-r border-white/10 bg-black/20">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 rtl:left-auto rtl:right-3" />
+                <div className="flex-1 flex flex-col border-r border-slate-300 dark:border-white/10 bg-white dark:bg-black/20">
+                    <div className="p-5 border-b border-slate-200 dark:border-white/10">
+                        <div className="relative group/search">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 w-5 h-5 rtl:left-auto rtl:right-3 group-focus-within/search:text-black dark:group-focus-within/search:text-white transition-colors" />
                             <Input
-                                placeholder={t('search')}
-                                className="pl-10 bg-black/20 border-white/10 h-12 text-lg text-white rounded-lg rtl:pl-4 rtl:pr-10"
+                                placeholder="بحث..."
+                                className="pl-10 bg-slate-50 dark:bg-black/20 border-slate-300 dark:border-white/10 h-14 text-lg text-slate-900 dark:text-white rounded-xl font-black focus:ring-2 focus:ring-black/20 dark:focus:ring-white/20 rtl:pl-4 rtl:pr-10"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-auto">
+                    <div className="flex-1 overflow-auto zebra-table">
                         <Table>
-                            <TableHeader className="bg-zinc-900/50 sticky top-0 z-10">
-                                <TableRow className="hover:bg-transparent border-white/5">
-                                    <TableHead className="text-zinc-400">{t('product')}</TableHead>
-                                    <TableHead className="text-zinc-400 w-[100px]">SKU</TableHead>
-                                    <TableHead className="text-right text-zinc-400 w-[100px]">{t('avail')}</TableHead>
-                                    <TableHead className="w-[100px]"></TableHead>
+                            <TableHeader className="bg-slate-100 dark:bg-zinc-900/50 sticky top-0 z-10 border-b border-slate-300 dark:border-white/10 shadow-sm">
+                                <TableRow className="hover:bg-transparent border-0">
+                                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-zinc-400 py-4 px-6">المنتج</TableHead>
+                                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-zinc-400 py-4 px-6 w-[120px]">SKU</TableHead>
+                                    <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-zinc-400 py-4 px-6 w-[120px]">المتاح</TableHead>
+                                    <TableHead className="w-[80px] py-4 px-6"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -314,14 +315,14 @@ export default function TransferConsole({
                                     <TableRow>
                                         <TableCell colSpan={4} className="h-40 text-center text-zinc-500">
                                             <div className="flex items-center justify-center gap-2">
-                                                <Loader2 className="w-5 h-5 animate-spin" /> {t('loading')}
+                                                <Loader2 className="w-5 h-5 animate-spin" /> جاري التحميل...
                                             </div>
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredItems.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="h-40 text-center text-zinc-500">
-                                            {sourceId ? t('noResults') : t('selectToView')}
+                                            {sourceId ? "لا توجد نتائج" : "اختر المصدر لعرض المنتجات"}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -333,21 +334,21 @@ export default function TransferConsole({
                                         return (
                                             <TableRow
                                                 key={item.id}
-                                                className={`border-white/5 transition-colors ${remain === 0 ? 'opacity-40 bg-zinc-900/50' : 'hover:bg-white/5'}`}
+                                                className={`transition-all border-0 ${remain === 0 ? 'opacity-40 bg-slate-50 dark:bg-zinc-900/50' : ''}`}
                                             >
-                                                <TableCell className="font-medium text-white py-4">
+                                                <TableCell className="font-black text-slate-900 dark:text-white py-5 px-6">
                                                     {item.product.name}
                                                 </TableCell>
-                                                <TableCell className="text-zinc-500 font-mono text-xs">{item.product.sku}</TableCell>
-                                                <TableCell className="text-right font-mono font-bold text-cyan-400 text-lg">
+                                                <TableCell className="text-slate-400 dark:text-zinc-500 font-black text-xs px-6 uppercase tracking-tighter">{item.product.sku}</TableCell>
+                                                <TableCell className="text-right font-black text-black dark:text-white text-lg px-6">
                                                     {remain}
                                                 </TableCell>
-                                                <TableCell>
+                                                <TableCell className="px-6 text-right">
                                                     <Button
                                                         size="sm"
                                                         onClick={() => addToStaging(item)}
                                                         disabled={remain === 0}
-                                                        className="bg-zinc-800 hover:bg-cyan-600 text-white rounded-full w-8 h-8 p-0"
+                                                        className="bg-slate-100 dark:bg-zinc-800 hover:bg-black dark:hover:bg-white text-slate-900 dark:text-black hover:text-white dark:hover:text-black rounded-xl w-10 h-10 p-0 shadow-sm border border-slate-300 dark:border-0 transition-transform active:scale-90"
                                                     >
                                                         <Plus className="w-5 h-5" />
                                                     </Button>
@@ -361,37 +362,40 @@ export default function TransferConsole({
                     </div>
                 </div>
 
-                <div className="w-full md:w-[450px] flex flex-col bg-zinc-900/50 border-l border-white/10 shadow-2xl">
-                    <div className="p-4 border-b border-white/10 bg-zinc-900 flex justify-between items-center">
-                        <div className="flex items-center gap-2 text-white font-bold">
-                            <Package className="w-5 h-5 text-purple-400" />
-                            {t('transferList')}
+                <div className="w-full md:w-[480px] flex flex-col bg-slate-100 dark:bg-zinc-900/50 border-l border-slate-300 dark:border-white/10 shadow-2xl">
+                    <div className="p-5 border-b border-slate-300 dark:border-white/10 bg-white dark:bg-zinc-900 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-3 text-slate-900 dark:text-white font-black text-lg">
+                            <div className="w-10 h-10 rounded-xl bg-slate-900/10 dark:bg-white/10 flex items-center justify-center">
+                                <Package className="w-6 h-6 text-slate-900 dark:text-white" />
+                            </div>
+                            قائمة التحويل
                         </div>
-                        <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded text-xs font-mono">
+                        <span className="bg-black dark:bg-white dark:text-black text-white px-3 py-1 rounded-lg text-xs font-black shadow-lg shadow-black/20">
                             {stagingItems.length}
                         </span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div className="flex-1 overflow-y-auto p-5 space-y-4">
                         {stagingItems.map(item => (
-                            <div key={item.id} className="bg-zinc-950 p-4 rounded-xl border border-white/10 shadow-sm flex flex-col gap-3">
+                            <div key={item.id} className="bg-white dark:bg-zinc-950 p-5 rounded-2xl border border-slate-300 dark:border-white/10 shadow-sm flex flex-col gap-4 group/item hover:border-cyan-500/30 transition-all">
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
-                                        <div className="font-medium text-white line-clamp-1">{item.productName}</div>
-                                        <div className="text-xs text-zinc-500 font-mono mb-2">{item.sku}</div>
-                                        <div className="flex flex-col gap-1 w-full mt-1">
-                                            <span className="text-[10px] text-zinc-500 uppercase">تسعير النقل</span>
-                                            <div className="flex items-center gap-1 flex-wrap">
+                                        <div className="font-black text-slate-900 dark:text-white text-sm line-clamp-2 leading-tight">{item.productName}</div>
+                                        <div className="text-[10px] font-black text-slate-400 dark:text-zinc-500 tracking-tighter mt-1">{item.sku}</div>
+                                        <div className="flex flex-col gap-2 w-full mt-4">
+                                            <span className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">تسعير النقل</span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
                                                 {['Cost', 'Sell 1', 'Sell 2', 'Sell 3'].map(tier => {
-                                                    let label = `تكلفة (${item.costPrice ?? 0})`;
-                                                    if (tier === 'Sell 1') label = `مفرق (${item.sellPrice ?? 0})`;
-                                                    if (tier === 'Sell 2') label = `جملة (${item.sellPrice2 ?? 0})`;
-                                                    if (tier === 'Sell 3') label = `نص جملة (${item.sellPrice3 ?? 0})`;
+                                                    let val = item.costPrice ?? 0;
+                                                    let tierLabel = 'تكلفة';
+                                                    if (tier === 'Sell 1') { val = item.sellPrice ?? 0; tierLabel = 'مفرق'; }
+                                                    if (tier === 'Sell 2') { val = item.sellPrice2 ?? 0; tierLabel = 'جملة'; }
+                                                    if (tier === 'Sell 3') { val = item.sellPrice3 ?? 0; tierLabel = 'نص جملة'; }
                                                     
                                                     const isActive = (item.priceTier || 'Cost') === tier;
                                                     
                                                     return (
-                                                        <button 
+                                                <button 
                                                             key={tier}
                                                             onClick={() => {
                                                                 const newItems = [...stagingItems];
@@ -401,35 +405,35 @@ export default function TransferConsole({
                                                                     setStagingItems(newItems);
                                                                 }
                                                             }}
-                                                            className={`px-2 py-1 text-[10px] rounded border transition-colors ${isActive ? 'bg-purple-600/30 border-purple-500/50 text-purple-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}
+                                                            className={`px-3 py-2 text-[9px] font-black rounded-lg border transition-all ${isActive ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}
                                                         >
-                                                            {label}
+                                                            {tierLabel} ({val})
                                                         </button>
                                                     );
                                                 })}
                                             </div>
                                         </div>
                                     </div>
-                                    <button onClick={() => removeFromStaging(item.id)} className="text-zinc-600 hover:text-red-400">
-                                        <X className="w-5 h-5" />
+                                    <button onClick={() => removeFromStaging(item.id)} className="w-8 h-8 flex items-center justify-center text-slate-300 dark:text-zinc-600 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-all font-black">
+                                        ✕
                                     </button>
                                 </div>
 
-                                <div className="flex items-center justify-between bg-zinc-900/50 rounded-lg p-1.5">
+                                <div className="flex items-center justify-between bg-slate-100 dark:bg-zinc-950 p-1.5 rounded-xl border border-slate-300 dark:border-white/5 shadow-inner">
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => updateStagingQty(item.id, -1)}
-                                        className="h-8 w-8 rounded hover:bg-white/10 text-white"
+                                        className="h-10 w-10 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-all shadow-sm"
                                     >
                                         <Minus className="w-4 h-4" />
                                     </Button>
-                                    <span className="text-xl font-bold font-mono text-white">{item.transferQty}</span>
+                                    <span className="text-2xl font-black text-slate-900 dark:text-white px-4">{item.transferQty}</span>
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => updateStagingQty(item.id, 1)}
-                                        className="h-8 w-8 rounded hover:bg-white/10 text-white"
+                                        className="h-10 w-10 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-500 transition-all shadow-sm"
                                     >
                                         <Plus className="w-4 h-4" />
                                     </Button>
@@ -437,28 +441,31 @@ export default function TransferConsole({
                             </div>
                         ))}
                         {stagingItems.length === 0 && (
-                            <div className="h-full flex flex-col items-center justify-center text-zinc-600 opacity-50">
-                                <ArrowRightLeft className="w-12 h-12 mb-3" />
-                                <p>{t('noItems')}</p>
+                            <div className="h-full flex flex-col items-center justify-center text-slate-300 dark:text-zinc-800 opacity-50 font-black py-20">
+                                <ArrowRightLeft className="w-20 h-20 mb-5" />
+                                <p className="uppercase tracking-[0.2em]">لا توجد قطع مضافة</p>
                             </div>
                         )}
                     </div>
 
-                    <div className="p-4 bg-zinc-900 border-t border-white/10">
+                    <div className="p-6 bg-white dark:bg-zinc-900 border-t border-slate-300 dark:border-white/10 shadow-2xl z-20">
                         <Button
                             onClick={handleConfirmTransfer}
                             disabled={isSubmitting || stagingItems.length === 0 || !destinationId || !sourceId}
-                            className={`w-full h-14 text-lg font-bold rounded-xl shadow-lg transition-all ${stagingItems.length > 0 && destinationId && sourceId
-                                ? 'bg-gradient-to-r from-cyan-600 to-purple-600 hover:scale-[1.02]'
-                                : 'bg-zinc-800 text-zinc-500'
+                            className={`w-full h-16 text-xl font-black rounded-2xl shadow-xl transition-all font-black tracking-tight transform active:scale-[0.98] ${stagingItems.length > 0 && destinationId && sourceId
+                                ? 'bg-gradient-to-r from-slate-700 via-slate-900 to-black text-white shadow-black/25'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 border border-slate-300 dark:border-0'
                                 }`}
                         >
                             {isSubmitting ? (
-                                <div className="flex items-center gap-2">
-                                    <Loader2 className="w-5 h-5 animate-spin" /> {t('transferring')}
+                                <div className="flex items-center gap-3">
+                                    <Loader2 className="w-6 h-6 animate-spin" /> جاري التحويل...
                                 </div>
                             ) : (
-                                t('confirm', { count: totalItems })
+                                <div className="flex items-center gap-3">
+                                    <CheckCircle2 className="w-6 h-6" />
+                                    تأكيد التحويل ({totalItems})
+                                </div>
                             )}
                         </Button>
                     </div>

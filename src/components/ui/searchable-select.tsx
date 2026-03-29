@@ -98,7 +98,7 @@ export function SearchableSelect({
                     ref={inputRef}
                     type="text"
                     className={cn(
-                        "glass-input w-full pr-10 bg-transparent border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500",
+                        "w-full pr-10 bg-white dark:bg-black border-2 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner h-12 text-base font-black rounded-xl transition-all",
                         disabled && "opacity-50 cursor-not-allowed"
                     )}
                     placeholder={resolvedPlaceholder}
@@ -133,7 +133,7 @@ export function SearchableSelect({
                                 setQuery("");
                                 inputRef.current?.focus();
                             }}
-                            className="text-zinc-500 hover:text-white"
+                            className="text-zinc-500 hover:text-black dark:hover:text-white"
                         >
                             <X className="h-4 w-4" />
                         </button>
@@ -143,18 +143,18 @@ export function SearchableSelect({
             </div>
 
             {isOpen && !disabled && (
-                <div className="absolute z-50 w-full bottom-full mb-1 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
+                <div className="absolute z-50 w-full bottom-full mb-2 bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-white/20 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
                     {filteredOptions.length === 0 && !onAdd && (
                         <div className="p-3 text-sm text-zinc-500 text-center">{t('noOptions')}</div>
                     )}
 
                     {filteredOptions.map((option) => (
                         <button
-                            key={option.value} // Use value as key
+                            key={option.value}
                             type="button"
                             className={cn(
-                                "w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors",
-                                option.value === value ? "bg-cyan-500/20 text-cyan-400" : "text-zinc-300 hover:bg-white/10 hover:text-white"
+                                "w-full text-right px-4 py-3 text-sm flex items-center justify-between transition-colors border-b border-slate-100 dark:border-white/5 last:border-0 font-black",
+                                option.value === value ? "bg-black text-white dark:bg-white dark:text-black" : "text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/10 dark:hover:text-black dark:hover:text-white"
                             )}
                             onClick={() => handleSelect(option)}
                         >
@@ -167,7 +167,7 @@ export function SearchableSelect({
                     {onAdd && query.trim() !== "" && !exactMatch && (
                         <button
                             type="button"
-                            className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-cyan-400 hover:bg-cyan-500/10 border-t border-white/10"
+                            className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-black dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 border-t border-slate-100 dark:border-white/10"
                             onClick={handleAdd}
                         >
                             <Plus className="h-4 w-4" />

@@ -63,18 +63,18 @@ export function FlatpickrRangePicker({
     return (
         <div className={cn("relative flex items-center gap-2", className)}>
             <div className="relative flex-1 group">
-                <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors pointer-events-none z-10" />
+                <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-zinc-500 group-hover:text-slate-700 dark:group-hover:text-zinc-300 transition-colors pointer-events-none z-10" />
                 <input
                     ref={inputRef}
                     readOnly
                     placeholder={placeholder}
-                    className="w-full h-10 pr-10 pl-10 bg-zinc-900/50 border border-white/10 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 hover:bg-zinc-800/50 transition-all cursor-pointer"
+                    className="w-full h-10 pr-10 pl-10 bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 rounded-lg text-sm font-black text-slate-900 dark:text-zinc-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 hover:bg-slate-200 dark:hover:bg-zinc-800/50 transition-all cursor-pointer shadow-sm"
                 />
                 {flatpickrRef.current && flatpickrRef.current.selectedDates.length > 0 && (
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 text-slate-500 dark:text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => {
                             e.stopPropagation()
                             flatpickrRef.current?.clear()

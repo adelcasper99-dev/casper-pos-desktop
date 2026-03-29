@@ -7,6 +7,7 @@
   --color-neon-cyan: #00F2FF;
   --color-neon-purple: #BF00FF;
   --color-neon-green: #CCFF00;
+  --color-pink-accent: #f472b6;
 
   /* Map Semantic Colors to CSS Variables for Tailwind 4 */
   --color-background: var(--background);
@@ -49,70 +50,79 @@
 
 /* Theme Variables */
 :root {
-  /* Light Mode (High Contrast & Touch Optimized) */
-  /* Pure White */
-  /* Deep Navy/Black for max readability */
+  /* ── Light Theme (Minimalist / Airy) ── */
 
+  /* Borders: very subtle */
+
+  /* Foreground: warm dark slate, NOT pure black — avoids the 'heavy' feel */
+  --background: #f5f5f7;
+  --foreground: #1c1c2e;      /* deep indigo-slate, softer than pure black */
+
+  /* Card/panel surfaces: pure white */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: #1c1c2e;
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: #1c1c2e;
 
-  /* Casper Cyan Primary - Used for Buttons/Highlights (WCAG AA Compliant: 4.5:1) */
-  --primary: oklch(0.145 0 0);
-  /* Text ON PRIMARY must be white for contrast */
+  /* Primary: dark slate for buttons */
+  --primary: #1c1c2e;
   --primary-foreground: oklch(0.985 0 0);
 
-  /* Secondary/Muted - Used for backgrounds of secondary items */
   --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary-foreground: #374151;
 
-  /* Muted Text - Needs to be readable, not too faint */
+  /* Muted — clearly visible mid-gray, not near-black */
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  /* Darker gray for readability */
+  --muted-foreground: #6b7280;  /* slate-500 equivalent — airy secondary text */
 
   --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent-foreground: #374151;
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: hsl(210 40% 98%);
 
-  /* Borders - High contrast for structure */
-  --border: oklch(0.922 0 0);
-  /* Visible Slate-300 */
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Borders: very subtle */
+  --border: #e8e8ec;
+  --input: #f0f0f4;
+  --ring: #f472b6;
 
-  --radius: 0.625rem;
-  /* Slightly friendlier radius */
+  --radius: 0.75rem;
 
-  /* Glass/Ghost - Cleaned up for Light Mode */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  /* More solid to prevent noise */
-  --glass-border: rgba(0, 0, 0, 0.1);
-  --sidebar-bg: hsl(210 40% 98%);
-  /* Distinct sidebar background */
-  --sidebar-border: oklch(0.922 0 0);
+  /* Glass/Ghost — light mode overrides */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e8e8ec;
 
-  /* Elevation Shadows for depth */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Elevation Shadows */
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-float: 0 8px 30px rgb(0 0 0 / 0.06);
+
+  /* Pink accent */
+  --pink-accent: #f472b6;
+
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.145 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: #f472b6;
+
+  /* Zebra Striping Palette (Light Mode) - High Visibility */
+  --table-bg-main: #ffffff;
+  --table-row-odd: #ffffff;
+  --table-row-even: #f1f5f9; /* Increased visibility (slate-100) */
+  --table-row-hover: #e2e8f0; /* Increased visibility (slate-200) */
+  --table-header-bg: #f1f5f9; /* slate-100 */
+  --table-border: #e2e8f0; /* slate-200 */
 }
 
 .dark {
@@ -181,35 +191,68 @@
 /* Base Styles */
 body {
   background-color: var(--background);
-  font-family: Inter, var(--font-geist-sans), sans-serif;
+  color: var(--foreground);
+  font-family: Cairo, Inter, var(--font-geist-sans), sans-serif;
+  font-weight: 400;      /* default: normal weight — components opt-in to bold */
   overflow: hidden;
-  /* App-like feel */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode: prevent text from looking black-heavy on white */
+:root:not(.dark) {
+  --tw-text-opacity: 1;
+}
+
+/* Light mode table readability */
+:root:not(.dark) table {
+  color: #1e293b;
+}
+
+.font-cairo {
+  font-family: Cairo, Inter, sans-serif !important;
 }
 
 /* Glassmorphism Utilities */
 @layer utilities {
   .glass-card {
-    background: rgba(255, 255, 255, 0.45);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 20px;
-    box-shadow: 
-      0 8px 32px 0 rgba(0, 0, 0, 0.3),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-float);
   }
 
   .dark .glass-card {
     background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
     box-shadow: 
       0 8px 32px 0 rgba(0, 0, 0, 0.8),
       inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
+  /* Floating panel — soft diffused elevation */
+  .float-panel {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    box-shadow: var(--shadow-float);
+  }
+
+  /* Pink duotone accent dot */
+  .pink-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f472b6;
+    flex-shrink: 0;
+  }
+
   .glass-input {
-    background: var(--input);
+    background: #ffffff;
     border: 1px solid var(--border);
     color: var(--foreground);
     border-radius: 8px;
@@ -219,6 +262,16 @@ body {
 
   .glass-input:focus {
     outline: none;
+    border-color: #f472b6;
+    box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.15);
+  }
+
+  .dark .glass-input {
+    background: var(--input);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .dark .glass-input:focus {
     border-color: var(--color-neon-cyan);
     box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
   }
@@ -330,16 +383,20 @@ body {
   }
 
   .zebra-table tbody tr:nth-child(even) {
-    background-color: var(--table-row-even);
+    background-color: #f1f5f9 !important; /* Explicit slate-100 for high visibility */
+  }
+
+  .zebra-table tbody tr:nth-child(odd) {
+    background-color: #ffffff !important;
   }
 
   .zebra-table tbody tr {
     border-bottom: 1px solid var(--table-border);
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
   }
 
   .zebra-table tbody tr:hover {
-    background-color: var(--table-row-hover) !important;
+    background-color: #e2e8f0 !important; /* Higher contrast hover */
   }
 
   .sticky-header thead th {
@@ -347,7 +404,8 @@ body {
     top: 0;
     z-index: 20;
     background-color: var(--table-header-bg);
-    box-shadow: 0 1px 0 var(--table-border);
+    box-shadow: 0 2px 0 var(--table-border);
+    font-weight: 700;
   }
 
   /* Mobile Optimization */

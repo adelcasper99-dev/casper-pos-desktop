@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getReportData, getBranchesForFilter, getSalesByProductAndCategory, getCategoriesForFilter, getProductsForFilter } from "@/actions/reports-actions";
 import { getShiftHistory } from "@/actions/shift-management-actions";
+import { cn } from "@/lib/utils";
 import { getProfitLossReport, getBranchesForReports } from "@/actions/reports/profit-loss";
 import { getInventoryReport, getWarehousesForFilter, getCategoriesForInventory } from "@/actions/reports/inventory";
 import { getHRReport, getBranchesForHR } from "@/actions/reports/hr";
@@ -33,20 +34,6 @@ import * as XLSX from "xlsx";
 // Financial Report Component
 // ─────────────────────────────────────────────────────────────────────
 function FinancialReport({ reportData, isLoading }: { reportData: any, isLoading: boolean }) {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-
-    const [txSort, setTxSort] = useState({ key: 'date', order: 'desc' as 'asc' | 'desc' });
-
-    const updateFilters = (newFilters: any) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(newFilters).forEach(([key, value]) => {
-            if (value) params.set(key, value as string);
-            else params.delete(key);
-        });
-        router.push(`/reports?${params.toString()}`);
-    };
-
     const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount || 0);
 
     if (!reportData) return <div className="flex justify-center p-20"><CasperLoader /></div>;
@@ -54,61 +41,46 @@ function FinancialReport({ reportData, isLoading }: { reportData: any, isLoading
     const { kpis, trendData } = reportData;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">إجمالي الإيرادات</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-cyan-400">{formatCurrency(kpis?.totalRevenue)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">تكلفة البضاعة</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-rose-400">{formatCurrency(kpis?.totalCOGS)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">المصروفات</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-amber-400">{formatCurrency(kpis?.totalExpenses)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">المشتريات</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-400">{formatCurrency(kpis?.totalPurchases)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">صافي الربح</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${kpis?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {formatCurrency(kpis?.netProfit)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {[
+                    { label: 'إجمالي الإيرادات', value: kpis?.totalRevenue, color: 'text-cyan-400', glow: 'shadow-cyan-500/10' },
+                    { label: 'تكلفة البضاعة', value: kpis?.totalCOGS, color: 'text-rose-400', glow: 'shadow-rose-500/10' },
+                    { label: 'المصروفات', value: kpis?.totalExpenses, color: 'text-amber-400', glow: 'shadow-amber-500/10' },
+                    { label: 'المشتريات', value: kpis?.totalPurchases, color: 'text-blue-400', glow: 'shadow-blue-500/10' },
+                    { label: 'صافي الربح', value: kpis?.netProfit, color: kpis?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400', glow: kpis?.netProfit >= 0 ? 'shadow-emerald-500/10' : 'shadow-rose-500/10' }
+                ].map((item, idx) => (
+                    <div key={idx} className={cn(
+                        "glass-card bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-5 shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:bg-card/60",
+                        item.glow
+                    )}>
+                        <h3 className="text-[10px] font-black text-foreground/60 uppercase tracking-widest mb-3">{item.label}</h3>
+                        <div className={cn("text-2xl font-black tracking-tight", item.color)}>
+                            {formatCurrency(item.value)}
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                ))}
             </div>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-zinc-900/30 rounded-lg border border-white/5 text-center">
-                    <div className="text-xl font-bold text-white">{kpis?.posCount || 0}</div>
-                    <div className="text-xs text-zinc-500">مبيعات POS</div>
-                </div>
-                <div className="p-4 bg-zinc-900/30 rounded-lg border border-white/5 text-center">
-                    <div className="text-xl font-bold text-white">{kpis?.maintenanceCount || 0}</div>
-                    <div className="text-xs text-zinc-500">تذاكر صيانة</div>
-                </div>
-                <div className="p-4 bg-zinc-900/30 rounded-lg border border-white/5 text-center">
-                    <div className="text-xl font-bold text-white">{formatCurrency(kpis?.posRevenue)}</div>
-                    <div className="text-xs text-zinc-500">إيرادات POS</div>
-                </div>
-                <div className="p-4 bg-zinc-900/30 rounded-lg border border-white/5 text-center">
-                    <div className="text-xl font-bold text-white">{formatCurrency(kpis?.maintenanceRevenue)}</div>
-                    <div className="text-xs text-zinc-500">إيرادات صيانة</div>
-                </div>
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { label: 'مبيعات POS', value: kpis?.posCount || 0, icon: <DollarSign className="w-4 h-4" /> },
+                    { label: 'تذاكر صيانة', value: kpis?.maintenanceCount || 0, icon: <Activity className="w-4 h-4" /> },
+                    { label: 'إيرادات POS', value: formatCurrency(kpis?.posRevenue), icon: <BarChart3 className="w-4 h-4" /> },
+                    { label: 'إيرادات صيانة', value: formatCurrency(kpis?.maintenanceRevenue), icon: <Activity className="w-4 h-4" /> }
+                ].map((stat, idx) => (
+                    <div key={idx} className="glass-card bg-card/20 backdrop-blur-md border border-border/40 rounded-xl p-4 flex items-center justify-between group hover:bg-card/30 transition-all">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-wide">{stat.label}</p>
+                            <p className="text-lg font-black text-foreground tracking-tight">{stat.value}</p>
+                        </div>
+                        <div className="w-10 h-10 rounded-lg bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                            {stat.icon}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -125,60 +97,58 @@ function ProfitLossReport({ data, isLoading }: { data: any, isLoading: boolean }
     const { income, costs, expenses, profit } = data;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Main KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">إجمالي الإيرادات</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-cyan-400">{formatCurrency(income?.totalRevenue)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">تكلفة البضاعة</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-rose-400">{formatCurrency(costs?.totalCOGS)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">المصروفات</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-amber-400">{formatCurrency(expenses?.operatingExpenses)}</div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">صافي الربح</CardTitle></CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${profit?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {formatCurrency(profit?.netProfit)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { label: 'إجمالي الإيرادات', value: income?.totalRevenue, color: 'text-cyan-400', glow: 'shadow-cyan-500/10' },
+                    { label: 'تكلفة البضاعة', value: costs?.totalCOGS, color: 'text-rose-400', glow: 'shadow-rose-500/10' },
+                    { label: 'المصروفات', value: expenses?.operatingExpenses, color: 'text-amber-400', glow: 'shadow-amber-500/10' },
+                    { label: 'صافي الربح', value: profit?.netProfit, color: profit?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400', glow: profit?.netProfit >= 0 ? 'shadow-emerald-500/10' : 'shadow-rose-500/10', sub: `هامش: ${profit?.profitMargin?.toFixed(1)}%` }
+                ].map((item, idx) => (
+                    <div key={idx} className={cn(
+                        "glass-card bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:bg-card/60",
+                        item.glow
+                    )}>
+                        <h3 className="text-[10px] font-black text-foreground/60 uppercase tracking-widest mb-3">{item.label}</h3>
+                        <div className={cn("text-2xl font-black tracking-tight", item.color)}>
+                            {formatCurrency(item.value)}
                         </div>
-                        <div className="text-xs text-zinc-500">هامش: {profit?.profitMargin?.toFixed(1)}%</div>
-                    </CardContent>
-                </Card>
+                        {item.sub && <div className="text-[10px] font-bold text-foreground/40 mt-1 uppercase tracking-tight">{item.sub}</div>}
+                    </div>
+                ))}
             </div>
 
             {/* Revenue Breakdown */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader><CardTitle className="text-lg">مصادر الإيرادات</CardTitle></CardHeader>
-                    <CardContent className="space-y-3">
-                        <div className="flex justify-between"><span className="text-zinc-400">مبيعات POS</span><span className="font-bold text-cyan-400">{formatCurrency(income?.posRevenue)}</span></div>
-                        <div className="flex justify-between"><span className="text-zinc-400">صيانة</span><span className="font-bold text-cyan-400">{formatCurrency(income?.maintenanceRevenue)}</span></div>
-                        <div className="flex justify-between"><span className="text-zinc-400">أخرى</span><span className="font-bold text-cyan-400">{formatCurrency(income?.otherIncome)}</span></div>
-                        <div className="flex justify-between pt-3 border-t border-white/10"><span className="font-bold">الإجمالي</span><span className="font-bold text-cyan-400">{formatCurrency(income?.totalRevenue)}</span></div>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-2xl p-6 overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-cyan-500/10 transition-colors" />
+                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-cyan-500" />
+                        مصادر الإيرادات
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center"><span className="text-sm font-bold text-foreground/60">مبيعات POS</span><span className="font-black text-cyan-400">{formatCurrency(income?.posRevenue)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-sm font-bold text-foreground/60">صيانة</span><span className="font-black text-cyan-400">{formatCurrency(income?.maintenanceRevenue)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-sm font-bold text-foreground/60">أخرى</span><span className="font-black text-cyan-400">{formatCurrency(income?.otherIncome)}</span></div>
+                        <div className="flex justify-between items-center pt-4 border-t border-border/40"><span className="text-sm font-black text-foreground">الإجمالي</span><span className="text-lg font-black text-cyan-500">{formatCurrency(income?.totalRevenue)}</span></div>
+                    </div>
+                </div>
 
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader><CardTitle className="text-lg">ملخص الأرباح</CardTitle></CardHeader>
-                    <CardContent className="space-y-3">
-                        <div className="flex justify-between"><span className="text-zinc-400">إجمالي الإيرادات</span><span className="font-bold text-cyan-400">{formatCurrency(income?.totalRevenue)}</span></div>
-                        <div className="flex justify-between"><span className="text-zinc-400">تكلفة البضاعة</span><span className="font-bold text-rose-400">-{formatCurrency(costs?.totalCOGS)}</span></div>
-                        <div className="flex justify-between pt-2 border-t border-white/10 font-medium"><span className="text-emerald-400">إجمالي الربح</span><span className="text-emerald-400">{formatCurrency(profit?.grossProfit)}</span></div>
-                        <div className="flex justify-between"><span className="text-zinc-400">المصروفات</span><span className="font-bold text-amber-400">-{formatCurrency(expenses?.operatingExpenses)}</span></div>
-                        <div className="flex justify-between pt-2 border-t border-white/10 text-lg"><span className="font-bold">صافي الربح</span><span className={`font-bold ${profit?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(profit?.netProfit)}</span></div>
-                    </CardContent>
-                </Card>
+                <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-2xl p-6 overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-500" />
+                        ملخص الأرباح
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center"><span className="text-sm font-bold text-foreground/60">إجمالي الإيرادات</span><span className="font-black text-cyan-400">{formatCurrency(income?.totalRevenue)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-sm font-bold text-foreground/60">تكلفة البضاعة</span><span className="font-black text-rose-400">-{formatCurrency(costs?.totalCOGS)}</span></div>
+                        <div className="flex justify-between items-center pt-2 border-t border-border/20"><span className="text-sm font-bold text-emerald-400">إجمالي الربح</span><span className="font-black text-emerald-400">{formatCurrency(profit?.grossProfit)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-sm font-bold text-foreground/60">المصروفات</span><span className="font-black text-amber-400">-{formatCurrency(expenses?.operatingExpenses)}</span></div>
+                        <div className="flex justify-between items-center pt-4 border-t border-border/40"><span className="text-sm font-black text-foreground">صافي الربح</span><span className={cn("text-xl font-black", profit?.netProfit >= 0 ? 'text-emerald-500' : 'text-rose-500')}>{formatCurrency(profit?.netProfit)}</span></div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -195,67 +165,70 @@ function InventoryReport({ data, isLoading }: { data: any, isLoading: boolean })
     const { summary, products } = data;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">إجمالي الأصناف</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-white">{summary?.totalItems}</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">إجمالي الكمية</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-cyan-400">{summary?.totalQuantity?.toLocaleString()}</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">القيمة الإجمالية</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-emerald-400">{formatCurrency(summary?.totalValue)}</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">مخزون منخفض</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-amber-400">{summary?.lowStockCount}</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">نفد المخزون</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-rose-400">{summary?.outOfStockCount}</div></CardContent>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {[
+                    { label: 'إجمالي الأصناف', value: summary?.totalItems, color: 'text-white', glow: 'shadow-white/5' },
+                    { label: 'إجمالي الكمية', value: summary?.totalQuantity?.toLocaleString(), color: 'text-cyan-400', glow: 'shadow-cyan-500/10' },
+                    { label: 'القيمة الإجمالية', value: formatCurrency(summary?.totalValue), color: 'text-emerald-400', glow: 'shadow-emerald-500/10' },
+                    { label: 'مخزون منخفض', value: summary?.lowStockCount, color: 'text-amber-400', glow: 'shadow-amber-500/10' },
+                    { label: 'نفد المخزون', value: summary?.outOfStockCount, color: 'text-rose-400', glow: 'shadow-rose-500/10' }
+                ].map((item, idx) => (
+                    <div key={idx} className={cn(
+                        "glass-card bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-5 shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:bg-card/60",
+                        item.glow
+                    )}>
+                        <h3 className="text-[10px] font-black text-foreground/60 uppercase tracking-widest mb-3">{item.label}</h3>
+                        <div className={cn("text-2xl font-black tracking-tight", item.color)}>
+                            {item.value}
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Top Products */}
-            <Card className="bg-zinc-900/50 border-white/5">
-                <CardHeader><CardTitle className="text-lg">أصناف المخزون ({products?.length || 0})</CardTitle></CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-white/10">
-                                    <th className="text-right py-2 px-3">SKU</th>
-                                    <th className="text-right py-2 px-3">المنتج</th>
-                                    <th className="text-right py-2 px-3">الفئة</th>
-                                    <th className="text-right py-2 px-3">الكمية</th>
-                                    <th className="text-right py-2 px-3">القيمة</th>
-                                    <th className="text-right py-2 px-3">الحالة</th>
+            {/* Top Products Table */}
+            <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden">
+                <div className="p-6 border-b border-border/40">
+                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-widest flex items-center gap-2">
+                        <Package className="w-4 h-4 text-cyan-500" />
+                        أصناف المخزون ({products?.length || 0})
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                            <tr>
+                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">SKU</th>
+                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">المنتج</th>
+                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الفئة</th>
+                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الكمية</th>
+                                <th className="text-left py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">القيمة</th>
+                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/20">
+                            {(products || []).slice(0, 50).map((p: any) => (
+                                <tr key={p.id} className="transition-all hover:bg-primary/10 even:bg-muted/70 group h-14">
+                                    <td className="py-2 px-6 font-mono text-[10px] text-foreground/40">{p.sku}</td>
+                                    <td className="py-2 px-6 font-black text-foreground">{p.name}</td>
+                                    <td className="py-2 px-6 text-foreground/60 text-xs">{p.category}</td>
+                                    <td className="py-2 px-6 text-center text-cyan-500 font-black">{p.quantity}</td>
+                                    <td className="py-2 px-6 text-left text-emerald-500 font-black">{formatCurrency(p.totalValue)}</td>
+                                    <td className="py-2 px-6 text-center">
+                                        {p.isOutOfStock ? 
+                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-rose-500/10 text-rose-500 border border-rose-500/20">نفد</span> :
+                                            p.isLowStock ? 
+                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">منخفض</span> :
+                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">متوفر</span>
+                                        }
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {(products || []).slice(0, 20).map((p: any) => (
-                                    <tr key={p.id} className="border-b border-white/5">
-                                        <td className="py-2 px-3 font-mono text-zinc-400">{p.sku}</td>
-                                        <td className="py-2 px-3 font-medium">{p.name}</td>
-                                        <td className="py-2 px-3 text-zinc-400">{p.category}</td>
-                                        <td className="py-2 px-3 text-cyan-400 font-bold">{p.quantity}</td>
-                                        <td className="py-2 px-3 text-emerald-400">{formatCurrency(p.totalValue)}</td>
-                                        <td className="py-2 px-3">
-                                            {p.isOutOfStock ? <span className="px-2 py-0.5 rounded text-xs bg-rose-500/20 text-rose-400">نفد</span> :
-                                                p.isLowStock ? <span className="px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400">منخفض</span> :
-                                                    <span className="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400">متوفر</span>}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }
@@ -271,57 +244,60 @@ function HRReport({ data, isLoading }: { data: any, isLoading: boolean }) {
     const { summary, employees } = data;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">عدد الموظفين</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-white">{summary?.totalEmployees}</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">أيام الحضور</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-cyan-400">{summary?.totalPresent}</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">نسبة الحضور</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-emerald-400">{summary?.attendanceRate}%</div></CardContent>
-                </Card>
-                <Card className="bg-zinc-900/50 border-white/5">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm text-zinc-400">إجمالي الرواتب</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold text-amber-400">{formatCurrency(summary?.totalSalaries)}</div></CardContent>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { label: 'عدد الموظفين', value: summary?.totalEmployees, color: 'text-white', glow: 'shadow-white/5' },
+                    { label: 'أيام الحضور', value: summary?.totalPresent, color: 'text-cyan-400', glow: 'shadow-cyan-500/10' },
+                    { label: 'نسبة الحضور', value: `${summary?.attendanceRate}%`, color: 'text-emerald-400', glow: 'shadow-emerald-500/10' },
+                    { label: 'إجمالي الرواتب', value: formatCurrency(summary?.totalSalaries), color: 'text-amber-400', glow: 'shadow-amber-500/10' }
+                ].map((item, idx) => (
+                    <div key={idx} className={cn(
+                        "glass-card bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:bg-card/60",
+                        item.glow
+                    )}>
+                        <h3 className="text-[10px] font-black text-foreground/60 uppercase tracking-widest mb-3">{item.label}</h3>
+                        <div className={cn("text-2xl font-black tracking-tight", item.color)}>
+                            {item.value}
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Employee List */}
-            <Card className="bg-zinc-900/50 border-white/5">
-                <CardHeader><CardTitle className="text-lg">تفاصيل الموظفين ({employees?.length || 0})</CardTitle></CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-white/10">
-                                    <th className="text-right py-2 px-3">الاسم</th>
-                                    <th className="text-right py-2 px-3">الفرع</th>
-                                    <th className="text-right py-2 px-3">الحضور</th>
-                                    <th className="text-right py-2 px-3">الغياب</th>
-                                    <th className="text-right py-2 px-3">الراتب</th>
+            {/* Employee List Table */}
+            <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden">
+                <div className="p-6 border-b border-border/40">
+                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-widest flex items-center gap-2">
+                        <Users className="w-4 h-4 text-amber-500" />
+                        تفاصيل الموظفين ({employees?.length || 0})
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                            <tr>
+                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الاسم</th>
+                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الفرع</th>
+                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الحضور</th>
+                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الغياب</th>
+                                <th className="text-left py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الراتب المتوقع</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/20">
+                            {(employees || []).slice(0, 50).map((emp: any) => (
+                                <tr key={emp.id} className="transition-all hover:bg-primary/10 even:bg-muted/70 group h-14">
+                                    <td className="py-2 px-6 font-black text-foreground text-sm">{emp.name}</td>
+                                    <td className="py-2 px-6 text-foreground/40 text-xs font-bold uppercase tracking-tight">{emp.branch}</td>
+                                    <td className="py-2 px-6 text-center text-emerald-500 font-black">{emp.presentDays}</td>
+                                    <td className="py-2 px-6 text-center text-rose-500 font-black">{emp.absentDays}</td>
+                                    <td className="py-2 px-6 text-left text-cyan-500 font-black">{formatCurrency(emp.netSalary)}</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {(employees || []).slice(0, 20).map((emp: any) => (
-                                    <tr key={emp.id} className="border-b border-white/5">
-                                        <td className="py-2 px-3 font-medium">{emp.name}</td>
-                                        <td className="py-2 px-3 text-zinc-400">{emp.branch}</td>
-                                        <td className="py-2 px-3 text-emerald-400 font-bold">{emp.presentDays}</td>
-                                        <td className="py-2 px-3 text-rose-400">{emp.absentDays}</td>
-                                        <td className="py-2 px-3 text-cyan-400">{formatCurrency(emp.netSalary)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }
@@ -415,20 +391,27 @@ export default function UnifiedReportsPage() {
     };
 
     return (
-        <div className="p-6 space-y-6 bg-zinc-950 min-h-screen text-zinc-100">
+        <div className="p-8 space-y-8 min-h-screen text-foreground transition-colors duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-white">التقارير الشاملة</h1>
-                    <p className="text-zinc-400 text-sm mt-1">لوحة متابعة جميع التقارير المالية والتشغيلية</p>
+                    <h1 className="text-4xl font-black tracking-tight text-foreground flex items-center gap-3">
+                        <div className="w-2 h-10 bg-primary rounded-full" />
+                        التقارير الشاملة
+                    </h1>
+                    <p className="text-muted-foreground text-sm mt-2 font-medium">لوحة متابعة جميع التقارير المالية والتشغيلية بنظام Casper ERP</p>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="p-4 bg-zinc-900/50 border border-white/5 rounded-xl">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div>
-                        <Label className="text-xs text-zinc-500 mb-2 block">الفترة</Label>
+            {/* Filters Bar */}
+            <div className="glass-card bg-card/40 backdrop-blur-xl border border-border/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end relative z-10">
+                    <div className="space-y-3">
+                        <Label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest pr-1 flex items-center gap-2">
+                           <Calendar className="w-3 h-3 text-primary" />
+                           الفترة الزمنية
+                        </Label>
                         <FlatpickrRangePicker
                             initialDates={[new Date(filters.startDate), new Date(filters.endDate)]}
                             onRangeChange={handleDateRangeChange}
@@ -439,22 +422,25 @@ export default function UnifiedReportsPage() {
                                     endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd')
                                 }));
                             }}
-                            className="bg-zinc-900/80"
+                            className="bg-background/40 border-border/40 h-12 rounded-2xl focus:ring-primary/20 transition-all font-mono"
                         />
                     </div>
-                    <div>
-                        <Label className="text-xs text-zinc-500 mb-2 block">الفرع</Label>
+                    <div className="space-y-3">
+                        <Label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest pr-1 flex items-center gap-2">
+                           <Activity className="w-3 h-3 text-primary" />
+                           تصفية حسب الفرع
+                        </Label>
                         <Select
                             value={filters.branchId}
                             onValueChange={(val) => setFilters(prev => ({ ...prev, branchId: val }))}
                         >
-                            <SelectTrigger className="bg-zinc-900/80 border-white/5">
+                            <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl focus:ring-primary/20 transition-all font-bold">
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-zinc-900">
-                                <SelectItem value="all">كل الفروع</SelectItem>
+                            <SelectContent className="bg-card/95 backdrop-blur-xl border-border/40 rounded-2xl shadow-2xl">
+                                <SelectItem value="all" className="font-bold">كل الفروع</SelectItem>
                                 {branches.map(b => (
-                                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                                    <SelectItem key={b.id} value={b.id} className="font-bold">{b.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -463,47 +449,60 @@ export default function UnifiedReportsPage() {
                         <button
                             onClick={fetchAllReports}
                             disabled={isPending}
-                            className="w-full h-10 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-bold text-white"
+                            className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                         >
-                            {isPending ? 'جاري التحميل...' : 'تحديث البيانات'}
+                            {isPending ? (
+                                <div className="flex items-center justify-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                                    جاري التحديث
+                                </div>
+                            ) : 'تحديث البيانات'}
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="bg-zinc-900 border border-white/10 w-full flex-wrap h-auto p-1">
-                    <TabsTrigger value="financial" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-black">
+            {/* Main Tabs Container */}
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-8">
+                <TabsList className="bg-card/20 backdrop-blur-md border border-border/40 w-full flex-wrap h-auto p-1.5 rounded-2xl shadow-xl">
+                    <TabsTrigger value="financial" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300">
                         <BarChart3 className="w-4 h-4 ml-2" />
                         المالية
                     </TabsTrigger>
-                    <TabsTrigger value="profit_loss" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
+                    <TabsTrigger value="profit_loss" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-emerald-500 data-[state=active]:text-white transition-all duration-300">
                         <TrendingUp className="w-4 h-4 ml-2" />
                         الأرباح والخسائر
                     </TabsTrigger>
-                    <TabsTrigger value="inventory" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">
+                    <TabsTrigger value="inventory" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-cyan-500 data-[state=active]:text-white transition-all duration-300">
                         <Package className="w-4 h-4 ml-2" />
                         المخزون
                     </TabsTrigger>
-                    <TabsTrigger value="hr" className="data-[state=active]:bg-amber-500 data-[state=active]:text-white">
+                    <TabsTrigger value="hr" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-amber-500 data-[state=active]:text-white transition-all duration-300">
                         <Users className="w-4 h-4 ml-2" />
                         الموظفين
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="financial">
-                    <FinancialReport reportData={financialData} isLoading={isPending} />
-                </TabsContent>
-                <TabsContent value="profit_loss">
-                    <ProfitLossReport data={profitLossData} isLoading={isPending} />
-                </TabsContent>
-                <TabsContent value="inventory">
-                    <InventoryReport data={inventoryData} isLoading={isPending} />
-                </TabsContent>
-                <TabsContent value="hr">
-                    <HRReport data={hrData} isLoading={isPending} />
-                </TabsContent>
+                <div className="relative min-h-[400px]">
+                    {isPending && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/20 backdrop-blur-[2px] rounded-3xl">
+                            <CasperLoader />
+                        </div>
+                    )}
+                    
+                    <TabsContent value="financial" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <FinancialReport reportData={financialData} isLoading={isPending} />
+                    </TabsContent>
+                    <TabsContent value="profit_loss" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <ProfitLossReport data={profitLossData} isLoading={isPending} />
+                    </TabsContent>
+                    <TabsContent value="inventory" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <InventoryReport data={inventoryData} isLoading={isPending} />
+                    </TabsContent>
+                    <TabsContent value="hr" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <HRReport data={hrData} isLoading={isPending} />
+                    </TabsContent>
+                </div>
             </Tabs>
         </div>
     );

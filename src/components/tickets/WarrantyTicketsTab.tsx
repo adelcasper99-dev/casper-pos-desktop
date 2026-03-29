@@ -133,8 +133,8 @@ export default function WarrantyTicketsTab() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-foreground">الضمانات النشطة</h2>
-                    <p className="text-sm text-zinc-500">
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white">الضمانات النشطة</h2>
+                    <p className="text-sm text-slate-500 dark:text-zinc-500 font-bold">
                         {filteredTickets.length} أجهزة تحت الضمان تم العثور عليها
                     </p>
                 </div>
@@ -146,7 +146,7 @@ export default function WarrantyTicketsTab() {
                     <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
                     <Input
                         placeholder={tt('search.placeholder')}
-                        className="ps-12 solid-input h-10 bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-medium rounded-xl"
+                        className="ps-12 solid-input h-10 bg-slate-100 dark:bg-zinc-900/50 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-black rounded-xl"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -160,11 +160,22 @@ export default function WarrantyTicketsTab() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900/50 p-1 rounded-lg border border-slate-200 dark:border-white/10 flex-wrap">
+                    <Button
+                        variant={dateFilter === "all" ? "default" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md", dateFilter === "all" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-900 dark:text-zinc-400")}
+                        onClick={() => {
+                            setDateFilter("all");
+                            setDateRange(undefined);
+                        }}
+                    >
+                        الكل
+                    </Button>
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-900 dark:text-zinc-400")}
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
@@ -175,7 +186,7 @@ export default function WarrantyTicketsTab() {
                     <Button
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-900 dark:text-zinc-400")}
                         onClick={() => {
                             const yesterday = subDays(new Date(), 1);
                             setDateFilter("yesterday");
@@ -187,7 +198,7 @@ export default function WarrantyTicketsTab() {
                     <Button
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-900 dark:text-zinc-400")}
                         onClick={() => {
                             setDateFilter("week");
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
@@ -198,7 +209,7 @@ export default function WarrantyTicketsTab() {
                     <Button
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn("h-8 text-[11px] font-black px-2 rounded-md", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-900 dark:text-zinc-400")}
                         onClick={() => {
                             setDateFilter("month");
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
@@ -227,26 +238,26 @@ export default function WarrantyTicketsTab() {
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                        className="w-48 bg-transparent border-0 text-xs h-8 text-slate-900 dark:text-zinc-300 placeholder:text-slate-400 dark:placeholder:text-zinc-600"
                     />
                 </div>
 
                 <div className="flex gap-2 flex-wrap">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50 text-xs">
+                            <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black text-xs">
                                 <Filter className="w-3.5 h-3.5" />
                                 <span>{filterStatus === 'all' ? tt('filters.all') : t(`filter.${filterStatus}`)}</span>
                                 <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
-                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">حالة الضمان</DropdownMenuLabel>
+                        <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-500">حالة الضمان</DropdownMenuLabel>
                             {['all', 'active', 'expiring', 'returned'].map(st => (
                                 <DropdownMenuItem 
                                     key={st} 
                                     onClick={() => setFilterStatus(st)}
-                                    className={cn("text-xs", filterStatus === st ? "bg-white/10" : "")}
+                                    className={cn("text-xs font-black", filterStatus === st ? "bg-slate-100 dark:bg-white/10" : "")}
                                 >
                                     {st === 'all' ? tt('filters.all') : t(`filter.${st}`)}
                                 </DropdownMenuItem>
@@ -258,7 +269,7 @@ export default function WarrantyTicketsTab() {
                         variant="outline" 
                         size="sm" 
                         onClick={fetchWarrantyTickets} 
-                        className="h-10 px-4 bg-zinc-900/50 border-white/10 hover:bg-white/5"
+                        className="h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-white/5"
                     >
                         <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
                     </Button>
@@ -266,17 +277,17 @@ export default function WarrantyTicketsTab() {
             </div>
 
             {/* Table with Zebra Styling */}
-            <div className="glass-card overflow-hidden rounded-xl border border-white/5 bg-black/20 shadow-xl">
+            <div className="glass-card overflow-hidden rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-black/20 shadow-xl">
                 <Table className="zebra-table">
-                    <TableHeader className="bg-transparent text-zinc-300 uppercase font-black text-[11px] tracking-wider border-b border-white/5">
-                        <TableRow className="hover:bg-transparent border-white/5">
-                            <TableHead className="w-[50px] text-center">#</TableHead>
-                            <TableHead>{t('table.device')}</TableHead>
-                            <TableHead>{t('table.customer')}</TableHead>
-                            <TableHead>{t('deliveredAt')}</TableHead>
-                            <TableHead>{t('table.expiry')}</TableHead>
-                            <TableHead className="text-center">{t('table.status')}</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
+                    <TableHeader className="bg-slate-200 dark:bg-zinc-900 text-slate-950 dark:text-zinc-300 uppercase font-black text-[11px] tracking-wider border-b border-slate-300 dark:border-white/10">
+                        <TableRow className="hover:bg-transparent border-slate-200 dark:border-white/5 font-black">
+                            <TableHead className="w-[50px] text-center font-black">#</TableHead>
+                            <TableHead className="font-black">{t('table.device')}</TableHead>
+                            <TableHead className="font-black">{t('table.customer')}</TableHead>
+                            <TableHead className="font-black">{t('deliveredAt')}</TableHead>
+                            <TableHead className="font-black">{t('table.expiry')}</TableHead>
+                            <TableHead className="text-center font-black">{t('table.status')}</TableHead>
+                            <TableHead className="w-[50px] font-black"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -297,59 +308,59 @@ export default function WarrantyTicketsTab() {
                                 return (
                                     <TableRow
                                         key={ticket.id}
-                                        className="cursor-pointer hover:bg-white/5 transition-colors group border-white/5"
+                                        className="bg-white even:bg-slate-100 dark:bg-transparent dark:even:bg-white/10 cursor-pointer hover:bg-slate-200 dark:hover:bg-white/20 transition-colors group border-slate-200 dark:border-white/5"
                                         onClick={() => router.push(`/ar/maintenance/tickets/${ticket.id}`)}
                                     >
-                                        <TableCell className="text-center font-mono text-xs text-zinc-500">
+                                        <TableCell className="text-center font-black text-xs text-slate-700 dark:text-zinc-400">
                                             {index + 1}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="font-black">
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-zinc-200 group-hover:text-cyan-400 transition-colors">{ticket.deviceBrand} {ticket.deviceModel}</span>
-                                                <span className="text-xs text-zinc-500 font-mono italic">{ticket.barcode}</span>
+                                                <span className="font-black text-slate-900 dark:text-zinc-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors uppercase">{ticket.deviceBrand} {ticket.deviceModel}</span>
+                                                <span className="text-xs text-slate-500 dark:text-zinc-500 font-black italic">#{ticket.barcode}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="font-black">
                                             <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-zinc-300">{ticket.customerName}</span>
-                                                <span className="text-xs text-zinc-500 font-medium">{ticket.customerPhone}</span>
+                                                <span className="text-sm font-black text-slate-900 dark:text-zinc-300">{ticket.customerName}</span>
+                                                <span className="text-xs text-slate-500 dark:text-zinc-500 font-black tracking-tight">{ticket.customerPhone}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2 text-zinc-400 font-medium">
+                                        <TableCell className="font-black">
+                                            <div className="flex items-center gap-2 text-slate-700 dark:text-zinc-400 font-black">
                                                 <Calendar className="w-3.5 h-3.5" />
                                                 <span className="text-sm">
                                                     {new Date(ticket.deliveredAt).toLocaleDateString()}
                                                 </span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="font-black">
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-sm font-bold flex items-center gap-1.5 tabular-nums">
-                                                    <Clock className={`w-3.5 h-3.5 ${isExpiringSoon ? 'text-rose-400' : 'text-emerald-400'}`} />
-                                                    <span className={isExpiringSoon ? 'text-rose-400' : 'text-emerald-400'}>
+                                                <span className="text-sm font-black flex items-center gap-1.5 tabular-nums">
+                                                    <Clock className={`w-3.5 h-3.5 ${isExpiringSoon ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                                                    <span className={isExpiringSoon ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'}>
                                                         {t('daysLeft', { days: daysRemaining })}
                                                     </span>
                                                 </span>
-                                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter">
+                                                <span className="text-[10px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-tighter">
                                                     إلى: {new Date(ticket.warrantyExpiryDate).toLocaleDateString()}
                                                 </span>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-center">
+                                        <TableCell className="text-center font-black">
                                             <div className="flex flex-col gap-1.5 items-center">
                                                 <Badge
                                                     className={cn(
                                                         "font-black border px-2",
                                                         isExpiringSoon
-                                                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                                                     )}
                                                 >
                                                     {isExpiringSoon ? t('expiringSoon') : t('active')}
                                                 </Badge>
                                                 {ticket.returnCount > 0 && (
-                                                    <Badge variant="secondary" className="text-[9px] h-4.5 px-1.5 bg-yellow-500/10 text-yellow-500 border-yellow-500/20 font-black">
+                                                    <Badge variant="secondary" className="text-[9px] h-4.5 px-1.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border-yellow-500/20 font-black">
                                                         <AlertCircle className="w-3 h-3 mr-1" />
                                                         مرتجع {ticket.returnCount}
                                                     </Badge>

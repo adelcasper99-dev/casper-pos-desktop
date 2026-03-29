@@ -499,20 +499,22 @@ export default function PurchasesTab({
     }, {});
 
     return (
-        <div className="space-y-6 animate-fly-in" dir="rtl">
+        <div className="space-y-6 animate-fly-in font-cairo" dir="rtl">
             {isNewPurchaseOpen && <BarcodeListener onScan={handleScan} />}
-            <div className="flex justify-between items-center bg-muted/50 p-4 rounded-xl border border-border">
+            <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50 p-6 rounded-3xl border border-zinc-200 dark:border-white/10 shadow-sm">
                 <div>
-                    <h2 className="text-xl font-bold flex items-center gap-2">
-                        <ShoppingCart className="w-5 h-5 text-indigo-400" />
+                    <h2 className="text-2xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
+                        <div className="p-2.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20">
+                            <ShoppingCart className="w-6 h-6" />
+                        </div>
                         {t('title')}
                     </h2>
-                    <p className="text-muted-foreground text-sm">{t('subtitle')}</p>
+                    <p className="text-muted-foreground font-bold text-sm mt-1">{t('subtitle')}</p>
                 </div>
-                <div className="flex gap-2 ml-24">
+                <div className="flex gap-3">
                     <button
                         onClick={() => setShowBulkUpload(true)}
-                        className="bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3.5 rounded-2xl flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-emerald-500/10 text-[11px] uppercase tracking-widest"
                     >
                         <Upload className="w-4 h-4" />
                         {t('bulkCsv')}
@@ -522,7 +524,7 @@ export default function PurchasesTab({
                             form.resetForm();
                             setIsNewPurchaseOpen(true);
                         }}
-                        className="bg-indigo-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-400 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                        className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black px-6 py-3.5 rounded-2xl flex items-center gap-2 hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-zinc-900/10 text-[11px] uppercase tracking-widest"
                     >
                         <Plus className="w-4 h-4" />
                         {t('newPurchase')}
@@ -532,35 +534,41 @@ export default function PurchasesTab({
 
             {/* Stats Bar */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-indigo-500/50 bg-indigo-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.invoicesCount')}</span>
-                    <span className="text-xl font-bold text-indigo-400">{filteredInvoices.length}</span>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">{t('stats.invoicesCount')}</span>
+                    <span className="text-2xl font-black text-zinc-900 dark:text-white">{filteredInvoices.length}</span>
                 </div>
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-cyan-500/50 bg-cyan-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalPurchases')}</span>
-                    <span className="text-xl font-mono font-bold text-cyan-400">{formatCurrency(stats.totalPurchases, settings?.currency || "EGP")}</span>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-cyan-500/50">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">{t('stats.totalPurchases')}</span>
+                    <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono">
+                        {formatCurrency(stats.totalPurchases, settings?.currency || "EGP")}
+                    </span>
                 </div>
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-emerald-500/50 bg-emerald-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalPaid')}</span>
-                    <span className="text-xl font-mono font-bold text-emerald-400">{formatCurrency(stats.totalPaid, settings?.currency || "EGP")}</span>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-emerald-500/50">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">{t('stats.totalPaid')}</span>
+                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                        {formatCurrency(stats.totalPaid, settings?.currency || "EGP")}
+                    </span>
                 </div>
-                <div className="glass-card p-4 flex flex-col items-center justify-center border-b-2 border-b-orange-500/50 bg-orange-500/5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">{t('stats.totalPending')}</span>
-                    <span className="text-xl font-mono font-bold text-orange-400">{formatCurrency(totalPending, settings?.currency || "EGP")}</span>
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-rose-500/50">
+                    <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">{t('stats.totalPending')}</span>
+                    <span className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">
+                        {formatCurrency(totalPending, settings?.currency || "EGP")}
+                    </span>
                 </div>
             </div>
 
             {/* Filters Bar */}
             <div className="flex gap-4 items-center flex-wrap">
-                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10 flex-wrap">
+                <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-200 dark:border-white/10 flex-wrap shadow-inner">
                     <button
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
                         }}
                         className={clsx(
-                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
-                            dateFilter === "today" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "today" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
                         اليوم
@@ -572,8 +580,8 @@ export default function PurchasesTab({
                             setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
                         }}
                         className={clsx(
-                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
-                            dateFilter === "yesterday" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "yesterday" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
                         أمس
@@ -584,8 +592,8 @@ export default function PurchasesTab({
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
                         }}
                         className={clsx(
-                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
-                            dateFilter === "week" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "week" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
                         الأسبوع
@@ -596,14 +604,14 @@ export default function PurchasesTab({
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
                         }}
                         className={clsx(
-                            "h-8 text-[11px] font-bold px-3 rounded-md transition-all",
-                            dateFilter === "month" ? "bg-cyan-500 text-black shadow-lg" : "text-zinc-400 hover:bg-white/5"
+                            "h-10 text-[11px] font-black px-5 rounded-xl transition-all uppercase tracking-widest",
+                            dateFilter === "month" ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" : "text-zinc-500 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5"
                         )}
                     >
                         الشهر
                     </button>
 
-                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+                    <div className="w-px h-4 bg-zinc-200 dark:bg-white/10 mx-2 hidden sm:block" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates: Date[]) => {
@@ -620,16 +628,16 @@ export default function PurchasesTab({
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                        className="w-48 bg-transparent border-0 text-xs h-10 text-zinc-900 dark:text-zinc-300 placeholder:text-zinc-400 font-bold"
                     />
                 </div>
 
                 <div className="flex gap-2">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
-                                <Filter className="w-4 h-4 text-muted-foreground" />
-                                <span className="font-bold">
+                            <Button variant="outline" className="border-zinc-200 dark:border-white/10 gap-3 h-12 px-6 bg-white dark:bg-zinc-900/50 rounded-xl shadow-sm">
+                                <Filter className="w-4 h-4 text-primary" />
+                                <span className="font-black text-xs uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
                                     {statusFilter === 'ALL' ? t('filter.all') : 
                                      statusFilter === 'ACTIVE' ? t('filter.active') : 
                                      statusFilter === 'RETURNS' ? t('filter.returns') :
@@ -638,20 +646,20 @@ export default function PurchasesTab({
                                 <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border-white/10 text-white">
-                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">
+                        <DropdownMenuContent align="end" className="w-56 p-2 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 rounded-2xl shadow-2xl">
+                            <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-400 mb-2 px-3">
                                 {t('filter.status')}
                             </DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setStatusFilter('ACTIVE')} className={statusFilter === 'ACTIVE' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('ACTIVE')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'ACTIVE' ? "bg-primary/10 text-primary" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filter.active')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter('RETURNS')} className={statusFilter === 'RETURNS' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('RETURNS')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'RETURNS' ? "bg-primary/10 text-primary" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filter.returns')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter('ALL')} className={statusFilter === 'ALL' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('ALL')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'ALL' ? "bg-primary/10 text-primary" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filter.all')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter('VOIDED')} className={statusFilter === 'VOIDED' ? "bg-white/10" : ""}>
+                            <DropdownMenuItem onClick={() => setStatusFilter('VOIDED')} className={cn("rounded-lg font-bold px-3 py-2.5", statusFilter === 'VOIDED' ? "bg-rose-500/10 text-rose-500" : "text-zinc-600 dark:text-zinc-300")}>
                                 {t('filter.voided')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -676,57 +684,75 @@ export default function PurchasesTab({
 
             {/* Invoices List */}
             {filteredInvoices.length === 0 ? (
-                <div className="glass-card p-10 text-center text-zinc-500 flex flex-col items-center">
-                    <FileText className="w-12 h-12 mb-3 opacity-20" />
-                    <p>{t('noInvoices')}</p>
+                <div className="bg-white dark:bg-card/40 p-20 rounded-3xl border border-zinc-200 dark:border-white/5 text-center text-zinc-400 flex flex-col items-center shadow-sm">
+                    <div className="p-6 rounded-3xl bg-zinc-50 dark:bg-white/5 mb-6">
+                        <FileText className="w-16 h-16 opacity-20" />
+                    </div>
+                    <p className="text-lg font-bold">{t('noInvoices')}</p>
                 </div>
             ) : (
-                <div className="table-container max-h-[600px] custom-scrollbar overflow-y-auto">
-                    <table className="zebra-table sticky-header w-full text-left table-fixed">
-                        <thead className="bg-transparent text-zinc-300 text-[11px] uppercase tracking-wider border-b border-white/5">
-                            <tr>
-                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('purchaseDate')}>
-                                    <div className="flex items-center gap-2">
+                <div className="glass-card overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/5 bg-white dark:bg-black/20 shadow-2xl">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-right text-sm text-zinc-600 dark:text-zinc-400 zebra-table">
+                            <thead className="bg-zinc-100 dark:bg-white/5 text-zinc-900 dark:text-zinc-300 border-b border-zinc-200 dark:border-white/5">
+                                <tr className="hover:bg-transparent border-none">
+                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs uppercase tracking-widest group/head" onClick={() => handleSort('purchaseDate')}>
+                                    <div className="flex items-center gap-2.5">
                                         {getSortIcon('purchaseDate')}
-                                        {t('table.date')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortBy === 'purchaseDate' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.date')}</span>
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('invoiceNumber')}>
-                                    <div className="flex items-center gap-2">
+                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs uppercase tracking-widest group/head" onClick={() => handleSort('invoiceNumber')}>
+                                    <div className="flex items-center gap-2.5">
                                         {getSortIcon('invoiceNumber')}
-                                        {t('table.invoice')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortBy === 'invoiceNumber' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.invoice')}</span>
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 text-start font-black">{t('table.supplier')}</th>
-                                <th className="px-6 py-4 text-start font-black">{t('table.branch')}</th>
-                                <th className="px-6 py-4 text-start font-black">{t('table.warehouse')}</th>
-                                <th className="px-6 py-4 text-center font-black">{t('table.status')}</th>
-                                <th className="px-6 py-4 text-end font-black">{t('table.delivery')}</th>
-                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('totalAmount')}>
-                                    <div className="flex items-center justify-end gap-2">
+                                <th className="px-6 py-4 text-start font-black text-xs uppercase tracking-widest">{t('table.supplier')}</th>
+                                <th className="px-6 py-4 text-start font-black text-xs uppercase tracking-widest">{t('table.branch')}</th>
+                                <th className="px-6 py-4 text-start font-black text-xs uppercase tracking-widest">{t('table.warehouse')}</th>
+                                <th className="px-6 py-4 text-center font-black text-xs uppercase tracking-widest">{t('table.status')}</th>
+                                <th className="px-6 py-4 text-end font-black text-xs uppercase tracking-widest">{t('table.delivery')}</th>
+                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs uppercase tracking-widest group/head" onClick={() => handleSort('totalAmount')}>
+                                    <div className="flex items-center justify-end gap-2.5">
                                         {getSortIcon('totalAmount')}
-                                        {t('table.total')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortBy === 'totalAmount' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.total')}</span>
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('paidAmount')}>
-                                    <div className="flex items-center justify-end gap-2">
+                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs uppercase tracking-widest group/head" onClick={() => handleSort('paidAmount')}>
+                                    <div className="flex items-center justify-end gap-2.5">
                                         {getSortIcon('paidAmount')}
-                                        {t('table.paid')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortBy === 'paidAmount' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.paid')}</span>
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('balance')}>
-                                    <div className="flex items-center justify-end gap-2">
+                                <th className="px-6 py-4 text-end font-black cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs uppercase tracking-widest group/head" onClick={() => handleSort('balance')}>
+                                    <div className="flex items-center justify-end gap-2.5">
                                         {getSortIcon('balance')}
-                                        {t('table.balance')}
+                                        <span className={cn(
+                                            "group-hover/head:translate-x-[-4px] transition-transform",
+                                            sortBy === 'balance' && "underline decoration-primary/40 underline-offset-8"
+                                        )}>{t('table.balance')}</span>
                                     </div>
                                 </th>
                                 <th className="px-6 py-4 w-10"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 bg-white dark:bg-black/10">
                             {filteredInvoices.map((inv: PurchaseInvoice) => (
                                 <tr key={inv.id} className={cn(
-                                    "group hover:bg-white/[0.02] transition-colors border-white/5",
+                                    "group hover:bg-zinc-50 dark:hover:bg-white/[0.02] transition-colors border-none",
                                     inv.status === 'VOIDED' && "opacity-50 grayscale"
                                 )}>
                                     <td className="px-6 py-4">
@@ -739,16 +765,16 @@ export default function PurchasesTab({
                                         {inv.invoiceNumber || <span className="opacity-30 italic">Auto</span>}
                                     </td>
                                     <td className="px-6 py-4 text-start">
-                                        <div className="text-sm font-black text-white group-hover:text-cyan-400 transition-colors">
+                                        <div className="text-sm font-black text-zinc-900 dark:text-white group-hover:text-primary transition-colors">
                                             {inv.supplier.name}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="text-sm font-bold text-white/90">{inv.warehouse?.branch?.name || '-'}</div>
-                                        <div className="text-[10px] text-white/40 tracking-widest">{inv.warehouse?.branch?.code}</div>
+                                        <div className="text-sm font-bold text-zinc-800 dark:text-white/90">{inv.warehouse?.branch?.name || '-'}</div>
+                                        <div className="text-[10px] text-zinc-400 dark:text-white/40 tracking-widest uppercase font-mono">{inv.warehouse?.branch?.code}</div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="text-sm text-white/70">{inv.warehouse?.name || '-'}</div>
+                                        <div className="text-sm font-bold text-zinc-600 dark:text-white/70">{inv.warehouse?.name || '-'}</div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={clsx(
@@ -762,24 +788,24 @@ export default function PurchasesTab({
                                             {t(`statuses.${inv.status}`) || inv.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-end font-mono text-white/40 text-xs">
+                                    <td className="px-6 py-4 text-end font-mono text-zinc-400 dark:text-white/40 text-xs">
                                         {formatCurrency(inv.deliveryCharge || 0, settings?.currency)}
                                     </td>
-                                    <td className="px-6 py-4 text-end font-mono text-cyan-400 font-bold">
+                                    <td className="px-6 py-4 text-end font-mono text-zinc-900 dark:text-cyan-400 font-black">
                                         {formatCurrency(inv.totalAmount, settings?.currency)}
                                     </td>
-                                    <td className="px-6 py-4 text-end font-mono text-white/50">
+                                    <td className="px-6 py-4 text-end font-mono text-zinc-500 dark:text-white/50 font-bold">
                                         {formatCurrency(inv.paidAmount, settings?.currency)}
                                     </td>
-                                    <td className="px-6 py-4 text-end font-mono text-rose-400 font-bold">
+                                    <td className="px-6 py-4 text-end font-mono text-rose-600 dark:text-rose-400 font-black">
                                         {formatCurrency(Number(inv.totalAmount) - Number(inv.paidAmount), settings?.currency)}
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
+                                        <div className="flex gap-2 justify-end translate-x-1">
                                             <button
                                                 onClick={() => handleTablePrint(inv.id)}
                                                 disabled={loadingInvoiceId === inv.id}
-                                                className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
+                                                className="w-9 h-9 flex items-center justify-center bg-zinc-100 dark:bg-white/5 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-zinc-900 rounded-xl transition-all shadow-sm active:scale-90"
                                                 title={t('printInvoice')}
                                             >
                                                 {loadingInvoiceId === inv.id ? (
@@ -791,14 +817,14 @@ export default function PurchasesTab({
                                             <button
                                                 onClick={() => handleTableBarcode(inv.id)}
                                                 disabled={loadingInvoiceId === inv.id}
-                                                className="p-1.5 hover:bg-cyan-500/10 rounded-lg text-white/40 hover:text-cyan-400 transition-colors"
+                                                className="w-9 h-9 flex items-center justify-center bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white rounded-xl transition-all shadow-sm active:scale-90"
                                                 title={t('printBarcodes')}
                                             >
                                                 <Tag className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleEdit(inv.id)}
-                                                className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
+                                                className="w-9 h-9 flex items-center justify-center bg-zinc-100 dark:bg-white/5 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-zinc-900 rounded-xl transition-all shadow-sm active:scale-90"
                                                 title={t('editInvoice')}
                                             >
                                                 <Pencil className="w-4 h-4" />
@@ -807,10 +833,10 @@ export default function PurchasesTab({
                                                 onClick={() => setRefundInvoice({ id: inv.id })}
                                                 disabled={inv.status === 'VOIDED'}
                                                 className={clsx(
-                                                    "p-1.5 rounded-lg transition-colors",
+                                                    "w-9 h-9 flex items-center justify-center rounded-xl transition-all shadow-sm active:scale-90",
                                                     inv.status === 'VOIDED'
-                                                        ? "opacity-10 cursor-not-allowed"
-                                                        : "hover:bg-rose-500/10 text-white/40 hover:text-rose-500"
+                                                        ? "opacity-10 cursor-not-allowed bg-zinc-100 dark:bg-white/5 text-zinc-400"
+                                                        : "bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white"
                                                 )}
                                                 title={inv.status === 'VOIDED' ? t('alreadyVoided') : t('voidInvoice')}
                                             >
@@ -823,6 +849,7 @@ export default function PurchasesTab({
                         </tbody>
                     </table>
                 </div>
+            </div>
             )}
 
             {/* Void Reason Dialog */}

@@ -307,24 +307,29 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             {/* Filter Bar */}
-            <div className="flex gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div className="flex flex-col xl:flex-row gap-4">
+                <div className="relative flex-1 group">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input
                         placeholder="البحث برقم الفاتورة أو اسم العميل..."
-                        className="pl-10 h-10 bg-zinc-900/50 border-white/10"
+                        className="glass-input pl-11 h-12 w-full focus:ring-2 focus:ring-primary/20"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-white/10">
+                <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "today" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
@@ -335,7 +340,12 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                     <Button
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "yesterday" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             const yesterday = subDays(new Date(), 1);
                             setDateFilter("yesterday");
@@ -347,7 +357,12 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                     <Button
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "week" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             setDateFilter("week");
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
@@ -358,7 +373,12 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                     <Button
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-bold px-2 rounded-md", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-zinc-400")}
+                        className={cn(
+                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            dateFilter === "month" 
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                : "text-muted-foreground hover:bg-muted"
+                        )}
                         onClick={() => {
                             setDateFilter("month");
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
@@ -367,7 +387,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         الشهر
                     </Button>
 
-                    <div className="w-px h-4 bg-white/10 mx-1" />
+                    <div className="w-px h-5 bg-border mx-1" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates) => {
@@ -387,39 +407,52 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48"
+                        className="w-48 bg-transparent border-none py-0 h-9 text-xs font-bold focus:ring-0"
                     />
                 </div>
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="border-white/10 gap-2 h-10 px-4 bg-zinc-900/50">
-                            <Filter className="w-4 h-4" />
-                            <span>تصفية</span>
-                            <ChevronDown className="w-3 h-3 opacity-50" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-white/10 text-white">
-                        <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">حالة الفاتورة</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => setStatusFilter("all")} className={statusFilter === "all" ? "bg-white/10" : ""}>الكل</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={statusFilter === "PAID" ? "bg-white/10 text-emerald-400" : ""}>مدفوع</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter("REFUNDED")} className={statusFilter === "REFUNDED" ? "bg-white/10 text-red-400" : ""}>مرتجع</DropdownMenuItem>
+                <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="border-border gap-2 h-12 px-6 rounded-2xl bg-card hover:bg-muted transition-all font-bold">
+                                <Filter className="w-4 h-4 text-primary" />
+                                <span>تصفية المخرجات</span>
+                                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-card border-border shadow-2xl">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1.5">حالة الفاتورة</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setStatusFilter("all")} className={cn("rounded-xl h-10 px-3", statusFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={cn("rounded-xl h-10 px-3", statusFilter === "PAID" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" : "")}>مدفوع</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("REFUNDED")} className={cn("rounded-xl h-10 px-3", statusFilter === "REFUNDED" ? "bg-red-500/10 text-red-600 dark:text-red-400 font-bold" : "")}>مرتجع كامل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("PARTIAL_REFUND")} className={cn("rounded-xl h-10 px-3", statusFilter === "PARTIAL_REFUND" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold" : "")}>مرتجع جزئي</DropdownMenuItem>
 
-                        <DropdownMenuSeparator className="bg-white/5" />
+                            <DropdownMenuSeparator className="my-2 bg-border" />
 
-                        <DropdownMenuLabel className="text-xs uppercase tracking-widest text-zinc-500">طريقة الدفع</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => setPaymentFilter("all")} className={paymentFilter === "all" ? "bg-white/10" : ""}>الكل</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setPaymentFilter("CASH")} className={paymentFilter === "CASH" ? "bg-white/10" : ""}>كاش</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setPaymentFilter("VISA")} className={paymentFilter === "VISA" ? "bg-white/10" : ""}>فيزا</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setPaymentFilter("ACCOUNT")} className={paymentFilter === "ACCOUNT" ? "bg-white/10" : ""}>آجل</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1.5">طريقة الدفع</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("all")} className={cn("rounded-xl h-10 px-3", paymentFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("CASH")} className={cn("rounded-xl h-10 px-3", paymentFilter === "CASH" ? "bg-primary/10 text-primary font-bold" : "")}>كاش</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("VISA")} className={cn("rounded-xl h-10 px-3", paymentFilter === "VISA" ? "bg-primary/10 text-primary font-bold" : "")}>فيزا</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("ACCOUNT")} className={cn("rounded-xl h-10 px-3", paymentFilter === "ACCOUNT" ? "bg-primary/10 text-primary font-bold" : "")}>آجل / عميل</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <Button
+                        variant="outline"
+                        className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-2 h-12 px-6 rounded-2xl group transition-all font-bold"
+                        onClick={exportToExcel}
+                    >
+                        <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                        <span>تصدير Excel</span>
+                    </Button>
+                </div>
 
                 {(statusFilter !== "all" || paymentFilter !== "all" || dateFilter !== "all" || searchTerm !== "") && (
                     <Button
                         variant="ghost"
-                        size="sm"
-                        className="text-zinc-500 hover:text-white"
+                        size="icon"
+                        className="h-12 w-12 rounded-2xl text-red-500 hover:bg-red-500/10 shrink-0"
+                        title="حذف جميع الفلاتر"
                         onClick={() => {
                             setSearchTerm("");
                             setStatusFilter("all");
@@ -428,39 +461,35 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                             setDateRange(undefined);
                         }}
                     >
-                        حذف الكل
+                        <RotateCcw className="w-5 h-5" />
                     </Button>
                 )}
-
-                <Button
-                    variant="outline"
-                    className="border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 gap-2 h-10 px-4"
-                    onClick={exportToExcel}
-                >
-                    <Download className="w-4 h-4" />
-                    <span>تصدير Excel</span>
-                </Button>
             </div>
 
             {/* Main Table */}
-            <div className="rounded-xl border border-white/5 bg-zinc-900/20 overflow-hidden shadow-2xl">
+            <div className="glass-card rounded-2xl overflow-hidden shadow-2xl transition-all duration-300">
                 <Table>
-                    <TableHeader className="bg-zinc-900/50">
-                        <TableRow className="border-white/5 hover:bg-transparent">
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">رقم الفاتورة</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">التاريخ</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">العميل</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">الإجمالي</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">طريقة الدفع</TableHead>
-                            <TableHead className="text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">الحالة</TableHead>
-                            <TableHead className="text-right text-zinc-400 font-bold py-3 text-xs uppercase tracking-wider">الإجراءات</TableHead>
+                    <TableHeader className="bg-muted/60">
+                        <TableRow className="border-border hover:bg-transparent">
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">رقم الفاتورة</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">التاريخ</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">العميل</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">الإجمالي</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">طريقة الدفع</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">الحالة</TableHead>
+                            <TableHead className="text-left text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest px-6">الإجراءات</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredSales.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-20 text-zinc-500 italic">
-                                    لا توجد عمليات بيع مطابقة للبحث
+                                <TableCell colSpan={7} className="text-center py-24">
+                                    <div className="flex flex-col items-center gap-3 opacity-40">
+                                        <div className="p-4 rounded-full bg-muted border border-border">
+                                            <Search className="w-10 h-10" />
+                                        </div>
+                                        <span className="text-sm font-medium italic">لا توجد عمليات بيع تطابقة لمعايير البحث الحالية</span>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -468,53 +497,64 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                 <tr
                                     key={sale.id}
                                     className={cn(
-                                        "border-white/5 hover:bg-white/5 transition-colors group cursor-pointer",
-                                        (sale.isReturn || sale._isRefundEntry) && "bg-red-500/5 border-l-2 border-l-red-500/40",
-                                        !(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && "bg-amber-500/5 border-l-2 border-l-amber-500/40"
+                                        "border-border hover:bg-primary/10 transition-all group cursor-pointer border-b",
+                                        "even:bg-muted/70",
+                                        (sale.isReturn || sale._isRefundEntry) && "bg-red-500/[0.02] dark:bg-red-500/[0.04]",
+                                        !(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && "bg-amber-500/[0.02] dark:bg-amber-500/[0.04]"
                                     )}
                                     onClick={() => setSelectedSale(sale)}
                                 >
-                                    <td className="py-2 px-4">
-                                        <div className="flex flex-col gap-0.5">
+                                    <td className="py-4 px-4 text-center">
+                                        <div className="flex flex-col items-center gap-1">
                                             {(sale.isReturn || sale._isRefundEntry) && (
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-red-400 flex items-center gap-1">
-                                                    ↩ ارتجاع
+                                                <span className="text-[8px] font-black uppercase bg-red-500/10 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">
+                                                    إرجاع
                                                 </span>
                                             )}
-                                            <div className={`font-mono text-xs ${ (sale.isReturn || sale._isRefundEntry) ? 'text-red-400/80' : 'text-cyan-500/80'}`}>
-                                                #{sale.invoiceNumber || (sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase())}
+                                            <div className={cn(
+                                                "font-mono text-xs font-bold px-2 py-1 rounded-md", 
+                                                (sale.isReturn || sale._isRefundEntry) ? 'bg-red-500/5 text-red-500' : 'bg-primary/5 text-primary'
+                                            )}>
+                                                {sale.invoiceNumber || (sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase())}
                                             </div>
-                                            {!(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && (
-                                                <span className="text-[9px] font-bold text-amber-500 uppercase">مخفض %</span>
-                                            )}
                                         </div>
                                     </td>
-                                    <td className="py-2 px-4 text-zinc-300 text-xs">
+                                    <td className="py-4 px-4 text-center text-muted-foreground text-[11px] font-medium font-mono">
                                         {format(new Date(sale.createdAt), 'yyyy/MM/dd HH:mm')}
                                     </td>
-                                    <td className="py-2 px-4 font-bold text-zinc-100 italic">
-                                        {sale.customerName || "عميل نقدي"}
+                                    <td className="py-4 px-4 text-center">
+                                        <div className="font-bold text-foreground text-sm">
+                                            {sale.customerName || "عميل نقدي"}
+                                        </div>
                                     </td>
-                                    <td className={`py-2 px-4 font-mono font-bold ${(sale.isReturn || sale._isRefundEntry) ? 'text-red-400' : 'text-zinc-100'}`}>
-                                        {sale.totalAmount < 0 ? '-' : ''}{Math.abs(Number(sale.totalAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    <td className="py-4 px-4 text-center">
+                                        <div className={cn(
+                                            "font-mono font-black text-sm px-3 py-1 rounded-lg inline-block",
+                                            (sale.isReturn || sale._isRefundEntry) ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-muted text-foreground'
+                                        )}>
+                                            {sale.totalAmount < 0 ? '-' : ''}{Math.abs(Number(sale.totalAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </div>
                                     </td>
-                                    <td className="py-2 px-4">
-                                        <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 font-bold uppercase">
+                                    <td className="py-4 px-4 text-center">
+                                        <Badge variant="outline" className="text-[10px] border-border bg-background/50 font-black uppercase text-muted-foreground">
                                             {getPaymentMethodLabel(sale.paymentMethod)}
                                         </Badge>
                                     </td>
-                                    <td className="py-2 px-4">
-                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyles(sale.status, sale.paymentMethod)}`}>
+                                    <td className="py-4 px-4 text-center">
+                                        <span className={cn(
+                                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm",
+                                            getStatusStyles(sale.status, sale.paymentMethod)
+                                        )}>
                                             {getStatusLabel(sale.status, sale.paymentMethod)}
                                         </span>
                                     </td>
 
-                                    <td className="py-2 px-4 text-right">
-                                        <div className="flex justify-end gap-1">
+                                    <td className="py-4 px-6 text-left" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex justify-start gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-cyan-400 hover:bg-cyan-400/10"
+                                                className="h-9 w-9 text-primary hover:bg-primary/10 rounded-xl"
                                                 onClick={() => setSelectedSale(sale)}
                                             >
                                                 <Eye className="w-4 h-4" />
@@ -522,7 +562,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-indigo-400 hover:bg-indigo-400/10"
+                                                className="h-9 w-9 text-indigo-500 hover:bg-indigo-500/10 rounded-xl"
                                                 title="طباعة A4"
                                                 onClick={() => handlePrintA4(sale)}
                                             >
@@ -530,27 +570,25 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             </Button>
                                             {!(sale.isReturn || sale._isRefundEntry) && sale.status !== 'REFUNDED' && (
                                                 <>
-                                                    {/* Partial Refund */}
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-orange-400 hover:bg-orange-400/10"
+                                                        className="h-9 w-9 text-orange-500 hover:bg-orange-500/10 rounded-xl"
                                                         title="مرتجع جزئي"
                                                         onClick={() => setPartialRefundSale(sale)}
                                                     >
                                                         <Package className="w-4 h-4" />
                                                     </Button>
-                                                    {/* Full Refund */}
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-red-400 hover:bg-red-400/10"
+                                                        className="h-9 w-9 text-red-500 hover:bg-red-500/10 rounded-xl"
                                                         title="مرتجع كامل"
                                                         disabled={loading === sale.id}
                                                         onClick={() => setRefundItem({ id: sale.id })}
                                                     >
                                                         {loading === sale.id ? (
-                                                            <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                                                            <div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
                                                         ) : (
                                                             <RotateCcw className="w-4 h-4" />
                                                         )}
@@ -582,138 +620,170 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
             {
                 selectedSale && (
                     <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
-                        <DialogContent className="sm:max-w-md bg-zinc-950 border-white/10 text-white">
-                            <Card className="bg-transparent border-0 shadow-none">
-                                <DialogHeader className="pb-2">
+                        <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
+                            <div className="p-8 space-y-6">
+                                <DialogHeader className="pb-4 border-b border-border">
                                     <DialogTitle className="flex items-center justify-between">
-                                        <span className="text-xl font-bold flex items-center gap-2">
-                                            <FileText className="w-5 h-5 text-cyan-400" />
+                                        <span className="text-2xl font-black flex items-center gap-3">
+                                            <div className="p-2.5 rounded-2xl bg-primary/10 border border-primary/20">
+                                                <FileText className="w-6 h-6 text-primary" />
+                                            </div>
                                             تفاصيل الفاتورة
                                         </span>
-                                        <Badge variant="outline" className="border-white/10 text-xs">
+                                        <Badge variant="outline" className="border-border bg-muted/50 text-xs px-3 py-1 font-mono rounded-lg">
                                             #{selectedSale.invoiceNumber || selectedSale.id.slice(0, 8).toUpperCase()}
                                         </Badge>
                                     </DialogTitle>
                                 </DialogHeader>
-                                <CardContent className="space-y-4 pt-4">
-                                    <div className="grid grid-cols-2 gap-4 text-sm bg-white/5 p-4 rounded-xl border border-white/5">
-                                        <div className="space-y-1">
-                                            <span className="text-zinc-400 text-xs block">التاريخ</span>
-                                            <span className="font-bold">{format(new Date(selectedSale.createdAt), 'yyyy/MM/dd HH:mm')}</span>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <span className="text-zinc-400 text-xs block">البائع</span>
-                                            <span className="font-bold">{selectedSale.user?.name || "النظام"}</span>
-                                        </div>
-                                        <div className="space-y-1 col-span-2 border-t border-white/5 pt-2">
-                                            <span className="text-zinc-400 text-xs block">العميل</span>
-                                            <span className="font-bold">{selectedSale.customerName || "عميل نقدي"}</span>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-1 group hover:border-primary/30 transition-all">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">التاريخ والوقت</span>
+                                        <span className="font-bold text-sm block italic">{format(new Date(selectedSale.createdAt), 'yyyy/MM/dd HH:mm:ss')}</span>
+                                    </div>
+                                    <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-1 group hover:border-primary/30 transition-all">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">المبيعات بواسطة</span>
+                                        <span className="font-bold text-sm block">{selectedSale.user?.name || "النظام الآلي"}</span>
+                                    </div>
+                                    <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-2 col-span-2 group hover:border-primary/30 transition-all">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">العميل المرتبط</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary font-bold text-xs uppercase">
+                                                {(selectedSale.customerName?.[0] || 'C').toUpperCase()}
+                                            </div>
+                                            <span className="font-black text-lg italic">{selectedSale.customerName || "عميل نقدي"}</span>
                                         </div>
                                     </div>
+                                </div>
 
-                                    {/* Items List */}
-                                    <div className="space-y-2">
-                                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest pb-1 block">الأصناف</span>
-                                        <div className="max-h-[250px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                            {selectedSale.items.map((item: any, idx: number) => (
-                                                <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/5 group hover:border-cyan-500/30 transition-colors">
-                                                    <div className="flex-1">
-                                                        <div className="font-bold text-sm text-zinc-100">{item.product?.name || "منتج غير معروف"}</div>
-                                                        <div className="text-[10px] text-zinc-500 font-mono italic">
-                                                            {item.quantity} x {item.unitPrice.toLocaleString()}
-                                                        </div>
-                                                    </div>
-                                                    <div className="font-mono font-bold text-cyan-400 text-sm">
-                                                        {(item.quantity * item.unitPrice).toLocaleString()}
+                                {/* Items List */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between px-1">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">الأصناف الملحقة ({selectedSale.items?.length})</span>
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">المجموع الفرعي</span>
+                                    </div>
+                                    <div className="max-h-[250px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                        {selectedSale.items?.map((item: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between items-center p-4 rounded-2xl bg-muted/20 border border-border group hover:bg-muted/40 hover:border-primary/20 transition-all">
+                                                <div className="flex-1">
+                                                    <div className="font-black text-sm text-foreground">{item.product?.name || "صنف غير محدد"}</div>
+                                                    <div className="text-[11px] text-muted-foreground font-mono mt-0.5 opacity-80">
+                                                        {item.quantity} وحدة <span className="mx-1.5 opacity-30">×</span> {Number(item.unitPrice).toLocaleString()} ج.م
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <div className="text-right">
+                                                    <div className="font-mono font-black text-primary text-sm">
+                                                        {(item.quantity * Number(item.unitPrice)).toLocaleString()}
+                                                    </div>
+                                                    <div className="text-[9px] font-black uppercase text-muted-foreground opacity-40">صافي الصنف</div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
+                                </div>
 
-                                    {/* Totals */}
-                                    <div className="mt-6 pt-4 border-t border-white/10 space-y-2">
-                                        <div className="flex justify-between text-zinc-400 text-xs">
-                                            <span>المجموع الفرعي</span>
-                                            <span className="font-bold">{formatCurrency(selectedSale.subTotal)}</span>
+                                {/* Summary & Actions Area */}
+                                <div className="bg-muted/50 rounded-3xl p-6 border border-border space-y-4 shadow-inner">
+                                    <div className="grid grid-cols-2 gap-y-3">
+                                        <div className="flex justify-between items-center text-muted-foreground text-xs px-2">
+                                            <span className="font-medium opacity-60 uppercase tracking-widest text-[10px]">المجموع قبل الخصم</span>
+                                            <span className="font-bold italic">{formatCurrency(selectedSale.subTotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs px-2 border-r border-border ml-2 pl-4">
+                                            <span className="font-medium text-muted-foreground opacity-60 uppercase tracking-widest text-[10px]">طريقة السداد</span>
+                                            <Badge variant="outline" className="bg-background border-border font-black text-[9px] uppercase px-2 py-0.5 rounded-md">
+                                                {getPaymentMethodLabel(selectedSale.paymentMethod)}
+                                            </Badge>
                                         </div>
                                         {Number(selectedSale.discountAmount) > 0 && (
-                                            <div className="flex justify-between text-green-400 text-xs">
-                                                <span>الخصم</span>
-                                                <span className="font-bold">-{formatCurrency(selectedSale.discountAmount)}</span>
+                                            <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 text-xs px-2 col-span-2 bg-emerald-500/5 py-1.5 rounded-lg border border-emerald-500/10">
+                                                <span className="font-black uppercase tracking-widest text-[10px]">قيمة الخصم التجاري</span>
+                                                <span className="font-black">-{formatCurrency(selectedSale.discountAmount)}</span>
                                             </div>
                                         )}
                                         {Number(selectedSale.taxAmount) > 0 && (
-                                            <div className="flex justify-between text-cyan-400 text-xs text-right">
-                                                <span>الضريبة</span>
+                                            <div className="flex justify-between items-center text-muted-foreground text-xs px-2 col-span-2 pt-1 border-t border-border mt-1">
+                                                <span className="font-black uppercase tracking-widest text-[10px] opacity-60">الضرائب المضافة</span>
                                                 <span className="font-bold">+{formatCurrency(selectedSale.taxAmount)}</span>
                                             </div>
                                         )}
-                                        <div className="flex justify-between text-zinc-400 text-xs border-t border-white/5 pt-2">
-                                            <span>طريقة الدفع</span>
-                                            <span className="font-bold text-white">{getPaymentMethodLabel(selectedSale.paymentMethod)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-2">
-                                            <span className="text-lg font-bold">الإجمالي النهائي</span>
-                                            <span className="text-3xl font-mono font-bold text-cyan-400">
-                                                {selectedSale.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </span>
-                                        </div>
                                     </div>
 
-                                    {selectedSale.status !== 'REFUNDED' && (
-                                        <div className="flex gap-2 mt-4">
-                                            <Button
-                                                className="flex-1 h-10 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl gap-2"
-                                                onClick={() => handlePrintInvoice(selectedSale)}
-                                            >
-                                                <Printer className="w-4 h-4" />
-                                                طباعة (حراري)
-                                            </Button>
-                                            <Button
-                                                className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl gap-2"
-                                                onClick={() => handlePrintA4(selectedSale)}
-                                            >
-                                                <FileText className="w-4 h-4" />
-                                                طباعة (A4)
-                                            </Button>
-                                            <Button
-                                                className="flex-1 h-10 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl gap-2"
-                                                onClick={() => { setSelectedSale(null); setPartialRefundSale(selectedSale); }}
-                                            >
-                                                <Package className="w-4 h-4" />
-                                                مرتجع جزئي
-                                            </Button>
-                                            <Button
-                                                className="flex-1 h-10 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl gap-2"
-                                                onClick={() => setRefundItem({ id: selectedSale.id })}
-                                                disabled={loading === selectedSale.id}
-                                            >
+                                    <div className="pt-4 border-t border-border flex justify-between items-center">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">إجمالي المدفوع نهائي</span>
+                                            <span className="text-xs text-muted-foreground font-medium italic">السعر يشمل كافة المصاريف والضرائب</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-4xl font-black font-mono tracking-tighter text-primary">
+                                                {selectedSale.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                <span className="text-xs font-bold text-muted-foreground mr-1.5 opacity-50 uppercase tracking-tighter">jod/egp</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer Actions */}
+                                {selectedSale.status !== 'REFUNDED' && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="h-12 bg-background border-border hover:bg-muted font-black rounded-2xl gap-2 text-xs shadow-sm"
+                                            onClick={() => handlePrintInvoice(selectedSale)}
+                                        >
+                                            <Printer className="w-4 h-4 text-muted-foreground" />
+                                            إيصال حراري
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="h-12 bg-background border-border hover:bg-primary/5 hover:border-primary/30 font-black rounded-2xl gap-2 text-xs shadow-sm"
+                                            onClick={() => handlePrintA4(selectedSale)}
+                                        >
+                                            <FileText className="w-4 h-4 text-indigo-500" />
+                                            فاتورة A4
+                                        </Button>
+                                        <Button
+                                            className="h-12 bg-orange-600 hover:bg-orange-500 text-white font-black rounded-2xl gap-2 text-xs shadow-lg shadow-orange-900/10"
+                                            onClick={() => { setSelectedSale(null); setPartialRefundSale(selectedSale); }}
+                                        >
+                                            <Package className="w-4 h-4" />
+                                            مرتجع جزئي
+                                        </Button>
+                                        <Button
+                                            className="h-12 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl gap-2 text-xs shadow-lg shadow-red-900/10"
+                                            onClick={() => setRefundItem({ id: selectedSale.id })}
+                                            disabled={loading === selectedSale.id}
+                                        >
+                                            {loading === selectedSale.id ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
                                                 <RotateCcw className="w-4 h-4" />
-                                                {loading === selectedSale.id ? '...' : 'مرتجع كامل'}
-                                            </Button>
-                                        </div>
-                                    )}
-                                    {selectedSale.status === 'REFUNDED' && (
-                                        <div className="flex gap-2 mt-4">
-                                            <Button
-                                                className="flex-1 h-10 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl gap-2"
-                                                onClick={() => handlePrintInvoice(selectedSale)}
-                                            >
-                                                <Printer className="w-4 h-4" />
-                                                طباعة (حراري)
-                                            </Button>
-                                            <Button
-                                                className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl gap-2"
-                                                onClick={() => handlePrintA4(selectedSale)}
-                                            >
-                                                <FileText className="w-4 h-4" />
-                                                طباعة (A4)
-                                            </Button>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                            )}
+                                            مرتجع كامل
+                                        </Button>
+                                    </div>
+                                )}
+                                {selectedSale.status === 'REFUNDED' && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Button
+                                            variant="outline"
+                                            className="h-12 bg-background border-border hover:bg-muted font-black rounded-2xl gap-2 text-sm shadow-sm"
+                                            onClick={() => handlePrintInvoice(selectedSale)}
+                                        >
+                                            <Printer className="w-5 h-5 text-muted-foreground" />
+                                            طباعة (حراري)
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="h-12 bg-background border-border hover:bg-primary/5 hover:border-primary/30 font-black rounded-2xl gap-2 text-sm shadow-sm"
+                                            onClick={() => handlePrintA4(selectedSale)}
+                                        >
+                                            <FileText className="w-5 h-5 text-indigo-500" />
+                                            طباعة (A4)
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
                         </DialogContent>
                     </Dialog>
                 )

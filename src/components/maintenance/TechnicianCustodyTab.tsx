@@ -12,6 +12,7 @@ import {
     ArrowRightLeft,
     Warehouse
 } from 'lucide-react';
+import { useTranslations } from '@/lib/i18n-mock';
 import { toast } from 'sonner';
 import {
     getTechniciansForCustody,
@@ -41,6 +42,7 @@ type CartItem = ProductItem & {
 };
 
 export default function TechnicianCustodyTab() {
+    const t = useTranslations('Tickets');
     const { token: csrfToken } = useCSRF();
     const [technicians, setTechnicians] = useState<any[]>([]);
     const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -177,17 +179,19 @@ export default function TechnicianCustodyTab() {
     const selectedSourceWh = warehouses.find(w => w.id === selectedSourceWarehouseId);
 
     return (
-        <div className="flex flex-col h-[calc(100vh-100px)] bg-black overflow-hidden relative">
+        <div className="flex flex-col h-[calc(100vh-100px)] bg-slate-50 dark:bg-black overflow-hidden relative rounded-2xl border border-slate-200 dark:border-white/5">
             {/* Header */}
-            <header className="bg-zinc-900 border-b border-white/10 p-4 shadow-sm z-10 shrink-0">
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                        <Box className="w-6 h-6 text-cyan-500" />
-                        تسليم عهدة للمهندسين
+            <header className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-white/10 p-5 shadow-sm z-10 shrink-0">
+                <div className="flex items-center justify-between mb-5">
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-900/10 dark:bg-white/10 flex items-center justify-center">
+                            <Box className="w-6 h-6 text-slate-900 dark:text-white" />
+                        </div>
+                        تسليم العهدة
                     </h1>
                     <button
                         onClick={() => setIsTransferConsoleOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-600/30 hover:text-white transition-all font-bold text-sm"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-black rounded-xl hover:bg-black dark:hover:bg-zinc-200 transition-all font-black text-sm shadow-lg shadow-slate-900/20"
                     >
                         <ArrowRightLeft className="w-4 h-4" />
                         تحويل متقدم
@@ -195,9 +199,9 @@ export default function TechnicianCustodyTab() {
                 </div>
 
                 {/* Source Warehouse Selector */}
-                <div className="mb-4">
-                    <label className="text-xs text-zinc-500 uppercase font-bold mb-2 flex items-center gap-1">
-                        <Warehouse className="w-3 h-3" /> المخزن المصدر
+                <div className="mb-5">
+                    <label className="text-[10px] text-slate-500 dark:text-zinc-500 uppercase font-black mb-2 flex items-center gap-1.5 tracking-wider">
+                        <Warehouse className="w-3.5 h-3.5" /> المخزن المصدر
                     </label>
                     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                         {warehouses.map(wh => (
@@ -207,10 +211,10 @@ export default function TechnicianCustodyTab() {
                                     setSelectedSourceWarehouseId(wh.id);
                                     setCart([]);
                                 }}
-                                className={`flex-shrink-0 px-4 py-2 rounded-lg border text-sm font-medium transition-all
+                                className={`flex-shrink-0 px-5 py-2 rounded-xl border-2 text-sm font-black transition-all shadow-sm
                                     ${selectedSourceWarehouseId === wh.id
-                                        ? 'border-amber-500 bg-amber-500/10 text-amber-400'
-                                        : 'border-white/10 bg-white/5 text-zinc-400 hover:border-white/20'
+                                        ? 'border-black bg-black/10 dark:border-white dark:bg-white/10 text-black dark:text-white'
+                                        : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-white/20'
                                     }`}
                             >
                                 {wh.name}
@@ -220,13 +224,13 @@ export default function TechnicianCustodyTab() {
                 </div>
 
                 {/* Technician Selector */}
-                <label className="text-xs text-zinc-500 uppercase font-bold mb-2 flex items-center gap-1">
+                <label className="text-[10px] text-slate-500 dark:text-zinc-500 uppercase font-black mb-3 flex items-center gap-1.5 tracking-wider">
                     المهندس المستلم
                 </label>
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x">
                     {isLoadingTechs ? (
                         <div className="flex gap-4">
-                            {[1, 2, 3].map(i => <div key={i} className="w-28 h-28 bg-white/5 animate-pulse rounded-xl" />)}
+                            {[1, 2, 3, 4].map(i => <div key={i} className="w-28 h-28 bg-slate-100 dark:bg-white/5 animate-pulse rounded-2xl" />)}
                         </div>
                     ) : (
                         technicians.map(tech => (
@@ -237,23 +241,27 @@ export default function TechnicianCustodyTab() {
                                     setCart([]);
                                 }}
                                 className={`
-                                    flex flex-col items-center justify-center min-w-[110px] p-3 rounded-xl border-2 transition-all duration-200 snap-start
+                                    flex flex-col items-center justify-center min-w-[120px] p-4 rounded-2xl border-2 transition-all duration-300 snap-start shadow-sm
                                     ${selectedTechId === tech.id
-                                        ? 'border-cyan-500 bg-cyan-500/10 scale-105 shadow-md shadow-cyan-500/25'
-                                        : 'border-white/10 bg-white/5 hover:border-white/20'
+                                        ? 'border-black bg-black/5 dark:border-white dark:bg-white/5 scale-105 shadow-xl shadow-black/10'
+                                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:border-slate-300 dark:hover:border-white/20'
                                     }
                                 `}
                             >
-                                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold mb-2
-                                    ${selectedTechId === tech.id ? 'bg-cyan-500 text-black' : 'bg-white/10 text-white'}`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-black mb-3 shadow-inner
+                                    ${selectedTechId === tech.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white'}`}>
                                     {tech.name.substring(0, 2).toUpperCase()}
                                 </div>
-                                <span className={`text-xs font-medium truncate w-full text-center ${selectedTechId === tech.id ? 'text-cyan-400' : 'text-white'}`}>
+                                <span className={`text-[11px] font-black truncate w-full text-center ${selectedTechId === tech.id ? 'text-black dark:text-white' : 'text-slate-900 dark:text-white'}`}>
                                     {tech.name}
                                 </span>
-                                <span className="text-[10px] text-zinc-500 mt-0.5">{tech.itemCount} قطعة</span>
+                                <span className="text-[9px] font-black text-slate-500 dark:text-zinc-500 mt-1 uppercase">
+                                    {tech.itemCount} قطعة
+                                </span>
                                 {!tech.warehouseId && (
-                                    <span className="text-[9px] text-red-400 mt-0.5">بدون مخزن</span>
+                                    <span className="text-[8px] font-black text-slate-500 dark:text-zinc-500 mt-1 uppercase">
+                                        بدون مخزن
+                                    </span>
                                 )}
                             </button>
                         ))
@@ -264,28 +272,28 @@ export default function TechnicianCustodyTab() {
             {/* Body: Products | Cart */}
             <div className="flex flex-1 overflow-hidden">
                 {/* Left: Products */}
-                <div className="w-1/2 flex flex-col border-r border-white/10 bg-zinc-900">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
+                <div className="w-1/2 flex flex-col border-r border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm">
+                    <div className="p-5 border-b border-slate-100 dark:border-white/10">
+                        <div className="relative group/search">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 w-5 h-5 font-black group-focus-within/search:text-black dark:group-focus-within/search:text-white transition-colors" />
                             <input
                                 type="text"
                                 placeholder="ابحث عن قطعة..."
-                                className="w-full pl-10 pr-4 py-3 rounded-lg border border-white/20 bg-black text-white outline-none text-base"
+                                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-black text-slate-900 dark:text-white outline-none text-base font-black focus:ring-2 focus:ring-black/20 dark:focus:ring-white/20 transition-all shadow-inner placeholder:text-slate-400"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
                         {selectedSourceWh && (
-                            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
-                                <Warehouse className="w-3 h-3" /> من: {selectedSourceWh.name}
+                            <p className="text-[10px] text-slate-900 dark:text-white mt-3 flex items-center gap-1.5 font-black uppercase tracking-wider">
+                                <Warehouse className="w-3.5 h-3.5" /> من: {selectedSourceWh.name}
                             </p>
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-3 content-start">
+                    <div className="flex-1 overflow-y-auto p-5 grid grid-cols-2 gap-4 content-start">
                         {products.length === 0 ? (
-                            <div className="col-span-2 text-center text-zinc-600 py-12 italic">
+                            <div className="col-span-2 text-center text-slate-400 dark:text-zinc-600 py-20 italic font-black">
                                 لا توجد منتجات — ابحث أو اختار مخزن آخر
                             </div>
                         ) : (
@@ -296,27 +304,31 @@ export default function TechnicianCustodyTab() {
                                         key={product.id}
                                         disabled={!inStock}
                                         onClick={() => addToCart(product)}
-                                        className={`flex flex-col p-4 rounded-xl border text-right transition-all active:scale-95
+                                        className={`flex flex-col p-5 rounded-2xl border-2 text-right transition-all transform active:scale-[0.98] shadow-sm
                                             ${inStock
-                                                ? 'bg-zinc-800 border-white/10 hover:border-cyan-500 cursor-pointer'
-                                                : 'bg-zinc-900 border-white/5 opacity-40 cursor-not-allowed'
+                                                ? 'bg-white dark:bg-zinc-800 border-slate-100 dark:border-white/10 hover:border-black dark:hover:border-white hover:shadow-lg hover:shadow-black/10 cursor-pointer'
+                                                : 'bg-slate-100 dark:bg-zinc-900 border-white/5 opacity-40 cursor-not-allowed'
                                             }`}
                                     >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className={`text-xs font-bold ${inStock ? 'text-green-400' : 'text-red-400'}`}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${inStock ? 'text-emerald-600 bg-emerald-50 dark:text-green-400 dark:bg-green-500/10' : 'text-slate-900 bg-slate-100 dark:text-zinc-100 dark:bg-white/10'}`}>
                                                 {inStock ? `${product.availableQuantity} متاح` : 'نفد'}
                                             </span>
-                                            <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-cyan-400 uppercase">
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white uppercase tracking-wider">
                                                 {product.categoryName}
                                             </span>
                                         </div>
-                                        <h3 className="font-semibold text-white leading-tight mb-1 line-clamp-2 text-right">
+                                        <h3 className="font-black text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2 text-right text-sm">
                                             {product.name}
                                         </h3>
-                                        <p className="text-xs text-zinc-500">{product.sku}</p>
-                                        <div className="mt-auto pt-2 border-t border-white/10 flex justify-between items-center">
-                                            <Plus className="w-4 h-4 text-cyan-500" />
-                                            <span className="font-mono text-white text-sm">{product.sellPrice.toFixed(2)}</span>
+                                        <p className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-tighter">{product.sku}</p>
+                                        <div className="mt-auto pt-3 border-t border-slate-50 dark:border-white/10 flex justify-between items-center">
+                                            <div className="w-7 h-7 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center">
+                                                <Plus className="w-4 h-4 text-black dark:text-white" />
+                                            </div>
+                                            <span className="font-black text-slate-900 dark:text-white text-base">
+                                                {product.sellPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </span>
                                         </div>
                                     </button>
                                 );
@@ -326,57 +338,58 @@ export default function TechnicianCustodyTab() {
                 </div>
 
                 {/* Right: Cart */}
-                <div className="w-1/2 flex flex-col bg-black">
-                    <div className="p-4 bg-zinc-900 border-b border-white/10">
+                <div className="w-1/2 flex flex-col bg-slate-100 dark:bg-black">
+                    <div className="p-5 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-white/10 shadow-sm">
                         {selectedTech ? (
-                            <h2 className="text-base font-bold text-white">
-                                تسليم إلى: <span className="text-cyan-400">{selectedTech.name}</span>
-                                {selectedTech.warehouseId ? '' : <span className="text-red-400 text-xs mr-2">(لا يوجد مخزن!)</span>}
+                            <h2 className="text-sm font-black text-slate-700 dark:text-white flex items-center gap-2">
+                                <ShoppingCart className="w-4 h-4 text-slate-400" />
+                                تحويل إلى: <span className="text-black dark:text-white underline decoration-black/30 dark:decoration-white/30 underline-offset-4">{selectedTech.name}</span>
+                                {selectedTech.warehouseId ? '' : <span className="text-slate-900 dark:text-zinc-400 text-[10px] font-black px-2 py-0.5 rounded bg-slate-100 dark:bg-white/5 mr-2">(لا يوجد مخزن!)</span>}
                             </h2>
                         ) : (
-                            <div className="text-zinc-500 italic text-sm">اختار مهندس لبدء التسليم</div>
+                            <div className="text-slate-400 dark:text-zinc-500 italic text-sm font-black">اختار مهندس لبدء التسليم</div>
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div className="flex-1 overflow-y-auto p-5 space-y-4">
                         {cart.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-zinc-600 border-2 border-dashed border-white/10 rounded-xl">
-                                <ShoppingCart className="w-10 h-10 mb-3 opacity-20" />
-                                <p className="text-sm">السلة فارغة</p>
+                            <div className="h-full flex flex-col items-center justify-center text-slate-300 dark:text-zinc-800 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-2xl bg-white/30 dark:bg-transparent">
+                                <ShoppingCart className="w-16 h-16 mb-4 opacity-10" />
+                                <p className="text-base font-black uppercase tracking-tighter opacity-50">السلة فارغة</p>
                             </div>
                         ) : (
                             cart.map(item => (
-                                <div key={item.id} className="bg-zinc-800 p-4 rounded-xl border border-white/10 flex items-center justify-between">
+                                <div key={item.id} className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-between shadow-sm group/item hover:border-cyan-500/50 transition-all">
                                     <div className="flex-1">
-                                        <h4 className="font-medium text-white text-sm">{item.name}</h4>
-                                        <p className="text-xs text-zinc-500 mb-2">{item.sku}</p>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] text-zinc-500 uppercase">تسعير النقل</span>
-                                            <div className="flex items-center gap-1 flex-wrap">
-                                                <button onClick={() => updatePriceTier(item.id, 'Cost')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Cost' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>التكلفة ({item.costPrice})</button>
-                                                <button onClick={() => updatePriceTier(item.id, 'Sell 1')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Sell 1' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>مفرق ({item.sellPrice})</button>
-                                                <button onClick={() => updatePriceTier(item.id, 'Sell 2')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Sell 2' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>جملة ({item.sellPrice2})</button>
-                                                <button onClick={() => updatePriceTier(item.id, 'Sell 3')} className={`px-2 py-1 text-[10px] rounded border transition-colors ${item.priceTier === 'Sell 3' ? 'bg-cyan-600/30 border-cyan-500/50 text-cyan-300' : 'bg-black/40 border-white/5 text-zinc-400 hover:bg-white/5'}`}>نص جملة ({item.sellPrice3})</button>
+                                        <h4 className="font-black text-slate-900 dark:text-white text-sm">{item.name}</h4>
+                                        <p className="text-[10px] font-black text-slate-400 dark:text-zinc-500 mb-3 tracking-tighter">{item.sku}</p>
+                                        <div className="flex flex-col gap-2">
+                                            <span className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">تسعير النقل</span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <button onClick={() => updatePriceTier(item.id, 'Cost')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Cost' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>التكلفة ({item.costPrice})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 1')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 1' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>مفرق ({item.sellPrice})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 2')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 2' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>جملة ({item.sellPrice2})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 3')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 3' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>نص جملة ({item.sellPrice3})</button>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex items-center bg-black rounded-lg p-1">
+                                    <div className="flex items-center gap-4 mr-4">
+                                        <div className="flex items-center bg-slate-100 dark:bg-black rounded-xl p-1 shadow-inner border border-slate-200 dark:border-white/5">
                                             <button
                                                 onClick={() => updateQuantity(item.id, -1)}
-                                                className="w-8 h-8 flex items-center justify-center bg-zinc-900 rounded-md text-white hover:text-red-400"
+                                                className="w-9 h-9 flex items-center justify-center bg-white dark:bg-zinc-900 rounded-lg text-slate-700 dark:text-white hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all shadow-sm"
                                             >
-                                                <Minus className="w-4 h-4" />
+                                                <Minus className="w-3.5 h-3.5" />
                                             </button>
-                                            <span className="w-10 text-center font-bold text-white">{item.cartQuantity}</span>
+                                            <span className="w-12 text-center font-black text-slate-900 dark:text-white text-base">{item.cartQuantity}</span>
                                             <button
                                                 onClick={() => updateQuantity(item.id, 1)}
-                                                className="w-8 h-8 flex items-center justify-center bg-zinc-900 rounded-md text-white hover:text-green-400"
+                                                className="w-9 h-9 flex items-center justify-center bg-white dark:bg-zinc-900 rounded-lg text-slate-700 dark:text-white hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all shadow-sm"
                                             >
-                                                <Plus className="w-4 h-4" />
+                                                <Plus className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
-                                        <button onClick={() => removeFromCart(item.id)} className="text-red-400 text-xs hover:text-red-300">
+                                        <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center text-slate-300 dark:text-zinc-600 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-all opacity-0 group-hover/item:opacity-100 font-black">
                                             ✕
                                         </button>
                                     </div>
@@ -385,26 +398,26 @@ export default function TechnicianCustodyTab() {
                         )}
                     </div>
 
-                    <div className="p-4 bg-zinc-900 border-t border-white/10">
+                    <div className="p-6 bg-white dark:bg-zinc-900 border-t border-slate-200 dark:border-white/10 shadow-2xl z-20">
                         {cart.length > 0 && (
-                            <div className="flex justify-between text-xs text-zinc-400 mb-3">
+                            <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400 mb-4 font-black uppercase tracking-widest">
                                 <span>إجمالي القطع</span>
-                                <span className="font-bold text-white">{cart.reduce((a, c) => a + c.cartQuantity, 0)} قطعة</span>
+                                <span className="text-slate-900 dark:text-white underline underline-offset-4 decoration-slate-300">{cart.reduce((a, c) => a + c.cartQuantity, 0)} قطعة</span>
                             </div>
                         )}
                         <button
                             onClick={handleTransfer}
                             disabled={!selectedTechId || !selectedSourceWarehouseId || cart.length === 0 || isPending}
-                            className={`w-full py-4 rounded-xl text-base font-bold flex items-center justify-center gap-3
+                            className={`w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-3 transition-all transform active:scale-[0.98] shadow-lg
                                 ${!selectedTechId || !selectedSourceWarehouseId || cart.length === 0 || isPending
-                                    ? 'bg-white/10 text-zinc-600 cursor-not-allowed'
-                                    : 'bg-green-600 text-white hover:bg-green-500'
+                                    ? 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-zinc-600 cursor-not-allowed border border-slate-300 dark:border-0'
+                                    : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-400 hover:to-green-500 shadow-emerald-500/25'
                                 }`}
                         >
                             {isPending ? (
-                                <><Loader2 className="w-5 h-5 animate-spin" /> جاري التحويل...</>
+                                <><Loader2 className="w-6 h-6 animate-spin" /> جاري التحويل...</>
                             ) : (
-                                <><CheckCircle2 className="w-5 h-5" /> تأكيد التسليم ({cart.reduce((a, c) => a + c.cartQuantity, 0)} قطعة)</>
+                                <><CheckCircle2 className="w-6 h-6" /> تأكيد التسليم ({cart.reduce((a, c) => a + c.cartQuantity, 0)} قطعة)</>
                             )}
                         </button>
                     </div>

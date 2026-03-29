@@ -191,13 +191,13 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
     return (
         <aside
             className={cn(
-                "h-full bg-zinc-900 z-50 flex flex-col transition-all duration-300 ease-in-out relative print:hidden",
+                "h-full bg-white dark:bg-zinc-900 z-50 flex flex-col transition-all duration-300 ease-in-out relative print:hidden border-r-2 border-dashed border-zinc-400/50 dark:border-r dark:border-solid dark:border-white/5 shadow-none dark:shadow-[4px_0_15px_rgba(0,0,0,0.2)]",
                 isExpanded ? "w-64" : "w-20"
             )}
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
-            <div className="p-4 flex items-center justify-between overflow-hidden h-20">
+            <div className="p-4 flex items-center justify-between overflow-hidden h-20 border-b-2 border-dashed border-zinc-300 dark:border-b dark:border-solid dark:border-white/5">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -261,16 +261,18 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                                 key={item.key}
                                 href={item.href.startsWith('/maintenance') || item.href.startsWith('/returns') ? `/${locale}${item.href}` : item.href}
                                 className={cn(
-                                    "relative flex items-center gap-4 p-4 rounded-xl transition-all duration-300 group overflow-hidden border border-border/50 shadow-md",
+                                    "relative flex items-center gap-4 p-3 rounded-lg transition-all duration-200 group overflow-hidden",
                                     isActive
-                                        ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-[1.02] ring-1 ring-white/20"
-                                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground hover:scale-[1.02]"
+                                        ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
                                 )}
                             >
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none opacity-50" />
-                                <item.icon className={cn("w-7 h-7 shrink-0 relative z-10", isActive && "text-black")} />
+                                {isActive && (
+                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
+                                )}
+                                <item.icon strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10")} />
                                 <span className={cn(
-                                    "text-base font-bold transition-opacity duration-200 whitespace-nowrap relative z-10 uppercase tracking-wide",
+                                    "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
                                     isExpanded ? "opacity-100" : "opacity-0 w-0"
                                 )}>
                                     {t(item.key)}
@@ -281,7 +283,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                 )}
             </nav>
 
-            <div className="p-3 border-t border-border space-y-2">
+            <div className="p-3 border-t-2 border-dashed border-zinc-300 dark:border-t dark:border-solid dark:border-white/5 space-y-2">
                 <div className={cn("flex gap-2 transition-all duration-300", isExpanded ? "flex-row" : "flex-col")}>
                     <LanguageSwitcher />
                     <ModeToggle />
@@ -291,16 +293,18 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                     <Link
                         href={`/settings`}
                         className={cn(
-                            "relative flex items-center gap-4 p-3 rounded-xl w-full transition-all duration-300 group overflow-hidden border border-white/5 shadow-md",
+                            "relative flex items-center gap-4 p-3 rounded-lg w-full transition-all duration-200 group overflow-hidden",
                             isSettingsActive
-                                ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-[1.02] ring-1 ring-white/20"
-                                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground hover:scale-[1.02]"
+                                ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
                         )}
                     >
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none opacity-50" />
-                        <Settings className={cn("w-6 h-6 shrink-0 relative z-10", isSettingsActive && "text-black")} />
+                        {isSettingsActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
+                        )}
+                        <Settings strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10")} />
                         <span className={cn(
-                            "text-sm font-bold transition-opacity duration-200 whitespace-nowrap relative z-10 uppercase tracking-wide",
+                            "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
                             isExpanded ? "opacity-100" : "opacity-0 w-0"
                         )}>
                             {t('settings')}

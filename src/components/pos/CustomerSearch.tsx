@@ -184,10 +184,10 @@ export default function CustomerSearch() {
             <div className="flex gap-2">
                 {/* Search Input */}
                 <div className={clsx(
-                    "glass-card bg-black/40 flex items-center gap-3 h-14 px-4 flex-1 border transition-all relative group/search",
+                    "flex items-center gap-3 h-14 px-4 flex-1 border transition-all relative group/search rounded-2xl",
                     isCustomerSelected
-                        ? "border-cyan-500/50 bg-black/60 shadow-[0_0_15px_rgba(0,242,255,0.1)]"
-                        : "border-white/10 focus-within:border-cyan-500/50 focus-within:bg-black/60"
+                        ? "border-zinc-400 bg-zinc-100 dark:border-white/30 dark:bg-zinc-800 shadow-sm"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 focus-within:border-zinc-400 dark:focus-within:border-white/40"
                 )}>
                     <User className={clsx(
                         "w-5 h-5 transition-colors pointer-events-none shrink-0",
@@ -217,7 +217,7 @@ export default function CustomerSearch() {
                                 setShowAddForm(false);
                             }}
                             placeholder={t('searchCustomer') || "ابحث عن عميل (اسم / هاتف)..."}
-                            className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-base text-white font-medium pr-16"
+                            className="bg-transparent outline-none w-full placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-base text-zinc-900 dark:text-white font-bold pr-16"
                         />
                     </div>
 
@@ -248,10 +248,10 @@ export default function CustomerSearch() {
                         }}
                         title={t('addNewCustomer') || "إضافة عميل جديد"}
                         className={clsx(
-                            "w-14 h-14 rounded-xl flex items-center justify-center border transition-all active:scale-95 shrink-0 shadow-lg shadow-black/20",
+                            "w-14 h-14 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shrink-0 shadow-sm",
                             showAddForm
-                                ? "bg-cyan-500 text-black border-cyan-400"
-                                : "bg-black/60 text-cyan-400 border-white/10 hover:border-cyan-500/50 hover:bg-black/80"
+                                ? "bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-black dark:border-white"
+                                : "bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/30 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                         )}
                     >
                         <UserPlus className={clsx("w-5 h-5", showAddForm ? "animate-pulse" : "")} />
@@ -263,7 +263,7 @@ export default function CustomerSearch() {
             {isOpen && results.length > 0 && !showAddForm && (
                 <div 
                     role="dialog"
-                    className="absolute top-full left-0 w-full mt-2 glass-card bg-black/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100 z-50"
+                    className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden max-h-[300px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100 z-50"
                 >
                     <div className="p-2 space-y-1">
                         {results.map((c, i) => (
@@ -349,7 +349,7 @@ export default function CustomerSearch() {
             {isOpen && !loading && query.length >= 2 && results.length === 0 && !showAddForm && (
                 <div 
                     role="dialog"
-                    className="absolute top-full left-0 w-full mt-2 glass-card bg-black/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50"
+                    className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50"
                 >
                     <div className="p-6 flex flex-col items-center gap-4 text-center">
                         <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/10">
@@ -375,7 +375,7 @@ export default function CustomerSearch() {
             {showAddForm && (
                 <div 
                     role="dialog"
-                    className="absolute top-full left-0 w-full mt-2 glass-card bg-black/60 backdrop-blur-3xl border border-white/10 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50"
+                    className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50"
                 >
                     <div className="p-4 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
@@ -385,44 +385,44 @@ export default function CustomerSearch() {
 
                         {/* Name & Phone */}
                         <div className="space-y-3">
-                            <div className="flex items-center gap-3 glass-input bg-black/30 h-12 border-white/10 focus-within:border-cyan-500/50 transition-all">
+                            <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 h-12 rounded-xl px-4 border border-zinc-200 dark:border-white/10 focus-within:border-zinc-400 dark:focus-within:border-white/40 transition-all">
                                 <User className="w-4 h-4 text-zinc-500 shrink-0" />
                                 <input
                                     value={newName}
                                     onChange={(e) => setNewName(e.target.value)}
                                     placeholder={t('customerName') || "الاسم"}
-                                    className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
+                                    className="bg-transparent outline-none w-full placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm text-zinc-900 dark:text-white"
                                     autoFocus
                                     onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                                 />
                             </div>
 
-                            <div className="flex items-center gap-3 glass-input bg-black/30 h-12 border-white/10 focus-within:border-cyan-500/50 transition-all">
+                            <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 h-12 rounded-xl px-4 border border-zinc-200 dark:border-white/10 focus-within:border-zinc-400 dark:focus-within:border-white/40 transition-all">
                                 <Phone className="w-4 h-4 text-zinc-500 shrink-0" />
                                 <input
                                     value={newPhone}
                                     onChange={(e) => setNewPhone(e.target.value)}
                                     placeholder={t('customerPhone') || "رقم الهاتف"}
                                     type="tel"
-                                    className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
+                                    className="bg-transparent outline-none w-full placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm text-zinc-900 dark:text-white"
                                     onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                                 />
                             </div>
 
-                            <div className="flex items-center gap-3 glass-input bg-black/30 h-12 border-white/10 focus-within:border-cyan-500/50 transition-all">
+                            <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 h-12 rounded-xl px-4 border border-zinc-200 dark:border-white/10 focus-within:border-zinc-400 dark:focus-within:border-white/40 transition-all">
                                 <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
                                 <input
                                     value={newAddress}
                                     onChange={(e) => setNewAddress(e.target.value)}
                                     placeholder={t('customerAddress') || "العنوان (اختياري)"}
-                                    className="bg-transparent outline-none w-full placeholder:text-zinc-600 text-sm text-white"
+                                    className="bg-transparent outline-none w-full placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm text-zinc-900 dark:text-white"
                                     onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                                 />
                             </div>
                         </div>
 
                         {/* Employee Link Toggle */}
-                        <div className="flex flex-col gap-2 p-3 bg-black/20 rounded-xl border border-white/5">
+                        <div className="flex flex-col gap-2 p-3 bg-zinc-50 dark:bg-zinc-950/50 rounded-xl border border-zinc-200 dark:border-white/10">
                             <label className="flex items-center justify-between cursor-pointer group">
                                 <div className="flex items-center gap-2">
                                     <div className="w-6 h-6 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
