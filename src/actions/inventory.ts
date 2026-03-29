@@ -278,7 +278,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             // Log to audit that this payment was auto-allocated
             await tx.auditLog.create({
                 data: {
-                    entity: 'PURCHASE',
+                    entityType: 'PURCHASE',
                     entityId: invoice.id,
                     action: 'AUTO_PAYMENT_ALLOCATION',
                     previousData: JSON.stringify({ paidAmount: paid.toNumber(), status: invoice.status }),
@@ -398,7 +398,7 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
         // 8. Log the voiding event
         await tx.auditLog.create({
             data: {
-                entity: 'SUPPLIER_PAYMENT',
+                entityType: 'SUPPLIER_PAYMENT',
                 entityId: paymentId,
                 action: 'VOID_PAYMENT',
                 previousData: JSON.stringify(payment),

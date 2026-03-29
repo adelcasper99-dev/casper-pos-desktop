@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     AlertCircle, Minus, Plus,
     RotateCcw, Package, Trash2,
-    CheckCircle2, XCircle
+    CheckCircle2, XCircle, ShoppingBag
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { partialReturnPurchase } from '@/actions/purchase-actions';
@@ -149,14 +149,23 @@ export default function PartialReturnPurchaseDialog({
                         حدد الكميات المراد إرجاعها للمورد. سيتم تحديث المخزون وموازنة حساب المورد تلقائياً فور التأكيد.
                     </p>
                 </div>
-
                 <div className="flex-1 px-8 py-6 overflow-y-auto space-y-3 custom-scrollbar">
                     {items.map((item: any) => {
                         const alreadyReturned = item.returnedQty || 0;
-                        const availableQty = item.quantity - alreadyReturned;
+                        const invoiceAvailable = item.quantity - alreadyReturned;
+
+                        // Actual stock in the invoice's warehouse
+                        const stockInWarehouse = (item.product?.stocks || []).find(
+                            (s: any) => s.warehouseId === purchase.warehouseId
+                        );
+                        const actualStock = stockInWarehouse ? Number(stockInWarehouse.quantity) : 0;
+
+                        // The real max returnable = min(invoice remaining, actual stock)
+                        const availableQty = Math.min(invoiceAvailable, actualStock);
+                        const soldQty = Math.max(0, invoiceAvailable - actualStock);
                         const isSelected = selectedItems[item.id] > 0;
 
-                        if (availableQty <= 0) return null;
+                        if (invoiceAvailable <= 0) return null;
 
                         return (
                             <div
@@ -170,8 +179,19 @@ export default function PartialReturnPurchaseDialog({
                                 onClick={() => handleUpdateQty(item.id, 1, availableQty)}
                             >
                                 <div className="flex-1 min-w-0">
-                                    <div className={cn("font-black text-sm transition-colors", isSelected ? "text-orange-700 dark:text-orange-400" : "text-foreground")}>
+                                    <div className={cn("font-black text-sm transition-colors truncate", isSelected ? "text-orange-700 dark:text-orange-400" : "text-foreground")}>
                                         {item.product?.name || "صنف غير معروف"}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        {soldQty > 0 && (
+                                            <>
+                                                <span className="w-1 h-1 rounded-full bg-border" />
+                                                <span className="flex items-center gap-1 text-[10px] text-red-500 dark:text-red-400 font-black uppercase tracking-tighter">
+                                                    <ShoppingBag className="w-2.5 h-2.5" />
+                                                    {soldQty} تم بيعها
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <span className="text-[10px] text-muted-foreground font-mono font-bold uppercase tracking-tighter opacity-80">

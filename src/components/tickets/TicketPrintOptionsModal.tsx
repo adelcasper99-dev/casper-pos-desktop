@@ -38,9 +38,10 @@ interface TicketPrintOptionsModalProps {
     settings?: any
     defaultMode?: 'receipt' | 'label' | 'engineer'
     silent?: boolean
+    singleDocument?: boolean  // when true, only print defaultMode (no full receipt+engineer+label sequence)
 }
 
-export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, settings, defaultMode = 'receipt', silent = false }: TicketPrintOptionsModalProps) {
+export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, settings, defaultMode = 'receipt', silent = false, singleDocument = false }: TicketPrintOptionsModalProps) {
     const t = useTranslations('Common')
     const tPrint = useTranslations('Purchasing.Print.Ticket')
     const tTicket = useTranslations('Tickets')
@@ -145,9 +146,8 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
 
                 if (!hasAutoPrintedSession) {
                     try {
-                        // 🔔 [NOTIFICATION] User wants a popup after ticket creation
-                        toast.info("Auto-printing Ticket # " + (ticket?.barcode || ""), {
-                            description: "Sending Receipt & Label to printers...",
+                        toast.info("Printing Ticket # " + (ticket?.barcode || ""), {
+                            description: defaultMode === 'engineer' ? "Sending engineer copy..." : defaultMode === 'label' ? "Sending label..." : "Sending Receipt & Label to printers...",
                             duration: 4000
                         });
 
@@ -168,31 +168,42 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                             toast.error("No receipt printer configured. Please set one in settings.");
                         }
 
-                        // 1. Print Receipt & Engineer Copy (sequential)
-                        await handlePrintReceipt(true, settings?.autoPrintEngineerCopy || false); // true for silent, dynamic for both
-
-                        // 2. Short delay so QZ doesn't choke on sequential jobs
-                        if (isMounted) {
-                            await new Promise(resolve => setTimeout(resolve, 800));
-                        }
-
-                        // 3. Print Label
-                        // 🛡️ [FIX] Label HTML is now generated from data — no DOM scraping,
-                        // no React re-render race. setPreviewMode('label') is purely cosmetic.
-                        if (isMounted) {
-                            setPreviewMode('label');
-
-                            if (!labelPrinter || labelPrinter === 'none') {
-                                toast.error("No label printer configured. Skipping label auto-print.");
+                        if (singleDocument) {
+                            // 🎯 Manual button: print ONLY the requested document
+                            if (defaultMode === 'engineer') {
+                                await handlePrintEngineer(true);
+                            } else if (defaultMode === 'label') {
+                                if (!labelPrinter || labelPrinter === 'none') {
+                                    toast.error("No label printer configured.");
+                                } else {
+                                    await handlePrintLabel(true);
+                                }
                             } else {
-                                await handlePrintLabel(true);
+                                // receipt only — no engineer, no label
+                                await handlePrintReceipt(true, false);
+                            }
+                        } else {
+                            // 🔁 Full auto-print sequence: receipt + engineer (optional) + label
+                            await handlePrintReceipt(true, settings?.autoPrintEngineerCopy || false);
+
+                            if (isMounted) {
+                                await new Promise(resolve => setTimeout(resolve, 800));
+                            }
+
+                            if (isMounted) {
+                                setPreviewMode('label');
+                                if (!labelPrinter || labelPrinter === 'none') {
+                                    toast.error("No label printer configured. Skipping label auto-print.");
+                                } else {
+                                    await handlePrintLabel(true);
+                                }
                             }
                         }
 
                         // Mark as printed only AFTER successful sequence
                         sessionStorage.setItem(`ticket_autoprint_${ticket?.id}`, 'true');
 
-                        // 4. Close automatically after successful auto-print
+                        // Close automatically after successful print
                         if (isMounted) {
                             setTimeout(() => {
                                 onClose();
@@ -230,7 +241,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             isMounted = false; 
             if (timerId) clearTimeout(timerId);
         };
-    }, [isOpen, settings, silent, qzStatus, ticket, ticket?.id]);
+    }, [isOpen, settings, silent, qzStatus, ticket, ticket?.id, defaultMode, singleDocument]);
 
 
     const handlePrinterChange = (value: string) => {
@@ -277,7 +288,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
         setIsPrintingReceipt(true);
         try {
             // 1. Customer Receipt
-            const fullReceiptHtml = generateTicketReceiptHTML(ticket, settings);
+            const fullReceiptHtml = generateTicketReceiptHTML(ticket, settings, translations);
 
             let isQzConnected = false;
             try {
@@ -296,16 +307,15 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                 if (printer) {
                     try {
                         if (!isAutoPrint) toast.info("Printing receipt...");
-                        // 🛡️ [FIX] Use printThermal — routes to print:thermal IPC in Electron
-                        // which sets the correct pageSize in microns for the roll (e.g. 80000µm wide).
-                        // Previously used printHTML → print:standard which hardcodes A4 pageSize
-                        // in main.js, causing the thermal printer to receive an A4 job it can't render.
                         const paperWidthMm = settings?.paperSize === '58mm' ? 58 : 80;
-                        console.log('[AutoPrint] handlePrintReceipt - paperWidthMm:', paperWidthMm, 'settings:', settings);
+                        console.log('[AutoPrint] handlePrintReceipt - paperWidthMm:', paperWidthMm);
                         const success = await printService.printThermal(fullReceiptHtml, printer, paperWidthMm);
-                        if (!success) {
-                            // Electron thermal failed — try the HTML path as fallback (QZ / Agent)
+                        if (!success && !printService.isElectron()) {
+                            // Non-Electron fallback only: QZ / Agent
                             await printService.printHTML(fullReceiptHtml, printer, { paperWidthMm, strictlySilent: isAutoPrint });
+                        } else if (!success && printService.isElectron()) {
+                            console.warn('[PrintReceipt] Electron thermal failed — skipping fallback to avoid broken A4 job');
+                            if (!isAutoPrint) toast.error("فشلت الطباعة — تحقق من إعدادات الطابعة");
                         }
                         if (!isAutoPrint) toast.success("Receipt sent to printer");
                         
@@ -372,8 +382,11 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         if (!isAutoPrint) toast.info("Printing engineer copy...");
                         const paperWidthMm = settings?.paperSize === '58mm' ? 58 : 80;
                         const success = await printService.printThermal(fullEngineerHtml, receiptPrinter, paperWidthMm);
-                        if (!success) {
+                        if (!success && !printService.isElectron()) {
                             await printService.printHTML(fullEngineerHtml, receiptPrinter, { paperWidthMm, strictlySilent: isAutoPrint });
+                        } else if (!success && printService.isElectron()) {
+                            console.warn('[PrintEngineer] Electron thermal failed — skipping fallback');
+                            if (!isAutoPrint) toast.error("فشلت طباعة نسخة المهندس — تحقق من إعدادات الطابعة");
                         }
                         if (!isAutoPrint) toast.success("Engineer copy sent to printer");
                         return;

@@ -42,9 +42,10 @@ import { Button } from '@/components/ui/button';
 import { EditPriceDialog } from './EditPriceDialog';
 import { ImportCSVModal } from './ImportCSVModal';
 import { AddPartDialog } from './AddPartDialog';
-import { Edit, Search, Trash2, ChevronLeft, ChevronRight, Plus, Smartphone, Package, Upload } from 'lucide-react';
+import { Edit, Search, Trash2, ChevronLeft, ChevronRight, Plus, Smartphone, Package, Upload, Download } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n-mock';
-import { deleteSparePart } from '@/actions/spare-parts';
+import { deleteSparePart, getSpareParts } from '@/actions/spare-parts';
+import { exportToExcel } from '@/lib/export-utils';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 
@@ -144,6 +145,7 @@ export function SparePartsSearch({
     const [editingPart, setEditingPart] = useState<SparePart | null>(null);
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Sortable brands state
     const [orderedBrands, setOrderedBrands] = useState<string[]>([]);
@@ -244,6 +246,34 @@ export function SparePartsSearch({
         }
     };
 
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const result = await getSpareParts({ search, brand: selectedBrand === 'all' ? undefined : selectedBrand, limit: 10000 });
+            if (result.success && result.parts) {
+                const data = result.parts.map((p: SparePart) => ({
+                    'الرقم المرجعي': p.id,
+                    'اسم الصنف': p.productName,
+                    'الماركة': p.brand,
+                    'الكمية': p.quantity,
+                    'سعر التكلفة': p.costPrice,
+                    'سعر البيع': p.sellPrice,
+                    'سعر فرعي 1': p.price1 || '0',
+                    'سعر فرعي 2': p.price2 || '0',
+                    'سعر فرعي 3': p.price3 || '0'
+                }));
+                exportToExcel(data, `spare_parts_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else {
+                toast.error(t('exportError') || 'فشل التصدير');
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error(t('exportError') || 'فشل التصدير');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <AddPartDialog
@@ -268,7 +298,6 @@ export function SparePartsSearch({
                         <p className="text-xs font-medium text-muted-foreground/60">{t('subtitle')}</p>
                     </div>
                 </div>
-
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <Button
                         onClick={() => setIsAddOpen(true)}
@@ -277,14 +306,25 @@ export function SparePartsSearch({
                         <Plus className="w-4 h-4 ml-2" />
                         {t('addPart')}
                     </Button>
-                    <Button
-                        onClick={() => setIsImportOpen(true)}
-                        variant="outline"
-                        className="flex-1 md:flex-none h-11 px-6 rounded-xl border-border bg-muted/20 hover:bg-muted transition-all font-bold"
-                    >
-                        <Upload className="w-4 h-4 ml-2" />
-                        {t('importCSV')}
-                    </Button>
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <Button
+                            onClick={handleExport}
+                            disabled={isExporting}
+                            variant="outline"
+                            className="flex-1 md:flex-none h-11 px-6 rounded-xl border-border bg-muted/20 hover:bg-muted transition-all font-bold"
+                        >
+                            {isExporting ? <div className="w-4 h-4 ml-2 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" /> : <Download className="w-4 h-4 ml-2" />}
+                            {t('exportExcel') || 'تصدير (Excel)'}
+                        </Button>
+                        <Button
+                            onClick={() => setIsImportOpen(true)}
+                            variant="outline"
+                            className="flex-1 md:flex-none h-11 px-6 rounded-xl border-border bg-muted/20 hover:bg-muted transition-all font-bold"
+                        >
+                            <Upload className="w-4 h-4 ml-2" />
+                            {t('importCSV') || 'استيراد CSV'}
+                        </Button>
+                    </div>
                 </div>
             </div>
 

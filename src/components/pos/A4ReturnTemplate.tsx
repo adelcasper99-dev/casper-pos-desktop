@@ -282,8 +282,8 @@ export const generateA4ReturnHTML = ({ saleData, settings }: TemplateProps): str
 
             <div class="footer">
                 ${settings?.receiptFooter || 'شكراً لتعاملكم معنا ونتمنى رؤيتكم قريباً'}
-                <div style="margin-top: 15px; font-size: 14px; color: #aaa;">
-                    Powered by Casper POS | ${new Date().toLocaleString('ar-EG')}
+                <div style="margin-top: 20px; font-size: 14px; color: #888;">
+                    <strong style="color: #444;">by Casper POS</strong> | ${new Date().toLocaleString('ar-EG')}
                 </div>
             </div>
         </div>

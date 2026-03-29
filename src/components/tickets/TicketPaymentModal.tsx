@@ -23,7 +23,7 @@ import { getEffectiveStoreSettings } from "@/actions/settings";
 import TicketPrintTemplate from "./TicketPrintTemplate";
 import { renderToStaticMarkup } from "react-dom/server";
 import { printService } from "@/lib/print-service";
-import { generateEngineerReceiptHTML } from "@/lib/ticket-print-helpers";
+import { generateEngineerReceiptHTML, generatePaidTicketReceiptHTML } from "@/lib/ticket-print-helpers";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { searchCustomers } from "@/actions/customer-actions";
 import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
@@ -297,29 +297,37 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 terms3: t('terms3'),
             };
 
-            const htmlContent = renderToStaticMarkup(
-                <TicketPrintTemplate
-                    ticket={updatedTicket}
-                    settings={currentSettings}
-                    translations={translations}
-                />
-            );
+            // 🛡️ [NEW] Resolve Printer specifically for Thermal path
+            const registry = printService.getRegistry();
+            const targetPrinter = registry?.thermalPrinter || registry?.receiptPrinter || localStorage.getItem('printer_receipt') || '';
+            const paperWidthMm = currentSettings?.paperSize === '58mm' ? 58 : 80;
 
-            await printService.printHTML(htmlContent, undefined, {
-                paperWidthMm: 80,
-                strictlySilent: isAutoPrint // 🛡️ [DEFINITIVE] Use strictlySilent for auto-print
-            });
+            // Prepare Warranty Data if enabled
+            const warrantyData = (warrantyEnabled && paymentType === 'PAYMENT') ? {
+                warrantyDays,
+                warrantyExpiryDate
+            } : undefined;
 
-            // 🛡️ [NEW] Auto-print Engineer Copy if enabled in settings
-            if (currentSettings?.autoPrintEngineerCopy) {
-                const engineerHtml = generateEngineerReceiptHTML(updatedTicket, currentSettings);
-                await printService.printHTML(engineerHtml, undefined, {
-                    paperWidthMm: 80,
+            const finalTicketForPrint = {
+                ...updatedTicket,
+                warranty: warrantyData,
+                reference: reference || undefined
+            };
+
+            const htmlContent = generatePaidTicketReceiptHTML(finalTicketForPrint, currentSettings, translations);
+
+            // 🛡️ [FIX] Use HIGH PRECISION printThermal for the customer copy
+            if (targetPrinter) {
+                 await printService.printThermal(htmlContent, targetPrinter, paperWidthMm);
+            } else {
+                await printService.printHTML(htmlContent, undefined, {
+                    paperWidthMm,
                     strictlySilent: isAutoPrint
                 });
             }
 
             if (!isAutoPrint) toast.success("Print job sent successfully");
+
         } catch (error) {
             console.error("Print Error:", error);
             toast.error("Failed to print receipt");
@@ -347,18 +355,39 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         </div>
                     </div>
 
-                    <div className="flex gap-3 w-full">
-                        <Button variant="outline" onClick={onClose} className="flex-1 border-white/10 hover:bg-white/5">
-                            {t('close')}
-                        </Button>
+                    <div className="grid grid-cols-2 gap-3 w-full">
                         <Button
                             onClick={() => handlePrint()}
-                            className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)]"
                         >
                             <Printer className="w-4 h-4 mr-2" />
                             {t('printReceipt')}
                         </Button>
+                        <Button
+                            onClick={async () => {
+                                const registry = printService.getRegistry();
+                                const targetPrinter = registry?.thermalPrinter || registry?.receiptPrinter || localStorage.getItem('printer_receipt') || '';
+                                if (targetPrinter) {
+                                    const engineerHtml = generateEngineerReceiptHTML({
+                                        ...ticket,
+                                        amountPaid: (Number(ticket.amountPaid) || 0) + effectivePayment,
+                                        lastPaymentAmount: effectivePayment,
+                                        lastPaymentMethod: paymentMethod
+                                    }, settings);
+                                    await printService.printThermal(engineerHtml, targetPrinter, settings?.paperSize === '58mm' ? 58 : 80);
+                                    toast.success("Engineer copy sent");
+                                }
+                            }}
+                            variant="outline"
+                            className="border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10 font-bold"
+                        >
+                            <ShieldAlert className="w-4 h-4 mr-2" />
+                            نسخة المهندس
+                        </Button>
                     </div>
+                    <Button variant="ghost" onClick={onClose} className="w-full text-zinc-500 font-bold">
+                        {t('close')}
+                    </Button>
                 </div>
             </GlassModal>
         );

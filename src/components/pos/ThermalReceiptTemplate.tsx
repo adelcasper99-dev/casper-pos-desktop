@@ -283,7 +283,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   <div class="footer">
     <div class="footer-msg">${isOrder ? "إيصال طلب - يتم المحاسبة عند الكاشير" : footer}</div>
     ${!isOrder ? `
-    <div style="margin-top: 1mm; font-size: 9px; color: #555;">Powered by Casper POS</div>
+    <div style="margin-top: 1.5mm; font-size: 10px; font-weight: bold; color: #333;">by Casper POS</div>
     <div style="margin-top: 2mm;">
         ${generateBarcodeSVG(invoiceNumber?.replace(/[^A-Z0-9]/gi, "").slice(-12) || "000000000000")}
     </div>

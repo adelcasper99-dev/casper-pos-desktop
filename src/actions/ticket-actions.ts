@@ -559,12 +559,14 @@ export const updateTicketDetails = secureAction(async (ticketId: string, updates
     securityCode?: string;
     technicianId?: string;
     expectedDuration?: number;
+    patternData?: string;
     csrfToken?: string;
 }) => {
     const data: Prisma.TicketUpdateInput = {};
     if (updates.repairPrice !== undefined) data.repairPrice = new Decimal(updates.repairPrice);
     if (updates.issueDescription !== undefined) data.issueDescription = updates.issueDescription;
     if (updates.securityCode !== undefined) data.securityCode = updates.securityCode;
+    if (updates.patternData !== undefined) data.patternData = updates.patternData;
     if (updates.technicianId !== undefined) data.technicianId = updates.technicianId || null;
     if (updates.expectedDuration !== undefined) data.expectedDuration = updates.expectedDuration;
 

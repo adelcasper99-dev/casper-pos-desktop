@@ -247,9 +247,21 @@ export default function TicketDetailPage() {
     const [showPattern, setShowPattern] = useState(false);
     const [editingDuration, setEditingDuration] = useState(false);
     const [durationInput, setDurationInput] = useState('');
+    const [editingSecurityCode, setEditingSecurityCode] = useState(false);
+    const [securityCodeInput, setSecurityCodeInput] = useState('');
+    const [editingPattern, setEditingPattern] = useState(false);
+    const [patternInput, setPatternInput] = useState('');
     const [showPrintOptions, setShowPrintOptions] = useState(false);
     const [isSilentPrint, setIsSilentPrint] = useState(false);
     const [defaultPrintMode, setDefaultPrintMode] = useState<'receipt' | 'label'>('receipt');
+
+    // Helper: detect configured printers & clear session guard for re-print
+    const hasThermalPrinter = () =>
+        !!(localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer') || localStorage.getItem('casper_ticket_printer'));
+    const hasLabelPrinter = () =>
+        !!(localStorage.getItem('printer_label') || localStorage.getItem('casper_barcode_printer') || localStorage.getItem('casper_label_printer'));
+    const clearPrintGuard = () =>
+        ticket?.id && sessionStorage.removeItem(`ticket_autoprint_${ticket.id}`);
 
     useEffect(() => {
         if (id) loadData();
@@ -329,6 +341,8 @@ export default function TicketDetailPage() {
                 setPriceInput(serializedTicket.repairPrice?.toString() || '0');
                 setIssueText(serializedTicket.issueDescription || '');
                 setDurationInput(serializedTicket.expectedDuration?.toString() || '');
+                setSecurityCodeInput(serializedTicket.securityCode || '');
+                setPatternInput(serializedTicket.patternData || '');
             } else if (ticketRes.error) {
                 toast.error(ticketRes.error);
             }
@@ -398,11 +412,30 @@ export default function TicketDetailPage() {
         }
     };
 
+    const handleSaveSecurityCode = async () => {
+        const res = await updateTicketDetails(ticket.id, { securityCode: securityCodeInput, csrfToken: csrfToken ?? undefined });
+        if (res.success) {
+            setEditingSecurityCode(false);
+            setTicket(serializeTicket(res.ticket));
+            toast.success("Security code updated");
+        }
+    };
+
+    const handleSavePattern = async () => {
+        const res = await updateTicketDetails(ticket.id, { patternData: patternInput, csrfToken: csrfToken ?? undefined });
+        if (res.success) {
+            setEditingPattern(false);
+            setTicket(serializeTicket(res.ticket));
+            toast.success("Pattern updated");
+        }
+    };
+
     // Function to open print modal
     const openBarcodePrint = () => {
         console.log('[TEST] Force opening print modal');
+        clearPrintGuard();
         setDefaultPrintMode('label');
-        setIsSilentPrint(true);
+        setIsSilentPrint(hasLabelPrinter());
         setShowPrintOptions(true);
     };
 
@@ -480,7 +513,7 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { setDefaultPrintMode('engineer' as any); setIsSilentPrint(true); setShowPrintOptions(true); }}
+                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter()); setShowPrintOptions(true); }}
                         className="bg-orange-500/5 border-orange-500/20 text-orange-400 h-10 px-3 flex gap-2 items-center hover:bg-orange-500/10 transition-colors"
                     >
                         <SettingsIcon className="h-4 w-4" />
@@ -488,7 +521,7 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { setDefaultPrintMode('receipt'); setIsSilentPrint(true); setShowPrintOptions(true); }}
+                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter()); setShowPrintOptions(true); }}
                         className="bg-slate-200/50 dark:bg-zinc-800/50 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-300 h-10 px-3 flex gap-2 items-center hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <Printer className="h-4 w-4" />
@@ -572,35 +605,83 @@ export default function TicketDetailPage() {
                                 </div>
                             </section>
 
-                            {/* Security Protocols */}
+                                             {/* Security Protocols */}
                             <section id="section-security">
                                 <SectionHeader icon={Lock}>بروتوكولات الأمان</SectionHeader>
                                 <div className="space-y-1 pr-4">
-                                    <DataRow
-                                        label="رمز القفل المباشر"
-                                        align="center"
-                                        action={
-                                            <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white">
-                                                {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </Button>
-                                        }
-                                    >
-                                        <span className="font-mono font-black tracking-widest text-zinc-100 text-lg">
-                                            {showSecurityCode ? ticket.securityCode || '0000' : '••••'}
-                                        </span>
+                                    <DataRow label="رمز القفل المباشر">
+                                        <div className="flex items-center gap-2">
+                                            {editingSecurityCode ? (
+                                                <>
+                                                    <Input
+                                                        value={securityCodeInput}
+                                                        onChange={(e) => setSecurityCodeInput(e.target.value)}
+                                                        className="h-8 bg-zinc-800 border-zinc-700 text-center font-mono w-32"
+                                                        autoFocus
+                                                    />
+                                                    <Button variant="ghost" size="icon" onClick={handleSaveSecurityCode} className="text-green-500 h-8 w-8 hover:bg-green-500/10 shrink-0">
+                                                        <Save className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setEditingSecurityCode(false)} className="text-red-500 h-8 w-8 hover:bg-red-500/10 shrink-0">
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="font-mono font-black tracking-widest text-zinc-100 text-lg">
+                                                        {showSecurityCode ? ticket.securityCode || '0000' : '••••'}
+                                                    </span>
+                                                    <Button variant="ghost" size="icon" onClick={() => setEditingSecurityCode(true)} className="text-zinc-600 h-8 w-8 hover:text-white shrink-0">
+                                                        <Edit2 className="w-3 h-3" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setShowSecurityCode(!showSecurityCode)} className="text-zinc-700 h-8 w-8 hover:text-white shrink-0">
+                                                        {showSecurityCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
                                     </DataRow>
                                     <DataRow
                                         label="نمط الفتح المرسوم"
                                         align="center"
                                         action={
-                                            <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-slate-500 dark:text-zinc-700 h-8 w-8 hover:text-slate-900 dark:hover:text-white">
-                                                {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </Button>
+                                            <div className="flex items-center gap-1">
+                                                {editingPattern ? (
+                                                    <>
+                                                        <Button variant="ghost" size="icon" onClick={handleSavePattern} className="text-green-500 h-8 w-8 hover:bg-green-500/10 shrink-0">
+                                                            <Save className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => setEditingPattern(false)} className="text-red-500 h-8 w-8 hover:bg-red-500/10 shrink-0">
+                                                            <X className="w-4 h-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Button variant="ghost" size="icon" onClick={() => setEditingPattern(true)} className="text-slate-500 dark:text-zinc-600 h-8 w-8 hover:text-slate-900 dark:hover:text-white shrink-0">
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => setShowPattern(!showPattern)} className="text-slate-500 dark:text-zinc-700 h-8 w-8 hover:text-slate-900 dark:hover:text-white shrink-0">
+                                                            {showPattern ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
                                         }
                                     >
-                                        <span className="text-[11px] font-black text-slate-900 dark:text-slate-300 uppercase tracking-widest">
-                                            {showPattern ? ticket.patternData || 'No Pattern' : 'Hidden'}
-                                        </span>
+                                        <div className="flex items-center justify-center w-full">
+                                            {editingPattern ? (
+                                                <Input
+                                                    value={patternInput}
+                                                    onChange={(e) => setPatternInput(e.target.value)}
+                                                    className="h-8 bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-center text-[11px] w-32 font-black shadow-inner"
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <span className="text-[11px] font-black text-slate-900 dark:text-slate-300 uppercase tracking-widest">
+                                                    {showPattern ? ticket.patternData || 'No Pattern' : 'Hidden'}
+                                                </span>
+                                            )}
+                                        </div>
                                     </DataRow>
                                 </div>
                             </section>
@@ -845,6 +926,7 @@ export default function TicketDetailPage() {
                 settings={settings}
                 defaultMode={defaultPrintMode}
                 silent={isSilentPrint}
+                singleDocument={isSilentPrint}
             />
 
             <TicketPaymentModal

@@ -317,7 +317,7 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
             <div class="footer">
                 ${settings?.receiptFooter || 'شكراً لزيارتكم ونتمنى رؤيتكم قريباً'}
                 <div style="margin-top: 12px; font-size: 14px; color: #aaa;">
-                    Powered by Casper POS
+                    <strong style="color: #444;">by Casper POS</strong>
                 </div>
             </div>
         </div>

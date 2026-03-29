@@ -51,47 +51,75 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
         setErrors([]);
 
         const reader = new FileReader();
-        reader.onload = (event) => {
-            const content = event.target?.result as string;
+        reader.onload = async (event) => {
             try {
-                const lines = content.split('\n').filter(line => line.trim());
+                let lines: string[] = [];
+                let headers: string[] = [];
+                let isExcel = false;
+                let excelData: any[][] = [];
 
-                if (lines.length < 2) {
-                    setErrors(['CSV file is empty or has no data rows']);
-                    return;
+                if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
+                    isExcel = true;
+                    const XLSX = await import('xlsx');
+                    const arrayBuffer = event.target?.result as ArrayBuffer;
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (excelData.length < 2) {
+                        setErrors(['Excel file is empty or has no data rows']);
+                        return;
+                    }
+                    headers = (excelData[0] || []).map(h => String(h || '').trim());
+                } else {
+                    const content = event.target?.result as string;
+                    lines = content.split('\n').filter(line => line.trim());
+
+                    if (lines.length < 2) {
+                        setErrors(['CSV file is empty or has no data rows']);
+                        return;
+                    }
+                    // Parse CSV header
+                    headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
                 }
-
-                // Parse CSV - handle both Arabic and English headers
-                const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
 
                 // Map Arabic column names to English
                 const headerMap: Record<string, string> = {};
                 headers.forEach((header, index) => {
                     const lowerHeader = header.toLowerCase();
-                    if (lowerHeader.includes('اسم') || lowerHeader.includes('name') || lowerHeader.includes('product')) {
+                    if (lowerHeader.includes('اسم') || lowerHeader.includes('name') || lowerHeader.includes('product') || lowerHeader.includes('صنف')) {
                         headerMap['productName'] = index.toString();
-                    } else if (lowerHeader.includes('عدد') || lowerHeader.includes('quantity') || lowerHeader.includes('qty')) {
+                    } else if (lowerHeader.includes('كمية') || lowerHeader.includes('عدد') || lowerHeader.includes('quantity') || lowerHeader.includes('qty')) {
                         headerMap['quantity'] = index.toString();
-                    } else if (lowerHeader.includes('تكلفة') || lowerHeader.includes('cost')) {
+                    } else if (lowerHeader.includes('تكلفة') || lowerHeader.includes('cost') || lowerHeader.includes('شراء')) {
                         headerMap['costPrice'] = index.toString();
-                    } else if (lowerHeader.includes('بيع') || lowerHeader.includes('sell') || lowerHeader.includes('price')) {
+                    } else if (lowerHeader.includes('بيع') || lowerHeader.includes('sell') || lowerHeader.includes('price') || lowerHeader.includes('سعر')) {
                         headerMap['sellPrice'] = index.toString();
-                    } else if (lowerHeader.includes('ماركة') || lowerHeader.includes('brand')) {
+                    } else if (lowerHeader.includes('ماركة') || lowerHeader.includes('brand') || lowerHeader.includes('تصنيف') || lowerHeader.includes('category')) {
                         headerMap['brand'] = index.toString();
                     }
                 });
 
                 const parts: ParsedPart[] = [];
                 const parseErrors: string[] = [];
+                const rowCount = isExcel ? excelData.length : lines.length;
 
-                for (let i = 1; i < lines.length; i++) {
-                    const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                for (let i = 1; i < rowCount; i++) {
+                    let values: string[] = [];
+                    if (isExcel) {
+                        values = (excelData[i] || []).map(v => String(v ?? '').trim());
+                        // Skip completely empty Excel rows
+                        if (values.every(v => !v)) continue;
+                    } else {
+                        values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                    }
 
-                    const productName = values[parseInt(headerMap['productName'] || '0')] || '';
-                    const brand = values[parseInt(headerMap['brand'] || '0')] || 'Other';
-                    const quantity = values[parseInt(headerMap['quantity'] || '1')] || '1';
-                    const costPrice = values[parseInt(headerMap['costPrice'] || '2')] || '0';
-                    const sellPrice = values[parseInt(headerMap['sellPrice'] || '3')] || '0';
+                    const productName = headerMap['productName'] !== undefined ? values[parseInt(headerMap['productName'])] || '' : '';
+                    const brand = headerMap['brand'] !== undefined ? values[parseInt(headerMap['brand'])] || 'Other' : 'Other';
+                    const quantity = headerMap['quantity'] !== undefined ? values[parseInt(headerMap['quantity'])] || '1' : '1';
+                    const costPrice = headerMap['costPrice'] !== undefined ? values[parseInt(headerMap['costPrice'])] || '0' : '0';
+                    const sellPrice = headerMap['sellPrice'] !== undefined ? values[parseInt(headerMap['sellPrice'])] || '0' : '0';
 
                     if (!productName) {
                         parseErrors.push(`Row ${i + 1}: Missing product name`);
@@ -116,11 +144,16 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
 
                 setParsedData(parts);
             } catch (error) {
-                console.error('Error parsing CSV:', error);
-                setErrors(['Failed to parse CSV file']);
+                console.error('Error parsing file:', error);
+                setErrors(['Failed to parse the file']);
             }
         };
-        reader.readAsText(selectedFile);
+
+        if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
+            reader.readAsArrayBuffer(selectedFile);
+        } else {
+            reader.readAsText(selectedFile);
+        }
     };
 
     const handleImport = async () => {
@@ -177,6 +210,26 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                         onChange={handleFileChange}
                         className="hidden"
                     />
+                    
+                    {!file && (
+                        <div>
+                            <p className="text-sm font-bold text-muted-foreground mr-1">{t('file')} (CSV, Excel)</p>
+                            <label
+                                htmlFor="file-upload"
+                                className="flex items-center justify-center gap-2 cursor-pointer bg-muted/50 hover:bg-muted p-2 px-4 rounded-xl border border-border/50 text-sm font-medium transition-colors"
+                            >
+                                <Upload className="w-4 h-4 text-cyan-400" />
+                                {t('selectFile')}
+                            </label>
+                            <input
+                                id="file-upload"
+                                type="file"
+                                accept=".csv,.xlsx,.xls"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
+                        </div>
+                    )}
 
                     {file ? (
                         <div className="flex items-center justify-center gap-2">
