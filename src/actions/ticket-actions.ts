@@ -18,6 +18,7 @@ import { calculateNetProfit, calculateCommission } from "@/lib/commission-valida
 import { getBranchFilter } from "@/lib/data-filters";
 import { TicketStatus } from "@/lib/constants";
 import { handleReturnedPartStock, decrementWarehouseStock, incrementWarehouseStock } from "@/lib/stock-helpers";
+import { serialize } from "@/lib/serialization";
 
 
 // Helper to get next sequential ticket number (T-001, T-002...) with collision protection

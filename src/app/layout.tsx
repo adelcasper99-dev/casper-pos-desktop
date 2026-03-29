@@ -16,6 +16,8 @@ import { getCurrentUser } from "@/actions/auth";
 import { initDatabase } from "@/lib/db-init";
 import { getStoreSettings } from "@/actions/settings";
 import LayoutContent from "./LayoutContent";
+ 
+export const dynamic = "force-dynamic";
 
 export const metadata = {
     title: "Casper POS Desktop",

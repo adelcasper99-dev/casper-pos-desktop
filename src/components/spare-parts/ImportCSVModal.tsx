@@ -53,73 +53,59 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                let lines: string[] = [];
-                let headers: string[] = [];
-                let isExcel = false;
-                let excelData: any[][] = [];
+                const XLSX = await import('xlsx');
+                const arrayBuffer = event.target?.result as ArrayBuffer;
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-                if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
-                    isExcel = true;
-                    const XLSX = await import('xlsx');
-                    const arrayBuffer = event.target?.result as ArrayBuffer;
-                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                    if (excelData.length < 2) {
-                        setErrors(['Excel file is empty or has no data rows']);
-                        return;
-                    }
-                    headers = (excelData[0] || []).map(h => String(h || '').trim());
-                } else {
-                    const content = event.target?.result as string;
-                    lines = content.split('\n').filter(line => line.trim());
-
-                    if (lines.length < 2) {
-                        setErrors(['CSV file is empty or has no data rows']);
-                        return;
-                    }
-                    // Parse CSV header
-                    headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                if (excelData.length < 2) {
+                    setErrors(['File is empty or has no data rows']);
+                    return;
                 }
 
+                const headers = (excelData[0] || []).map(h => String(h || '').trim());
+
                 // Map Arabic column names to English
-                const headerMap: Record<string, string> = {};
+                const headerMap: Record<string, number> = {};
                 headers.forEach((header, index) => {
                     const lowerHeader = header.toLowerCase();
-                    if (lowerHeader.includes('اسم') || lowerHeader.includes('name') || lowerHeader.includes('product') || lowerHeader.includes('صنف')) {
-                        headerMap['productName'] = index.toString();
+                    if (lowerHeader.includes('مرجع') || lowerHeader.includes('ref') || lowerHeader.includes('sku') || lowerHeader.includes('كود')) {
+                        headerMap['sku'] = index;
+                    } else if (lowerHeader.includes('اسم') || lowerHeader.includes('name') || lowerHeader.includes('product') || lowerHeader.includes('صنف')) {
+                        headerMap['productName'] = index;
                     } else if (lowerHeader.includes('كمية') || lowerHeader.includes('عدد') || lowerHeader.includes('quantity') || lowerHeader.includes('qty')) {
-                        headerMap['quantity'] = index.toString();
+                        headerMap['quantity'] = index;
                     } else if (lowerHeader.includes('تكلفة') || lowerHeader.includes('cost') || lowerHeader.includes('شراء')) {
-                        headerMap['costPrice'] = index.toString();
+                        headerMap['costPrice'] = index;
                     } else if (lowerHeader.includes('بيع') || lowerHeader.includes('sell') || lowerHeader.includes('price') || lowerHeader.includes('سعر')) {
-                        headerMap['sellPrice'] = index.toString();
+                        // Check for price variants
+                        if (lowerHeader.includes('1') || lowerHeader.includes('فرعي 1')) headerMap['price1'] = index;
+                        else if (lowerHeader.includes('2') || lowerHeader.includes('فرعي 2')) headerMap['price2'] = index;
+                        else if (lowerHeader.includes('3') || lowerHeader.includes('فرعي 3')) headerMap['price3'] = index;
+                        else if (!headerMap['sellPrice']) headerMap['sellPrice'] = index; // Main sell price
                     } else if (lowerHeader.includes('ماركة') || lowerHeader.includes('brand') || lowerHeader.includes('تصنيف') || lowerHeader.includes('category')) {
-                        headerMap['brand'] = index.toString();
+                        headerMap['brand'] = index;
                     }
                 });
 
                 const parts: ParsedPart[] = [];
                 const parseErrors: string[] = [];
-                const rowCount = isExcel ? excelData.length : lines.length;
 
-                for (let i = 1; i < rowCount; i++) {
-                    let values: string[] = [];
-                    if (isExcel) {
-                        values = (excelData[i] || []).map(v => String(v ?? '').trim());
-                        // Skip completely empty Excel rows
-                        if (values.every(v => !v)) continue;
-                    } else {
-                        values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-                    }
+                for (let i = 1; i < excelData.length; i++) {
+                    const values = (excelData[i] || []).map(v => String(v ?? '').trim());
+                    if (values.every(v => !v)) continue;
 
-                    const productName = headerMap['productName'] !== undefined ? values[parseInt(headerMap['productName'])] || '' : '';
-                    const brand = headerMap['brand'] !== undefined ? values[parseInt(headerMap['brand'])] || 'Other' : 'Other';
-                    const quantity = headerMap['quantity'] !== undefined ? values[parseInt(headerMap['quantity'])] || '1' : '1';
-                    const costPrice = headerMap['costPrice'] !== undefined ? values[parseInt(headerMap['costPrice'])] || '0' : '0';
-                    const sellPrice = headerMap['sellPrice'] !== undefined ? values[parseInt(headerMap['sellPrice'])] || '0' : '0';
+                    const productName = headerMap['productName'] !== undefined ? values[headerMap['productName']] || '' : '';
+                    const brand = headerMap['brand'] !== undefined ? values[headerMap['brand']] || 'Other' : 'Other';
+                    const quantity = headerMap['quantity'] !== undefined ? values[headerMap['quantity']] || '0' : '0';
+                    const costPrice = headerMap['costPrice'] !== undefined ? values[headerMap['costPrice']] || '0' : '0';
+                    const sellPrice = headerMap['sellPrice'] !== undefined ? values[headerMap['sellPrice']] || '0' : '0';
+                    const price1 = headerMap['price1'] !== undefined ? values[headerMap['price1']] || '0' : '0';
+                    const price2 = headerMap['price2'] !== undefined ? values[headerMap['price2']] || '0' : '0';
+                    const price3 = headerMap['price3'] !== undefined ? values[headerMap['price3']] || '0' : '0';
+                    const sku = headerMap['sku'] !== undefined ? values[headerMap['sku']] || null : null;
 
                     if (!productName) {
                         parseErrors.push(`Row ${i + 1}: Missing product name`);
@@ -132,14 +118,15 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                         quantity,
                         costPrice,
                         sellPrice,
-                        price1: '0',
-                        price2: '0',
-                        price3: '0',
-                    });
+                        price1,
+                        price2,
+                        price3,
+                        sku,
+                    } as any);
                 }
 
                 if (parseErrors.length > 0) {
-                    setErrors(parseErrors.slice(0, 5)); // Show first 5 errors
+                    setErrors(parseErrors.slice(0, 5));
                 }
 
                 setParsedData(parts);
@@ -149,11 +136,7 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
             }
         };
 
-        if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
-            reader.readAsArrayBuffer(selectedFile);
-        } else {
-            reader.readAsText(selectedFile);
-        }
+        reader.readAsArrayBuffer(selectedFile);
     };
 
     const handleImport = async () => {

@@ -992,6 +992,7 @@ model LocalBackup {
 
 model SparePart {
   id          String   @id @default(cuid())
+  sku         String?
   category    String
   productName String
   brand       String
@@ -1004,6 +1005,7 @@ model SparePart {
   price2      String   @default("0")
   price3      String   @default("0")
 
+  @@index([sku])
   @@index([brand])
   @@index([category])
   @@index([productName])

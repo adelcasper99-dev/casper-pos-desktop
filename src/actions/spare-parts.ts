@@ -6,6 +6,7 @@ import { secureAction } from '@/lib/safe-action';
 import { z } from 'zod';
 
 const sparePartSchema = z.object({
+    sku: z.string().optional(),
     productName: z.string().min(1),
     brand: z.string().min(1),
     quantity: z.string(),
@@ -104,6 +105,7 @@ export const updateSparePart = secureAction(async (data: {
     price1?: string;
     price2?: string;
     price3?: string;
+    sku?: string;
 }) => {
     try {
         const updateData: any = {};
@@ -116,6 +118,7 @@ export const updateSparePart = secureAction(async (data: {
         if (data.price1 !== undefined) updateData.price1 = data.price1;
         if (data.price2 !== undefined) updateData.price2 = data.price2;
         if (data.price3 !== undefined) updateData.price3 = data.price3;
+        if (data.sku !== undefined) updateData.sku = data.sku;
 
         await prisma.sparePart.update({
             where: { id: data.id },
@@ -169,6 +172,7 @@ const importPartsSchema = z.object({
         price1: z.string().optional(),
         price2: z.string().optional(),
         price3: z.string().optional(),
+        sku: z.string().optional(),
     })),
 });
 
@@ -192,6 +196,7 @@ export const importSpareParts = secureAction(async (data: z.infer<typeof importP
                         price1: part.price1 || '0',
                         price2: part.price2 || '0',
                         price3: part.price3 || '0',
+                        sku: part.sku || null,
                         category: 'داخلي',
                     },
                 });
