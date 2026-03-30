@@ -24,23 +24,43 @@ import { serialize } from "@/lib/serialization";
 
 /**
  * Get current timezone based on branch settings
- * Default to UTC if branch timezone not set
+ * Default to Africa/Cairo (Egypt) if branch timezone not set
  */
 async function getBranchTimezone(userId?: string): Promise<string> {
-    // 🛡️ PRODUCTION TODO: In multi-branch deployment, fetch timezone from Branch model.
-    // For local desktop deployments, typically system timezone is used.
+    const DEFAULT_TIMEZONE = "Africa/Cairo"; // Egypt timezone default
+    
     if (userId) {
         const user = await prisma.user.findUnique({
             where: { id: userId },
+            include: { branch: true }
         });
-        // Add branch-specific timezone lookup here if needed.
+        
+        // Branch timezone could be stored in features JSON or a dedicated field
+        // For now, use branch region or code as hint for timezone
+        if (user?.branch?.region) {
+            // Region-based timezone mapping could be added here
+            // e.g., 'Cairo' -> 'Africa/Cairo', 'Dubai' -> 'Asia/Dubai'
+        }
     }
-
+    
+    // Fallback to StoreSettings features JSON for timezone preference
     const settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
+        where: { id: "settings" },
+        select: { features: true }
     });
-
-    return (settings as any)?.timezone || "UTC";
+    
+    if (settings?.features) {
+        try {
+            const features = JSON.parse(settings.features);
+            if (features.timezone) {
+                return features.timezone;
+            }
+        } catch (e) {
+            // Ignore parse errors
+        }
+    }
+    
+    return DEFAULT_TIMEZONE;
 }
 
 /**
