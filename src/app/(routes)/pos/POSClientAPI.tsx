@@ -195,11 +195,18 @@ export default function POSClientAPI({
             }
             if (!activeId) return;
 
-            // 1. Numeric Entry (0-9)
-            if (isNumeric) {
+            // 1. Numeric Entry (0-9) and Decimal Point (.)
+            const isDecimalPoint = e.key === '.' || e.key === ',';
+            if (isNumeric || isDecimalPoint) {
                 e.preventDefault();
-                const newQtyString = (qtyString || "") + e.key;
-                const newQty = parseInt(newQtyString);
+                const currentStr = qtyString || "";
+                
+                // Prevent multiple decimal points
+                if (isDecimalPoint && currentStr.includes('.')) return;
+                
+                const newQtyString = currentStr + (isDecimalPoint ? '.' : e.key);
+                const newQty = parseFloat(newQtyString);
+                
                 if (!isNaN(newQty) && newQty > 0) {
                     const item = items.find(i => i.id === activeId);
                     if (item && item.trackStock !== false && newQty > item.maxQuantity) {
@@ -210,6 +217,10 @@ export default function POSClientAPI({
                          setQtyString(newQtyString);
                          setItemQuantity(activeId, newQty);
                     }
+                } else if (isDecimalPoint) {
+                    // Start a new sequence with "0."
+                    setQtyString("0.");
+                    setItemQuantity(activeId, 0);
                 }
             }
 
@@ -686,14 +697,15 @@ export default function POSClientAPI({
                                                 )}
                                             </button>
                                             <input
-                                                type="text"
+                                                type="number"
+                                                step="any"
                                                 value={qtyModeId === item.id && qtyString !== null ? qtyString : item.quantity.toString()}
                                                 onChange={(e) => {
-                                                    const val = e.target.value.replace(/\D/g, ''); // Allow only digits
+                                                    const val = e.target.value;
                                                     setQtyModeId(item.id);
                                                     
-                                                    const num = parseInt(val);
-                                                    if (!isNaN(num) && num > 0) {
+                                                    const num = parseFloat(val);
+                                                    if (!isNaN(num) && num >= 0) {
                                                         if (item.trackStock !== false && num > item.maxQuantity) {
                                                             toast.error(`أقصى كمية متاحة هي ${item.maxQuantity}`);
                                                             setQtyString(item.maxQuantity.toString());
@@ -702,7 +714,7 @@ export default function POSClientAPI({
                                                             setQtyString(val);
                                                             setItemQuantity(item.id, num);
                                                         }
-                                                    } else {
+                                                    } else if (val === "" || val === ".") {
                                                         setQtyString(val);
                                                     }
                                                 }}
@@ -1139,10 +1151,10 @@ export default function POSClientAPI({
                                         ) : (
                                             <span className={clsx(
                                                 "text-[10px] font-bold px-2 py-1 rounded-full h-fit",
-                                                p.stock > 5 ? "bg-green-500/10 text-green-500" :
+                                                p.stock > 1 ? "bg-green-500/10 text-green-500" :
                                                     p.stock > 0 ? "bg-yellow-500/10 text-yellow-500" : "bg-red-500/10 text-red-500"
                                             )}>
-                                                {p.stock}
+                                                {Number.isInteger(Number(p.stock)) ? p.stock : Number(p.stock).toFixed(3).replace(/\.?0+$/, '')}
                                             </span>
                                         )}
                                     </div>
