@@ -5,127 +5,173 @@
     <meta charset="UTF-8">
     <title>Casper POS - Initializing</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
             width: 100vw;
             height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: #000000;
-            color: #ffffff;
+            background: #F9F7F2;
+            color: #222222;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
             -webkit-app-region: drag;
         }
 
-        .logo-container {
+        /* ── Glow orb behind logo ── */
+        .glow-orb {
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(59,105,120,0.10) 0%, rgba(34,34,34,0.04) 60%, transparent 80%);
+            animation: pulse-orb 2.5s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes pulse-orb {
+            0%, 100% { transform: scale(1);   opacity: 1; }
+            50%       { transform: scale(1.1); opacity: 0.6; }
+        }
+
+        /* ── Logo wrapper – circular ── */
+        .logo-circle {
             position: relative;
-            width: 120px;
-            height: 120px;
-            margin-bottom: 30px;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: #F9F7F2;
+            border: 3px solid rgba(59, 105, 120, 0.20);
+            box-shadow:
+                0 0 48px rgba(59, 105, 120, 0.16),
+                0 8px 32px rgba(0, 0, 0, 0.07);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+            animation: rise 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
+        /* Animated ring */
+        .pulse-ring {
+            position: absolute;
+            inset: -6px;
+            border-radius: 50%;
+            border: 2px solid rgba(59, 105, 120, 0.25);
+            animation: ring-pulse 2.2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+        }
+
+        @keyframes ring-pulse {
+            0%   { transform: scale(0.92); opacity: 0.7; }
+            100% { transform: scale(1.18); opacity: 0; }
         }
 
         .logo {
-            width: 100%;
-            height: 100%;
+            width: 78%;
+            height: 78%;
             object-fit: contain;
-            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.4));
         }
 
-        .pulse-ring {
-            border: 3px solid #00f3ff;
-            border-radius: 50%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        @keyframes pulse-ring {
-            0% {
-                transform: scale(0.8);
-                opacity: 0.8;
-            }
-
-            100% {
-                transform: scale(1.4);
-                opacity: 0;
-            }
+        /* ── Wordmark ── */
+        .wordmark {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 28px;
+            animation: rise 0.6s 0.1s cubic-bezier(0.23, 1, 0.32, 1) both;
         }
 
         .title {
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: 2px;
-            margin-bottom: 10px;
-            background: linear-gradient(90deg, #ffffff, #00f3ff, #ffffff);
-            background-size: 200% auto;
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: shine 3s linear infinite;
-        }
-
-        @keyframes shine {
-            to {
-                background-position: 200% center;
-            }
-        }
-
-        .status {
-            font-size: 14px;
-            color: #888;
-            letter-spacing: 1px;
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: 0.18em;
             text-transform: uppercase;
+            color: #222222;
         }
 
+        .divider {
+            width: 100%;
+            height: 1px;
+            background: rgba(34, 34, 34, 0.10);
+        }
+
+        .subtitle {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: rgba(34, 34, 34, 0.40);
+        }
+
+        /* ── Status text ── */
+        .status {
+            font-size: 11px;
+            color: rgba(59, 105, 120, 0.70);
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+            animation: rise 0.6s 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+        }
+
+        /* ── Progress bar ── */
         .loader {
-            margin-top: 20px;
-            width: 160px;
+            width: 180px;
             height: 2px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(34, 34, 34, 0.08);
             border-radius: 2px;
             overflow: hidden;
+            animation: rise 0.6s 0.25s cubic-bezier(0.23, 1, 0.32, 1) both;
         }
 
         .loader-bar {
             width: 40%;
             height: 100%;
-            background: #00f3ff;
+            background: linear-gradient(90deg, #3B6978, #222222);
             border-radius: 2px;
-            animation: loading 1.5s ease-in-out infinite;
+            animation: loading 1.6s ease-in-out infinite;
         }
 
         @keyframes loading {
-            0% {
-                transform: translateX(-100%);
-            }
-
-            100% {
-                transform: translateX(250%);
-            }
+            0%   { transform: translateX(-120%); }
+            100% { transform: translateX(380%); }
         }
     </style>
 </head>
 
 <body>
-    <div class="logo-container">
+    <div class="glow-orb"></div>
+
+    <div class="logo-circle">
         <div class="pulse-ring"></div>
-        <img src="../public/assets/icon.png" class="logo" alt="Casper Logo">
+        <img src="../public/assets/casper-light.png" class="logo" alt="Casper Logo">
     </div>
-    <div class="title">CASPER ERP</div>
+
+    <div class="wordmark">
+        <span class="title">CASPER</span>
+        <div class="divider"></div>
+        <span class="subtitle">ERP</span>
+    </div>
+
     <div class="status" id="status-text">Initializing Systems...</div>
+
     <div class="loader">
         <div class="loader-bar"></div>
     </div>
 
     <script>
-        // Simple status update dummy
         const statuses = [
             "Initializing Systems...",
             "Connecting Database...",

@@ -12,7 +12,7 @@ const { Jimp } = require('jimp');
 const projectRoot = path.join(__dirname, '..');
 const assetsDir = path.join(projectRoot, 'public', 'assets');
 const buildDir = path.join(projectRoot, 'build');
-const srcIcon = path.join(assetsDir, 'icon-512.png'); // Best source for scaling down
+const srcIcon = path.join(assetsDir, 'casper-light.png'); // Best source for scaling down
 
 async function generateIcons() {
     console.log('[1/4] Generating multi-size ICO...');
@@ -50,7 +50,7 @@ async function generateBitmaps() {
     const sidebarWidth = 164;
     const sidebarHeight = 314;
 
-    const sidebar = new Jimp({ width: sidebarWidth, height: sidebarHeight, color: 0x0E748CFF });
+    const sidebar = new Jimp({ width: sidebarWidth, height: sidebarHeight, color: 0x3B6978FF });
     const sidebarLogoBuffer = await sharp(srcIcon).resize(100, 100).png().toBuffer();
     const sidebarLogo = await Jimp.read(sidebarLogoBuffer);
 

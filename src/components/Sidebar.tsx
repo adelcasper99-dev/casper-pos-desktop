@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, memo, useEffect } from "react";
-import Image from "next/image";
+import { CasperLogo } from "@/components/ui/CasperLogo";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations, useLocale } from "@/lib/i18n-mock";
@@ -197,15 +197,19 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
-            <div className="p-4 flex items-center justify-between overflow-hidden h-20 border-b-2 border-dashed border-zinc-300 dark:border-b dark:border-solid dark:border-white/5">
+            <div
+                className="p-4 flex items-center justify-between overflow-hidden border-b-2 border-dashed border-zinc-300 dark:border-b dark:border-solid dark:border-white/5 transition-all duration-300"
+                style={{ height: isExpanded ? '112px' : '80px' }}
+            >
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/assets/casper-icon.png" alt="Casper ERP" className="w-10 h-10 object-contain" />
-                    </div>
+                    <CasperLogo
+                        width={isExpanded ? 80 : 40}
+                        height={isExpanded ? 80 : 40}
+                        className="shrink-0 transition-all duration-300"
+                    />
                     <span className={cn(
-                        "font-bold text-lg tracking-tight whitespace-nowrap transition-opacity duration-200",
-                        isExpanded ? "opacity-100" : "opacity-0"
+                        "font-bold text-lg tracking-tight whitespace-nowrap transition-all duration-300",
+                        isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none"
                     )}>
                         CASPER
                     </span>
@@ -230,7 +234,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                                 if (targetPath === '/') {
                                     isActive = pathname === '/';
                                 } else {
-                                    isActive = pathname.startsWith(targetPath);
+                                    isActive = pathname.startsWith(targetPath) || pathname.startsWith(`/${locale}${targetPath}`);
                                 }
 
                                 return (
@@ -254,7 +258,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                         let isActive = false;
                         const targetPath = item.href;
                         if (targetPath === '/') isActive = pathname === '/';
-                        else isActive = pathname.startsWith(targetPath);
+                        else isActive = pathname.startsWith(targetPath) || pathname.startsWith(`/${locale}${targetPath}`);
 
                         return (
                             <Link

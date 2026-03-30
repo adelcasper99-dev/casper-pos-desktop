@@ -56,18 +56,7 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                         <p className="text-zinc-500 dark:text-zinc-400 font-bold text-sm tracking-wide mt-1">{t('subtitle')}</p>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <Button 
-                            asChild 
-                            size="lg" 
-                            className="h-12 px-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black border-0 rounded-xl shadow-lg shadow-zinc-900/10 transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-95 group uppercase tracking-widest text-xs"
-                        >
-                            <Link href={`/${locale}/maintenance/tickets/new`} className="flex items-center gap-2">
-                                <Plus className="h-5 w-5 transition-transform group-hover:rotate-90" />
-                                {t('newTicket')}
-                            </Link>
-                        </Button>
-                    </div>
+
                 </div>
 
                 <div className="flex flex-col gap-6">
@@ -76,8 +65,21 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                         onValueChange={handleTabChange}
                         className="w-full flex flex-col items-start"
                     >
-                        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between w-full">
-                            <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 w-full sm:w-fit shadow-inner overflow-x-auto custom-scrollbar">
+                        <div className="relative flex w-full justify-center items-center py-2">
+                            <div className="absolute right-0">
+                                <Button 
+                                    asChild 
+                                    size="lg" 
+                                    className="h-12 px-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black border-0 rounded-xl shadow-lg shadow-zinc-900/10 transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-95 group uppercase tracking-widest text-xs"
+                                >
+                                    <Link href={`/${locale}/maintenance/tickets/new`} className="flex items-center gap-2">
+                                        <Plus className="h-5 w-5 transition-transform group-hover:rotate-90" />
+                                        {t('newTicket')}
+                                    </Link>
+                                </Button>
+                            </div>
+
+                            <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 w-full sm:w-fit shadow-inner overflow-x-auto custom-scrollbar relative z-10 mx-auto">
                                 <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex-nowrap w-max">
                                     <TabsTrigger 
                                         value="tickets" 

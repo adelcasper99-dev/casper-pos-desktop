@@ -54,68 +54,72 @@
 
   /* Borders: very subtle */
 
-  /* Foreground: warm dark slate, NOT pure black — avoids the 'heavy' feel */
-  --background: #f8fafc;        /* Soft slate white */
-  --login-bg: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  --foreground: #0f172a;      /* deep slate-900 */
+  /* Background: Ghostly White */
+  --background: #F9F7F2;        
+  --login-bg: linear-gradient(135deg, #F9F7F2 0%, #D1CEC7 100%);
+  --login-split-bg: linear-gradient(135deg, #3B6978 0%, #222222 100%);
+  --foreground: #222222;      /* Deep Charcoal */
 
   /* Card/panel surfaces: pure white */
-  --card: oklch(1 0 0);
-  --card-foreground: #1c1c2e;
+  --card: #ffffff;
+  --card-foreground: #222222;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: #1c1c2e;
+  --popover: #ffffff;
+  --popover-foreground: #222222;
 
-  /* Primary: dark slate for buttons */
-  --primary: #1c1c2e;
-  --primary-foreground: oklch(0.985 0 0);
+  /* Primary Action (Ghostly Blue) */
+  --primary: #3B6978;
+  --primary-foreground: #ffffff;
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: #374151;
+  /* Secondary */
+  --secondary: #e5e3dc;
+  --secondary-foreground: #222222;
 
-  /* Muted — clearly visible mid-gray, not near-black */
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: #6b7280;  /* slate-500 equivalent — airy secondary text */
+  /* Muted */
+  --muted: #e5e3dc;
+  --muted-foreground: #6b7280; 
 
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: #374151;
+  /* Warning / Caution */
+  --accent: #DDAF4C;
+  --accent-foreground: #ffffff;
 
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: hsl(210 40% 98%);
+  /* Danger */
+  --destructive: #A8444F;
+  --destructive-foreground: #ffffff;
 
-  /* Borders: very subtle */
-  --border: #e8e8ec;
-  --input: #f0f0f4;
-  --ring: #f472b6;
+  /* Borders / Details: Shadow Grey */
+  --border: #D1CEC7;
+  --input: #ffffff;
+  --ring: #3B6978;
 
   --radius: 0.75rem;
 
   /* Glass/Ghost — light mode overrides */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(0, 0, 0, 0.06);
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #e8e8ec;
+  --glass-bg: rgba(249, 247, 242, 0.85); /* F9F7F2 with opacity */
+  --glass-border: rgba(209, 206, 199, 0.5); /* D1CEC7 with opacity */
+  --sidebar-bg: #222222; /* Deep Charcoal for Sidebar */
+  --sidebar-border: #D1CEC7;
 
   /* Elevation Shadows - Premium Layered */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-float: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
 
-  /* Pink accent */
-  --pink-accent: #f472b6;
+  /* Success & custom accents */
+  --pink-accent: #55A27A; /* Reusing pink variable name for Teal Green success for now to avoid refactoring components */
 
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.145 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-ring: #f472b6;
+  --sidebar: #222222;
+  --sidebar-foreground: #F9F7F2;
+  --sidebar-primary: #3B6978;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3b3b3b;
+  --sidebar-accent-foreground: #F9F7F2;
+  --sidebar-ring: #3B6978;
 
   /* Zebra Striping Palette (Light Mode) - High Visibility */
   --table-bg-main: #ffffff;
@@ -187,6 +191,7 @@
   --table-row-hover: #2c2c2c;
   --table-header-bg: #000000;
   --table-border: #333333;
+  --login-split-bg: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
 }
 
 /* Base Styles */
@@ -380,15 +385,11 @@ body {
   }
 
   .zebra-table tbody tr:nth-child(odd) {
-    background-color: var(--table-row-odd);
+    background-color: var(--table-row-odd) !important;
   }
 
   .zebra-table tbody tr:nth-child(even) {
-    background-color: #f1f5f9 !important; /* Explicit slate-100 for high visibility */
-  }
-
-  .zebra-table tbody tr:nth-child(odd) {
-    background-color: #ffffff !important;
+    background-color: var(--table-row-even) !important;
   }
 
   .zebra-table tbody tr {
@@ -397,7 +398,7 @@ body {
   }
 
   .zebra-table tbody tr:hover {
-    background-color: #e2e8f0 !important; /* Higher contrast hover */
+    background-color: var(--table-row-hover) !important;
   }
 
   .sticky-header thead th {
@@ -432,6 +433,25 @@ body {
 
 .animate-fly-in {
   animation: flyIn 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
 }
 
 

@@ -34,7 +34,7 @@ export default function SplashScreen({
 
     return (
         <div
-            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#10101a]"
+            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#F9F7F2]"
             style={{
                 transition: "opacity 0.4s ease",
                 opacity: fading ? 0 : 1,
@@ -45,7 +45,7 @@ export default function SplashScreen({
             <div
                 className="absolute w-80 h-80 rounded-full pointer-events-none"
                 style={{
-                    background: "radial-gradient(circle, rgba(0,207,255,0.12) 0%, rgba(160,32,240,0.08) 60%, transparent 80%)",
+                    background: "radial-gradient(circle, rgba(59,105,120,0.12) 0%, rgba(34,34,34,0.05) 60%, transparent 80%)",
                     animation: "splash-pulse 2s ease-in-out infinite",
                 }}
             />
@@ -55,26 +55,36 @@ export default function SplashScreen({
                 className="relative flex flex-col items-center gap-6"
                 style={{ animation: "splash-rise 0.6s cubic-bezier(0.23,1,0.32,1) forwards" }}
             >
-                {/* Icon */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                    src="/assets/casper-icon.png"
-                    alt="Casper ERP"
-                    className="w-28 h-28 object-contain drop-shadow-[0_0_24px_rgba(0,207,255,0.5)]"
-                />
+                {/* Icon — circular container */}
+                <div
+                    className="flex items-center justify-center rounded-full bg-[#F9F7F2] shadow-2xl"
+                    style={{
+                        width: 200,
+                        height: 200,
+                        border: "3px solid rgba(59,105,120,0.15)",
+                        boxShadow: "0 0 48px rgba(59,105,120,0.18), 0 8px 32px rgba(0,0,0,0.08)",
+                    }}
+                >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src="/assets/casper-light.png"
+                        alt="Casper ERP"
+                        style={{ width: "78%", height: "78%", objectFit: "contain" }}
+                    />
+                </div>
 
                 {/* Wordmark */}
                 <div className="flex flex-col items-center gap-1">
                     <span
-                        className="text-4xl font-black tracking-widest text-white uppercase"
+                        className="text-4xl font-black tracking-widest text-[#222222] uppercase"
                         style={{ letterSpacing: "0.18em" }}
                     >
                         CASPER
                     </span>
-                    <div className="w-full h-px bg-white/20" />
+                    <div className="w-full h-px bg-[#222222]/10" />
                     <span
                         className="text-sm font-semibold tracking-[0.4em] uppercase"
-                        style={{ color: "rgba(255,255,255,0.45)" }}
+                        style={{ color: "rgba(34,34,34,0.45)" }}
                     >
                         ERP
                     </span>
@@ -82,11 +92,11 @@ export default function SplashScreen({
             </div>
 
             {/* ── Loading bar ───────────────────────────────────────── */}
-            <div className="absolute bottom-16 w-48 h-0.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="absolute bottom-16 w-48 h-0.5 bg-[#222222]/10 rounded-full overflow-hidden">
                 <div
                     className="h-full rounded-full"
                     style={{
-                        background: "linear-gradient(90deg, #00cfff, #a020f0)",
+                        background: "linear-gradient(90deg, #3B6978, #222222)",
                         animation: `splash-bar ${duration}ms ease-out forwards`,
                     }}
                 />

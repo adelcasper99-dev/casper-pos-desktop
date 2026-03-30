@@ -22,37 +22,37 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
         {/* Ghost 1 - Top Center */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2">
           <Image
-            src="/assets/casper-icon.png"
+            src="/assets/casper-light.png"
             alt=""
             width={ghostSize}
             height={ghostSize}
-            className="drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]"
+            className="drop-shadow-[0_0_8px_rgba(59,105,120,0.5)]"
           />
         </div>
         {/* Ghost 2 - Bottom Right */}
         <div className="absolute bottom-[15%] right-0 rotate-[120deg] origin-center">
           <Image
-            src="/assets/casper-icon.png"
+            src="/assets/casper-light.png"
             alt=""
             width={ghostSize}
             height={ghostSize}
-            className="drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]"
+            className="drop-shadow-[0_0_8px_rgba(59,105,120,0.5)]"
           />
         </div>
         {/* Ghost 3 - Bottom Left */}
         <div className="absolute bottom-[15%] left-0 -rotate-[120deg] origin-center">
           <Image
-            src="/assets/casper-icon.png"
+            src="/assets/casper-light.png"
             alt=""
             width={ghostSize}
             height={ghostSize}
-            className="drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]"
+            className="drop-shadow-[0_0_8px_rgba(59,105,120,0.5)]"
           />
         </div>
       </div>
 
       {text && (
-        <p className="text-xs text-cyan-400/80 font-medium animate-pulse tracking-widest uppercase mt-2">
+        <p className="text-xs text-[#3B6978]/80 font-medium animate-pulse tracking-widest uppercase mt-2">
           {text}
         </p>
       )}

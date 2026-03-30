@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { CasperLogo } from "@/components/ui/CasperLogo";
 import { Minus, Square, Copy, X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 /**
@@ -62,12 +63,7 @@ export default function TitleBar() {
         >
             {/* ── Branding ─────────────────────────────────────────────── */}
             <div className="no-drag flex items-center gap-2 px-3 pointer-events-none">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                    src="/assets/casper-icon.png"
-                    alt="Casper ERP"
-                    className="w-5 h-5 object-contain"
-                />
+                <CasperLogo width={28} height={28} />
                 <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
                     Casper ERP
                 </span>
