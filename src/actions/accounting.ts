@@ -11,6 +11,8 @@ import { getCurrentUser } from "./auth";
 import { seedAccounts } from "@/lib/accounting/seed-accounts";
 import { getTranslations } from "@/lib/i18n-mock";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
+import { z } from "zod";
 
 // Repair/Initialize Accounting Accounts
 export const repairAccounting = secureAction(async () => {
@@ -19,23 +21,53 @@ export const repairAccounting = secureAction(async () => {
 }, { permission: 'ACCOUNTING_MANAGE' });
 
 
+const FALLBACK_EXPENSE_GL = '5200';
+
+const CreateExpenseSchema = z.object({
+    description: z.string().min(1, "الوصف مطلوب"),
+    amount: z.number().positive("المبلغ يجب أن يكون أكبر من صفر"),
+    category: z.string().min(1, "التصنيف مطلوب"),
+    paymentMethod: z.enum(['CASH', 'VISA', 'CARD', 'MASTERCARD', 'BANK', 'INSTAPAY', 'WALLET', 'VODAFONE_CASH']).optional(),
+    treasuryId: z.string().uuid("معرف الخزنة غير صالح").optional().or(z.literal('')),
+});
+
+const GL_ACCOUNT_MAP: Record<string, string> = {
+    CASH: '1000', VISA: '1010', CARD: '1010',
+    MASTERCARD: '1010', BANK: '1010',
+    INSTAPAY: '1020', WALLET: '1020', VODAFONE_CASH: '1020'
+};
+
+/**
+ * Resolves the correct GL account code for an expense category.
+ * Falls back to the general expense account (5200) if the category is not mapped.
+ * 
+ * @param category - The expense category key from EXPENSE_CATEGORY_MAP
+ * @returns The GL account code to use for the journal entry
+ */
+function resolveExpenseGlCode(category: string): string {
+    const mapping = EXPENSE_CATEGORY_MAP[category];
+    if (!mapping) {
+        console.warn(`[createExpense] Unknown expense category "${category}", routing to fallback GL ${FALLBACK_EXPENSE_GL}`);
+        return FALLBACK_EXPENSE_GL;
+    }
+    return mapping.glCode;
+}
+
 /**
  * PHASE 4: Accounting Actions (P2)
  * Real implementations that link to shifts and create proper audit trails
  */
 
 // Create expense linked to current shift
-export const createExpense = secureAction(async (data: {
-    description: string;
-    amount: number;
-    category: string;
-    paymentMethod?: string;
-    treasuryId?: string;
-    csrfToken?: string;
-}) => {
+export const createExpense = secureAction(async (data: z.infer<typeof CreateExpenseSchema>) => {
     const t = await getTranslations('SystemMessages.Errors');
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error(t('unauthorized'));
+
+    const validated = CreateExpenseSchema.parse(data);
+
+    const glExpenseCode = resolveExpenseGlCode(validated.category);
+    const glPaymentCode = GL_ACCOUNT_MAP[validated.paymentMethod || 'CASH'] ?? '1000';
 
     // Get current shift if one is active
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
@@ -45,10 +77,10 @@ export const createExpense = secureAction(async (data: {
         // 1. Create the expense record
         const expense = await tx.expense.create({
             data: {
-                description: data.description,
-                amount: new Decimal(data.amount),
-                category: data.category,
-                paymentMethod: data.paymentMethod || 'CASH',
+                description: validated.description,
+                amount: new Decimal(validated.amount),
+                category: validated.category,
+                paymentMethod: validated.paymentMethod || 'CASH',
                 shiftId: currentShift?.id || null, // Link to shift if active
                 branchId: currentUser.branchId ?? null
             }
@@ -58,26 +90,26 @@ export const createExpense = secureAction(async (data: {
         await tx.transaction.create({
             data: {
                 type: 'EXPENSE',
-                amount: new Decimal(data.amount),
-                paymentMethod: data.paymentMethod || 'CASH',
-                description: `Expense: ${data.description}`,
-                treasuryId: data.treasuryId || null,
+                amount: new Decimal(validated.amount),
+                paymentMethod: validated.paymentMethod || 'CASH',
+                description: `Expense: ${validated.description}`,
+                treasuryId: validated.treasuryId || null,
                 expenseId: expense.id
             }
         });
 
         // 3. Update Treasury Balance if linked
-        if (data.treasuryId) {
-            const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
-            if (treasury && Number(treasury.balance) < data.amount) {
+        if (validated.treasuryId) {
+            const treasury = await tx.treasury.findUnique({ where: { id: validated.treasuryId } });
+            if (treasury && Number(treasury.balance) < validated.amount) {
                 const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
                 if (!canGoNegative) {
                     throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
                 }
             }
             await tx.treasury.update({
-                where: { id: data.treasuryId },
-                data: { balance: { decrement: data.amount } }
+                where: { id: validated.treasuryId },
+                data: { balance: { decrement: validated.amount } }
             });
         }
 
@@ -86,28 +118,21 @@ export const createExpense = secureAction(async (data: {
             await tx.shift.update({
                 where: { id: currentShift.id },
                 data: {
-                    totalExpenses: { increment: data.amount }
+                    totalExpenses: { increment: validated.amount }
                 }
             });
         }
 
         // 4. Create journal entry (inside transaction)
-        // Fix 1: Use correct GL asset account based on paymentMethod, not always '1000'
-        const glAccountMap: Record<string, string> = {
-            CASH: '1000', VISA: '1010', CARD: '1010',
-            MASTERCARD: '1010', BANK: '1010',
-            INSTAPAY: '1020', WALLET: '1020', VODAFONE_CASH: '1020'
-        };
-        const glCodeForPayment = glAccountMap[data.paymentMethod || 'CASH'] ?? '1000';
-
+        // G-01 Fix: Use resolved GL code from category mapping, not hardcoded '5200'
         await AccountingEngine.recordTransaction({
-            description: `Expense: ${data.description}`,
+            description: `Expense: ${validated.description}`,
             reference: expense.id,
             expenseId: expense.id,
             branchId: currentUser.branchId ?? undefined, // Expense GL must carry branchId for P&L isolation
             lines: [
-                { accountCode: '5200', debit: data.amount, credit: 0, description: data.category },
-                { accountCode: glCodeForPayment, debit: 0, credit: data.amount, description: `${data.paymentMethod || 'CASH'} Paid` }
+                { accountCode: glExpenseCode, debit: validated.amount, credit: 0, description: EXPENSE_CATEGORY_MAP[validated.category]?.labelAr ?? validated.category },
+                { accountCode: glPaymentCode, debit: 0, credit: validated.amount, description: `${validated.paymentMethod || 'CASH'} Paid` }
             ]
         }, tx);
 
@@ -120,7 +145,8 @@ export const createExpense = secureAction(async (data: {
     return {
         success: true,
         expense: result,
-        message: `Expense of ${data.amount} recorded successfully`
+        glCode: glExpenseCode,
+        message: `Expense of ${validated.amount} recorded to GL ${glExpenseCode} successfully`
     };
 }, { permission: 'ACCOUNTING_MANAGE' });
 

@@ -6,12 +6,18 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 
+const UUIDErrorMessage = "معرّف المستخدم غير صالح";
+const AmountErrorMessage = "المبلغ يجب أن يكون أكبر من صفر";
+const DescriptionErrorMessage = "الوصف مطلوب";
+
 const TransactionSchema = z.object({
-    id: z.string().optional(),
-    userId: z.string(),
-    type: z.enum(["BONUS", "ADDITION", "DEDUCTION", "PENALTY"]),
-    amount: z.number().positive(),
-    description: z.string().min(1, "Description is required"),
+    id: z.string().uuid("معرّف المعاملة غير صالح").optional(),
+    userId: z.string().uuid(UUIDErrorMessage),
+    type: z.enum(["BONUS", "ADDITION", "DEDUCTION", "PENALTY"] as const, {
+        message: "نوع المعاملة غير صالح"
+    }),
+    amount: z.number().positive(AmountErrorMessage),
+    description: z.string().min(1, DescriptionErrorMessage),
     createdAt: z.date().optional(),
 });
 
