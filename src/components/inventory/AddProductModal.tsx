@@ -338,10 +338,11 @@ export default function AddProductModal({
                                         <label className="text-xs text-slate-500 dark:text-muted-foreground font-black uppercase tracking-tight">الكمية:</label>
                                         <input
                                             type="number"
-                                            min={1}
+                                            step="any"
+                                            min={0.001}
                                             className="glass-input w-20 text-center font-black text-slate-900 dark:text-white"
                                             value={row.quantityIncluded}
-                                            onChange={e => handleComponentChange(idx, "quantityIncluded", parseInt(e.target.value) || 1)}
+                                            onChange={e => handleComponentChange(idx, "quantityIncluded", parseFloat(e.target.value) || 0)}
                                         />
                                     </div>
                                     {selectedComp && (
