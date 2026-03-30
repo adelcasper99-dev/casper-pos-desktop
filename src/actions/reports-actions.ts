@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { startOfDay, endOfDay, subDays, eachDayOfInterval, format } from 'date-fns';
+import { ALL_EXPENSE_CODES } from "@/lib/accounting/constants";
 
 
 interface ReportFilters {
@@ -35,6 +36,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
         // ─────────────────────────────────────────────────────────────────────
         // 📦 POS REVENUE: Sales
         // ─────────────────────────────────────────────────────────────────────
+
         let totalSalesRevenue = new Decimal(0);
         let totalCOGS = new Decimal(0);
         let saleCount = 0;
@@ -173,9 +175,9 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             });
             totalCOGS = new Decimal(cogsSum._sum.debit?.toString() || '0');
 
-            // Expenses (5100, 5200, 5300, 5400)
+            // Expenses (All sub-accounts)
             const expensesAgg = await prisma.journalLine.aggregate({
-                where: { account: { code: { in: ['5100', '5200', '5300', '5400'] } }, journalEntry: baseJournalEntryWhere },
+                where: { account: { code: { in: ALL_EXPENSE_CODES } }, journalEntry: baseJournalEntryWhere },
                 _sum: { debit: true }
             });
             totalExpenses = new Decimal(expensesAgg._sum.debit?.toString() || '0');
@@ -338,8 +340,8 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                     type = 'PURCHASE'; branch = entry.purchase.warehouse?.branch?.name ?? branch; method = entry.purchase.paymentMethod;
                     amount = -Number(entry.lines.find(l => l.account?.code === '1200')?.debit || entry.purchase.totalAmount);
                 } else {
-                    if (entry.lines.some(l => ['5100', '5200', '5300', '5400'].includes(l.account?.code || '') && l.debit.greaterThan(0))) {
-                        type = 'EXPENSE'; amount = -Number(entry.lines.find(l => ['5100', '5200', '5300', '5400'].includes(l.account?.code || ''))?.debit || 0);
+                    if (entry.lines.some(l => ALL_EXPENSE_CODES.includes(l.account?.code || '') && l.debit.greaterThan(0))) {
+                        type = 'EXPENSE'; amount = -Number(entry.lines.find(l => ALL_EXPENSE_CODES.includes(l.account?.code || ''))?.debit || 0);
                     } else if (entry.lines.some(l => l.account?.code === '4400' && l.credit.greaterThan(0))) {
                         type = 'INCOME'; amount = Number(entry.lines.find(l => l.account?.code === '4400')?.credit || 0);
                     } else {

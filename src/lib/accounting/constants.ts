@@ -38,9 +38,41 @@ export const DEFAULT_ACCOUNTS = [
     // Expenses (5000-5999)
     { code: '5000', name: 'Cost of Goods Sold',            type: ACCOUNT_TYPES.EXPENSE, isSystem: true },
     { code: '5100', name: 'Salaries & Wages Expense',      type: ACCOUNT_TYPES.EXPENSE, isSystem: true },
-    { code: '5200', name: 'General & Admin Expenses',      type: ACCOUNT_TYPES.EXPENSE, isSystem: true },
+    { code: '5110', name: 'Bonuses & Incentives',          type: ACCOUNT_TYPES.EXPENSE, isSystem: false },
+    { code: '5120', name: 'Daily Wages',                   type: ACCOUNT_TYPES.EXPENSE, isSystem: false },
+
+    // ── 52xx: General & Administrative (Detailed) ──────────────────────────
+    { code: '5200', name: 'General & Admin Expenses',      type: ACCOUNT_TYPES.EXPENSE, isSystem: true },  // Catch-all / legacy
+    { code: '5210', name: 'Rent Expense',                  type: ACCOUNT_TYPES.EXPENSE, isSystem: true },  // إيجار
+    { code: '5220', name: 'Utilities (Electricity & Water)', type: ACCOUNT_TYPES.EXPENSE, isSystem: true }, // كهرباء ومياه
+    { code: '5230', name: 'Internet & Communications',     type: ACCOUNT_TYPES.EXPENSE, isSystem: true },  // إنترنت واتصالات
+    { code: '5240', name: 'Maintenance & Repairs',         type: ACCOUNT_TYPES.EXPENSE, isSystem: true },  // صيانة وإصلاح
+    { code: '5250', name: 'Cleaning & Hospitality',        type: ACCOUNT_TYPES.EXPENSE, isSystem: false }, // نظافة وضيافة
+    { code: '5260', name: 'Office Supplies',               type: ACCOUNT_TYPES.EXPENSE, isSystem: false }, // أدوات مكتبية
+    { code: '5270', name: 'Miscellaneous General Expense', type: ACCOUNT_TYPES.EXPENSE, isSystem: false }, // متفرقات
+
+    // ── 53xx: Marketing & Advertising (Detailed) ───────────────────────────
     { code: '5300', name: 'Marketing & Advertising',       type: ACCOUNT_TYPES.EXPENSE, isSystem: false },
+    { code: '5310', name: 'Paid Ads',                      type: ACCOUNT_TYPES.EXPENSE, isSystem: false }, // إعلانات ممولة
+    { code: '5320', name: 'Promotions & Gifts',            type: ACCOUNT_TYPES.EXPENSE, isSystem: false }, // عروض وهدايا
+    { code: '5330', name: 'Packaging',                     type: ACCOUNT_TYPES.EXPENSE, isSystem: false }, // تعبئة وتغليف
+
     { code: '5400', name: 'Depreciation Expense',          type: ACCOUNT_TYPES.EXPENSE, isSystem: false },
-    { code: '5500', name: 'Cash Over/Short', type: ACCOUNT_TYPES.EXPENSE, isSystem: true },
-    { code: '5600', name: 'Inventory Spoilage', type: ACCOUNT_TYPES.EXPENSE, isSystem: true }
+    { code: '5500', name: 'Cash Over/Short',               type: ACCOUNT_TYPES.EXPENSE, isSystem: true },
+    { code: '5600', name: 'Inventory Spoilage',            type: ACCOUNT_TYPES.EXPENSE, isSystem: true },
+];
+
+/**
+ * Centrally managed array of all operating and non-operating expense GL codes.
+ * Used across dashboard KPIs, P&L reports, and auto-journal filters.
+ */
+export const ALL_EXPENSE_CODES = [
+    // Payroll
+    '5100', '5110', '5120',
+    // G&A (Occupancy & Operational)
+    '5200', '5210', '5220', '5230', '5240', '5250', '5260', '5270',
+    // Marketing
+    '5300', '5310', '5320', '5330',
+    // Other & Variances
+    '5400', '5500', '5600'
 ];

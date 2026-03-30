@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { DashboardFilterParams, FinancialDashboardMetrics } from "../types";
+import { ALL_EXPENSE_CODES } from "@/lib/accounting/constants";
 
 export async function getFinancialDashboardMetrics(
     params: DashboardFilterParams = {}
@@ -112,12 +113,11 @@ export async function getFinancialDashboardMetrics(
         });
         const periodPurchases = Number(purchasesLines._sum.debit || 0);
 
-        // Expenses: Accounts 5100, 5200, 5300, 5400 (Debit sum)
-        const expenseAccounts = ['5100', '5200', '5300', '5400'];
+        // Expenses: All Operating & Non-Operating Expenses (Debit sum)
         const expensesLines = await prisma.journalLine.aggregate({
             _sum: { debit: true },
             where: {
-                account: { code: { in: expenseAccounts } },
+                account: { code: { in: ALL_EXPENSE_CODES } },
                 journalEntry: { date: periodDateFilter }
             }
         });

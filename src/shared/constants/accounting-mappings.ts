@@ -1,34 +1,37 @@
 /**
  * Dictionary to map human-readable simplified categories to strict GAAP GL accounts.
- * This abstracts the accounting complexity away from the cashier/user.
+ * Each expense category maps to its dedicated granular GL sub-account.
+ * This enables per-category P&L breakdown (Rent vs Electricity vs Internet, etc.)
  */
 
 export const EXPENSE_CATEGORY_MAP: Record<string, { glCode: string; labelAr: string; labelEn: string }> = {
-    // ── 5200: General & Administrative Expenses ──
-    'RENT': { glCode: '5200', labelAr: 'إيجار', labelEn: 'Rent' },
-    'UTILITIES': { glCode: '5200', labelAr: 'مرافق (كهرباء/مياه)', labelEn: 'Utilities' },
-    'INTERNET': { glCode: '5200', labelAr: 'إنترنت واتصالات', labelEn: 'Internet & Comms' },
-    'OFFICE_SUPPLIES': { glCode: '5200', labelAr: 'أدوات مكتبية', labelEn: 'Office Supplies' },
-    'MAINTENANCE': { glCode: '5200', labelAr: 'صيانة وإصلاح', labelEn: 'Maintenance' },
-    'CLEANING': { glCode: '5200', labelAr: 'نظافة وضيافة', labelEn: 'Cleaning' },
-    'MISC_GENERAL': { glCode: '5200', labelAr: 'مصروفات عامة أخرى', labelEn: 'Misc. General' },
+    // ── 521x: Occupancy & Utilities ──────────────────────────────────────────
+    'RENT':          { glCode: '5210', labelAr: 'إيجار',                         labelEn: 'Rent' },
+    'UTILITIES':     { glCode: '5220', labelAr: 'كهرباء ومياه',                  labelEn: 'Utilities (Elec. & Water)' },
+    'INTERNET':      { glCode: '5230', labelAr: 'إنترنت واتصالات',               labelEn: 'Internet & Comms' },
 
-    // ── 5300: Marketing & Advertising Expenses ──
-    'ADS': { glCode: '5300', labelAr: 'إعلانات ممولة', labelEn: 'Paid Ads' },
-    'PROMOTIONS': { glCode: '5300', labelAr: 'عروض وهدايا', labelEn: 'Promotions / Gifts' },
-    'PACKAGING': { glCode: '5300', labelAr: 'تعبئة وتغليف', labelEn: 'Packaging' },
+    // ── 524x–526x: Operational G&A ───────────────────────────────────────────
+    'MAINTENANCE':   { glCode: '5240', labelAr: 'صيانة وإصلاح',                  labelEn: 'Maintenance & Repairs' },
+    'CLEANING':      { glCode: '5250', labelAr: 'نظافة وضيافة',                  labelEn: 'Cleaning & Hospitality' },
+    'OFFICE_SUPPLIES':{ glCode: '5260', labelAr: 'أدوات مكتبية',                 labelEn: 'Office Supplies' },
+    'MISC_GENERAL':  { glCode: '5270', labelAr: 'مصروفات عامة أخرى',             labelEn: 'Misc. General Expenses' },
 
-    // ── 5100: Salaries & Wages ──
-    'SALARIES': { glCode: '5100', labelAr: 'رواتب وأجور', labelEn: 'Salaries' },
-    'BONUSES': { glCode: '5100', labelAr: 'مكافآت وحوافز', labelEn: 'Bonuses / Incentives' },
-    'WAGES_DAILY': { glCode: '5100', labelAr: 'يوميات (عمالة مؤقتة)', labelEn: 'Daily Wages' },
+    // ── 531x–533x: Marketing & Advertising ──────────────────────────────────
+    'ADS':           { glCode: '5310', labelAr: 'إعلانات ممولة',                  labelEn: 'Paid Ads' },
+    'PROMOTIONS':    { glCode: '5320', labelAr: 'عروض وهدايا',                    labelEn: 'Promotions / Gifts' },
+    'PACKAGING':     { glCode: '5330', labelAr: 'تعبئة وتغليف',                   labelEn: 'Packaging' },
 
-    // ── 1300: Fixed Assets (Capital Expenditures) ──
-    'EQUIPMENT': { glCode: '1300', labelAr: 'شراء معدات/آلات', labelEn: 'Equipment Purchase' },
-    'FURNITURE': { glCode: '1300', labelAr: 'شراء أثاث/ديكور', labelEn: 'Furniture Purchase' },
+    // ── 510x: Payroll ────────────────────────────────────────────────────────
+    'SALARIES':      { glCode: '5100', labelAr: 'رواتب وأجور',                    labelEn: 'Salaries & Wages' },
+    'BONUSES':       { glCode: '5110', labelAr: 'مكافآت وحوافز',                  labelEn: 'Bonuses / Incentives' },
+    'WAGES_DAILY':   { glCode: '5120', labelAr: 'يوميات (عمالة مؤقتة)',            labelEn: 'Daily Wages' },
 
-    // ── 3200: Owner's Drawings (Personal) ──
-    'OWNER_DRAWING': { glCode: '3200', labelAr: 'مسحوبات شخصية', labelEn: 'Owner Drawings' },
+    // ── 1300: Fixed Assets (Capital Expenditures — NOT an expense on P&L) ───
+    'EQUIPMENT':     { glCode: '1300', labelAr: 'شراء معدات / آلات',              labelEn: 'Equipment Purchase' },
+    'FURNITURE':     { glCode: '1300', labelAr: 'شراء أثاث / ديكور',              labelEn: 'Furniture Purchase' },
+
+    // ── 3200: Owner's Drawings ───────────────────────────────────────────────
+    'OWNER_DRAWING': { glCode: '3200', labelAr: 'مسحوبات شخصية',                  labelEn: 'Owner Drawings' },
 };
 
 export const INCOME_CATEGORY_MAP: Record<string, { glCode: string; labelAr: string; labelEn: string }> = {

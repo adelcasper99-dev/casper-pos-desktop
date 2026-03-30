@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { TransactionReportFilters, ReportKPIs, ReportData, CategoryGroup } from "../types";
 import { startOfDay, endOfDay } from "date-fns";
+import { ALL_EXPENSE_CODES } from "@/lib/accounting/constants";
 
 const CATEGORY_MAP: Record<CategoryGroup, string[]> = {
     ALL: [],
     SALES: ['4000'],
     PURCHASES: ['2000'], // Per instruction: Mapping 'PURCHASES' to [2000]
-    EXPENSES: ['5100', '5200', '5300', '5400'],
+    EXPENSES: ALL_EXPENSE_CODES,
     DRAWINGS: ['3100'],
 };
 
@@ -114,7 +115,7 @@ export async function calculateKPIs(startDate?: Date, endDate?: Date): Promise<R
             revenue += (cr - dr); // Credit normal
         } else if (code === '5000') {
             cogs += (dr - cr); // Debit normal
-        } else if (['5100', '5200', '5300', '5400'].includes(code)) {
+        } else if (ALL_EXPENSE_CODES.includes(code)) {
             expenses += (dr - cr); // Debit normal
         }
     }

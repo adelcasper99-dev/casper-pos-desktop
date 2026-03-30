@@ -507,14 +507,14 @@ export const adjustAccountBalance = secureAction(async (data: {
 
             // 2. GL Entry
             // Fee: DR 1100 (AR) / CR 4400 (Other Income)
-            // Write-off: DR 5200 (Expense) / CR 1100 (AR)
+            // Write-off: DR 5270 (Miscellaneous Expense) / CR 1100 (AR)
             const lines = amount > 0 
                 ? [
                     { accountCode: '1100', debit: absAmount, credit: 0, description: `Manual Fee: ${reason}` },
                     { accountCode: '4400', debit: 0, credit: absAmount, description: `Manual Fee: ${reason}` }
                   ]
                 : [
-                    { accountCode: '5200', debit: absAmount, credit: 0, description: `Manual Adjustment: ${reason}` },
+                    { accountCode: '5270', debit: absAmount, credit: 0, description: `Manual Adjustment: ${reason}` },
                     { accountCode: '1100', debit: 0, credit: absAmount, description: `Manual Adjustment: ${reason}` }
                   ];
 
@@ -543,11 +543,11 @@ export const adjustAccountBalance = secureAction(async (data: {
             });
 
             // 2. GL Entry
-            // Increase Liability (Fee from supplier): DR 5200 (Expense) / CR 2000 (AP)
+            // Increase Liability (Fee from supplier): DR 5270 (Miscellaneous Expense) / CR 2000 (AP)
             // Decrease Liability (Credit from supplier): DR 2000 (AP) / CR 4400 (Other Income)
             const lines = amount > 0
                 ? [
-                    { accountCode: '5200', debit: absAmount, credit: 0, description: `Supplier Adjustment: ${reason}` },
+                    { accountCode: '5270', debit: absAmount, credit: 0, description: `Supplier Adjustment: ${reason}` },
                     { accountCode: '2000', debit: 0, credit: absAmount, description: `Supplier Adjustment: ${reason}` }
                   ]
                 : [

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { startOfDay, endOfDay, eachDayOfInterval, format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { ALL_EXPENSE_CODES } from "@/lib/accounting/constants";
 import { getCurrentUser } from "@/actions/auth";
 import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -123,37 +124,43 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
         const totalCOGS = cogs.plus(maintenancePartsCost);
 
         // ─────────────────────────────────────────────────────────────────────
-        // 💰 OPERATING EXPENSES
+        // 💰 OPERATING EXPENSES (Granular per sub-account)
         // ─────────────────────────────────────────────────────────────────────
-        const expenseAccounts = ['5100', '5200', '5300', '5400']; // Salaries, Rent, Utilities, Other
+
         const expensesAgg = await prisma.journalLine.aggregate({
             where: {
-                account: { code: { in: expenseAccounts } },
+                account: { code: { in: ALL_EXPENSE_CODES } },
                 journalEntry: { date: { gte: startDate, lte: endDate } }
             },
             _sum: { debit: true }
         });
         const operatingExpenses = new Decimal(expensesAgg._sum.debit?.toString() || '0');
 
-        // Get expenses breakdown by category
-        const expenseBreakdown: any[] = [];
-        for (const code of expenseAccounts) {
-            const account = await prisma.account.findFirst({ where: { code } });
-            if (account) {
-                const agg = await prisma.journalLine.aggregate({
-                    where: {
-                        accountId: account.id,
-                        journalEntry: { date: { gte: startDate, lte: endDate } }
-                    },
-                    _sum: { debit: true }
-                });
-                expenseBreakdown.push({
-                    code,
-                    name: account.name,
-                    amount: new Decimal(agg._sum.debit?.toString() || '0').toNumber()
-                });
-            }
-        }
+        // Fetch all expense accounts in one query for breakdown
+        const expenseAccountRows = await prisma.account.findMany({
+            where: { code: { in: ALL_EXPENSE_CODES } }
+        });
+
+        // Aggregate journal lines for all expense accounts in one query
+        const expenseLines = await prisma.journalLine.groupBy({
+            by: ['accountId'],
+            where: {
+                accountId: { in: expenseAccountRows.map((a: { id: string }) => a.id) },
+                journalEntry: { date: { gte: startDate, lte: endDate } }
+            },
+            _sum: { debit: true }
+        });
+
+        const expenseLineMap = new Map(expenseLines.map((l: any) => [l.accountId, l._sum.debit]));
+
+        const expenseBreakdown = expenseAccountRows
+            .map((account: { id: string; code: string; name: string }) => ({
+                code: account.code,
+                name: account.name,
+                amount: new Decimal(expenseLineMap.get(account.id)?.toString() || '0').toNumber()
+            }))
+            .filter((e: { amount: number }) => e.amount > 0)  // Only show accounts with actual entries
+            .sort((a: { code: string }, b: { code: string }) => a.code.localeCompare(b.code));
 
         // ─────────────────────────────────────────────────────────────────────
         // 🏪 GROSS PROFIT & NET PROFIT

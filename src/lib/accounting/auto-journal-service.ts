@@ -465,7 +465,7 @@ export class AutoJournalService {
   /**
    * Create journal entry for Stock Wastage / Loss
    * Balanced Entry:
-   * 1. Debit Spoilage/Wastage Expense (5200)
+   * 1. Debit Spoilage/Wastage Expense (5600)
    * 2. Credit Inventory Assets (1200)
    */
   static async recordWastageLoss(
@@ -487,7 +487,7 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '5200'), // Spoilage/Wastage Expense
+              accountId: await this.getAccountId(tx, '5600'), // Spoilage/Wastage Expense
               debit: amountNum, 
               credit: 0, 
               description: 'Stock Wastage Expense' 
