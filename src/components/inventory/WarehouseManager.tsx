@@ -104,7 +104,10 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setSelectedCategory("all");
         const res = await getWarehouseStock(warehouse.id);
         if (res.success && res.data) {
-            setStockList(res.data);
+            setStockList(res.data.map((item: any) => ({
+                ...item,
+                quantity: Number(item.quantity || 0)
+            })));
         } else {
             setStockList([]);
         }

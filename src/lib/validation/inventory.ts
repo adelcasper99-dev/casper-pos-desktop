@@ -18,6 +18,7 @@ export const productSchema = z.object({
     trackStock: z.boolean().default(true),
     isBundle: z.boolean().default(false),
     bundleItems: z.array(bundleItemSchema).optional(),
+    unitOfMeasureId: z.string().optional().nullable(),
 });
 
 export const supplierSchema = z.object({

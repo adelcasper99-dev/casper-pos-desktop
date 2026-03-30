@@ -468,10 +468,10 @@ export async function getSalesByProductAndCategory(
         for (const item of saleItems) {
             const key = item.productId;
             const existing = productMap.get(key);
-            const rev = Number(item.unitPrice) * item.quantity;
-            const cost = Number(item.unitCost) * item.quantity;
+            const rev = Number(item.unitPrice) * Number(item.quantity);
+            const cost = Number(item.unitCost) * Number(item.quantity);
             if (existing) {
-                existing.totalQty += item.quantity;
+                existing.totalQty += Number(item.quantity);
                 existing.totalRevenue += rev;
                 existing.totalCost += cost;
             } else {
@@ -481,7 +481,7 @@ export async function getSalesByProductAndCategory(
                     sku: item.product.sku,
                     categoryName: item.product.category?.name ?? 'بدون فئة',
                     categoryColor: item.product.category?.color ?? '#555',
-                    totalQty: item.quantity,
+                    totalQty: Number(item.quantity),
                     totalRevenue: rev,
                     totalCost: cost,
                 });

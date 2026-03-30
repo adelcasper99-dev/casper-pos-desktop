@@ -12,6 +12,14 @@ interface Category {
     name: string;
 }
 
+interface Unit {
+    id: string;
+    name: string;
+    code: string;
+    category: string;
+    abbreviation?: string;
+}
+
 interface Product {
     id: string;
     name: string;
@@ -32,6 +40,7 @@ interface AddProductModalProps {
     onClose: () => void;
     categories: Category[];
     allProducts: Product[];
+    units?: Unit[];
     csrfToken?: string;
     onSuccess?: () => void;
 }
@@ -49,6 +58,7 @@ const EMPTY_FORM = {
     trackStock: false,
     isBundle: true,
     description: "",
+    unitOfMeasureId: "",
 };
 
 export default function AddProductModal({
@@ -56,6 +66,7 @@ export default function AddProductModal({
     onClose,
     categories,
     allProducts,
+    units = [],
     csrfToken,
     onSuccess,
 }: AddProductModalProps) {
@@ -66,6 +77,20 @@ export default function AddProductModal({
     const [loading, setLoading] = useState(false);
     const [generatingSku, setGeneratingSku] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Group units by category
+    const unitsByCategory = units.reduce((acc, unit) => {
+        const cat = unit.category || 'COUNT';
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(unit);
+        return acc;
+    }, {} as Record<string, Unit[]>);
+
+    // Get unit options with group labels
+    const unitOptions = Object.entries(unitsByCategory).flatMap(([category, catUnits]) => [
+        { label: `--- ${category} ---`, value: '', disabled: true },
+        ...catUnits.map(u => ({ label: `${u.name} (${u.code})`, value: u.id }))
+    ]);
 
     // Filter out bundles from component candidates
     const componentCandidates = allProducts.filter(p => !(p as any).isBundle);
@@ -142,6 +167,7 @@ export default function AddProductModal({
                 minStock: 0,
                 trackStock: false,
                 isBundle: true,
+                unitOfMeasureId: form.unitOfMeasureId || undefined,
                 bundleItems: bundleItems.map(b => ({
                     componentProductId: b.componentProductId,
                     quantityIncluded: Number(b.quantityIncluded),
@@ -207,6 +233,24 @@ export default function AddProductModal({
                             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
+                </div>
+
+                <div>
+                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">وحدة القياس</label>
+                    <select
+                        className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                        value={form.unitOfMeasureId}
+                        onChange={e => setForm(f => ({ ...f, unitOfMeasureId: e.target.value }))}
+                    >
+                        <option value="">بدون وحدة</option>
+                        {Object.entries(unitsByCategory).map(([category, catUnits]) => (
+                            <optgroup key={category} label={category}>
+                                {catUnits.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
+                                ))}
+                            </optgroup>
+                        ))}
+                    </select>
                 </div>
 
                 <div>

@@ -31,6 +31,7 @@ import {
     History as HistoryIcon,
     Undo2,
     TrendingUp,
+    Info,
     type LucideIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -292,6 +293,26 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                     <LanguageSwitcher />
                     <ModeToggle />
                 </div>
+
+                {/* Training Button */}
+                <button
+                    onClick={() => {
+                        // Trigger the fixed button in TrainingModal component
+                        // The TrainingModal already has a fixed button that opens the modal
+                    }}
+                    className={cn(
+                        "relative flex items-center gap-4 p-3 rounded-lg w-full transition-all duration-200 group overflow-hidden",
+                        "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
+                    )}
+                >
+                    <Info strokeWidth={1.25} className={cn("w-5 h-5 shrink-0 relative z-10")} />
+                    <span className={cn(
+                        "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
+                        isExpanded ? "opacity-100" : "opacity-0 w-0"
+                    )}>
+                        التدريب
+                    </span>
+                </button>
 
                 {(isAdmin || hasPermission(user?.permissions, PERMISSION_REGISTRY.ADMIN.MANAGE_SETTINGS) || hasPermission(user?.permissions, PERMISSION_REGISTRY.ADMIN.MANAGE_USERS)) && (
                     <Link

@@ -287,6 +287,20 @@ model Category {
   products      Product[]
 }
 
+model UnitOfMeasure {
+  id               String     @id @default(uuid())
+  name             String
+  code             String     @unique
+  category         String
+  abbreviation     String?
+  conversionFactor Decimal    @default(1.00)
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  products         Product[]
+
+  @@index([category])
+}
+
 model Product {
   id                String             @id @default(uuid())
   sku               String             @unique
@@ -307,7 +321,9 @@ model Product {
   deletedAt         DateTime?
   version           Int                @default(1)
   archived          Boolean            @default(false)
-  componentOf       BundleItem[]       @relation("ComponentProduct")
+  unitOfMeasureId   String?
+  unitOfMeasure     UnitOfMeasure?    @relation(fields: [unitOfMeasureId], references: [id])
+  componentOf       BundleItem[]      @relation("ComponentProduct")
   bundleItems       BundleItem[]       @relation("BundleProduct")
   category          Category           @relation(fields: [categoryId], references: [id])
   purchaseItems     PurchaseItem[]
@@ -335,7 +351,7 @@ model Stock {
   id          String    @id @default(uuid())
   productId   String
   warehouseId String
-  quantity    Int       @default(0)
+  quantity    Decimal   @default(0.00)
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   product     Product   @relation(fields: [productId], references: [id])
 
@@ -348,7 +364,7 @@ model StockMovement {
   productId       String
   fromWarehouseId String?
   toWarehouseId   String?
-  quantity        Int
+  quantity        Decimal
   condition       String     @default("GOOD")
   reason          String?
   createdAt       DateTime   @default(now())
@@ -390,7 +406,7 @@ model StockRequestItem {
   id             String       @id @default(uuid())
   stockRequestId String
   productId      String
-  quantity       Int
+  quantity       Decimal    @default(0.00)
   stockRequest   StockRequest @relation(fields: [stockRequestId], references: [id], onDelete: Cascade)
   product        Product      @relation(fields: [productId], references: [id])
 
@@ -401,7 +417,7 @@ model StockWastage {
   id          String    @id @default(cuid())
   productId   String
   warehouseId String
-  quantity    Int
+  quantity    Decimal
   reason      String
   notes       String?
   reportedBy  String
@@ -446,8 +462,8 @@ model PurchaseItem {
   id                String          @id @default(uuid())
   purchaseInvoiceId String
   productId         String
-  quantity          Int
-  returnedQty       Int             @default(0)
+  quantity          Decimal    @default(0.00)
+  returnedQty       Int        @default(0)
   unitCost          Decimal
   invoice           PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
   product           Product         @relation(fields: [productId], references: [id])
@@ -512,8 +528,8 @@ model SaleItem {
   id          String  @id @default(uuid())
   saleId      String
   productId   String
-  quantity    Int
-  refundedQty Int     @default(0)
+  quantity    Decimal    @default(0.00)
+  refundedQty Int        @default(0)
   unitPrice   Decimal
   unitCost    Decimal @default(0.00)
   sale        Sale    @relation(fields: [saleId], references: [id])
@@ -805,7 +821,7 @@ model TicketPart {
   ticketId      String
   productId     String?
   name          String?
-  quantity      Int        @default(1)
+  quantity      Decimal    @default(1.00)
   refundedQty   Int        @default(0)
   cost          Decimal    @default(0.00)
   price         Decimal    @default(0.00)

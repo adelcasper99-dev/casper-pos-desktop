@@ -103,7 +103,7 @@ export default function LoginForm() {
 
                 {/* Subtle grid overlay */}
                 <div className="absolute inset-0 opacity-[0.03]" style={{
-                    backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+                    backgroundImage: "linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)",
                     backgroundSize: "48px 48px"
                 }} />
 
@@ -114,11 +114,11 @@ export default function LoginForm() {
                 {/* Large Logo Watermark */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div
-                        className="rounded-full bg-white/5 dark:bg-white/[0.03] flex items-center justify-center"
+                        className="rounded-full bg-slate-200/50 dark:bg-white/[0.03] flex items-center justify-center"
                         style={{
                             width: 380,
                             height: 380,
-                            border: "1px solid rgba(255,255,255,0.06)",
+                            border: "1px solid rgba(0,0,0,0.06)",
                             boxShadow: "0 0 120px rgba(59,105,120,0.12)",
                         }}
                     >
@@ -126,20 +126,20 @@ export default function LoginForm() {
                         <img
                             src="/assets/casper-light.png"
                             alt=""
-                            className="w-[60%] h-[60%] object-contain opacity-10"
+                            className="w-[60%] h-[60%] object-contain opacity-10 dark:opacity-5"
                         />
                     </div>
                 </div>
 
                 {/* Quote content */}
                 <div className="relative z-10 flex flex-col items-center text-center max-w-xl px-10">
-                    <div className="text-[120px] leading-none text-[#3B6978]/20 dark:text-[#3B6978]/15 font-serif mb-[-20px] select-none">"</div>
-                    <p className="text-3xl md:text-4xl font-black text-white/90 leading-relaxed mb-8 drop-shadow-sm">
+                    <div className="text-[120px] leading-none text-slate-300 dark:text-white/20 font-serif mb-[-20px] select-none">"</div>
+                    <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white/90 leading-relaxed mb-8 drop-shadow-sm">
                         {currentQuote?.text}
                     </p>
                     <div className="flex items-center gap-4">
                         <div className="h-px w-14 bg-[#3B6978]/50 rounded-full" />
-                        <span className="text-sm font-bold text-[#3B6978] tracking-widest uppercase">
+                        <span className="text-sm font-bold text-slate-500 dark:text-zinc-400 tracking-widest uppercase">
                             {currentQuote?.author}
                         </span>
                         <div className="h-px w-14 bg-[#3B6978]/50 rounded-full" />
@@ -149,8 +149,8 @@ export default function LoginForm() {
 
                 {/* Bottom stamp */}
                 <div className="absolute bottom-8 left-10 opacity-20 text-left">
-                    <p className="text-xs font-black text-white uppercase tracking-[0.3em]">CASPER ERP</p>
-                    <p className="text-[10px] text-white/50 tracking-widest">Enterprise Platform</p>
+                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">CASPER ERP</p>
+                    <p className="text-[10px] text-slate-500 dark:text-white/50 tracking-widest">Enterprise Platform</p>
                 </div>
             </div>
 

@@ -64,7 +64,7 @@ export default async function POSPage() {
         // Calculate stock for the specific warehouse, or total if no default is found (fallback)
         let warehouseStock = 0;
         if (posDefaultId && p.stocks && p.stocks.length > 0) {
-            warehouseStock = p.stocks[0].quantity;
+            warehouseStock = p.stocks[0].quantity.toNumber();
         }
 
         return {

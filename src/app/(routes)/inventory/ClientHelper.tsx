@@ -17,7 +17,8 @@ export default function InventoryTabs({
     user,
     features,
     currency = "EGP",
-    permissions = { canManageCategories: true }
+    permissions = { canManageCategories: true },
+    units = []
 }: any) {
     const t = useTranslations('Inventory');
     const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES'>('STOCK');
@@ -98,6 +99,7 @@ export default function InventoryTabs({
                                 user={user}
                                 warehouseId={warehouses.find((w: any) => w.isDefault)?.id}
                                 currency={currency}
+                                initialUnits={units}
                             />
                         )}
 

@@ -2,9 +2,12 @@
 
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import TitleBar from "@/components/TitleBar";
 import SplashScreen from "@/components/SplashScreen";
+
+const TrainingModal = dynamic(() => import("@/components/ui/TrainingModal"), { ssr: false });
 
 export default function LayoutContent({
     children,
@@ -52,6 +55,7 @@ export default function LayoutContent({
                     {children}
                 </main>
             </div>
+            <TrainingModal />
         </div>
     );
 }

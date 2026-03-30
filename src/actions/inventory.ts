@@ -433,7 +433,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
         throw new AppError(ErrorCodes.VALIDATION_ERROR, t('skuExists'));
     }
 
-    const { categoryId, bundleItems, isBundle, ...productData } = validated;
+    const { categoryId, bundleItems, isBundle, unitOfMeasureId, ...productData } = validated;
 
     // Bundles don't carry their own physical stock
     const effectiveStock = isBundle ? 0 : (productData.stock ?? 0);
@@ -448,6 +448,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
                 stock: effectiveStock,
                 trackStock: effectiveTrackStock,
                 isBundle: isBundle ?? false,
+                unitOfMeasureId: unitOfMeasureId || null,
                 ...(categoryId ? { category: { connect: { id: categoryId } } } : {})
             }
         });
@@ -530,7 +531,7 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
     const startTime = Date.now();
     const { id, ...productData } = data;
     const validated = productSchema.parse(productData);
-    const { bundleItems, isBundle, ...productFields } = validated;
+    const { bundleItems, isBundle, unitOfMeasureId, ...productFields } = validated;
 
     const effectiveTrackStock = isBundle ? false : (productFields.trackStock ?? true);
     const effectiveStock = isBundle ? 0 : (productFields.stock ?? 0);
@@ -544,6 +545,7 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
                 stock: effectiveStock,
                 trackStock: effectiveTrackStock,
                 isBundle: isBundle ?? false,
+                unitOfMeasureId: unitOfMeasureId || null,
             }
         });
 
@@ -699,6 +701,13 @@ export const getAllCategories = secureAction(async () => {
         orderBy: { name: 'asc' },
     });
     return { success: true, categories };
+}, { permission: 'INVENTORY_VIEW' });
+
+export const getAllUnits = secureAction(async () => {
+    const units = await prisma.unitOfMeasure.findMany({
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+    return { success: true, units };
 }, { permission: 'INVENTORY_VIEW' });
 
 export const createCategory = secureAction(async (data: z.infer<typeof categorySchema> & { csrfToken?: string }) => {
@@ -1084,12 +1093,14 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             ...oldInvoice.items.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
+                    // @ts-ignore - Prisma decimal type issue
                     data: { stock: { decrement: item.quantity } }
                 })
             ),
             ...oldInvoice.items.map(item =>
                 tx.stock.update({
                     where: { productId_warehouseId: { productId: item.productId, warehouseId: oldInvoice.warehouseId! } },
+                    // @ts-ignore - Prisma decimal type issue
                     data: { quantity: { decrement: item.quantity } }
                 })
             )
@@ -1211,13 +1222,13 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             ...sortedItems.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
-                    data: { stock: { increment: item.quantity }, costPrice: item.unitCost }
+                    data: { stock: { increment: item.quantity.toNumber() }, costPrice: item.unitCost }
                 })
             ),
             ...sortedItems.map(item =>
                 tx.stock.upsert({
                     where: { productId_warehouseId: { productId: item.productId, warehouseId: warehouseId! } },
-                    update: { quantity: { increment: item.quantity } },
+                    update: { quantity: { increment: new Decimal(item.quantity.toString()) } },
                     create: { productId: item.productId, warehouseId: warehouseId!, quantity: item.quantity }
                 })
             )
@@ -1251,10 +1262,10 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
 
     await prisma.$transaction(async (tx) => {
         for (const item of old.items) {
-            await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity } } });
+            await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity.toNumber() } } });
             await tx.stock.update({
                 where: { productId_warehouseId: { productId: item.productId, warehouseId: old.warehouseId! } },
-                data: { quantity: { decrement: item.quantity } }
+                data: { quantity: { decrement: new Decimal(item.quantity.toString()) } }
             });
         }
         const netDec = new Decimal(old.totalAmount.toString()).minus(old.paidAmount.toString());
@@ -1296,8 +1307,8 @@ export const adjustStock = secureAction(async (data: {
         const currentStock = await tx.stock.findUnique({
             where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } }
         });
-        const oldQty = currentStock?.quantity || 0;
-        const delta = data.newQuantity - oldQty;
+        const oldQty = Number(currentStock?.quantity) || 0;
+        const delta = Number(data.newQuantity) - oldQty;
 
         if (delta === 0) return; // No change
 
@@ -1350,8 +1361,9 @@ export const adjustStock = secureAction(async (data: {
             where: { productId: data.productId },
             _sum: { quantity: true }
         });
-        const trueTotal = aggregation._sum.quantity || 0;
+        const trueTotal = Number(aggregation._sum.quantity) || 0;
 
+        // @ts-ignore - Prisma decimal type issue
         await tx.product.update({
             where: { id: data.productId },
             data: { stock: trueTotal }
@@ -1700,6 +1712,15 @@ export const generateNextSku = secureAction(async (options?: {
     return { success: true, sku: newSku };
 }, { requireCSRF: false }); // No permission required - safe read-only operation
 
+export const getUnits = secureAction(async (category?: string) => {
+    const where = category ? { category, isActive: true } : { isActive: true };
+    const units = await prisma.unitOfMeasure.findMany({
+        where,
+        orderBy: [{ category: 'asc' }, { name: 'asc' }]
+    });
+    return { success: true, units };
+}, { requireCSRF: false });
+
 export const getProducts = secureAction(async (params: { 
     search?: string; 
     page?: number; 
@@ -1781,6 +1802,7 @@ export const getProducts = secureAction(async (params: {
             orderBy,
             include: {
                 category: { select: { name: true } },
+                unitOfMeasure: { select: { code: true, name: true, abbreviation: true } },
                 stocks: params.warehouseId ? {
                     where: { warehouseId: params.warehouseId }
                 } : false
@@ -1793,9 +1815,11 @@ export const getProducts = secureAction(async (params: {
         success: true,
         data: products.map(p => ({
             ...p,
-            // Override stock with warehouse-specific stock if filtered
             stock: params.warehouseId ? (p.stocks?.[0]?.quantity || 0) : p.stock,
             categoryName: p.category?.name || null,
+            unitCode: p.unitOfMeasure?.code || null,
+            unitName: p.unitOfMeasure?.name || null,
+            unitAbbreviation: p.unitOfMeasure?.abbreviation || null,
             costPrice: p.costPrice.toNumber(),
             sellPrice: p.sellPrice.toNumber(),
             sellPrice2: p.sellPrice2?.toNumber() || 0,
@@ -1854,7 +1878,7 @@ export const reportWastage = secureAction(async (data: {
             }
         });
 
-        if (!warehouseStock || warehouseStock.quantity < data.quantity) {
+        if (!warehouseStock || Number(warehouseStock.quantity) < Number(data.quantity)) {
             const t = await getTranslations('SystemMessages.Errors');
             throw new Error(t('insufficientStockWarehouse', { item: product.name }));
         }
@@ -1909,7 +1933,7 @@ export const reportWastage = secureAction(async (data: {
                     warehouseId: data.warehouseId,
                 },
             },
-            data: { quantity: { decrement: data.quantity } },
+            data: { quantity: { decrement: new Decimal(data.quantity) } },
         });
 
         const warehouse = await tx.warehouse.findUnique({

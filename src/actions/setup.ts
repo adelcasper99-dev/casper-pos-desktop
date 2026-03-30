@@ -28,6 +28,7 @@ async function resetForSetup(): Promise<void> {
         await prisma.branch.deleteMany({});
         await prisma.storeSettings.deleteMany({});
         await prisma.account.deleteMany({});
+        await prisma.unitOfMeasure.deleteMany({});
     } finally {
         await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
     }
@@ -106,6 +107,10 @@ export async function performSetup(data: {
     // Seed Chart of Accounts (outside transaction — BL-09 fix)
     const { seedAccounts } = await import('@/lib/accounting/seed-accounts');
     await seedAccounts();
+
+    // Seed default units of measure
+    const { seedUnits } = await import('@/lib/inventory/seed-units');
+    await seedUnits();
 
     return { success: true };
 }

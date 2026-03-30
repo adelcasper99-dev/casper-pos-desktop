@@ -160,7 +160,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 const matched = (ret.items || []).find((ii: any) => ii.productId === i.productId);
                 return sum + (matched?.quantity || 0);
             }, 0);
-            const invoiceRemaining = Math.max(0, i.quantity - alreadyReturnedQty);
+            const invoiceRemaining = Math.max(0, Number(i.quantity) - alreadyReturnedQty);
             if (invoiceRemaining <= 0) continue;
 
             // Cap by actual stock in warehouse
@@ -353,10 +353,10 @@ export const partialReturnPurchase = secureAction(async (data: {
             // Check how many have been returned in PREVIOUS separate return documents
             const alreadyReturned = (previousReturns as any[]).reduce((sum: number, ret: any) => {
                 const matchedItem = (ret.items as any[]).find((i: any) => i.productId === originalItem.productId);
-                return sum + (matchedItem?.quantity || 0);
+                return sum + Number(matchedItem?.quantity || 0);
             }, 0);
 
-            const availableFromInvoice = originalItem.quantity - alreadyReturned;
+            const availableFromInvoice = Number(originalItem.quantity) - alreadyReturned;
 
             // 🔒 Check actual stock in warehouse — sold items cannot be returned to supplier
             const stockRecord = await tx.stock.findFirst({

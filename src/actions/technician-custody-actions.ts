@@ -6,6 +6,7 @@ import { secureAction } from "@/lib/safe-action"
 import { PERMISSIONS } from "@/lib/permissions"
 import { serialize } from "@/lib/serialization"
 import { decrementWarehouseStock } from "@/lib/stock-helpers"
+import { Decimal } from "@prisma/client/runtime/library"
 
 export type TechnicianSummary = {
     id: string
@@ -33,7 +34,7 @@ export const getTechniciansForCustody = secureAction(async () => {
             id: t.id,
             name: t.name,
             warehouseId: t.warehouseId,
-            itemCount: t.warehouse?.stocks.reduce((acc: number, s: any) => acc + s.quantity, 0) || 0
+            itemCount: t.warehouse?.stocks.reduce((acc: number, s: any) => acc + Number(s.quantity), 0) || 0
         }));
 
         return serialize({ data: summary });
@@ -142,7 +143,7 @@ export const transferCustodyToTech = secureAction(async (data: {
                 }
             });
 
-            if (!srcStock || srcStock.quantity < item.quantity) {
+            if (!srcStock || Number(srcStock.quantity) < Number(item.quantity)) {
                 const product = await tx.product.findUnique({ where: { id: item.productId }, select: { name: true } });
                 throw new Error(`Insufficient stock for "${product?.name || item.productId}". Available: ${srcStock?.quantity || 0}`);
             }
@@ -150,6 +151,7 @@ export const transferCustodyToTech = secureAction(async (data: {
             // 2. Deduct from source
             await tx.stock.update({
                 where: { id: srcStock.id },
+                // @ts-ignore - Prisma decimal type issue
                 data: { quantity: { decrement: item.quantity } }
             });
 
@@ -235,7 +237,7 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
             }
         });
 
-        if (!srcStock || srcStock.quantity < quantity) {
+        if (!srcStock || Number(srcStock.quantity) < quantity) {
             throw new Error(`Insufficient stock in main warehouse. Available: ${srcStock?.quantity || 0}`);
         }
 

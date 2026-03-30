@@ -140,7 +140,7 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                     where: { productId_warehouseId: { productId: item.productId, warehouseId: sourceWarehouseId! } }
                 });
 
-                if (!sourceStock || sourceStock.quantity < item.quantity) {
+                if (!sourceStock || sourceStock.quantity.lt(item.quantity)) {
                     throw new Error(`Insufficient stock for product. Available: ${sourceStock?.quantity || 0}, Requested: ${item.quantity}`);
                 }
 

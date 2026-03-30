@@ -75,12 +75,12 @@ ALTER TABLE "Treasury" ADD COLUMN "paymentMethod" TEXT;
 ALTER TABLE "SaleItem" ADD COLUMN "refundedQty" INTEGER NOT NULL DEFAULT 0;
 
 -- ============================================================
--- New indexes
+-- New indexes (use IF NOT EXISTS for safety)
 -- ============================================================
-CREATE INDEX "Sale_shiftId_idx" ON "Sale"("shiftId");
-CREATE INDEX "Sale_customerId_idx" ON "Sale"("customerId");
-CREATE INDEX "Sale_status_createdAt_idx" ON "Sale"("status", "createdAt");
-CREATE INDEX "SaleItem_saleId_idx" ON "SaleItem"("saleId");
-CREATE INDEX "Transaction_treasuryId_createdAt_idx" ON "Transaction"("treasuryId", "createdAt");
-CREATE INDEX "SupplierPayment_supplierId_idx" ON "SupplierPayment"("supplierId");
-CREATE INDEX "ShiftAdjustment_shiftId_idx" ON "ShiftAdjustment"("shiftId");
+CREATE INDEX IF NOT EXISTS "Sale_shiftId_idx" ON "Sale"("shiftId");
+CREATE INDEX IF NOT EXISTS "Sale_customerId_idx" ON "Sale"("customerId");
+CREATE INDEX IF NOT EXISTS "Sale_status_createdAt_idx" ON "Sale"("status", "createdAt");
+CREATE INDEX IF NOT EXISTS "SaleItem_saleId_idx" ON "SaleItem"("saleId");
+CREATE INDEX IF NOT EXISTS "Transaction_treasuryId_createdAt_idx" ON "Transaction"("treasuryId", "createdAt");
+CREATE INDEX IF NOT EXISTS "SupplierPayment_supplierId_idx" ON "SupplierPayment"("supplierId");
+CREATE INDEX IF NOT EXISTS "ShiftAdjustment_shiftId_idx" ON "ShiftAdjustment"("shiftId");

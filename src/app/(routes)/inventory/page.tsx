@@ -100,6 +100,18 @@ export default async function InventoryPage() {
         canManageCategories: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_MANAGE_CATEGORIES),
     };
 
+    const unitsRaw = await prisma.unitOfMeasure.findMany({
+        where: { isActive: true },
+        orderBy: [{ category: 'asc' }, { name: 'asc' }]
+    });
+    const units = unitsRaw.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        code: u.code,
+        category: u.category,
+        abbreviation: u.abbreviation
+    }));
+
     return (
         <div className="space-y-6">
             <div>
@@ -116,6 +128,7 @@ export default async function InventoryPage() {
                 features={features}
                 currency={currency}
                 permissions={permissions}
+                units={units}
             />
         </div>
     );

@@ -106,7 +106,7 @@ const MAX_WARNING_LOG_SIZE = 100;
  * Get statistics on GL routing warnings
  * Useful for monitoring and improving the EXPENSE_CATEGORY_MAP
  */
-export function getGlRoutingStats(): { unmappedCategories: Array<{category: string; count: number}>; totalWarnings: number } {
+export async function getGlRoutingStats(): Promise<{ unmappedCategories: Array<{category: string; count: number}>; totalWarnings: number }> {
     const entries = Array.from(GL_ROUTING_WARNINGS.entries())
         .map(([category, count]) => ({ category, count }))
         .sort((a, b) => b.count - a.count);
@@ -139,7 +139,7 @@ function resolveExpenseGlCode(category: string): string {
         }
         
         console.warn(`[createExpense] Unknown expense category "${category}", routing to fallback GL ${FALLBACK_EXPENSE_GL}`);
-        console.warn(`[GL-Routing-Monitor] Add "${category}" to EXPENSE_CATEGORY_MAP for proper expense tracking. Current stats: ${getGlRoutingStats().totalWarnings} total unmapped warnings.`);
+        console.warn(`[GL-Routing-Monitor] Add "${category}" to EXPENSE_CATEGORY_MAP for proper expense tracking.`);
         return FALLBACK_EXPENSE_GL;
     }
     return mapping.glCode;

@@ -11,7 +11,7 @@ import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
 import { ThermalPrintLabel } from "./ThermalPrintLabel";
 import AddProductModal from "./AddProductModal";
-import { updateProduct, generateNextSku, deleteProduct, getProducts, getWarehouses } from "@/actions/inventory";
+import { updateProduct, generateNextSku, deleteProduct, getProducts, getWarehouses, getAllUnits } from "@/actions/inventory";
 import GlassModal from "../ui/GlassModal";
 import clsx from "clsx";
 import BarcodeListener from "./BarcodeListener";
@@ -56,6 +56,10 @@ interface Product {
     minStock: number;
     trackStock: boolean;
     version: number;
+    unitOfMeasureId?: string | null;
+    unitCode?: string | null;
+    unitName?: string | null;
+    unitAbbreviation?: string | null;
 }
 
 interface Category {
@@ -69,7 +73,8 @@ export default function ProductsTab({
     csrfToken,
     user,
     warehouseId,
-    currency = "EGP"
+    currency = "EGP",
+    initialUnits = []
 }: {
     products: any[];
     categories: Category[];
@@ -77,6 +82,7 @@ export default function ProductsTab({
     user?: any;
     warehouseId?: string;
     currency?: string;
+    initialUnits?: any[];
 }) {
     const t = useTranslations('Inventory.products');
     const tCommon = useTranslations('Common');
@@ -123,6 +129,20 @@ export default function ProductsTab({
     });
     const warehouses = warehousesData || [];
 
+    // Fetch Units for dropdown
+    const { data: unitsData, isLoading: unitsLoading } = useQuery({
+        queryKey: ['units'],
+        queryFn: async () => {
+            const res = await getAllUnits();
+            return res.units || [];
+        }
+    });
+    // Map units to ensure abbreviation is not null (TS compatibility)
+    const unitsList = (unitsData || []).map((u: any) => ({
+        ...u,
+        abbreviation: u.abbreviation || undefined
+    }));
+
     // Permission Checks
     const canManage = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE);
     const canViewCost = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_VIEW_COST);
@@ -166,7 +186,13 @@ export default function ProductsTab({
         placeholderData: (previousData) => previousData, 
     });
 
-    const products = queryData?.data || [];
+    // Safe mapping for products to ensure numeric values for stock and prices
+    const products = (queryData?.data || []).map((p: any) => ({
+        ...p,
+        stock: Number(p.stock || 0),
+        costPrice: Number(p.costPrice || 0),
+        sellPrice: Number(p.sellPrice || 0),
+    }));
     const pagination = queryData?.pagination || { page: 1, totalPages: 1, total: 0 };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -216,6 +242,7 @@ export default function ProductsTab({
             stock: Number(editingProduct.stock),
             minStock: 5,
             trackStock: editingProduct.trackStock,
+            unitOfMeasureId: editingProduct.unitOfMeasureId || undefined,
             csrfToken
         } as any);
 
@@ -463,15 +490,16 @@ export default function ProductsTab({
                 </div>
             </div>
 
-            {/* Add Product Modal */}
-            <AddProductModal
-                isOpen={addProductOpen}
-                onClose={() => setAddProductOpen(false)}
-                categories={categories}
-                allProducts={products}
-                csrfToken={csrfToken}
-                onSuccess={() => { refetch(); }}
-            />
+             {/* Add Product Modal */}
+             <AddProductModal
+                 isOpen={addProductOpen}
+                 onClose={() => setAddProductOpen(false)}
+                 categories={categories}
+                 allProducts={products}
+                  units={unitsList}
+                 csrfToken={csrfToken}
+                 onSuccess={() => { refetch(); }}
+             />
 
             {/* Products Grid */}
             <div className="glass-card overflow-hidden border border-slate-200 dark:border-white/5 bg-white dark:bg-black/20 shadow-2xl rounded-xl flex flex-col min-h-[500px]">
@@ -587,6 +615,9 @@ export default function ProductsTab({
                                                     "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                                 )}>
                                                     {p.stock}
+                                                    {p.unitAbbreviation && (
+                                                        <span className="text-[10px] text-slate-400 dark:text-white/30 font-black ms-1">{p.unitAbbreviation}</span>
+                                                    )}
                                                 </span>
                                             )}
                                         </td>
@@ -810,6 +841,37 @@ export default function ProductsTab({
                                 {editingProduct.trackStock ? <Box className="w-5 h-5 text-slate-400 dark:text-zinc-400" /> : <InfinityIcon className="w-5 h-5 text-cyan-500" />}
                                 {editingProduct.trackStock ? t('products.trackStockOn') : t('products.trackStockOff')}
                             </label>
+                        </div>
+
+                        <div>
+                            <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">وحدة القياس</label>
+                            <select
+                                className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                value={editingProduct.unitOfMeasureId || ""}
+                                onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value || null })}
+                            >
+                                <option value="">بدون وحدة</option>
+                                <optgroup label="الوزن">
+                                    <option value="kg">kg - Kilogram</option>
+                                    <option value="g">g - Gram</option>
+                                    <option value="lb">lb - Pound</option>
+                                    <option value="oz">oz - Ounce</option>
+                                    <option value="ton">ton - Ton</option>
+                                </optgroup>
+                                <optgroup label="الحجم">
+                                    <option value="L">L - Liter</option>
+                                    <option value="mL">mL - Milliliter</option>
+                                    <option value="gal">gal - Gallon</option>
+                                    <option value="m3">m³ - Cubic Meter</option>
+                                </optgroup>
+                                <optgroup label="العدد">
+                                    <option value="pcs">pcs - Piece</option>
+                                    <option value="box">box - Box</option>
+                                    <option value="doz">doz - Dozen</option>
+                                    <option value="set">set - Set</option>
+                                    <option value="pack">pack - Pack</option>
+                                </optgroup>
+                            </select>
                         </div>
 
                         <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-white/5">

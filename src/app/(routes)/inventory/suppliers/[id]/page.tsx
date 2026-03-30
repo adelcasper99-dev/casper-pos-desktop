@@ -101,7 +101,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 name: item.product.name,
                 sku: item.product.sku,
                 category: item.product.category.name,
-                quantity: item.quantity,
+                quantity: item.quantity.toNumber(),
                 unitCost: item.unitCost.toNumber()
             }))
         })),
