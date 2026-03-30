@@ -343,7 +343,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                                                             "font-black text-2xl tracking-tight",
                                                             item.quantity < 5 ? "text-rose-500" : "text-cyan-600 dark:text-cyan-400"
                                                         )}>
-                                                            {item.quantity}
+                                                            {Number.isInteger(Number(item.quantity)) ? Number(item.quantity) : Number(item.quantity).toFixed(3).replace(/\.?0+$/, '')}
                                                         </div>
                                                         <div className="text-[10px] font-black text-slate-400 dark:text-muted-foreground uppercase tracking-widest">{t('inStock')}</div>
                                                     </div>
