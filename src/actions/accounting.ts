@@ -14,6 +14,64 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
 import { z } from "zod";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Rate Limiting Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RateLimitConfig {
+    windowMs: number;      // Time window in milliseconds
+    maxRequests: number;  // Max requests per window
+}
+
+const EXPENSE_RATE_LIMIT: RateLimitConfig = {
+    windowMs: 60 * 1000,  // 1 minute
+    maxRequests: 20,      // Max 20 expense creations per minute
+};
+
+// In-memory rate limit store (resets on server restart)
+// For production, consider using Redis for distributed rate limiting
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Check rate limit for a user
+ * @returns true if allowed, false if rate limited
+ */
+function checkRateLimit(userId: string): { allowed: boolean; remaining: number; resetIn: number } {
+    const now = Date.now();
+    const userLimit = rateLimitStore.get(userId);
+    
+    if (!userLimit || userLimit.resetAt < now) {
+        // New window
+        rateLimitStore.set(userId, {
+            count: 1,
+            resetAt: now + EXPENSE_RATE_LIMIT.windowMs
+        });
+        return {
+            allowed: true,
+            remaining: EXPENSE_RATE_LIMIT.maxRequests - 1,
+            resetIn: EXPENSE_RATE_LIMIT.windowMs
+        };
+    }
+    
+    if (userLimit.count >= EXPENSE_RATE_LIMIT.maxRequests) {
+        return {
+            allowed: false,
+            remaining: 0,
+            resetIn: userLimit.resetAt - now
+        };
+    }
+    
+    // Increment count
+    userLimit.count++;
+    rateLimitStore.set(userId, userLimit);
+    
+    return {
+        allowed: true,
+        remaining: EXPENSE_RATE_LIMIT.maxRequests - userLimit.count,
+        resetIn: userLimit.resetAt - now
+    };
+}
+
 // Repair/Initialize Accounting Accounts
 export const repairAccounting = secureAction(async () => {
     await seedAccounts();
@@ -38,8 +96,31 @@ const GL_ACCOUNT_MAP: Record<string, string> = {
 };
 
 /**
+ * GL Routing Monitoring
+ * Tracks unmapped categories for reporting and improvement
+ */
+const GL_ROUTING_WARNINGS = new Map<string, number>();
+const MAX_WARNING_LOG_SIZE = 100;
+
+/**
+ * Get statistics on GL routing warnings
+ * Useful for monitoring and improving the EXPENSE_CATEGORY_MAP
+ */
+export function getGlRoutingStats(): { unmappedCategories: Array<{category: string; count: number}>; totalWarnings: number } {
+    const entries = Array.from(GL_ROUTING_WARNINGS.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count);
+    
+    return {
+        unmappedCategories: entries,
+        totalWarnings: entries.reduce((sum, e) => sum + e.count, 0)
+    };
+}
+
+/**
  * Resolves the correct GL account code for an expense category.
  * Falls back to the general expense account (5200) if the category is not mapped.
+ * Logs warning and tracks unmapped categories for monitoring.
  * 
  * @param category - The expense category key from EXPENSE_CATEGORY_MAP
  * @returns The GL account code to use for the journal entry
@@ -47,7 +128,18 @@ const GL_ACCOUNT_MAP: Record<string, string> = {
 function resolveExpenseGlCode(category: string): string {
     const mapping = EXPENSE_CATEGORY_MAP[category];
     if (!mapping) {
+        // Track for monitoring
+        const currentCount = GL_ROUTING_WARNINGS.get(category) || 0;
+        GL_ROUTING_WARNINGS.set(category, currentCount + 1);
+        
+        // Trim if too large (prevent memory issues in long-running processes)
+        if (GL_ROUTING_WARNINGS.size > MAX_WARNING_LOG_SIZE) {
+            const oldestKey = GL_ROUTING_WARNINGS.keys().next().value;
+            if (oldestKey) GL_ROUTING_WARNINGS.delete(oldestKey);
+        }
+        
         console.warn(`[createExpense] Unknown expense category "${category}", routing to fallback GL ${FALLBACK_EXPENSE_GL}`);
+        console.warn(`[GL-Routing-Monitor] Add "${category}" to EXPENSE_CATEGORY_MAP for proper expense tracking. Current stats: ${getGlRoutingStats().totalWarnings} total unmapped warnings.`);
         return FALLBACK_EXPENSE_GL;
     }
     return mapping.glCode;
@@ -63,6 +155,13 @@ export const createExpense = secureAction(async (data: z.infer<typeof CreateExpe
     const t = await getTranslations('SystemMessages.Errors');
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error(t('unauthorized'));
+
+    // Rate limiting check
+    const rateCheck = checkRateLimit(currentUser.id);
+    if (!rateCheck.allowed) {
+        const resetSeconds = Math.ceil(rateCheck.resetIn / 1000);
+        throw new Error(`تم تجاوز حد إنشاء المصروفات. يرجى الانتظار ${resetSeconds} ثانية قبل إنشاء مصروف جديد.`);
+    }
 
     const validated = CreateExpenseSchema.parse(data);
 
