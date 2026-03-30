@@ -6,27 +6,34 @@ import { getCurrentUser } from './auth';
 import { secureAction } from '@/lib/safe-action';
 import { PERMISSIONS } from '@/lib/permissions';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 
 export type TransactionType = 'SALES_DEDUCTION' | 'MAINTENANCE_DEDUCTION' | 'MANUAL_DEDUCTION';
 
-export const createEmployeeDeduction = secureAction(async (data: {
-    userId: string;
-    amount: number;
-    type: TransactionType;
-    referenceId?: string;
-    referenceType?: string;
-    description?: string;
-}) => {
-    const { userId, amount, type, referenceId, referenceType, description } = data;
+const CreateDeductionSchema = z.object({
+    userId: z.string().uuid('معرّف المستخدم غير صالح'),
+    amount: z.number().positive('المبلغ يجب أن يكون أكبر من صفر'),
+    type: z.enum(['SALES_DEDUCTION', 'MAINTENANCE_DEDUCTION', 'MANUAL_DEDUCTION'] as const, {
+        message: 'نوع المعاملة غير صالح'
+    }),
+    referenceId: z.string().uuid('معرّف المرجع غير صالح').optional().or(z.literal('')),
+    referenceType: z.string().optional(),
+    description: z.string().optional(),
+});
+
+export const createEmployeeDeduction = secureAction(async (data: z.infer<typeof CreateDeductionSchema>) => {
+    const validated = CreateDeductionSchema.parse(data);
+    const { userId, amount, type, referenceId, referenceType, description } = validated;
+    
     try {
         const transaction = await (prisma as any).employeeTransaction.create({
             data: {
                 userId,
-                amount: new Prisma.Decimal(amount), // Wrap in Decimal
+                amount: new Prisma.Decimal(amount),
                 type,
-                referenceId,
+                referenceId: referenceId || undefined,
                 referenceType,
-                description,
+                description: description || undefined,
                 branchId: (await getCurrentUser())?.branchId || null
             } as any
         });
