@@ -11,7 +11,7 @@ import { Decimal } from "decimal.js";
 // Schema for validation
 const TransferItemSchema = z.object({
     productId: z.string(),
-    quantity: z.number().min(1),
+    quantity: z.number().min(0.001, "Quantity must be at least 0.001"),
     priceTier: z.string().optional(),
 });
 

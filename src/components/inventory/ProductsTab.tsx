@@ -143,6 +143,13 @@ export default function ProductsTab({
         abbreviation: u.abbreviation || undefined
     }));
 
+    const unitsByCategory = unitsList.reduce((acc: any, unit: any) => {
+        const cat = unit.category || 'COUNT';
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(unit);
+        return acc;
+    }, {} as Record<string, any[]>);
+
     // Permission Checks
     const canManage = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE);
     const canViewCost = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_VIEW_COST);
@@ -240,7 +247,7 @@ export default function ProductsTab({
             sellPrice3: Number(editingProduct.sellPrice3),
             costPrice: Number(editingProduct.costPrice),
             stock: Number(editingProduct.stock),
-            minStock: 5,
+            minStock: Number(editingProduct.minStock || 0),
             trackStock: editingProduct.trackStock,
             unitOfMeasureId: editingProduct.unitOfMeasureId || undefined,
             csrfToken
@@ -602,22 +609,24 @@ export default function ProductsTab({
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {p.trackStock === false ? (
+                                            {p.trackStock ? (
+                                                <>
+                                                    <div className={clsx(
+                                                        "font-black text-2xl tracking-tight leading-none",
+                                                        p.stock < p.minStock ? "text-rose-500" : "text-slate-900 dark:text-white"
+                                                    )}>
+                                                        {Number.isInteger(Number(p.stock)) ? Number(p.stock) : Number(p.stock).toFixed(3).replace(/\.?0+$/, '')}
+                                                    </div>
+                                                    {p.unitAbbreviation && (
+                                                        <div className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mt-1">
+                                                            {p.unitAbbreviation}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]">
                                                     <InfinityIcon className="w-3 h-3" />
                                                     {t('serviceLabel')}
-                                                </span>
-                                            ) : (
-                                                <span className={cn(
-                                                    "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black border",
-                                                    p.stock > 10 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" :
-                                                    p.stock > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" :
-                                                    "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                                                )}>
-                                                    {p.stock}
-                                                    {p.unitAbbreviation && (
-                                                        <span className="text-[10px] text-slate-400 dark:text-white/30 font-black ms-1">{p.unitAbbreviation}</span>
-                                                    )}
                                                 </span>
                                             )}
                                         </td>
@@ -839,38 +848,52 @@ export default function ProductsTab({
                             />
                             <label htmlFor="trackStock" className="text-sm font-black flex items-center gap-3 cursor-pointer text-slate-700 dark:text-white">
                                 {editingProduct.trackStock ? <Box className="w-5 h-5 text-slate-400 dark:text-zinc-400" /> : <InfinityIcon className="w-5 h-5 text-cyan-500" />}
-                                {editingProduct.trackStock ? t('products.trackStockOn') : t('products.trackStockOff')}
+                                {t('trackStock')}
                             </label>
                         </div>
 
+                        {editingProduct.trackStock && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-500 underline font-black uppercase tracking-widest">{t('stock')}</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
+                                        value={editingProduct.stock}
+                                        onChange={e => setEditingProduct({ ...editingProduct, stock: parseFloat(e.target.value) || 0 })}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-500 underline font-black uppercase tracking-widest">{t('minStock')}</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
+                                        value={editingProduct.minStock}
+                                        onChange={e => setEditingProduct({ ...editingProduct, minStock: parseFloat(e.target.value) || 0 })}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">وحدة القياس</label>
+                            <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('unitOfMeasure') || 'وحدة القياس'}</label>
                             <select
                                 className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
                                 value={editingProduct.unitOfMeasureId || ""}
                                 onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value || null })}
                             >
-                                <option value="">بدون وحدة</option>
-                                <optgroup label="الوزن">
-                                    <option value="kg">kg - Kilogram</option>
-                                    <option value="g">g - Gram</option>
-                                    <option value="lb">lb - Pound</option>
-                                    <option value="oz">oz - Ounce</option>
-                                    <option value="ton">ton - Ton</option>
-                                </optgroup>
-                                <optgroup label="الحجم">
-                                    <option value="L">L - Liter</option>
-                                    <option value="mL">mL - Milliliter</option>
-                                    <option value="gal">gal - Gallon</option>
-                                    <option value="m3">m³ - Cubic Meter</option>
-                                </optgroup>
-                                <optgroup label="العدد">
-                                    <option value="pcs">pcs - Piece</option>
-                                    <option value="box">box - Box</option>
-                                    <option value="doz">doz - Dozen</option>
-                                    <option value="set">set - Set</option>
-                                    <option value="pack">pack - Pack</option>
-                                </optgroup>
+                                <option value="">{t('noUnit') || 'بدون وحدة'}</option>
+                                {Object.entries(unitsByCategory).map(([category, catUnits]: [string, any]) => (
+                                    <optgroup key={category} label={category}>
+                                        {catUnits.map((u: any) => (
+                                            <option key={u.id} value={u.id}>
+                                                {u.name} ({u.code})
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                ))}
                             </select>
                         </div>
 

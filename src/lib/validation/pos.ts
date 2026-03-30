@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const saleSchema = z.object({
     items: z.array(z.object({
         id: z.string(),
-        quantity: z.number().min(1, "Quantity must be at least 1"),
+        quantity: z.number().min(0.001, "Quantity must be at least 0.001"),
         price: z.number().min(0, "Price cannot be negative")
     })).min(1, "Cart cannot be empty"),
     paymentMethod: z.enum(['CASH', 'VISA', 'CARD', 'WALLET', 'INSTAPAY', 'ACCOUNT', 'DEFERRED']),
