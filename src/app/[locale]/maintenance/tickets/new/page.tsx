@@ -269,7 +269,7 @@ export default function NewTicketPage() {
                     </div>
 
                     {/* Customer Info */}
-                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl overflow-hidden">
+                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl">
                         <CardHeader className="py-3 px-5 bg-slate-50 dark:bg-zinc-800 border-b-2 border-slate-200 dark:border-zinc-700">
                             <CardTitle className="flex items-center justify-between text-slate-900 dark:text-white text-base font-black uppercase tracking-tighter">
                                 <div className="flex items-center gap-3">
@@ -376,7 +376,7 @@ export default function NewTicketPage() {
                     </Card>
 
                     {/* Device Info */}
-                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl overflow-hidden">
+                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl">
                         <CardHeader className="py-3 px-5 bg-slate-50 dark:bg-zinc-800 border-b-2 border-slate-200 dark:border-zinc-700">
                             <CardTitle className="flex items-center gap-3 text-slate-900 dark:text-white text-base font-black uppercase tracking-tighter">
                                 <Smartphone className="h-5 w-5 text-black dark:text-white" />
@@ -423,7 +423,7 @@ export default function NewTicketPage() {
                     </Card>
 
                     {/* Issue & Condition */}
-                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl overflow-hidden">
+                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl">
                         <CardHeader className="py-3 px-5 bg-slate-50 dark:bg-zinc-800 border-b-2 border-slate-200 dark:border-zinc-700">
                             <CardTitle className="flex items-center gap-3 text-slate-900 dark:text-white text-base font-black uppercase tracking-tighter">
                                 <Wrench className="h-5 w-5 text-black dark:text-white" />

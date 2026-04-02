@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Database, ShoppingCart, Wrench, CheckCircle2, Star, Loader2, Store } from "lucide-react";
+import { ShoppingCart, Wrench, CheckCircle2, Star, Loader2 } from "lucide-react";
 import { setDefaultWarehouse } from "@/actions/inventory";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -32,26 +32,26 @@ function WarehouseCard({
     return (
         <div
             className={cn(
-                "relative group p-5 rounded-xl border transition-all duration-300",
+                "relative group p-6 rounded-3xl border transition-all duration-300",
                 isActive
                     ? type === 'pos'
-                        ? "bg-cyan-500/10 border-cyan-500/50"
-                        : "bg-amber-500/10 border-amber-500/50"
-                    : "bg-white/5 border-white/10 hover:border-white/20"
+                        ? "bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/5"
+                        : "bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/5"
+                    : "bg-background/40 border-border/40 hover:border-primary/40 hover:bg-background/60"
             )}
         >
-            <div className="flex flex-col h-full justify-between gap-4">
+            <div className="flex flex-col h-full justify-between gap-5 text-right">
                 <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-white group-hover:text-cyan-400 transition-colors">
+                    <div className="flex items-center justify-between flex-row-reverse">
+                        <h4 className="font-black text-foreground uppercase tracking-tight group-hover:text-primary transition-colors">
                             {warehouse.name}
                         </h4>
                         {isActive && (
-                            <Star className={cn("w-4 h-4 fill-current", type === 'pos' ? "text-cyan-400" : "text-amber-400")} />
+                            <Star className={cn("w-4 h-4 fill-current", type === 'pos' ? "text-cyan-500" : "text-amber-500")} />
                         )}
                     </div>
-                    <p className="text-xs text-zinc-500 line-clamp-1">
-                        {warehouse.address || "لا يوجد عنوان مسجل"}
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-70">
+                        {warehouse.address || "NO ADDRESS REGISTERED"}
                     </p>
                 </div>
 
@@ -59,20 +59,20 @@ function WarehouseCard({
                     onClick={() => onSetDefault(warehouse.id, type)}
                     disabled={loading !== null || isActive}
                     className={cn(
-                        "w-full py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2",
+                        "w-full py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
                         isActive
                             ? type === 'pos'
-                                ? "bg-cyan-500 text-black cursor-default"
-                                : "bg-amber-500 text-black cursor-default"
-                            : "bg-white/10 text-white hover:bg-white/20"
+                                ? "bg-cyan-500 text-white cursor-default shadow-lg shadow-cyan-500/20"
+                                : "bg-amber-500 text-white cursor-default shadow-lg shadow-amber-500/20"
+                            : "bg-card border border-border/40 text-foreground hover:bg-primary hover:text-white hover:border-primary"
                     )}
                 >
                     {loading === loadingKey ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                     ) : isActive ? (
-                        <><CheckCircle2 className="w-3 h-3" /> الافتراضي حالياً</>
+                        <><CheckCircle2 className="w-3 h-3" /> CURRENT DEFAULT</>
                     ) : (
-                        "تعيين كافتراضي"
+                        "SET AS DEFAULT"
                     )}
                 </button>
             </div>
@@ -89,32 +89,35 @@ export default function WarehouseSettings({ warehouses, currentBranchId }: { war
         try {
             const res = await setDefaultWarehouse({ warehouseId, branchId: currentBranchId, type });
             if (res.success) {
-                toast.success(type === 'pos' ? "تم تعيين المخزن كافتراضي للبيع (POS)" : "تم تعيين مخزن الصيانة الرئيسي");
+                toast.success(type === 'pos' ? "POS Default Warehouse set" : "Maintenance Default Warehouse set");
             } else {
-                toast.error("فشل في تعيين المخزن الافتراضي");
+                toast.error("Failed to set default warehouse");
             }
         } catch (error) {
             console.error(error);
-            toast.error("حدث خطأ ما");
+            toast.error("An unexpected error occurred");
         } finally {
             setLoading(null);
         }
     };
 
     return (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            {/* ── POS Default Warehouse ── */}
-            <div className="glass-card p-6 border border-white/10 bg-black/20 backdrop-blur-xl rounded-2xl">
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2 rounded-lg bg-cyan-500/20 border border-cyan-500/30">
-                        <ShoppingCart className="w-5 h-5 text-cyan-400" />
+        <div className="max-w-5xl space-y-10 animate-in slide-in-from-bottom-4 duration-700 pb-20">
+            {/* POS Default Warehouse */}
+            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group/pos">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/pos:bg-cyan-500/10 transition-colors" />
+                
+                <div className="flex items-center gap-4 mb-10 relative z-10">
+                    <div className="p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 shadow-inner">
+                        <ShoppingCart className="w-6 h-6 text-cyan-500" />
                     </div>
-                    <div>
-                        <h3 className="font-bold text-white text-lg">مخزن البيع (POS)</h3>
-                        <p className="text-zinc-400 text-sm">الجرد الافتراضي لعمليات البيع عبر نقاط البيع</p>
+                    <div className="space-y-1">
+                        <h3 className="text-xl font-black uppercase tracking-tight text-foreground">Sales Inventory (POS)</h3>
+                        <p className="text-xs font-black text-muted-foreground uppercase tracking-widest opacity-60">Global default source for point-of-sale transactions</p>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
                     {warehouses.map((warehouse) => (
                         <WarehouseCard
                             key={`pos-${warehouse.id}`}
@@ -127,18 +130,21 @@ export default function WarehouseSettings({ warehouses, currentBranchId }: { war
                 </div>
             </div>
 
-            {/* ── Maintenance Default Warehouse ── */}
-            <div className="glass-card p-6 border border-white/10 bg-black/20 backdrop-blur-xl rounded-2xl">
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/30">
-                        <Wrench className="w-5 h-5 text-amber-400" />
+            {/* Maintenance Default Warehouse */}
+            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group/maint">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/maint:bg-amber-500/10 transition-colors" />
+                
+                <div className="flex items-center gap-4 mb-10 relative z-10">
+                    <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 shadow-inner">
+                        <Wrench className="w-6 h-6 text-amber-500" />
                     </div>
-                    <div>
-                        <h3 className="font-bold text-white text-lg">مخزن الصيانة الرئيسي</h3>
-                        <p className="text-zinc-400 text-sm">المصدر الافتراضي لقطع غيار تذاكر الصيانة</p>
+                    <div className="space-y-1">
+                        <h3 className="text-xl font-black uppercase tracking-tight text-foreground">Maintenance Logistics</h3>
+                        <p className="text-xs font-black text-muted-foreground uppercase tracking-widest opacity-60">Primary warehouse for ticket spare parts fulfillments</p>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
                     {warehouses.map((warehouse) => (
                         <WarehouseCard
                             key={`maint-${warehouse.id}`}

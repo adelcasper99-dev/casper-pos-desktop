@@ -17,7 +17,7 @@ type TransitionRule = {
 export const TICKET_TRANSITIONS: TransitionRule[] = [
     // 1. استلام (Reception) -> تحديد التكلفة والوقت (Estimation)
     {
-        from: [TicketStatus.NEW],
+        from: [TicketStatus.NEW, TicketStatus.RETURNED_FOR_REFIX],
         to: TicketStatus.DIAGNOSING,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
         description: "Start Diagnosis / Estimate Cost & Time",
@@ -33,7 +33,7 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
     },
     // 3. تعيين مهندس -> فى انتظار (Pending) OR بدء الإصلاح (In Progress)
     {
-        from: [TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING],
+        from: [TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING, TicketStatus.RETURNED_FOR_REFIX],
         to: TicketStatus.IN_PROGRESS,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
         description: "Start Repairing Device",
@@ -73,7 +73,7 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
 
     // Rejection Flow
     {
-        from: [TicketStatus.DIAGNOSING, TicketStatus.AT_CENTER, TicketStatus.PENDING_APPROVAL],
+        from: [TicketStatus.DIAGNOSING, TicketStatus.AT_CENTER, TicketStatus.PENDING_APPROVAL, TicketStatus.RETURNED_FOR_REFIX],
         to: TicketStatus.REJECTED,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
         description: "Reject / Unrepairable",

@@ -166,8 +166,29 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
     return (
         <div className="flex flex-col gap-2 w-full">
             <div className="flex items-center gap-2 w-full justify-end">
-                {(ticket.status === TicketStatus.PAID_DELIVERED || ticket.status === TicketStatus.DELIVERED) && (
+                {(['PAID_DELIVERED', 'DELIVERED', 'RETURNED_FOR_REFIX'].includes(ticket.status)) && (
                     <div className="flex flex-col gap-2 items-end">
+                        {ticket.status === 'RETURNED_FOR_REFIX' && (
+                            <div className="flex items-center gap-2 relative z-50 pointer-events-auto">
+                                <div className="text-amber-400 font-bold flex items-center gap-2">
+                                    <RotateCcw className="w-5 h-5 animate-spin-slow" /> 
+                                    مرتجع إعادة عمل
+                                </div>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowReturnModal(true);
+                                    }}
+                                    className="text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 h-8 rounded-lg px-2 flex gap-2 font-bold text-[10px] uppercase tracking-wider relative z-[100] cursor-pointer pointer-events-auto"
+                                >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    إلغاء واسترداد الفلوس
+                                </Button>
+                            </div>
+                        )}
                         {ticket.status === TicketStatus.PAID_DELIVERED && (
                             <div className="flex items-center gap-2 relative z-50 pointer-events-auto">
                                 <div className="text-blue-400 font-bold flex items-center gap-2">
@@ -325,6 +346,7 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
                 onClose={() => setShowReturnModal(false)}
                 ticketId={ticket.id}
                 barcode={ticket.barcode}
+                parts={ticket.parts}
                 onSuccess={() => {
                     setShowReturnModal(false);
                     onUpdate();

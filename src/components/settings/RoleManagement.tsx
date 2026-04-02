@@ -110,17 +110,17 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                 <div className="space-y-1">
                     <h2 className="text-2xl font-black flex items-center gap-3 text-foreground uppercase tracking-tight">
-                        <ShieldCheck className="w-6 h-6 text-indigo-400 drop-shadow-[0_0_8px_rgba(129,140,248,0.5)]" />
-                        Infrastructure Security
+                        <Shield className="w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+                        {t('title')}
                     </h2>
-                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Architectural role definitions and permission matrices</p>
+                    <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Define hierarchical access control and permissions</p>
                 </div>
                 <button
                     onClick={() => { setEditingRole(null); setRoleName(""); setSelectedPermissions([]); setIsModalOpen(true); }}
-                    className="group relative inline-flex items-center justify-center gap-2 bg-primary px-8 py-3 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] shadow-xl shadow-primary/20"
+                    className="group relative inline-flex items-center justify-center gap-2 bg-primary px-8 py-3 rounded-2xl text-white font-black text-xs uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] shadow-xl shadow-primary/20"
                 >
                     <Plus className="w-4 h-4" />
-                    Initialize New Role
+                    {t('addRole')}
                 </button>
             </div>
 
@@ -133,7 +133,7 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
                     const canEdit = canManageRole(role);
 
                     return (
-                        <div key={role.id} className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-xl group transition-all duration-500 hover:scale-[1.02] hover:border-primary/40 relative overflow-hidden">
+                        <div key={role.id} className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-xl group transition-all duration-500 hover:scale-[1.02] hover:border-primary/40 relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
                             
                             <div className="flex justify-between items-start mb-6 relative z-10">
@@ -146,7 +146,7 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none">
+                                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 leading-none">
                                         Linked to <span className="text-primary">{role._count?.users || 0}</span> Assets
                                     </p>
                                 </div>
@@ -179,7 +179,7 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
 
                             <div className="flex items-center gap-4 relative z-10">
                                 <span className={cn(
-                                    "px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest shadow-sm transition-all",
+                                    "px-3 py-1.5 rounded-xl border text-xs font-black uppercase tracking-widest shadow-sm transition-all",
                                     permCount > 0 ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-indigo-500/5" : "bg-muted/10 text-muted-foreground border-border/20"
                                 )}>
                                     {permCount} Access Points
@@ -199,9 +199,9 @@ export default function RoleManagement({ initialRoles = [], currentUser }: RoleM
             >
                 <div className="space-y-8 p-2">
                     <div className="space-y-2 group">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1 group-focus-within:text-primary transition-colors">Role Categorization</label>
+                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 group-focus-within:text-primary transition-colors">Role Categorization</label>
                         <input
-                            className="w-full bg-background/40 border border-border/40 rounded-2xl py-4 px-6 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner"
+                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-4 px-6 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner"
                             value={roleName}
                             onChange={(e) => setRoleName(e.target.value)}
                             placeholder="e.g. CORE_CASHIER"

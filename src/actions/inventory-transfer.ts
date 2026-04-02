@@ -6,7 +6,8 @@ import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { Decimal } from "decimal.js";
+import { Decimal } from "@prisma/client/runtime/library";
+import { toDecimal, toNumber } from "@/lib/decimal-utils";
 
 // Schema for validation
 const TransferItemSchema = z.object({
@@ -96,7 +97,6 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
 
                 // Auto-create/Fix warehouse for Engineer if missing
                 if (!destWarehouseId) {
-                    // ... (rest of engineer auto-create logic - omitted for brevity, will keep existing in replace)
                     let branchId = tech.user?.branchId;
                     if (!branchId) {
                         const main = await tx.branch.findFirst({ where: { code: 'MAIN' } });
@@ -118,8 +118,6 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                     });
                     destWarehouseId = newWh.id;
                     destBranchId = branchId;
-                } else {
-                    destBranchId = tech.warehouse?.branchId || null;
                 }
             } else {
                 const wh = await tx.warehouse.findUnique({ where: { id: destinationId } });
@@ -137,53 +135,67 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
             for (const item of items) {
                 // Validate Source Stock
                 const sourceStock = await tx.stock.findUnique({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: sourceWarehouseId! } }
+                    where: { productId_warehouseId: { productId: item.productId, warehouseId: sourceWarehouseId! } },
+                    select: { id: true, quantity: true }
                 });
 
-                if (!sourceStock || sourceStock.quantity.lt(item.quantity)) {
-                    throw new Error(`Insufficient stock for product. Available: ${sourceStock?.quantity || 0}, Requested: ${item.quantity}`);
+                const sourceQty = toDecimal(sourceStock?.quantity || 0);
+                const transferQty = toDecimal(item.quantity);
+
+                if (!sourceStock || sourceQty.lt(transferQty)) {
+                    throw new Error(`Insufficient stock for product. Available: ${sourceQty.toNumber()}, Requested: ${transferQty.toNumber()}`);
                 }
 
                 // Move Stock
                 await tx.stock.update({
                     where: { id: sourceStock.id },
-                    data: { quantity: { decrement: item.quantity } }
+                    data: { quantity: { decrement: transferQty } }
                 });
 
                 await tx.stock.upsert({
                     where: { productId_warehouseId: { productId: item.productId, warehouseId: destWarehouseId! } },
-                    update: { quantity: { increment: item.quantity } },
+                    update: { quantity: { increment: transferQty } },
                     create: {
                         productId: item.productId,
                         warehouseId: destWarehouseId!,
-                        quantity: item.quantity
+                        quantity: transferQty
                     }
                 });
 
-                // Calculate Value for Inter-branch GL (STRICTLY COST PRICE TO PREVENT LEDGER IMBALANCE)
+                // Calculate Value for Inter-branch GL
                 if (isInterBranch) {
                     const product = await tx.product.findUnique({
                         where: { id: item.productId },
                         select: { costPrice: true }
                     });
-                    const itemValue = new Decimal(product?.costPrice?.toString() || "0").mul(item.quantity);
+                    const cost = toDecimal(product?.costPrice || 0);
+                    const itemValue = cost.mul(transferQty);
                     totalTransferValue = totalTransferValue.add(itemValue);
                 }
 
-                const priceLabel = item.priceTier ? ` (Valued at ${item.priceTier})` : '';
-
                 // Log Movement
+                const priceLabel = item.priceTier ? ` (Valued at ${item.priceTier})` : '';
                 await tx.stockMovement.create({
                     data: {
                         type: 'TRANSFER',
                         productId: item.productId,
                         fromWarehouseId: sourceWarehouseId!,
                         toWarehouseId: destWarehouseId!,
-                        quantity: item.quantity,
+                        quantity: transferQty,
                         reason: `Transfer from ${sourceName} (${sourceType}) to ${destName} (${destinationType})${priceLabel}`,
                         performedById,
                         branchId: sourceBranchId
                     } as any
+                });
+
+                // Sync Global Product Stock Cache
+                const aggregation = await tx.stock.aggregate({
+                    where: { productId: item.productId },
+                    _sum: { quantity: true }
+                });
+                await tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: toNumber(aggregation._sum.quantity || 0) }
                 });
             }
 
@@ -195,8 +207,8 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                     reference: `TRF-${Date.now()}`,
                     branchId: sourceBranchId,
                     lines: [
-                        { accountCode: destGlCode,   debit: totalTransferValue.toNumber(), credit: 0, description: `Inventory Received at ${destName}` },
-                        { accountCode: sourceGlCode, debit: 0, credit: totalTransferValue.toNumber(), description: `Inventory Dispatched from ${sourceName}` }
+                        { accountCode: destGlCode, debit: toNumber(totalTransferValue), credit: 0, description: `Inventory Received at ${destName}` },
+                        { accountCode: sourceGlCode, debit: 0, credit: toNumber(totalTransferValue), description: `Inventory Dispatched from ${sourceName}` }
                     ]
                 }, tx);
             }

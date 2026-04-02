@@ -22,9 +22,17 @@ interface StaffProfileBadgeProps {
 function StaffProfileBadge({ user, isExpanded }: StaffProfileBadgeProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [currentDate, setCurrentDate] = useState("");
+    const [currentTime, setCurrentTime] = useState("");
 
     useEffect(() => {
-        setCurrentDate(new Date().toLocaleDateString());
+        const update = () => {
+            const now = new Date();
+            setCurrentDate(now.toLocaleDateString());
+            setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+        };
+        update();
+        const timer = setInterval(update, 1000);
+        return () => clearInterval(timer);
     }, []);
 
     return (
@@ -114,6 +122,7 @@ function StaffProfileBadge({ user, isExpanded }: StaffProfileBadgeProps) {
 
                 <div className="bg-muted/30 -mx-6 -mb-6 p-4 mt-2 border-t flex justify-between items-center text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {currentDate}</span>
+                    <span className="flex items-center gap-1 font-mono text-cyan-500 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">{currentTime}</span>
                 </div>
             </DialogContent>
         </Dialog>

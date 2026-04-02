@@ -118,7 +118,7 @@ export default function TechnicianAssignmentModal({
                     <span className="text-[10px] font-black uppercase text-cyan-500 tracking-[0.2em]">
                         #{ticket.barcode} — {ticket.deviceBrand} {ticket.deviceModel}
                     </span>
-                    <span className="text-lg font-black text-white">تعيين الفني المسؤول</span>
+                    <span className="text-lg font-black text-zinc-900 dark:text-zinc-100">تعيين الفني المسؤول</span>
                 </div>
             }
             className="max-w-lg"
@@ -134,14 +134,14 @@ export default function TechnicianAssignmentModal({
                          value={searchQuery}
                          onChange={(e) => setSearchQuery(e.target.value)}
                          onKeyDown={(e) => handleKeyDown(e, 0, 1, handleConfirm)}
-                         className="h-12 pr-11 bg-white/[0.03] border-white/10 rounded-xl focus:border-cyan-500/50 focus:ring-cyan-500/20 transition-all text-sm font-bold"
+                         className="h-12 pr-11 bg-muted/50 border-input rounded-xl focus:border-cyan-500/50 focus:ring-cyan-500/20 transition-all text-sm font-bold text-zinc-900 dark:text-zinc-100"
                      />
                 </div>
 
                 {/* Technician List */}
                 <div className="space-y-2 max-h-[42vh] overflow-y-auto custom-scrollbar pr-1">
                     {isFetching ? (
-                        <div className="flex items-center justify-center py-16 text-zinc-600">
+                        <div className="flex items-center justify-center py-16 text-zinc-500 dark:text-zinc-400">
                             <Loader2 className="w-6 h-6 animate-spin mr-3" />
                             <span className="text-sm font-bold">جاري تحميل الفنيين...</span>
                         </div>
@@ -149,8 +149,8 @@ export default function TechnicianAssignmentModal({
                         t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         t.skills?.toLowerCase().includes(searchQuery.toLowerCase())
                     ).length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-600">
-                            <AlertCircle className="w-8 h-8" />
+                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-500 dark:text-zinc-400">
+                            <AlertCircle className="w-8 h-8 opacity-50" />
                             <span className="text-sm font-bold">
                                 {searchQuery ? "لم يتم العثور على نتائج" : "لا يوجد فنيين مسجلين"}
                             </span>
@@ -175,18 +175,18 @@ export default function TechnicianAssignmentModal({
                                         "w-full h-16 flex items-center gap-4 px-4 rounded-2xl border transition-all duration-200 text-right",
                                         isSelected
                                             ? "bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.1)]"
-                                            : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.07] hover:border-white/20"
+                                            : "bg-background border-border hover:bg-muted/50 hover:border-primary/30"
                                     )}
                                 >
                                     {/* Avatar */}
                                     <div className={cn(
                                         "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-black transition-all",
                                         isSelected
-                                            ? "bg-cyan-500 text-black"
-                                            : "bg-zinc-800 text-zinc-400"
+                                            ? "bg-cyan-500 text-black shadow-md border border-cyan-400"
+                                            : "bg-muted text-zinc-600 dark:text-zinc-400 border border-border"
                                     )}>
                                         {isSelected ? (
-                                            <CheckCircle className="w-5 h-5" />
+                                            <CheckCircle className="w-5 h-5 flex-shrink-0" />
                                         ) : (
                                             tech.name.charAt(0)
                                         )}
@@ -197,19 +197,19 @@ export default function TechnicianAssignmentModal({
                                         <div className="flex items-center gap-2">
                                             <span className={cn(
                                                 "text-sm font-black truncate",
-                                                isSelected ? "text-cyan-400" : "text-white"
+                                                isSelected ? "text-cyan-700 dark:text-cyan-400" : "text-zinc-900 dark:text-zinc-100"
                                             )}>
                                                 {tech.name}
                                             </span>
                                             {isCurrent && (
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-cyan-500 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full shrink-0">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-500 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full shrink-0">
                                                     الحالي
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <Wrench className="w-3 h-3 text-zinc-600" />
-                                            <span className="text-[10px] font-bold text-zinc-600">
+                                            <Wrench className="w-3 h-3 text-zinc-500 dark:text-zinc-400" />
+                                            <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
                                                 {tech.skills || "فني صيانة"}
                                             </span>
                                         </div>
@@ -229,12 +229,12 @@ export default function TechnicianAssignmentModal({
                 </div>
 
                 {/* CTA */}
-                <div className="flex gap-3 pt-2 border-t border-white/10">
+                <div className="flex gap-3 pt-2 border-t border-border/50 mt-4">
                     <Button
                         variant="ghost"
                         onClick={onClose}
                         disabled={isLoading}
-                        className="flex-1 h-14 text-zinc-500 hover:text-white rounded-2xl font-bold"
+                        className="flex-1 h-14 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-muted rounded-2xl font-bold"
                     >
                         إلغاء
                     </Button>
@@ -245,7 +245,7 @@ export default function TechnicianAssignmentModal({
                             "flex-[2] h-14 font-black text-base rounded-2xl transition-all flex items-center justify-center gap-3",
                             selected
                                 ? "bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_30px_rgba(34,211,238,0.2)] active:scale-[0.98]"
-                                : "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                                : "bg-muted text-zinc-500 dark:text-zinc-400 cursor-not-allowed"
                         )}
                     >
                         {isLoading ? (

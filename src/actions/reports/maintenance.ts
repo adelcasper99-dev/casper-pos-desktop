@@ -59,8 +59,15 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
     let returnCount = 0;
 
     const mappedTickets = tickets.map(ticket => {
-        const ticketRevenue = Number(ticket.repairPrice || 0);
-        const ticketPartsCost = Number(ticket.partsCost || 0);
+        // Use final customer price if closed/paid, otherwise repair price
+        const ticketRevenue = Number(ticket.finalCustomerPrice || ticket.repairPrice || 0);
+        
+        // Fix: Use partCostPrice (True Cost) for accurate Center Margin calculation.
+        // Fallback to partsCost if historical/legacy ticket.
+        const ticketPartsCost = Number(ticket.partCostPrice) > 0 
+            ? Number(ticket.partCostPrice) 
+            : Number(ticket.partsCost || 0);
+            
         const commission = Number(ticket.commissionAmount || 0);
         
         totalRevenue += ticketRevenue;

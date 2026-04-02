@@ -5,27 +5,9 @@
  * to create journal entries without the complexity of the full middleware.
  */
 import { Decimal } from '@prisma/client/runtime/library';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
-const PAYMENT_GL_MAP: Record<string, string> = {
-  CASH: '1000',
-  VISA: '1010',
-  CARD: '1010',
-  BANK: '1010',
-  TRANSFER: '1010',
-  VODAFONE_CASH: '1020',
-  INSTAPAY: '1020',
-  WALLET: '1020',
-  DEFERRED: '1100',
-  ACCOUNT: '1100',
-};
-
-const EXPENSE_GL_MAP: Record<string, string> = {
-  SALARY: '5100',
-  BONUS: '5100',
-  ADDITION: '5100',
-  DEDUCTION: '5100',
-  PENALTY: '5200',
-};
+// Unified GL maps moved to @/shared/constants/accounting-mappings
 
 async function getAccountId(tx: any, glCode: string): Promise<string> {
   const account = await tx.account.findUnique({ where: { code: glCode } });
@@ -49,10 +31,10 @@ export async function createCustomerTransactionJournal(
     branchId?: string | null;
   }
 ) {
-  const amount = Number(params.amount);
-  if (amount <= 0) return null;
+  const amount = new Decimal(params.amount.toString());
+  if (amount.lte(0)) return null;
 
-  const glCode = '1000'; // Default to cash
+  const glCode = GL.ASSETS.CASH; // Default to cash
   const lines: any[] = [];
 
   switch (params.type) {
@@ -65,7 +47,7 @@ export async function createCustomerTransactionJournal(
         description: 'Cash/Bank Received'
       });
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: 0,
         credit: amount,
         description: 'AR Reduced'
@@ -73,13 +55,13 @@ export async function createCustomerTransactionJournal(
       break;
     case 'CREDIT':
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: amount,
         credit: 0,
         description: 'Customer AR'
       });
       lines.push({
-        accountId: await getAccountId(tx, '4000'),
+        accountId: await getAccountId(tx, GL.REVENUE.SALES),
         debit: 0,
         credit: amount,
         description: 'Sales Revenue'
@@ -87,7 +69,7 @@ export async function createCustomerTransactionJournal(
       break;
     case 'REFUND':
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: amount,
         credit: 0,
         description: 'AR Refund'
@@ -128,10 +110,10 @@ export async function createSupplierPaymentJournal(
     branchId?: string | null;
   }
 ) {
-  const amount = Number(params.amount);
-  if (amount <= 0) return null;
+  const amount = new Decimal(params.amount.toString());
+  if (amount.lte(0)) return null;
 
-  const glCode = PAYMENT_GL_MAP[params.method || 'CASH'] || '1000';
+  const glCode = PAYMENT_METHOD_GL_MAP[params.method || 'CASH'] || GL.ASSETS.CASH;
 
   return tx.journalEntry.create({
     data: {
@@ -141,7 +123,7 @@ export async function createSupplierPaymentJournal(
       lines: {
         create: [
           {
-            accountId: await getAccountId(tx, '2000'),
+            accountId: await getAccountId(tx, GL.LIABILITIES.PAYABLES),
             debit: amount,
             credit: 0,
             description: 'AP Reduced'
@@ -172,10 +154,10 @@ export async function createEmployeeTransactionJournal(
     branchId?: string | null;
   }
 ) {
-  const amount = Number(params.amount);
-  if (amount <= 0) return null;
+  const amount = new Decimal(params.amount.toString());
+  if (amount.lte(0)) return null;
 
-  const expenseCode = EXPENSE_GL_MAP[params.type] || '5100';
+  const expenseCode = (params.type === 'PENALTY' ? GL.EXPENSES.OPERATION_EXPENSES : GL.EXPENSES.SALARIES);
 
   return tx.journalEntry.create({
     data: {
@@ -191,7 +173,7 @@ export async function createEmployeeTransactionJournal(
             description: `${params.type} Expense`
           },
           {
-            accountId: await getAccountId(tx, '1000'),
+            accountId: await getAccountId(tx, GL.ASSETS.CASH),
             debit: 0,
             credit: amount,
             description: 'Cash Paid'

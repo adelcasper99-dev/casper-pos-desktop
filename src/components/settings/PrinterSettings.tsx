@@ -157,18 +157,18 @@ export default function PrinterSettings() {
             {/* Host Connection Status */}
             <div className={cn(
                 "glass-card backdrop-blur-xl p-6 rounded-3xl border flex items-center gap-6 shadow-2xl transition-all duration-500 group",
-                qzStatus?.online ? "bg-emerald-500/5 border-emerald-500/30" : "bg-rose-500/5 border-rose-500/30"
+                qzStatus?.online ? "bg-emerald-500/10 border-emerald-500/40" : "bg-rose-500/10 border-rose-500/40"
             )}>
                 <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-xl",
-                    qzStatus?.online ? "bg-emerald-500/20 text-emerald-400 shadow-emerald-500/20" : "bg-rose-500/20 text-rose-400 shadow-rose-500/20"
+                    qzStatus?.online ? "bg-emerald-500/30 text-emerald-500 shadow-emerald-500/30" : "bg-rose-500/30 text-rose-500 shadow-rose-500/30"
                 )}>
                     {qzStatus?.online ? <CheckCircle className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
                 </div>
                 <div className="flex-1">
-                    <div className="text-sm font-black uppercase tracking-widest opacity-60 mb-0.5">Host Connection</div>
+                    <div className="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Host Connection</div>
                     <div className="text-xl font-black tracking-tight">{qzStatus?.online ? "Local Service Online" : "Service Offline"}</div>
-                    <div className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-1">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
                         {qzStatus?.online ? `Protocol Version v${qzStatus.version}` : "Connection to QZ Tray failed on this device"}
                     </div>
                 </div>
@@ -177,28 +177,28 @@ export default function PrinterSettings() {
                     size="icon" 
                     onClick={checkQZConnection} 
                     disabled={loading} 
-                    className="h-12 w-12 rounded-2xl bg-card/40 border border-border/40 hover:bg-card hover:border-border transition-all group-hover:rotate-180 duration-700"
+                    className="h-12 w-12 rounded-2xl bg-card/60 border border-border/40 hover:bg-card hover:border-border transition-all group-hover:rotate-180 duration-700"
                 >
                     <RefreshCw className={cn("w-5 h-5", loading ? "animate-spin" : "")} />
                 </Button>
             </div>
 
             {/* QZ Tray Security Card */}
-            <div className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl space-y-8 group/security relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-3xl opacity-0 group-hover/security:opacity-100 transition-opacity" />
+            <div className="glass-card bg-card/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl space-y-8 group/security relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 blur-3xl opacity-0 group-hover/security:opacity-100 transition-opacity" />
                 <div className="space-y-2 relative z-10">
                     <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                        <ShieldCheck className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+                        <ShieldCheck className="w-6 h-6 text-cyan-500 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
                         Infrastructure Security
                     </h3>
-                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Manage silent printing and hardware trust</p>
+                    <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Manage silent printing and hardware trust</p>
                 </div>
 
                 <div className={cn("p-6 rounded-3xl border transition-all duration-300 flex items-center gap-5", certDisplay.color)}>
                     <div className="shrink-0">{certDisplay.icon}</div>
                     <div className="flex-1 min-w-0">
-                        <div className="font-black text-sm uppercase tracking-widest">{certDisplay.label}</div>
-                        <div className="text-xs font-medium opacity-60">{certDisplay.desc}</div>
+                        <div className="font-black text-xs uppercase tracking-widest">{certDisplay.label}</div>
+                        <div className="text-xs font-medium opacity-70">{certDisplay.desc}</div>
                     </div>
                     {certStatus !== 'installed' && certStatus !== 'checking' && certStatus !== 'qz-missing' && (
                         <div className="flex gap-2">
@@ -206,7 +206,7 @@ export default function PrinterSettings() {
                                 size="sm"
                                 onClick={handleInstallCert}
                                 disabled={installing}
-                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-[10px] uppercase tracking-widest px-6 rounded-xl h-10 shadow-lg"
+                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase tracking-widest px-6 rounded-xl h-10 shadow-lg"
                             >
                                 {installing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Zap className="w-3 h-3 mr-2 group-hover:scale-110 transition-transform" />}
                                 Setup Integrity
@@ -215,7 +215,7 @@ export default function PrinterSettings() {
                                 size="icon"
                                 variant="outline"
                                 onClick={handleDownloadScript}
-                                className="border-white/10 text-white hover:bg-white/10 rounded-xl h-10 w-10 transition-all"
+                                className="border-border/40 text-foreground hover:bg-card rounded-xl h-10 w-10 transition-all"
                             >
                                 <Download className="w-4 h-4" />
                             </Button>
@@ -225,8 +225,8 @@ export default function PrinterSettings() {
             </div>
 
             {/* Printer Assignment Matrix */}
-            <div className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/matrix">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/matrix:bg-primary/10 transition-colors" />
+            <div className="glass-card bg-card/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/matrix">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-3xl rounded-full -mr-20 -mt-20 group-hover/matrix:bg-primary/20 transition-colors" />
                 
                 <div className="space-y-10 relative z-10">
                     <div className="space-y-2">
@@ -234,16 +234,16 @@ export default function PrinterSettings() {
                             <Printer className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
                             Telemetry Routing
                         </h3>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Route POS documents to local physical devices</p>
+                        <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Route POS documents to local physical devices</p>
                     </div>
 
                     <div className="grid gap-8">
                         {/* Thermal Configuration */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <Label className={cn("text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1", enableThermal ? "text-foreground" : "opacity-40")}>Thermal Direct (80mm / 58mm)</Label>
-                                <div className="flex items-center gap-3 bg-background/40 px-3 py-1.5 rounded-2xl border border-border/40">
-                                    <span className={cn("text-[8px] font-black uppercase tracking-widest", enableThermal ? "text-emerald-400" : "text-muted-foreground/40")}>{enableThermal ? 'Broadcasting' : 'Blocked'}</span>
+                                <Label className={cn("text-xs font-black uppercase tracking-widest text-muted-foreground ml-1", enableThermal ? "text-foreground" : "opacity-50")}>Thermal Direct (80mm / 58mm)</Label>
+                                <div className="flex items-center gap-3 bg-background/60 px-3 py-1.5 rounded-2xl border border-border/40">
+                                    <span className={cn("text-[10px] font-black uppercase tracking-widest", enableThermal ? "text-emerald-500" : "text-muted-foreground/50")}>{enableThermal ? 'Broadcasting' : 'Blocked'}</span>
                                     <Switch
                                         checked={enableThermal}
                                         onCheckedChange={(val) => {
@@ -263,13 +263,13 @@ export default function PrinterSettings() {
                                     }}
                                     disabled={!qzStatus?.online}
                                 >
-                                    <SelectTrigger className="glass-card bg-background/40 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all animate-in zoom-in-95 duration-200">
+                                    <SelectTrigger className="glass-card bg-background/60 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all animate-in zoom-in-95 duration-200">
                                         <SelectValue placeholder="Select high-speed thermal target..." />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl text-foreground">
                                         <SelectItem value="none" className="font-black text-xs uppercase tracking-widest py-3">/ Disabled Routing</SelectItem>
                                         {printers.map(p => (
-                                            <SelectItem key={p} value={p} className="font-bold text-sm py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
+                                            <SelectItem key={p} value={p} className="font-bold text-xs py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -279,9 +279,9 @@ export default function PrinterSettings() {
                         {/* A4 Configuration */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <Label className={cn("text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1", enableA4 ? "text-foreground" : "opacity-40")}>Document Printing (A4 / Laser)</Label>
-                                <div className="flex items-center gap-3 bg-background/40 px-3 py-1.5 rounded-2xl border border-border/40">
-                                    <span className={cn("text-[8px] font-black uppercase tracking-widest", enableA4 ? "text-sky-400" : "text-muted-foreground/40")}>{enableA4 ? 'Active' : 'Offline'}</span>
+                                <Label className={cn("text-xs font-black uppercase tracking-widest text-muted-foreground ml-1", enableA4 ? "text-foreground" : "opacity-50")}>Document Printing (A4 / Laser)</Label>
+                                <div className="flex items-center gap-3 bg-background/60 px-3 py-1.5 rounded-2xl border border-border/40">
+                                    <span className={cn("text-[10px] font-black uppercase tracking-widest", enableA4 ? "text-sky-500" : "text-muted-foreground/50")}>{enableA4 ? 'Active' : 'Offline'}</span>
                                     <Switch
                                         checked={enableA4}
                                         onCheckedChange={(val) => {
@@ -301,13 +301,13 @@ export default function PrinterSettings() {
                                     }}
                                     disabled={!qzStatus?.online}
                                 >
-                                    <SelectTrigger className="glass-card bg-background/40 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all animate-in zoom-in-95 duration-200">
+                                    <SelectTrigger className="glass-card bg-background/60 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all animate-in zoom-in-95 duration-200">
                                         <SelectValue placeholder="Select document printer destination..." />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl text-foreground">
                                         <SelectItem value="none" className="font-black text-xs uppercase tracking-widest py-3">/ Manual Handover</SelectItem>
                                         {printers.map(p => (
-                                            <SelectItem key={p} value={p} className="font-bold text-sm py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
+                                            <SelectItem key={p} value={p} className="font-bold text-xs py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -316,15 +316,15 @@ export default function PrinterSettings() {
 
                         {/* Label Configuration */}
                         <div className="space-y-4">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Asset Labelling (Sticky 50x30mm)</Label>
+                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Asset Labelling (Sticky 50x30mm)</Label>
                             <Select value={labelPrinter} onValueChange={setLabelPrinter} disabled={!qzStatus?.online}>
-                                <SelectTrigger className="glass-card bg-background/40 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all">
+                                <SelectTrigger className="glass-card bg-background/60 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all">
                                     <SelectValue placeholder="Select automated label target..." />
                                 </SelectTrigger>
                                 <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl text-foreground">
                                     <SelectItem value="none" className="font-black text-xs uppercase tracking-widest py-3 hover:text-primary transition-colors">/ Use OS Dialog</SelectItem>
                                     {printers.map(p => (
-                                        <SelectItem key={p} value={p} className="font-bold text-sm py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
+                                        <SelectItem key={p} value={p} className="font-bold text-xs py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -334,13 +334,13 @@ export default function PrinterSettings() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-10 border-t border-border/20">
                          {/* Iteration Control */}
                          <div className="space-y-4">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Batch Sequence (Default Copies)</Label>
-                            <div className="flex items-center gap-6 bg-background/40 border border-border/40 p-4 rounded-3xl w-fit">
+                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Batch Sequence (Default Copies)</Label>
+                            <div className="flex items-center gap-6 bg-background/60 border border-border/40 p-4 rounded-3xl w-fit">
                                 <Button 
                                     size="icon" 
                                     variant="ghost" 
                                     onClick={() => setDefaultCopies(prev => Math.max(1, prev - 1))}
-                                    className="w-10 h-10 rounded-xl bg-card border border-border/40 hover:bg-rose-500/10 hover:text-rose-400 transition-all"
+                                    className="w-10 h-10 rounded-xl bg-card border border-border/40 hover:bg-rose-500/20 hover:text-rose-500 transition-all"
                                 >
                                     -
                                 </Button>
@@ -351,21 +351,21 @@ export default function PrinterSettings() {
                                     size="icon" 
                                     variant="ghost" 
                                     onClick={() => setDefaultCopies(prev => Math.min(10, prev + 1))}
-                                    className="w-10 h-10 rounded-xl bg-card border border-border/40 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all"
+                                    className="w-10 h-10 rounded-xl bg-card border border-border/40 hover:bg-emerald-500/20 hover:text-emerald-500 transition-all"
                                 >
                                     +
                                 </Button>
                             </div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 leading-tight">Automated duplication per transaction</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">Automated duplication per transaction</p>
                         </div>
 
                         {/* Speed Print Toggle */}
-                        <div className="flex items-center justify-between p-6 border border-border/40 rounded-[2rem] bg-indigo-500/5 group/speed hover:bg-indigo-500/10 transition-all duration-500">
+                        <div className="flex items-center justify-between p-6 border border-border/40 rounded-[2rem] bg-indigo-500/10 group/speed hover:bg-indigo-500/20 transition-all duration-500">
                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-foreground flex items-center gap-2">
-                                   <Zap className="w-3 h-3 text-indigo-400" /> Matrix-Checkout
+                                <Label className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+                                   <Zap className="w-3 h-3 text-indigo-500" /> Matrix-Checkout
                                 </Label>
-                                <p className="text-[9px] font-bold text-muted-foreground/60 leading-tight">Direct routing bypassing interface confirmation</p>
+                                <p className="text-[10px] font-bold text-muted-foreground/70 leading-tight">Direct routing bypassing interface confirmation</p>
                              </div>
                              <Switch
                                 checked={enableSpeedPrint}

@@ -73,13 +73,12 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
 
                 if (t.status === 'PAID_DELIVERED') {
                     totalCompleted++
-                    let comm = Number(t.commissionAmount || 0);
-                    if (comm === 0 && user.technician?.commissionRate) {
-                        const transferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
-                        const netProfit = Number(t.repairPrice || 0) - transferVal;
-                        if (netProfit > 0) {
-                            comm = (netProfit * Number(user.technician.commissionRate)) / 100;
-                            comm = Math.round(comm * 100) / 100;
+                    let comm = new Decimal(t.commissionAmount?.toString() || 0);
+                        if (comm.isZero() && user.technician?.commissionRate) {
+                        const transferVal = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
+                        const netProfit = new Decimal(t.repairPrice?.toString() || 0).minus(transferVal);
+                        if (netProfit.gt(0)) {
+                            comm = netProfit.times(new Decimal(user.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
                         }
                     }
                     maintenanceCommissions = maintenanceCommissions.plus(comm)
@@ -152,21 +151,20 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                 if (t.status === 'PAID_DELIVERED') {
                     const hasComm = transactions.some(tx => tx.referenceId === t.id && tx.type === 'MAINTENANCE_COMMISSION');
                     if (!hasComm) {
-                        let comm = Number(t.commissionAmount || 0);
-                        if (comm === 0 && user.technician?.commissionRate) {
-                            const techBilling = Number((t as any).techBillingPrice || t.partsCost || 0);
-                            const repairPrice = Number(t.repairPrice || 0);
-                            const netProfit = repairPrice - techBilling;
-                            if (netProfit > 0) {
-                                comm = (netProfit * Number(user.technician.commissionRate)) / 100;
-                                comm = Math.round(comm * 100) / 100;
+                        let comm = new Decimal(t.commissionAmount?.toString() || 0);
+                        if (comm.isZero() && user.technician?.commissionRate) {
+                            const techBilling = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
+                            const repairPrice = new Decimal(t.repairPrice?.toString() || 0);
+                            const netProfit = repairPrice.minus(techBilling);
+                            if (netProfit.gt(0)) {
+                                comm = netProfit.times(new Decimal(user.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
                             }
                         }
-                        if (comm > 0) {
+                        if (comm.gt(0)) {
                             virtualEntries.push({
                                 id: `v-comm-${t.id}`,
                                 type: 'MAINTENANCE_COMMISSION',
-                                amount: comm,
+                                amount: comm.toNumber(),
                                 description: `عمولة صيانة: ${t.barcode}`,
                                 createdAt: t.completedAt || t.updatedAt,
                                 isVirtual: true,
@@ -178,20 +176,38 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                     }
                 }
 
-                if (Number(t.commissionClawback || 0) > 0) {
-                    const hasClaw = transactions.some(tx => tx.referenceId === t.id && tx.type === 'MAINTENANCE_COMMISSION_REVERSAL');
+                const clawbackVal = new Decimal(t.commissionClawback?.toString() || 0);
+                const excessLoss = new Decimal((t as any).excessLossAmount?.toString() || 0);
+
+                if (clawbackVal.gt(0) || excessLoss.gt(0)) {
+                    const hasClaw = transactions.some(tx => 
+                        tx.referenceId === t.id && 
+                        (tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' || (tx.type === 'MAINTENANCE_COMMISSION' && Number(tx.amount) < 0))
+                    );
+                    
                     if (!hasClaw) {
-                        virtualEntries.push({
-                            id: `v-claw-${t.id}`,
-                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
-                            amount: Number(t.commissionClawback),
-                            description: `خصم مرتجع صيانة: ${t.barcode}`,
-                            createdAt: t.updatedAt,
-                            isVirtual: true,
-                            status: 'OPERATIONS',
-                            referenceId: t.id,
-                            referenceType: 'TICKET'
-                        });
+                        let totalClawDeduction = clawbackVal;
+                        
+                        if ((t as any).lossResponsibility === 'TECH') {
+                            totalClawDeduction = totalClawDeduction.plus(excessLoss);
+                        } else if ((t as any).lossResponsibility === 'SPLIT') {
+                            const techLossRate = new Decimal(user.technician?.lossRate?.toString() || 70).dividedBy(100);
+                            totalClawDeduction = totalClawDeduction.plus(excessLoss.times(techLossRate));
+                        }
+
+                        if (totalClawDeduction.gt(0)) {
+                            virtualEntries.push({
+                                id: `v-claw-${t.id}`,
+                                type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                                amount: totalClawDeduction.toNumber(),
+                                description: `خصم مرتجع وخسائر صيانة: ${t.barcode}`,
+                                createdAt: t.updatedAt,
+                                isVirtual: true,
+                                status: 'OPERATIONS',
+                                referenceId: t.id,
+                                referenceType: 'TICKET'
+                            });
+                        }
                     }
                 }
             });
@@ -207,13 +223,12 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                     const isLoss = t.status === 'RETURNED' || t.status === 'VOIDED' || t.isWarrantyReturn || clawbackVal.greaterThan(0);
                     const isEligible = t.status === 'PAID_DELIVERED';
                     
-                    let commission = Math.abs(new Decimal(t.commissionAmount || 0).toNumber());
-                    if (commission === 0 && user.technician?.commissionRate) {
-                        const currentTransferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
-                        const netProfit = Number(t.repairPrice || 0) - currentTransferVal;
-                        if (netProfit > 0) {
-                            commission = (netProfit * Number(user.technician.commissionRate)) / 100;
-                            commission = Math.round(commission * 100) / 100;
+                    let commission = new Decimal(t.commissionAmount?.toString() || 0).abs();
+                    if (commission.isZero() && user.technician?.commissionRate) {
+                        const currentTransferVal = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
+                        const netProfit = new Decimal(t.repairPrice?.toString() || 0).minus(currentTransferVal);
+                        if (netProfit.gt(0)) {
+                            commission = netProfit.times(new Decimal(user.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
                         }
                     }
 
@@ -221,13 +236,13 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                     const transferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
                     const laborAmount = (isEligible || isLoss) ? (finalPrice - transferVal) : 0;
 
+                    // 💎 Separate Accounting: Show historical intended profit here.
+                    // Losses and reversals will appear in the "Transactions" ledger.
                     return {
                         ...t,
-                        totalAmount: (isEligible || isLoss) ? finalPrice : 0,
+                        totalAmount: finalPrice,
                         laborAmount: laborAmount,
-                        displayCommission: isLoss 
-                            ? -Math.abs(clawbackVal.toNumber() || commission)
-                            : (isEligible ? commission : 0)
+                        displayCommission: commission.toNumber()
                     }
                 }))),
                 transactions: JSON.parse(JSON.stringify([...transactions, ...virtualEntries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))),

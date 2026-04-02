@@ -39,6 +39,7 @@ interface ProductData {
     name: string;
     sku: string;
     stock: number;
+    costPrice: number;
     sellPrice: number;
     trackStock: boolean;
     sellPrice2?: number;
@@ -105,10 +106,10 @@ export default function TicketPartsManager({
     // Data State
     const [products, setProducts] = useState<ProductData[]>([]);
 
-    // Form State
     const [selectedProductId, setSelectedProductId] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [selectedPriceTier, setSelectedPriceTier] = useState<"A" | "B" | "C">("A");
+    const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1">("COST");
 
     // Service State
     const [serviceName, setServiceName] = useState("");
@@ -143,10 +144,15 @@ export default function TicketPartsManager({
             
             setIsLoading(true);
             try {
+                const priceValue = transferPriceChoice === 'COST' ? selectedProduct?.costPrice : selectedProduct?.sellPrice;
+                const priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : 'بالسعر 1';
+
                 const res = await transferPartToTechnicianQuick({
                     technicianId, 
                     productId: selectedProductId, 
                     quantity,
+                    transferPrice: priceValue,
+                    transferPriceLabel: priceLabel,
                     csrfToken: csrfToken ?? undefined
                 });
 
@@ -179,12 +185,19 @@ export default function TicketPartsManager({
                 else unitPrice = selectedProduct.sellPrice3 || selectedProduct.sellPrice;
             }
 
+            // Determine Transfer Price (Cost to Engineer)
+            let overrideTransferPrice = 0;
+            if (selectedProduct) {
+                overrideTransferPrice = transferPriceChoice === 'COST' ? selectedProduct.costPrice : selectedProduct.sellPrice;
+            }
+
             setIsLoading(true);
             const res = await addTicketPart({
                 ticketId,
                 productId: selectedProductId,
                 quantity,
                 price: unitPrice,
+                transferPriceOverride: overrideTransferPrice,
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -271,6 +284,7 @@ export default function TicketPartsManager({
         setServiceName("");
         setServicePrice(0);
         setSelectedPriceTier("A");
+        setTransferPriceChoice("COST");
     }
 
     return (
@@ -305,17 +319,17 @@ export default function TicketPartsManager({
 
             <div className="space-y-3">
                 {parts.length === 0 ? (
-                    <div className="text-center py-12 text-zinc-600 text-[11px] font-black uppercase tracking-widest border-2 border-dashed border-white/5 rounded-[24px]">
+                    <div className="text-center py-12 text-muted-foreground text-[11px] font-black uppercase tracking-widest border-2 border-dashed border-border rounded-[24px]">
                         {t('noParts')}
                     </div>
                 ) : (
                     <>
                         <Table>
-                            <TableHeader className="bg-white/5 border-b border-white/10">
-                                <TableRow className="border-white/10 hover:bg-transparent">
-                                    <TableHead className="text-right text-[11px] font-black uppercase text-zinc-500 py-5 px-6 tracking-[0.2em]">البيان / الخدمة</TableHead>
-                                    <TableHead className="text-center text-[11px] font-black uppercase text-zinc-500 py-5 tracking-[0.2em]">الكمية</TableHead>
-                                    <TableHead className="text-left text-[11px] font-black uppercase text-zinc-500 py-5 px-6 tracking-[0.2em]">الإجمالي</TableHead>
+                            <TableHeader className="bg-muted/30 border-b border-border">
+                                <TableRow className="border-border hover:bg-transparent">
+                                    <TableHead className="text-right text-[11px] font-black uppercase text-muted-foreground py-5 px-6 tracking-[0.2em]">البيان / الخدمة</TableHead>
+                                    <TableHead className="text-center text-[11px] font-black uppercase text-muted-foreground py-5 tracking-[0.2em]">الكمية</TableHead>
+                                    <TableHead className="text-left text-[11px] font-black uppercase text-muted-foreground py-5 px-6 tracking-[0.2em]">الإجمالي</TableHead>
                                     <TableHead className="w-[60px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -330,15 +344,15 @@ export default function TicketPartsManager({
                                         
                                         return (
                                             <TableRow key={part.id} className={cn(
-                                                "border-white/10 group transition-all duration-300",
-                                                isRefunded ? "bg-red-950/20 opacity-60 grayscale border-l-4 border-l-red-500" : "hover:bg-white/[0.03]",
-                                                isNewAddition && !isRefunded ? "border-l-4 border-l-cyan-500/50 bg-cyan-500/[0.02]" : ""
+                                                "border-border group transition-all duration-300",
+                                                isRefunded ? "bg-red-50 dark:bg-red-950/20 opacity-60 grayscale border-l-4 border-l-red-500" : "hover:bg-muted/50",
+                                                isNewAddition && !isRefunded ? "border-l-4 border-l-cyan-500/50 bg-cyan-50/50 dark:bg-cyan-500/[0.02]" : ""
                                             )}>
                                                 <TableCell className="py-4 px-6 relative">
                                                     <div className="flex flex-col gap-1.5">
                                                         <div className={cn(
                                                             "font-black text-sm transition-colors flex items-center gap-2",
-                                                            isRefunded ? "text-zinc-500 line-through" : "text-white group-hover:text-cyan-400"
+                                                            isRefunded ? "text-muted-foreground line-through" : "text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400"
                                                         )}>
                                                             {part.product?.name || (part as any).name}
                                                             
@@ -362,24 +376,24 @@ export default function TicketPartsManager({
                                                         </div>
                                                         <div className={cn(
                                                             "text-[10px] font-bold uppercase tracking-widest opacity-80",
-                                                            isRefunded ? "text-zinc-600" : "text-zinc-600"
+                                                            isRefunded ? "text-muted-foreground/80" : "text-muted-foreground"
                                                         )}>
                                                             {formatCurrency(Number(part.price))} /الوحدة
                                                             {part.addedBy && (
-                                                                <span className="mr-2 text-zinc-700">| بواسطة: {part.addedBy.name}</span>
+                                                                <span className="mr-2 opacity-70">| بواسطة: {part.addedBy.name}</span>
                                                             )}
                                                         </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className={cn(
                                                     "text-center font-mono text-xs font-black",
-                                                    isRefunded ? "text-zinc-600" : "text-zinc-400"
+                                                    isRefunded ? "text-muted-foreground" : "text-foreground/80"
                                                 )}>{part.quantity}</TableCell>
                                                 <TableCell className="text-left px-6">
                                                     <span className={cn(
                                                         "font-mono font-black text-sm tracking-tighter",
-                                                        isRefunded ? "text-zinc-600 line-through decoration-red-500/50" : 
-                                                        isWarrantyPart ? "text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "text-white"
+                                                        isRefunded ? "text-muted-foreground line-through decoration-red-500/50" : 
+                                                        isWarrantyPart ? "text-emerald-600 dark:text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "text-foreground"
                                                     )}>
                                                         {formatCurrency(part.quantity * Number(part.price))}
                                                     </span>
@@ -409,10 +423,10 @@ export default function TicketPartsManager({
                                             {originalParts.length > 0 && (
                                                 <>
                                                     {lastReturnedAt && (
-                                                        <TableRow className="bg-white/[0.01] hover:bg-white/[0.01] border-b border-white/5">
+                                                        <TableRow className="bg-muted/10 hover:bg-muted/10 border-b border-border">
                                                             <TableCell colSpan={4} className="py-2 px-6">
-                                                                <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2">
-                                                                    القطع الأصلية <span className="text-[8px] bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">قبل المرتجع</span>
+                                                                <span className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-widest flex items-center gap-2">
+                                                                    القطع الأصلية <span className="text-[8px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">قبل المرتجع</span>
                                                                 </span>
                                                             </TableCell>
                                                         </TableRow>
@@ -424,10 +438,10 @@ export default function TicketPartsManager({
                                             {/* New Additions Section */}
                                             {newParts.length > 0 && (
                                                 <>
-                                                    <TableRow className="bg-cyan-500/[0.02] hover:bg-cyan-500/[0.02] border-y border-cyan-500/10">
+                                                    <TableRow className="bg-cyan-50 dark:bg-cyan-500/[0.02] hover:bg-cyan-50 dark:hover:bg-cyan-500/[0.02] border-y border-cyan-500/20">
                                                         <TableCell colSpan={4} className="py-2 px-6">
-                                                            <span className="text-[10px] font-black uppercase text-cyan-500 tracking-widest flex items-center gap-2">
-                                                                القطع المضافة حديثاً <span className="text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">بعد المرتجع</span>
+                                                            <span className="text-[10px] font-black uppercase text-cyan-700 dark:text-cyan-500 tracking-widest flex items-center gap-2">
+                                                                القطع المضافة حديثاً <span className="text-[8px] bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded">بعد المرتجع</span>
                                                             </span>
                                                         </TableCell>
                                                     </TableRow>
@@ -439,19 +453,19 @@ export default function TicketPartsManager({
                                 })()}
                             </TableBody>
                         </Table>
-                        <div className="p-6 bg-zinc-950 border-t border-white/10 flex justify-between items-center">
+                        <div className="p-6 bg-muted/20 border-t border-border flex justify-between items-center">
                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">إجمالي البنود</span>
-                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">خاضع للضمان والخصومات</span>
+                                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">إجمالي البنود</span>
+                                <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">خاضع للضمان والخصومات</span>
                             </div>
                         </div>
                     </>
                 )}
 
                 {parts.length > 0 && (
-                    <div className="flex justify-between items-center px-6 py-4 mt-4 bg-zinc-950/50 rounded-2xl border border-white/5">
-                        <span className="text-xs font-black text-zinc-500 tracking-wider uppercase">{t('totalconsumption')}</span>
-                        <span className="text-2xl font-black text-white tabular-nums">
+                    <div className="flex justify-between items-center px-6 py-4 mt-4 bg-muted/40 rounded-2xl border border-border">
+                        <span className="text-xs font-black text-muted-foreground tracking-wider uppercase">{t('totalconsumption')}</span>
+                        <span className="text-2xl font-black text-foreground tabular-nums">
                             {formatCurrency(parts.filter(p => p.status !== 'REFUNDED').reduce((acc, p) => acc + (p.quantity * Number(p.price)), 0))}
                         </span>
                     </div>
@@ -466,16 +480,16 @@ export default function TicketPartsManager({
             >
                 <div className="space-y-6 py-4">
                     {/* Mode Toggle */}
-                    <div className="grid grid-cols-3 gap-2 p-1 bg-black/40 rounded-2xl border border-white/10">
-                        {(['part', 'service', 'transfer'] as const).map((mode) => (
+                    <div className="flex bg-muted p-1.5 rounded-2xl border border-border mb-6">
+                        {(['part', 'service', 'transfer'] as const).map(mode => (
                             <button
                                 key={mode}
                                 onClick={() => setUsageType(mode)}
                                 className={cn(
-                                    "py-2 rounded-xl text-xs font-black transition-all",
+                                    "flex-1 py-3 text-sm font-black rounded-xl transition-all duration-300",
                                     usageType === mode 
-                                        ? "bg-white text-black shadow-lg" 
-                                        : "text-zinc-600 hover:text-zinc-400"
+                                        ? "bg-background text-foreground shadow-sm" 
+                                        : "text-muted-foreground hover:text-foreground"
                                 )}
                             >
                                 {mode === 'part' ? t('part') : mode === 'service' ? t('service') : "نقل عهدة"}
@@ -505,14 +519,31 @@ export default function TicketPartsManager({
                                     </div>
                                     <div className="grid grid-cols-1 gap-4">
                                         <div className="space-y-2">
-                                            <Label className="text-xs font-black text-zinc-500 mr-2">الكمية المنقولة</Label>
+                                            <Label className="text-xs font-black text-muted-foreground mr-2">الكمية المنقولة</Label>
                                             <Input
                                                 type="number"
                                                 min={1}
-                                                className="bg-black/40 border-white/5 h-14 rounded-xl text-center text-lg font-black focus:border-emerald-500 transition-all font-mono"
+                                                className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                                 value={quantity}
                                                 onChange={e => setQuantity(Number(e.target.value))}
                                             />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black text-muted-foreground mr-2">تسعير النقل للمهندس</Label>
+                                            <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                                <button
+                                                    onClick={() => setTransferPriceChoice("COST")}
+                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                                >
+                                                    بسعر التكلفة {selectedProduct ? `(${formatCurrency(selectedProduct.costPrice)})` : ''}
+                                                </button>
+                                                <button
+                                                    onClick={() => setTransferPriceChoice("SELL_1")}
+                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                                >
+                                                    بالسعر 1 {selectedProduct ? `(${formatCurrency(selectedProduct.sellPrice)})` : ''}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -543,8 +574,8 @@ export default function TicketPartsManager({
 
                             {selectedProduct && (
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-black text-zinc-500 mr-2">{t('priceTier')}</Label>
-                                    <div className="grid grid-cols-3 gap-2 bg-black/40 p-2 rounded-2xl border border-white/10">
+                                    <Label className="text-xs font-black text-muted-foreground mr-2">{t('priceTier')}</Label>
+                                    <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
                                         {(['A', 'B', 'C'] as const).map((tier) => {
                                             const price = tier === 'A' ? selectedProduct.sellPrice :
                                                          tier === 'B' ? (selectedProduct.sellPrice2 || selectedProduct.sellPrice) :
@@ -559,8 +590,8 @@ export default function TicketPartsManager({
                                                     className={cn(
                                                         "flex flex-col items-center justify-center py-3 rounded-xl border transition-all",
                                                         isSelected 
-                                                            ? "bg-cyan-600/20 border-cyan-500 text-white shadow-lg" 
-                                                            : "bg-transparent border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                                                            ? "bg-primary/10 border-primary/50 text-primary shadow-sm" 
+                                                            : "bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70"
                                                     )}
                                                 >
                                                     <span className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">
@@ -574,12 +605,34 @@ export default function TicketPartsManager({
                                 </div>
                             )}
 
+                            {selectedProduct && (
+                                <div className="space-y-2 mt-4 pt-4 border-t border-border/50">
+                                    <Label className="text-xs font-black text-muted-foreground mr-2">تكلفة النقل على المهندس (العهدة)</Label>
+                                    <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                        <button
+                                            onClick={() => setTransferPriceChoice("COST")}
+                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                        >
+                                            <span className="text-[10px] mb-1 opacity-60">سعر التكلفة الأساسي</span>
+                                            {formatCurrency(selectedProduct.costPrice)}
+                                        </button>
+                                        <button
+                                            onClick={() => setTransferPriceChoice("SELL_1")}
+                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                        >
+                                            <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
+                                            {formatCurrency(selectedProduct.sellPrice)}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
-                                <Label className="text-xs font-black text-zinc-500 mr-2">{t('quantity')}</Label>
+                                <Label className="text-xs font-black text-muted-foreground mr-2">{t('quantity')}</Label>
                                 <Input
                                     type="number"
                                     min={1}
-                                    className="bg-black/40 border-white/5 h-14 rounded-xl text-center text-lg font-black focus:border-cyan-500 transition-all font-mono"
+                                    className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                     value={quantity}
                                     onChange={e => setQuantity(Number(e.target.value))}
                                 />
@@ -588,19 +641,19 @@ export default function TicketPartsManager({
                     ) : (
                         <div className="space-y-5 animate-in fade-in slide-in-from-left-4">
                             <div className="space-y-2">
-                                <Label className="text-xs font-black text-zinc-500 mr-2">{t('customName')}</Label>
+                                <Label className="text-xs font-black text-muted-foreground mr-2">{t('customName')}</Label>
                                 <Input
-                                    className="bg-black/40 border-white/5 h-14 rounded-xl px-5 text-sm font-bold focus:border-purple-500 transition-all"
+                                    className="bg-muted/30 border-input text-foreground h-14 rounded-xl px-5 text-sm font-bold focus:border-primary transition-all"
                                     placeholder={t('customName')}
                                     value={serviceName}
                                     onChange={e => setServiceName(e.target.value)}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-xs font-black text-zinc-500 mr-2">{t('customPrice')}</Label>
+                                <Label className="text-xs font-black text-muted-foreground mr-2">{t('customPrice')}</Label>
                                 <Input
                                     type="number"
-                                    className="bg-black/40 border-white/5 h-14 rounded-xl text-center text-lg font-black focus:border-purple-500 transition-all font-mono"
+                                    className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                     value={servicePrice}
                                     onChange={e => setServicePrice(Number(e.target.value))}
                                 />
@@ -614,13 +667,13 @@ export default function TicketPartsManager({
                             disabled={isLoading}
                             className={cn(
                                 "flex-1 h-16 font-black text-lg rounded-[24px] shadow-2xl transition-all active:scale-95",
-                                usageType === 'transfer' ? "bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20" : "bg-white text-black hover:bg-zinc-200"
+                                usageType === 'transfer' ? "bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20" : "bg-primary text-primary-foreground hover:bg-primary/90"
                             )}
                         >
                             {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 
                              usageType === 'transfer' ? "تأكيد النقل للمهندس" : "إضافة البند للقائمة"}
                         </Button>
-                        <Button variant="ghost" onClick={() => setIsAddingPart(false)} className="px-10 h-16 text-zinc-500 hover:text-white rounded-2xl font-bold">إلغاء</Button>
+                        <Button variant="ghost" onClick={() => setIsAddingPart(false)} className="px-10 h-16 text-muted-foreground hover:text-foreground hover:bg-muted rounded-2xl font-bold">إلغاء</Button>
                     </div>
                 </div>
             </GlassModal>

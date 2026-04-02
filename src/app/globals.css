@@ -50,84 +50,83 @@
 
 /* Theme Variables */
 :root {
-  /* ── Light Theme (Minimalist / Airy) ── */
+  /* ── Light Theme (Premium Vanilla / Crisp) ── */
 
-  /* Borders: very subtle */
-
-  /* Background: Ghostly White */
-  --background: #F9F7F2;        
-  --login-bg: linear-gradient(135deg, #F9F7F2 0%, #D1CEC7 100%);
-  --login-split-bg: linear-gradient(135deg, #3B6978 0%, #222222 100%);
-  --foreground: #222222;      /* Deep Charcoal */
+  /* Background: Crisp Warm White (Slate-50-ish but refined) */
+  --background: #f8fafc;        
+  --login-bg: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  --login-split-bg: linear-gradient(135deg, #0891b2 0%, #1e293b 100%);
+  --foreground: #0f172a;      /* Deep Slate for richness */
 
   /* Card/panel surfaces: pure white */
   --card: #ffffff;
-  --card-foreground: #222222;
+  --card-foreground: #0f172a;
 
   --popover: #ffffff;
-  --popover-foreground: #222222;
+  --popover-foreground: #0f172a;
 
-  /* Primary Action (Ghostly Blue) */
-  --primary: #3B6978;
+  /* Primary Action (Vibrant Ghost Cyan) */
+  --primary: #0891b2;
   --primary-foreground: #ffffff;
 
   /* Secondary */
-  --secondary: #e5e3dc;
-  --secondary-foreground: #222222;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
 
   /* Muted */
-  --muted: #e5e3dc;
-  --muted-foreground: #6b7280; 
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b; 
 
-  /* Warning / Caution */
-  --accent: #DDAF4C;
+  /* Warning / Caution (Amber) */
+  --accent: #f59e0b;
   --accent-foreground: #ffffff;
 
-  /* Danger */
-  --destructive: #A8444F;
+  /* Danger (Rose/Ruby) */
+  --destructive: #e11d48;
   --destructive-foreground: #ffffff;
 
-  /* Borders / Details: Shadow Grey */
-  --border: #D1CEC7;
+  /* Borders / Details: Precise Slate */
+  --border: #e2e8f0;
   --input: #ffffff;
-  --ring: #3B6978;
+  --ring: #0891b2;
 
   --radius: 0.75rem;
 
-  /* Glass/Ghost — light mode overrides */
-  --glass-bg: rgba(249, 247, 242, 0.85); /* F9F7F2 with opacity */
-  --glass-border: rgba(209, 206, 199, 0.5); /* D1CEC7 with opacity */
-  --sidebar-bg: #222222; /* Deep Charcoal for Sidebar */
-  --sidebar-border: #D1CEC7;
+  /* Glass/Ghost — light mode transparency refined */
+  --glass-bg: rgba(255, 255, 255, 0.75); 
+  --glass-border: rgba(226, 232, 240, 0.6);
+  --sidebar-bg: #0f172a; /* Keep Deep Slate for Sidebar contrast */
+  --sidebar-border: #1e293b;
 
-  /* Elevation Shadows - Premium Layered */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-float: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  /* Elevation Shadows - Premium Diffused Layering */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.1);
+  --shadow-float: 0 12px 24px -6px rgb(15 23 42 / 0.08), 0 8px 16px -8px rgb(15 23 42 / 0.05);
 
   /* Success & custom accents */
-  --pink-accent: #55A27A; /* Reusing pink variable name for Teal Green success for now to avoid refactoring components */
+  --pink-accent: #10b981; 
+  --primary-glow: rgba(8, 145, 178, 0.4);
 
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: #222222;
-  --sidebar-foreground: #F9F7F2;
-  --sidebar-primary: #3B6978;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #0891b2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #3b3b3b;
-  --sidebar-accent-foreground: #F9F7F2;
-  --sidebar-ring: #3B6978;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-ring: #0891b2;
 
-  /* Zebra Striping Palette (Light Mode) - High Visibility */
+  /* Zebra Striping Palette (Light Mode) - High Definition */
   --table-bg-main: #ffffff;
   --table-row-odd: #ffffff;
-  --table-row-even: #f1f5f9; /* Increased visibility (slate-100) */
-  --table-row-hover: #e2e8f0; /* Increased visibility (slate-200) */
-  --table-header-bg: #f1f5f9; /* slate-100 */
-  --table-border: #e2e8f0; /* slate-200 */
+  --table-row-even: #f8fafc; /* Subtle slate-50 */
+  --table-row-hover: #f1f5f9; /* slate-100 */
+  --table-header-bg: #f8fafc;
+  --table-border: #e2e8f0;
 }
 
 .dark {

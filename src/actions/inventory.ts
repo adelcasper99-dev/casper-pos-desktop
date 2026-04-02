@@ -12,7 +12,8 @@ import { financialRepo } from "@/lib/repositories/financial-repo";
 import { productSchema, supplierSchema, categorySchema, purchaseSchema, warehouseSchema } from "@/lib/validation/inventory";
 import { CACHE_TAGS } from "@/lib/cache-keys";
 import { logger } from "@/lib/logger";
-import { AppError, ErrorCodes } from "@/lib/errors"; // Added import
+import { toDecimal, toNumber } from "@/lib/decimal-utils";
+import { AppError, ErrorCodes } from "@/lib/errors"; 
 import { getCurrentUser } from "./auth";
 import { getTranslations } from "@/lib/i18n-mock";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
@@ -49,10 +50,13 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
     }
 
     const supplier = await prisma.$transaction(async (tx) => {
+        const { openingBalance, linkedEmployeeId, ...supplierData } = validated;
+
         const s = await tx.supplier.create({
             data: {
-                ...validated,
-                balance: new Decimal(validated.openingBalance || 0)
+                ...supplierData,
+                balance: new Decimal(openingBalance || 0),
+                linkedEmployee: linkedEmployeeId ? { connect: { id: linkedEmployeeId } } : undefined
             },
         });
 
@@ -112,9 +116,14 @@ export const updateSupplier = secureAction(async (data: { id: string } & z.infer
         }
     }
 
+    const { openingBalance, linkedEmployeeId, ...validUpdateData } = validated;
+
     await prisma.supplier.update({
         where: { id },
-        data: validated
+        data: {
+            ...validUpdateData,
+            linkedEmployee: linkedEmployeeId ? { connect: { id: linkedEmployeeId } } : { disconnect: true }
+        }
     });
     revalidatePath("/inventory", 'page');
     return { success: true };
@@ -1222,7 +1231,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             ...sortedItems.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
-                    data: { stock: { increment: item.quantity.toNumber() }, costPrice: item.unitCost }
+                    data: { stock: { increment: toNumber(item.quantity) }, costPrice: item.unitCost }
                 })
             ),
             ...sortedItems.map(item =>
@@ -1262,7 +1271,7 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
 
     await prisma.$transaction(async (tx) => {
         for (const item of old.items) {
-            await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity.toNumber() } } });
+            await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: toNumber(item.quantity) } } });
             await tx.stock.update({
                 where: { productId_warehouseId: { productId: item.productId, warehouseId: old.warehouseId! } },
                 data: { quantity: { decrement: new Decimal(item.quantity.toString()) } }
@@ -1305,18 +1314,20 @@ export const adjustStock = secureAction(async (data: {
         if (!warehouse) throw new Error("Warehouse not found");
 
         const currentStock = await tx.stock.findUnique({
-            where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } }
+            where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } },
+            select: { quantity: true }
         });
-        const oldQty = Number(currentStock?.quantity) || 0;
-        const delta = Number(data.newQuantity) - oldQty;
+        const oldQty = toDecimal(currentStock?.quantity || 0);
+        const newQty = toDecimal(data.newQuantity);
+        const delta = newQty.minus(oldQty);
 
-        if (delta === 0) return; // No change
+        if (delta.isZero()) return; // No change
 
         // 2. Set Warehouse Stock (One Source of Truth)
         await tx.stock.upsert({
             where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } },
-            update: { quantity: data.newQuantity },
-            create: { productId: data.productId, warehouseId: data.warehouseId, quantity: data.newQuantity }
+            update: { quantity: newQty },
+            create: { productId: data.productId, warehouseId: data.warehouseId, quantity: newQty }
         });
 
         // 3. Log Movement
@@ -1325,8 +1336,8 @@ export const adjustStock = secureAction(async (data: {
                 type: 'ADJUSTMENT',
                 productId: data.productId,
                 fromWarehouseId: data.warehouseId,
-                quantity: Math.abs(delta),
-                reason: `${data.reason} (Count: ${oldQty} -> ${data.newQuantity})`,
+                quantity: delta.abs(),
+                reason: `${data.reason} (Count: ${oldQty} -> ${newQty})`,
                 branchId: warehouse.branchId || null
             } as any
         });
@@ -1336,8 +1347,8 @@ export const adjustStock = secureAction(async (data: {
             where: { id: data.productId },
             select: { costPrice: true }
         });
-        const costPrice = product?.costPrice || 0;
-        const totalValueDelta = new Decimal(delta).mul(new Decimal(costPrice));
+        const costPrice = toDecimal(product?.costPrice || 0);
+        const totalValueDelta = delta.mul(costPrice);
 
         if (totalValueDelta.lt(0)) {
             // Shrinkage (Loss)

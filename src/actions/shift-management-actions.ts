@@ -17,6 +17,7 @@ import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 
 import { Decimal } from "@prisma/client/runtime/library";
 import { serialize } from "@/lib/serialization";
+import { PAYMENT_METHOD_GL_MAP } from "@/shared/constants/accounting-mappings";
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -318,13 +319,16 @@ export const closeShift = secureAction(async (data: {
     const finalTicketsCount = hasDiscrepancy ? actualTicketsCount : shift.totalTickets;
 
     // Update shift with calculated values
+    // 🆕 CRITICAL: Set endCash = actualCash when there's variance (for balanced books)
+    const finalEndCash = !cashVariance.isZero() ? actualCashDecimal : expectedCash;
+    
     const closedShift = await prisma.shift.update({
         where: { id: data.shiftId },
         data: {
             status: "CLOSED",
             closedAt: new Date(),
             actualCash: actualCashDecimal,
-            endCash: expectedCash,
+            endCash: finalEndCash, // ✅ Balanced: actualCash when variance exists
             cashVariance,
             totalCashSales,
             totalCardSales,
@@ -382,7 +386,7 @@ export const closeShift = secureAction(async (data: {
             const shiftTreasury = await tx.treasury.findFirst({
                 where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
             });
-            const cashAccountCode = shiftTreasury?.glCode || '1000';
+            const cashAccountCode = shiftTreasury?.glCode || PAYMENT_METHOD_GL_MAP.CASH;
 
             // ── Phase 4: Z-Report Safe Drop Journal Entry ──
             await AccountingEngine.recordTransaction({
@@ -397,10 +401,33 @@ export const closeShift = secureAction(async (data: {
             }, tx);
         }
 
-        // ── Phase 4: Z-Report Cash Variance (Over/Short) Journal Entry ──
+        // ── Phase 4: Z-Report Cash Variance (Over/Short) ──
         if (!cashVariance.isZero()) {
             const varianceAmt = Math.abs(cashVariance.toNumber());
             const isShortage = cashVariance.isNegative(); // If negative, we have less cash than expected
+
+            // 🆕 Get system CashCategory for overage/shortage
+            const overageCategory = await tx.cashCategory.findFirst({
+                where: { name: 'زيادة درج', isSystem: true }
+            });
+            const shortageCategory = await tx.cashCategory.findFirst({
+                where: { name: 'عجز درج', isSystem: true }
+            });
+
+            // Create variance transaction linked to category
+            const varianceCategory = isShortage ? shortageCategory : overageCategory;
+            if (varianceCategory) {
+                await tx.transaction.create({
+                    data: {
+                        type: isShortage ? 'EXPENSE' : 'IN',
+                        amount: new Decimal(varianceAmt),
+                        paymentMethod: 'CASH',
+                        description: `Z-Report Cash ${isShortage ? 'Shortage' : 'Overage'} - Shift #${shift.id.slice(0, 8)}`,
+                        shiftId: shift.id,
+                        categoryId: varianceCategory.id
+                    }
+                });
+            }
 
             const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
             const branchId = shiftOwner?.branchId;
@@ -408,7 +435,7 @@ export const closeShift = secureAction(async (data: {
             const shiftTreasury = await tx.treasury.findFirst({
                 where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
             });
-            const cashAccountCode = shiftTreasury?.glCode || '1000';
+            const cashAccountCode = shiftTreasury?.glCode || PAYMENT_METHOD_GL_MAP.CASH;
 
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Cash Variance - Shift #${shift.id.slice(0, 8)}`,
@@ -422,7 +449,7 @@ export const closeShift = secureAction(async (data: {
                 ] : [
                     // Overage: Cash In (DR) / Contra-Expense or Income (CR)
                     { accountCode: cashAccountCode, debit: varianceAmt, credit: 0, description: "Cash Register Adjustment" },
-                    { accountCode: '5500', debit: 0, credit: varianceAmt, description: "Cash Overage (Gain)" }
+                    { accountCode: '4500', debit: 0, credit: varianceAmt, description: "Cash Overage (Gain)" }
                 ]
             }, tx);
         }

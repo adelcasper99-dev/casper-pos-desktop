@@ -79,7 +79,7 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                                 </Button>
                             </div>
 
-                            <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 w-full sm:w-fit shadow-inner overflow-x-auto custom-scrollbar relative z-10 mx-auto">
+                            <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 w-full sm:w-fit shadow-inner overflow-x-auto custom-scrollbar relative mx-auto">
                                 <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex-nowrap w-max">
                                     <TabsTrigger 
                                         value="tickets" 

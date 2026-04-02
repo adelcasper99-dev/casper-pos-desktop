@@ -34,7 +34,7 @@ export default function SplashScreen({
 
     return (
         <div
-            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#F9F7F2]"
+            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background"
             style={{
                 transition: "opacity 0.4s ease",
                 opacity: fading ? 0 : 1,
@@ -57,7 +57,7 @@ export default function SplashScreen({
             >
                 {/* Icon — circular container */}
                 <div
-                    className="flex items-center justify-center rounded-full bg-[#F9F7F2] shadow-2xl"
+                    className="flex items-center justify-center rounded-full bg-background shadow-2xl"
                     style={{
                         width: 200,
                         height: 200,
@@ -76,12 +76,12 @@ export default function SplashScreen({
                 {/* Wordmark */}
                 <div className="flex flex-col items-center gap-1">
                     <span
-                        className="text-4xl font-black tracking-widest text-[#222222] uppercase"
+                        className="text-4xl font-black tracking-widest text-foreground uppercase"
                         style={{ letterSpacing: "0.18em" }}
                     >
                         CASPER
                     </span>
-                    <div className="w-full h-px bg-[#222222]/10" />
+                    <div className="w-full h-px bg-foreground/10" />
                     <span
                         className="text-sm font-semibold tracking-[0.4em] uppercase"
                         style={{ color: "rgba(34,34,34,0.45)" }}
@@ -92,11 +92,11 @@ export default function SplashScreen({
             </div>
 
             {/* ── Loading bar ───────────────────────────────────────── */}
-            <div className="absolute bottom-16 w-48 h-0.5 bg-[#222222]/10 rounded-full overflow-hidden">
+            <div className="absolute bottom-16 w-48 h-0.5 bg-foreground/10 rounded-full overflow-hidden">
                 <div
                     className="h-full rounded-full"
                     style={{
-                        background: "linear-gradient(90deg, #3B6978, #222222)",
+                        background: "linear-gradient(90deg, var(--primary), var(--sidebar-bg))",
                         animation: `splash-bar ${duration}ms ease-out forwards`,
                     }}
                 />

@@ -26,18 +26,31 @@ export default function TreasuryLogPage() {
         startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
         endDate: format(new Date(), 'yyyy-MM-dd'),
         direction: 'ALL',
-        search: ''
+        search: '',
+        category: 'ALL'
     });
+    const [dbCategories, setDbCategories] = useState<{ value: string, label: string }[]>([]);
 
-    const fetchLog = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const result = await getTreasuryLog(filters);
-            if (result.success && result.data) {
-                setEntries(result.data.entries);
-                setSummary(result.data.summary);
+            // Fetch Log and Categories in parallel
+            const { getCashCategories } = await import("@/actions/treasury");
+            const [logResult, catResult] = await Promise.all([
+                getTreasuryLog(filters),
+                getCashCategories()
+            ]);
+
+            if (logResult.success && logResult.data) {
+                setEntries(logResult.data.entries);
+                setSummary(logResult.data.summary);
             } else {
-                toast.error(result.error || "فشل تحميل سجل الخزينة");
+                toast.error(logResult.error || "فشل تحميل سجل الخزينة");
+            }
+
+            if (catResult.success && catResult.data) {
+                const formatted = catResult.data.map(c => ({ value: c.name, label: c.name }));
+                setDbCategories([{ value: "ALL", label: "كل التصنيفات" }, ...formatted]);
             }
         } catch (error) {
             toast.error("حدث خطأ غير متوقع");
@@ -47,8 +60,8 @@ export default function TreasuryLogPage() {
     }, [filters]);
 
     useEffect(() => {
-        fetchLog();
-    }, [fetchLog]);
+        fetchData();
+    }, [fetchData]);
 
     const exportToExcel = () => {
         if (!entries || entries.length === 0) {
@@ -98,7 +111,7 @@ export default function TreasuryLogPage() {
                         variant="outline"
                         size="sm"
                         className="glass-card border-white/5 hover:bg-white/10 text-zinc-300"
-                        onClick={() => fetchLog()}
+                        onClick={() => fetchData()}
                     >
                         <RefreshCw className={cn("h-4 w-4 ml-2", loading && "animate-spin")} />
                         تحديث البيانات
@@ -149,7 +162,11 @@ export default function TreasuryLogPage() {
             </div>
 
             {/* Filters */}
-            <TreasuryFilterBar filters={filters} onFilterChange={setFilters} />
+            <TreasuryFilterBar 
+                filters={filters} 
+                onFilterChange={setFilters} 
+                dbCategories={dbCategories || []}
+            />
 
             {/* Log Table */}
             <TreasuryLogTable entries={entries} loading={loading} />

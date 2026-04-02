@@ -53,6 +53,12 @@ export async function initDatabase(): Promise<void> {
         await seedAccounts();
         logger.info('[DB] Chart of Accounts sync complete.');
 
+        // ── Seed / Sync Cash Categories (Dynamic Cash Control)
+        logger.info('[DB] Ensuring cash categories exist...');
+        const { seedCashCategories } = await import('./accounting/seed-cash-categories');
+        await seedCashCategories();
+        logger.info('[DB] Cash Categories sync complete.');
+
         // ── Ensure Main Branch (V-05 fix: run once at startup, not on every login)
         const { ensureMainBranch } = await import('./ensure-main-branch');
         await ensureMainBranch();

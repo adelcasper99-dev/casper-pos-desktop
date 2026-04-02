@@ -200,9 +200,11 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
     technicianId: string,
     productId: string,
     quantity: number,
+    transferPrice?: number,
+    transferPriceLabel?: string,
     csrfToken?: string
 }) => {
-    const { technicianId, productId, quantity } = data;
+    const { technicianId, productId, quantity, transferPrice, transferPriceLabel } = data;
 
     if (quantity <= 0) throw new Error("Quantity must be greater than zero");
 
@@ -268,7 +270,7 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
                 fromWarehouseId: sourceWarehouseId,
                 toWarehouseId: destWarehouseId,
                 quantity,
-                reason: `Direct transfer to technician ${tech.name} from ticket manager`,
+                reason: `Direct transfer to technician ${tech.name} from ticket manager${transferPriceLabel ? ` [${transferPriceLabel}: ${transferPrice}]` : ''}`,
                 branchId: mainWh.branchId || null
             } as any
         });

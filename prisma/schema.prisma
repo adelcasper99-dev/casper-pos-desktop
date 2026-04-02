@@ -255,6 +255,8 @@ model JournalEntry {
   purchase              PurchaseInvoice?     @relation(fields: [purchaseId], references: [id])
   sale                  Sale?                @relation(fields: [saleId], references: [id])
   branch                Branch?              @relation(fields: [branchId], references: [id])
+  transactionId         String?              @unique
+  transaction           Transaction?         @relation(fields: [transactionId], references: [id])
   lines                 JournalLine[]
 
   @@index([date])
@@ -642,9 +644,13 @@ model Transaction {
   referenceId          String?
   referenceType        String?
   isReversed           Boolean   @default(false)
+  categoryId           String?
+  idempotencyKey       String?   @unique
+  category             CashCategory? @relation(fields: [categoryId], references: [id])
   expense              Expense?  @relation(fields: [expenseId], references: [id])
   shift                Shift?    @relation(fields: [shiftId], references: [id])
   treasury             Treasury? @relation(fields: [treasuryId], references: [id])
+  journalEntry         JournalEntry?
 
   @@index([treasuryId, createdAt])
   @@index([referenceId, referenceType])
@@ -767,6 +773,8 @@ model Ticket {
   rejectionReason      String? // Reason when ticket is rejected
   rejectedAt           DateTime? // When the ticket was rejected
   rejectedBy           String? // User ID who rejected the ticket
+  lossResponsibility   String? // NEW: TECH | CENTER | SPLIT
+  excessLossAmount     Decimal              @default(0.00) // NEW: Amount of loss beyond initial profit
   shiftId              String?
   warrantyExpiryDate   DateTime?
   expectedDuration     Int?
@@ -1025,4 +1033,16 @@ model SparePart {
   @@index([brand])
   @@index([category])
   @@index([productName])
+}
+
+model CashCategory {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  type      String        // 'IN' or 'OUT'
+  isSystem  Boolean       @default(false)
+  glCode    String?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  transactions Transaction[]
 }

@@ -46,3 +46,6 @@ next-env.d.ts
 /prisma/*.db-shm
 prisma/prisma/dev.db-shm
 prisma/prisma/dev.db-wal
+
+# Windows git nul device bug
+nul

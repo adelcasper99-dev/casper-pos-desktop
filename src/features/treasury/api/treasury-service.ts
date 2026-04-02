@@ -59,9 +59,15 @@ export async function getTreasuryLog(filters: TreasuryLogFilters): Promise<{
             include: {
                 journalEntry: {
                     include: {
+                        transaction: {
+                            include: { category: true }
+                        },
                         sale: { select: { id: true, paymentMethod: true } },
                         purchase: { select: { id: true, paymentMethod: true } },
                         expense: { select: { id: true, category: true, paymentMethod: true } },
+                        employeeTransaction: { select: { id: true, type: true } },
+                        customerTransaction: { select: { id: true, type: true } },
+                        supplierPayment: { select: { id: true, method: true } },
                         lines: {
                             include: { account: true }
                         }
@@ -89,8 +95,12 @@ export async function getTreasuryLog(filters: TreasuryLogFilters): Promise<{
             const je = line.journalEntry;
             let categoryLabel = "حركة متنوعة";
 
-            if (debit > 0) {
-                // INCOMING (وارد)
+            // 🆕 Priority 1: Dynamic CashCategory from the linked Transaction
+            if (je.transaction?.category?.name) {
+                categoryLabel = je.transaction.category.name;
+            } 
+            else if (debit > 0) {
+                // INCOMING (وارد) Fallbacks
                 const opposingLine = je.lines?.find(l => l.id !== line.id && Number(l.credit) > 0);
 
                 if (je.sale) categoryLabel = "مبيعات";
@@ -99,7 +109,7 @@ export async function getTreasuryLog(filters: TreasuryLogFilters): Promise<{
                 else if (je.description.includes("تحويل")) categoryLabel = "تحويل وارد";
                 else categoryLabel = "وارد متنوع";
             } else {
-                // OUTGOING (صادر)
+                // OUTGOING (صادر) Fallbacks
                 const opposingLine = je.lines?.find(l => l.id !== line.id && Number(l.debit) > 0);
 
                 if (je.expense) {

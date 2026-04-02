@@ -7,6 +7,8 @@ import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
 import { getTranslations } from "@/lib/i18n-mock";
 import { Decimal } from "@prisma/client/runtime/library";
+import { toDecimal, toNumber } from "@/lib/decimal-utils";
+import { PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
 /**
  * Inter-HQ Fund Transfer Action
@@ -48,20 +50,36 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
         throw new Error(t('notFound'));
     }
 
-    const fromBalance = new Decimal(fromTreasury.balance.toString());
-    const amountDec = new Decimal(amount);
+    const fromBalance = toDecimal(fromTreasury.balance);
+    const amountDec = toDecimal(amount);
 
     // Verify source treasury has sufficient balance
     if (fromBalance.lt(amountDec)) {
         const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
         if (!canGoNegative) {
-            throw new Error(t('insufficientFunds', { available: fromBalance.toNumber(), required: amount }));
+            throw new Error(t('insufficientFunds', { available: toNumber(fromBalance), required: amount }));
         }
     }
 
     // Verify both are HQ centers (not regular stores)
     if (fromTreasury.branch.type !== 'CENTER' || toTreasury.branch.type !== 'CENTER') {
         throw new Error(t('hqTransferOnly'));
+    }
+
+    // AC-06: Validate GL codes exist before using in transfers
+    const fromGlCode = fromTreasury.glCode || PAYMENT_METHOD_GL_MAP[paymentMethod];
+    const toGlCode = toTreasury.glCode || PAYMENT_METHOD_GL_MAP[paymentMethod];
+    
+    const [fromGlAccount, toGlAccount] = await Promise.all([
+        prisma.account.findUnique({ where: { code: fromGlCode } }),
+        prisma.account.findUnique({ where: { code: toGlCode } })
+    ]);
+    
+    if (!fromGlAccount) {
+        throw new Error(t('glCodeNotFound', { code: fromGlCode }));
+    }
+    if (!toGlAccount) {
+        throw new Error(t('glCodeNotFound', { code: toGlCode }));
     }
 
     // Execute transfer in transaction
@@ -110,13 +128,13 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
                 entityId: `${fromTreasuryId}-${toTreasuryId}`,
                 action: 'INTER_HQ_TRANSFER',
                 previousData: JSON.stringify({
-                    fromBalance: fromBalance.toNumber(),
-                    toBalance: new Decimal(toTreasury.balance.toString()).toNumber()
+                    fromBalance: toNumber(fromBalance),
+                    toBalance: toNumber(toDecimal(toTreasury.balance))
                 }),
                 newData: JSON.stringify({
-                    fromBalance: fromBalance.sub(amountDec).toNumber(),
-                    toBalance: new Decimal(toTreasury.balance.toString()).add(amountDec).toNumber(),
-                    amount: amountDec.toNumber(),
+                    fromBalance: toNumber(fromBalance.sub(amountDec)),
+                    toBalance: toNumber(toDecimal(toTreasury.balance).add(amountDec)),
+                    amount: toNumber(amountDec),
                     paymentMethod
                 }),
                 reason: description,
@@ -129,9 +147,9 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
         // Add Accounting GL Entry
         const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
         
-        // Use the actual GL code from each treasury if available, otherwise fallback
-        const fromGl = fromTreasury.glCode || '1000';
-        const toGl = toTreasury.glCode || '1000';
+        // Use validated GL codes from earlier validation step
+        const fromGl = fromGlCode;
+        const toGl = toGlCode;
 
         await AccountingEngine.recordTransaction({
             description: `HQ Transfer: ${fromTreasury.branch.name} -> ${toTreasury.branch.name} (${paymentMethod})`,
@@ -139,8 +157,8 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
             date: new Date(),
             branchId: fromTreasury.branchId,
             lines: [
-                { accountCode: toGl, debit: amountDec.toNumber(), credit: 0, description: `Inbound HQ Transfer to ${toTreasury.branch.name}` },
-                { accountCode: fromGl, debit: 0, credit: amountDec.toNumber(), description: `Outbound HQ Transfer from ${fromTreasury.branch.name}` }
+                { accountCode: toGl, debit: toNumber(amountDec), credit: 0, description: `Inbound HQ Transfer to ${toTreasury.branch.name}` },
+                { accountCode: fromGl, debit: 0, credit: toNumber(amountDec), description: `Outbound HQ Transfer from ${fromTreasury.branch.name}` }
             ]
         }, tx);
     });

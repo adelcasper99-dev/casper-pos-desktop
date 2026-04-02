@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Account, JournalEntry } from '@prisma/client';
 import { validateDoubleEntryBalance } from './validation';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
 // ── BL-08: Use Decimal throughout to prevent floating-point accumulation ──────
 // Previously: sum + line.debit (JS number → 0.1 + 0.2 = 0.30000000004)
@@ -21,28 +22,7 @@ export type SalePaymentInput = {
     amount: number;
 };
 
-/**
- * GL account code map for payment methods.
- * 1000 = Cash on Hand
- * 1010 = Bank / Card
- * 1020 = Mobile Wallet (Vodafone Cash, Instapay)
- * 1200 = Accounts Receivable (deferred / account customers)
- */
-const PAYMENT_ACCOUNT_MAP: Record<string, string> = {
-    CASH: '1000',
-    VISA: '1010',
-    MASTERCARD: '1010',
-    CARD: '1010',
-    BANK: '1010',
-    TRANSFER: '1010',
-    VODAFONE_CASH: '1020',
-    INSTAPAY: '1020',
-    WALLET: '1020',
-    DEFERRED: '1100',
-    ACCOUNT: '1100',
-    SUPPLIER_OFFSET: '2000',
-    STORE_CREDIT: '2150',
-};
+// Moved to @/shared/constants/accounting-mappings for centralization
 
 export class AccountingEngine {
 
@@ -62,6 +42,7 @@ export class AccountingEngine {
         purchaseId?: string;
         expenseId?: string;
         ticketId?: string;
+        transactionId?: string;
     }, tx?: any) {
         const db = tx || prisma;
 
@@ -100,6 +81,7 @@ export class AccountingEngine {
                 purchaseId: data.purchaseId,
                 expenseId: data.expenseId,
                 ticketId: data.ticketId,
+                transactionId: data.transactionId,
                 lines: {
                     create: data.lines.map(line => ({
                         accountId: accountMap.get(line.accountCode)!,
@@ -125,32 +107,36 @@ export class AccountingEngine {
         const netRevenue = payments.reduce((s, p) => s.add(new Decimal(p.amount)), new Decimal(0));
         const grossRevenue = netRevenue.add(new Decimal(discountAmount)).sub(new Decimal(taxAmount));
 
-        const debitLines: TransactionLineInput[] = payments.map(p => ({
-            accountCode: PAYMENT_ACCOUNT_MAP[p.method] ?? '1000',
-            debit: new Decimal(p.amount).toNumber(),
-            credit: 0,
-            description: `${p.method} received`,
-        }));
+        const debitLines: TransactionLineInput[] = payments.map(p => {
+            const accountCode = PAYMENT_METHOD_GL_MAP[p.method];
+            if (!accountCode) throw new Error(`GL Account not mapped for payment method: ${p.method}`);
+            return {
+                accountCode,
+                debit: new Decimal(p.amount).toNumber(),
+                credit: 0,
+                description: `${p.method} received`,
+            };
+        });
 
         const lines: TransactionLineInput[] = [
             ...debitLines,
-            { accountCode: '4000', debit: 0, credit: grossRevenue.toNumber(), description: 'Sales Revenue (ex-tax)' }
+            { accountCode: GL.REVENUE.SALES, debit: 0, credit: grossRevenue.toNumber(), description: 'Sales Revenue (ex-tax)' }
         ];
 
         // ── B2: Add Tax Journalization ──
         if (new Decimal(taxAmount).gt(0)) {
-            lines.push({ accountCode: '2100', debit: 0, credit: new Decimal(taxAmount).toNumber(), description: 'Sales Tax Payable' });
+            lines.push({ accountCode: GL.LIABILITIES.VAT_OUTPUT, debit: 0, credit: new Decimal(taxAmount).toNumber(), description: 'Sales Tax Payable' });
         }
 
         // ── Phase 2.1: Add Discounts ──
         if (new Decimal(discountAmount).gt(0)) {
-            lines.push({ accountCode: '4300', debit: new Decimal(discountAmount).toNumber(), credit: 0, description: 'Sales Discounts' });
+            lines.push({ accountCode: GL.REVENUE.DISCOUNTS, debit: new Decimal(discountAmount).toNumber(), credit: 0, description: 'Sales Discounts' });
         }
 
         // ── Phase 2.1: Add COGS and Inventory Deduction ──
         if (new Decimal(cogsAmount).gt(0)) {
-            lines.push({ accountCode: '5000', debit: new Decimal(cogsAmount).toNumber(), credit: 0, description: 'Cost of Goods Sold' });
-            lines.push({ accountCode: '1200', debit: 0, credit: new Decimal(cogsAmount).toNumber(), description: 'Inventory Asset (Out)' });
+            lines.push({ accountCode: GL.EXPENSES.COGS, debit: new Decimal(cogsAmount).toNumber(), credit: 0, description: 'Cost of Goods Sold' });
+            lines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: new Decimal(cogsAmount).toNumber(), description: 'Inventory Asset (Out)' });
         }
 
         return this.recordTransaction({
@@ -180,19 +166,19 @@ export class AccountingEngine {
         const deferredAmount = amount.sub(new Decimal(paidAmount));
 
         const lines: TransactionLineInput[] = [
-            { accountCode: '1200', debit: inventoryValue.toNumber(), credit: 0, description: 'Inventory Asset (Net of Tax)' }
+            { accountCode: GL.ASSETS.INVENTORY, debit: inventoryValue.toNumber(), credit: 0, description: 'Inventory Asset (Net of Tax)' }
         ];
 
         if (tax.gt(0)) {
-            lines.push({ accountCode: '1210', debit: tax.toNumber(), credit: 0, description: 'Input VAT (Recoverable)' });
+            lines.push({ accountCode: GL.ASSETS.VAT_INPUT, debit: tax.toNumber(), credit: 0, description: 'Input VAT (Recoverable)' });
         }
 
         if (new Decimal(paidAmount).gt(0)) {
-            lines.push({ accountCode: '1000', debit: 0, credit: new Decimal(paidAmount).toNumber(), description: 'Cash Paid' });
+            lines.push({ accountCode: GL.ASSETS.CASH, debit: 0, credit: new Decimal(paidAmount).toNumber(), description: 'Cash Paid' });
         }
 
         if (deferredAmount.gt(0)) {
-            lines.push({ accountCode: '2000', debit: 0, credit: deferredAmount.toNumber(), description: 'Supplier Credit (AP)' });
+            lines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: 0, credit: deferredAmount.toNumber(), description: 'Supplier Credit (AP)' });
         }
 
         return this.recordTransaction({
@@ -214,8 +200,8 @@ export class AccountingEngine {
             branchId,
             expenseId,
             lines: [
-                { accountCode: '5200', debit: amount, credit: 0, description },
-                { accountCode: '1000', debit: 0, credit: amount, description: 'Cash paid' }
+                { accountCode: GL.EXPENSES.OPERATION_EXPENSES, debit: amount, credit: 0, description },
+                { accountCode: GL.ASSETS.CASH, debit: 0, credit: amount, description: 'Cash paid' } // Expense from Main Cash
             ]
         }, tx);
     }
@@ -237,13 +223,14 @@ export class AccountingEngine {
     }, tx?: any) {
         const { amount, method, description, reference, saleId, ticketId, cogsReversal, spoilageAmount, branchId } = data;
         const absAmount = new Decimal(amount).abs();
-        const accountCode = PAYMENT_ACCOUNT_MAP[method] ?? '1000';
+        const accountCode = PAYMENT_METHOD_GL_MAP[method];
+        if (!accountCode) throw new Error(`GL Account not mapped for refund method: ${method}`);
         const isDeferred = method === 'DEFERRED' || method === 'ACCOUNT';
 
         const lines: TransactionLineInput[] = [
             // Refund: Debit Revenue (reverse) / Credit Asset/AR
             {
-                accountCode: ticketId ? '4100' : '4000',
+                accountCode: ticketId ? GL.REVENUE.SERVICE : GL.REVENUE.SALES,
                 debit: absAmount.toNumber(),
                 credit: 0,
                 description: ticketId ? 'Service Revenue Reversed' : 'Sales Revenue Reversed'
@@ -260,14 +247,14 @@ export class AccountingEngine {
 
         // Handle COGS reversal if provided (for retail returns)
         if (cogsReversal && new Decimal(cogsReversal).gt(0)) {
-            lines.push({ accountCode: '1200', debit: new Decimal(cogsReversal).toNumber(), credit: 0, description: 'Inventory Asset Restored' });
-            lines.push({ accountCode: '5000', debit: 0, credit: new Decimal(cogsReversal).toNumber(), description: 'COGS Reversed' });
+            lines.push({ accountCode: GL.ASSETS.INVENTORY, debit: new Decimal(cogsReversal).toNumber(), credit: 0, description: 'Inventory Asset Restored' });
+            lines.push({ accountCode: GL.EXPENSES.COGS, debit: 0, credit: new Decimal(cogsReversal).toNumber(), description: 'COGS Reversed' });
         }
 
         // Handle Spoilage if item was damaged (returns that go straight to wastage)
         if (spoilageAmount && new Decimal(spoilageAmount).gt(0)) {
-            lines.push({ accountCode: '5600', debit: new Decimal(spoilageAmount).toNumber(), credit: 0, description: 'Inventory Spoilage' });
-            lines.push({ accountCode: '1200', debit: 0, credit: new Decimal(spoilageAmount).toNumber(), description: 'Inventory Asset (Wastage)' });
+            lines.push({ accountCode: GL.EXPENSES.SPOILAGE, debit: new Decimal(spoilageAmount).toNumber(), credit: 0, description: 'Inventory Spoilage' });
+            lines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: new Decimal(spoilageAmount).toNumber(), description: 'Inventory Asset (Wastage)' });
         }
 
         return this.recordTransaction({
@@ -294,7 +281,8 @@ export class AccountingEngine {
     }, tx?: any) {
         const { amount, method, description, reference, ticketId, branchId } = data;
         const absAmount = new Decimal(amount).abs();
-        const assetAccount = PAYMENT_ACCOUNT_MAP[method] ?? '1000';
+        const assetAccount = PAYMENT_METHOD_GL_MAP[method];
+        if (!assetAccount) throw new Error(`GL Account not mapped for maintenance payment: ${method}`);
 
         return this.recordTransaction({
             description: `Service Payment: ${description}`,
@@ -303,7 +291,7 @@ export class AccountingEngine {
             ticketId,
             lines: [
                 { accountCode: assetAccount, debit: absAmount.toNumber(), credit: 0, description: `Service Payment received (${method})` },
-                { accountCode: '4100', debit: 0, credit: absAmount.toNumber(), description: 'Service Revenue' }
+                { accountCode: GL.REVENUE.SERVICE, debit: 0, credit: absAmount.toNumber(), description: 'Service Revenue' }
             ]
         }, tx);
     }
@@ -327,8 +315,8 @@ export class AccountingEngine {
             branchId, // R-02
             ticketId,
             lines: [
-                { accountCode: '5000', debit: cost.toNumber(), credit: 0, description: 'Cost of Parts Used' },
-                { accountCode: '1200', debit: 0, credit: cost.toNumber(), description: 'Inventory Asset (Out)' }
+                { accountCode: GL.EXPENSES.COGS, debit: cost.toNumber(), credit: 0, description: 'Cost of Parts Used' },
+                { accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: cost.toNumber(), description: 'Inventory Asset (Out)' }
             ]
         }, tx);
     }

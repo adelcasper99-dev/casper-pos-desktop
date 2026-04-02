@@ -118,7 +118,8 @@ export default function LoginForm() {
                         style={{
                             width: 380,
                             height: 380,
-                            border: "1px solid rgba(0,0,0,0.06)",
+                            border: "3px solid var(--primary)",
+                            borderTop: "3px solid transparent",
                             boxShadow: "0 0 120px rgba(59,105,120,0.12)",
                         }}
                     >
@@ -138,13 +139,13 @@ export default function LoginForm() {
                         {currentQuote?.text}
                     </p>
                     <div className="flex items-center gap-4">
-                        <div className="h-px w-14 bg-[#3B6978]/50 rounded-full" />
+                        <div className="h-px w-14 bg-[var(--primary)]/50 rounded-full" />
                         <span className="text-sm font-bold text-slate-500 dark:text-zinc-400 tracking-widest uppercase">
                             {currentQuote?.author}
                         </span>
-                        <div className="h-px w-14 bg-[#3B6978]/50 rounded-full" />
+                        <div className="h-px w-14 bg-[var(--primary)]/50 rounded-full" />
                     </div>
-                    <div className="h-1 w-24 bg-gradient-to-r from-[#3B6978] to-[#DDAF4C] mt-10 mx-auto rounded-full opacity-60" />
+                    <div className="h-1 bg-gradient-to-r from-primary to-accent rounded-full mb-4 self-center animate-shimmer" style={{ width: '40px' }}></div>
                 </div>
 
                 {/* Bottom stamp */}
@@ -161,9 +162,9 @@ export default function LoginForm() {
                     {/* Header */}
                     <div className="mb-10 text-center">
                         <div className="mb-6 flex justify-center">
-                            <CasperLogo width={96} height={96} className="shadow-2xl ring-4 ring-[#3B6978]/10" />
+                            <CasperLogo width={96} height={96} className="shadow-2xl ring-4 ring-[var(--primary)]/10" />
                         </div>
-                        <h2 className="text-xs font-black text-[#3B6978] uppercase tracking-[0.4em] mb-3">
+                        <h2 className="text-xs font-black text-[var(--primary)] uppercase tracking-[0.4em] mb-3">
                             Casper Pro
                         </h2>
                         <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-2">
@@ -195,7 +196,7 @@ export default function LoginForm() {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 onKeyDown={handleUsernameKeyDown}
-                                className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[#3B6978] dark:focus:border-[#3B6978] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
+                                className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
                                 required
                                 autoComplete="username"
                                 placeholder="..."
@@ -208,7 +209,7 @@ export default function LoginForm() {
                                 <label className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block">
                                     {t('password')}
                                 </label>
-                                <button type="button" className="text-[10px] font-black text-slate-400 hover:text-[#3B6978] transition-colors uppercase tracking-wider">
+                                <button type="button" className="text-[10px] font-black text-slate-400 hover:text-[var(--primary)] transition-colors uppercase tracking-wider">
                                     نسيت كلمة المرور؟
                                 </button>
                             </div>
@@ -216,7 +217,7 @@ export default function LoginForm() {
                                 ref={passwordRef}
                                 type="password"
                                 name="password"
-                                className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[#3B6978] dark:focus:border-[#3B6978] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
+                                className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
                                 required
                                 autoComplete="off"
                                 placeholder="••••••••"
@@ -225,10 +226,10 @@ export default function LoginForm() {
 
                         {/* Remember Me */}
                         <div className="flex items-center gap-3 py-1 group cursor-pointer" onClick={() => setRememberMe(!rememberMe)}>
-                            <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center flex-shrink-0 ${rememberMe ? 'bg-[#3B6978] border-[#3B6978]' : 'border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900'}`}>
+                            <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center flex-shrink-0 ${rememberMe ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900'}`}>
                                 {rememberMe && <div className="w-2 h-2 bg-white rounded-sm" />}
                             </div>
-                            <span className="text-sm font-bold text-slate-500 dark:text-zinc-400 group-hover:text-[#3B6978] transition-colors">
+                            <span className="text-sm font-bold text-slate-500 dark:text-zinc-400 group-hover:text-[var(--primary)] transition-colors">
                                 {t('rememberMe')}
                             </span>
                         </div>
@@ -237,8 +238,9 @@ export default function LoginForm() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-[#3B6978] hover:bg-[#2d5260] text-white font-black py-4 rounded-xl mt-2 flex justify-center items-center gap-3 transition-all active:scale-[0.98] shadow-lg shadow-[#3B6978]/20 text-base uppercase tracking-widest group overflow-hidden relative disabled:opacity-60"
+                            className="w-full bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-black py-4 rounded-xl mt-2 flex justify-center items-center gap-3 transition-all active:scale-[0.98] shadow-lg shadow-[var(--primary)]/20 text-base uppercase tracking-widest group overflow-hidden relative disabled:opacity-60"
                         >
+                            <div className="absolute inset-0 bg-primary/40 backdrop-blur-3xl animate-pulse" />
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                             {loading ? (
                                 <Loader2 className="animate-spin w-5 h-5" />

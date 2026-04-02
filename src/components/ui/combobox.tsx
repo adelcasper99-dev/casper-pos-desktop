@@ -37,14 +37,16 @@ export function Combobox({
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Filter options
-    const filteredOptions = query === ""
-        ? options
-        : options.filter((opt) =>
-            opt.label.toLowerCase().includes(query.toLowerCase())
-        );
+    const filteredOptions = !options 
+        ? [] 
+        : query === ""
+            ? options
+            : options.filter((opt) =>
+                opt.label.toLowerCase().includes(query.toLowerCase())
+            );
 
     // Create a display map for fast lookups
-    const selectedLabel = options.find(o => o.value === value)?.label || "";
+    const selectedLabel = options?.find(o => o.value === value)?.label || "";
 
     // Close on click outside
     useEffect(() => {

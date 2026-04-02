@@ -13,6 +13,7 @@ export type UserSession = {
     branchType?: string | null;
     permissions?: string[];
     rememberMe?: boolean;
+    isGlobalAdmin?: boolean;
     deviceFingerprint?: string;
     maxDiscount?: number | null;
     maxDiscountAmount?: number | null;
@@ -137,6 +138,7 @@ export async function getSession() {
             role: user.roleStr,
             branchId: user.branchId,
             permissions: permissions,
+            isGlobalAdmin: (user as any).isGlobalAdmin || false,
             maxDiscount: (user.roleStr === 'ADMIN' || user.roleStr === 'مدير النظام' || user.roleStr === 'المالك') ? 100 : ((user as any).maxDiscount ? Number((user as any).maxDiscount) : 0),
             maxDiscountAmount: (user.roleStr === 'ADMIN' || user.roleStr === 'مدير النظام' || user.roleStr === 'المالك') ? 9999999 : ((user as any).maxDiscountAmount ? Number((user as any).maxDiscountAmount) : 0)
         } as UserSession

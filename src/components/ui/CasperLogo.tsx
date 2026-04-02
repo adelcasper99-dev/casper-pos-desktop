@@ -14,7 +14,7 @@ export function CasperLogo({ className, width = 64, height = 64 }: {
         <div 
             className={cn(
                 "flex items-center justify-center overflow-hidden transition-all duration-300", 
-                "bg-[#F9F7F2] dark:bg-[#222222] shadow-xl",
+                "bg-background dark:bg-[#222222] shadow-xl",
                 className
             )} 
             style={{ 

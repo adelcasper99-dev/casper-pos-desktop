@@ -26,7 +26,7 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
             alt=""
             width={ghostSize}
             height={ghostSize}
-            className="drop-shadow-[0_0_8px_rgba(59,105,120,0.5)]"
+            className="drop-shadow-[0_0_8px_var(--primary-glow)]"
           />
         </div>
         {/* Ghost 2 - Bottom Right */}
@@ -36,7 +36,7 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
             alt=""
             width={ghostSize}
             height={ghostSize}
-            className="drop-shadow-[0_0_8px_rgba(59,105,120,0.5)]"
+            className="drop-shadow-[0_0_8px_var(--primary-glow)]"
           />
         </div>
         {/* Ghost 3 - Bottom Left */}
@@ -46,13 +46,13 @@ export function CasperLoader({ className, width = 60, height, text }: CasperLoad
             alt=""
             width={ghostSize}
             height={ghostSize}
-            className="drop-shadow-[0_0_8px_rgba(59,105,120,0.5)]"
+            className="drop-shadow-[0_0_8px_var(--primary-glow)]"
           />
         </div>
       </div>
 
       {text && (
-        <p className="text-xs text-[#3B6978]/80 font-medium animate-pulse tracking-widest uppercase mt-2">
+        <p className="text-xs text-primary/80 font-medium animate-pulse tracking-widest uppercase mt-2">
           {text}
         </p>
       )}

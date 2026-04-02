@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
-import GlassModal from './GlassModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +16,7 @@ interface ConfirmationModalProps {
     loading?: boolean;
     variant?: 'danger' | 'warning' | 'info';
     children?: ReactNode;
+    className?: string;
 }
 
 export default function ConfirmationModal({
@@ -28,7 +29,8 @@ export default function ConfirmationModal({
     cancelText = 'إلغاء',
     loading = false,
     variant = 'danger',
-    children
+    children,
+    className
 }: ConfirmationModalProps) {
     const variantStyles = {
         danger: {
@@ -51,43 +53,51 @@ export default function ConfirmationModal({
     const currentVariant = variantStyles[variant];
 
     return (
-        <GlassModal isOpen={isOpen} onClose={onClose} title={title} className="max-w-md">
-            <div className="space-y-6">
-                <div className={cn("flex items-center gap-4 p-4 rounded-xl border", currentVariant.bg)}>
-                    <div className="shrink-0 p-2 bg-black/20 rounded-lg">
-                        {currentVariant.icon}
-                    </div>
-                    <p className="text-zinc-200 text-sm leading-relaxed">
-                        {message}
-                    </p>
-                </div>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className={cn("max-w-md p-0 overflow-hidden border-border bg-background shadow-2xl animate-in zoom-in-95 duration-200", className)} dir="rtl">
+                <DialogHeader className="p-6 border-b border-border bg-muted/30">
+                    <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
+                        <span className="p-2 bg-background rounded-lg border border-border shadow-sm">
+                           {currentVariant.icon}
+                        </span>
+                        {title}
+                    </DialogTitle>
+                </DialogHeader>
 
-                {children && (
-                    <div className="px-1">
-                        {children}
+                <div className="p-6 space-y-6">
+                    <div className={cn("flex items-center gap-4 p-4 rounded-xl border transition-all", currentVariant.bg)}>
+                        <p className="text-foreground text-sm leading-relaxed font-bold">
+                            {message}
+                        </p>
                     </div>
-                )}
 
-                <div className="flex gap-3 pt-2">
-                    <button
-                        onClick={onClose}
-                        disabled={loading}
-                        className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 transition-all border border-white/10 disabled:opacity-50"
-                    >
-                        {cancelText}
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={loading}
-                        className={cn(
-                            "flex-1 py-3 rounded-lg font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg",
-                            currentVariant.button
-                        )}
-                    >
-                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : confirmText}
-                    </button>
+                    {children && (
+                        <div className="px-1">
+                            {children}
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={onClose}
+                            disabled={loading}
+                            className="flex-1 py-3 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground transition-all border border-border disabled:opacity-50 font-bold text-sm"
+                        >
+                            {cancelText}
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            disabled={loading}
+                            className={cn(
+                                "flex-1 py-3 rounded-xl font-black transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg",
+                                currentVariant.button
+                            )}
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : confirmText}
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </GlassModal>
+            </DialogContent>
+        </Dialog>
     );
 }

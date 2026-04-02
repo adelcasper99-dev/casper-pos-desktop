@@ -8,31 +8,20 @@ import { TreasuryLogFilters } from "../types";
 import { Search, Filter, Calendar, Tag } from "lucide-react";
 import { startOfDay, endOfDay, format } from "date-fns";
 
-const TREASURY_CATEGORIES = [
-    { value: "ALL", label: "كل التصنيفات" },
-    { value: "مبيعات", label: "مبيعات" },
-    { value: "سداد عميل", label: "سداد عميل" },
-    { value: "إيداع نقدي", label: "إيداع نقدي" },
-    { value: "تحويل وارد", label: "تحويل وارد" },
-    { value: "مشتريات", label: "مشتريات" },
-    { value: "مصاريف عامة", label: "مصاريف عامة" },
-    { value: "سحب نقدي", label: "سحب نقدي" },
-    { value: "تحويل صادر", label: "تحويل صادر" }
-];
-
 interface TreasuryFilterBarProps {
     filters: TreasuryLogFilters;
     onFilterChange: (filters: TreasuryLogFilters) => void;
+    dbCategories: { value: string, label: string }[];
 }
 
-export function TreasuryFilterBar({ filters, onFilterChange }: TreasuryFilterBarProps) {
+export function TreasuryFilterBar({ filters, onFilterChange, dbCategories }: TreasuryFilterBarProps) {
     return (
         <div className="relative z-10 flex flex-wrap items-center gap-4 bg-zinc-50 dark:bg-white/[0.02] p-4 rounded-2xl border border-zinc-200 dark:border-white/5 mb-6">
             {/* Category Combobox */}
             <div className="flex items-center gap-2 min-w-[200px]">
                 <Tag className="h-4 w-4 text-zinc-500" />
                 <Combobox
-                    options={TREASURY_CATEGORIES}
+                    options={dbCategories}
                     value={filters.category || "ALL"}
                     onChange={(val) => onFilterChange({ ...filters, category: val })}
                     placeholder="اختر التصنيف..."

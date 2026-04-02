@@ -1,6 +1,7 @@
 "use client";
 import { X } from "lucide-react";
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,11 @@ interface GlassModalProps {
 }
 
 export default function GlassModal({ isOpen, onClose, title, children, className }: GlassModalProps) {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
@@ -24,16 +30,16 @@ export default function GlassModal({ isOpen, onClose, title, children, className
         };
     }, [isOpen]);
 
-    if (!isOpen) return null;
+    if (!isOpen || !mounted) return null;
 
-    return (
+    return createPortal(
         <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4 animate-in fade-in duration-200"
             onClick={onClose}
         >
             <div
                 className={cn(
-                    "w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar p-6 relative animate-in zoom-in-95 duration-300 bg-white dark:bg-zinc-900/95 dark:backdrop-blur-2xl rounded-2xl shadow-[0_20px_60px_rgb(0,0,0,0.12)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-slate-100 dark:border-white/10",
+                    "w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar p-6 relative animate-in zoom-in-95 duration-300 bg-background dark:bg-zinc-900/95 dark:backdrop-blur-2xl rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-border dark:border-white/10",
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}
@@ -54,6 +60,7 @@ export default function GlassModal({ isOpen, onClose, title, children, className
                     {children}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

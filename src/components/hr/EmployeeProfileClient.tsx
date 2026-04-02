@@ -159,7 +159,9 @@ export default function EmployeeProfileClient({
             
             // If absent and no manual deduction was recorded, calculate auto-deduction (1 day)
             if (isAbsent && logDeduction === 0) {
-                const dailyRate = kpis.contractualSalary / 30;
+                const [y, m] = monthStr.split('-').map(Number);
+                const lastDay = new Date(y, m, 0).getDate();
+                const dailyRate = kpis.contractualSalary / lastDay;
                 amount -= dailyRate;
             }
 
@@ -176,14 +178,27 @@ export default function EmployeeProfileClient({
         }),
         // Manual & System Transactions
         ...transactions.map(tx => {
-            const isDeduction = tx.type.endsWith('_DEDUCTION') || tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' || tx.type === 'CLAWBACK' || tx.type === 'DEDUCTION';
-            const isReversal = tx.type.endsWith('_REVERSAL') && tx.type !== 'MAINTENANCE_COMMISSION_REVERSAL';
-            const isAddition = tx.type === 'BONUS' || tx.type === 'ADDITION' || tx.type === 'MAINTENANCE_COMMISSION';
-            
-            let finalAmount = Number(tx.amount);
-            if (isDeduction) finalAmount = -Math.abs(finalAmount);
-            else if (isReversal || isAddition) finalAmount = Math.abs(finalAmount);
-            else finalAmount = -Math.abs(finalAmount);
+            const type = tx.type;
+            const amount = Number(tx.amount || 0);
+
+            // 🏗️ Alignment with Server-side categorization in salary-utils.ts
+            const isAddition = type === 'BONUS' || type === 'ADDITION' || type === 'MAINTENANCE_COMMISSION';
+            const isDeduction = type === 'DEDUCTION' || type === 'PENALTY' || type.endsWith('_DEDUCTION') || type === 'SALARY_PAYMENT' || type === 'CLAWBACK';
+            const isReversal = type.endsWith('_REVERSAL');
+
+            let finalAmount = amount;
+            let status = (tx as any).status || "MANUAL";
+
+            if (isDeduction) {
+                finalAmount = -Math.abs(amount);
+                status = status === "MANUAL" ? "MANUAL" : "POS";
+            } else if (type === 'MAINTENANCE_COMMISSION_REVERSAL' || type === 'BONUS_REVERSAL') {
+                finalAmount = -Math.abs(amount);
+                status = "OPERATIONS";
+            } else if (isAddition || isReversal) {
+                // Keep the original sign for additions/reversals to expose anomalous data (e.g. negative bonuses)
+                finalAmount = amount;
+            }
 
             return {
                 id: tx.id,
@@ -191,7 +206,7 @@ export default function EmployeeProfileClient({
                 description: tx.description || "حركة مالية",
                 type: tx.type,
                 amount: finalAmount,
-                status: (tx as any).status || ((isDeduction || isReversal) ? "POS" : "MANUAL"),
+                status: status,
                 referenceId: tx.referenceId,
                 referenceType: tx.referenceType
             };
@@ -258,9 +273,9 @@ export default function EmployeeProfileClient({
     const techMetrics = user.technician ? [
         {
             title: "نسبة النجاح",
-            value: `${kpis.successRatio}%`,
+            value: kpis.completedTickets > 0 ? `${kpis.successRatio}%` : '--',
             icon: <Target className="w-5 h-5 text-cyan-400" />,
-            desc: "نسبة الأجهزة المنجزة بدون مرتجع",
+            desc: kpis.completedTickets > 0 ? "نسبة الأجهزة المنجزة بدون مرتجع" : "لا توجد تذاكر منجزة حتى الآن",
             progress: kpis.successRatio
         },
         {
@@ -285,11 +300,14 @@ export default function EmployeeProfileClient({
         }
     ] : []
 
+    // Only show tech metrics if there is actual activity or they have been hired for more than a week
+    const showTechMetrics = user.technician && (kpis.completedTickets > 0 || kpis.workflowGaps > 0 || (user.hireDate && (new Date().getTime() - new Date(user.hireDate).getTime()) > 7 * 24 * 60 * 60 * 1000));
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Phase 1: Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-card/40 p-8 rounded-3xl border border-white/5 backdrop-blur-xl shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[100px] rounded-full -mr-32 -mt-32" />
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-card/40 p-8 rounded-3xl border border-slate-200 dark:border-white/5 backdrop-blur-xl shadow-xl dark:shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 dark:bg-cyan-500/5 blur-[100px] rounded-full -mr-32 -mt-32" />
                 
                 <div className="flex items-center gap-6 z-10">
                     <Avatar className="w-24 h-24 border-2 border-cyan-500/20 shadow-xl ring-4 ring-black/20">
@@ -298,7 +316,7 @@ export default function EmployeeProfileClient({
                     </Avatar>
                     <div className="space-y-1">
                         <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-extrabold tracking-tight text-white">{user.name}</h1>
+                            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{user.name}</h1>
                             {user.hireDate && (
                                 <Badge variant="outline" className="bg-white/5 border-white/10 text-zinc-400 text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
                                     <CalendarCheck className="w-3 h-3 text-cyan-400" />
@@ -379,8 +397,10 @@ export default function EmployeeProfileClient({
                         transition={{ delay: i * 0.1 }}
                     >
                         <Card className={clsx(
-                            "border-white/5 overflow-hidden relative group h-full",
-                            card.highlight ? "bg-cyan-500/5 ring-1 ring-cyan-500/20 shadow-cyan-500/10 shadow-lg" : "bg-zinc-950/40"
+                            "overflow-hidden relative group h-full transition-all border",
+                            card.highlight 
+                                ? "bg-cyan-500/5 dark:bg-cyan-500/10 border-cyan-500/20 ring-1 ring-cyan-500/20 shadow-cyan-500/10 shadow-lg" 
+                                : "bg-white dark:bg-zinc-950/40 border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none"
                         )}>
                             <CardContent className="p-6">
                                 <div className="flex justify-between items-start mb-4">
@@ -395,7 +415,7 @@ export default function EmployeeProfileClient({
                                     <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{card.title}</p>
                                     <h3 className={clsx(
                                         "text-2xl font-black tracking-tighter",
-                                        card.highlight ? "text-cyan-400" : "text-white"
+                                        card.highlight ? "text-cyan-600 dark:text-cyan-400" : "text-slate-900 dark:text-white"
                                     )}>
                                         {card.value}
                                     </h3>
@@ -408,7 +428,7 @@ export default function EmployeeProfileClient({
             </div>
 
             {/* Technician Performance Details */}
-            {user.technician && (
+            {showTechMetrics && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-cyan-500/10 rounded-xl">
@@ -422,7 +442,7 @@ export default function EmployeeProfileClient({
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {techMetrics.map((metric, i) => (
-                            <Card key={i} className="bg-zinc-950/40 border-white/5 backdrop-blur-xl p-6 rounded-3xl relative group overflow-hidden border">
+                            <Card key={i} className="bg-white dark:bg-zinc-950/40 border-slate-200 dark:border-white/5 backdrop-blur-xl p-6 rounded-3xl relative group overflow-hidden border shadow-sm dark:shadow-none">
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-start">
                                         <div className={clsx(
@@ -442,7 +462,7 @@ export default function EmployeeProfileClient({
                                         <div className="flex items-baseline gap-2">
                                             <span className={clsx(
                                                 "text-2xl font-black",
-                                                metric.isDanger ? "text-red-400" : metric.isWarning ? "text-orange-400" : "text-white"
+                                                metric.isDanger ? "text-red-500 dark:text-red-400" : metric.isWarning ? "text-orange-500 dark:text-orange-400" : "text-slate-900 dark:text-white"
                                             )}>
                                                 {metric.value}
                                             </span>
@@ -501,38 +521,38 @@ export default function EmployeeProfileClient({
 
                 <TabsContent value="ledger" className="mt-0 focus-visible:ring-0">
                     <Card className="bg-card/40 border-white/5 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-md">
-                        <div className="p-6 bg-white/[0.02] border-b border-white/5 flex justify-between items-center">
-                            <h2 className="text-lg font-bold">{tl("title")}</h2>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 border border-white/5 rounded-xl">
-                                <Search className="w-3.5 h-3.5 text-zinc-500" />
-                                <input placeholder={tl("search")} className="bg-transparent border-none text-xs focus:ring-0 text-white w-32" />
+                        <div className="p-6 bg-white/[0.02] border-b border-slate-200 dark:border-white/5 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white">{tl("title")}</h2>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-white/5 rounded-xl">
+                                <Search className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
+                                <input placeholder={tl("search")} className="bg-transparent border-none text-xs focus:ring-0 text-slate-900 dark:text-white w-32 placeholder:text-slate-400" />
                             </div>
                         </div>
                         <div className="overflow-x-auto min-h-[400px]">
                             <table className="w-full text-right">
-                                <thead className="bg-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
+                                <thead className="bg-slate-100 dark:bg-white/5 text-[10px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-[0.2em]">
                                     <tr>
-                                        <th className="p-4 border-b border-white/5">{tl("date")}</th>
-                                        <th className="p-4 border-b border-white/5">{tl("description")}</th>
-                                        <th className="p-4 border-b border-white/5">{tl("type")}</th>
-                                        <th className="p-4 border-b border-white/5">{tl("amount")}</th>
-                                        <th className="p-4 border-b border-white/5 text-left">{tl("actions")}</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">{tl("date")}</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">{tl("description")}</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">{tl("type")}</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">{tl("amount")}</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5 text-left">{tl("actions")}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {ledgerEntries.length > 0 ? ledgerEntries.map((entry, idx) => (
-                                        <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
-                                            <td className="p-4 text-xs font-mono text-zinc-500">{entry.date}</td>
+                                        <tr key={idx} className="odd:bg-slate-500/[0.03] dark:odd:bg-white/[0.01] hover:bg-slate-500/[0.06] dark:hover:bg-white/[0.03] transition-colors group">
+                                            <td className="p-4 text-xs font-mono text-slate-400 dark:text-zinc-500">{entry.date}</td>
                                             <td className="p-4">
                                                 <div className="flex flex-col gap-0.5">
-                                                    <span className="text-sm font-bold text-zinc-200">{entry.description}</span>
-                                                    <span className="text-[10px] text-zinc-500 font-medium group-hover:text-cyan-400 transition-colors">ID: {entry.status}-{idx}</span>
+                                                    <span className="text-sm font-bold text-slate-700 dark:text-zinc-200">{entry.description}</span>
+                                                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium group-hover:text-cyan-500 transition-colors">ID: {entry.status}-{idx}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4">{getEntryTypeBadge(entry.status)}</td>
                                             <td className={clsx(
                                                 "p-4 text-sm font-black tabular-nums",
-                                                entry.amount > 0 ? "text-emerald-400" : "text-rose-400"
+                                                entry.amount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                                             )}>
                                                 {entry.amount > 0 ? '+' : ''}{entry.amount.toLocaleString()} EGP
                                             </td>
@@ -621,29 +641,29 @@ export default function EmployeeProfileClient({
                         </div>
                         <div className="overflow-x-auto min-h-[400px]">
                             <table className="w-full text-right">
-                                <thead className="bg-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
+                                <thead className="bg-slate-100 dark:bg-white/5 text-[10px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-[0.2em]">
                                     <tr>
-                                        <th className="p-4 border-b border-white/5">رقم التذكرة</th>
-                                        <th className="p-4 border-b border-white/5">الجهاز / العميل</th>
-                                        <th className="p-4 border-b border-white/5">التاريخ</th>
-                                        <th className="p-4 border-b border-white/5">الحالة</th>
-                                        <th className="p-4 border-b border-white/5 text-center">إجمالي التذكرة</th>
-                                        <th className="p-4 border-b border-white/5 text-center text-zinc-400">صافي (صيانة)</th>
-                                        <th className="p-4 border-b border-white/5 text-center">عمولة المهندس</th>
-                                        <th className="p-4 border-b border-white/5">الإجراء</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">رقم التذكرة</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">الجهاز / العميل</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">التاريخ</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">الحالة</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5 text-center">إجمالي التذكرة</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5 text-center text-slate-400 dark:text-zinc-400">صافي (صيانة)</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5 text-center">عمولة المهندس</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">الإجراء</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {data.tickets.length > 0 ? data.tickets.map((ticket, idx) => (
-                                        <tr key={ticket.id} className="hover:bg-white/[0.02] transition-colors group">
-                                            <td className="p-4 font-mono font-bold text-cyan-400">#{ticket.barcode}</td>
+                                        <tr key={ticket.id} className="odd:bg-slate-500/[0.03] dark:odd:bg-white/[0.01] hover:bg-slate-500/[0.06] dark:hover:bg-white/[0.03] transition-colors group">
+                                            <td className="p-4 font-mono font-bold text-cyan-600 dark:text-cyan-400">#{ticket.barcode}</td>
                                             <td className="p-4">
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-zinc-200">{ticket.brand} {ticket.model}</span>
-                                                    <span className="text-[10px] text-zinc-500">{ticket.customerName || 'عميل نقدي'}</span>
+                                                    <span className="text-sm font-bold text-slate-700 dark:text-zinc-200">{ticket.brand} {ticket.model}</span>
+                                                    <span className="text-[10px] text-slate-400 dark:text-zinc-500">{ticket.customerName || 'عميل نقدي'}</span>
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-xs font-mono text-zinc-500">
+                                            <td className="p-4 text-xs font-mono text-slate-400 dark:text-zinc-500">
                                                 {new Date(ticket.createdAt).toLocaleDateString('ar-EG')}
                                             </td>
                                             <td className="p-4">
@@ -656,15 +676,15 @@ export default function EmployeeProfileClient({
                                                     {ticket.status}
                                                 </Badge>
                                             </td>
-                                            <td className="p-4 text-center font-black text-white tabular-nums">
+                                            <td className="p-4 text-center font-black text-slate-800 dark:text-white tabular-nums">
                                                 {Number(ticket.totalAmount || 0).toLocaleString()} EGP
                                             </td>
-                                            <td className="p-4 text-center font-bold text-zinc-400 tabular-nums text-xs">
+                                            <td className="p-4 text-center font-bold text-slate-400 dark:text-zinc-400 tabular-nums text-xs">
                                                 {Number(ticket.laborAmount || 0).toLocaleString()} EGP
                                             </td>
                                             <td className={clsx(
                                                 "p-4 text-center font-black tabular-nums",
-                                                Number(ticket.displayCommission || 0) >= 0 ? "text-cyan-400" : "text-rose-400"
+                                                Number(ticket.displayCommission || 0) >= 0 ? "text-cyan-600 dark:text-cyan-400" : "text-rose-600 dark:text-rose-400"
                                             )}>
                                                 {Number(ticket.displayCommission || 0).toLocaleString()} EGP
                                             </td>
@@ -715,19 +735,19 @@ export default function EmployeeProfileClient({
                         </div>
                         <div className="overflow-x-auto min-h-[400px]">
                             <table className="w-full text-right">
-                                <thead className="bg-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
+                                <thead className="bg-slate-100 dark:bg-white/5 text-[10px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-[0.2em]">
                                     <tr>
-                                        <th className="p-4 border-b border-white/5">التاريخ</th>
-                                        <th className="p-4 border-b border-white/5">الحالة</th>
-                                        <th className="p-4 border-b border-white/5">المكافأة</th>
-                                        <th className="p-4 border-b border-white/5">الخصم</th>
-                                        <th className="p-4 border-b border-white/5">ملاحظات</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">التاريخ</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">الحالة</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">المكافأة</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">الخصم</th>
+                                        <th className="p-4 border-b border-slate-200 dark:border-white/5">ملاحظات</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {data.attendanceLogs.length > 0 ? data.attendanceLogs.map((log, idx) => (
-                                        <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
-                                            <td className="p-4 text-xs font-mono text-zinc-500">{new Date(log.date).toLocaleDateString('ar-EG')}</td>
+                                        <tr key={idx} className="odd:bg-slate-500/[0.03] dark:odd:bg-white/[0.01] hover:bg-slate-500/[0.06] dark:hover:bg-white/[0.03] transition-colors group">
+                                            <td className="p-4 text-xs font-mono text-slate-400 dark:text-zinc-500">{new Date(log.date).toLocaleDateString('ar-EG')}</td>
                                             <td className="p-4">
                                                 <Badge className={clsx(
                                                     "text-[10px] font-bold px-2 py-0.5 border-none",
@@ -738,10 +758,10 @@ export default function EmployeeProfileClient({
                                                     {log.status}
                                                 </Badge>
                                             </td>
-                                            <td className="p-4 text-sm font-bold text-emerald-400">
+                                            <td className="p-4 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                                                 {log.bonus > 0 ? `+${log.bonus.toLocaleString()}` : '---'}
                                             </td>
-                                            <td className="p-4 text-sm font-bold text-rose-400">
+                                            <td className="p-4 text-sm font-bold text-rose-600 dark:text-rose-400">
                                                 {log.deduction > 0 ? `-${log.deduction.toLocaleString()}` : '---'}
                                             </td>
                                             <td className="p-4 text-xs text-zinc-400">

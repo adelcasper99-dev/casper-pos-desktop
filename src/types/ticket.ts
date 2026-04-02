@@ -3,6 +3,8 @@
  * Used across Repair Center, Dashboard, and Workflow modules
  */
 
+import { Decimal } from "@prisma/client/runtime/library";
+
 /**
  * Ticket data structure from Prisma
  * Matches prisma/schema.prisma Ticket model
@@ -110,4 +112,18 @@ export interface WorkflowTicket {
     notes?: TicketNote[];
     previousStatus?: string | null;
     warrantyExpiryDate?: Date | null;
+    parts?: TicketPart[];
+}
+
+export interface TicketPart {
+    id: string;
+    ticketId: string;
+    productId: string | null;
+    productName?: string | null;
+    description: string | null;
+    quantity: number;
+    cost: number | Decimal;
+    price: number | Decimal;
+    status: string;
+    warehouseId: string | null;
 }

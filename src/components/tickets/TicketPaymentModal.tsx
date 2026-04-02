@@ -406,42 +406,42 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                     {(isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
                         <div className="space-y-3">
                             <div className="flex justify-between items-center text-xs">
-                                <span className="text-zinc-400">{t('newTotalDue') || "New Repair Total"}</span>
-                                <span className="text-white font-bold">{formatCurrency(totalNewPrice)}</span>
+                                <span className="text-cyan-800 dark:text-zinc-400">{t('newTotalDue') || "New Repair Total"}</span>
+                                <span className="text-cyan-950 dark:text-white font-bold">{formatCurrency(totalNewPrice)}</span>
                             </div>
                             {isWarrantyReturn && inheritedCredit > 0 && (
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-zinc-400">{t('inheritedCredit') || "Previous Ticket Credit"}</span>
-                                    <span className="text-green-400 font-bold">{formatCurrency(inheritedCredit)}</span>
+                                    <span className="text-cyan-800 dark:text-zinc-400">{t('inheritedCredit') || "Previous Ticket Credit"}</span>
+                                    <span className="text-emerald-600 dark:text-green-400 font-bold">{formatCurrency(inheritedCredit)}</span>
                                 </div>
                             )}
                             {currentPaid > 0 && (
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-zinc-400">{t('paidAmount') || "Previously Paid (Deposits/Originals)"}</span>
-                                    <span className="text-cyan-400 font-bold">{formatCurrency(currentPaid)}</span>
+                                    <span className="text-cyan-800 dark:text-zinc-400">{t('paidAmount') || "Previously Paid (Deposits/Originals)"}</span>
+                                    <span className="text-cyan-600 dark:text-cyan-400 font-bold">{formatCurrency(currentPaid)}</span>
                                 </div>
                             )}
-                            <div className="pt-2 border-t border-white/5 flex justify-between items-center">
-                                <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-black">
+                            <div className="pt-2 border-t border-cyan-500/20 dark:border-white/5 flex justify-between items-center">
+                                <span className="text-[10px] text-cyan-700 dark:text-cyan-400 uppercase tracking-widest font-black">
                                     {netDelta < 0 ? (t('refundAmount') || "Refund Amount") : (netDelta === 0 ? "Settled (No Due)" : (t('netAmount') || "Net Difference Due"))}
                                 </span>
                                 <span className={clsx(
                                     "text-2xl font-black",
-                                    netDelta > 0 ? "text-emerald-400" : netDelta < 0 ? "text-purple-400" : "text-cyan-400"
+                                    netDelta > 0 ? "text-emerald-600 dark:text-emerald-400" : netDelta < 0 ? "text-purple-600 dark:text-purple-400" : "text-cyan-600 dark:text-cyan-400"
                                 )}>
                                     {formatCurrency(Math.abs(netDelta))}
                                 </span>
                             </div>
                             {netDelta < 0 && (
-                                <p className="text-[9px] text-purple-400 font-bold uppercase tracking-tighter mt-1 animate-pulse">
+                                <p className="text-[9px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-tighter mt-1 animate-pulse">
                                     {t('refundToWalletEnforcement') || "يتم إضافة المرتجع لرصيد العميل فقط حفاظاً على أمان الصندوق"}
                                 </p>
                             )}
                         </div>
                     ) : (
                         <>
-                            <div className="text-xs text-cyan-400 uppercase tracking-widest font-bold mb-1">{t('balanceDue')}</div>
-                            <div className="text-3xl font-black text-white">
+                            <div className="text-xs text-cyan-700 dark:text-cyan-400 uppercase tracking-widest font-bold mb-1">{t('balanceDue')}</div>
+                            <div className="text-3xl font-black text-cyan-950 dark:text-white">
                                 {formatCurrency(balanceDue)}
                             </div>
                         </>
@@ -449,19 +449,19 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
                     {/* Financial Distribution Preview (New: CP-01) */}
                     {paymentType === 'PAYMENT' && netDelta >= 0 && (
-                        <div className="mt-4 pt-4 border-t border-cyan-500/10 space-y-2 animate-fly-in">
-                            <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest flex items-center gap-1.5 justify-center">
+                        <div className="mt-4 pt-4 border-t border-cyan-500/20 dark:border-cyan-500/10 space-y-2 animate-fly-in">
+                            <p className="text-[10px] text-cyan-800 dark:text-zinc-500 uppercase font-black tracking-widest flex items-center gap-1.5 justify-center">
                                 <LayoutDashboard className="w-3 h-3" />
                                 {t('profitDistribution') || "معاينة توزيع الارباح"}
                             </p>
                             
                             <div className="grid grid-cols-2 gap-2">
-                                <div className="p-2 rounded-lg bg-white/5 border border-white/5 flex flex-col items-center">
-                                    <span className="text-[9px] text-zinc-500 uppercase font-bold">{t('laborPool') || "وعاء المصنعية"}</span>
-                                    <span className="text-xs font-black text-white">{formatCurrency(totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0))}</span>
+                                <div className="p-2 rounded-lg bg-cyan-500/5 dark:bg-white/5 border border-cyan-500/10 dark:border-white/5 flex flex-col items-center">
+                                    <span className="text-[9px] text-cyan-700 dark:text-zinc-500 uppercase font-bold">{t('laborPool') || "وعاء المصنعية"}</span>
+                                    <span className="text-xs font-black text-cyan-950 dark:text-white">{formatCurrency(totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0))}</span>
                                 </div>
-                                <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-emerald-400">
-                                    <span className="text-[9px] uppercase font-bold text-zinc-500">{t('techShare') || "نصيب المهندس"}</span>
+                                <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-emerald-600 dark:text-emerald-400">
+                                    <span className="text-[9px] uppercase font-bold text-emerald-700 dark:text-zinc-500">{t('techShare') || "نصيب المهندس"}</span>
                                     <span className="text-xs font-black">
                                         {formatCurrency((totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0)) * (Number(ticket.commissionRate || 0) / 100))}
                                     </span>
@@ -474,8 +474,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                     {!isWarrantyReturn && changeAmount > 0 && (
                         <div className="mt-3 pt-3 border-t border-cyan-500/20 animate-fly-in">
                             <div className="flex items-center justify-between bg-yellow-400/10 p-2 rounded-lg border border-yellow-400/20">
-                                <span className="text-yellow-400 font-bold text-xs">{t('change') || "Change"}</span>
-                                <span className="text-yellow-400 font-black text-lg">{formatCurrency(changeAmount)}</span>
+                                <span className="text-yellow-600 dark:text-yellow-400 font-bold text-xs">{t('change') || "Change"}</span>
+                                <span className="text-yellow-600 dark:text-yellow-400 font-black text-lg">{formatCurrency(changeAmount)}</span>
                             </div>
                         </div>
                     )}
@@ -502,8 +502,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                         paymentMethod === m.id
                                             ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
                                              : (netDelta < 0 && m.id !== 'ACCOUNT' 
-                                                ? 'bg-black/20 border-white/5 text-zinc-700 cursor-not-allowed opacity-50' 
-                                                : 'bg-white/5 border-white/10 text-zinc-500 hover:bg-white/10 hover:text-zinc-300')
+                                                ? 'bg-muted border-border text-muted-foreground cursor-not-allowed opacity-50' 
+                                                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
                                     )}
                                 >
                                     <m.icon className="w-5 h-5" />
@@ -514,14 +514,14 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                     </div>
 
                     {/* Payment Type Toggle */}
-                    <div className="flex gap-2 bg-white/5 rounded-xl p-1">
+                    <div className="flex gap-2 bg-muted/40 rounded-xl p-1">
                         <button
                             onClick={() => setPaymentType('PAYMENT')}
                             className={clsx(
                                 "flex-1 py-2 px-4 rounded-lg text-xs font-bold transition-all",
                                 paymentType === 'PAYMENT'
-                                    ? "bg-cyan-500 text-black shadow-lg"
-                                    : "text-zinc-500 hover:text-white"
+                                    ? "bg-cyan-500 text-white shadow-lg"
+                                    : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             {t('finalPayment')}
@@ -531,8 +531,8 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                             className={clsx(
                                 "flex-1 py-2 px-4 rounded-lg text-xs font-bold transition-all",
                                 paymentType === 'DEPOSIT'
-                                    ? "bg-yellow-500 text-black shadow-lg"
-                                    : "text-zinc-500 hover:text-white"
+                                    ? "bg-yellow-500 text-white shadow-lg"
+                                    : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             {t('deposit')}
@@ -541,23 +541,23 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
                     {/* Amount Input */}
                     <div className="space-y-2">
-                        <Label className="text-zinc-400 text-xs uppercase tracking-wider">{t('paymentAmount')}</Label>
+                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">{t('paymentAmount')}</Label>
                         <div className="relative">
                             <Input
                                 type="number"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
-                                className="solid-input pl-10 h-14 text-2xl font-black text-green-400 bg-black/40 border-white/10"
+                                className="solid-input pl-10 h-14 text-2xl font-black text-emerald-600 dark:text-green-400 bg-muted/40 border-border"
                                 placeholder="0.00"
                             />
-                            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-zinc-500" />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-600">EGP</div>
+                            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">EGP</div>
                         </div>
                         <div className="flex gap-2">
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
+                                className="text-[10px] h-7 bg-muted/40 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
                                 onClick={() => setAmount(isWarrantyReturn ? netDelta.toString() : balanceDue.toString())}
                             >
                                 {isWarrantyReturn ? (t('fullDelta') || "Full Delta") : t('fullBalance')}
@@ -566,7 +566,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[10px] h-7 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
+                                    className="text-[10px] h-7 bg-muted/40 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
                                     onClick={() => setAmount((balanceDue / 2).toString())}
                                 >
                                     {t('half')}
@@ -578,12 +578,12 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                     {/* Reference (for Visa/Wallet/InstaPay) */}
                     {['VISA', 'WALLET', 'INSTAPAY'].includes(paymentMethod) && (
                         <div className="space-y-2 animate-fly-in">
-                            <Label className="text-zinc-400 text-xs uppercase tracking-wider">{t('referenceAuthCode')}</Label>
+                            <Label className="text-muted-foreground text-xs uppercase tracking-wider">{t('referenceAuthCode')}</Label>
                             <Input
                                 value={reference}
                                 onChange={e => setReference(e.target.value)}
                                 placeholder={t('referenceAuthCode')}
-                                className="bg-white/5 border-white/10 h-10 text-sm"
+                                className="bg-muted/40 border-border h-10 text-sm"
                             />
                         </div>
                     )}
@@ -652,29 +652,29 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
                     {/* Customer Selection for Account Payment or Info */}
                     {paymentMethod === "ACCOUNT" && (
-                        <div className="space-y-3 p-4 bg-black/40 rounded-xl border border-white/10 animate-fly-in">
+                        <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border animate-fly-in">
                             {/* Employee Detection Banner */}
                             {employeeData && (
                                 <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                            <UserCheck className="w-4 h-4 text-blue-400" />
+                                            <UserCheck className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-bold text-blue-400">{employeeData.name}</p>
-                                            <p className="text-[10px] text-zinc-500 tracking-tighter">{t('empSalDeduction')}</p>
+                                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{employeeData.name}</p>
+                                            <p className="text-[10px] text-muted-foreground tracking-tighter">{t('empSalDeduction')}</p>
                                         </div>
                                     </div>
-                                    <ShieldAlert className="w-4 h-4 text-blue-400 opacity-50" />
+                                    <ShieldAlert className="w-4 h-4 text-blue-500 dark:text-blue-400 opacity-50" />
                                 </div>
                             )}
 
                             <div className="flex items-center justify-between mb-1">
-                                <Label className="text-[10px] text-zinc-500 uppercase font-black">{t('customerAccount')}</Label>
+                                <Label className="text-[10px] text-muted-foreground uppercase font-black">{t('customerAccount')}</Label>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 text-[10px] text-cyan-500 hover:bg-cyan-500/10"
+                                    className="h-6 text-[10px] text-cyan-600 dark:text-cyan-500 hover:bg-cyan-500/10"
                                     onClick={() => setIsCreatingCustomer(!isCreatingCustomer)}
                                 >
                                     {isCreatingCustomer ? t('searchExisting') : t('addNewCustomer')}
@@ -687,13 +687,13 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                         placeholder={commonT('name')}
                                         value={newCustomerName}
                                         onChange={e => setNewCustomerName(e.target.value)}
-                                        className="h-10 text-xs bg-white/5 border-white/10"
+                                        className="h-10 text-xs bg-background border-border"
                                     />
                                     <Input
                                         placeholder={commonT('phone')}
                                         value={newCustomerPhone}
                                         onChange={e => setNewCustomerPhone(e.target.value)}
-                                        className="h-10 text-xs bg-white/5 border-white/10"
+                                        className="h-10 text-xs bg-background border-border"
                                     />
                                 </div>
                             ) : (
@@ -711,10 +711,10 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                     />
                                     {selectedCustomer && (
                                         <div className="flex items-center justify-between px-2 pt-1">
-                                            <span className="text-[10px] text-zinc-500">{t('currentBalance')}:</span>
+                                            <span className="text-[10px] text-muted-foreground">{t('currentBalance')}:</span>
                                             <span className={clsx(
                                                 "text-xs font-bold",
-                                                Number(selectedCustomer.balance) > 0 ? "text-red-400" : "text-green-400"
+                                                Number(selectedCustomer.balance) > 0 ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-green-400"
                                             )}>
                                                 {formatCurrency(selectedCustomer.balance)}
                                             </span>

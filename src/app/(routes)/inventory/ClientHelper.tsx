@@ -18,7 +18,9 @@ export default function InventoryTabs({
     features,
     currency = "EGP",
     permissions = { canManageCategories: true },
-    units = []
+    units = [],
+    branches = [],
+    isHQUser = false
 }: any) {
     const t = useTranslations('Inventory');
     const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES'>('STOCK');
@@ -116,6 +118,8 @@ export default function InventoryTabs({
                             products={products}
                             csrfToken={csrfToken}
                             branchId={warehouses?.[0]?.branchId}
+                            branches={branches}
+                            isHQUser={isHQUser}
                         />
                     </div>
                 )}

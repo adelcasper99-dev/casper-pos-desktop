@@ -44,8 +44,74 @@ export const INCOME_CATEGORY_MAP: Record<string, { glCode: string; labelAr: stri
     'MISC_INCOME': { glCode: '4400', labelAr: 'إيرادات أخرى', labelEn: 'Other Income' },
 };
 
+
+
+/**
+ * Global General Ledger Account Registry
+ * Single Source of Truth for all hardcoded account logic.
+ */
+export const GL = {
+    ASSETS: {
+        CASH: '1000',
+        BANK: '1010',
+        WALLET: '1020',
+        RECEIVABLES: '1100', // Customer Accounts
+        INVENTORY: '1200',
+        VAT_INPUT: '1210',
+        TECH_CUSTODY: '1300', // Engineer AR
+    },
+    LIABILITIES: {
+        PAYABLES: '2000', // Supplier Accounts
+        VAT_OUTPUT: '2100',
+        STORE_CREDIT: '2150',
+        ACCRUED_SALARIES: '2200',
+    },
+    EQUITY: {
+        CAPITAL: '3000',
+        RETAINED_EARNINGS: '3300',
+        OPENING_BALANCE: '3999',
+    },
+    REVENUE: {
+        SALES: '4000',
+        SERVICE: '4100',
+        SUSPENDED_PROFIT: '4200',
+        DISCOUNTS: '4300',
+        OTHER_INCOME: '4400',
+    },
+    EXPENSES: {
+        COGS: '5000',
+        SALARIES: '5100',
+        OPERATION_EXPENSES: '5200',
+        SPOILAGE: '5600',
+    }
+} as const;
+
 export const INCOMING_CATEGORIES = [
     { id: "owner_funding", uiLabel: "إيداع من المالك (زيادة رأس مال)", creditAccountId: "3000", actionType: "CAPITAL" },
     { id: "customer_payment", uiLabel: "تحصيل دفعة من عميل (سداد آجل)", creditAccountId: "1100", actionType: "CUSTOMER_PAYMENT" },
     { id: "other_income", uiLabel: "إيرادات أخرى (خلاف المبيعات)", creditAccountId: "4400", actionType: "IN" }
 ];
+
+/**
+ * Centralized GL account code map for all payment methods.
+ * Used for both physical treasury updates and double-entry accounting.
+ * 1000 = Cash on Hand
+ * 1010 = Bank / Card Settlements
+ * 1020 = Mobile Wallet / Instapay / Digital
+ * 1100 = Accounts Receivable (Deferred)
+ */
+export const PAYMENT_METHOD_GL_MAP: Record<string, string> = {
+    CASH: GL.ASSETS.CASH,
+    VISA: GL.ASSETS.BANK,
+    MASTERCARD: GL.ASSETS.BANK,
+    CARD: GL.ASSETS.BANK,
+    BANK: GL.ASSETS.BANK,
+    TRANSFER: GL.ASSETS.BANK,
+    VODAFONE_CASH: GL.ASSETS.WALLET,
+    INSTAPAY: GL.ASSETS.WALLET,
+    WALLET: GL.ASSETS.WALLET,
+    DEFERRED: GL.ASSETS.RECEIVABLES,
+    ACCOUNT: GL.ASSETS.RECEIVABLES,
+    SUPPLIER_OFFSET: GL.LIABILITIES.PAYABLES,
+    STORE_CREDIT: GL.LIABILITIES.STORE_CREDIT,
+};

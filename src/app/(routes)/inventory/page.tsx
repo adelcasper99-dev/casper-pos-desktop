@@ -129,6 +129,8 @@ export default async function InventoryPage() {
                 currency={currency}
                 permissions={permissions}
                 units={units}
+                branches={branches}
+                isHQUser={isHQUser}
             />
         </div>
     );

@@ -3,10 +3,24 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
-import { EXPENSE_CATEGORY_MAP, INCOMING_CATEGORIES } from "@/shared/constants/accounting-mappings";
+import { EXPENSE_CATEGORY_MAP, INCOMING_CATEGORIES, PAYMENT_METHOD_GL_MAP, GL } from "@/shared/constants/accounting-mappings";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
+import { getCurrentShiftInternal } from "./shift-management-actions";
 import { Decimal } from "@prisma/client/runtime/library";
+
+// ─── Get Cash Categories ──────────────────────────────────────────────────────
+export async function getCashCategories() {
+  try {
+    const categories = await prisma.cashCategory.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+    });
+    return { success: true, data: categories };
+  } catch (error) {
+    return { success: false, error: "Failed to load categories" };
+  }
+}
 
 // ─── Get Treasury Data ────────────────────────────────────────────────────────
 export async function getTreasuryData(filters?: {
@@ -35,7 +49,10 @@ export async function getTreasuryData(filters?: {
       prisma.transaction.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        include: { treasury: true },
+        include: { 
+          treasury: true,
+          category: true // 🆕 Include CashCategory details
+        },
         take: 500,
       }),
       prisma.treasury.findMany({
@@ -70,6 +87,7 @@ export async function getTreasuryData(filters?: {
           paymentMethod: t.paymentMethod,
           treasuryId: t.treasuryId,
           treasuryName: t.treasury?.name,
+          categoryName: t.category?.name, // 🆕 Add category label
           createdAt: t.createdAt.toISOString(),
         })),
         treasuries: rawTreasuries.map((t) => ({
@@ -93,29 +111,69 @@ export async function addTreasuryTransaction(
   description: string,
   paymentMethod: string,
   treasuryId?: string,
-  expenseCategory?: string, // Added for Phase 3
-  incomingCategoryId?: string, // Added for Phase 1 deposits
-  shiftId?: string // 🆕 Added for POS linkage
+  expenseCategory?: string, // Legacy: string key from EXPENSE_CATEGORY_MAP
+  incomingCategoryId?: string, // Legacy: string key from INCOMING_CATEGORIES
+  shiftId?: string, // 🆕 Added for POS linkage
+  categoryId?: string // 🆕 New: DB-based CashCategory ID
 ) {
   try {
     const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT"];
 
-    // Determine exact type if incoming category is provided
+    // Determine exact type and GL code - prioritize DB category
     let finalType = type;
-    let creditAccount = '3000'; // Default Capital for fallback
+    let creditAccount: string | undefined = undefined; 
+    let glCode: string | undefined = undefined;
 
-    if (incomingCategoryId) {
+    // 🆕 Use dynamic CashCategory from DB if provided (Highest Priority)
+    if (categoryId) {
+      const dbCategory = await prisma.cashCategory.findUnique({
+        where: { id: categoryId }
+      });
+      if (dbCategory) {
+        finalType = dbCategory.type; // Match DB type strictly
+        glCode = dbCategory.glCode || undefined;
+        // If it's an IN type, set creditAccount for accounting mapping
+        if (dbCategory.type === 'IN') {
+          creditAccount = dbCategory.glCode || undefined;
+        }
+      }
+    } else if (incomingCategoryId) {
       const category = INCOMING_CATEGORIES.find((c: any) => c.id === incomingCategoryId);
       if (category) {
         finalType = category.actionType;
         creditAccount = category.creditAccountId;
       }
+    } else if (expenseCategory) {
+      const cat = EXPENSE_CATEGORY_MAP[expenseCategory];
+      if (cat) {
+        glCode = cat.glCode;
+      }
+    }
+
+    // AC-06: Eliminate hardcoded GL defaults (E-01)
+    if (!glCode && finalType === 'OUT') {
+        return { success: false, error: "فشل تحديد حساب المصروفات. يرجى التأكد من إعدادات التصنيف." };
+    }
+    if (!creditAccount && POSITIVE_TYPES.includes(finalType) && finalType !== 'SALE') {
+        // If it's capital injection, use GL object constant instead of raw string
+        creditAccount = GL.EQUITY.CAPITAL; 
     }
 
     const isPositive = POSITIVE_TYPES.includes(finalType);
     const decimalAmount = new Decimal(amount);
 
     const currentUser = await getCurrentUser();
+
+    // AC-02: Validate shift status before treasury operations (V-01)
+    if (currentUser) {
+      const shiftToCheck = shiftId 
+        ? await prisma.shift.findUnique({ where: { id: shiftId } })
+        : (await getCurrentShiftInternal({ userId: currentUser.id })).shift;
+
+      if (!shiftToCheck || shiftToCheck.status !== 'OPEN') {
+        return { success: false, error: "يجب فتح وردية أولاً لإجراء هذه الحركة" };
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       let finalTreasuryId = treasuryId;
@@ -135,20 +193,17 @@ export async function addTreasuryTransaction(
         }
       }
 
-      // ── V-X: Negative Balance Check ──
+      // ── V-X: Atomic Balance Check & Lock ──
+      // Note: We'll use the 'where' in update for atomic safety, but we pre-check for clean error messages
       if (finalTreasuryId && !isPositive) {
         const treasury = await tx.treasury.findUnique({ where: { id: finalTreasuryId } });
-        if (!treasury) {
-          // If we resolved an ID but it's not found, or passed one that's bad
-          throw new Error("Invalid Treasury ID provided for the active shift's branch.");
-        }
-        const currentBalance = new Decimal(treasury.balance?.toString() || "0");
+        if (!treasury) throw new Error("Invalid Treasury ID provided.");
         
-        if (currentBalance.lt(decimalAmount)) {
-          const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-          if (!canGoNegative) {
-            throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
-          }
+        const currentBalance = new Decimal(treasury.balance?.toString() || "0");
+        const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+
+        if (currentBalance.lt(decimalAmount) && !canGoNegative) {
+          throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
         }
       }
 
@@ -159,66 +214,71 @@ export async function addTreasuryTransaction(
           description, 
           paymentMethod, 
           treasuryId: finalTreasuryId || undefined,
-          shiftId // 🆕 Link to active shift if provided
+          shiftId, 
+          categoryId 
         },
+        include: { category: true } // Include category for description resolution
       });
 
       if (finalTreasuryId) {
-        await tx.treasury.update({
-          where: { id: finalTreasuryId },
-          data: {
-            balance: isPositive
-              ? { increment: decimalAmount }
-              : { decrement: decimalAmount },
-          },
-        });
+        // AC-01: Atomic Balance Update (Race Condition Prevention)
+        const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+        
+        const updateWhere: any = { id: finalTreasuryId };
+        if (!isPositive && !canGoNegative) {
+            updateWhere.balance = { gte: decimalAmount };
+        }
+
+        try {
+          await tx.treasury.update({
+            where: updateWhere,
+            data: {
+              balance: isPositive
+                ? { increment: decimalAmount }
+                : { decrement: decimalAmount },
+            },
+          });
+        } catch (err: any) {
+          // P2025 happens if where condition (including balance check) fails
+          if (err.code === 'P2025') {
+            throw new Error("فشل تحديث الرصيد: رصيد غير كافٍ أو تم تغييره من قبل مستخدم آخر.");
+          }
+          throw err;
+        }
       }
 
-      // ── Accounting Integration ──
-      const accountMap: Record<string, string> = {
-        CASH: '1000',
-        VISA: '1010',
-        CARD: '1010',
-        INSTAPAY: '1020',
-        WALLET: '1020'
-      };
-      const debitAccount = accountMap[paymentMethod as keyof typeof accountMap] || '1000';
+      const resolvedTreasury = finalTreasuryId ? await tx.treasury.findUnique({ where: { id: finalTreasuryId }, select: { glCode: true, branchId: true } }) : null;
+      const debitAccount = resolvedTreasury?.glCode || PAYMENT_METHOD_GL_MAP[paymentMethod.toUpperCase()] || GL.ASSETS.CASH;
 
-      // Look up branch for treasury
-      let targetBranchId: string | undefined = undefined;
-      if (treasuryId) {
-        const wh = await tx.treasury.findUnique({ where: { id: treasuryId }, select: { branchId: true } });
-        targetBranchId = wh?.branchId || undefined;
-      }
+      const targetBranchId = resolvedTreasury?.branchId || undefined;
+
+      // Determine category Label for JournalEntry
+      const categoryLabel = dbTx.category?.name || (isPositive ? "إيداع" : "مصاريف");
 
       if (finalType === 'OUT') {
-        // Expense/Withdrawal
-        const glCode = (expenseCategory && EXPENSE_CATEGORY_MAP[expenseCategory])
-          ? EXPENSE_CATEGORY_MAP[expenseCategory].glCode
-          : '5200'; // Default General Expenses
-
+        if (!glCode) throw new Error("GL Code mandatory for withdrawals");
         await AccountingEngine.recordTransaction({
-          description: `Treasury Out: ${description}`,
+          description: `${categoryLabel}: ${description}`,
           reference: dbTx.id,
           date: new Date(),
           branchId: targetBranchId,
+          transactionId: dbTx.id, // 🆕 Link JE to Transaction
           lines: [
             { accountCode: glCode, debit: decimalAmount.toNumber(), credit: 0, description },
             { accountCode: debitAccount, debit: 0, credit: decimalAmount.toNumber(), description: `${paymentMethod} Withdrawal` }
           ]
         }, tx);
       } else if (isPositive) {
-        // Dynamic "Cash In" workflow
-        const categoryUI = INCOMING_CATEGORIES.find((c: any) => c.id === incomingCategoryId)?.uiLabel || 'Deposit';
-
+        if (!creditAccount && finalType !== 'SALE') throw new Error("Credit account mandatory for deposits");
         await AccountingEngine.recordTransaction({
-          description: `Treasury In: ${description}`,
+          description: `${categoryLabel}: ${description}`,
           reference: dbTx.id,
           date: new Date(),
           branchId: targetBranchId,
+          transactionId: dbTx.id, // 🆕 Link JE to Transaction
           lines: [
             { accountCode: debitAccount, debit: decimalAmount.toNumber(), credit: 0, description: `${paymentMethod} Deposit` },
-            { accountCode: creditAccount, debit: 0, credit: decimalAmount.toNumber(), description: categoryUI }
+            { accountCode: creditAccount!, debit: 0, credit: decimalAmount.toNumber(), description: categoryLabel }
           ]
         }, tx);
       }
@@ -248,6 +308,7 @@ export async function updateTreasuryTransaction(
     }
 
     if (existing) {
+      const currentUser = await getCurrentUser();
       await prisma.auditLog.create({
         data: {
           entityType: "TRANSACTION",
@@ -261,6 +322,7 @@ export async function updateTreasuryTransaction(
           }),
           newData: JSON.stringify(data),
           reason,
+          user: currentUser?.username || currentUser?.name || undefined,
         },
       });
     }
@@ -301,7 +363,9 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
     const isIncome = IN_TYPES.has(existing.type) && amountDec.gt(0);
 
     await prisma.$transaction(async (tx) => {
-      // 1. Audit trail
+      const currentUser = await getCurrentUser();
+      
+      // 1. Audit trail (A-01: Add user tracking)
       await tx.auditLog.create({
         data: {
           entityType: "TRANSACTION",
@@ -313,7 +377,9 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
             treasuryId: existing.treasuryId,
             description: existing.description,
           }),
+          newData: null,
           reason,
+          user: currentUser?.username || currentUser?.name || undefined,
         },
       });
 
@@ -325,26 +391,32 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
 
       // 3. Reverse the physical balance if the transaction belongs to a treasury
       if (existing.treasuryId && absAmount.gt(0)) {
-        const treasury = await tx.treasury.findUnique({ where: { id: existing.treasuryId } });
-        const currentBalance = new Decimal(treasury?.balance?.toString() || "0");
-
-        // If deleting income, balance will DECREASE.
-        if (isIncome && currentBalance.lt(absAmount)) {
-          const currentUser = await getCurrentUser();
-          const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-          if (!canGoNegative) {
-             throw new Error(`حذف هذه الحركة سيؤدي لرصيد سالب (${currentBalance.sub(absAmount).toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
-          }
+        // AC-01: Atomic Balance Check (Race Condition Prevention)
+        const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+        
+        const updateWhere: any = { id: existing.treasuryId };
+        
+        // If we are deleting income, the balance will DECREASE.
+        // We must ensure the treasury has enough balance to support this decrease if negative is not allowed.
+        if (isIncome && !canGoNegative) {
+            updateWhere.balance = { gte: absAmount };
         }
 
-        await tx.treasury.update({
-          where: { id: existing.treasuryId },
-          data: {
-            balance: isIncome
-              ? { decrement: absAmount }  // Was income → remove it
-              : { increment: absAmount }, // Was expense → add it back
-          },
-        });
+        try {
+          await tx.treasury.update({
+            where: updateWhere,
+            data: {
+              balance: isIncome
+                ? { decrement: absAmount }  // Was income -> remove it (Atomic decrease)
+                : { increment: absAmount }, // Was expense -> add it back
+            },
+          });
+        } catch (err: any) {
+          if (err.code === 'P2025') {
+            throw new Error(`تعذر الحذف: رصيد الخزنة غير كافٍ لإتمام عملية الاسترجاع (${absAmount.toFixed(2)}).`);
+          }
+          throw err;
+        }
       }
 
       // 4. Reverse Accounting Entries (Integration)
@@ -490,12 +562,44 @@ export async function transferBetweenTreasuries(data: {
     if (!fromTreasury || fromTreasury.deletedAt) return { success: false, error: "الخزنة المصدر غير موجودة" };
     if (!toTreasury || toTreasury.deletedAt) return { success: false, error: "الخزنة الهدف غير موجودة" };
     
+    // AC-06: Validate GL codes exist before using in transfers (V-04)
+    const fromGlCode = fromTreasury.glCode || (PAYMENT_METHOD_GL_MAP[fromTreasury.paymentMethod?.toUpperCase() ?? 'CASH'] || '1000');
+    const toGlCode = toTreasury.glCode || (PAYMENT_METHOD_GL_MAP[toTreasury.paymentMethod?.toUpperCase() ?? 'CASH'] || '1000');
+    
+    if (!fromGlCode || !toGlCode) {
+        return { success: false, error: "فشل تحديد حسابات الأستاذ لهذا التحويل. يرجى مراجعة إعدادات الخزينة." };
+    }
+
+    // Verify GL accounts exist
+    const [fromGlAccount, toGlAccount] = await Promise.all([
+      prisma.account.findUnique({ where: { code: fromGlCode } }),
+      prisma.account.findUnique({ where: { code: toGlCode } })
+    ]);
+    
+    if (!fromGlAccount) {
+      return { success: false, error: `حساب الأستاذ الخزنة المصدر "${fromGlCode}" غير موجود` };
+    }
+    if (!toGlAccount) {
+      return { success: false, error: `حساب الأستاذ الخزنة الهدف "${toGlCode}" غير موجود` };
+    }
+
+    const currentUser = await getCurrentUser();
+    
+    // AC-02: Shift Validation for Transfers (V-01)
+    // Only enforce for branch-to-branch or branch-to-safe if the user is a cashier
+    const shiftResult = await getCurrentShiftInternal({ userId: currentUser?.id || "" });
+    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
+        const isGlobalAdmin = currentUser?.isGlobalAdmin || hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_MANAGE);
+        if (!isGlobalAdmin) {
+            return { success: false, error: "يجب فتح وردية لإتمام عملية التحويل بين الخزائن الفرعية" };
+        }
+    }
+
     const amountDec = new Decimal(data.amount);
     const fromBalance = new Decimal(fromTreasury.balance.toString());
 
-    // Check permission for negative balance
+    // Check permission for negative balance (Pre-check for UI UX)
     if (fromBalance.lt(amountDec)) {
-      const currentUser = await getCurrentUser();
       const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
       if (!canGoNegative) {
         return { success: false, error: `رصيد الخزنة غير كافٍ. الرصيد الحالي: ${fromBalance.toFixed(2)}. ولا تملك صلاحية السحب بالسالب.` };
@@ -506,12 +610,23 @@ export async function transferBetweenTreasuries(data: {
     const desc = data.description || `تحويل من ${fromTreasury.name} إلى ${toTreasury.name}`;
 
     await prisma.$transaction(async (tx) => {
-      // 1. Deduct from source
-      await tx.treasury.update({
-        where: { id: data.fromTreasuryId },
-        data: { balance: { decrement: amountDec } },
-      });
-      await tx.transaction.create({
+      // 1. Deduct from source with Atomic check
+      const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+      const updateWhere: any = { id: data.fromTreasuryId };
+      if (!canGoNegative) {
+          updateWhere.balance = { gte: amountDec };
+      }
+
+      try {
+        await tx.treasury.update({
+          where: updateWhere,
+          data: { balance: { decrement: amountDec } },
+        });
+      } catch (err: any) {
+        if (err.code === 'P2025') throw new Error("فشل الخصم من المصدر: رصيد غير كافٍ أو تم تغيير الرصيد.");
+        throw err;
+      }
+      const sourceTx = await tx.transaction.create({
         data: {
           type: "TRANSFER_OUT",
           amount: amountDec,
@@ -526,31 +641,29 @@ export async function transferBetweenTreasuries(data: {
         where: { id: data.toTreasuryId },
         data: { balance: { increment: amountDec } },
       });
-      await tx.transaction.create({
+      const destTx = await tx.transaction.create({
         data: {
           type: "TRANSFER_IN",
           amount: amountDec,
           description: desc,
           paymentMethod: method,
           treasuryId: data.toTreasuryId,
+          relatedTransactionId: sourceTx.id, // Link them at the transaction level
         },
       });
 
       // 3. Accounting: Record inter-fund transfer with correct per-treasury GL codes
       const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
-      const glMap: Record<string, string> = { CASH: '1000', VISA: '1010', CARD: '1010', INSTAPAY: '1020', WALLET: '1020' };
-      // Fix 2: Each treasury's own paymentMethod determines its GL account
-      const fromGlCode = glMap[fromTreasury.paymentMethod ?? 'CASH'] ?? '1000';
-      const toGlCode   = glMap[toTreasury.paymentMethod   ?? 'CASH'] ?? '1000';
       const fromBranchId = fromTreasury.branchId ?? undefined;
+      
       await AccountingEngine.recordTransaction({
           description: `Inter-Fund Transfer: ${fromTreasury.name} → ${toTreasury.name}`,
-          reference: `TRF-${Date.now()}`,
+          reference: `TRF-${sourceTx.id.slice(0, 8)}`, // Use part of ID for stable reference
+          date: new Date(),
           branchId: fromBranchId,
+          transactionId: sourceTx.id, // 🆕 Link JE to the source movement
           lines: [
-              // Debit the destination treasury's asset account (it gains cash)
-              { accountCode: toGlCode,   debit: amountDec.toNumber(), credit: 0,                   description: `Received by ${toTreasury.name}` },
-              // Credit the source treasury's asset account (it loses cash)
+              { accountCode: toGlCode,   debit: amountDec.toNumber(), credit: 0,                   description: `Received by ${toTreasury.name} (Ref: ${destTx.id.slice(0, 8)})` },
               { accountCode: fromGlCode, debit: 0,                   credit: amountDec.toNumber(), description: `Sent from ${fromTreasury.name}` }
           ]
       }, tx);

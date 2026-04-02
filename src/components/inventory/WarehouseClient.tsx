@@ -11,9 +11,11 @@ interface WarehouseClientProps {
     products: any[];
     csrfToken: string;
     branchId?: string;
+    branches?: any[];
+    isHQUser?: boolean;
 }
 
-export default function WarehouseClient({ warehouses, products, csrfToken, branchId }: WarehouseClientProps) {
+export default function WarehouseClient({ warehouses, products, csrfToken, branchId, branches = [], isHQUser = false }: WarehouseClientProps) {
     const t = useTranslations('Inventory');
     const [activeTab, setActiveTab] = useState("locations");
 
@@ -57,6 +59,9 @@ export default function WarehouseClient({ warehouses, products, csrfToken, branc
                     warehouses={warehouses}
                     products={products}
                     csrfToken={csrfToken}
+                    userBranchId={branchId}
+                    branches={branches}
+                    isHQUser={isHQUser}
                 />
             )}
         </div>

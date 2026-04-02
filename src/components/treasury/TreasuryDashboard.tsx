@@ -25,6 +25,7 @@ import {
     createTreasury,
     getTreasuryData,
     transferBetweenTreasuries,
+    getCashCategories,
 } from "@/actions/treasury";
 import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ interface Transaction {
     paymentMethod: string;
     treasuryId?: string | null;
     treasuryName?: string;
+    categoryName?: string; // 🆕 Added field
     createdAt: string;
 }
 
@@ -55,6 +57,13 @@ interface TreasuryData {
     byMethod: Record<string, number>;
     transactions: Transaction[];
     treasuries: Treasury[];
+}
+
+interface CashCategory {
+    id: string;
+    name: string;
+    type: string;
+    glCode: string | null;
 }
 
 const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT", "TRANSFER_IN"];
@@ -331,9 +340,11 @@ function TransferModal({
 export default function TreasuryDashboard({
     data: initialData,
     branches,
+    categories = [],
 }: {
     data: TreasuryData;
     branches: { id: string; name: string }[];
+    categories?: CashCategory[];
 }) {
     const t = useTranslations('Treasury');
     const [data, setData] = useState<TreasuryData>(initialData);
@@ -348,7 +359,7 @@ export default function TreasuryDashboard({
     const [description, setDescription] = useState("");
     const [method, setMethod] = useState("CASH");
     const [selectedTreasuryId, setSelectedTreasuryId] = useState("");
-    const [expenseCategory, setExpenseCategory] = useState("");
+    const [selectedCategoryId, setSelectedCategoryId] = useState("");
 
     // Deposit Modal state
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -369,6 +380,12 @@ export default function TreasuryDashboard({
         category: 'ALL'
     });
     const [methodFilter, setMethodFilter] = useState("ALL");
+    
+    // 🆕 Format categories for the filter bar
+    const dbCategories = [
+        { value: 'ALL', label: 'كل التصنيفات' },
+        ...categories.map(c => ({ value: c.name, label: c.name }))
+    ];
 
     const refresh = async (currentFilters?: TreasuryLogFilters, meth?: string) => {
         setLoading(true);
@@ -392,7 +409,7 @@ export default function TreasuryDashboard({
     };
 
     const resetForm = () => {
-        setAmount(""); setDescription(""); setMethod("CASH"); setExpenseCategory("");
+        setAmount(""); setDescription(""); setMethod("CASH"); setSelectedCategoryId("");
         setEditingId(null); setReason("");
         const def = data.treasuries?.find(t => t.isDefault);
         setSelectedTreasuryId(def?.id || "");
@@ -401,13 +418,15 @@ export default function TreasuryDashboard({
     const handleDepositSubmit = async (data: any) => {
         setLoading(true);
         await addTreasuryTransaction(
-            "CAPITAL", // We pass CAPITAL to bypass UI logic, backend handles true category
+            "IN", 
             data.amount,
             data.description,
             data.paymentMethod,
             data.treasuryId,
-            undefined, // no expense category
-            data.incomingCategoryId
+            undefined, 
+            undefined,
+            undefined,
+            data.categoryId
         );
         setLoading(false);
         await refresh();
@@ -419,7 +438,7 @@ export default function TreasuryDashboard({
         if (editingId) {
             await updateTreasuryTransaction(editingId, { type: transType, amount: parseFloat(amount), description, paymentMethod: method }, reason);
         } else {
-            await addTreasuryTransaction(transType, parseFloat(amount), description, method, selectedTreasuryId || undefined, expenseCategory || undefined);
+            await addTreasuryTransaction(transType, parseFloat(amount), description, method, selectedTreasuryId || undefined, undefined, undefined, undefined, selectedCategoryId || undefined);
         }
         setLoading(false);
         setIsModalOpen(false);
@@ -613,7 +632,7 @@ export default function TreasuryDashboard({
                                         </div>
                                         {isDefault && (
                                             <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-zinc-900 dark:bg-white text-white dark:text-black border border-zinc-900 dark:border-white shadow-md">
-                                                {t('default') || "الافتراضي"}
+                                                {t('default', "الافتراضي")}
                                             </span>
                                         )}
                                     </div>
@@ -637,7 +656,7 @@ export default function TreasuryDashboard({
                                 {viewTreasuryId === tr.id && (
                                     <div className="mt-4 pt-4 border-t border-primary/10 flex items-center gap-2 text-[10px] text-primary font-black uppercase tracking-widest">
                                         <Filter className="w-3.5 h-3.5" />
-                                        {t('filterActive') || "عرض حركات هذه الخزنة"}
+                                        {"عرض حركات هذه الخزنة"}
                                     </div>
                                 )}
                             </div>
@@ -655,37 +674,41 @@ export default function TreasuryDashboard({
                         </button>
                         <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm" title="طباعة">
                             <Printer className="w-4 h-4" />
-                            {t('print') || "طباعة"}
+                            {"طباعة"}
                         </button>
                         <button onClick={handleExportCSV} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm" title="تصدير CSV">
                             <FileDown className="w-4 h-4" />
-                            {t('export') || "تصدير"}
+                            {"تصدير"}
                         </button>
                         <Link href="/treasury/log">
                             <button className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
                                 <History className="w-4 h-4" />
-                                {t('ledger') || "سجل الخزينة"}
+                                {"سجل الخزينة"}
                             </button>
                         </Link>
                     </div>
                     <div className="flex gap-3">
                         <button onClick={() => setIsCreateTreasuryOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground border border-zinc-200 dark:border-white/10 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-                            <PlusCircle className="w-4 h-4" /> {t('newTreasury') || "خزنة جديدة"}
+                            <PlusCircle className="w-4 h-4" /> {"إضافة خزنة جديدة"}
                         </button>
                         <button onClick={() => setIsTransferOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-                            <ArrowLeftRight className="w-4 h-4" /> {t('transfer') || "تحويل"}
+                            <ArrowLeftRight className="w-4 h-4" /> {"تحويل"}
                         </button>
                         <button onClick={() => { resetForm(); setTransType("OUT"); setIsModalOpen(true); }} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-rose-500 text-white font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-rose-500/20">
-                            <Minus className="w-4 h-4" /> {t('withdraw') || "سحب / صرف"}
+                            <Minus className="w-4 h-4" /> {"سحب نقدية"}
                         </button>
                         <button onClick={() => setIsDepositModalOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-black shadow-lg shadow-primary/20 text-xs uppercase tracking-widest transition-all active:scale-95">
-                            <Plus className="w-4 h-4" /> {t('deposit') || "إيداع"}
+                            <Plus className="w-4 h-4" /> {"إيداع نقدية"}
                         </button>
                     </div>
                 </div>
 
                 <div className="no-print space-y-4 pt-4 border-t border-zinc-100 dark:border-white/5">
-                    <TreasuryFilterBar filters={filters} onFilterChange={handleFilterChange} />
+                    <TreasuryFilterBar 
+                        filters={filters} 
+                        onFilterChange={handleFilterChange} 
+                        dbCategories={dbCategories}
+                    />
 
                     <div className="flex flex-wrap items-center gap-3 p-2 bg-zinc-50 dark:bg-white/[0.02] rounded-2xl border border-zinc-100 dark:border-white/5 w-fit">
                         <div className="p-2 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-white/5">
@@ -699,7 +722,7 @@ export default function TreasuryDashboard({
                             }}
                             className="bg-transparent h-10 text-xs font-black uppercase tracking-widest px-4 min-w-[160px] outline-none text-zinc-900 dark:text-white appearance-none cursor-pointer"
                         >
-                            <option value="ALL" className="bg-white dark:bg-zinc-950 font-black">--- كل طرق الدفع ---</option>
+                            <option value="ALL" className="bg-white dark:bg-zinc-950 font-black">{"--- كل طرق الدفع ---"}</option>
                             {METHODS.map(m => <option key={m.key} value={m.key} className="bg-white dark:bg-zinc-950 font-black">{m.label}</option>)}
                         </select>
 
@@ -719,7 +742,7 @@ export default function TreasuryDashboard({
                             }}
                             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
                         >
-                            <X className="w-3.5 h-3.5" /> {t('clearFilters') || "مسح الفلاتر"}
+                            <X className="w-3.5 h-3.5" /> {"مسح الفلاتر"}
                         </button>
                     </div>
                 </div>
@@ -732,12 +755,12 @@ export default function TreasuryDashboard({
                         <Landmark className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="font-black text-sm uppercase tracking-widest text-zinc-900 dark:text-white leading-none mb-1">{t('transactionsHeader') || "سجل الحركات المالية"}</h3>
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Financial Ledger & Audit Trail</p>
+                        <h3 className="font-black text-sm uppercase tracking-widest text-zinc-900 dark:text-white leading-none mb-1">{"سجل الحركات المالية المفصل"}</h3>
+                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">{"دفتر الأستاذ المالي ومراجعة الحسابات"}</p>
                     </div>
                     {viewTreasuryId && (
                         <button onClick={() => setViewTreasuryId(null)} className="ms-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all font-black text-xs tracking-tight">
-                            <X className="w-4 h-4" /> {t('clearFilter') || "إلغاء الفلتر"}
+                            <X className="w-4 h-4" /> {"إلغاء الفلتر"}
                         </button>
                     )}
                 </div>
@@ -745,11 +768,11 @@ export default function TreasuryDashboard({
                     <table className="w-full text-right text-sm border-collapse zebra-table">
                         <thead className="bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-zinc-400 text-[10px] font-black uppercase tracking-[0.2em] text-center">
                             <tr>
-                                <th className="p-6 text-center">{t('table.date') || "التاريخ"}</th>
-                                <th className="p-6 text-center">{t('table.type') || "النوع"}</th>
-                                <th className="p-6 text-center">{t('table.method') || "طريقة الدفع"}</th>
-                                <th className="p-6 text-right w-full">{t('table.note') || "البيان"}</th>
-                                <th className="p-6 text-end min-w-[150px]">{t('table.amount') || "المبلغ"}</th>
+                                <th className="p-6 text-center">{t('table.date', "التاريخ والوقت")}</th>
+                                <th className="p-6 text-center">{t('table.type', "نوع الحركة")}</th>
+                                <th className="p-6 text-center">{t('table.method', "طريقة الدفع")}</th>
+                                <th className="p-6 text-right w-full">{t('table.note', "البيان / ملاحظات")}</th>
+                                <th className="p-6 text-end min-w-[150px]">{t('table.amount', "المبلغ المستلم")}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-100 dark:divide-white/5 border-t border-zinc-100 dark:border-white/5">
@@ -758,7 +781,7 @@ export default function TreasuryDashboard({
                                     <td colSpan={5} className="p-32 text-center text-zinc-300 dark:text-zinc-600">
                                         <div className="flex flex-col items-center gap-6">
                                             <History className="w-20 h-20 opacity-20" />
-                                            <p className="font-black uppercase tracking-[0.3em] text-xs pb-1 border-b-2 border-zinc-100 dark:border-white/5">{t('noTransactions') || "لا توجد حركات مالية"}</p>
+                                            <p className="font-black uppercase tracking-[0.3em] text-xs pb-1 border-b-2 border-zinc-100 dark:border-white/5">{t('noTransactions', "لا توجد حركات مالية مسجلة لهذه الفترة")}</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -795,6 +818,11 @@ export default function TreasuryDashboard({
                                                     {tx.treasuryName && (
                                                         <span className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest justify-end">
                                                             {tx.treasuryName} <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+                                                        </span>
+                                                    )}
+                                                    {tx.categoryName && (
+                                                        <span className="flex items-center gap-2 text-[11px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest justify-end mt-0.5">
+                                                            {tx.categoryName} <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(var(--indigo-500),0.5)]" />
                                                         </span>
                                                     )}
                                                 </div>
@@ -834,6 +862,7 @@ export default function TreasuryDashboard({
                     onClose={() => setIsDepositModalOpen(false)}
                     treasuries={data.treasuries}
                     onSubmit={handleDepositSubmit}
+                    categories={categories.filter(c => c.type === 'IN')}
                 />
 
                 <GlassModal
@@ -878,10 +907,14 @@ export default function TreasuryDashboard({
                         {transType === "OUT" && !editingId && (
                             <div>
                                 <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-[0.2em] px-1 block mb-2">تصنيف المصروف</label>
-                                <select className="w-full bg-zinc-50 dark:bg-white/[0.03] border-none rounded-2xl h-14 px-5 text-zinc-900 dark:text-white font-black text-sm outline-none focus:ring-2 focus:ring-rose-500/50 transition-all appearance-none cursor-pointer" value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)}>
+                                <select 
+                                    className="w-full bg-zinc-50 dark:bg-white/[0.03] border-none rounded-2xl h-14 px-5 text-zinc-900 dark:text-white font-black text-sm outline-none focus:ring-2 focus:ring-rose-500/50 transition-all appearance-none cursor-pointer" 
+                                    value={selectedCategoryId} 
+                                    onChange={e => setSelectedCategoryId(e.target.value)}
+                                >
                                     <option value="" className="bg-white dark:bg-zinc-950 font-black">عام / غير مصنف</option>
-                                    {Object.entries(EXPENSE_CATEGORY_MAP).map(([key, map]) => (
-                                        <option key={key} value={key} className="bg-white dark:bg-zinc-950 font-black">{map.labelAr}</option>
+                                    {categories.filter(c => c.type === 'OUT').map(cat => (
+                                        <option key={cat.id} value={cat.id} className="bg-white dark:bg-zinc-950 font-black">{cat.name}</option>
                                     ))}
                                 </select>
                             </div>

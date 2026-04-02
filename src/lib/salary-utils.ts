@@ -13,6 +13,7 @@ export async function calculateNetDue(
         technician?: {
             id: string,
             commissionRate: any,
+            lossRate?: any,
             tickets?: any[]
         }
     }, 
@@ -22,17 +23,31 @@ export async function calculateNetDue(
     let baseSalary = new Decimal(u.salary?.toString() || '0');
     const hireDate = u.hireDate ? new Date(u.hireDate) : null;
     
-    // 1. Prorate Base Salary based on hire date
+    // 1. Prorate Base Salary based on hire date AND current date
+    const lastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+    const now = new Date();
+    
     if (hireDate) {
         if (hireDate > endDate) {
             baseSalary = new Decimal(0);
         } else if (hireDate > startDate) {
-            const lastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
             const hireDay = hireDate.getDate();
-            const daysWorked = Math.max(0, lastDay - hireDay + 1);
-            baseSalary = baseSalary.times(daysWorked).dividedBy(lastDay);
+            // Cap at the current date if viewing the active month
+            const currentCappedDay = (now > startDate && now < endDate) ? now.getDate() : lastDay;
+            const daysEarned = Math.max(0, currentCappedDay - hireDay + 1);
+            baseSalary = baseSalary.times(daysEarned).dividedBy(lastDay);
+        } else {
+            // Already employed before this month. Cap at current day if active month.
+            if (now > startDate && now < endDate) {
+                baseSalary = baseSalary.times(now.getDate()).dividedBy(lastDay);
+            }
         }
+    } else if (now > startDate && now < endDate) {
+        // No hire date (old employee). Cap at current day if active month.
+        baseSalary = baseSalary.times(now.getDate()).dividedBy(lastDay);
     }
+
+    const dailyRate = new Decimal(u.salary?.toString() || '0').dividedBy(lastDay);
 
     let totalBonuses = new Decimal(0);
     let totalDeductions = new Decimal(0);
@@ -52,7 +67,7 @@ export async function calculateNetDue(
         const logDeduction = new Decimal(log.deduction?.toString() || '0');
         
         if (log.status === 'ABSENT' && logDeduction.isZero()) {
-            totalDeductions = totalDeductions.plus(baseSalary.dividedBy(30));
+            totalDeductions = totalDeductions.plus(dailyRate);
         } else {
             totalDeductions = totalDeductions.plus(logDeduction);
         }
@@ -68,20 +83,24 @@ export async function calculateNetDue(
 
         const type = tx.type;
         const amount = new Decimal(tx.amount?.toString() || '0');
-        if (
-            type === 'BONUS' || 
-            type === 'ADDITION' || 
-            type === 'MAINTENANCE_COMMISSION' || 
-            type.endsWith('_REVERSAL')
-        ) {
+        
+        // 🏗️ Categorization Logic
+        const isAddition = type === 'BONUS' || type === 'ADDITION' || type === 'MAINTENANCE_COMMISSION';
+        const isDeduction = type === 'DEDUCTION' || type === 'PENALTY' || type.endsWith('_DEDUCTION') || type === 'SALARY_PAYMENT' || type === 'CLAWBACK';
+        const isReversal = type.endsWith('_REVERSAL');
+
+        if (isAddition) {
             totalBonuses = totalBonuses.plus(amount);
-        } else if (
-            type === 'DEDUCTION' || 
-            type === 'PENALTY' || 
-            type.endsWith('_DEDUCTION') || 
-            type === 'SALARY_PAYMENT'
-        ) {
-            totalDeductions = totalDeductions.plus(amount);
+        } else if (isDeduction) {
+            totalDeductions = totalDeductions.plus(amount.abs());
+        } else if (isReversal) {
+            // Reversal of an addition (like commission) => Deduction
+            if (type === 'MAINTENANCE_COMMISSION_REVERSAL' || type === 'BONUS_REVERSAL') {
+                totalDeductions = totalDeductions.plus(amount.abs());
+            } else {
+                // Reversal of a deduction => Addition
+                totalBonuses = totalBonuses.plus(amount.abs());
+            }
         }
     });
 
@@ -121,28 +140,62 @@ export async function calculateNetDue(
             }
         });
 
-        // Add pending commissions to bonuses if they are NOT already in the transactions list
-        // We check for MAINTENANCE_COMMISSION type in the current month's transactions
-        const hasCommissionInLedger = transactions.some(tx => tx.type === 'MAINTENANCE_COMMISSION');
-        if (!hasCommissionInLedger) {
-            totalBonuses = totalBonuses.plus(maintenanceCommissions);
-        }
+        // ✅ Per-ticket commission deduplication — check by referenceId to avoid
+        // the bug where posting ANY commission blocks ALL virtual commissions
+        tickets.forEach((t: any) => {
+            if (t.status !== 'PAID_DELIVERED') return;
+            if (hireDate && new Date(t.createdAt) < hireDate) return;
+
+            const isCommPosted = transactions.some(
+                tx => tx.type === 'MAINTENANCE_COMMISSION' && tx.referenceId === t.id
+            );
+            if (!isCommPosted) {
+                let comm = new Decimal(t.commissionAmount?.toString() || 0);
+                if (comm.isZero() && u.technician?.commissionRate) {
+                    const techBilling = new Decimal(t.techBillingPrice?.toString() || t.partsCost?.toString() || 0);
+                    const repairPrice = new Decimal(t.repairPrice?.toString() || 0);
+                    const netProfit = repairPrice.minus(techBilling);
+                    if (netProfit.gt(0)) {
+                        comm = netProfit.times(new Decimal(u.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
+                    }
+                }
+                if (comm.gt(0)) {
+                    totalBonuses = totalBonuses.plus(comm);
+                }
+            }
+        });
 
         // Deduct clawbacks if any (Warranty reworking losses)
         // This handles cases where a ticket was marked as clawback but no transaction was created yet
-        tickets.filter(t => new Decimal(t.commissionClawback || 0).gt(0)).forEach(t => {
+        tickets.forEach(t => {
+            const clawback = new Decimal(t.commissionClawback?.toString() || 0);
+            const excessLoss = new Decimal(t.excessLossAmount?.toString() || 0);
+
             const hasClawbackInLedger = transactions.some(tx => 
-                tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' && tx.referenceId === t.id
+                (tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' && tx.referenceId === t.id) ||
+                (tx.type === 'MAINTENANCE_COMMISSION' && tx.referenceId === t.id && Number(tx.amount) < 0)
             );
-            if (!hasClawbackInLedger) {
-                totalDeductions = totalDeductions.plus(t.commissionClawback.toString());
+            
+            if (!hasClawbackInLedger && (clawback.gt(0) || excessLoss.gt(0))) {
+                let deductionAmount = clawback; // Always reverse the unearned commission entirely
+                
+                if (t.lossResponsibility === 'TECH') {
+                    deductionAmount = deductionAmount.plus(excessLoss);
+                } else if (t.lossResponsibility === 'SPLIT') {
+                    const techLossRate = new Decimal(u.technician?.lossRate?.toString() || 70).dividedBy(100);
+                    deductionAmount = deductionAmount.plus(excessLoss.times(techLossRate));
+                }
+
+                if (deductionAmount.gt(0)) {
+                    totalDeductions = totalDeductions.plus(deductionAmount);
+                }
             }
         });
     }
 
     const successRatio = completedTickets > 0 
         ? Math.max(0, ((completedTickets - returnCount) / completedTickets) * 100) 
-        : 100;
+        : 0; // Default to 0 instead of 100 for new hires with no work
 
     return {
         baseSalary: baseSalary.toDecimalPlaces(2),

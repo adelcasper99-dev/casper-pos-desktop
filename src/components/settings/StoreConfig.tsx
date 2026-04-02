@@ -81,7 +81,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
 
     return (
         <div className="max-w-4xl space-y-10 animate-in slide-in-from-bottom-4 duration-700 pb-20">
-            <div className="glass-card bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-4 sm:p-10 shadow-[0_0_80px_rgba(0,0,0,0.3)] relative overflow-hidden group/container">
+            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-4 sm:p-10 shadow-xl relative overflow-hidden group/container">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/container:bg-primary/10 transition-colors" />
 
                 {!hideModules ? (
@@ -117,8 +117,8 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                         className={cn(
                                             "flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 group",
                                             isActive 
-                                                ? `bg-card/40 border-border/60 ${module.glow} shadow-xl scale-[1.02]` 
-                                                : "bg-background/20 border-border/20 text-muted-foreground opacity-60 grayscale hover:grayscale-0 hover:opacity-100"
+                                                ? `bg-card/60 dark:bg-card/40 border-border/60 ${module.glow} shadow-xl scale-[1.02]` 
+                                                : "bg-background/40 border-border/20 text-muted-foreground opacity-60 grayscale hover:grayscale-0 hover:opacity-100"
                                         )}
                                     >
                                         <div className="flex flex-col gap-0.5">
@@ -149,14 +149,14 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                             <div className="flex flex-col md:flex-row gap-10 items-start">
                                 {/* Logo Dropzone */}
                                 <div className="space-y-3 shrink-0">
-                                    <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('storeLogo')}</Label>
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('storeLogo')}</Label>
                                     <div 
                                         onClick={() => fileInputRef.current?.click()}
                                         className="relative w-40 h-40 group/logo cursor-pointer"
                                     >
                                         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent blur-2xl opacity-0 group-hover/logo:opacity-100 transition-opacity" />
                                         <div className={cn(
-                                            "w-full h-full rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center p-2 transition-all relative z-10 overflow-hidden bg-background/40 backdrop-blur-xl",
+                                            "w-full h-full rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center p-2 transition-all relative z-10 overflow-hidden bg-background/60 dark:bg-background/40 backdrop-blur-xl",
                                             form.logoUrl ? "border-primary/40 bg-primary/5" : "border-border/60 hover:border-primary/60"
                                         )}>
                                             {form.logoUrl ? (
@@ -171,10 +171,9 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                                 </div>
                                             ) : (
                                                 <>
-                                                    <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mb-2 group-hover/logo:scale-110 transition-transform">
-                                                        <Upload className="w-6 h-6 text-muted-foreground/60 group-hover/logo:text-primary" />
+                                                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 group/upload cursor-pointer hover:bg-primary/10 transition-all flex items-center justify-center">
+                                                        <p className="text-xs font-black text-primary uppercase tracking-widest">{t('changeLogo')}</p>
                                                     </div>
-                                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{t('browseLogo')}</span>
                                                 </>
                                             )}
                                         </div>
@@ -191,13 +190,13 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 {/* Form Fields Matrix */}
                                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
                                     <div className="space-y-2 group">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1 group-focus-within:text-primary transition-colors">{t('storeName')}</Label>
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1 group-focus-within:text-primary transition-colors">{t('storeName')}</Label>
                                         <div className="relative">
                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                               <Store size={14} className="text-muted-foreground/40" />
                                            </div>
                                             <input
-                                                className="w-full bg-background/40 border border-border/40 rounded-2xl py-3 pl-4 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
                                                 value={form.name || ""}
                                                 onChange={e => handleChange('name', e.target.value)}
                                                 placeholder="My Awesome Store"
@@ -205,21 +204,21 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                         </div>
                                     </div>
                                     <div className="space-y-2 group">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('currency')}</Label>
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('currency')}</Label>
                                         <input
-                                            className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
                                             value={form.currency || "EGP"}
                                             onChange={e => handleChange('currency', e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-2 group">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('phone')}</Label>
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('phone')}</Label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                <Phone size={14} className="text-muted-foreground/40" />
                                             </div>
                                             <input
-                                                className="w-full bg-background/40 border border-border/40 rounded-2xl py-3 pl-4 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
                                                 value={form.phone || ""}
                                                 onChange={e => handleChange('phone', e.target.value)}
                                                 placeholder="01xxxxxxxxx"
@@ -227,13 +226,13 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                         </div>
                                     </div>
                                     <div className="space-y-2 group">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('address')}</Label>
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('address')}</Label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                <MapPin size={14} className="text-muted-foreground/40" />
                                             </div>
                                             <input
-                                                className="w-full bg-background/40 border border-border/40 rounded-2xl py-3 pl-4 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
                                                 value={form.address || ""}
                                                 onChange={e => handleChange('address', e.target.value)}
                                                 placeholder="City, Street..."
@@ -260,7 +259,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                     { id: 'autoPrintTicket', label: t('autoPrintTicket'), desc: t('autoPrintTicketDesc'), val: form.autoPrintTicket || false, fn: (c: boolean) => handleChange('autoPrintTicket', c) },
                                     { id: 'autoPrintEngineerCopy', label: t('autoPrintEngineerCopy'), desc: t('autoPrintEngineerCopyDesc'), val: form.autoPrintEngineerCopy || false, fn: (c: boolean) => handleChange('autoPrintEngineerCopy', c) },
                                 ].map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/40 transition-all hover:bg-card/60">
+                                    <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
                                         <div className="space-y-0.5 max-w-[70%]">
                                             <Label className="text-xs font-black uppercase tracking-widest text-foreground">{item.label}</Label>
                                             <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{item.desc}</p>
@@ -274,22 +273,22 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                             </div>
 
                             {Number(form.taxRate) > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-[2rem] bg-indigo-500/5 border border-indigo-500/20 animate-in fade-in slide-in-from-top-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-[2rem] bg-indigo-500/10 border border-indigo-500/20 animate-in fade-in slide-in-from-top-4">
                                     <div className="space-y-2 group">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('vatNumber')}</Label>
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('vatNumber')}</Label>
                                         <input
-                                            className="w-full bg-background/60 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 shadow-sm"
+                                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 shadow-sm"
                                             value={form.vatNumber || ""}
                                             onChange={e => handleChange('vatNumber', e.target.value)}
                                             placeholder="310000000000003"
                                         />
                                     </div>
                                     <div className="space-y-2 group">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('taxRate')}</Label>
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('taxRate')}</Label>
                                         <div className="relative">
                                             <input
                                                 type="number"
-                                                className="w-full bg-background/60 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 shadow-sm pr-10"
+                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 shadow-sm pr-10"
                                                 value={form.taxRate || 0}
                                                 onChange={e => handleChange('taxRate', e.target.value)}
                                             />
@@ -317,7 +316,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                     { id: 'hideLocationsTab', label: t('hideLocationsTab'), desc: t('hideLocationsTabDesc'), val: getFeatureValue('hideLocationsTab') === true, fn: (c: boolean) => handleFeatureToggle('hideLocationsTab', c) },
                                     { id: 'blindCloseEnabled', label: "Blind Close Shift", desc: "Hide expected cash totals during shift close.", val: form.blindCloseEnabled !== false, fn: (c: boolean) => handleChange('blindCloseEnabled', c) },
                                 ].map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/40 transition-all hover:bg-card/60">
+                                    <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
                                         <div className="space-y-0.5 max-w-[70%]">
                                             <Label className="text-xs font-black uppercase tracking-widest text-foreground">{item.label}</Label>
                                             <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{item.desc}</p>
@@ -340,34 +339,69 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('locationTitle')}</h3>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('latitude')}</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="space-y-2 lg:col-span-1">
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('latitude')}</Label>
                                     <input
                                         type="number"
                                         step="any"
-                                        className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
                                         value={form.locationLat ?? 24.7136}
                                         onChange={e => handleChange('locationLat', e.target.value)}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('longitude')}</Label>
+                                <div className="space-y-2 lg:col-span-1">
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('longitude')}</Label>
                                     <input
                                         type="number"
                                         step="any"
-                                        className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
                                         value={form.locationLng ?? 46.6753}
                                         onChange={e => handleChange('locationLng', e.target.value)}
                                     />
                                 </div>
+                                <div className="space-y-2 lg:col-span-1">
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('radius')}</Label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all pe-12"
+                                            value={form.locationRadius ?? 500}
+                                            onChange={e => handleChange('locationRadius', e.target.value)}
+                                        />
+                                        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                                            <span className="font-black text-primary/40 text-[10px] uppercase">Meters</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 lg:col-span-1">
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">Sync Policy</Label>
+                                    <div className="flex items-center gap-3 p-4 bg-background/40 rounded-2xl border border-border/40 h-[54px]">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-foreground">Geo-fencing Active</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('radius')}</Label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
-                                        value={form.locationRadius ?? 500}
-                                        onChange={e => handleChange('locationRadius', e.target.value)}
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('invoiceHeader')}</Label>
+                                    <textarea
+                                        rows={3}
+                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-4 px-6 text-xs font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner resize-none"
+                                        placeholder="Text appears at top of receipts..."
+                                        value={form.invoiceHeader || ""}
+                                        onChange={e => handleChange('invoiceHeader', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('invoiceFooter')}</Label>
+                                    <textarea
+                                        rows={3}
+                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-4 px-6 text-xs font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner resize-none"
+                                        placeholder="Text appears at bottom of receipts..."
+                                        value={form.invoiceFooter || ""}
+                                        onChange={e => handleChange('invoiceFooter', e.target.value)}
                                     />
                                 </div>
                             </div>

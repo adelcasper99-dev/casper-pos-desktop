@@ -12,26 +12,9 @@
  */
 import { prisma } from '@/lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
-const PAYMENT_GL_MAP: Record<string, string> = {
-  CASH: '1000',
-  VISA: '1010',
-  CARD: '1010',
-  BANK: '1010',
-  TRANSFER: '1010',
-  VODAFONE_CASH: '1020',
-  INSTAPAY: '1020',
-  WALLET: '1020',
-  DEFERRED: '1100',
-  ACCOUNT: '1100',
-};
-
-const EXPENSE_GL_MAP: Record<string, string> = {
-  SALARY: '5100',
-  BONUS: '5100',
-  DEDUCTION: '5100',
-  PENALTY: '5200',
-};
+// Unified GL maps moved to @/shared/constants/accounting-mappings
 
 export class AutoJournalService {
 
@@ -70,8 +53,8 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const glCode = PAYMENT_GL_MAP[params.method] ?? '1000';
-    const amountNum = Number(params.amount);
+    const glCode = PAYMENT_METHOD_GL_MAP[params.method] ?? GL.ASSETS.CASH;
+    const amount = new Decimal(params.amount.toString());
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -83,14 +66,14 @@ export class AutoJournalService {
           create: [
             { 
               accountId: await this.getAccountId(tx, glCode), 
-              debit: amountNum, 
+              debit: amount, 
               credit: 0, 
               description: 'Cash/Bank Received' 
             },
             { 
-              accountId: await this.getAccountId(tx, '1100'), 
+              accountId: await this.getAccountId(tx, GL.ASSETS.RECEIVABLES), 
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: 'AR Reduced' 
             }
           ]
@@ -123,10 +106,10 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const amountNum = Number(params.amount);
-    const techBillingNum = Number(params.techBillingPrice);
-    const techCommNum = Number(params.techCommissionAmount);
-    const centerProfitNum = Number(params.centerLaborProfit);
+    const amount = new Decimal(params.amount.toString());
+    const techBilling = new Decimal(params.techBillingPrice.toString());
+    const techComm = new Decimal(params.techCommissionAmount.toString());
+    const centerProfit = new Decimal(params.centerLaborProfit.toString());
 
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -136,27 +119,27 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '4100'), // Service Revenue (WIP)
-              debit: amountNum, 
+              accountId: await this.getAccountId(tx, GL.REVENUE.SERVICE), // Service Revenue (WIP)
+              debit: amount, 
               credit: 0, 
               description: 'Service Revenue Reclassification' 
             },
             { 
-              accountId: await this.getAccountId(tx, '4000'), // Sales Revenue
+              accountId: await this.getAccountId(tx, GL.REVENUE.SALES), // Sales Revenue
               debit: 0, 
-              credit: techBillingNum, 
+              credit: techBilling, 
               description: 'Parts Revenue Dist' 
             },
             { 
-              accountId: await this.getAccountId(tx, '2200'), // Accrued Salaries (Liability)
+              accountId: await this.getAccountId(tx, GL.LIABILITIES.ACCRUED_SALARIES), // Accrued Salaries (Liability)
               debit: 0, 
-              credit: techCommNum, 
+              credit: techComm, 
               description: 'Technician Commission Accrued' 
             },
             { 
-              accountId: await this.getAccountId(tx, '4000'), // Sales Revenue
+              accountId: await this.getAccountId(tx, GL.REVENUE.SALES), // Sales Revenue
               debit: 0, 
-              credit: centerProfitNum, 
+              credit: centerProfit, 
               description: 'Center Labor Profit realized' 
             }
           ]
@@ -183,7 +166,7 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const amountNum = Number(params.amount);
+    const amount = new Decimal(params.amount.toString());
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -194,15 +177,15 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '1000'), 
-              debit: amountNum, 
+              accountId: await this.getAccountId(tx, GL.ASSETS.CASH), 
+              debit: amount, 
               credit: 0, 
               description: 'Cash Received' 
             },
             { 
-              accountId: await this.getAccountId(tx, '1100'), 
+              accountId: await this.getAccountId(tx, GL.ASSETS.RECEIVABLES), 
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: 'Customer AR' 
             }
           ]
@@ -231,12 +214,12 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const amountNum = Number(params.amount);
+    const amount = new Decimal(params.amount.toString());
     
     // Determine credit account based on description (if it's store credit or refund)
     // RF-02: Ensure Store Credit goes to Liability (2150) not Revenue (4000)
     const isStoreCredit = params.description?.toLowerCase().includes('store credit');
-    const creditAccountCode = isStoreCredit ? '2150' : '4000';
+    const creditAccountCode = isStoreCredit ? GL.LIABILITIES.STORE_CREDIT : GL.REVENUE.SALES;
     const creditAccountName = isStoreCredit ? 'Store Credit Liability' : 'Sales Revenue';
     
     const journalEntry = await tx.journalEntry.create({
@@ -248,15 +231,15 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '1100'), 
-              debit: amountNum, 
+              accountId: await this.getAccountId(tx, GL.ASSETS.RECEIVABLES), 
+              debit: amount, 
               credit: 0, 
               description: 'Customer AR' 
             },
             { 
               accountId: await this.getAccountId(tx, creditAccountCode), 
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: creditAccountName 
             }
           ]
@@ -288,8 +271,8 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const glCode = PAYMENT_GL_MAP[params.method] ?? '1000';
-    const amountNum = Number(params.amount);
+    const glCode = PAYMENT_METHOD_GL_MAP[params.method] ?? GL.ASSETS.CASH;
+    const amount = new Decimal(params.amount.toString());
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -300,15 +283,15 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '2000'), 
-              debit: amountNum, 
+              accountId: await this.getAccountId(tx, GL.LIABILITIES.PAYABLES), 
+              debit: amount, 
               credit: 0, 
               description: 'AP Reduced' 
             },
             { 
               accountId: await this.getAccountId(tx, glCode), 
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: 'Cash/Bank Paid' 
             }
           ]
@@ -335,7 +318,7 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const amountNum = Number(params.amount);
+    const amount = new Decimal(params.amount.toString());
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -346,15 +329,15 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '1200'), 
-              debit: amountNum, 
+              accountId: await this.getAccountId(tx, GL.ASSETS.INVENTORY), 
+              debit: amount, 
               credit: 0, 
               description: 'Inventory Asset' 
             },
             { 
-              accountId: await this.getAccountId(tx, '2000'), 
+              accountId: await this.getAccountId(tx, GL.LIABILITIES.PAYABLES), 
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: 'Accounts Payable' 
             }
           ]
@@ -386,8 +369,8 @@ export class AutoJournalService {
       branchId?: string;
     }
   ) {
-    const expenseCode = EXPENSE_GL_MAP[params.type] ?? '5100';
-    const amountNum = Number(params.amount);
+    const expenseCode = (params.type === 'PENALTY' ? GL.EXPENSES.OPERATION_EXPENSES : GL.EXPENSES.SALARIES);
+    const amount = new Decimal(params.amount.toString());
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -399,14 +382,14 @@ export class AutoJournalService {
           create: [
             { 
               accountId: await this.getAccountId(tx, expenseCode), 
-              debit: amountNum, 
+              debit: amount, 
               credit: 0, 
               description: `${params.type} Expense` 
             },
             { 
-              accountId: await this.getAccountId(tx, '1000'), 
+              accountId: await this.getAccountId(tx, GL.ASSETS.CASH), 
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: 'Cash Paid' 
             }
           ]
@@ -477,7 +460,7 @@ export class AutoJournalService {
       reference?: string;
     }
   ) {
-    const amountNum = Number(params.amount);
+    const amount = new Decimal(params.amount.toString());
     
     const journalEntry = await tx.journalEntry.create({
       data: {
@@ -487,15 +470,15 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, '5600'), // Spoilage/Wastage Expense
-              debit: amountNum, 
+              accountId: await this.getAccountId(tx, GL.EXPENSES.SPOILAGE), // Spoilage/Wastage Expense
+              debit: amount, 
               credit: 0, 
               description: 'Stock Wastage Expense' 
             },
             { 
-              accountId: await this.getAccountId(tx, '1200'), // Inventory Asset
+              accountId: await this.getAccountId(tx, GL.ASSETS.INVENTORY), // Inventory Asset
               debit: 0, 
-              credit: amountNum, 
+              credit: amount, 
               description: 'Inventory Value Reduced' 
             }
           ]

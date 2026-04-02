@@ -41,6 +41,7 @@ import { logout } from "@/actions/auth";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { ModeToggle } from "@/components/mode-toggle";
 import StaffProfileBadge from "@/components/staff/StaffProfileBadge";
+import AppClock from "@/components/ui/AppClock";
 
 import {
     DndContext,
@@ -337,6 +338,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                     </Link>
                 )}
 
+                <AppClock isExpanded={isExpanded} />
                 <StaffProfileBadge user={user} isExpanded={isExpanded} />
             </div>
         </aside>

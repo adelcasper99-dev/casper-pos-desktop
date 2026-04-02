@@ -6,6 +6,13 @@ import { Loader2, Plus, Banknote, CreditCard, Smartphone, RefreshCw } from "luci
 import { INCOMING_CATEGORIES } from "@/shared/constants/accounting-mappings";
 import { cn } from "@/lib/utils";
 
+interface CashCategory {
+    id: string;
+    name: string;
+    type: string;
+    glCode: string | null;
+}
+
 interface Treasury {
     id: string;
     name: string;
@@ -21,9 +28,10 @@ interface DepositModalProps {
         amount: number;
         treasuryId: string;
         paymentMethod: string;
-        incomingCategoryId: string;
+        categoryId: string;
         description: string;
     }) => Promise<void>;
+    categories: CashCategory[];
 }
 
 const METHODS = [
@@ -33,13 +41,13 @@ const METHODS = [
     { key: "INSTAPAY", label: "انستاباي", icon: RefreshCw },
 ];
 
-export function DepositModal({ isOpen, onClose, treasuries, onSubmit }: DepositModalProps) {
+export function DepositModal({ isOpen, onClose, treasuries, onSubmit, categories }: DepositModalProps) {
     const defaultTreasury = treasuries.find(t => t.isDefault)?.id || (treasuries.length > 0 ? treasuries[0].id : "");
 
     const [amount, setAmount] = useState("");
     const [treasuryId, setTreasuryId] = useState(defaultTreasury);
     const [paymentMethod, setPaymentMethod] = useState("CASH");
-    const [incomingCategoryId, setIncomingCategoryId] = useState(INCOMING_CATEGORIES[0].id);
+    const [categoryId, setCategoryId] = useState(categories[0]?.id || "");
     const [description, setDescription] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -53,14 +61,14 @@ export function DepositModal({ isOpen, onClose, treasuries, onSubmit }: DepositM
                 amount: parseFloat(amount),
                 treasuryId,
                 paymentMethod,
-                incomingCategoryId,
+                categoryId,
                 description,
             });
             // Reset form
             setAmount("");
             setDescription("");
             setPaymentMethod("CASH");
-            setIncomingCategoryId(INCOMING_CATEGORIES[0].id);
+            setCategoryId(categories[0]?.id || "");
             onClose();
         } finally {
             setLoading(false);
@@ -122,13 +130,13 @@ export function DepositModal({ isOpen, onClose, treasuries, onSubmit }: DepositM
                     <label className="text-[10px] text-zinc-500 dark:text-zinc-400 font-black tracking-[0.2em] px-1 block">مصدر الإيداع</label>
                     <select
                         className="w-full bg-zinc-50 dark:bg-white/[0.03] border-none rounded-2xl h-14 px-5 text-zinc-900 dark:text-white font-black text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all appearance-none cursor-pointer"
-                        value={incomingCategoryId}
-                        onChange={e => setIncomingCategoryId(e.target.value)}
+                        value={categoryId}
+                        onChange={e => setCategoryId(e.target.value)}
                         required
                     >
-                        {INCOMING_CATEGORIES.map(category => (
+                        {categories.map(category => (
                             <option key={category.id} value={category.id} className="bg-white dark:bg-zinc-950 font-black">
-                                {category.uiLabel}
+                                {category.name}
                             </option>
                         ))}
                     </select>

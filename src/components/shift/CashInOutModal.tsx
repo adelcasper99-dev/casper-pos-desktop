@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { addTreasuryTransaction } from "@/actions/treasury";
-import { INCOMING_CATEGORIES, EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
+import { getCashCategories } from "@/actions/cash-category-actions";
 import GlassModal from "../ui/GlassModal";
 import { toast } from "sonner";
+
+interface CashCategory {
+    id: string;
+    name: string;
+    type: string;
+    isSystem: boolean;
+}
 
 interface CashInOutModalProps {
     isOpen: boolean;
@@ -17,8 +24,30 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
     const [type, setType] = useState<"IN" | "OUT">("OUT");
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
-    const [category, setCategory] = useState("");
+    const [categoryId, setCategoryId] = useState("");
+    const [categories, setCategories] = useState<CashCategory[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetchingCategories, setIsFetchingCategories] = useState(false);
+
+    // Fetch categories when type changes
+    useEffect(() => {
+        if (!isOpen) return;
+        
+        setIsFetchingCategories(true);
+        getCashCategories({ type, isActive: true })
+            .then((result) => {
+                if (result?.categories) {
+                    setCategories(result.categories);
+                }
+            })
+            .catch(console.error)
+            .finally(() => setIsFetchingCategories(false));
+    }, [type, isOpen]);
+
+    // Reset category when type changes
+    useEffect(() => {
+        setCategoryId("");
+    }, [type]);
 
     const handleSave = async () => {
         if (!amount || parseFloat(amount) <= 0) {
@@ -26,7 +55,7 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
             return;
         }
 
-        if (!category) {
+        if (!categoryId) {
             toast.error("يرجى اختيار التصنيف");
             return;
         }
@@ -39,16 +68,17 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
                 `${type === "IN" ? "إيداع" : "سحب"}: ${description}`,
                 "CASH",
                 treasuryId,
-                type === "OUT" ? category : undefined,
-                type === "IN" ? category : undefined,
-                currentShiftId // 🆕 Pass Shift ID for POS linkage
+                undefined, // expenseCategory - legacy
+                undefined, // incomingCategoryId - legacy
+                currentShiftId,
+                categoryId // 🆕 DB-based category ID
             );
 
             if (result.success) {
                 toast.success("تم تسجيل العملية بنجاح");
                 setAmount("");
                 setDescription("");
-                setCategory("");
+                setCategoryId("");
                 onClose();
             } else {
                 toast.error(result.error || "فشل تسجيل العملية");
@@ -70,7 +100,7 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
                 {/* Type Toggle */}
                 <div className="flex p-1 bg-slate-100 dark:bg-black/20 rounded-2xl border border-slate-200 dark:border-white/5 shadow-inner">
                     <button
-                        onClick={() => { setType("OUT"); setCategory(""); }}
+                        onClick={() => { setType("OUT"); }}
                         className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${
                             type === "OUT" 
                             ? "bg-white dark:bg-red-500/20 text-red-600 dark:text-red-400 shadow-md border border-slate-200 dark:border-red-500/30" 
@@ -80,7 +110,7 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
                         سحب / مصروف
                     </button>
                     <button
-                        onClick={() => { setType("IN"); setCategory(""); }}
+                        onClick={() => { setType("IN"); }}
                         className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${
                             type === "IN" 
                             ? "bg-white dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-md border border-slate-200 dark:border-emerald-500/30" 
@@ -91,24 +121,23 @@ export default function CashInOutModal({ isOpen, onClose, currentShiftId, treasu
                     </button>
                 </div>
 
-                {/* Category Selection */}
+                {/* Category Selection - Dynamic from DB */}
                 <div className="space-y-2">
                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 px-1">التصنيف</label>
                     <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
+                        value={categoryId}
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        disabled={isFetchingCategories}
                         className="w-full glass-input text-sm font-bold bg-white dark:bg-black/20 text-slate-900 dark:text-white border-slate-200 dark:border-white/10"
                     >
-                        <option value="" disabled className="bg-white dark:bg-zinc-900">اختر التصنيف...</option>
-                        {type === "IN" ? (
-                            INCOMING_CATEGORIES.map(cat => (
-                                <option key={cat.id} value={cat.id} className="bg-white dark:bg-zinc-900">{cat.uiLabel}</option>
-                            ))
-                        ) : (
-                            Object.entries(EXPENSE_CATEGORY_MAP).map(([id, cat]) => (
-                                <option key={id} value={id} className="bg-white dark:bg-zinc-900">{cat.labelAr}</option>
-                            ))
-                        )}
+                        <option value="" disabled className="bg-white dark:bg-zinc-900">
+                            {isFetchingCategories ? "جاري التحميل..." : "اختر التصنيف..."}
+                        </option>
+                        {categories.map(cat => (
+                            <option key={cat.id} value={cat.id} className="bg-white dark:bg-zinc-900">
+                                {cat.name}
+                            </option>
+                        ))}
                     </select>
                 </div>
 

@@ -55,19 +55,76 @@ export interface OfflineSale {
     offlineFlag: boolean;
 }
 
+export interface OfflineTreasuryTransaction {
+    id: string;
+    type: string;
+    amount: number;
+    description?: string;
+    paymentMethod: string;
+    treasuryId?: string;
+    idempotencyKey: string;
+    createdAt: number;
+    syncStatus?: 'PENDING' | 'SYNCED' | 'ERROR';
+    synced?: number;
+    syncRetries?: number;
+    syncError?: string;
+    shiftId?: string;
+    categoryId?: string;
+}
+
+export interface OfflineInventoryMovement {
+    id: string;
+    type: string;
+    productId: string;
+    fromWarehouseId?: string;
+    toWarehouseId?: string;
+    quantity: number;
+    reason?: string;
+    idempotencyKey: string;
+    createdAt: number;
+    syncStatus?: 'PENDING' | 'SYNCED' | 'ERROR';
+    synced?: number;
+    syncRetries?: number;
+    syncError?: string;
+    performedById?: string;
+    branchId?: string;
+}
+
+export interface OfflineReturn {
+    id: string;
+    originalSaleId: string;
+    returnType: string;
+    amount: number;
+    reason: string;
+    items: any[];
+    idempotencyKey: string;
+    createdAt: number;
+    syncStatus?: 'PENDING' | 'SYNCED' | 'ERROR';
+    synced?: number;
+    syncRetries?: number;
+    syncError?: string;
+    customerPhone?: string;
+}
+
 class CasperOfflineDB extends Dexie {
     sales!: EntityTable<OfflineSale, 'id'>;
     products!: EntityTable<OfflineProduct, 'id'>;
     tickets!: EntityTable<OfflineTicket, 'id'>;
     syncMetadata!: EntityTable<SyncMetadata, 'key'>;
+    treasuryTransactions!: EntityTable<OfflineTreasuryTransaction, 'id'>;
+    inventoryMovements!: EntityTable<OfflineInventoryMovement, 'id'>;
+    returns!: EntityTable<OfflineReturn, 'id'>;
 
     constructor() {
         super('CasperOfflineDB');
-        this.version(2).stores({
+        this.version(3).stores({
             sales: 'id, syncStatus, offlineFlag, createdAt, synced',
             products: 'id, barcode, syncPriority',
             tickets: 'id, synced, createdAt',
-            syncMetadata: 'key'
+            syncMetadata: 'key',
+            treasuryTransactions: 'id, syncStatus, idempotencyKey, createdAt, synced',
+            inventoryMovements: 'id, syncStatus, idempotencyKey, createdAt, synced',
+            returns: 'id, syncStatus, idempotencyKey, createdAt, synced'
         });
     }
 

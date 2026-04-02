@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, User as UserIcon, Shield, ShieldAlert, Loader2, Edit, Eye, EyeOff, Lock, Users, Phone, MapPin, Receipt, Save } from 'lucide-react'
 import { createUser, deleteUser, updateUser, checkPhoneLink } from '@/actions/users'
 import GlassModal from '@/components/ui/GlassModal'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { FlatpickrDatePicker } from "@/components/ui/FlatpickrDatePicker"
 import { useTranslations } from '@/lib/i18n-mock'
 import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -109,11 +110,11 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                         <Users className="w-6 h-6 text-violet-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.5)]" />
                         {t('title')}
                     </h2>
-                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Manage staff identity and access privileges</p>
+                    <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Manage staff identity and access privileges</p>
                 </div>
                 <button
                     onClick={() => { setEditingUser(null); setShowPassword(false); setIsModalOpen(true); }}
-                    className="group relative inline-flex items-center justify-center gap-2 bg-primary px-8 py-3 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] shadow-xl shadow-primary/20"
+                    className="group relative inline-flex items-center justify-center gap-2 bg-primary px-8 py-3 rounded-2xl text-white font-black text-xs uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] shadow-xl shadow-primary/20"
                 >
                     <Plus className="w-4 h-4" />
                     {t('addUser')}
@@ -121,17 +122,17 @@ export default function UserManagement({ users, roles, branches, branchId, curre
             </div>
 
             {/* Main Users Table Container */}
-            <div className="glass-card bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
+            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] overflow-hidden shadow-xl relative">
                 <div className="overflow-x-auto">
                     <table className="w-full text-right">
-                        <thead className="bg-muted/50 border-b border-border/20">
+                        <thead className="bg-muted/50 border-b border-border/10">
                             <tr>
                                 {['username', 'phone', 'role', 'branch', 'maxDiscount', 'maxDiscountAmount'].map((key) => (
-                                    <th key={key} className="p-6 text-[10px] font-black text-muted-foreground uppercase tracking-widest whitespace-nowrap">
+                                    <th key={key} className="p-6 text-xs font-black text-muted-foreground uppercase tracking-widest whitespace-nowrap">
                                         {t(key)}
                                     </th>
                                 ))}
-                                <th className="p-6 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-left">
+                                <th className="p-6 text-xs font-black text-muted-foreground uppercase tracking-widest text-left">
                                     {t('actions')}
                                 </th>
                             </tr>
@@ -244,22 +245,22 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                 <form action={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('name')}</label>
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">{t('name')}</label>
                             <input
                                 name="name"
                                 type="text"
-                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner"
                                 required
                                 placeholder="e.g. John Doe"
                                 defaultValue={editingUser?.name}
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('username')}</label>
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">{t('username')}</label>
                             <input
                                 name="username"
                                 type="text"
-                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner"
                                 required
                                 placeholder="e.g. cashier1"
                                 defaultValue={editingUser?.username}
@@ -269,18 +270,18 @@ export default function UserManagement({ users, roles, branches, branchId, curre
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('phone')}</label>
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">{t('phone')}</label>
                             <input
                                 name="phone"
                                 type="text"
-                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner"
                                 required
                                 placeholder="e.g. 01234567890"
                                 defaultValue={editingUser?.phone}
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">
                                 {t('password')}
                                 {editingUser && <span className="text-muted-foreground text-[8px] font-black ml-2 opacity-50">{t('passwordHint')}</span>}
                             </label>
@@ -288,7 +289,7 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                                 <input
                                     name="password"
                                     type={showPassword ? "text" : "password"}
-                                    className="w-full bg-background/40 border border-border/40 rounded-2xl p-3 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                    className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 pr-10 text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner"
                                     required={!editingUser}
                                 />
                                 <button
@@ -304,14 +305,14 @@ export default function UserManagement({ users, roles, branches, branchId, curre
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="space-y-2 text-right">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mr-1">{t('role')}</label>
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('role')}</label>
                             <Select name="roleId" defaultValue={editingUser?.role?.id || editingUser?.roleId || ''} required>
-                                <SelectTrigger className="w-full bg-background/40 border-border/40 h-12 rounded-2xl px-4 font-bold text-sm">
+                                <SelectTrigger className="w-full bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 h-10 rounded-lg px-4 font-black text-xs uppercase tracking-tighter text-right">
                                     <SelectValue placeholder={t('selectRole')} />
                                 </SelectTrigger>
                                 <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl">
                                     {filteredRoles.map((role: any) => (
-                                        <SelectItem key={role.id} value={role.id} className="font-bold text-sm py-3 mb-1 rounded-xl">{role.name}</SelectItem>
+                                        <SelectItem key={role.id} value={role.id} className="font-bold text-sm py-3 mb-1 rounded-xl text-right">{role.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -320,14 +321,14 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                             <input type="hidden" name="branchId" value={branchId} />
                         ) : (
                             <div className="space-y-2 text-right">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mr-1">{t('assignedBranch')}</label>
+                                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('assignedBranch')}</label>
                                 <Select name="branchId" defaultValue={editingUser?.branch?.id || editingUser?.branchId || ''} required>
-                                    <SelectTrigger className="w-full bg-background/40 border-border/40 h-12 rounded-2xl px-4 font-bold text-sm">
+                                    <SelectTrigger className="w-full bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 h-10 rounded-lg px-4 font-black text-xs uppercase tracking-tighter text-right">
                                         <SelectValue placeholder={t('selectBranch')} />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl">
                                         {branches.map((b: any) => (
-                                            <SelectItem key={b.id} value={b.id} className="font-bold text-sm py-3 mb-1 rounded-xl">{b.name}</SelectItem>
+                                            <SelectItem key={b.id} value={b.id} className="font-bold text-sm py-3 mb-1 rounded-xl text-right">{b.name}</SelectItem>
                                         )) }
                                     </SelectContent>
                                 </Select>
@@ -335,15 +336,42 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                         )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-6 rounded-[2rem] bg-indigo-500/5 border border-indigo-500/20">
-                        <div className="space-y-2">
-                             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('maxDiscount')}</label>
+                    <div className="space-y-2 text-right">
+                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('hireDate')}</label>
+                        <div className="flex items-center gap-2">
+                             <div className="flex-1">
+                                <FlatpickrDatePicker
+                                    name="hireDate"
+                                    defaultValue={editingUser?.hireDate ? new Date(editingUser.hireDate).toISOString().split('T')[0] : ''}
+                                />
+                             </div>
+                             <button
+                                type="button"
+                                onClick={() => {
+                                    const today = new Date().toISOString().split('T')[0];
+                                    const input = document.getElementsByName('hireDate')[1] as HTMLInputElement; // Flatpickr alt input usually index 1
+                                    if (input) {
+                                        // This is a bit hacky but Flatpickr doesn't expose its ref easily here without more lifting.
+                                        // However, providing a default value and allowing manual selection is safer.
+                                    }
+                                    window.dispatchEvent(new CustomEvent('set-flatpickr-today'));
+                                }}
+                                className="h-10 px-4 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-black transition-all"
+                             >
+                                اليوم
+                             </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-6 rounded-[2rem] bg-indigo-500/10 border border-indigo-500/20">
+                        <div className="space-y-2 text-right">
+                             <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('maxDiscount')}</label>
                              <div className="relative">
                                 <input
                                     name="maxDiscount"
                                     type="number"
                                     min="0" max="100" step="0.01"
-                                    className="w-full bg-background/60 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 pr-10"
+                                    className="w-full bg-background/60 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 pr-10 text-right"
                                     placeholder="e.g. 10"
                                     defaultValue={editingUser?.maxDiscount ?? ''}
                                 />
@@ -352,14 +380,14 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                                 </div>
                              </div>
                         </div>
-                        <div className="space-y-2">
-                             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('maxDiscountAmount')}</label>
+                        <div className="space-y-2 text-right">
+                             <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('maxDiscountAmount')}</label>
                              <div className="relative">
                                 <input
                                     name="maxDiscountAmount"
                                     type="number"
                                     min="0" step="0.01"
-                                    className="w-full bg-background/60 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 pr-10"
+                                    className="w-full bg-background/60 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 pr-12 text-right"
                                     placeholder="e.g. 50"
                                     defaultValue={editingUser?.maxDiscountAmount ?? ''}
                                 />

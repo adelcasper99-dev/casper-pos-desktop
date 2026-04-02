@@ -1,4 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal } from 'decimal.js';
 
 /**
  * Validation utilities for commission calculations
@@ -15,39 +15,39 @@ export function validateCommissionRate(rate: number): boolean {
  * Validates commission data integrity
  */
 export function validateCommissionData(ticket: {
-  repairPrice: Decimal;
-  partsCost: Decimal;
-  commissionRate: Decimal;
-  commissionAmount: Decimal;
+  repairPrice: Decimal | number;
+  partsCost: Decimal | number;
+  commissionRate: Decimal | number;
+  commissionAmount: Decimal | number;
 }): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
+  const errors: string[] = []
 
-  const repairPrice = Number(ticket.repairPrice);
-  const partsCost = Number(ticket.partsCost);
-  const commissionRate = Number(ticket.commissionRate);
-  const commissionAmount = Number(ticket.commissionAmount);
+  const repairPrice = new Decimal(ticket.repairPrice.toString())
+  const partsCost = new Decimal(ticket.partsCost.toString())
+  const commissionRate = new Decimal(ticket.commissionRate.toString())
+  const commissionAmount = new Decimal(ticket.commissionAmount.toString())
 
   // Validate commission rate
-  if (!validateCommissionRate(commissionRate)) {
+  if (!validateCommissionRate(commissionRate.toNumber())) {
     errors.push(`Invalid commission rate: ${commissionRate}%. Must be between 0-100%.`);
   }
 
   // Validate amounts are non-negative
-  if (repairPrice < 0) {
+  if (repairPrice.lt(0)) {
     errors.push(`Repair price cannot be negative: EGP ${repairPrice}`);
   }
 
-  if (partsCost < 0) {
+  if (partsCost.lt(0)) {
     errors.push(`Parts cost cannot be negative: EGP ${partsCost}`);
   }
 
   // Validate commission amount is reasonable
-  const netProfit = repairPrice - partsCost;
-  const expectedCommission = calculateCommission(netProfit, commissionRate);
-  const difference = Math.abs(commissionAmount - expectedCommission);
+  const netProfit = repairPrice.minus(partsCost)
+  const expectedCommission = new Decimal(calculateCommission(netProfit.toNumber(), commissionRate.toNumber()))
+  const difference = commissionAmount.minus(expectedCommission).abs()
 
-  // Allow small floating point differences (0.01)
-  if (difference > 0.01) {
+  // Allow small rounding differences (0.01)
+  if (difference.gt(0.01)) {
     errors.push(
       `Commission amount mismatch. Expected: EGP ${expectedCommission.toFixed(2)}, Got: EGP ${commissionAmount.toFixed(2)}`
     );
@@ -62,28 +62,22 @@ export function validateCommissionData(ticket: {
 /**
  * Calculates net profit from repair
  */
-export function calculateNetProfit(repairPrice: Decimal, partsCost: Decimal): number {
-  return Number(repairPrice) - Number(partsCost);
+export function calculateNetProfit(repairPrice: Decimal | number, partsCost: Decimal | number): number {
+  return new Decimal(repairPrice.toString()).minus(new Decimal(partsCost.toString())).toNumber();
 }
 
 /**
- * Calculates commission amount based on net profit and rate
- * Returns 0 for negative or zero profit
+ * Calculates commission amount based on net profit and rate.
+ * Returns 0 for negative or zero profit.
  */
 export function calculateCommission(netProfit: number, rate: number): number {
-  // No commission on negative profit (loss) or zero profit
   if (netProfit <= 0) return 0;
 
-  // Validate rate
   if (!validateCommissionRate(rate)) {
     throw new Error(`Invalid commission rate: ${rate}%. Must be between 0-100%.`);
   }
 
-  // Calculate commission
-  const commission = (netProfit * rate) / 100;
-
-  // Round to 2 decimal places to avoid floating point issues
-  return Math.round(commission * 100) / 100;
+  return new Decimal(netProfit).times(rate).dividedBy(100).toDecimalPlaces(2).toNumber();
 }
 
 /**
@@ -92,13 +86,7 @@ export function calculateCommission(netProfit: number, rate: number): number {
 export function calculateSharedLoss(netProfit: number, lossRate: number): number {
   if (netProfit >= 0) return 0;
 
-  // Calculate absolute loss
-  const absoluteLoss = Math.abs(netProfit);
-
-  // Apply technician share
-  const lossAmount = (absoluteLoss * lossRate) / 100;
-
-  return Math.round(lossAmount * 100) / 100;
+  return new Decimal(Math.abs(netProfit)).times(lossRate).dividedBy(100).toDecimalPlaces(2).toNumber();
 }
 
 /**
@@ -114,14 +102,16 @@ export function formatCommissionBreakdown(data: {
   commissionRate: string;
   commissionAmount: string;
 } {
-  const netProfit = data.repairPrice - data.partsCost;
+  const netProfit = new Decimal(data.repairPrice).minus(data.partsCost);
 
   return {
     netProfit: `EGP ${netProfit.toFixed(2)}`,
-    commissionRate: `${data.commissionRate.toFixed(1)}%`,
-    commissionAmount: `EGP ${data.commissionAmount.toFixed(2)}`
+    commissionRate: `${new Decimal(data.commissionRate).toFixed(1)}%`,
+    commissionAmount: `EGP ${new Decimal(data.commissionAmount).toFixed(2)}`
   };
 }
+
+
 /**
  * Gets the final total price of a ticket for display and profit calculation.
  * Prioritizes finalCustomerPrice (Actual agreed price) and falls back to repairPrice (Legacy/Estimated price).
