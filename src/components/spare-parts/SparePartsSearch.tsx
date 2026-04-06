@@ -42,7 +42,8 @@ import { Button } from '@/components/ui/button';
 import { EditPriceDialog } from './EditPriceDialog';
 import { ImportCSVModal } from './ImportCSVModal';
 import { AddPartDialog } from './AddPartDialog';
-import { Edit, Search, Trash2, ChevronLeft, ChevronRight, Plus, Smartphone, Package, Upload, Download } from 'lucide-react';
+import { BulkPriceUpdateDialog } from './BulkPriceUpdateDialog';
+import { Edit, Search, Trash2, ChevronLeft, ChevronRight, Plus, Smartphone, Package, Upload, Download, Percent } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n-mock';
 import { deleteSparePart, getSpareParts } from '@/actions/spare-parts';
 import { exportToExcel } from '@/lib/export-utils';
@@ -145,6 +146,7 @@ export function SparePartsSearch({
     const [editingPart, setEditingPart] = useState<SparePart | null>(null);
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
+    const [isBulkUpdateOpen, setIsBulkUpdateOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
     // Sortable brands state
@@ -305,6 +307,13 @@ export function SparePartsSearch({
                     >
                         <Plus className="w-4 h-4 ml-2" />
                         {t('addPart')}
+                    </Button>
+                    <Button
+                        onClick={() => setIsBulkUpdateOpen(true)}
+                        className="flex-1 md:flex-none border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary font-black h-11 px-6 rounded-xl transition-all shadow-lg shadow-primary/5 active:scale-95"
+                    >
+                        <Percent className="w-4 h-4 ml-2" />
+                        {t('bulkPriceUpdate')}
                     </Button>
                     <div className="flex gap-2 w-full md:w-auto">
                         <Button
@@ -545,6 +554,14 @@ export function SparePartsSearch({
                     brands={brands}
                 />
             )}
+
+            <BulkPriceUpdateDialog
+                open={isBulkUpdateOpen}
+                onOpenChange={setIsBulkUpdateOpen}
+                totalAffected={meta.total}
+                currentBrand={selectedBrand === 'all' ? undefined : selectedBrand}
+                currentSearch={search}
+            />
         </div>
     );
 }

@@ -869,6 +869,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         sellPrice2: item.sellPrice2 || 0,
                         sellPrice3: item.sellPrice3 || 0,
                         stock: 0,
+                        isDevice: item.isDevice || false,
+                        deviceType: item.deviceType || undefined,
+                        condition: item.condition || undefined,
                         ...(item.categoryId ? { category: { connect: { id: item.categoryId } } } : {})
                     } as any
                 })
@@ -907,9 +910,32 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             select: { branchId: true }
         });
 
+        // Resolve Supplier ID for Walk-ins
+        let finalSupplierId = header.supplierId;
+        if (header.isWalkin) {
+            let walkinSupplier = await tx.supplier.findFirst({
+                where: { name: "عميل نقدي (شراء مباشر)" }
+            });
+            if (!walkinSupplier) {
+                walkinSupplier = await tx.supplier.create({
+                    data: {
+                        name: "عميل نقدي (شراء مباشر)",
+                        address: "System Default for Walk-in Purchases",
+                        balance: 0
+                    }
+                });
+            }
+            finalSupplierId = walkinSupplier.id;
+        }
+
         const invoice = await tx.purchaseInvoice.create({
             data: {
-                supplierId: header.supplierId,
+                supplierId: finalSupplierId,
+                isWalkin: header.isWalkin || false,
+                walkinName: header.walkinName,
+                walkinPhone: header.walkinPhone,
+                walkinNationalId: header.walkinNationalId,
+                attachmentUrl: header.attachmentUrl,
                 invoiceNumber: finalInvoiceNumber,
                 warehouseId: warehouseId!, // We ensured it exists
                 totalAmount: totalAmountDec,
@@ -923,7 +949,11 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         data: processedItems.map(i => ({
                             productId: i.productId,
                             quantity: i.quantity,
-                            unitCost: i.unitCost
+                            unitCost: i.unitCost,
+                            imei: i.imei,
+                            condition: i.condition,
+                            color: i.color,
+                            deviceType: i.deviceType
                         }))
                     }
                 }
@@ -932,17 +962,17 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
 
         // E. Update Supplier Balance
         await tx.supplier.update({
-            where: { id: header.supplierId },
+            where: { id: finalSupplierId },
             data: { balance: { increment: totalAmountDec.minus(paidAmountDec) } }
         });
 
         // F. Record Payment (Optimized) - with auto journal
         if (paidAmountDec.gt(0)) {
             await financialRepo.createSupplierPayment(tx, {
-                supplierId: header.supplierId,
+                supplierId: finalSupplierId,
                 amount: paidAmountDec,
                 method: header.paymentMethod || "CASH",
-                notes: `Invoice Payment #${finalInvoiceNumber}`,
+                notes: header.isWalkin ? `Walk-in Purchase Payment: ${header.walkinName}` : `Invoice Payment #${finalInvoiceNumber}`,
                 branchId: user?.branchId || null
             });
 
@@ -1147,6 +1177,9 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                         sellPrice2: item.sellPrice2 || 0,
                         sellPrice3: item.sellPrice3 || 0,
                         stock: 0,
+                        isDevice: item.isDevice || false,
+                        deviceType: item.deviceType || undefined,
+                        condition: item.condition || undefined,
                         ...(item.categoryId ? { category: { connect: { id: item.categoryId } } } : {})
                     } as any
                 })
@@ -1164,10 +1197,33 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
         else if (paidAmountDec.gt(0)) status = "PARTIAL";
 
+        // Resolve Supplier ID for Walk-ins
+        let finalSupplierId = header.supplierId;
+        if (header.isWalkin) {
+            let walkinSupplier = await tx.supplier.findFirst({
+                where: { name: "عميل نقدي (شراء مباشر)" }
+            });
+            if (!walkinSupplier) {
+                walkinSupplier = await tx.supplier.create({
+                    data: {
+                        name: "عميل نقدي (شراء مباشر)",
+                        address: "System Default for Walk-in Purchases",
+                        balance: 0
+                    }
+                });
+            }
+            finalSupplierId = walkinSupplier.id;
+        }
+
         await tx.purchaseInvoice.update({
             where: { id },
             data: {
-                supplierId: header.supplierId,
+                supplierId: finalSupplierId,
+                isWalkin: header.isWalkin || false,
+                walkinName: header.walkinName,
+                walkinPhone: header.walkinPhone,
+                walkinNationalId: header.walkinNationalId,
+                attachmentUrl: header.attachmentUrl,
                 invoiceNumber: header.invoiceNumber,
                 warehouseId: warehouseId!,
                 totalAmount: totalAmountDec,
@@ -1180,7 +1236,11 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                         data: processedItems.map(i => ({
                             productId: i.productId,
                             quantity: i.quantity,
-                            unitCost: i.unitCost
+                            unitCost: i.unitCost,
+                            imei: i.imei,
+                            condition: i.condition,
+                            color: i.color,
+                            deviceType: i.deviceType
                         }))
                     }
                 }
@@ -1222,7 +1282,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         }
 
         await tx.supplier.update({
-            where: { id: header.supplierId },
+            where: { id: finalSupplierId },
             data: { balance: { increment: totalAmountDec.minus(paidAmountDec) } }
         });
 

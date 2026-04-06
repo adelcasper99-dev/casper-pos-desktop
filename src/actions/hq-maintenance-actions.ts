@@ -70,7 +70,8 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                         TicketStatus.REJECTED,
                         TicketStatus.CANCELLED,
                         TicketStatus.PICKED_UP,
-                        TicketStatus.READY_AT_BRANCH
+                        TicketStatus.READY_AT_BRANCH,
+                        TicketStatus.VOIDED
                     ]
                 }
             }
@@ -161,7 +162,8 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                         TicketStatus.PAID_DELIVERED,
                         TicketStatus.REJECTED,
                         TicketStatus.CANCELLED,
-                        TicketStatus.PICKED_UP
+                        TicketStatus.PICKED_UP,
+                        TicketStatus.VOIDED
                     ]
                 }
             }
@@ -178,7 +180,8 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                         TicketStatus.PAID_DELIVERED,
                         TicketStatus.REJECTED,
                         TicketStatus.CANCELLED,
-                        TicketStatus.PICKED_UP
+                        TicketStatus.PICKED_UP,
+                        TicketStatus.VOIDED
                     ]
                 }
             }
@@ -217,7 +220,8 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                     TicketStatus.PAID_DELIVERED,
                     TicketStatus.REJECTED,
                     TicketStatus.CANCELLED,
-                    TicketStatus.PICKED_UP
+                    TicketStatus.PICKED_UP,
+                    TicketStatus.VOIDED
                 ].includes(t.status as any)
             ).length;
 

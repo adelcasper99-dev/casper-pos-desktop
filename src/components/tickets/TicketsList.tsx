@@ -165,6 +165,7 @@ export default function TicketsList() {
             case 'DELIVERED': return 'bg-gray-500'
             case 'PAID_DELIVERED': return 'bg-emerald-600'
             case 'REJECTED': return 'bg-red-500'
+            case 'VOIDED': return 'bg-slate-700'
             default: return 'bg-gray-500'
         }
     }
@@ -189,7 +190,8 @@ export default function TicketsList() {
             'REJECTED': t('status.rejected'),
             'RETURNED_FOR_REFIX': t('status.returnedForRefix'),
             'WARRANTY': t('filters.warranty'),
-            'RETURNS': t('filters.returns')
+            'RETURNS': t('filters.returns'),
+            'VOIDED': t('status.voided')
         }
         return statusMap[status] || status.toUpperCase()
     }
@@ -294,7 +296,10 @@ export default function TicketsList() {
                     <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-2xl">
                         <AlertTriangle className="h-6 w-6 text-rose-500" />
                     </div>
-                    <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">المخاطر (Risk)</p>
+                    <div className="flex flex-col items-center">
+                        <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">حالات حرجة (Critical)</p>
+                        <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1">مرتجعات متكررة أو تأخير شديد</span>
+                    </div>
                     <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.highRiskCount}</h3>
                 </div>
                 <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
@@ -302,7 +307,10 @@ export default function TicketsList() {
                     <div className="p-3 bg-cyan-50 dark:bg-cyan-500/10 rounded-2xl">
                         <Clock className="h-6 w-6 text-cyan-500" />
                     </div>
-                    <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">الفجوات (Gaps)</p>
+                    <div className="flex flex-col items-center">
+                        <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">متأخرات (Overdue)</p>
+                        <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1">تجاوزت الوقت المتوقع للإصلاح</span>
+                    </div>
                     <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.overdueCount}</h3>
                 </div>
             </div>

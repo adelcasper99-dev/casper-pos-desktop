@@ -218,6 +218,15 @@ export default function PurchasesTab({
         newItemSellPrice, setNewItemSellPrice,
         newItemSellPrice2, setNewItemSellPrice2,
         newItemSellPrice3, setNewItemSellPrice3,
+        newItemIsDevice, setNewItemIsDevice,
+        newItemDeviceType, setNewItemDeviceType,
+        newItemCondition, setNewItemCondition,
+        newItemColor, setNewItemColor,
+        isWalkin, setIsWalkin,
+        walkinName, setWalkinName,
+        walkinPhone, setWalkinPhone,
+        walkinNationalId, setWalkinNationalId,
+        attachmentUrl, setAttachmentUrl,
         cart, setCart,
         removeFromCart,
         updateCartItem,
@@ -869,7 +878,7 @@ export default function PurchasesTab({
                     onClick={() => setIsNewPurchaseOpen(false)}
                 >
                     <div
-                        className="bg-card border border-border sm:rounded-2xl w-full h-full sm:w-auto sm:min-w-[80vw] sm:max-w-7xl sm:h-[80vh] m-auto flex flex-col shadow-2xl overflow-hidden text-foreground relative"
+                        className="bg-card border border-border sm:rounded-2xl w-full h-full sm:w-auto sm:min-w-[80vw] sm:max-w-7xl sm:h-[80vh] m-auto flex flex-col shadow-2xl text-foreground relative"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
@@ -906,7 +915,6 @@ export default function PurchasesTab({
                                 </div>
                             )}
 
-                            {/* Top Row: Supplier & Payment Method */}
                             <PurchaseHeader
                                 selectedSupplierId={selectedSupplierId}
                                 onSupplierChange={setSelectedSupplierId}
@@ -918,6 +926,16 @@ export default function PurchasesTab({
                                 branches={branches}
                                 warehouses={filteredWarehouses}
                                 isHQUser={isHQUser}
+                                isWalkin={isWalkin}
+                                setIsWalkin={setIsWalkin}
+                                walkinName={walkinName}
+                                setWalkinName={setWalkinName}
+                                walkinPhone={walkinPhone}
+                                setWalkinPhone={setWalkinPhone}
+                                walkinNationalId={walkinNationalId}
+                                setWalkinNationalId={setWalkinNationalId}
+                                attachmentUrl={attachmentUrl}
+                                setAttachmentUrl={setAttachmentUrl}
                             />
 
                             {/* Add Items Section */}
@@ -944,6 +962,14 @@ export default function PurchasesTab({
                                 setNewItemSellPrice2={setNewItemSellPrice2}
                                 newItemSellPrice3={newItemSellPrice3}
                                 setNewItemSellPrice3={setNewItemSellPrice3}
+                                newItemIsDevice={newItemIsDevice}
+                                setNewItemIsDevice={setNewItemIsDevice}
+                                newItemDeviceType={newItemDeviceType}
+                                setNewItemDeviceType={setNewItemDeviceType}
+                                newItemCondition={newItemCondition}
+                                setNewItemCondition={setNewItemCondition}
+                                newItemColor={newItemColor}
+                                setNewItemColor={setNewItemColor}
                                 categories={categories}
                                 onAutoSku={handleAutoSku}
                                 onAddNewSubmit={addToCartNew}

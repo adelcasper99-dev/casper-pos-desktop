@@ -697,6 +697,14 @@
         "price": "السعر",
         "sellPrices": "أسعار البيع",
         "itemsCount": "{count} أصناف",
+        "deviceTypes": {
+            "title": "نوع الجهاز",
+            "LAPTOP": "لابتوب",
+            "MOBILE": "موبايل",
+            "PC": "كمبيوتر PC",
+            "HEADPHONES": "سماعات",
+            "OTHER": "أخرى / قطع غيار"
+        },
         "newCategory": "فئة جديدة",
         "select": "اختر...",
         "auto": "تلقائي",
@@ -1254,7 +1262,7 @@
             "returnedForRefix": "مرتجع",
             "paidDelivered": "مدفوع ومسلم",
             "rejected": "مرفوض",
-            "voided": "مرتجع ملغى"
+            "voided": "ملغاة (مسترد)"
         },
         "table": {
             "status": "الحالة",
@@ -1519,7 +1527,8 @@
                     "PAID_DELIVERED": "مدفوع ومسلم",
                     "RETURNED": "مرتجع",
                     "CANCELLED": "ملغية",
-                    "REJECTED": "مرفوض"
+                    "REJECTED": "مرفوض",
+                    "VOIDED": "ملغاة (مسترد)"
                 }
             },
             "consumption": {
@@ -1658,6 +1667,19 @@
         "failedToImport": "فشل استيراد",
         "importing": "جاري الاستيراد...",
         "importNow": "استيراد الآن",
+        "bulkPriceUpdate": "تحديث الأسعار بالجملة",
+        "percentageLabel": "الزيادة أو الخصم (%)",
+        "increaseTab": "زيادة (+)",
+        "discountTab": "خصم (-)",
+        "targetPriceLabel": "السعر المستهدف",
+        "allPrices": "جميع مستويات الأسعار",
+        "confirmBulkUpdate": "هل أنت متأكد من زيادة {prices} لـ {count} صنف بنسبة {percent}%؟",
+        "confirmBulkUpdateDiscount": "هل أنت متأكد من خصم {prices} لـ {count} صنف بنسبة {percent}%؟",
+        "bulkUpdateSuccess": "تم تحديث الأسعار بنجاح",
+        "bulkUpdateError": "فشل تحديث الأسعار بالجملة",
+        "confirmTextLabel": "اكتب 'تأكيد' للاستمرار",
+        "confirmText": "تأكيد",
+        "affectedItems": "الأصناف المتأثرة",
         "cancel": "إلغاء",
         "close": "إغلاق"
     },

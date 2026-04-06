@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "@/lib/i18n-mock";
-import { Trash2, History, Loader2 } from "lucide-react";
+import { Trash2, History, Loader2, Smartphone, Laptop, Monitor, Headphones, Package } from "lucide-react";
 import { clsx } from "clsx";
 import { useState } from "react";
 import { getProductPriceHistory } from "@/actions/inventory";
@@ -19,6 +19,10 @@ interface InvoiceItem {
     sellPrice3?: number;
     isNew?: boolean; // If true, create product on save
     categoryId?: string; // Required if isNew
+    isDevice?: boolean;
+    deviceType?: string;
+    condition?: string;
+    imei?: string;
 }
 
 interface PurchaseItemsTableProps {
@@ -120,22 +124,45 @@ export function PurchaseItemsTable({
                     {items.map((item, index) => (
                         <div key={`${item.id}-${index}`} className="grid grid-cols-12 p-3 items-center hover:bg-muted/30 transition-colors group text-sm">
                             <div className="col-span-4">
-                                <div className="font-bold text-foreground">
+                                <div className="font-bold text-foreground flex items-center gap-2">
                                     {item.name}
                                     {item.isNew && (
-                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/10 text-green-500">
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/10 text-green-500">
                                             {t('newItem')}
                                         </span>
                                     )}
+                                    {item.isDevice && (
+                                        <span className={clsx(
+                                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-tight border",
+                                            item.deviceType === 'MOBILE' ? "bg-blue-500/10 text-blue-500 border-blue-500/20" :
+                                            item.deviceType === 'LAPTOP' ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" :
+                                            item.deviceType === 'PC' ? "bg-cyan-500/10 text-cyan-500 border-cyan-500/20" :
+                                            item.deviceType === 'HEADPHONES' ? "bg-purple-500/10 text-purple-500 border-purple-500/20" :
+                                            "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
+                                        )}>
+                                            {item.deviceType === 'MOBILE' ? <Smartphone className="w-3 h-3" /> :
+                                             item.deviceType === 'LAPTOP' ? <Laptop className="w-3 h-3" /> :
+                                             item.deviceType === 'PC' ? <Monitor className="w-3 h-3" /> :
+                                             item.deviceType === 'HEADPHONES' ? <Headphones className="w-3 h-3" /> :
+                                             <Package className="w-3 h-3" />}
+                                            {t(`deviceTypes.${item.deviceType}`) || item.deviceType} | {item.condition}
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="text-xs text-muted-foreground font-mono">{item.sku}</div>
+                                <div className="text-xs text-muted-foreground font-mono mt-1">
+                                    {item.isDevice ? `IMEI: ${item.sku || item.imei}` : item.sku}
+                                </div>
                             </div>
                             <div className="col-span-2 text-center">
                                 <input
                                     type="number"
                                     value={item.quantity}
+                                    disabled={item.isDevice}
                                     onChange={(e) => onUpdateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                                    className="bg-background border border-border w-16 px-1 py-1 rounded-md font-mono text-center focus:outline-none focus:border-cyan-500 transition-colors"
+                                    className={clsx(
+                                        "bg-background border border-border w-16 px-1 py-1 rounded-md font-mono text-center focus:outline-none focus:border-cyan-500 transition-colors",
+                                        item.isDevice && "opacity-50 cursor-not-allowed"
+                                    )}
                                 />
                             </div>
                             <div className="col-span-2 text-right">

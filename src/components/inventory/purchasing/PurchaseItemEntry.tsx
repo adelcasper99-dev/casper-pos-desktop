@@ -54,6 +54,15 @@ interface PurchaseItemEntryProps {
     newItemSellPrice3: string;
     setNewItemSellPrice3: (val: string) => void;
 
+    newItemIsDevice: boolean;
+    setNewItemIsDevice: (val: boolean) => void;
+    newItemDeviceType: string;
+    setNewItemDeviceType: (val: string) => void;
+    newItemCondition: string;
+    setNewItemCondition: (val: string) => void;
+    newItemColor: string;
+    setNewItemColor: (val: string) => void;
+
     categories: Category[];
     onAutoSku: () => void;
     onAddNewSubmit: () => void; // Trigger for "Add" button
@@ -97,7 +106,7 @@ export function PurchaseItemEntry({
     const categoryOptions = categories.map(c => ({ label: c.name, value: c.id }));
 
     return (
-        <div className="bg-muted/30 rounded-xl p-4 border border-border">
+        <div className="bg-muted/30 rounded-xl p-4 border border-border relative">
             {/* Toggle Header */}
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold flex items-center gap-2">{t('addItems')}</h3>

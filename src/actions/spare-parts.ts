@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { secureAction } from '@/lib/safe-action';
 import { z } from 'zod';
+import { Decimal } from 'decimal.js';
 
 const sparePartSchema = z.object({
     sku: z.string().optional(),
@@ -178,39 +179,151 @@ const importPartsSchema = z.object({
 
 export const importSpareParts = secureAction(async (data: z.infer<typeof importPartsSchema>) => {
     try {
+        console.log(`[Import] Starting bulk import of ${data.parts.length} items...`);
         const results = {
             success: 0,
+            updated: 0,
             failed: 0,
             errors: [] as string[]
         };
 
-        for (const part of data.parts) {
-            try {
-                await prisma.sparePart.create({
-                    data: {
-                        productName: part.productName,
-                        brand: part.brand,
-                        quantity: part.quantity,
-                        costPrice: part.costPrice || '0',
-                        sellPrice: part.sellPrice || '0',
-                        price1: part.price1 || '0',
-                        price2: part.price2 || '0',
-                        price3: part.price3 || '0',
-                        sku: part.sku || null,
-                        category: 'داخلي',
-                    },
-                });
-                results.success++;
-            } catch (error: any) {
-                results.failed++;
-                results.errors.push(`Failed to import "${part.productName}": ${error.message}`);
-            }
-        }
+        // Optimization: Fetch all existing internal parts at once for local lookup
+        const existingParts = await prisma.sparePart.findMany({
+            where: { category: 'داخلي' },
+            select: { id: true, productName: true, brand: true }
+        });
 
+        // Create a fast-lookup map using productName|brand as key
+        const partMap = new Map<string, string>();
+        existingParts.forEach(p => {
+            const key = `${p.productName.trim().toLowerCase()}|${p.brand.trim().toLowerCase()}`;
+            partMap.set(key, p.id);
+        });
+
+        // Use a single transaction to execute all mutations (Massive performance boost for SQLite/Postgres)
+        await prisma.$transaction(async (tx: any) => {
+            let i = 0;
+            for (const part of data.parts) {
+                i++;
+                if (i % 500 === 0) console.log(`[Import] Processing row ${i}...`);
+                
+                try {
+                    const key = `${part.productName.trim().toLowerCase()}|${part.brand.trim().toLowerCase()}`;
+                    const existingId = partMap.get(key);
+
+                    if (existingId) {
+                        await tx.sparePart.update({
+                            where: { id: existingId },
+                            data: {
+                                quantity: part.quantity,
+                                costPrice: part.costPrice || '0',
+                                sellPrice: part.sellPrice || '0',
+                                price1: part.price1 || '0',
+                                price2: part.price2 || '0',
+                                price3: part.price3 || '0',
+                                sku: part.sku || undefined,
+                            },
+                        });
+                        results.updated++;
+                    } else {
+                        await tx.sparePart.create({
+                            data: {
+                                productName: part.productName.trim(),
+                                brand: part.brand.trim(),
+                                quantity: part.quantity,
+                                costPrice: part.costPrice || '0',
+                                sellPrice: part.sellPrice || '0',
+                                price1: part.price1 || '0',
+                                price2: part.price2 || '0',
+                                price3: part.price3 || '0',
+                                sku: part.sku || null,
+                                category: 'داخلي',
+                            },
+                        });
+                        results.success++;
+                    }
+                } catch (rowError: any) {
+                    results.failed++;
+                    results.errors.push(`Row ${i} (${part.productName}): ${rowError.message}`);
+                }
+            }
+        }, { timeout: 120000 }); // Increase transaction timeout to 120s for huge files
+
+        console.log(`[Import] Completed: ${results.success} new, ${results.updated} updated, ${results.failed} failed.`);
         revalidatePath('/spare-parts');
         return { success: true, results };
     } catch (error) {
         console.error('Error importing spare parts:', error);
         return { success: false, error: 'Failed to import parts' };
+    }
+}, { permission: 'INVENTORY_MANAGE', requireCSRF: false });
+
+export const bulkUpdateSparePartPrices = secureAction(async (data: {
+    percentage: number;
+    brand?: string;
+    search?: string;
+    priceType: 'all' | 'sellPrice' | 'price1' | 'price2' | 'price3';
+}) => {
+    try {
+        console.log(`[Bulk Update] Starting update: ${data.percentage}% for brand: ${data.brand || 'All'}...`);
+        
+        const where: any = { category: 'داخلي' };
+        if (data.brand && data.brand !== 'all') where.brand = data.brand;
+        if (data.search) where.productName = { contains: data.search };
+
+        // 1. Fetch items to update
+        const parts = await prisma.sparePart.findMany({
+            where,
+            select: { id: true, sellPrice: true, price1: true, price2: true, price3: true }
+        });
+
+        if (parts.length === 0) return { success: true, count: 0 };
+
+        const multiplier = new Decimal(1).plus(new Decimal(data.percentage).dividedBy(100));
+
+        // 2. Batch updates (500 items per batch to prevent SQLite lock timeouts)
+        const BATCH_SIZE = 500;
+        let updatedCount = 0;
+
+        for (let i = 0; i < parts.length; i += BATCH_SIZE) {
+            const batch = parts.slice(i, i + BATCH_SIZE);
+            
+            await prisma.$transaction(async (tx: any) => {
+                for (const part of batch) {
+                    const updateData: any = {};
+                    
+                    const updateField = (field: string) => {
+                        const current = new Decimal(part[field as keyof typeof part] as string || '0');
+                        if (current.isZero()) return;
+                        updateData[field] = current.times(multiplier).toDecimalPlaces(2).toString();
+                    };
+
+                    if (data.priceType === 'all') {
+                        updateField('sellPrice');
+                        updateField('price1');
+                        updateField('price2');
+                        updateField('price3');
+                    } else {
+                        updateField(data.priceType);
+                    }
+
+                    if (Object.keys(updateData).length > 0) {
+                        await tx.sparePart.update({
+                            where: { id: part.id },
+                            data: updateData
+                        });
+                        updatedCount++;
+                    }
+                }
+            }, { timeout: 30000 });
+            
+            console.log(`[Bulk Update] Progress: ${Math.min(i + BATCH_SIZE, parts.length)}/${parts.length}...`);
+        }
+
+        revalidatePath('/spare-parts');
+        return { success: true, count: updatedCount };
+    } catch (error) {
+        console.error('Error in bulk update:', error);
+        return { success: false, error: 'Failed to update prices' };
     }
 }, { permission: 'INVENTORY_MANAGE', requireCSRF: false });

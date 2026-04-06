@@ -17,6 +17,10 @@ export interface InvoiceItem {
     sellPrice?: number;
     sellPrice2?: number;
     sellPrice3?: number;
+    isDevice?: boolean;
+    condition?: string;
+    imei?: string;
+    deviceType?: string;
 }
 
 interface UsePurchaseFormProps {
@@ -92,6 +96,17 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     const [newItemSellPrice, setNewItemSellPrice] = useState("");
     const [newItemSellPrice2, setNewItemSellPrice2] = useState("");
     const [newItemSellPrice3, setNewItemSellPrice3] = useState("");
+    const [newItemIsDevice, setNewItemIsDevice] = useState(false);
+    const [newItemDeviceType, setNewItemDeviceType] = useState<string>("OTHER");
+    const [newItemColor, setNewItemColor] = useState("");
+    const [newItemCondition, setNewItemCondition] = useState("NEW");
+
+    // Walk-In Customer Fields
+    const [isWalkin, setIsWalkin] = useState(false);
+    const [walkinName, setWalkinName] = useState("");
+    const [walkinPhone, setWalkinPhone] = useState("");
+    const [walkinNationalId, setWalkinNationalId] = useState("");
+    const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
 
     // Cart
     const [cart, setCart] = useState<InvoiceItem[]>([]);
@@ -186,9 +201,18 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         setCart([]);
         setDeliveryCharge("");
         setPaidAmount("");
-        setItemSearch("");
         setEntryMode("SEARCH");
         setErrorResult(null);
+        setNewItemIsDevice(false);
+        setNewItemDeviceType("OTHER");
+        setNewItemColor("");
+        setNewItemCondition("NEW");
+        
+        setIsWalkin(false);
+        setWalkinName("");
+        setWalkinPhone("");
+        setWalkinNationalId("");
+        setAttachmentUrl(null);
     };
 
     // Actions
@@ -237,8 +261,13 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             return;
         }
 
+        if (newItemIsDevice && (!newItemCondition || !newItemColor)) {
+            toast.error(t('validation.missing', { fields: "Condition, Color" }));
+            return;
+        }
+
         const cost = parseFloat(newItemCost);
-        const qty = parseFloat(newItemQty);
+        const qty = newItemIsDevice ? 1 : parseFloat(newItemQty);
         const price = parseFloat(newItemSellPrice);
 
         if (cost > price) {
@@ -246,10 +275,14 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             return;
         }
 
+        const finalName = newItemIsDevice 
+            ? `${newItemName} - اللون: ${newItemColor} - الحالة: ${newItemCondition}` 
+            : newItemName;
+
         setCart([...cart, {
             id: safeRandomUUID(),
             isNew: true,
-            name: newItemName,
+            name: finalName,
             sku: newItemSku,
             categoryId: newItemCategoryId,
             unitCost: cost,
@@ -257,6 +290,10 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             sellPrice: price,
             sellPrice2: parseFloat(newItemSellPrice2) || undefined,
             sellPrice3: parseFloat(newItemSellPrice3) || undefined,
+            isDevice: newItemIsDevice,
+            deviceType: newItemDeviceType,
+            condition: newItemIsDevice ? newItemCondition : undefined,
+            imei: newItemIsDevice ? newItemSku : undefined, // SKU mapped as IMEI
         }]);
 
         // Reset new item fields
@@ -267,6 +304,10 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         setNewItemSellPrice("");
         setNewItemSellPrice2("");
         setNewItemSellPrice3("");
+        setNewItemColor("");
+        setNewItemIsDevice(false);
+        setNewItemDeviceType("OTHER");
+        setNewItemCondition("NEW");
         setEntryMode("SEARCH");
         toast.success("New Item Added");
     };
@@ -316,7 +357,17 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             return;
         }
 
-        if (!selectedSupplierId || cart.length === 0) return;
+        if (isWalkin && (!walkinName || !walkinPhone)) {
+            toast.error("يرجى إدخال اسم ورقم تليفون العميل المباشر");
+            return;
+        }
+
+        if (!isWalkin && !selectedSupplierId) {
+            toast.error("يرجى اختيار مورد");
+            return;
+        }
+
+        if (cart.length === 0) return;
 
         // Validation: Cost <= Price
         const invalidItems = cart.filter(item => {
@@ -337,7 +388,12 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
         let result;
         const payload = {
-            supplierId: selectedSupplierId,
+            supplierId: isWalkin ? "WALKIN" : selectedSupplierId,
+            isWalkin,
+            walkinName: isWalkin ? walkinName : undefined,
+            walkinPhone: isWalkin ? walkinPhone : undefined,
+            walkinNationalId: isWalkin ? walkinNationalId : undefined,
+            attachmentUrl: (isWalkin && attachmentUrl) ? attachmentUrl : undefined,
             warehouseId: selectedWarehouseId || undefined,
             items: cart.map(i => ({
                 productId: i.productId, // Might be undefined if new
@@ -348,7 +404,11 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 sellPrice2: i.sellPrice2,
                 sellPrice3: i.sellPrice3,
                 quantity: i.quantity,
-                unitCost: i.unitCost
+                unitCost: i.unitCost,
+                isDevice: i.isDevice,
+                deviceType: i.deviceType,
+                condition: i.condition,
+                imei: i.imei
             })),
             paidAmount: parseFloat(paidAmount) || 0,
             deliveryCharge: parseFloat(deliveryCharge) || 0,
@@ -406,6 +466,17 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         newItemSellPrice, setNewItemSellPrice,
         newItemSellPrice2, setNewItemSellPrice2,
         newItemSellPrice3, setNewItemSellPrice3,
+        newItemIsDevice, setNewItemIsDevice,
+        newItemDeviceType, setNewItemDeviceType,
+        newItemColor, setNewItemColor,
+        newItemCondition, setNewItemCondition,
+
+        // Walk-In
+        isWalkin, setIsWalkin,
+        walkinName, setWalkinName,
+        walkinPhone, setWalkinPhone,
+        walkinNationalId, setWalkinNationalId,
+        attachmentUrl, setAttachmentUrl,
 
         // Cart
         cart, setCart,

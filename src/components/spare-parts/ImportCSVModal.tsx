@@ -32,6 +32,34 @@ interface ImportResult {
     errors: string[];
 }
 
+const BRANDS_MAP: Record<string, string> = {
+    'apple': 'Apple', 'iphone': 'Apple', 'i phone': 'Apple', 'ipad': 'Apple', 'macbook': 'Apple',
+    'samsung': 'Samsung', 'galaxy': 'Samsung',
+    'huawei': 'Huawei', 'mate': 'Huawei', 'nova': 'Huawei',
+    'honor': 'Honor',
+    'alcatel': 'Alcatel', 'alecatel': 'Alcatel',
+    'xiaomi': 'Xiaomi', 'redmi': 'Xiaomi', 'mi ': 'Xiaomi', 'poco': 'Xiaomi',
+    'oppo': 'Oppo', 'reno': 'Oppo',
+    'realme': 'Realme',
+    'vivo': 'Vivo',
+    'nokia': 'Nokia',
+    'sony': 'Sony', 'xperia': 'Sony',
+    'google': 'Google', 'pixel': 'Google',
+    'oneplus': 'OnePlus',
+    'infinix': 'Infinix',
+    'tecno': 'Tecno',
+    'itel': 'Itel',
+    'joyroom': 'Joyroom',
+};
+
+const extractBrand = (name: string): string => {
+    const lowerName = name.toLowerCase();
+    for (const [key, value] of Object.entries(BRANDS_MAP)) {
+        if (lowerName.includes(key)) return value;
+    }
+    return 'Other';
+};
+
 export function ImportCSVModal({ open, onOpenChange }: Props) {
     const t = useTranslations('SpareParts');
     const router = useRouter();
@@ -98,7 +126,7 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                     if (values.every(v => !v)) continue;
 
                     const productName = headerMap['productName'] !== undefined ? values[headerMap['productName']] || '' : '';
-                    const brand = headerMap['brand'] !== undefined ? values[headerMap['brand']] || 'Other' : 'Other';
+                    let brand = headerMap['brand'] !== undefined ? values[headerMap['brand']] || '' : '';
                     const quantity = headerMap['quantity'] !== undefined ? values[headerMap['quantity']] || '0' : '0';
                     const costPrice = headerMap['costPrice'] !== undefined ? values[headerMap['costPrice']] || '0' : '0';
                     const sellPrice = headerMap['sellPrice'] !== undefined ? values[headerMap['sellPrice']] || '0' : '0';
@@ -112,6 +140,12 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                         continue;
                     }
 
+                    // Smart Extraction: If brand is empty or "Other", try to extract from name
+                    const isExtracted = !brand || brand === 'Other';
+                    if (isExtracted) {
+                        brand = extractBrand(productName);
+                    }
+
                     parts.push({
                         productName,
                         brand,
@@ -122,6 +156,7 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                         price2,
                         price3,
                         sku,
+                        isExtractedBrand: isExtracted && brand !== 'Other',
                     } as any);
                 }
 
@@ -254,16 +289,23 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                             {parsedData.length} {t('rowsFound')}
                         </p>
                         <div className="mt-2 max-h-40 overflow-y-auto text-xs">
-                            {parsedData.slice(0, 5).map((part, index) => (
-                                <div key={index} className="flex gap-2 py-1 border-b border-border/30">
-                                    <span className="truncate flex-1">{part.productName}</span>
-                                    <span className="text-muted-foreground">{part.brand}</span>
-                                    <span className="text-green-400">{part.sellPrice}</span>
+                            {parsedData.slice(0, 10).map((part, index) => (
+                                <div key={index} className="flex gap-2 py-1.5 border-b border-border/30 items-center">
+                                    <span className="truncate flex-1 font-bold">{part.productName}</span>
+                                    <span className={cn(
+                                        "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                        (part as any).isExtractedBrand 
+                                            ? "bg-cyan-500/20 text-cyan-500 border border-cyan-500/30" 
+                                            : "text-muted-foreground"
+                                    )}>
+                                        {part.brand}
+                                    </span>
+                                    <span className="text-green-400 font-bold ml-auto">{part.sellPrice}</span>
                                 </div>
                             ))}
-                            {parsedData.length > 5 && (
-                                <p className="text-xs text-muted-foreground text-center py-2">
-                                    ... and {parsedData.length - 5} more
+                            {parsedData.length > 10 && (
+                                <p className="text-[10px] text-muted-foreground text-center py-2 italic">
+                                    ... showing 10 of {parsedData.length} items
                                 </p>
                             )}
                         </div>
@@ -294,6 +336,9 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                         </div>
                         <div className="mt-2 text-sm">
                             <p className="text-green-300">{t('successfullyImported')}: {importResult.success}</p>
+                            {(importResult as any).updated > 0 && (
+                                <p className="text-cyan-300">Updated: {(importResult as any).updated}</p>
+                            )}
                             {importResult.failed > 0 && (
                                 <p className="text-red-300">{t('failedToImport')}: {importResult.failed}</p>
                             )}

@@ -144,7 +144,7 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                     <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.salary") || "الاساسي"}</th>
                                     <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">الصافي المستحق</th>
                                     <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">النجاح</th>
-                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">الفجوات</th>
+                                    <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">متأخرات</th>
                                     <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">{t("table.status") || "الحالة"}</th>
                                     <th className="px-6 py-6 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] text-right rtl:text-left">{t("table.actions") || "الإجراءات"}</th>
                                 </tr>

@@ -67,6 +67,7 @@ export async function getPublicTicketStatus(query: {
             'READY_AT_BRANCH': 'جاهز للاستلام',
             'DELIVERED': 'تم التسليم',
             'CANCELLED': 'ملغي',
+            'VOIDED': 'ملغاة (مسترد)',
             'RETURNED_FOR_REFIX': 'مرتجع للإصلاح',
         };
 

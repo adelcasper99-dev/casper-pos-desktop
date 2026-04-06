@@ -34,6 +34,10 @@ export async function resetDatabase() {
             await tx.supplierPayment.deleteMany();
             await tx.expense.deleteMany();
 
+            // HR & Employee Records (Commission, Ledger, Attendance)
+            await tx.employeeTransaction.deleteMany();
+            await tx.dailyWorkLog.deleteMany();
+
             // Sales records
             await tx.salePayment.deleteMany();
             await tx.saleItem.deleteMany();
@@ -53,9 +57,11 @@ export async function resetDatabase() {
             await tx.stockRequest.deleteMany();
             await tx.stockWastage.deleteMany();
 
-            // Logs
+            // Logs & System History
             await tx.actionLog.deleteMany();
             await tx.auditLog.deleteMany();
+            await tx.backupLog.deleteMany();
+            await tx.localBackup.deleteMany();
 
             // Maintenance Tickets & Repair Services (Delete child tables first)
             await tx.repairPayment.deleteMany();
@@ -67,6 +73,7 @@ export async function resetDatabase() {
             await tx.ticket.deleteMany();
             await tx.technicianPerformance.deleteMany();
             await tx.deviceMovement.deleteMany();
+
 
             // 2. Reset Quantities and Balances to 0
 

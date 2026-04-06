@@ -78,7 +78,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             case 'PAID': return "مدفوع";
             case 'PARTIAL_RETURN': return "مرتجع جزئي";
             case 'RETURNED': return "مرتجع كلي";
-            case 'VOIDED': return "ملغي";
+            case 'VOIDED': return "ملغاة (مسترد)";
             case 'PENDING': return "قيد الانتظار";
             default: return status;
         }
@@ -216,7 +216,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const getStatusBadge = (status: string, total: number, paid: number, isReturn?: boolean) => {
         if (isReturn || status === 'VOIDED' || status === 'RETURNED') return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
-                <XCircle className="w-3 h-3" /> {isReturn ? 'فاتورة مرتجع' : (status === 'VOIDED' ? 'ملغاة' : 'مرتجع كلي')}
+                <XCircle className="w-3 h-3" /> {isReturn ? 'فاتورة مرتجع' : (status === 'VOIDED' ? 'ملغاة (مسترد)' : 'مرتجع كلي')}
             </span>
         );
 

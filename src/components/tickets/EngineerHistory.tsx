@@ -22,6 +22,7 @@ const getStatusDetails = (status: string) => {
         case 'DELIVERED': case 'PAID_DELIVERED': return 'bg-slate-500/10 dark:bg-zinc-500/20 text-slate-700 dark:text-zinc-400 border-slate-500/30'
         case 'RETURNED': return 'bg-rose-500/10 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/30'
         case 'CANCELLED': case 'REJECTED': return 'bg-red-500/10 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30'
+        case 'VOIDED': return 'bg-slate-500/10 dark:bg-zinc-500/20 text-slate-700 dark:text-zinc-400 border-slate-500/30'
         default: return 'bg-slate-500/10 dark:bg-zinc-500/20 text-slate-700 dark:text-zinc-400 border-slate-500/30'
     }
 }

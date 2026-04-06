@@ -17,6 +17,8 @@ export const productSchema = z.object({
     categoryId: z.string().optional(),
     trackStock: z.boolean().default(true),
     isBundle: z.boolean().default(false),
+    isDevice: z.boolean().default(false),
+    deviceType: z.string().optional().nullable(),
     bundleItems: z.array(bundleItemSchema).optional(),
     unitOfMeasureId: z.string().optional().nullable(),
 });
@@ -48,6 +50,11 @@ const purchaseItemSchema = z.object({
     sellPrice: z.coerce.number().optional(),
     sellPrice2: z.coerce.number().optional(),
     sellPrice3: z.coerce.number().optional(),
+    isDevice: z.boolean().optional(),
+    deviceType: z.string().optional(),
+    condition: z.string().optional(),
+    imei: z.string().optional(),
+    color: z.string().optional(),
 });
 
 export const purchaseSchema = z.object({
@@ -60,6 +67,11 @@ export const purchaseSchema = z.object({
     deliveryCharge: z.coerce.number().min(0).optional(),
     paymentMethod: z.string().optional(),
     treasuryId: z.string().optional(),
+    isWalkin: z.boolean().optional(),
+    walkinName: z.string().optional(),
+    walkinPhone: z.string().optional(),
+    walkinNationalId: z.string().optional(),
+    attachmentUrl: z.string().optional(),
 });
 
 export const warehouseSchema = z.object({

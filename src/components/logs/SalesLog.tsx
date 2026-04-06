@@ -72,6 +72,7 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
     };
 
     const getStatusLabel = (status: string, paymentMethod: string) => {
+        if (status === 'VOIDED') return 'ملغاة (مسترد)';
         if (status === 'REFUNDED') return 'مرتجع كامل';
         if (status === 'PARTIAL_REFUND') return 'مرتجع جزئي';
         if (paymentMethod === 'ACCOUNT') return 'آجل';
@@ -79,6 +80,7 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
     };
 
     const getStatusStyles = (status: string, paymentMethod: string) => {
+        if (status === 'VOIDED') return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
         if (status === 'REFUNDED') return 'bg-red-500/10 text-red-400 border border-red-500/20';
         if (status === 'PARTIAL_REFUND') return 'bg-orange-500/10 text-orange-400 border border-orange-500/20';
         if (paymentMethod === 'ACCOUNT') return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';

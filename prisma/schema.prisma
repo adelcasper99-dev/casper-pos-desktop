@@ -317,6 +317,10 @@ model Product {
   trackStock        Boolean            @default(true)
   itemType          String             @default("PHYSICAL")
   isBundle          Boolean            @default(false)
+  isDevice          Boolean            @default(false)
+  deviceType        String?
+  condition         String?
+  color             String?
   categoryId        String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -447,6 +451,14 @@ model PurchaseInvoice {
   purchaseDate   DateTime       @default(now())
   createdAt      DateTime       @default(now())
   deliveryCharge Decimal        @default(0.00)
+  
+  // Walk-in direct purchases
+  isWalkin        Boolean       @default(false)
+  walkinName      String?
+  walkinPhone     String?
+  walkinNationalId String?
+  attachmentUrl   String?       // Base64 compressed image of Receipt/ID
+  
   voidReason     String?
   branchId       String?
   voidedAt       DateTime?
@@ -467,6 +479,10 @@ model PurchaseItem {
   quantity          Decimal    @default(0.00)
   returnedQty       Int        @default(0)
   unitCost          Decimal
+  imei              String?
+  condition         String?
+  color             String?
+  deviceType        String?
   invoice           PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
   product           Product         @relation(fields: [productId], references: [id])
 }
@@ -534,6 +550,10 @@ model SaleItem {
   refundedQty Int        @default(0)
   unitPrice   Decimal
   unitCost    Decimal @default(0.00)
+  imei        String?
+  condition   String?
+  color       String?
+  deviceType  String?
   sale        Sale    @relation(fields: [saleId], references: [id])
   product     Product @relation(fields: [productId], references: [id])
 
