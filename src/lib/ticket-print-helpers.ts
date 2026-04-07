@@ -255,6 +255,11 @@ export function generateEngineerReceiptHTML(ticket: any, settings: any): string 
     hour: '2-digit', minute: '2-digit', hour12: true
   });
 
+  const currency = settings?.currency || 'EGP';
+  const formatAmt = (n: number) => {
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' ' + currency;
+  };
+
   const barcodeSvg = generateCode128SVG(ticket.barcode?.replace(/[^A-Z0-9]/gi, '').slice(-12) || '000000');
 
   return `<!DOCTYPE html>
@@ -329,10 +334,10 @@ export function generateEngineerReceiptHTML(ticket: any, settings: any): string 
     </div>
     <div class="section" style="background:#f9f9f9; border:0.4mm solid #000; margin:2mm 0; border-radius:1mm; padding:0 2mm;">
       <div class="section-title" style="opacity:1; color:#000; border-bottom:0.2mm solid #000; padding:1.5mm 0 1mm 0;">قسم الفني / الاستخدام الداخلي</div>
-      <div class="entry-field"><span class="entry-label">اسم المهندس:</span><div class="entry-line"></div></div>
+      <div class="entry-field"><span class="entry-label">التكلفة المبدئية:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900;">${ticket.initialQuote ? formatAmt(Number(ticket.initialQuote)) : '................'}</div></div>
       <div class="entry-field"><span class="entry-label">وقت الإصلاح:</span><div class="entry-line"></div></div>
-      <div class="entry-field"><span class="entry-label">قطع الغيار:</span><div class="entry-line"></div></div>
-      <div class="entry-field"><span class="entry-label">التكلفة النهائية:</span><div class="entry-line"></div></div>
+      <div class="entry-field"><span class="entry-label">قطع الغيار:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900; font-size:9px;">${ticket.parts && ticket.parts.length > 0 ? ticket.parts.map((p: any) => p.product?.name).filter(Boolean).join(' + ') : '................'}</div></div>
+      <div class="entry-field"><span class="entry-label">التكلفة النهائية:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900;">${ticket.repairPrice ? formatAmt(Number(ticket.repairPrice)) : '................'}</div></div>
       <div class="entry-field"><span class="entry-label">ملاحظات إضافية:</span><div class="entry-line"></div></div>
     </div>
     <div style="text-align:center; margin-top:4mm;">

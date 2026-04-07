@@ -109,8 +109,8 @@ export default function EngineerTicketReceipt({ ticket, settings, translations }
             <div className="font-bold mb-1">[ نسخة المهندس / الاستخدام الداخلي ]</div>
             <div className="space-y-2 mt-2">
                 <div className="flex">
-                    <span className="w-32 italic">اسم المهندس</span>
-                    <span>: .....................</span>
+                    <span className="w-32 italic">التكلفة المبدئية</span>
+                    <span className="font-bold">: {ticket.initialQuote ? `${Number(ticket.initialQuote).toLocaleString()} ${settings.currency}` : '...........'}</span>
                 </div>
                 <div className="flex">
                     <span className="w-32 italic">وقت الإصلاح الفعلي</span>
@@ -121,12 +121,12 @@ export default function EngineerTicketReceipt({ ticket, settings, translations }
                     <span>: .....................</span>
                 </div>
                 <div className="flex">
-                    <span className="w-32 italic">قطعة الغيار</span>
-                    <span>: .....................</span>
+                    <span className="w-32 italic">قطع الغيار المصروفة</span>
+                    <span className="font-bold">: {ticket.parts && ticket.parts.length > 0 ? ticket.parts.map(p => p.product?.name).filter(Boolean).join(' + ') : '...........'}</span>
                 </div>
                 <div className="flex">
                     <span className="w-32 italic">التكلفة النهائية</span>
-                    <span>: .....................</span>
+                    <span className="font-bold">: {ticket.repairPrice ? `${Number(ticket.repairPrice).toLocaleString()} ${settings.currency}` : '...........'}</span>
                 </div>
             </div>
 

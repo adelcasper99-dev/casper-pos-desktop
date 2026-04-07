@@ -26,11 +26,26 @@ export interface Ticket {
     warrantyExpiry?: Date | string | null;
     status: string;
     repairPrice: number;
+    initialQuote?: number | null;
+    partsCost?: number | null;
     amountPaid: number;
     expectedDuration?: number | null;
     createdAt: Date | string;
     employeeName?: string | null;
     createdBy?: {
         name: string;
+    } | null;
+    parts?: TicketPart[] | null;
+}
+
+export interface TicketPart {
+    id: string;
+    productId: string;
+    quantity: number;
+    cost: number;
+    price: number;
+    product?: {
+        name: string;
+        sku?: string | null;
     } | null;
 }

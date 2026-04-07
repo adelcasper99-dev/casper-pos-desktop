@@ -101,20 +101,26 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
 
     useEffect(() => {
         setMounted(true);
-        const saved = localStorage.getItem('sidebar_order');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                const validKeys = parsed.filter((key: string) => MENU_ITEMS.some(item => item.key === key));
+        if (typeof window !== 'undefined') {
+            const storageKey = user?.id ? `sidebar_order_${user.id}` : 'sidebar_order';
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    // Filter out stale keys that no longer exist in MENU_ITEMS
+                    const validKeys = parsed.filter((key: string) => MENU_ITEMS.some(item => item.key === key));
 
-                // Add any missing new items to the end
-                const missingKeys = MENU_ITEMS.filter(item => !validKeys.includes(item.key)).map(i => i.key);
-                setItemsOrder([...validKeys, ...missingKeys]);
-            } catch (e) {
-                console.error("Failed to parse sidebar order", e);
+                    // Add any missing new items to the end (backfilling)
+                    const missingKeys = MENU_ITEMS.filter(item => !validKeys.includes(item.key)).map(i => i.key);
+                    
+                    const finalOrder = [...validKeys, ...missingKeys];
+                    setItemsOrder(finalOrder);
+                } catch (e) {
+                    console.error("Failed to parse sidebar order", e);
+                }
             }
         }
-    }, []);
+    }, [user?.id]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -182,7 +188,8 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                 const newOrder = arrayMove(items, oldIndex, newIndex);
 
                 if (typeof window !== 'undefined') {
-                    localStorage.setItem('sidebar_order', JSON.stringify(newOrder));
+                    const storageKey = user?.id ? `sidebar_order_${user.id}` : 'sidebar_order';
+                    localStorage.setItem(storageKey, JSON.stringify(newOrder));
                 }
 
                 return newOrder;
