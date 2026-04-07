@@ -77,11 +77,6 @@ const runMigrations = (dbPath) => {
     const prismaJs = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'prisma', 'build', 'index.js');
     const schemaPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'prisma', 'schema.prisma');
 
-    if (!fs.existsSync(prismaJs)) {
-        log(`Migrations: FATAL - Prisma CLI not found at ${prismaJs}`);
-        return;
-    }
-
     const env = {
         ...process.env,
         ELECTRON_RUN_AS_NODE: '1',
@@ -90,6 +85,50 @@ const runMigrations = (dbPath) => {
         PRISMA_SCHEMA_ENGINE_BINARY: schemaEnginePath,
         PRISMA_CLI_QUERY_ENGINE_TYPE: 'library'
     };
+
+    const runSql = (sql) => {
+        try {
+            execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+                env, input: sql, windowsHide: true, encoding: 'utf-8'
+            });
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // ─── Pre-Patch: Apply each missing column individually ────────────────────
+    // Each statement runs in isolation so "duplicate column" errors on already-
+    // patched databases are silently ignored without blocking the full migration.
+    const prePatchStatements = [
+        // Product: device classification fields (schema drift — not in any existing migration)
+        `ALTER TABLE "Product" ADD COLUMN "isDevice" BOOLEAN NOT NULL DEFAULT false`,
+        `ALTER TABLE "Product" ADD COLUMN "deviceType" TEXT`,
+        `ALTER TABLE "Product" ADD COLUMN "condition" TEXT`,
+        `ALTER TABLE "Product" ADD COLUMN "color" TEXT`,
+        // PurchaseItem: IMEI + device tracking fields
+        `ALTER TABLE "PurchaseItem" ADD COLUMN "imei" TEXT`,
+        `ALTER TABLE "PurchaseItem" ADD COLUMN "condition" TEXT`,
+        `ALTER TABLE "PurchaseItem" ADD COLUMN "color" TEXT`,
+        `ALTER TABLE "PurchaseItem" ADD COLUMN "deviceType" TEXT`,
+        `ALTER TABLE "PurchaseItem" ADD COLUMN "returnedQty" INTEGER NOT NULL DEFAULT 0`,
+        // SaleItem: IMEI + device tracking fields
+        `ALTER TABLE "SaleItem" ADD COLUMN "imei" TEXT`,
+        `ALTER TABLE "SaleItem" ADD COLUMN "condition" TEXT`,
+        `ALTER TABLE "SaleItem" ADD COLUMN "color" TEXT`,
+        `ALTER TABLE "SaleItem" ADD COLUMN "deviceType" TEXT`,
+        // CashCategory: create if not exists (always safe)
+        `CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")`,
+    ];
+
+    log('Migrations: Applying pre-patch SQL statements...');
+    for (const sql of prePatchStatements) {
+        const ok = runSql(sql + ';');
+        log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
+    }
+    log('Migrations: Pre-patch complete.');
+    // ──────────────────────────────────────────────────────────────────────────
 
     const attemptMigration = (attempt) => {
         try {
