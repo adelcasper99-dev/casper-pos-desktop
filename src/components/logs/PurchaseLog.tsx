@@ -662,7 +662,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
 
                                 <div className="pt-4 border-t border-border flex justify-between items-center">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-rose-500">المتبقي (مديونية)</span>
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-rose-500">المبلغ الآجل (مديونية)</span>
                                         <span className="text-xs text-muted-foreground font-medium italic">القيمة المستحقة للمورد لاحقاً</span>
                                     </div>
                                     <div className="text-right">

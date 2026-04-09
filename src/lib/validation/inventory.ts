@@ -15,6 +15,8 @@ export const productSchema = z.object({
     stock: z.coerce.number().default(0),
     minStock: z.coerce.number().default(5),
     categoryId: z.string().optional(),
+    modelId: z.string().optional().nullable(),
+    attributeId: z.string().optional().nullable(),
     trackStock: z.boolean().default(true),
     isBundle: z.boolean().default(false),
     isDevice: z.boolean().default(false),
@@ -45,6 +47,8 @@ const purchaseItemSchema = z.object({
     name: z.string().optional(),
     sku: z.string().optional(),
     categoryId: z.string().optional(),
+    modelId: z.string().optional().nullable(),
+    attributeId: z.string().optional().nullable(),
     quantity: z.coerce.number().min(0.001, "Quantity must be at least 0.001"),
     unitCost: z.coerce.number().min(0),
     sellPrice: z.coerce.number().optional(),
@@ -55,6 +59,8 @@ const purchaseItemSchema = z.object({
     condition: z.string().optional(),
     imei: z.string().optional(),
     color: z.string().optional(),
+    unitOfMeasureId: z.string().optional().nullable(),
+    conversionFactor: z.coerce.number().optional().default(1.0),
 });
 
 export const purchaseSchema = z.object({
@@ -78,4 +84,12 @@ export const warehouseSchema = z.object({
     name: z.string().min(1, "Warehouse Name is required"),
     address: z.string().optional(),
     branchId: z.string().optional(),
+});
+
+export const unitOfMeasureSchema = z.object({
+    name: z.string().min(1, "Unit Name is required"),
+    code: z.string().min(1, "Unit Code is required"),
+    abbreviation: z.string().optional(),
+    conversionFactor: z.coerce.number().optional().default(1.0),
+    isActive: z.boolean().optional().default(true),
 });

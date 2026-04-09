@@ -60,6 +60,9 @@ interface Product {
     unitCode?: string | null;
     unitName?: string | null;
     unitAbbreviation?: string | null;
+    modelId?: string | null;
+    modelName?: string | null;
+    attributeId?: string | null;
 }
 
 interface Category {
@@ -74,16 +77,25 @@ export default function ProductsTab({
     user,
     warehouseId,
     currency = "EGP",
-    initialUnits = []
-}: {
-    products: any[];
-    categories: Category[];
-    csrfToken?: string;
-    user?: any;
-    warehouseId?: string;
-    currency?: string;
-    initialUnits?: any[];
-}) {
+    initialUnits = [],
+    models = [],
+    attributes = []
+}: any) {
+    const updateDerivedName = (prod: any) => {
+        const cat = categories.find((c: Category) => c.id === prod.categoryId);
+        const mod = models.find((m: any) => m.id === prod.modelId);
+        const attr = attributes.find((a: any) => a.id === prod.attributeId);
+        
+        let newName = prod.name;
+        if (cat || mod || attr) {
+            const parts = [];
+            if (cat) parts.push(cat.name);
+            if (mod) parts.push(mod.name);
+            if (attr) parts.push(attr.name);
+            newName = parts.join(' - ');
+        }
+        return newName;
+    };
     const t = useTranslations('Inventory.products');
     const tCommon = useTranslations('Common');
     const [search, setSearch] = useState("");
@@ -250,6 +262,8 @@ export default function ProductsTab({
             minStock: Number(editingProduct.minStock || 0),
             trackStock: editingProduct.trackStock,
             unitOfMeasureId: editingProduct.unitOfMeasureId || undefined,
+            modelId: editingProduct.modelId || undefined,
+            attributeId: editingProduct.attributeId || undefined,
             csrfToken
         } as any);
 
@@ -415,7 +429,7 @@ export default function ProductsTab({
                                     <Filter className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
                                     <span className="text-slate-700 dark:text-zinc-300 font-bold">
                                         {categoryId 
-                                            ? categories.find(c => c.id === categoryId)?.name 
+                                            ? categories.find((c: any) => c.id === categoryId)?.name 
                                             : (tCommon('allCategories') || "كل الأقسام")}
                                     </span>
                                     <ChevronDown className="w-3 h-3 opacity-50 text-slate-400" />
@@ -427,7 +441,7 @@ export default function ProductsTab({
                                     {tCommon('allCategories') || "كل الأقسام"}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator className="bg-slate-100 dark:bg-white/5" />
-                                {categories.map(cat => (
+                                {categories.map((cat: any) => (
                                     <DropdownMenuItem key={cat.id} onClick={() => { setCategoryId(cat.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold", categoryId === cat.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
                                         {cat.name}
                                     </DropdownMenuItem>
@@ -504,6 +518,8 @@ export default function ProductsTab({
                  categories={categories}
                  allProducts={products}
                   units={unitsList}
+                  models={models}
+                  attributes={attributes}
                  csrfToken={csrfToken}
                  onSuccess={() => { refetch(); }}
              />
@@ -540,6 +556,7 @@ export default function ProductsTab({
                                         {t('name')}
                                     </div>
                                 </th>
+                                <th className="px-6 py-4 text-start font-black w-[150px]">{t('model') || "الموديل"}</th>
                                 <th className="px-6 py-4 text-start font-black w-[150px]">{t('category')}</th>
                                 <th className="px-6 py-4 text-center font-black w-[120px] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('stock')}>
                                     <div className="flex items-center justify-center gap-2">
@@ -604,8 +621,13 @@ export default function ProductsTab({
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
+                                            <div className="text-xs font-bold text-slate-600 dark:text-zinc-400">
+                                                {p.modelName || '-'}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
                                             <span className="text-xs font-black text-slate-500 dark:text-white/40 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded border border-slate-200 dark:border-white/10 uppercase tracking-wider">
-                                                {categories.find(c => c.id === p.categoryId)?.name || '-'}
+                                                {categories.find((c: any) => c.id === p.categoryId)?.name || '-'}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -753,20 +775,83 @@ export default function ProductsTab({
                                 <select
                                     className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
                                     value={editingProduct.categoryId || ""}
-                                    onChange={e => setEditingProduct({ ...editingProduct, categoryId: e.target.value })}
+                                    onChange={e => {
+                                        const newProd = { ...editingProduct, categoryId: e.target.value, modelId: "" };
+                                        newProd.name = updateDerivedName(newProd);
+                                        setEditingProduct(newProd);
+                                    }}
                                 >
                                     <option value="">No Category</option>
-                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
                         </div>
 
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('model') || "الموديل"}</label>
+                                <select
+                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    value={editingProduct.modelId || ""}
+                                    onChange={e => {
+                                        const newProd = { ...editingProduct, modelId: e.target.value };
+                                        newProd.name = updateDerivedName(newProd);
+                                        setEditingProduct(newProd);
+                                    }}
+                                >
+                                    <option value="">No Model</option>
+                                    {models.filter((m: any) => !editingProduct.categoryId || m.categoryId === editingProduct.categoryId).map((m: any) => {
+                                        const cat = categories.find((c: any) => c.id === m.categoryId);
+                                        return (
+                                            <option key={m.id} value={m.id}>
+                                                {cat ? `${cat.name} - ` : ''}{m.name}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">الوصف/الصفة</label>
+                                <select
+                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    value={editingProduct.attributeId || ""}
+                                    onChange={e => {
+                                        const newProd = { ...editingProduct, attributeId: e.target.value };
+                                        newProd.name = updateDerivedName(newProd);
+                                        setEditingProduct(newProd);
+                                    }}
+                                >
+                                    <option value="">بدون صفة</option>
+                                    {attributes.map((a: any) => (
+                                        <option key={a.id} value={a.id}>{a.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('unit') || "الوحدة"}</label>
+                                <select
+                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    value={editingProduct.unitOfMeasureId || ""}
+                                    onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value })}
+                                >
+                                    <option value="">Default Unit</option>
+                                    {unitsList.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+
                         <div>
                             <label className="text-xs text-slate-500 dark:text-zinc-400 uppercase font-black mb-1 block tracking-widest">{t('name')}</label>
                             <input
-                                className="glass-input w-full font-black text-slate-900 dark:text-white"
+                                className="glass-input w-full font-black text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-white/5 cursor-not-allowed"
                                 value={editingProduct.name}
-                                onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                                readOnly
                             />
                         </div>
 

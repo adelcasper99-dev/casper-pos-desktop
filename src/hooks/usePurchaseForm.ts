@@ -12,6 +12,12 @@ export interface InvoiceItem {
     name: string;
     sku: string;
     categoryId?: string;
+    modelId?: string;
+    modelName?: string;
+    isNewModel?: boolean;
+    attributeId?: string;
+    attributeName?: string;
+    isNewAttribute?: boolean;
     quantity: number;
     unitCost: number;
     sellPrice?: number;
@@ -21,6 +27,8 @@ export interface InvoiceItem {
     condition?: string;
     imei?: string;
     deviceType?: string;
+    unitOfMeasureId?: string;
+    conversionFactor?: number;
 }
 
 interface UsePurchaseFormProps {
@@ -146,6 +154,13 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 if (data.deliveryCharge) setDeliveryCharge(data.deliveryCharge);
                 if (data.paidAmount) setPaidAmount(data.paidAmount);
                 if (data.cart && Array.isArray(data.cart)) setCart(data.cart);
+                
+                // New persistent fields
+                if (data.isWalkin !== undefined) setIsWalkin(data.isWalkin);
+                if (data.walkinName) setWalkinName(data.walkinName);
+                if (data.walkinPhone) setWalkinPhone(data.walkinPhone);
+                if (data.walkinNationalId) setWalkinNationalId(data.walkinNationalId);
+                if (data.attachmentUrl) setAttachmentUrl(data.attachmentUrl);
 
                 // Only open if we have significant data
                 if (data.selectedSupplierId || (data.cart && data.cart.length > 0)) {
@@ -170,7 +185,12 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             treasuryId,
             deliveryCharge,
             paidAmount,
-            cart
+            cart,
+            isWalkin,
+            walkinName,
+            walkinPhone,
+            walkinNationalId,
+            attachmentUrl
         };
 
         // Debounce slightly or just save
@@ -184,6 +204,11 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         deliveryCharge,
         paidAmount,
         cart,
+        isWalkin,
+        walkinName,
+        walkinPhone,
+        walkinNationalId,
+        attachmentUrl,
         editingInvoiceId
     ]);
 
@@ -408,7 +433,9 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 isDevice: i.isDevice,
                 deviceType: i.deviceType,
                 condition: i.condition,
-                imei: i.imei
+                imei: i.imei,
+                unitOfMeasureId: i.unitOfMeasureId,
+                conversionFactor: i.conversionFactor || 1
             })),
             paidAmount: parseFloat(paidAmount) || 0,
             deliveryCharge: parseFloat(deliveryCharge) || 0,

@@ -20,7 +20,9 @@ export default function InventoryTabs({
     permissions = { canManageCategories: true },
     units = [],
     branches = [],
-    isHQUser = false
+    isHQUser = false,
+    models = [],
+    attributes = []
 }: any) {
     const t = useTranslations('Inventory');
     const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES'>('STOCK');
@@ -102,6 +104,8 @@ export default function InventoryTabs({
                                 warehouseId={warehouses.find((w: any) => w.isDefault)?.id}
                                 currency={currency}
                                 initialUnits={units}
+                                models={models}
+                                attributes={attributes}
                             />
                         )}
 

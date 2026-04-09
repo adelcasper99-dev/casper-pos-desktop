@@ -13,6 +13,12 @@ export const dynamic = 'force-dynamic';
 export default async function InventoryPage() {
     const t = await getTranslations('Inventory');
     const categories = await prisma.category.findMany();
+    const models = await prisma.model.findMany({
+        orderBy: { name: 'asc' }
+    });
+    const attributes = await prisma.attribute.findMany({
+        orderBy: { name: 'asc' }
+    });
 
     // Fetch user and branches
     const user = await getCurrentUser();
@@ -42,13 +48,19 @@ export default async function InventoryPage() {
         }
     }));
 
-    const productsRaw = await prisma.product.findMany();
+    const productsRaw = await prisma.product.findMany({
+        include: { model: true }
+    });
     const products = productsRaw.map((p: any) => ({
         id: p.id,
         sku: p.sku,
         name: p.name,
         stock: p.stock,
         categoryId: p.categoryId,
+        modelId: p.modelId,
+        attributeId: p.attributeId,
+        unitOfMeasureId: p.unitOfMeasureId,
+        modelName: p.model?.name || '-',
         costPrice: p.costPrice.toNumber(),
         sellPrice: p.sellPrice.toNumber(),
         sellPrice2: p.sellPrice2?.toNumber() || 0,
@@ -76,15 +88,13 @@ export default async function InventoryPage() {
             name: inv.supplier.name,
         },
         totalAmount: inv.totalAmount.toNumber(),
-        paidAmount: inv.paidAmount.toNumber()
+        paidAmount: inv.paidAmount.toNumber(),
+        deliveryCharge: inv.deliveryCharge.toNumber()
     }));
 
     const csrfToken = await getCSRFToken();
     const session = await getSession();
 
-    // Fetch Stock Requests
-    // const stockRequestsRes = await getStockRequests();
-    // const stockRequests = stockRequestsRes?.data || [];
     const stockRequests: any[] = [];
 
     const settingsRaw = await prisma.storeSettings.findUnique({ where: { id: "settings" } });
@@ -121,6 +131,7 @@ export default async function InventoryPage() {
 
             <ClientHelper
                 categories={categories}
+                models={models}
                 products={products}
                 warehouses={warehouses}
                 csrfToken={csrfToken || ''}
@@ -129,6 +140,7 @@ export default async function InventoryPage() {
                 currency={currency}
                 permissions={permissions}
                 units={units}
+                attributes={attributes}
                 branches={branches}
                 isHQUser={isHQUser}
             />

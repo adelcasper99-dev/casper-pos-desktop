@@ -12,6 +12,7 @@ import { Toaster } from "@/components/ui/sonner";
 import Providers from "@/components/Providers";
 import { cookies } from "next/headers";
 import Sidebar from "@/components/Sidebar";
+import NavigationHotkeys from "@/components/NavigationHotkeys";
 import { getCurrentUser } from "@/actions/auth";
 import { initDatabase } from "@/lib/db-init";
 import { getStoreSettings } from "@/actions/settings";
@@ -41,6 +42,7 @@ export default async function RootLayout({
         <html lang="ar" dir="rtl" suppressHydrationWarning>
             <body className="antialiased">
                 <Providers initialToken={csrfToken}>
+                    <NavigationHotkeys />
                     <LayoutWrapper user={user} settings={settings}>
                         {children}
                     </LayoutWrapper>

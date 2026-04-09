@@ -13,12 +13,16 @@ export default function PurchasingClient({
     suppliers,
     products,
     categories,
+    models,
     invoices,
+    units,
     warehouses,
     branches,
     isHQUser,
     userBranchId,
-    csrfToken
+    csrfToken,
+    attributes,
+    treasuries
 }: any) {
     const t = useTranslations('Purchasing');
     const [activeTab, setActiveTab] = useState<'PURCHASES' | 'SUPPLIERS' | 'SERVICES'>('PURCHASES');
@@ -68,12 +72,16 @@ export default function PurchasingClient({
                         suppliers={suppliers}
                         products={products}
                         categories={categories}
+                        models={models}
                         invoices={invoices}
                         warehouses={warehouses}
                         branches={branches}
                         isHQUser={isHQUser}
                         userBranchId={userBranchId}
                         csrfToken={csrfToken}
+                        units={units}
+                        attributes={attributes}
+                        treasuries={treasuries}
                     />
                 )}
 

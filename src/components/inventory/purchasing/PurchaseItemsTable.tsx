@@ -19,10 +19,14 @@ interface InvoiceItem {
     sellPrice3?: number;
     isNew?: boolean; // If true, create product on save
     categoryId?: string; // Required if isNew
+    modelId?: string;
+    attributeId?: string;
     isDevice?: boolean;
     deviceType?: string;
     condition?: string;
     imei?: string;
+    unitOfMeasureId?: string;
+    conversionFactor?: number;
 }
 
 interface PurchaseItemsTableProps {

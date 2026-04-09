@@ -52,6 +52,7 @@ export default async function POSPage() {
             archived: false,
         },
         include: {
+            model: true,
             stocks: posDefaultId ? {
                 where: {
                     warehouseId: posDefaultId
@@ -73,6 +74,8 @@ export default async function POSPage() {
             name: p.name,
             stock: warehouseStock, // Now reflects the specific warehouse stock
             categoryId: p.categoryId,
+            modelId: p.modelId,
+            modelName: p.model?.name || '-',
             costPrice: p.costPrice.toNumber(),
             sellPrice: p.sellPrice.toNumber(),
             sellPrice2: p.sellPrice2?.toNumber() || 0,

@@ -355,7 +355,10 @@ export default function POSClientAPI({
             if (p.trackStock !== false && p.stock <= 0) {
                 return false;
             }
-            const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.includes(search)) || (p.barcode && p.barcode.includes(search));
+            const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
+                                 (p.sku && p.sku.includes(search)) || 
+                                 (p.barcode && p.barcode.includes(search)) ||
+                                 (p.modelName && p.modelName.toLowerCase().includes(search.toLowerCase()));
             
             // If searching, ignore category filter
             if (search.length > 0) return matchesSearch;
@@ -1160,7 +1163,12 @@ export default function POSClientAPI({
                                     </div>
 
                                     <div className="mt-auto w-full">
-                                        <div className={`font-medium dark:font-bold line-clamp-2 text-slate-600 dark:text-zinc-200 group-hover:text-slate-800 dark:group-hover:text-white transition-colors ${gridCols >= 6 ? 'text-xs' : 'text-sm'}`}>{p.name}</div>
+                                        <div className={`font-medium dark:font-bold line-clamp-2 text-slate-600 dark:text-zinc-200 group-hover:text-slate-800 dark:group-hover:text-white transition-colors ${gridCols >= 6 ? 'text-xs' : 'text-sm'}`}>
+                                            {p.name}
+                                            {p.modelName && p.modelName !== '-' && (
+                                                <span className="block text-[10px] opacity-70 mt-0.5">{p.modelName}</span>
+                                            )}
+                                        </div>
                                         <div className="flex justify-between items-center mt-1">
                                             <div className="text-slate-800 dark:text-white font-semibold dark:font-black font-mono text-sm">{formatCurrency(p[priceTier] || p.sellPrice)}</div>
                                             {permissions.canViewCost && showCostPrice && p.costPrice > 0 && (

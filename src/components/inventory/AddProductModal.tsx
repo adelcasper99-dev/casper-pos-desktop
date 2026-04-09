@@ -41,6 +41,8 @@ interface AddProductModalProps {
     categories: Category[];
     allProducts: Product[];
     units?: Unit[];
+    models?: any[];
+    attributes?: any[];
     csrfToken?: string;
     onSuccess?: () => void;
 }
@@ -59,6 +61,8 @@ const EMPTY_FORM = {
     isBundle: true,
     description: "",
     unitOfMeasureId: "",
+    modelId: "",
+    attributeId: "",
 };
 
 export default function AddProductModal({
@@ -67,9 +71,26 @@ export default function AddProductModal({
     categories,
     allProducts,
     units = [],
+    models = [],
+    attributes = [],
     csrfToken,
     onSuccess,
-}: AddProductModalProps) {
+}: any) {
+    const updateDerivedName = (currentForm: any) => {
+        const cat = categories.find((c: Category) => c.id === currentForm.categoryId);
+        const mod = models.find((m: any) => m.id === currentForm.modelId);
+        const attr = attributes.find((a: any) => a.id === currentForm.attributeId);
+        
+        let newName = currentForm.name;
+        if (cat || mod || attr) {
+            const parts = [];
+            if (cat) parts.push(cat.name);
+            if (mod) parts.push(mod.name);
+            if (attr) parts.push(attr.name);
+            newName = parts.join(' - ');
+        }
+        return newName;
+    };
     const t = useTranslations('Inventory.products');
     const tCommon = useTranslations('Common');
     const [form, setForm] = useState(EMPTY_FORM);
@@ -79,7 +100,7 @@ export default function AddProductModal({
     const [error, setError] = useState<string | null>(null);
 
     // Group units by category
-    const unitsByCategory = units.reduce((acc, unit) => {
+    const unitsByCategory = units.reduce((acc: Record<string, Unit[]>, unit: Unit) => {
         const cat = unit.category || 'COUNT';
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(unit);
@@ -87,17 +108,17 @@ export default function AddProductModal({
     }, {} as Record<string, Unit[]>);
 
     // Get unit options with group labels
-    const unitOptions = Object.entries(unitsByCategory).flatMap(([category, catUnits]) => [
+    const unitOptions = (Object.entries(unitsByCategory) as [string, Unit[]][]).flatMap(([category, catUnits]) => [
         { label: `--- ${category} ---`, value: '', disabled: true },
-        ...catUnits.map(u => ({ label: `${u.name} (${u.code})`, value: u.id }))
+        ...catUnits.map((u: Unit) => ({ label: `${u.name} (${u.code})`, value: u.id }))
     ]);
 
     // Filter out bundles from component candidates
-    const componentCandidates = allProducts.filter(p => !(p as any).isBundle);
+    const componentCandidates = allProducts.filter((p: any) => !(p as any).isBundle);
 
     // Auto-calculate bundle cost from selected components
-    const computedBundleCost = bundleItems.reduce((total, row) => {
-        const comp = componentCandidates.find(p => p.id === row.componentProductId);
+    const computedBundleCost = bundleItems.reduce((total: number, row: BundleItemRow) => {
+        const comp = componentCandidates.find((p: any) => p.id === row.componentProductId);
         if (!comp) return total;
         return total + comp.costPrice * row.quantityIncluded;
     }, 0);
@@ -111,7 +132,7 @@ export default function AddProductModal({
     useEffect(() => {
         if (isOpen) {
             seedBundleCategory({ csrfToken } as any).catch(() => {});
-            const bundleCat = categories.find(c => c.name === "العروض والباقات");
+            const bundleCat = categories.find((c: Category) => c.name === "العروض والباقات");
             if (bundleCat && form.categoryId === "") {
                 setForm(f => ({ ...f, categoryId: bundleCat.id }));
             }
@@ -168,6 +189,8 @@ export default function AddProductModal({
                 trackStock: false,
                 isBundle: true,
                 unitOfMeasureId: form.unitOfMeasureId || undefined,
+                modelId: form.modelId || undefined,
+                attributeId: form.attributeId || undefined,
                 bundleItems: bundleItems.map(b => ({
                     componentProductId: b.componentProductId,
                     quantityIncluded: Number(b.quantityIncluded),
@@ -227,40 +250,84 @@ export default function AddProductModal({
                         <select
                             className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
                             value={form.categoryId}
-                            onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
+                            onChange={e => {
+                                const nextForm = { ...form, categoryId: e.target.value, modelId: "", attributeId: "" };
+                                setForm({ ...nextForm, name: updateDerivedName(nextForm) });
+                            }}
                         >
-                            <option value="">اختر تصنيفاً</option>
-                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            <option value="">{tCommon('selectCategory') || "اختر تصنيفاً"}</option>
+                            {categories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
                 </div>
 
-                <div>
-                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">وحدة القياس</label>
-                    <select
-                        className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
-                        value={form.unitOfMeasureId}
-                        onChange={e => setForm(f => ({ ...f, unitOfMeasureId: e.target.value }))}
-                    >
-                        <option value="">بدون وحدة</option>
-                        {Object.entries(unitsByCategory).map(([category, catUnits]) => (
-                            <optgroup key={category} label={category}>
-                                {catUnits.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
-                                ))}
-                            </optgroup>
-                        ))}
-                    </select>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">{tCommon('model') || "الموديل"}</label>
+                        <select
+                            className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                            value={form.modelId}
+                            onChange={e => {
+                                const nextForm = { ...form, modelId: e.target.value };
+                                setForm({ ...nextForm, name: updateDerivedName(nextForm) });
+                            }}
+                        >
+                            <option value="">No Model</option>
+                            {models.filter((m: any) => !form.categoryId || m.categoryId === form.categoryId).map((m: any) => {
+                                const cat = categories.find((c: any) => c.id === m.categoryId);
+                                return (
+                                    <option key={m.id} value={m.id}>
+                                        {cat ? `${cat.name} - ` : ''}{m.name}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">الوصف/الصفة</label>
+                        <select
+                            className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                            value={form.attributeId}
+                            onChange={e => {
+                                const nextForm = { ...form, attributeId: e.target.value };
+                                setForm({ ...nextForm, name: updateDerivedName(nextForm) });
+                            }}
+                        >
+                            <option value="">بدون صفة</option>
+                            {attributes.map((a: any) => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
-                <div>
-                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">{tCommon('name') || "اسم المنتج"}</label>
-                    <input
-                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                        value={form.name}
-                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="اسم الباقة"
-                    />
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">وحدة القياس</label>
+                        <select
+                            className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                            value={form.unitOfMeasureId}
+                            onChange={e => setForm(f => ({ ...f, unitOfMeasureId: e.target.value }))}
+                        >
+                            <option value="">بدون وحدة</option>
+                            { (Object.entries(unitsByCategory) as [string, Unit[]][]).map(([category, catUnits]) => (
+                                <optgroup key={category} label={category}>
+                                    {catUnits.map((u: Unit) => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
+                                    ))}
+                                </optgroup>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">{tCommon('name') || "اسم المنتج"}</label>
+                        <input
+                            className="glass-input w-full font-black text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-white/5 cursor-not-allowed"
+                            value={form.name}
+                            readOnly
+                            placeholder="اسم الباقة"
+                        />
+                    </div>
                 </div>
 
                 {/* Prices */}
@@ -320,12 +387,12 @@ export default function AddProductModal({
 
                         <div className="space-y-3">
                         {bundleItems.map((row, idx) => {
-                            const selectedComp = componentCandidates.find(p => p.id === row.componentProductId);
+                            const selectedComp = componentCandidates.find((p: any) => p.id === row.componentProductId);
                             return (
                                 <div key={idx} className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm transition-all hover:bg-white dark:hover:bg-white/[0.05] group/row">
                                     <div className="flex-1">
                                         <Combobox
-                                            options={componentCandidates.map(p => ({
+                                            options={componentCandidates.map((p: any) => ({
                                                 label: `${p.name} — مخزون: ${p.stock}`,
                                                 value: p.id
                                             }))}

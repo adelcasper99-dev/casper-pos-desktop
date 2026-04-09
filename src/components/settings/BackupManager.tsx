@@ -40,6 +40,7 @@ export default function BackupManager() {
             }
         } catch (error) {
             console.error("Failed to load config", error);
+            toast.error(t('messages.loadConfigError'));
         } finally {
             setIsLoading(false);
         }
@@ -50,16 +51,17 @@ export default function BackupManager() {
             if (window.electronAPI?.storage?.getAvailableBackups) {
                 const result = await window.electronAPI.storage.getAvailableBackups();
                 if (result.success) setBackups(result.backups || []);
-                else toast.error(`Failed to load backups: ${result.error}`);
+                else toast.error(t('messages.loadBackupsError'));
             }
         } catch (error) {
             console.error("Failed to fetch backups", error);
+            toast.error(t('messages.loadBackupsError'));
         }
     };
 
     const handleSelectFolder = async () => {
         if (!window.electronAPI?.config?.selectBackupFolder) {
-            toast.error("This feature is only available in the Desktop App.");
+            toast.error(t('messages.selectFolderError'));
             return;
         }
         const folder = await window.electronAPI.config.selectBackupFolder();
@@ -76,14 +78,14 @@ export default function BackupManager() {
                 maxBackups: parseInt(maxBackups)
             });
             if (result.success) {
-                toast.success("Backup settings saved and applied.");
+                toast.success(t('messages.saveSuccess'));
                 fetchBackups();
                 LocalPersistenceService.startAutoBackup();
             } else {
-                toast.error(`Error saving: ${result.error}`);
+                toast.error(t('messages.saveError', { error: result.error }));
             }
         } catch (error) {
-            toast.error("An unexpected error occurred.");
+            toast.error(t('messages.saveError', { error: 'Unknown' }));
         } finally {
             setIsSaving(false);
         }
@@ -91,13 +93,13 @@ export default function BackupManager() {
 
     const handleManualBackup = async () => {
         setIsSaving(true);
-        const tid = toast.loading("Creating manual backup...");
+        const tid = toast.loading(t('messages.manualBackupStart'));
         try {
             await LocalPersistenceService.backupToFilesystem(true);
-            toast.success("Backup created successfully.", { id: tid });
+            toast.success(t('messages.manualBackupSuccess'), { id: tid });
             fetchBackups();
         } catch (error: any) {
-            toast.error(error.message || "Manual backup failed.", { id: tid });
+            toast.error(t('messages.manualBackupError', { error: error.message }), { id: tid });
         } finally {
             setIsSaving(false);
         }
@@ -105,12 +107,12 @@ export default function BackupManager() {
 
     const handleDelete = async (backupFilePath: string) => {
         if (!window.electronAPI?.storage?.deleteBackup) return;
-        if (!confirm("Confirm removal of this historical node?")) return;
+        if (!confirm(t('deleteConfirm'))) return;
         setIsSaving(true);
         try {
             const result = await window.electronAPI.storage.deleteBackup(backupFilePath);
             if (result.success) {
-                toast.success("Backup deleted successfully.");
+                toast.success(t('messages.deleteSuccess'));
                 fetchBackups();
             }
         } finally {
@@ -120,34 +122,34 @@ export default function BackupManager() {
 
     const handleRestore = async (backupFilePath: string) => {
         if (!window.electronAPI?.storage?.restoreFromBackup) return;
-        if (!confirm("CRITICAL WARNING: Restoring will overwrite all current data. App will restart. Proceed?")) return;
+        if (!confirm(t('restoreConfirm'))) return;
         setIsRestoring(true);
         try {
             const result = await window.electronAPI.storage.restoreFromBackup(backupFilePath);
             if (!result.success) {
-                toast.error(`Restore failed: ${result.error}`);
+                toast.error(t('messages.restoreError', { error: result.error }));
                 setIsRestoring(false);
             }
         } catch (error) {
-            toast.error("Restore failed unexpectedly.");
+            toast.error(t('messages.restoreError', { error: 'Unknown' }));
             setIsRestoring(false);
         }
     };
 
     const handleDatabaseReset = async () => {
         if (resetConfirmText !== 'RESET') {
-            toast.error("Type 'RESET' to confirm factory purge.");
+            toast.error(t('messages.resetConfirmError'));
             return;
         }
-        if (!confirm(t('resetConfirm1') || "Purge all operational data?")) return;
+        if (!confirm(t('messages.resetConfirmPrompt'))) return;
         setIsResetting(true);
-        const tid = toast.loading(t('resetting') || "Resetting database...");
+        const tid = toast.loading(t('messages.resetting'));
         try {
             const result = await resetDatabase();
             if (result.success) {
-                toast.success(result.message || t('resetSuccess'), { id: tid });
+                toast.success(t('messages.resetSuccess'), { id: tid });
                 setTimeout(() => window.location.reload(), 2000);
-            } else toast.error(result.error || t('resetError'), { id: tid });
+            } else toast.error(t('messages.saveError', { error: result.error || 'Unknown' }), { id: tid });
         } finally {
             setIsResetting(false);
         }
@@ -163,43 +165,43 @@ export default function BackupManager() {
                     <div className="space-y-2">
                         <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
                             <Database className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-                            Autonomous Persistence
+                            {t('autonomousPersistence')}
                         </h3>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Architectural data safety and automated local snapshots</p>
+                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">{t('autonomousPersistenceDesc')}</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-3">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Sequence Frequency</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('sequenceFrequency')}</label>
                             <select
                                 value={backupInterval}
                                 onChange={(e) => setBackupInterval(e.target.value)}
                                 className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
                             >
-                                <option value="15" className="bg-card font-black">15 Minute Intervals</option>
-                                <option value="60" className="bg-card font-black">60 Minute Intervals</option>
-                                <option value="360" className="bg-card font-black">6 Hour Intervals</option>
-                                <option value="1440" className="bg-card font-black">24 Hour Intervals</option>
+                                <option value="15" className="bg-card font-black">{t('intervalTitles.15')}</option>
+                                <option value="60" className="bg-card font-black">{t('intervalTitles.60')}</option>
+                                <option value="360" className="bg-card font-black">{t('intervalTitles.360')}</option>
+                                <option value="1440" className="bg-card font-black">{t('intervalTitles.1440')}</option>
                             </select>
                         </div>
 
                         <div className="space-y-3">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Retention Depth</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('retentionDepth')}</label>
                             <select
                                 value={maxBackups}
                                 onChange={(e) => setMaxBackups(e.target.value)}
                                 className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
                             >
-                                <option value="10" className="bg-card font-black">10 Historical Nodes</option>
-                                <option value="30" className="bg-card font-black">30 Historical Nodes</option>
-                                <option value="50" className="bg-card font-black">50 Historical Nodes</option>
-                                <option value="100" className="bg-card font-black">100 Historical Nodes</option>
+                                <option value="10" className="bg-card font-black">{t('nodeTitles.10')}</option>
+                                <option value="30" className="bg-card font-black">{t('nodeTitles.30')}</option>
+                                <option value="50" className="bg-card font-black">{t('nodeTitles.50')}</option>
+                                <option value="100" className="bg-card font-black">{t('nodeTitles.100')}</option>
                             </select>
                         </div>
                     </div>
 
                     <div className="space-y-3 pt-4">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Target Endpoint Destination</label>
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('targetEndpoint')}</label>
                         <div className="flex flex-col sm:flex-row gap-3">
                             <div className="flex-1 relative group/input">
                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none opacity-40">
@@ -207,7 +209,7 @@ export default function BackupManager() {
                                 </div>
                                 <input
                                     readOnly
-                                    value={backupPath || 'INTERNAL_STORAGE_EMULATED'}
+                                    value={backupPath || t('emulatedStorage')}
                                     className="w-full bg-background/40 border border-border/40 rounded-2xl py-4 pl-12 pr-6 text-[10px] font-black font-mono text-cyan-400 group-hover/input:border-cyan-500/30 transition-all"
                                 />
                             </div>
@@ -218,7 +220,7 @@ export default function BackupManager() {
                                 className="h-14 rounded-2xl px-8 border-border/40 hover:bg-card hover:border-cyan-500/40 font-black text-[10px] uppercase tracking-widest transition-all"
                             >
                                 <FolderOpen className="w-4 h-4 mr-2" />
-                                Browse Targets
+                                {t('browseTargets')}
                             </Button>
                         </div>
                     </div>
@@ -234,7 +236,7 @@ export default function BackupManager() {
                             )}
                         >
                             <Zap className="w-4 h-4" />
-                            Trigger Force Snapshot
+                            {t('forceSnapshot')}
                         </Button>
                         <Button
                             onClick={handleSaveConfig}
@@ -242,7 +244,7 @@ export default function BackupManager() {
                             className="h-14 px-12 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-primary/20 transition-all active:scale-95"
                         >
                             <Save className="w-4 h-4 mr-2" />
-                            Commit Integrity Policy
+                            {t('commitPolicy')}
                         </Button>
                     </div>
                 </div>
@@ -257,33 +259,33 @@ export default function BackupManager() {
                         <div className="flex items-center justify-between">
                             <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
                                 <History className="w-6 h-6 text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.5)]" />
-                                Timeline Reconstruction
+                                {t('recoveryTitle')}
                             </h3>
                             <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded-full text-[8px] font-black uppercase text-orange-400 tracking-widest animate-pulse">
-                                State Critical
+                                {t('stateCritical')}
                             </div>
                         </div>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">Rollback environment to prior verified state nodes</p>
+                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">{t('recoveryDesc')}</p>
                     </div>
 
                     <div className="rounded-[2rem] border border-border/40 bg-background/20 overflow-hidden shadow-inner">
                         <div className="grid grid-cols-12 gap-4 bg-muted/40 p-5 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] border-b border-border/20">
-                            <div className="col-span-6 ml-2">Temporal Marker</div>
-                            <div className="col-span-3 text-center">Payload Size</div>
-                            <div className="col-span-3 text-right mr-4">Protocols</div>
+                            <div className="col-span-6 ml-2">{t('temporalMarker')}</div>
+                            <div className="col-span-3 text-center">{t('payloadSize')}</div>
+                            <div className="col-span-3 text-right mr-4">{t('protocols')}</div>
                         </div>
 
                         <div className="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-border/10">
                             {!backupPath && (
                                 <div className="p-20 text-center text-muted-foreground/30 flex flex-col items-center justify-center grayscale scale-75">
                                     <Database className="w-16 h-16 mb-4 opacity-20" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">Target Endpoint Undefined</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest">{t('undefinedEndpoint')}</p>
                                 </div>
                             )}
                             {backupPath && backups.length === 0 && (
                                 <div className="p-20 text-center text-muted-foreground/30 flex flex-col items-center justify-center grayscale scale-75">
                                     <RotateCcw className="w-16 h-16 mb-4 opacity-20" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">No Historical Nodes Cached</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest">{t('noNodes')}</p>
                                 </div>
                             )}
                             {backups.map((backup) => (
@@ -297,7 +299,7 @@ export default function BackupManager() {
                                                 {format(new Date(backup.createdAt), "MMM d, yyyy")}
                                             </span>
                                             <span className="text-[10px] font-black font-mono text-muted-foreground uppercase opacity-40">
-                                                {format(new Date(backup.createdAt), "HH:mm:ss [UTC]")}
+                                                {format(new Date(backup.createdAt), "HH:mm:ss 'UTC'")}
                                             </span>
                                         </div>
                                     </div>
@@ -310,7 +312,7 @@ export default function BackupManager() {
                                         <button
                                             onClick={() => handleDelete(backup.path)}
                                             className="w-10 h-10 rounded-xl bg-card/40 border border-border/40 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition-all flex items-center justify-center shadow-lg"
-                                            title="Purge Node"
+                                            title={t('purgeNode')}
                                         >
                                             <Trash className="w-4 h-4" />
                                         </button>
@@ -320,7 +322,7 @@ export default function BackupManager() {
                                             className="h-10 px-8 rounded-xl bg-orange-600/10 hover:bg-orange-600 text-orange-400 hover:text-white border border-orange-900/50 hover:border-orange-500 font-black text-[10px] uppercase tracking-widest shadow-lg transition-all"
                                         >
                                             {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                            Restore Node
+                                            {t('restoreNode')}
                                         </Button>
                                     </div>
                                 </div>
@@ -337,27 +339,27 @@ export default function BackupManager() {
                          <div className="space-y-2">
                             <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3 text-rose-500">
                                 <ShieldAlert className="w-6 h-6 animate-pulse" />
-                                Factory Purge Protocols
+                                {t('resetTitle')}
                             </h3>
-                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 opacity-60 ml-9">Absolute operational data wipe – Irreversible destruction</p>
+                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 opacity-60 ml-9">{t('resetDesc')}</p>
                          </div>
                          <AlertTriangle className="w-10 h-10 text-rose-500/20" />
                     </div>
                 </div>
                 <div className="p-8 space-y-8">
                     <div className="p-6 rounded-3xl bg-background/40 border border-rose-500/20 text-[10px] font-medium text-rose-100/60 leading-relaxed uppercase tracking-widest space-y-2">
-                        <p>• All transaction logs, purchasing history, and expense audits will be destroyed.</p>
-                        <p>• Inventory quantities and treasury balances reset to null.</p>
-                        <p>• Master data (Products/Clients) and core system settings will be preserved.</p>
+                        <p>• {t('resetAlert1')}</p>
+                        <p>• {t('resetAlert2')}</p>
+                        <p>• {t('resetAlert3')}</p>
                     </div>
 
                     <div className="space-y-4">
-                        <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">Authenticate Identity (Enter 'RESET')</label>
+                        <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">{t('resetAuth')}</label>
                         <div className="flex flex-col sm:flex-row gap-4">
                             <Input
                                 value={resetConfirmText}
                                 onChange={(e) => setResetConfirmText(e.target.value.toUpperCase())}
-                                placeholder="TYPE_PURGE_COMMAND"
+                                placeholder={t('resetPlaceholder')}
                                 className="h-14 bg-background/40 border-rose-500/20 focus:border-rose-500/60 text-rose-500 font-black tracking-[0.3em] rounded-2xl placeholder:opacity-20 flex-1"
                             />
                             <Button
@@ -367,7 +369,7 @@ export default function BackupManager() {
                                 className="h-14 px-12 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-rose-900/50 hover:scale-[1.05] active:scale-95 transition-all gap-3"
                             >
                                 {isResetting ? <Loader2 className="w-5 h-5 animate-spin" /> : <RotateCcw className="w-5 h-5" />}
-                                Initialize Reset
+                                {t('initializeReset')}
                             </Button>
                         </div>
                     </div>

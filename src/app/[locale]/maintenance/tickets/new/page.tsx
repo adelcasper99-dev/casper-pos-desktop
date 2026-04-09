@@ -67,6 +67,29 @@ export default function NewTicketPage() {
         selectedConditions: [] as string[]
     })
 
+    const STORAGE_KEY = 'ticket_form_draft';
+
+    // Load draft on mount
+    useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                setFormData(prev => ({ ...prev, ...data }));
+                if (data.customerName || data.customerPhone) {
+                    setIsExistingCustomer(false); // Re-validate or just keep it false
+                }
+            } catch (e) {
+                console.error("Failed to load ticket draft", e);
+            }
+        }
+    }, []);
+
+    // Save draft on change
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+    }, [formData]);
+
     // Helper to toggle functional checks
     const toggleCheck = (key: string) => {
         setFormData(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))
@@ -202,6 +225,7 @@ export default function NewTicketPage() {
                         </div>
                     );
 
+                    localStorage.removeItem(STORAGE_KEY); // Clear draft on offline save
                     router.push(`/${locale}/maintenance/tickets`);
                     return;
 
@@ -234,9 +258,11 @@ export default function NewTicketPage() {
                 console.log('[AutoPrint] Ticket created, redirecting with print=true, ticketId:', ticketId);
 
                 if (ticketId) {
+                    localStorage.removeItem(STORAGE_KEY); // Clear draft on success
                     // Use replace to avoid history stack issues
                     router.replace(`/${locale}/maintenance/tickets/${ticketId}?print=true`);
                 } else {
+                    localStorage.removeItem(STORAGE_KEY); // Clear draft on success
                     router.push(`/${locale}/maintenance/tickets`);
                 }
             }

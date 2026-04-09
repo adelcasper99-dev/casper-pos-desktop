@@ -31,6 +31,7 @@ interface PurchaseHeaderProps {
     setWalkinNationalId: (val: string) => void;
     attachmentUrl?: string | null;
     setAttachmentUrl: (val: string | null) => void;
+    onQuickCreateSupplier?: (data: { name: string; phone?: string }) => void;
 }
 
 import { User, Phone, CreditCard, ImagePlus, X, Trash2, ShieldCheck, CheckCircle2, Plus, Loader2 } from "lucide-react";
@@ -53,7 +54,8 @@ export function PurchaseHeader({
     walkinName, setWalkinName,
     walkinPhone, setWalkinPhone,
     walkinNationalId, setWalkinNationalId,
-    attachmentUrl, setAttachmentUrl
+    attachmentUrl, setAttachmentUrl,
+    onQuickCreateSupplier
 }: PurchaseHeaderProps) {
     const t = useTranslations('Purchasing');
     const { handleKeyDown, getNavProps } = useKeyboardNavigation();
@@ -77,26 +79,23 @@ export function PurchaseHeader({
     const warehouseOptions = warehouses.map(w => ({ label: w.name, value: w.id }));
 
     return (
-        <div className="relative group">
-            {/* Background Glows for Premium Look */}
-            <div className="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/10 blur-[80px] rounded-full pointer-events-none group-hover:bg-cyan-500/20 transition-all" />
-            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none group-hover:bg-indigo-500/20 transition-all" />
+        <div className="relative group flex-none">
+            {/* Background Glows for Premium Look - Reduced Size */}
+            <div className="absolute -top-12 -left-12 w-24 h-24 bg-cyan-500/5 blur-[40px] rounded-full pointer-events-none group-hover:bg-cyan-500/10 transition-all" />
+            <div className="absolute -bottom-12 -right-12 w-24 h-24 bg-indigo-500/5 blur-[40px] rounded-full pointer-events-none group-hover:bg-indigo-500/10 transition-all" />
 
-            <div className="bg-muted/20 backdrop-blur-md rounded-3xl p-6 border border-border/50 shadow-2xl relative z-10 space-y-6">
+            <div className="bg-muted/20 backdrop-blur-md rounded-xl p-2 border border-white/20 shadow-2xl relative z-40 space-y-2">
                 
-                {/* Mode Toggle Row */}
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/40 pb-5">
-                    <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-xl transition-all shadow-lg", isWalkin ? "bg-indigo-500 text-white shadow-indigo-500/20" : "bg-emerald-500 text-white shadow-emerald-500/20")}>
-                            {isWalkin ? <ShieldCheck className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                {/* Mode Toggle Row - Ultra Dense */}
+                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+                    <div className="flex items-center gap-2">
+                        <div className={cn("p-1 rounded-md transition-all", isWalkin ? "bg-indigo-500 text-white" : "bg-emerald-500 text-white ")}>
+                            {isWalkin ? <ShieldCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                         </div>
                         <div>
-                            <h4 className="font-black text-sm uppercase tracking-tight text-foreground">
-                                {isWalkin ? "شراء مباشر من عميل (مبايعة)" : "شراء من مورد مسجل"}
+                            <h4 className="font-black text-[11px] uppercase tracking-tight text-foreground leading-none">
+                                {isWalkin ? "شراء مباشر (مبايعة)" : "شراء من مورد مسجل"}
                             </h4>
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                                {isWalkin ? "توثيق بيانات الهوية وصور المستندات" : "إضافة إلى رصيد المورد الحالي"}
-                            </p>
                         </div>
                     </div>
 
@@ -104,7 +103,7 @@ export function PurchaseHeader({
                         type="button"
                         onClick={() => setIsWalkin(!isWalkin)}
                         className={cn(
-                            "flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border active:scale-95",
+                            "flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border active:scale-95",
                             isWalkin 
                                 ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20" 
                                 : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
@@ -118,53 +117,102 @@ export function PurchaseHeader({
                     </button>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    
-                    {/* Primary Entity Selector (Supplier or Walk-in Name) */}
-                    <div className="lg:col-span-2">
-                        {isWalkin ? (
-                            <div className="space-y-4 animate-in slide-in-from-left duration-300">
-                                <div>
-                                    <label className="text-[10px] text-indigo-400 uppercase font-black tracking-widest mb-2 flex items-center gap-2">
-                                        <User className="w-3 h-3" /> اسم العميل بالكامل (البطاقة) *
-                                    </label>
-                                    <input
-                                        className="glass-input w-full h-12 text-sm font-bold"
-                                        placeholder="مثال: أحمد محمد علي"
-                                        value={walkinName}
-                                        onChange={e => setWalkinName(e.target.value)}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2 flex items-center gap-2">
-                                            <Phone className="w-3 h-3" /> رقم الهاتف *
+                <div className="animate-in fade-in duration-300">
+                    {isWalkin ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 pb-1">
+                             {/* Walk-in Logic (Ultra Compact) */}
+                             <div className="lg:col-span-2 grid grid-cols-1 gap-2 border-e border-white/10 pe-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1">
+                                        <label className="text-[8px] text-zinc-500 uppercase font-black tracking-widest mb-0.5 flex items-center gap-1.5">
+                                            <User className="w-2.5 h-2.5" /> الاسم *
                                         </label>
                                         <input
-                                            className="glass-input w-full h-12 text-sm font-mono tracking-widest"
+                                            className="glass-input w-full h-8 text-[11px] font-bold"
+                                            placeholder="اسم العميل..."
+                                            value={walkinName}
+                                            onChange={e => setWalkinName(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="w-32">
+                                        <label className="text-[8px] text-zinc-500 uppercase font-black tracking-widest mb-0.5 flex items-center gap-1.5">
+                                            <Phone className="w-2.5 h-2.5" /> الموبايل
+                                        </label>
+                                        <input
+                                            className="glass-input w-full h-8 text-[11px] font-mono"
                                             placeholder="01xxxxxxxxx"
-                                            maxLength={11}
                                             value={walkinPhone}
                                             onChange={e => setWalkinPhone(e.target.value)}
                                         />
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="text-[8px] text-zinc-500 uppercase font-black tracking-widest mb-0.5 flex items-center gap-1.5">
+                                        <CreditCard className="w-2.5 h-2.5" /> الرقم القومي
+                                    </label>
+                                    <input
+                                        className="glass-input w-full h-8 text-[11px] font-mono"
+                                        placeholder="2xxxxxxxxxxxxx"
+                                        maxLength={14}
+                                        value={walkinNationalId}
+                                        onChange={e => setWalkinNationalId(e.target.value)}
+                                    />
+                                </div>
+                             </div>
+                             
+                             <div className="lg:col-span-2 grid grid-cols-2 gap-2">
+                                <div className="space-y-2">
                                     <div>
-                                        <label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2 flex items-center gap-2">
-                                            <CreditCard className="w-3 h-3" /> الرقم القومي (14 رقم)
+                                        <label className="text-[8px] text-zinc-500 uppercase font-black tracking-widest mb-0.5 flex items-center gap-2">
+                                            {t('warehouse')}
                                         </label>
-                                        <input
-                                            className="glass-input w-full h-12 text-sm font-mono tracking-[0.2em]"
-                                            placeholder="2xxxxxxxxxxxxx"
-                                            maxLength={14}
-                                            value={walkinNationalId}
-                                            onChange={e => setWalkinNationalId(e.target.value)}
+                                        <Combobox
+                                            {...getNavProps(1)}
+                                            options={warehouseOptions}
+                                            value={selectedWarehouseId}
+                                            onChange={onWarehouseChange}
+                                            onKeyDown={(e: any) => handleKeyDown(e, 1, 13, undefined)}
+                                            placeholder={t('selectWarehouse')}
+                                            emptyText="No warehouses found."
+                                            className="h-8 [&_.glass-input]:h-8 text-[11px]"
                                         />
                                     </div>
+                                    {isHQUser && (
+                                        <div className="px-2 py-1 rounded-md bg-white/5 border border-white/10 flex items-center justify-between">
+                                            <span className="text-[7px] uppercase font-black text-zinc-500 tracking-wider">Branch</span>
+                                            <span className="text-[8px] font-bold text-cyan-400 truncate max-w-[80px]">{branches.find(b => b.id === selectedBranchId)?.name || "N/A"}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="animate-in slide-in-from-right duration-300">
-                                <label className="text-[10px] text-emerald-400 uppercase font-black tracking-widest mb-2 flex items-center gap-2">
+                                
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[8px] text-indigo-400 uppercase font-black tracking-widest mb-0.5 flex items-center gap-2">
+                                        <ImagePlus className="w-3 h-3" /> صورة المستند
+                                    </label>
+                                    <div className="relative h-14 w-full rounded-lg border-2 border-dashed border-white/10 flex items-center justify-center overflow-hidden bg-white/5 group">
+                                        {attachmentUrl ? (
+                                            <div className="relative w-full h-full">
+                                                <img src={attachmentUrl} className="w-full h-full object-cover" alt="Doc" />
+                                                <button onClick={() => setAttachmentUrl(null)} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                    <Trash2 className="w-3.5 h-3.5 text-white" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <label className="cursor-pointer flex flex-col items-center justify-center h-full w-full">
+                                                <ImagePlus className="w-3 h-3 text-zinc-500" />
+                                                <span className="text-[7px] font-black uppercase text-zinc-500">إرفاق صورة</span>
+                                                <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+                             </div>
+                        </div>
+                    ) : (
+                        /* ULTRA COMPACT Supplier + Warehouse Row */
+                        <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
+                            <div className="flex-1 min-w-[180px]">
+                                <label className="text-[8px] text-emerald-400 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
                                     <User className="w-3 h-3" /> {t('supplier')}
                                 </label>
                                 <Combobox
@@ -172,21 +220,20 @@ export function PurchaseHeader({
                                     options={supplierOptions}
                                     value={selectedSupplierId}
                                     onChange={onSupplierChange}
-                                    onKeyDown={(e: any) => handleKeyDown(e, 0, 13, undefined)}
+                                    onQuickCreate={onQuickCreateSupplier}
+                                    quickCreateType="SUPPLIER"
+                                    onKeyDown={(e: any) => handleKeyDown(e, 0, 13, () => {
+                                        const focusable = document.querySelectorAll('[data-nav]');
+                                        (focusable[1] as HTMLElement)?.focus();
+                                    })}
                                     placeholder={t('selectSupplier')}
                                     emptyText="No suppliers found."
-                                    className="h-12 [&_.glass-input]:h-12"
+                                    className="h-10 text-xs shadow-xl"
                                 />
                             </div>
-                        )}
-                    </div>
 
-                    {/* Warehouse & Media Container */}
-                    <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        {/* Warehouse */}
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2 flex items-center gap-2">
+                            <div className="flex-1 min-w-[160px]">
+                                <label className="text-[8px] text-zinc-400 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
                                     {t('warehouse')}
                                 </label>
                                 <Combobox
@@ -197,48 +244,20 @@ export function PurchaseHeader({
                                     onKeyDown={(e: any) => handleKeyDown(e, 1, 13, undefined)}
                                     placeholder={t('selectWarehouse')}
                                     emptyText="No warehouses found."
-                                    className="h-12 [&_.glass-input]:h-12"
+                                    className="h-8 [&_.glass-input]:h-8 text-[11px]"
                                 />
                             </div>
 
-                            {/* Branch Info (Read Only) */}
                             {isHQUser && (
-                                <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
-                                    <span className="text-[10px] uppercase font-black text-zinc-500 tracking-wider">Branch context</span>
-                                    <span className="text-[11px] font-bold text-cyan-400">{branches.find(b => b.id === selectedBranchId)?.name || "N/A"}</span>
+                                <div className="hidden lg:flex flex-col justify-end pb-0.5">
+                                    <div className="px-3 py-1.5 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center gap-2">
+                                        <ShieldCheck className="w-3 h-3 text-cyan-500" />
+                                        <span className="text-[10px] font-bold text-cyan-400">{branches.find(b => b.id === selectedBranchId)?.name || "Main"}</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
-
-                        {/* Image Dropzone (Only for Walk-in) */}
-                        <div className={cn("transition-all duration-500", isWalkin ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none")}>
-                            <label className="text-[10px] text-indigo-400 uppercase font-black tracking-widest mb-2 flex items-center gap-2">
-                                <ImagePlus className="w-3 h-3" /> صورة المبايعة / البطاقة
-                            </label>
-                            
-                            <div className="relative group/zone">
-                                {attachmentUrl ? (
-                                    <div className="relative h-24 w-full rounded-2xl overflow-hidden border border-indigo-500/30 group/img shadow-2xl">
-                                        <img src={attachmentUrl} className="w-full h-full object-cover" alt="Verification" />
-                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                            <button 
-                                                onClick={() => setAttachmentUrl(null)}
-                                                className="bg-rose-500 text-white p-2 rounded-full hover:scale-110 active:scale-95 transition-all shadow-lg"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <label className="flex flex-col items-center justify-center h-24 w-full rounded-2xl border-2 border-dashed border-zinc-200 dark:border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all cursor-pointer group/label">
-                                        <ImagePlus className="w-6 h-6 text-zinc-400 group-hover/label:text-indigo-400 mb-1" />
-                                        <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest group-hover/label:text-indigo-400">إرفاق مستند</span>
-                                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                                    </label>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>

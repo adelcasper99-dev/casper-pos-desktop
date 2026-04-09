@@ -287,6 +287,25 @@ model Category {
   parent        Category?  @relation("CategoryToSub", fields: [parentId], references: [id], onDelete: Cascade)
   subCategories Category[] @relation("CategoryToSub")
   products      Product[]
+  models        Model[]
+}
+
+model Model {
+  id         String   @id @default(uuid())
+  name       String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+  createdAt  DateTime @default(now())
+
+  @@unique([name, categoryId])
+}
+
+model Attribute {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
 }
 
 model UnitOfMeasure {
@@ -299,6 +318,7 @@ model UnitOfMeasure {
   isActive         Boolean    @default(true)
   createdAt        DateTime   @default(now())
   products         Product[]
+  purchaseItems    PurchaseItem[]
 
   @@index([category])
 }
@@ -322,6 +342,8 @@ model Product {
   condition         String?
   color             String?
   categoryId        String
+  modelId           String?
+  attributeId       String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   deletedAt         DateTime?
@@ -332,6 +354,8 @@ model Product {
   componentOf       BundleItem[]      @relation("ComponentProduct")
   bundleItems       BundleItem[]       @relation("BundleProduct")
   category          Category           @relation(fields: [categoryId], references: [id])
+  model             Model?             @relation(fields: [modelId], references: [id])
+  attribute         Attribute?         @relation(fields: [attributeId], references: [id])
   purchaseItems     PurchaseItem[]
   saleItems         SaleItem[]
   stocks            Stock[]
@@ -483,8 +507,11 @@ model PurchaseItem {
   condition         String?
   color             String?
   deviceType        String?
+  unitOfMeasureId   String?
+  conversionFactor  Decimal         @default(1.00)
   invoice           PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
   product           Product         @relation(fields: [productId], references: [id])
+  unitOfMeasure     UnitOfMeasure?  @relation(fields: [unitOfMeasureId], references: [id])
 }
 
 model Sale {

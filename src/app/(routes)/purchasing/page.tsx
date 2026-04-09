@@ -33,6 +33,24 @@ export default async function PurchasingPage() {
     // 2. Categories (for Add Product modal in Purchase)
     const categories = await prisma.category.findMany();
 
+    // 2.0 Models
+    const models = await prisma.model.findMany();
+
+    // 2.1 Units
+    const unitsRaw = await prisma.unitOfMeasure.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' }
+    });
+    const units = unitsRaw.map(u => ({
+        ...u,
+        conversionFactor: (u.conversionFactor as any).toNumber?.() ?? Number(u.conversionFactor)
+    }));
+
+    // 2.2 Attributes
+    const attributes = await prisma.attribute.findMany({
+        orderBy: { name: 'asc' }
+    });
+
     // 3. Products (for search in Purchase)
     const productsRaw = await prisma.product.findMany();
     const products = productsRaw.map(p => ({
@@ -43,8 +61,11 @@ export default async function PurchasingPage() {
         categoryId: p.categoryId,
         costPrice: p.costPrice.toNumber(),
         sellPrice: p.sellPrice.toNumber(),
-        sellPrice2: p.sellPrice2.toNumber(),
-        sellPrice3: p.sellPrice3.toNumber()
+        sellPrice2: p.sellPrice2?.toNumber() || 0,
+        sellPrice3: p.sellPrice3?.toNumber() || 0,
+        unitOfMeasureId: p.unitOfMeasureId,
+        modelId: p.modelId,
+        attributeId: p.attributeId
     }));
 
     // 4. Invoices
@@ -61,7 +82,8 @@ export default async function PurchasingPage() {
             name: inv.supplier.name,
         },
         totalAmount: inv.totalAmount.toNumber(),
-        paidAmount: inv.paidAmount.toNumber()
+        paidAmount: inv.paidAmount.toNumber(),
+        deliveryCharge: inv.deliveryCharge.toNumber(),
     }));
 
     // 5. Warehouses
@@ -89,6 +111,17 @@ export default async function PurchasingPage() {
             code: w.branch.code
         }
     }));
+    
+    // 6. Treasuries
+    const treasuriesRaw = await prisma.treasury.findMany({
+        where: { deletedAt: null },
+        orderBy: { name: 'asc' }
+    });
+    const treasuries = treasuriesRaw.map(t => ({
+        id: t.id,
+        name: t.name,
+        balance: t.balance.toNumber()
+    }));
 
     return (
         <div className="space-y-6 font-cairo">
@@ -100,10 +133,14 @@ export default async function PurchasingPage() {
             <PurchasingClient
                 suppliers={suppliers}
                 categories={categories}
+                models={models}
                 products={products}
                 invoices={invoices}
+                units={units}
+                attributes={attributes}
                 warehouses={warehouses}
                 branches={branches}
+                treasuries={treasuries}
                 isHQUser={isHQUser}
                 userBranchId={user?.branchId || undefined}
                 csrfToken={csrfToken || ''}
