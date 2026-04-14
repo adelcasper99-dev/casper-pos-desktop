@@ -124,7 +124,7 @@ export default async function PurchasingPage() {
     }));
 
     return (
-        <div className="space-y-6 font-cairo">
+        <div className="space-y-6 font-cairo max-w-[2400px] mx-auto">
             <header className="flex flex-col gap-1">
                 <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">{t('header.title')}</h1>
                 <p className="text-muted-foreground font-bold text-sm">{t('header.subtitle')}</p>

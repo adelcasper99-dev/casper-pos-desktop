@@ -111,13 +111,25 @@ export async function addTreasuryTransaction(
   description: string,
   paymentMethod: string,
   treasuryId?: string,
-  expenseCategory?: string, // Legacy: string key from EXPENSE_CATEGORY_MAP
-  incomingCategoryId?: string, // Legacy: string key from INCOMING_CATEGORIES
-  shiftId?: string, // 🆕 Added for POS linkage
-  categoryId?: string // 🆕 New: DB-based CashCategory ID
+  expenseCategory?: string,
+  incomingCategoryId?: string,
+  shiftId?: string,
+  categoryId?: string,
+  idempotencyKey?: string // 🆕 Replay-safe key — prevents double-billing on reconnect
 ) {
   try {
     const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT"];
+
+    // ── Idempotency Guard (Replay Protection) ─────────────────────────────────
+    if (idempotencyKey) {
+      const existing = await prisma.transaction.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return { success: true, existing: true, id: existing.id };
+      }
+    }
+
 
     // Determine exact type and GL code - prioritize DB category
     let finalType = type;
@@ -215,9 +227,10 @@ export async function addTreasuryTransaction(
           paymentMethod, 
           treasuryId: finalTreasuryId || undefined,
           shiftId, 
-          categoryId 
+          categoryId,
+          idempotencyKey: idempotencyKey ?? undefined, // 🆕 stored for replay detection
         },
-        include: { category: true } // Include category for description resolution
+        include: { category: true }
       });
 
       if (finalTreasuryId) {
@@ -480,7 +493,7 @@ export async function deleteTreasury(id: string) {
     if (treasury.isDefault) {
       return { success: false, error: "لا يمكن حذف الخزنة الرئيسية الافتراضية" };
     }
-    if (Number(treasury.balance) !== 0) {
+    if (!new Decimal(treasury.balance.toString()).isZero()) {
       return { success: false, error: "لا يمكن حذف خزنة بها رصيد. يرجى تحويل الرصيد أولاً" };
     }
 

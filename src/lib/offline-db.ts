@@ -19,13 +19,24 @@ export interface OfflineProduct {
 
 export interface OfflineTicket {
     id: string;
+    customerName: string;
+    customerPhone: string;
+    deviceBrand: string;
+    deviceModel: string;
+    issueDescription: string;
+    initialQuote?: number;
+    deposit?: number;
     status: string;
-    totalAmount: number;
+    totalAmount?: number;
     synced: number;
     syncRetries: number;
     syncError?: string;
     createdAt: number;
+    idempotencyKey?: string; // 🆕 Added for replay protection
     items?: any[];
+    syncStatus?: 'PENDING' | 'SYNCED' | 'ERROR';
+    repairPrice?: number;
+    expectedDuration?: number | null;
 }
 
 export interface SyncMetadata {
@@ -53,6 +64,9 @@ export interface OfflineSale {
     syncRetries?: number;
     syncError?: string;
     offlineFlag: boolean;
+    idempotencyKey?: string; // 🆕 Added for replay protection
+    discountAmount: number;
+    discountPercentage: number;
 }
 
 export interface OfflineTreasuryTransaction {
@@ -117,10 +131,10 @@ class CasperOfflineDB extends Dexie {
 
     constructor() {
         super('CasperOfflineDB');
-        this.version(3).stores({
+        this.version(4).stores({
             sales: 'id, syncStatus, offlineFlag, createdAt, synced',
             products: 'id, barcode, syncPriority',
-            tickets: 'id, synced, createdAt',
+            tickets: 'id, syncStatus, idempotencyKey, createdAt, synced',
             syncMetadata: 'key',
             treasuryTransactions: 'id, syncStatus, idempotencyKey, createdAt, synced',
             inventoryMovements: 'id, syncStatus, idempotencyKey, createdAt, synced',

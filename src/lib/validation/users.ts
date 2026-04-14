@@ -5,7 +5,7 @@ export const userSchema = z.object({
     phone: z.string().min(1, "Phone number is required")
         .refine(val => /^\d{11}$/.test(val), "Phone number must be exactly 11 digits"),
     username: z.string().min(3, "Username must be at least 3 chars"),
-    password: z.string().min(6, "Password must be at least 6 chars").optional().or(z.literal('')),
+    password: z.string().min(4, "يجب أن تتكون كلمة المرور من 4 أحرف على الأقل").optional().or(z.literal('')),
     roleId: z.string().optional(),
     branchId: z.string().optional().nullable(),
     managedHQIds: z.array(z.string()).optional(),

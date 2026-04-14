@@ -21,7 +21,7 @@ export default async function SparePartsPage({
   const brands = brandsRes?.brands || [];
 
   return (
-    <div className="p-6 mx-auto space-y-6">
+    <div className="p-6 max-w-[2400px] mx-auto space-y-6">
       <SparePartsSearch
         initialParts={parts as any}
         brands={brands as any}

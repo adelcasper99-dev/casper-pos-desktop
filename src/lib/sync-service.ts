@@ -82,18 +82,29 @@ export class SyncService {
                 // Mark as synced
                 await offlineDB.sales.update(sale.id, {
                     synced: 1,
-                    syncError: undefined
+                    syncError: undefined,
+                    syncStatus: 'SYNCED'
                 });
                 synced++;
 
             } catch (error: any) {
                 logger.error(`Failed to sync sale ${sale.id}`, error);
 
-                // Update retry count and error
-                await offlineDB.sales.update(sale.id, {
-                    syncRetries: (sale.syncRetries || 0) + 1,
-                    syncError: error.message
-                });
+                const newRetries = (sale.syncRetries || 0) + 1;
+                
+                if (newRetries >= 5) {
+                    logger.error(`⚠️ Dead-lettering sale ${sale.id} after 5 failures`, error);
+                    await offlineDB.sales.update(sale.id, {
+                        syncRetries: newRetries,
+                        syncError: 'DEAD_LETTER: Requires manual intervention',
+                        syncStatus: 'ERROR'
+                    });
+                } else {
+                    await offlineDB.sales.update(sale.id, {
+                        syncRetries: newRetries,
+                        syncError: error.message
+                    });
+                }
                 failed++;
             }
         }
@@ -138,18 +149,29 @@ export class SyncService {
                 // Mark as synced
                 await offlineDB.tickets.update(ticket.id, {
                     synced: 1,
-                    syncError: undefined
+                    syncError: undefined,
+                    syncStatus: 'SYNCED'
                 });
                 synced++;
 
             } catch (error: any) {
                 logger.error(`Failed to sync ticket ${ticket.id}`, error);
 
-                // Update retry count and error
-                await offlineDB.tickets.update(ticket.id, {
-                    syncRetries: (ticket.syncRetries || 0) + 1,
-                    syncError: error.message
-                });
+                const newRetries = (ticket.syncRetries || 0) + 1;
+                
+                if (newRetries >= 5) {
+                    logger.error(`⚠️ Dead-lettering ticket ${ticket.id} after 5 failures`, error);
+                    await offlineDB.tickets.update(ticket.id, {
+                        syncRetries: newRetries,
+                        syncError: 'DEAD_LETTER: Requires manual intervention',
+                        syncStatus: 'ERROR'
+                    });
+                } else {
+                    await offlineDB.tickets.update(ticket.id, {
+                        syncRetries: newRetries,
+                        syncError: error.message
+                    });
+                }
                 failed++;
             }
         }
@@ -196,7 +218,8 @@ export class SyncService {
 
                 await offlineDB.treasuryTransactions.update(tx.id, {
                     synced: 1,
-                    syncError: undefined
+                    syncError: undefined,
+                    syncStatus: 'SYNCED'
                 });
                 synced++;
 
@@ -262,7 +285,8 @@ export class SyncService {
 
                 await offlineDB.inventoryMovements.update(m.id, {
                     synced: 1,
-                    syncError: undefined
+                    syncError: undefined,
+                    syncStatus: 'SYNCED'
                 });
                 synced++;
 
@@ -325,7 +349,8 @@ export class SyncService {
 
                 await offlineDB.returns.update(r.id, {
                     synced: 1,
-                    syncError: undefined
+                    syncError: undefined,
+                    syncStatus: 'SYNCED'
                 });
                 synced++;
 
@@ -373,7 +398,61 @@ export class SyncService {
 
     // 👤 USABILITY: Manual sync trigger
     static async manualSync() {
-        logger.info('🔄 Manual sync triggered');
-        return await this.syncAll();
+        // 🛡️ SECURITY: Use SyncWorker to ensure mutual exclusion
+        const { SyncWorker } = await import('./sync-worker');
+        return await SyncWorker.runUniversalSync();
+    }
+
+    // 📋 ADMIN: Get items that failed multiple times (Dead Letter Queue)
+    static async getDeadLetterQueue() {
+        const [sales, tickets, treasury, inventory, returns] = await Promise.all([
+            offlineDB.sales.where('syncStatus').equals('ERROR').toArray(),
+            offlineDB.tickets.where('syncStatus').equals('ERROR').toArray(),
+            (offlineDB.treasuryTransactions?.where('syncStatus').equals('ERROR').toArray() ?? Promise.resolve([])),
+            (offlineDB.inventoryMovements?.where('syncStatus').equals('ERROR').toArray() ?? Promise.resolve([])),
+            (offlineDB.returns?.where('syncStatus').equals('ERROR').toArray() ?? Promise.resolve([]))
+        ]);
+
+        return [
+            ...sales.map(item => ({ ...item, type: 'SALE' })),
+            ...tickets.map(item => ({ ...item, type: 'TICKET' })),
+            ...treasury.map(item => ({ ...item, type: 'TREASURY' })),
+            ...inventory.map(item => ({ ...item, type: 'INVENTORY' })),
+            ...returns.map(item => ({ ...item, type: 'RETURN' }))
+        ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    }
+
+    // 🛠️ ADMIN: Retry a failed item
+    static async retryItem(type: string, id: string) {
+        const table = this.getStoreTable(type);
+        if (!table) return;
+
+        await table.update(id, {
+            syncRetries: 0,
+            syncStatus: 'PENDING',
+            synced: 0,
+            syncError: undefined
+        });
+        logger.info(`[SyncService] Marked ${type} ${id} for retry.`);
+    }
+
+    // 🗑️ ADMIN: Remove a problematic item from queue
+    static async removeItem(type: string, id: string) {
+        const table = this.getStoreTable(type);
+        if (!table) return;
+
+        await table.delete(id);
+        logger.warn(`[SyncService] Removed ${type} ${id} from offline queue.`);
+    }
+
+    private static getStoreTable(type: string) {
+        switch (type) {
+            case 'SALE': return offlineDB.sales;
+            case 'TICKET': return offlineDB.tickets;
+            case 'TREASURY': return offlineDB.treasuryTransactions;
+            case 'INVENTORY': return offlineDB.inventoryMovements;
+            case 'RETURN': return offlineDB.returns;
+            default: return null;
+        }
     }
 }

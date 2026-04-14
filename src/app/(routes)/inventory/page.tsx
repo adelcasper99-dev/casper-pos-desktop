@@ -123,7 +123,7 @@ export default async function InventoryPage() {
     }));
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-[2400px] mx-auto">
             <div>
                 <h1 className="text-3xl font-bold">{t('title')}</h1>
                 <p className="text-zinc-400 mt-1">{t('subtitle')}</p>

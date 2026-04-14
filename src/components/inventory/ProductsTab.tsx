@@ -11,6 +11,7 @@ import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
 import { ThermalPrintLabel } from "./ThermalPrintLabel";
 import AddProductModal from "./AddProductModal";
+import StockAdjustmentModal from "./StockAdjustmentModal";
 import { updateProduct, generateNextSku, deleteProduct, getProducts, getWarehouses, getAllUnits } from "@/actions/inventory";
 import GlassModal from "../ui/GlassModal";
 import clsx from "clsx";
@@ -169,10 +170,10 @@ export default function ProductsTab({
     const canViewPrice2 = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_VIEW_PRICE_2);
     const canViewPrice3 = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_VIEW_PRICE_3);
 
-    // Wastage Dialog State
     const [wastageProduct, setWastageProduct] = useState<Product | null>(null);
     const [quickPrintProduct, setQuickPrintProduct] = useState<Product | null>(null);
     const [addProductOpen, setAddProductOpen] = useState(false);
+    const [adjustmentProduct, setAdjustmentProduct] = useState<Product | null>(null);
 
     // React Query for Pagination & Search & Filtering
     const { data: queryData, isLoading: isQueryLoading, refetch } = useQuery({
@@ -941,13 +942,26 @@ export default function ProductsTab({
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-xs text-slate-500 underline font-black uppercase tracking-widest">{t('stock')}</label>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                                        value={editingProduct.stock}
-                                        onChange={e => setEditingProduct({ ...editingProduct, stock: parseFloat(e.target.value) || 0 })}
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            className="glass-input w-full font-black text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-white/5 cursor-not-allowed"
+                                            value={editingProduct.stock}
+                                            readOnly
+                                            disabled
+                                        />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setAdjustmentProduct(editingProduct)}
+                                            className="px-3 bg-cyan-500 hover:bg-cyan-400 text-black text-[10px] font-black rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all whitespace-nowrap"
+                                        >
+                                            إجراء تسوية جردية
+                                        </button>
+                                    </div>
+                                    <div className="text-[10px] text-amber-500/80 font-black pt-1">
+                                        تعديل الكمية يتم فقط من خلال التسوية الجردية.
+                                    </div>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs text-slate-500 underline font-black uppercase tracking-widest">{t('minStock')}</label>
@@ -1022,6 +1036,22 @@ export default function ProductsTab({
                     product={wastageProduct}
                     warehouseId={warehouseId}
                     csrfToken={csrfToken}
+                />
+            )}
+
+            {/* Reconciliation Dialog */}
+            {warehouseId && csrfToken && (
+                <StockAdjustmentModal
+                    isOpen={!!adjustmentProduct}
+                    onClose={() => setAdjustmentProduct(null)}
+                    product={adjustmentProduct}
+                    warehouseId={warehouseId}
+                    csrfToken={csrfToken}
+                    onSuccess={() => {
+                        setEditingProduct(null);
+                        setAdjustmentProduct(null);
+                        refetch();
+                    }}
                 />
             )}
 

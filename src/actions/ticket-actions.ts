@@ -294,8 +294,9 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
 /**
  * Create a new repair ticket
  */
-export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSchema> & { csrfToken?: string }) => {
-    const data = ticketSchema.parse(rawData);
+export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSchema> & { csrfToken?: string, idempotencyKey?: string }) => {
+    const { idempotencyKey, ...schemaRaw } = rawData;
+    const data = ticketSchema.parse(schemaRaw);
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
@@ -328,34 +329,41 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     let clientUserId: string | undefined = undefined;
     let clientSupplierId: string | undefined = undefined;
 
-    if (data.customerPhone && data.customerPhone.trim().length > 0) {
-        const normalizedPhone = data.customerPhone.trim();
+    const result = await (prisma as any).$transaction(async (tx: any) => {
+        // TK-02: Secure Customer Linking (Atomic Upsert)
+        if (data.customerPhone && data.customerPhone.trim().length > 0) {
+            const normalizedPhone = data.customerPhone.trim();
 
-        // 🔍 GLOBAL LOOKUP: Is this phone used by a Staff member or Supplier?
-        const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
-        const phoneCheck = await checkGlobalPhoneUniqueness(normalizedPhone);
+            const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
+            const phoneCheck = await checkGlobalPhoneUniqueness(normalizedPhone);
 
-        if (!phoneCheck.unique) {
-            if (phoneCheck.usedBy === 'USER') clientUserId = phoneCheck.entityId;
-            else if (phoneCheck.usedBy === 'SUPPLIER') clientSupplierId = phoneCheck.entityId;
-            else if (phoneCheck.usedBy === 'CUSTOMER') customerId = phoneCheck.entityId;
-        } else if (!customerId) {
-            // Create new customer if unique and not provided
-            try {
-                const customer = await prisma.customer.create({
-                    data: { name: data.customerName, phone: normalizedPhone, balance: 0 }
+            if (!phoneCheck.unique) {
+                if (phoneCheck.usedBy === 'USER') clientUserId = phoneCheck.entityId;
+                else if (phoneCheck.usedBy === 'SUPPLIER') clientSupplierId = phoneCheck.entityId;
+                else if (phoneCheck.usedBy === 'CUSTOMER') customerId = phoneCheck.entityId;
+            } else if (!customerId) {
+                // Atomic Upsert to handle race conditions
+                const customer = await tx.customer.upsert({
+                    where: { phone: normalizedPhone },
+                    update: { name: data.customerName }, // Refresh name if it matches phone
+                    create: { name: data.customerName, phone: normalizedPhone, balance: 0 }
                 });
                 customerId = customer.id;
-            } catch (e: any) {
-                if (e.code === 'P2002') {
-                    const existing = await prisma.customer.findUnique({ where: { phone: normalizedPhone } });
-                    if (existing) customerId = existing.id;
-                }
             }
         }
-    }
 
-    const result = await prisma.$transaction(async (tx) => {
+        // Idempotency Guard
+        if (idempotencyKey) {
+            const existing = await tx.ticket.findUnique({
+                where: { idempotencyKey },
+                select: { id: true, barcode: true }
+            });
+            if (existing) {
+                logger.info(`[Ticket] Idempotency hit for ${idempotencyKey}`);
+                return existing;
+            }
+        }
+
         // Create ticket with all links
         const ticket = await tx.ticket.create({
             data: {
@@ -380,6 +388,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 repairPrice: new Decimal(data.repairPrice || 0),
                 shiftId: currentShift.id,
                 expectedDuration: data.expectedDuration || null,
+                idempotencyKey: idempotencyKey || null,
             }
         });
 

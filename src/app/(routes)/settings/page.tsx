@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getTranslations } from "@/lib/i18n-mock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2 } from "lucide-react";
+import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw } from "lucide-react";
 import StoreConfig from "@/components/settings/StoreConfig";
 import PrinterSettings from "@/components/settings/PrinterSettings";
 import BackupManager from "@/components/settings/BackupManager";
@@ -11,6 +11,7 @@ import RoleManagement from "@/components/settings/RoleManagement";
 import TablesManagement from "@/components/settings/TablesManagement";
 import OpeningBalanceWizard from "@/components/setup/OpeningBalanceWizard";
 import WarehouseSettings from "@/components/settings/WarehouseSettings";
+import SyncManagement from "@/components/settings/SyncManagement";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -79,8 +80,10 @@ export default async function SettingsPage() {
     else if (canManageBackups) defaultTab = "backups";
     else if (canManageWarehouses) defaultTab = "warehouses";
 
+    const validSessionBranchId = branches.find(b => b.id === session.user.branchId)?.id;
+
     return (
-        <div className="p-6 max-w-7xl mx-auto w-full min-h-screen space-y-10 animate-in fade-in duration-700">
+        <div className="p-6 max-w-[2400px] mx-auto w-full min-h-screen space-y-10 animate-in fade-in duration-700">
             {/* Premium Page Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-1">
@@ -167,6 +170,15 @@ export default async function SettingsPage() {
                             <Calculator className="w-4 h-4 opacity-70" /> {t('tabs.accounting', 'Accounting')}
                         </TabsTrigger>
                     )}
+
+                    {isAdmin && (
+                        <TabsTrigger 
+                            value="sync" 
+                            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <RefreshCw className="w-4 h-4 opacity-70" /> Sync Management
+                        </TabsTrigger>
+                    )}
                 </TabsList>
 
                 {/* Main Content Area */}
@@ -243,7 +255,7 @@ export default async function SettingsPage() {
                                     users={users}
                                     roles={roles}
                                     branches={branches}
-                                    branchId={session.user.branchId || undefined}
+                                    branchId={validSessionBranchId}
                                     currentUser={session.user}
                                 />
                             </TabsContent>
@@ -260,10 +272,11 @@ export default async function SettingsPage() {
                         <TabsContent value="warehouses" className="outline-none focus-visible:ring-0">
                             <WarehouseSettings 
                                 warehouses={warehouses as any} 
-                                currentBranchId={session.user.branchId || undefined}
+                                currentBranchId={validSessionBranchId}
                             />
                         </TabsContent>
                     )}
+
 
                     {canManageTables && (
                         <TabsContent value="tables" className="outline-none focus-visible:ring-0">
@@ -280,6 +293,12 @@ export default async function SettingsPage() {
                     {canManageAccounting && (
                         <TabsContent value="accounting" className="outline-none focus-visible:ring-0">
                             <OpeningBalanceWizard />
+                        </TabsContent>
+                    )}
+
+                    {isAdmin && (
+                        <TabsContent value="sync" className="outline-none focus-visible:ring-0">
+                            <SyncManagement />
                         </TabsContent>
                     )}
                 </div>

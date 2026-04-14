@@ -12,6 +12,8 @@ import { getCurrentUser } from "@/actions/auth";
 import clsx from "clsx";
 import ReceiptModal from "./ReceiptModal";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { generateIdempotencyKey } from '@/lib/offline-transaction-helper';
+import { offlineDB } from '@/lib/offline-db';
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { Zap } from "lucide-react";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
@@ -298,6 +300,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         // Snapshot items for receipt before clearing cart
         const currentItems = [...items];
 
+        const idempotencyKey = generateIdempotencyKey('POS_SALE');
+
         const payload = {
             items: items.map(i => ({ id: i.id, quantity: i.quantity, price: i.price })),
             paymentMethod: paymentMethod, // Keep for backward compatibility with reporting
@@ -313,8 +317,63 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
             tableId: tableId,
             tableName: tableName,
             force: force, // <--- Send Force Flag
-            csrfToken
+            csrfToken,
+            idempotencyKey
         };
+
+        if (!navigator.onLine) {
+            const offlineSaleId = crypto.randomUUID();
+            await offlineDB.sales.add({
+                id: offlineSaleId,
+                idempotencyKey: idempotencyKey,
+                items: currentItems,
+                paymentMethod: paymentMethod,
+                warehouseId: "main", // Handled by sync
+                // Ensure subTotal is correctly mapped if present
+                totalAmount: finalTotal,
+                subTotal: subTotal,
+                taxAmount: taxAmount,
+                discountAmount: discountAmount,
+                discountPercentage: discountPercentage,
+                status: 'COMPLETED',
+                customerName: saleCustomerData?.name,
+                customerPhone: saleCustomerData?.phone,
+                customerAddress: saleCustomerData?.address,
+                synced: 0,
+                syncRetries: 0,
+                offlineFlag: true,
+                syncStatus: 'PENDING',
+                createdAt: Date.now(),
+            });
+            clearCart();
+            toast.success('تم حفظ المبيعة محلياً — ستُزامَن عند استعادة الاتصال');
+            
+            // Show optimistic success screen
+             setSaleResult({
+                saleId: offlineSaleId,
+                invoiceNumber: `S-OFFLINE`,
+                items: currentItems,
+                totalAmount: finalTotal,
+                subTotal: subTotal,
+                discountAmount: discountAmount,
+                discountPercentage: discountPercentage,
+                taxAmount: taxAmount,
+                date: new Date(),
+                customer: saleCustomerData,
+                customerName: saleCustomerData?.name,
+                customerPhone: saleCustomerData?.phone,
+                customerBalance: customerBalance,
+                paymentMethod: paymentMethod,
+                tableId: tableId,
+                tableName: tableName,
+                warranty: warrantyEnabled ? {
+                    warrantyDays: warrantyDays,
+                    warrantyExpiryDate: new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000)
+                } : undefined
+            });
+            router.refresh();
+            return;
+        }
 
         const result = await processSale(payload);
 

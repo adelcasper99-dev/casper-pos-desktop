@@ -3,7 +3,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState, useEffect } from "react";
-import { SyncWorker } from "@/lib/sync-worker";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { CSRFProvider } from "@/contexts/CSRFContext";
 
@@ -22,9 +21,13 @@ export default function Providers({
         },
     }));
 
-    // Initialize Background Sync & Mirroring
+    // Initialize Background Sync & Mirroring via dynamic import to prevent
+    // Next.js from statically bundling Node.js dependencies (fs, prisma) into
+    // the client chunk during SSR compilation.
     useEffect(() => {
-        SyncWorker.start(30000); // Check every 30s
+        import("@/lib/sync-worker").then(({ SyncWorker }) => {
+            SyncWorker.start(30000); // Check every 30s
+        });
     }, []);
 
     return (

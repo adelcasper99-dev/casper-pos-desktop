@@ -96,7 +96,7 @@ export default function InventoryReportPage() {
     };
 
     return (
-        <div className="p-8 space-y-8 min-h-screen text-foreground transition-colors duration-500">
+        <div className="p-8 space-y-8 min-h-screen text-foreground transition-colors duration-500 max-w-[2400px] mx-auto">
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>

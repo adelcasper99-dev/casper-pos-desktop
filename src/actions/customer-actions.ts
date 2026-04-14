@@ -9,6 +9,7 @@ import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
 import { financialRepo } from '@/lib/repositories/financial-repo';
+import { CustomerIndexingService } from '@/lib/customer-indexing-service';
 import { z } from 'zod';
 
 
@@ -170,6 +171,7 @@ export const createCustomer = secureAction(async ({ name, phone, address, linked
 
 /**
  * Get all customers with balances for Customer Accounts tab
+ * Enhanced with Intelligence Metrics (Risk, Success, activityGap)
  */
 export const getCustomersWithBalance = secureAction(async (filters?: {
     search?: string;
@@ -197,22 +199,166 @@ export const getCustomersWithBalance = secureAction(async (filters?: {
         include: {
             _count: {
                 select: { transactions: true, sales: true }
+            },
+            sales: {
+                select: { status: true, totalAmount: true },
+                where: { isReturn: false }
             }
         },
         take: 100
     });
 
+    const now = new Date();
+
     return {
-        customers: customers.map(c => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone,
-            email: c.email || undefined,
-            balance: Number(c.balance),
-            creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
-            transactionCount: c._count.transactions,
-            saleCount: c._count.sales
-        }))
+        customers: customers.map(c => {
+            const balance = Number(c.balance);
+            const limit = c.creditLimit ? Number(c.creditLimit) : 0;
+            
+            // 1. Success Ratio Logic: (Completed Sales Value / Total Sales Value)
+            const completedSales = c.sales.filter(s => s.status !== 'CANCELLED' && s.status !== 'VOIDED');
+            const totalValue = c.sales.reduce((acc, s) => acc + Number(s.totalAmount), 0);
+            const completedValue = completedSales.reduce((acc, s) => acc + Number(s.totalAmount), 0);
+            const successRatio = totalValue > 0 ? (completedValue / totalValue) * 100 : 100;
+
+            // 2. Risk Level Logic
+            let riskLevel: 'low' | 'medium' | 'high' = 'low';
+            if (limit > 0) {
+                const ratio = balance / limit;
+                if (ratio >= 0.9) riskLevel = 'high';
+                else if (ratio >= 0.7) riskLevel = 'medium';
+            } else if (balance > 10000) { // Default threshold if no limit set
+                riskLevel = 'medium';
+            }
+
+            // 3. Activity Gap Logic
+            const lastActivity = c.updatedAt;
+            const daysSinceLastActivity = Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
+
+            return {
+                id: c.id,
+                name: c.name,
+                phone: c.phone,
+                email: c.email || undefined,
+                address: c.address || undefined,
+                balance,
+                creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
+                transactionCount: c._count.transactions,
+                saleCount: c._count.sales,
+                totalPurchaseValue: Number((c as any).totalPurchaseValue || 0),
+                riskLevel,
+                successRatio: Number(successRatio.toFixed(1)),
+                daysSinceLastActivity,
+                lastActivityDate: lastActivity.toISOString()
+            };
+        })
+    };
+}, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
+
+/**
+ * Update customer basic information
+ */
+export const updateCustomer = secureAction(async (data: {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string | null;
+    address?: string | null;
+}) => {
+    const { id, name, phone, email, address } = data;
+
+    if (!name || name.trim().length < 2) {
+        return { error: 'الاسم قصير جداً' };
+    }
+
+    try {
+        // Check phone uniqueness if changed
+        const existingWithPhone = await prisma.customer.findFirst({
+            where: { 
+                phone: phone.trim(),
+                id: { not: id }
+            }
+        });
+
+        if (existingWithPhone) {
+            return { error: 'رقم الهاتف مستخدم لدى عميل آخر' };
+        }
+
+        const customer = await prisma.customer.update({
+            where: { id },
+            data: {
+                name: name.trim(),
+                phone: phone.trim(),
+                email: email?.trim() || null,
+                address: address?.trim() || null
+            }
+        });
+
+        revalidatePath('/customers');
+
+        return {
+            success: true,
+            customer: {
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone
+            }
+        };
+    } catch (e) {
+        console.error(e);
+        return { error: 'حدث خطأ أثناء تحديث بيانات العميل' };
+    }
+}, { permission: 'CUSTOMER_MANAGE', requireCSRF: false });
+
+/**
+ * Get aggregated intelligence stats for Customer dashboard
+ */
+export const getCustomerIntelligenceStats = secureAction(async () => {
+    const customers = await prisma.customer.findMany({
+        select: {
+            balance: true,
+            creditLimit: true,
+            sales: {
+                select: { status: true, totalAmount: true },
+                where: { isReturn: false }
+            }
+        }
+    });
+
+    let totalBalance = 0;
+    let highRiskCount = 0;
+    let totalSuccessRatioSum = 0;
+    let customersWithSales = 0;
+
+    customers.forEach(c => {
+        const bal = Number(c.balance);
+        const lim = c.creditLimit ? Number(c.creditLimit) : 0;
+        totalBalance += bal;
+
+        // Risk Count
+        if (lim > 0 && bal / lim >= 0.9) {
+            highRiskCount++;
+        }
+
+        // Success Ratio
+        const totalValue = c.sales.reduce((acc, s) => acc + Number(s.totalAmount), 0);
+        const completedValue = c.sales
+            .filter(s => s.status !== 'CANCELLED' && s.status !== 'VOIDED')
+            .reduce((acc, s) => acc + Number(s.totalAmount), 0);
+        
+        if (totalValue > 0) {
+            totalSuccessRatioSum += (completedValue / totalValue) * 100;
+            customersWithSales++;
+        }
+    });
+
+    const avgSuccessRatio = customersWithSales > 0 ? totalSuccessRatioSum / customersWithSales : 100;
+
+    return {
+        avgSuccessRatio: Number(avgSuccessRatio.toFixed(1)),
+        highRiskCount,
+        totalOutstanding: totalBalance,
+        totalCustomers: customers.length
     };
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
 
@@ -261,6 +407,10 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
                         include: { product: true }
                     }
                 }
+            },
+            tickets: {
+                orderBy: { createdAt: 'desc' },
+                take: 50
             }
         }
     });
@@ -270,6 +420,20 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
         throw new Error(t('notFound'));
     }
 
+    // Maintenance Intelligence Calculations
+    const totalTickets = customer.tickets.length;
+    const completedTickets = customer.tickets.filter(t => t.status === 'COMPLETED' || t.status === 'DELIVERED').length;
+    const ticketSuccessRatio = totalTickets > 0 ? (completedTickets / totalTickets) * 100 : 100;
+    
+    const unpaidMaintenance = customer.tickets.reduce((sum, t) => {
+        if (t.status === 'CANCELLED' || t.status === 'VOIDED') return sum;
+        const due = Number(t.repairPrice) - Number(t.deposit);
+        return sum + (due > 0 ? due : 0);
+    }, 0);
+
+    const lastTicketDate = customer.tickets[0]?.createdAt;
+    const maintenanceGapDays = lastTicketDate ? Math.floor((new Date().getTime() - lastTicketDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
     return {
         id: customer.id,
         name: customer.name,
@@ -278,6 +442,12 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
         address: customer.address,
         balance: Number(customer.balance),
         creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+        intelligence: {
+            ticketSuccessRatio: Number(ticketSuccessRatio.toFixed(1)),
+            unpaidMaintenance,
+            maintenanceGapDays,
+            totalMaintenanceSpent: customer.tickets.reduce((sum, t) => sum + Number(t.repairPrice), 0)
+        },
         transactions: customer.transactions.map(tx => ({
             ...tx,
             amount: Number(tx.amount)
@@ -292,6 +462,16 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
                 quantity: i.quantity,
                 unitPrice: Number(i.unitPrice)
             }))
+        })),
+        tickets: customer.tickets.map(t => ({
+            id: t.id,
+            barcode: t.barcode,
+            device: `${t.deviceBrand} ${t.deviceModel}`,
+            status: t.status,
+            repairPrice: Number(t.repairPrice),
+            deposit: Number(t.deposit),
+            due: Number(t.repairPrice) - Number(t.deposit),
+            createdAt: t.createdAt
         }))
     };
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
@@ -570,3 +750,13 @@ export const adjustAccountBalance = secureAction(async (data: {
 
     return result;
 }, { permission: 'CUSTOMER_MANAGE', requireCSRF: false });
+
+/**
+ * Triggers background reindexing of customers.
+ * Called periodically by the client-side SyncWorker.
+ */
+export const triggerCustomerReindex = secureAction(async () => {
+    // Fire and forget
+    CustomerIndexingService.reindexAll().catch(e => console.error('[IndexingService] Error during reindex:', e));
+    return { success: true };
+}, { permission: 'CUSTOMER_VIEW', requireCSRF: false });

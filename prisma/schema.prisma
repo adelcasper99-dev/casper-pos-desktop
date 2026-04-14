@@ -162,6 +162,7 @@ model Customer {
   updatedAt        DateTime              @updatedAt
   balance          Decimal               @default(0.00)
   walletBalance    Decimal               @default(0.00)
+  totalPurchaseValue Decimal             @default(0.00)
   creditLimit      Decimal?
   linkedEmployeeId String?               @unique
   linkedEmployee   User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
@@ -247,6 +248,7 @@ model JournalEntry {
   employeeTransactionId String?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
+  idempotencyKey        String?              @unique
   employeeTransaction   EmployeeTransaction? @relation(fields: [employeeTransactionId], references: [id])
   supplierPayment       SupplierPayment?     @relation(fields: [supplierPaymentId], references: [id])
   customerTransaction   CustomerTransaction? @relation(fields: [customerTransactionId], references: [id])
@@ -405,6 +407,7 @@ model StockMovement {
   product         Product    @relation(fields: [productId], references: [id])
   branch          Branch?    @relation(fields: [branchId], references: [id])
   toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  idempotencyKey  String?    @unique
 }
 
 model StockRequest {
@@ -537,6 +540,7 @@ model Sale {
   userId             String?
   syncStatus         String         @default("PENDING")
   offlineFlag        Boolean        @default(false)
+  idempotencyKey     String?        @unique
   discountPercentage Decimal?       @default(0.00)
   previousStatus     String?
   isReturn           Boolean        @default(false)
@@ -833,6 +837,7 @@ model Ticket {
   isWarrantyReturn     Boolean              @default(false)
   slaDeadlineAt        DateTime?
   slaBreachedAt        DateTime?
+  idempotencyKey       String?              @unique
   feedback             Feedback?
   journalEntries       JournalEntry[]
   logs                 NotificationLog[]

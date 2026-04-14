@@ -1,20 +1,25 @@
-import { db } from './offline-db';
-import { processSale } from '@/actions/pos';
+import { SyncService } from './sync-service';
 import { LocalPersistenceService } from './local-persistence';
+import { triggerCustomerReindex } from '@/actions/customer-actions';
 import { logger } from './logger';
 
 export class SyncWorker {
     private static isRunning = false;
+    private static isSyncing = false; // 🆕 Mutual exclusion lock
 
     static start(intervalMs = 30000) {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        logger.info('[SyncWorker] Started.');
+        logger.info('[SyncWorker] Started — universal sync mode (Sales, Tickets, Treasury, Inventory, Returns).');
 
-        // Sync interval (30s)
+        // Universal sync interval (30s) — all 5 offline stores
         setInterval(async () => {
-            await this.syncPendingSales();
+            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                logger.info('[SyncWorker] Device is offline. Skipping sync cycle.');
+                return;
+            }
+            await this.runUniversalSync();
         }, intervalMs);
 
         // Mirroring interval (5m) as per Constitution Pillar I
@@ -23,49 +28,44 @@ export class SyncWorker {
             await LocalPersistenceService.mirrorToSQLite();
             await LocalPersistenceService.backupToFilesystem();
         }, 5 * 60 * 1000);
+
+        // 🆕 Self-Healing Indexer (15m) — Reconciles Customer LTV/Balances
+        setInterval(async () => {
+            if (typeof navigator !== 'undefined' && !navigator.onLine) return; // don't try if offline
+            logger.info('[SyncWorker] Triggering periodic customer re-indexing sweeper...');
+            await triggerCustomerReindex().catch(e => logger.error('[SyncWorker] Error triggering reindex', e));
+        }, 15 * 60 * 1000);
     }
 
-    private static async syncPendingSales() {
-        // Note: navigator.onLine is NOT checked here because this is an Electron app.
-        // processSale is a server action on 127.0.0.1, always reachable locally.
+    static async runUniversalSync() {
+        if (this.isSyncing) {
+            logger.info('[SyncWorker] Sync already in progress. Skipping cycle.');
+            return { success: false, message: 'Sync already in progress' };
+        }
 
+        this.isSyncing = true;
         try {
-            const pendingSales = await db.sales
-                .where('syncStatus')
-                .equals('PENDING')
-                .toArray();
+            const status = await SyncService.getQueueStatus();
+            if (status.total === 0) return { success: true, synced: 0, failures: [] };
 
-            if (pendingSales.length === 0) return;
+            logger.info(
+                `[SyncWorker] Pending queue — Sales:${status.salesCount} Tickets:${status.ticketsCount} ` +
+                `Treasury:${status.treasuryCount} Inventory:${status.inventoryCount} Returns:${status.returnsCount}`
+            );
 
-            logger.info(`[SyncWorker] Found ${pendingSales.length} pending sales. Syncing...`);
+            const results = await SyncService.syncAll();
 
-            for (const sale of pendingSales) {
-                try {
-                    const payload = {
-                        id: sale.id, // O-01 Idempotency check 
-                        items: sale.items.map(i => ({ id: i.productId, quantity: i.quantity, price: i.unitPrice })),
-                        paymentMethod: sale.paymentMethod as any,
-                        totalAmount: sale.totalAmount,
-                        customer: {
-                            name: sale.customerName || '',
-                            phone: sale.customerPhone || '',
-                            address: sale.customerAddress || ''
-                        },
-                        offlineFlag: true
-                    };
-
-                    const result = await processSale(payload);
-
-                    if (result.success) {
-                        await db.sales.update(sale.id, { syncStatus: 'SYNCED' });
-                        logger.info(`[SyncWorker] Sale ${sale.id} synced successfully.`);
-                    }
-                } catch (err) {
-                    logger.error(`[SyncWorker] Failed to sync sale ${sale.id}`, err);
-                }
+            if (!results.success) {
+                logger.warn(`[SyncWorker] Sync completed with ${results.failures.length} failure(s).`);
+            } else {
+                logger.info('[SyncWorker] All queues flushed successfully.');
             }
+            return results;
         } catch (error) {
-            logger.error('[SyncWorker] Error in sync process', error);
+            logger.error('[SyncWorker] Error in universal sync cycle', error);
+            return { success: false, failures: [error] };
+        } finally {
+            this.isSyncing = false; // 🆕 Release lock
         }
     }
 }

@@ -10,16 +10,17 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from 'zod';
+import { saleSchema } from "@/lib/validation/pos";
 import { Decimal } from "@prisma/client/runtime/library";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { secureAction } from "@/lib/safe-action";
 import { decrementWarehouseStock } from "@/lib/stock-helpers"; // BL-06/BL-07 fix
 
-import { saleSchema } from "@/lib/validation/pos";
 import { logger } from "@/lib/logger";
 import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-management-actions";
 import { getCurrentUser } from "./auth";
 import { PERMISSIONS } from "@/lib/permissions";
+import { CustomerIndexingService } from "@/lib/customer-indexing-service";
 
 interface ProcessSaleData extends z.infer<typeof saleSchema> {
     registerId?: string;
@@ -33,14 +34,28 @@ interface ProcessSaleData extends z.infer<typeof saleSchema> {
     offlineFlag?: boolean;
     isSupplier?: boolean;
     csrfToken?: string;
-    id?: string; // Used for idempotency during offline sync
+    id?: string; // Used as the offline UUID
+    idempotencyKey?: string;
+    treasuryId?: string;
 }
+
+import { rateLimit } from "@/lib/rate-limit";
 
 export const processSale = secureAction(async (rawData: ProcessSaleData) => {
     const startTime = Date.now();
 
-    // 🔒 SHIFT GUARD: Ensure active shift exists
+    // 🔒 RATE LIMIT & SHIFT GUARD: Prevent double-click spam & ensure active shift
     const currentUser = await getCurrentUser();
+    if (currentUser) {
+        const limit = await rateLimit(`sale:${currentUser.id}`, {
+            keyPrefix: 'pos',
+            limit: 15,
+            windowSeconds: 60
+        });
+        if (!limit.success) {
+            throw new Error("Too many transactions. Please wait a moment.");
+        }
+    }
 
     // Import getTranslations if not already available in scope (it's not)
     const { getTranslations } = await import('@/lib/i18n-mock');
@@ -61,19 +76,19 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
     const currentShift = shiftResult.shift;
 
-    // 1. Separate "force", "warranty", "treasuryId" and "id" from Schema validation
-    const { force, warranty, treasuryId, id: providedId, ...schemaData } = rawData;
+    // 1. Separate "force", "warranty", "treasuryId", "id" and "idempotencyKey" from Schema validation
+    const { force, warranty, treasuryId, id: providedId, idempotencyKey, ...schemaData } = rawData;
     const data = saleSchema.parse(schemaData);
 
     const result = await prisma.$transaction(async (tx) => {
         // Idempotency guard for offline sync
-        if (providedId) {
+        if (idempotencyKey) {
             const existingSale = await tx.sale.findUnique({
-                where: { id: providedId },
+                where: { idempotencyKey: idempotencyKey },
                 include: { items: true, payments: true }
             });
             if (existingSale) {
-                logger.info(`[POS] Duplicate sync prevented for offline sale ${providedId}`);
+                logger.info(`[POS] Duplicate sync prevented for sale idempotencyKey ${idempotencyKey}`);
                 // Return exactly what the endpoint expects to indicate success but avoid double charging
                 return { ...existingSale, isIdempotentHit: true };
             }
@@ -184,7 +199,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         const sale = await tx.sale.create({
             data: {
-                ...(providedId ? { id: providedId } : {}), // O-01 Idempotency Key
+                ...(providedId ? { id: providedId } : {}), 
+                idempotencyKey: idempotencyKey ?? undefined,
                 customerId: (data.customer?.id && data.customer.id.trim() !== "" && !rawData.isSupplier) ? data.customer.id : null,
                 warehouseId: mainWarehouseId,
                 totalAmount: new Decimal(totalAmount),
@@ -231,7 +247,20 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             } as any
         });
 
-
+        // 🆕 S-01 Hardware Audit: Log the action
+        await tx.actionLog.create({
+            data: {
+                action: 'CREATE_SALE',
+                userId: currentUser.id,
+                branchId: currentUser.branchId,
+                details: JSON.stringify({
+                    saleId: sale.id,
+                    totalAmount: totalAmount,
+                    customer: data.customer?.name,
+                    itemsCount: data.items.length
+                })
+            }
+        });
 
 
         // 2. Deduction Logic (Employee Salary or Customer Account)
@@ -532,6 +561,17 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             tx
         );
 
+        // S-01: Audit Log Injection for Traceability
+        await (tx as any).actionLog.create({
+            data: {
+                action: "POS_SALE_CREATE",
+                details: `Sale #${sale.id.slice(0, 8)}: Total ${totalAmount}, Method: ${data.paymentMethod}`,
+                userId: currentUser.id,
+                referenceId: sale.id,
+                branchId: currentUser.branchId || null
+            }
+        });
+
         return sale;
     }, { timeout: 20000 });
 
@@ -561,6 +601,13 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
     revalidatePath("/reports", 'page');
     revalidatePath("/accounting", 'page');
     revalidateTag("dashboard");
+
+    // 🆕 Real-time Refresh for Hybrid Indexing Pattern
+    if (result.customerId) {
+        CustomerIndexingService.refreshCustomer(result.customerId).catch(err => 
+            logger.error(`[POS] Failed to refresh customer indexing for ${result.customerId}`, err)
+        );
+    }
 
     return { message: "Sale processed successfully", saleId: result.id, sale: result };
 

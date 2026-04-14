@@ -306,14 +306,20 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="space-y-2 text-right">
                             <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('role')}</label>
-                            <Select name="roleId" defaultValue={editingUser?.role?.id || editingUser?.roleId || ''} required>
-                                <SelectTrigger className="w-full bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 h-10 rounded-lg px-4 font-black text-xs uppercase tracking-tighter text-right">
+                            <Select name="roleId" defaultValue={editingUser?.role?.id || editingUser?.roleId || ''} required dir="rtl">
+                                <SelectTrigger className="w-full bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 h-10 rounded-lg px-4 font-black text-xs uppercase tracking-tighter text-right flex-row-reverse">
                                     <SelectValue placeholder={t('selectRole')} />
                                 </SelectTrigger>
-                                <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl">
-                                    {filteredRoles.map((role: any) => (
-                                        <SelectItem key={role.id} value={role.id} className="font-bold text-sm py-3 mb-1 rounded-xl text-right">{role.name}</SelectItem>
-                                    ))}
+                                <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl" dir="rtl">
+                                    {filteredRoles.length > 0 ? (
+                                        filteredRoles.map((role: any) => (
+                                            <SelectItem key={role.id} value={role.id} className="font-bold text-sm py-3 mb-1 rounded-xl text-right">{role.name}</SelectItem>
+                                        ))
+                                    ) : (
+                                        <div className="p-4 text-center text-xs font-black text-muted-foreground uppercase tracking-widest opacity-50">
+                                            {t('noRolesConfigured') || "لا توجد صلاحيات مسجلة. قم بإنشاء صلاحية أولاً."}
+                                        </div>
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -322,11 +328,11 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                         ) : (
                             <div className="space-y-2 text-right">
                                 <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mr-1">{t('assignedBranch')}</label>
-                                <Select name="branchId" defaultValue={editingUser?.branch?.id || editingUser?.branchId || ''} required>
-                                    <SelectTrigger className="w-full bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 h-10 rounded-lg px-4 font-black text-xs uppercase tracking-tighter text-right">
+                                <Select name="branchId" defaultValue={editingUser?.branch?.id || editingUser?.branchId || ''} required dir="rtl">
+                                    <SelectTrigger className="w-full bg-slate-100 dark:bg-zinc-900/50 border border-slate-300 dark:border-white/10 h-10 rounded-lg px-4 font-black text-xs uppercase tracking-tighter text-right flex-row-reverse">
                                         <SelectValue placeholder={t('selectBranch')} />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl">
+                                    <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl" dir="rtl">
                                         {branches.map((b: any) => (
                                             <SelectItem key={b.id} value={b.id} className="font-bold text-sm py-3 mb-1 rounded-xl text-right">{b.name}</SelectItem>
                                         )) }

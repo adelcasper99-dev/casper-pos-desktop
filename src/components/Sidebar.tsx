@@ -42,6 +42,9 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { ModeToggle } from "@/components/mode-toggle";
 import StaffProfileBadge from "@/components/staff/StaffProfileBadge";
 import AppClock from "@/components/ui/AppClock";
+import { useOfflineQueueStatus } from "@/hooks/useOfflineQueueStatus";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { RefreshCw, Unplug, CloudOff, AlertCircle } from "lucide-react";
 
 import {
     DndContext,
@@ -87,6 +90,8 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const locale = useLocale();
+    const { isOnline } = useNetworkStatus();
+    const { total, hasDeadLetter, manualSync, refresh } = useOfflineQueueStatus();
 
     const [mounted, setMounted] = useState(false);
     const [itemsOrder, setItemsOrder] = useState<string[]>(MENU_ITEMS.map(i => i.key));
@@ -300,6 +305,43 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                 <div className={cn("flex gap-2 transition-all duration-300", isExpanded ? "flex-row" : "flex-col")}>
                     <LanguageSwitcher />
                     <ModeToggle />
+                    
+                    {/* Offline Sync Badge */}
+                    {(total > 0 || !isOnline) && (
+                        <button
+                            onClick={() => manualSync()}
+                            className={cn(
+                                "relative flex items-center justify-center rounded-xl transition-all duration-300 group overflow-hidden border-2",
+                                !isOnline 
+                                    ? "bg-red-500/10 border-red-500/50 text-red-500" 
+                                    : "bg-orange-500/10 border-orange-500/50 text-orange-500",
+                                isExpanded ? "flex-1 px-3 py-2 gap-2" : "w-10 h-10 p-0"
+                            )}
+                            title={isOnline ? `${total} pending syncs` : "Offline"}
+                        >
+                            {isOnline ? (
+                                <RefreshCw className={cn("w-5 h-5", total > 0 && "animate-spin-slow")} />
+                            ) : (
+                                <Unplug className="w-5 h-5" />
+                            )}
+                            
+                            {isExpanded && (
+                                <div className="flex flex-col items-start leading-none gap-1">
+                                    <span className="text-[10px] font-black uppercase tracking-tighter">
+                                        {!isOnline ? "Offline" : "Syncing"}
+                                    </span>
+                                    {total > 0 && (
+                                        <span className="text-[12px] font-black">{total} pending</span>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Notification Dot */}
+                            {total > 0 && !isExpanded && (
+                                <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900 animate-pulse" />
+                            )}
+                        </button>
+                    )}
                 </div>
 
                 {/* Training Button */}

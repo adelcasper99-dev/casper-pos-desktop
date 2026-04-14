@@ -434,6 +434,15 @@ body {
   animation: flyIn 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
 @keyframes float {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-20px); }

@@ -29,7 +29,7 @@ export default async function MaintenanceDashboardPage() {
     })) : [];
 
     return (
-        <div className="container mx-auto py-8 px-4">
+        <div className="max-w-[2400px] mx-auto py-8 px-6 lg:px-8">
             <div className="flex flex-col gap-1 mb-8">
                 <h1 className="text-3xl font-extrabold tracking-tight text-white">
                     {t('title')}

@@ -1069,17 +1069,44 @@
         "searchPlaceholder": "البحث بالاسم أو الهاتف...",
         "onlyWithBalance": "عرض أصحاب المديونيات فقط",
         "noCustomersFound": "لم يتم العثور على عملاء يطابقون بحثك.",
+        "intelligence": {
+            "title": "ذكاء العملاء",
+            "riskLevel": "مستوى المخاطر",
+            "successRatio": "نسبة نجاح السداد",
+            "activityGap": "فجوة النشاط",
+            "highRisk": "مخاطر عالية",
+            "medRisk": "متوسط",
+            "lowRisk": "أمان تام",
+            "active": "نشط",
+            "stale": "خامل",
+            "staleDays": "منذ {days} يوم",
+            "avgSuccess": "متوسط نجاح التحصيل",
+            "outstanding": "مديونيات معلقة",
+            "highRiskCount": "عملاء مرتفعي المخاطر"
+        },
+        "editModal": {
+            "title": "تعديل بيانات العميل",
+            "name": "اسم العميل",
+            "phone": "رقم الهاتف",
+            "email": "البريد الإلكتروني",
+            "address": "العنوان",
+            "saving": "جاري التحديث...",
+            "save": "حفظ التغييرات"
+        },
         "table": {
             "name": "الاسم",
             "phone": "الهاتف",
             "balance": "الرصيد",
             "creditLimit": "سقف الائتمان",
-            "actions": "الإجراءات"
+            "actions": "الإجراءات",
+            "intelligence": "ذكاء الأعمال"
         },
         "actions": {
             "payment": "تسجيل دفعة",
             "creditLimit": "تعديل الحد",
-            "view": "عرض التفاصيل"
+            "view": "عرض التفاصيل",
+            "edit": "تعديل الملف",
+            "menu": "خيارات"
         },
         "details": {
             "title": "تفاصيل العميل",
@@ -1087,6 +1114,7 @@
             "scanningLedger": "جاري فحص الحسابات...",
             "noTransactions": "لا توجد معاملات مالية مسجلة.",
             "noSales": "لا يوجد سجل مبيعات لهذا العميل.",
+            "noTickets": "لا توجد تذاكر صيانة مسجلة لهذا العميل.",
             "deactivateSession": "إغلاق نافذة التفاصيل",
             "unlimited": "غير محدود",
             "transactionTypes": {

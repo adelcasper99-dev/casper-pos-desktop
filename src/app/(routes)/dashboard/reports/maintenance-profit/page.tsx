@@ -93,7 +93,7 @@ export default function MaintenanceProfitPage() {
     };
 
     return (
-        <div className="p-6 space-y-8 min-h-screen transition-colors duration-300">
+        <div className="p-6 space-y-8 min-h-screen transition-colors duration-300 max-w-[2400px] mx-auto">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-3xl font-extrabold tracking-tight text-foreground leading-tight">

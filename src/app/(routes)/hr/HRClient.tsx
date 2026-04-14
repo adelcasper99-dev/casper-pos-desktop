@@ -47,7 +47,7 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
     const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
 
     return (
-        <div className="p-8 w-full space-y-8 animate-in fade-in duration-500 font-cairo" dir="rtl">
+        <div className="p-8 space-y-8 animate-in fade-in duration-500 font-cairo max-w-[2400px] mx-auto" dir="rtl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-zinc-200 dark:border-white/5">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-3xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">

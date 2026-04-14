@@ -209,7 +209,13 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema> &
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Fetch Role Name for legacy support
+    // Fetch Branch & Role with validation to avoid P2003 on stale session data
+    let branch = null;
+    if (branchId) {
+        branch = await prisma.branch.findUnique({ where: { id: branchId } });
+    }
+    const effectiveBranchId = branch?.id || await ensureMainBranch();
+
     let role = null;
     let roleName = "STAFF";
     if (roleId) {
@@ -217,8 +223,6 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema> &
         if (role) roleName = role.name;
     }
 
-    // Auto-assign to main branch if no branch specified (single-branch mode)
-    const effectiveBranchId = branchId || await ensureMainBranch();
 
     // Use transaction for atomic creation (User + Warehouse + Technician)
     await prisma.$transaction(async (tx) => {
@@ -317,11 +321,21 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
         }
     }
 
+    // Validate branchId existence to prevent P2003
+    let verifiedBranchId = branchId;
+    if (branchId) {
+        const branchExists = await prisma.branch.count({ where: { id: branchId, deletedAt: null } });
+        if (branchExists === 0) {
+            verifiedBranchId = await ensureMainBranch();
+        }
+    }
+
     const updateData: Prisma.UserUpdateInput = {
         name,
         username,
         role: roleId ? { connect: { id: roleId } } : { disconnect: true },
-        branch: branchId ? { connect: { id: branchId } } : { disconnect: true },
+        branch: verifiedBranchId ? { connect: { id: verifiedBranchId } } : { disconnect: true },
+
         managedHQIds: managedHQIds ? JSON.stringify(managedHQIds) : undefined,
         isGlobalAdmin: isGlobalAdmin ?? undefined,
         phone: phone || null,

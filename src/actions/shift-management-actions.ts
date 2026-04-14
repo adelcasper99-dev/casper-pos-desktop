@@ -67,10 +67,26 @@ async function getBranchTimezone(userId?: string): Promise<string> {
 /**
  * Format business date (YYYY-MM-DD) in local timezone
  */
-function getBusinessDate(timezone: string = "UTC"): string {
-    const now = new Date();
-    // For now, use simple ISO date. In production, use timezone library like date-fns-tz
-    return now.toISOString().split('T')[0];
+function getBusinessDate(timezone: string = "Africa/Cairo"): string {
+    try {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        
+        const parts = formatter.formatToParts(now);
+        const year = parts.find(p => p.type === 'year')?.value;
+        const month = parts.find(p => p.type === 'month')?.value;
+        const day = parts.find(p => p.type === 'day')?.value;
+        
+        return `${year}-${month}-${day}`;
+    } catch (e) {
+        console.error(`[Timezone Error] Fallback to system date for ${timezone}:`, e);
+        return new Date().toISOString().split('T')[0];
+    }
 }
 
 // ============================================================================
@@ -179,6 +195,7 @@ export const closeShift = secureAction(async (data: {
     safeDropAmount?: number;
     safeDropTreasuryId?: string;
     csrfToken?: string; // For CSRF validation
+    acceptDiscrepancy?: boolean; // SH-01: Flag to bypass discrepancy check
 }) => {
     const shift = await prisma.shift.findUnique({
         where: { id: data.shiftId },
@@ -274,6 +291,17 @@ export const closeShift = secureAction(async (data: {
             shiftId: shift.id,
             recorded: shift.totalSales,
             actual: actualSalesCount
+        });
+    }
+
+    // SH-01: Block finalization if discrepancy detected without explicit acceptance
+    if (hasDiscrepancy && !data.acceptDiscrepancy) {
+        return serialize({
+            success: false,
+            code: "DISCREPANCY_DETECTED",
+            expected: shift.totalSales,
+            actual: actualSalesCount,
+            message: "عفواً، تم اكتشاف اختلاف في عدد المبيعات المسجل مقارنة بالفعلي. يرجى مراجعة العمليات أو تأكيد الإغلاق من قبل المدير."
         });
     }
 
@@ -472,6 +500,59 @@ export const closeShift = secureAction(async (data: {
                 : `Shift closed with ${cashVariance.greaterThan(0) ? 'overage' : 'shortage'} of ${Math.abs(cashVariance.toNumber()).toFixed(2)}`
     });
 }, { permission: "SHIFT_MANAGE", requireCSRF: true });
+
+/**
+ * SH-01: Proactive Shift Discrepancy Preview
+ * Calculates variance before final closure to allow user correction.
+ */
+export const getShiftStatusPreview = secureAction(async (data: { shiftId: string }) => {
+    const shift = await prisma.shift.findUnique({
+        where: { id: data.shiftId },
+        include: {
+            sales: { select: { id: true } },
+            expenses: {
+                select: { amount: true, paymentMethod: true }
+            },
+        }
+    });
+
+    if (!shift) throw new Error("Shift not found");
+
+    const shiftData = shift as any; // Cast for include safety
+
+    const expectedSalesCount = shift.totalSales;
+    const actualSalesCount = shiftData.sales.length;
+    
+    const totalCashExpenses = shiftData.expenses
+        .filter((exp: any) => (exp.paymentMethod || 'CASH').toUpperCase() === 'CASH')
+        .reduce((sum: Decimal, exp: any) => sum.add(new Decimal(exp.amount.toString())), new Decimal(0));
+
+    // Expected Cash = Start + Cash Revenue - Cash Expenses - Cash Refunds
+    const expectedCash = shift.startCash
+        .add(shift.totalCashSales)
+        .minus(totalCashExpenses)
+        .minus(shift.totalCashRefunds || 0);
+
+    return serialize({
+        success: true,
+        data: {
+            shiftId: shift.id,
+            status: shift.status,
+            sales: {
+                recorded: expectedSalesCount,
+                actual: actualSalesCount,
+                hasDiscrepancy: expectedSalesCount !== actualSalesCount,
+                diff: actualSalesCount - expectedSalesCount
+            },
+            cash: {
+                expected: expectedCash.toNumber(),
+                recordedSales: shift.totalCashSales.toNumber(),
+                expenses: totalCashExpenses.toNumber(),
+                refunds: (shift.totalCashRefunds || new Decimal(0)).toNumber()
+            }
+        }
+    });
+}, { permission: "SHIFT_VIEW" });
 
 /**
  * Internal function to get current shift - for use within other server actions

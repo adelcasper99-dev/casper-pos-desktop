@@ -2,8 +2,11 @@ import { useState, useEffect, useTransition, useMemo } from 'react'
 import {
     Search, User as UserIcon, Plus, Edit2, Trash2, MoreHorizontal,
     Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download,
-    Printer, Settings as SettingsIcon, StickyNote
+    Printer, Settings as SettingsIcon, StickyNote, Zap
 } from "lucide-react"
+
+import { Switch } from "@/components/ui/switch"
+import { printService } from "@/lib/print-service"
 import { useRouter } from 'next/navigation'
 import { useDebouncedCallback } from 'use-debounce'
 import { CasperLoader } from "@/components/ui/CasperLoader"
@@ -64,6 +67,8 @@ export default function TicketsList() {
     const [printTicket, setPrintTicket] = useState<any>(null)
     const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
     const [isSilentPrint, setIsSilentPrint] = useState(false)
+    const [enableSpeedPrint, setEnableSpeedPrint] = useState(true)
+
     // Helper: check if default printers are configured
     const hasThermalPrinter = () =>
         !!(localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer') || localStorage.getItem('casper_ticket_printer'));
@@ -95,6 +100,20 @@ export default function TicketsList() {
     useEffect(() => {
         loadData()
     }, [query, statusFilter, showStale, dateRange])
+
+    useEffect(() => {
+        const registry = printService.getRegistry();
+        if (registry) {
+            setEnableSpeedPrint(registry.enableSpeedPrint !== false);
+        }
+    }, [])
+
+    const handleSpeedPrintToggle = (val: boolean) => {
+        setEnableSpeedPrint(val);
+        const current = printService.getRegistry() || {};
+        printService.updateRegistry({ ...current, enableSpeedPrint: val });
+        toast.success(val ? "تم تفعيل الطباعة المباشرة" : "تم تعطيل الطباعة المباشرة");
+    };
 
     async function loadData() {
         startTransition(async () => {
@@ -421,6 +440,15 @@ export default function TicketsList() {
                 </div>
 
                 <div className="flex gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-900/50 p-1 rounded-lg border border-slate-300 dark:border-white/10 px-3 h-10">
+                        <Zap className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-zinc-300 whitespace-nowrap">طباعة مباشرة</span>
+                        <Switch
+                            checked={enableSpeedPrint}
+                            onCheckedChange={handleSpeedPrintToggle}
+                            className="scale-[0.8] ms-1 data-[state=checked]:bg-indigo-500"
+                        />
+                    </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black">
@@ -608,7 +636,7 @@ export default function TicketsList() {
                                                         <DropdownMenuItem onClick={(e) => { 
                                                             e.stopPropagation();
                                                             clearPrintGuard(ticket.id);
-                                                            const silent = hasThermalPrinter();
+                                                            const silent = hasThermalPrinter() && enableSpeedPrint;
                                                             setPrintTicket(ticket); 
                                                             setPrintMode('receipt'); 
                                                             setIsSilentPrint(silent);
@@ -620,7 +648,7 @@ export default function TicketsList() {
                                                         <DropdownMenuItem onClick={(e) => { 
                                                             e.stopPropagation();
                                                             clearPrintGuard(ticket.id);
-                                                            const silent = hasThermalPrinter();
+                                                            const silent = hasThermalPrinter() && enableSpeedPrint;
                                                             setPrintTicket(ticket); 
                                                             setPrintMode('engineer'); 
                                                             setIsSilentPrint(silent);
@@ -632,7 +660,7 @@ export default function TicketsList() {
                                                         <DropdownMenuItem onClick={(e) => { 
                                                             e.stopPropagation();
                                                             clearPrintGuard(ticket.id);
-                                                            const silent = hasLabelPrinter();
+                                                            const silent = hasLabelPrinter() && enableSpeedPrint;
                                                             setPrintTicket(ticket); 
                                                             setPrintMode('label'); 
                                                             setIsSilentPrint(silent);

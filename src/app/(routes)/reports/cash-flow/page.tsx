@@ -6,5 +6,9 @@ export const metadata = {
 };
 
 export default function Page() {
-    return <CashFlowDashboard />;
+    return (
+        <div className="max-w-[2400px] mx-auto p-4 md:p-8">
+            <CashFlowDashboard />
+        </div>
+    );
 }

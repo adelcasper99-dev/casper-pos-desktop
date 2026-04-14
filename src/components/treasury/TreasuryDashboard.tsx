@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { generateIdempotencyKey, saveTreasuryTransactionOffline, isOnline } from "@/lib/offline-transaction-helper";
 import {
     Plus, Minus, Landmark, CreditCard, Smartphone, Banknote,
     ArrowUpCircle, ArrowDownCircle, Loader2, Edit, Trash2,
@@ -415,35 +416,117 @@ export default function TreasuryDashboard({
         setSelectedTreasuryId(def?.id || "");
     };
 
-    const handleDepositSubmit = async (data: any) => {
+    const handleDepositSubmit = async (depositData: any) => {
+        // 🛡️ Double-submit guard: generate key before touching the server
+        const idempotencyKey = generateIdempotencyKey('DEPOSIT');
         setLoading(true);
-        await addTreasuryTransaction(
-            "IN", 
-            data.amount,
-            data.description,
-            data.paymentMethod,
-            data.treasuryId,
-            undefined, 
-            undefined,
-            undefined,
-            data.categoryId
-        );
-        setLoading(false);
-        await refresh();
+        try {
+            const offline = !isOnline();
+            if (offline) {
+                await saveTreasuryTransactionOffline(
+                    'DEPOSIT',
+                    depositData.amount,
+                    depositData.description,
+                    depositData.paymentMethod,
+                    depositData.treasuryId,
+                    undefined,
+                    depositData.categoryId
+                );
+                toast.success('تم حفظ الإيداع محلياً — سيتم مزامنته عند استعادة الاتصال');
+                // Optimistic balance update
+                setData(prev => ({
+                    ...prev,
+                    treasuries: prev.treasuries.map(tr =>
+                        tr.id === depositData.treasuryId
+                            ? { ...tr, balance: tr.balance + depositData.amount }
+                            : tr
+                    ),
+                }));
+                return;
+            }
+            const res = await addTreasuryTransaction(
+                "IN",
+                depositData.amount,
+                depositData.description,
+                depositData.paymentMethod,
+                depositData.treasuryId,
+                undefined,
+                undefined,
+                undefined,
+                depositData.categoryId,
+                idempotencyKey // 🆕 replay-safe
+            );
+            if (!res.success) {
+                toast.error(res.error || 'فشل الإيداع');
+                return;
+            }
+            await refresh();
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        // 🛡️ Double-submit guard: generate key before touching the server
+        const idempotencyKey = generateIdempotencyKey('WITHDRAWAL');
         setLoading(true);
-        if (editingId) {
-            await updateTreasuryTransaction(editingId, { type: transType, amount: parseFloat(amount), description, paymentMethod: method }, reason);
-        } else {
-            await addTreasuryTransaction(transType, parseFloat(amount), description, method, selectedTreasuryId || undefined, undefined, undefined, undefined, selectedCategoryId || undefined);
+        try {
+            if (editingId) {
+                await updateTreasuryTransaction(
+                    editingId,
+                    { type: transType, amount: parseFloat(amount), description, paymentMethod: method },
+                    reason
+                );
+            } else {
+                const offline = !isOnline();
+                if (offline) {
+                    await saveTreasuryTransactionOffline(
+                        'WITHDRAWAL',
+                        parseFloat(amount),
+                        description,
+                        method,
+                        selectedTreasuryId || undefined,
+                        undefined,
+                        selectedCategoryId || undefined
+                    );
+                    toast.success('تم حفظ السحب محلياً — سيتم مزامنته عند استعادة الاتصال');
+                    // Optimistic balance update
+                    setData(prev => ({
+                        ...prev,
+                        treasuries: prev.treasuries.map(tr =>
+                            tr.id === selectedTreasuryId
+                                ? { ...tr, balance: tr.balance - parseFloat(amount) }
+                                : tr
+                        ),
+                    }));
+                    setIsModalOpen(false);
+                    resetForm();
+                    return;
+                }
+                const res = await addTreasuryTransaction(
+                    transType,
+                    parseFloat(amount),
+                    description,
+                    method,
+                    selectedTreasuryId || undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    selectedCategoryId || undefined,
+                    idempotencyKey // 🆕 replay-safe
+                );
+                if (!res.success) {
+                    toast.error(res.error || 'فشل تنفيذ العملية');
+                    return;
+                }
+            }
+            setIsModalOpen(false);
+            resetForm();
+            await refresh();
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
-        setIsModalOpen(false);
-        resetForm();
-        await refresh();
     };
 
     const handleDelete = async () => {

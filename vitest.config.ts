@@ -5,7 +5,10 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
-        include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
+        setupFiles: ['./src/__tests__/sync/setup.ts'],
+        fileParallelism: false,
+        hookTimeout: 60000, 
+        include: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'src/__tests__/sync/**/*.test.ts'],
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json', 'html'],

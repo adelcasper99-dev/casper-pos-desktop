@@ -19,10 +19,12 @@ import {
     calculateProratedRefundValue,
     calculateCogsReversal
 } from '@/utils/refund-calculations';
-import { 
+import {
     createCustomerTransactionJournal,
     createSupplierPaymentJournal 
 } from '@/lib/accounting/inline-journal-helpers';
+import { CustomerIndexingService } from '@/lib/customer-indexing-service';
+import { logger } from '@/lib/logger';
 
 interface SalesHistoryFilters {
     startDate?: string;
@@ -632,6 +634,13 @@ export const refundSale = secureAction(async (data: {
     revalidatePath("/reports");
     revalidatePath("/customers");
 
+    // 🆕 Real-time Refresh for Hybrid Indexing Pattern
+    if (result.sale.customerId) {
+        CustomerIndexingService.refreshCustomer(result.sale.customerId).catch(err => 
+            logger.error(`[Refund] Failed to refresh customer indexing for ${result.sale.customerId}`, err)
+        );
+    }
+
     return {
         success: true,
         message: "Sale refunded successfully",
@@ -1040,11 +1049,18 @@ export const partialRefundSale = secureAction(async (data: {
             }
         });
 
-        return { refundTotal: refundTotal.toNumber(), returnSaleId: returnSale.id, itemCount: processedItems.length };
+        return { refundTotal: refundTotal.toNumber(), returnSaleId: returnSale.id, itemCount: processedItems.length, customerId: sale.customerId };
     });
 
     revalidatePath("/pos");
     revalidatePath("/customers");
+
+    // 🆕 Real-time Refresh for Hybrid Indexing Pattern
+    if (result.customerId) {
+        CustomerIndexingService.refreshCustomer(result.customerId).catch(err => 
+            logger.error(`[PartialRefund] Failed to refresh customer indexing for ${result.customerId}`, err)
+        );
+    }
 
     return { success: true, message: t('partialRefundSuccess', { count: result.itemCount, amount: result.refundTotal.toFixed(2) }), refundedAmount: result.refundTotal, returnId: result.returnSaleId };
 }, { permission: PERMISSIONS.POS_ACCESS });

@@ -19,7 +19,15 @@ This document serves as the "Source of Truth" for critical architectural decisio
     - **Amnesia Bug Prevention**: When voiding a ticket via `fullTicketReturn`, always copy `originalCommission` into the `commissionClawback` column BEFORE setting `commissionAmount` to 0. This ensures payroll correctly tracks how much commission must be virtually (or physically) reversed.
     - **Virtual Sync Rule**: `hr-profile.ts` and `salary-utils.ts` MUST calculate deduction mathematically identically: `totalClawDeduction = clawbackVal + (excessLoss * responsibilityShare)`. Both must read from the per-ticket `referenceId` to avoid global deduplication blocking.
 
-*   **Sequential Invoice Protection**: Ensure 3-retry collision protection for all generated invoice/ticket numbers during heavy sync or concurrent operations.
+### 🛸 [NEW] Sequential Invoice & Ticket Protection
+*   **Protocol**: Sequential ID generation (e.g., Ticket Barcodes) MUST happen **inside** the database transaction (`prisma.$transaction`).
+*   **Logic**: Look up the last record, increment, and create—all in one atomic block. This prevents duplicate sequence numbers during simultaneous sync attempts from multiple desktop terminals.
+*   **Retry Logic**: Implement 3-retry collision protection with random jitter if a unique constraint violation occurs during the sequence commit.
+
+### 🕰️ [NEW] Temporal Integrity (Backdating Protocols)
+*   **Rule**: Transaction date-integrity MUST NOT rely on server-side `createdAt` default timestamps during sync.
+*   **Implementation**: All offline sync API routes (`offline-sale`, `offline-ticket`, etc.) MUST accept a client-side `createdAt` timestamp.
+*   **Database mapping**: Both the primary record (e.g., `Sale`) and its side-effects (e.g., `StockMovement`, `Transaction`) MUST use this ingested timestamp to ensure financial and inventory reports match the actual real-world transaction date.
 
 ### Decimal-Only Financial Math
 *   **Rule**: **NEVER USE FLOATS** for monetary calculations.
@@ -48,6 +56,19 @@ This document serves as the "Source of Truth" for critical architectural decisio
 
 ## 🔄 3. System Synchronization & Deduplication
 
+### Offline-First Sync & Idempotency
+*   **Rule**: Assume the desktop app is offline by default. All transactions must be generated with an `idempotencyKey` locally before hitting the server.
+*   **Implementation**: 
+    -   Generate `idempotencyKey` via `generateIdempotencyKey(type)` before any network dispatch.
+    -   Persist to offline DB (IndexedDB / SQLite) first if offline.
+    -   Both Desktop SQLite `Transaction/Sale/JournalEntry` and Cloud PostgreSQL models MUST have an `idempotencyKey String? @unique` constraint.
+    -   Server actions (e.g., `addTreasuryTransaction`) and server routes must catch duplicates via `idempotencyKey` and return `{existing: true}` instead of a 500 error or double-billing.
+
+### Universal Sync Worker & Dead Letter Queue (DLQ)
+*   **Worker Routine**: The `SyncWorker` must delegate to `SyncService.syncAll()` to ensure ALL offline stores (Sales, Tickets, Treasury, Inventory, Returns) are processed, not just a subset.
+*   **Sync Mutex (isSyncing Lock)**: To prevent overlapping sync cycles during high latency or large batch operations, the `SyncWorker` must implement a `isSyncing` boolean lock-gate.
+*   **DLQ Protection**: Items that fail to sync repeatedly (e.g., >5 retries) should be flagged as `DEAD_LETTER` locally instead of permanently blocking the queue, allowing human review without stalling other outgoing transactions.
+
 ### Physical vs. Virtual Transaction Priority
 *   **Rule**: System-generated "Virtual Entries" (used for reporting on unpaid work) must always seek a matching "Physical Transaction" (EmployeeTransaction table) via `referenceId` and `type` before appearing.
 *   **Types**: Use standardized types like `MAINTENANCE_COMMISSION_REVERSAL` to ensure consistency between the audit log and the salary aggregator.
@@ -75,4 +96,4 @@ This document serves as the "Source of Truth" for critical architectural decisio
 
 ---
 *Created: April 2, 2026*
-*Last Update: Hardening of Full Refund Loss Absorption Logic*
+*Last Update: April 11, 2026 (Hardening of Sync Architecture, Temporal Integrity, and Sequential Atomicity)*

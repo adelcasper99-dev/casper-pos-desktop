@@ -622,30 +622,26 @@ export const deleteProduct = secureAction(async (data: { id: string; csrfToken?:
     const { id } = data;
     try {
         await prisma.$transaction(async (tx) => {
-            // Delete Bundle Items first (cascade handles this but being explicit)
-            await (tx as any).bundleItem.deleteMany({
-                where: { OR: [{ bundleProductId: id }, { componentProductId: id }] }
+            // I-01: Soft Delete Implementation for Inventory Hardening
+            // Fetch product first to get current SKU for suffixing
+            const product = await tx.product.findUnique({
+                where: { id },
+                select: { sku: true }
             });
 
-            // Delete related Stock records first
-            await tx.stock.deleteMany({
-                where: { productId: id }
-            });
-
-            // Delete related StockMovement records
-            await tx.stockMovement.deleteMany({
-                where: { productId: id }
-            });
-
-            // Delete related StockWastage records
-            await tx.stockWastage.deleteMany({
-                where: { productId: id }
-            });
-
-            // Now delete the product
-            await tx.product.delete({
-                where: { id }
-            });
+            if (product) {
+                // Ghost SKU Suffixing: Frees up the original SKU for reuse while preserving history
+                const ghostSku = `${product.sku}_del_${Date.now()}`;
+                
+                await tx.product.update({
+                    where: { id },
+                    data: {
+                        deletedAt: new Date(),
+                        archived: true,
+                        sku: ghostSku
+                    }
+                });
+            }
         });
 
         revalidatePath("/inventory", 'page');
@@ -691,7 +687,10 @@ export const seedBundleCategory = secureAction(async (data?: { csrfToken?: strin
 export async function getBundleComponents(bundleProductId: string) {
     try {
         const items = await (prisma as any).bundleItem.findMany({
-            where: { bundleProductId },
+            where: { 
+                bundleProductId,
+                componentProduct: { deletedAt: null }
+            },
             include: {
                 componentProduct: {
                     select: {
@@ -1486,7 +1485,7 @@ export const adjustStock = secureAction(async (data: {
             create: { productId: data.productId, warehouseId: data.warehouseId, quantity: newQty }
         });
 
-        // 3. Log Movement
+        // 3. Log Movement (Technical Ledger)
         await tx.stockMovement.create({
             data: {
                 type: 'ADJUSTMENT',
@@ -1496,6 +1495,19 @@ export const adjustStock = secureAction(async (data: {
                 reason: `${data.reason} (Count: ${oldQty} -> ${newQty})`,
                 branchId: warehouse.branchId || null
             } as any
+        });
+
+        // 4. Create AuditLog (Administrative Audit Trail - I-03)
+        const currentUser = await getCurrentUser();
+        await tx.auditLog.create({
+            data: {
+                action: 'MANUAL_STOCK_ADJUSTMENT',
+                entityType: 'PRODUCT',
+                entityId: data.productId,
+                user: currentUser?.username || 'system',
+                branchId: warehouse.branchId || null,
+                reason: `Manual stock adjustment for product ${data.productId} in warehouse ${data.warehouseId}. Qty: ${oldQty} -> ${newQty}. Reason: ${data.reason}`,
+            }
         });
 
         // 4. Recalculate Global Product Stock & Record GL (B31)

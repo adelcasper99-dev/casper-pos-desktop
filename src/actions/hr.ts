@@ -127,8 +127,8 @@ export async function updateEmployeeData(userId: string, data: {
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = session.user.role === "ADMIN" || session.user.role === "مدير النظام" || session.user.role === "المالك";
-    const canManageUsers = hasPermission(session.user.permissions, PERMISSIONS.MANAGE_USERS);
+    const isAdmin = ["ADMIN", "owner", "SystemManager"].includes(session.user.role || "");
+    const canManageUsers = hasPermission(session.user.permissions as string[], PERMISSIONS.MANAGE_USERS);
 
     if (!isAdmin && !canManageUsers) {
         return { success: false, error: "Forbidden" };
@@ -309,16 +309,44 @@ export const payEmployeeSalary = secureAction(async (data: {
     if (!isAdmin) return { success: false, error: "Forbidden: Admin access required" };
 
     try {
-        // Validation handled by caller, but we check treasury if CASH
+        // H-01: Strict Financial Validation
+        const { Decimal } = await import("decimal.js");
+        const now = new Date();
+        const start = startOfMonth(now);
+        const end = endOfMonth(now);
+
+        const targetUser = await db.user.findUnique({
+            where: { id: data.userId },
+            include: {
+                dailyLogs: { where: { date: { gte: start, lte: end } } },
+                employeeTransactions: { where: { createdAt: { gte: start, lte: end } } },
+                technician: {
+                    include: {
+                        tickets: { where: { createdAt: { gte: start, lte: end } } }
+                    }
+                }
+            }
+        });
+
+        if (!targetUser) return { success: false, error: "Target employee not found" };
+
+        const { netDue } = await calculateNetDue(targetUser, start, end);
+        const amountDec = new Decimal(data.amount);
+        
+        // H-01: Applied strict block for overpayment (previously bypassed by isAdmin)
+        if (amountDec.gt(netDue)) {
+            return { 
+                success: false, 
+                error: `عفواً، المبلغ المدخل (${data.amount}) يتجاوز المستحق للموظف (${netDue.toNumber()}). يرجى مراجعة الإدارة.` 
+            };
+        }
+
         if (data.paymentMethod === 'CASH' && !data.treasuryId) {
             return { success: false, error: "Treasury is required for cash payments" };
         }
 
-        // Soft Guard (E-03): In a full payroll run, data.amount should be validated against
-        // calculatePayroll(employee, ...). Since this is a manual override payment endpoint,
-        // we allow arbitrary amounts but flag it for audit visibility.
         const { logger } = await import('@/lib/logger');
-        logger.info(`[HR] Manual Salary Payment: User ${data.userId} paid ${data.amount} via ${data.paymentMethod}`);
+        logger.info(`[HR] Manual Salary Payment: User ${data.userId} paid ${data.amount} via ${data.paymentMethod} (NetDue: ${netDue.toNumber()})`);
 
         const result = await (prisma as any).$transaction(async (tx: any) => {
             // 1. Create Employee Transaction (Ledger) - with auto journal

@@ -16,6 +16,7 @@ import { modelsByBrand } from "@/lib/mobileModels";
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { cn, safeRandomUUID } from "@/lib/utils"
 import PatternLockCanvas from "@/components/tickets/PatternLockCanvas"
+import { generateIdempotencyKey } from '@/lib/offline-transaction-helper';
 import { offlineDB } from "@/lib/offline-db";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
@@ -161,6 +162,7 @@ export default function NewTicketPage() {
         }
 
         setSubmitting(true)
+        const idempotencyKey = generateIdempotencyKey('TICKET');
 
         try {
             const tempBarcode = 'T-' + Math.floor(100000 + Math.random() * 900000);
@@ -199,36 +201,37 @@ export default function NewTicketPage() {
                 try {
                     const offlineTicket = {
                         id: safeRandomUUID(),
-                        barcode: tempBarcode,
+                        idempotencyKey,
                         customerName: formData.customerName,
                         customerPhone: formData.customerPhone,
                         deviceBrand: formData.deviceBrand,
                         deviceModel: formData.deviceModel,
-                        issue: formData.issueDescription,
-                        estimatedCost: Number(formData.repairPrice),
+                        issueDescription: formData.issueDescription,
+                        initialQuote: Number(formData.repairPrice),
+                        repairPrice: Number(formData.repairPrice),
                         expectedDuration: formData.expectedDuration ? Number(formData.expectedDuration) : null,
-                        parts: [],
+                        items: [],
                         createdAt: Date.now(),
                         synced: 0 as const,
                         syncRetries: 0,
                         status: 'NEW',
-                        totalAmount: Number(formData.repairPrice)
+                        totalAmount: Number(formData.repairPrice),
+                        syncStatus: 'PENDING'
                     };
 
-                    await offlineDB.tickets.add(offlineTicket);
+                    await offlineDB.tickets.add(offlineTicket as any);
 
                     toast.success(
                         <div>
-                            <p className="font-bold">Ticket Saved Offline</p>
+                            <p className="font-bold">تم حفظ التذكرة محلياً</p>
                             <p className="text-sm font-mono">#{tempBarcode}</p>
-                            <p className="text-xs text-yellow-300">Will sync when online</p>
+                            <p className="text-xs text-yellow-300">ستُزامَن عند استعادة الاتصال</p>
                         </div>
                     );
 
-                    localStorage.removeItem(STORAGE_KEY); // Clear draft on offline save
+                    localStorage.removeItem(STORAGE_KEY);
                     router.push(`/${locale}/maintenance/tickets`);
                     return;
-
                 } catch (err) {
                     console.error("Offline Ticket Save Error:", err);
                     toast.error("Failed to save offline ticket");
@@ -242,7 +245,8 @@ export default function NewTicketPage() {
                 repairPrice: formData.repairPrice ? Number(formData.repairPrice) : 0,
                 expectedDuration: formData.expectedDuration ? Number(formData.expectedDuration) : undefined,
                 conditionNotes: finalConditionNotes,
-                csrfToken: csrfToken ?? undefined
+                csrfToken: csrfToken ?? undefined,
+                idempotencyKey
             });
 
             if (!res.success) {

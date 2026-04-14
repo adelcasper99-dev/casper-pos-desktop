@@ -45,7 +45,7 @@ export default function Dashboard() {
     }, [dateRange, fetchMetrics]);
 
     return (
-        <div className="p-8 space-y-8 animate-fade-in-up">
+        <div className="p-8 space-y-8 animate-fade-in-up max-w-[2400px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 className="text-3xl font-bold">{t('title')}</h1>
 

@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
             treasuryId,
             shiftId,
             categoryId,
-            idempotencyKey
+            idempotencyKey,
+            createdAt // 🆕 Extract original timestamp
         } = body;
 
         if (idempotencyKey) {
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
                 treasuryId,
                 shiftId,
                 categoryId,
-                idempotencyKey
+                idempotencyKey,
+                createdAt: createdAt ? new Date(createdAt) : undefined // 🆕 Use original time
             }
         });
 

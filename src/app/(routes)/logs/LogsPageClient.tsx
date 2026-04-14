@@ -22,7 +22,7 @@ export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPage
     const [purchaseTotals, setPurchaseTotals] = useState({ actualTotal: 0, remaining: 0 });
 
     return (
-        <div className="w-full px-4 md:px-8 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="w-full px-4 md:px-8 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-[2400px] mx-auto">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border pb-8">
                 <div className="space-y-3">

@@ -7,7 +7,7 @@ export default function CustomersPage() {
     const t = useTranslations('Customers');
 
     return (
-        <div className="p-6 space-y-6 min-h-screen bg-transparent font-cairo">
+        <div className="p-6 space-y-6 min-h-screen bg-transparent font-cairo max-w-[2400px] mx-auto">
             <header className="flex flex-col gap-1">
                 <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">{t('title')}</h1>
                 <p className="text-muted-foreground font-bold text-sm">{t('subtitle')}</p>

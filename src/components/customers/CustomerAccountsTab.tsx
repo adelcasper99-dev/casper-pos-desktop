@@ -5,7 +5,9 @@ import { useTranslations } from '@/lib/i18n-mock';
 import {
     Search, Filter, CreditCard, History, User, Phone,
     ArrowUpRight, ArrowDownLeft, Settings,
-    ShoppingBag, Wallet, Info, ChevronUp, ChevronDown, ArrowUpDown
+    ShoppingBag, Wallet, Info, ChevronUp, ChevronDown, ArrowUpDown,
+    MoreVertical, Edit2, AlertTriangle, TrendingUp, Clock, Activity, Loader2,
+    MapPin, Mail, Wrench
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
@@ -14,6 +16,14 @@ import { Badge } from '@/components/ui/badge';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -21,7 +31,9 @@ import {
     getCustomersWithBalance,
     recordCustomerPayment,
     updateCustomerCreditLimit,
-    getCustomerDetails
+    getCustomerDetails,
+    updateCustomer,
+    getCustomerIntelligenceStats
 } from '@/actions/customer-actions';
 import { CasperLoader } from '@/components/ui/CasperLoader';
 import clsx from 'clsx';
@@ -33,6 +45,7 @@ export default function CustomerAccountsTab() {
 
     // State
     const [customers, setCustomers] = useState<any[]>([]);
+    const [intelligenceStats, setIntelligenceStats] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [hasBalanceOnly, setHasBalanceOnly] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -47,29 +60,37 @@ export default function CustomerAccountsTab() {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showLimitModal, setShowLimitModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
 
     // Form States
     const [paymentData, setPaymentData] = useState({ amount: '', method: 'CASH' as any, reference: '' });
     const [limitValue, setLimitValue] = useState('');
+    const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '' });
 
     useEffect(() => {
-        loadCustomers();
+        loadData();
     }, [hasBalanceOnly]);
 
-    const loadCustomers = async (query = searchQuery) => {
+    const loadData = async (query = searchQuery) => {
         setLoading(true);
         try {
-            const result = await getCustomersWithBalance({
-                search: query,
-                hasBalance: hasBalanceOnly
-            });
-            if (result.success && Array.isArray(result.customers)) {
-                setCustomers(result.customers);
-            } else if (result.error) {
-                toast.error(result.error);
+            const [custResult, statsResult] = await Promise.all([
+                getCustomersWithBalance({
+                    search: query,
+                    hasBalance: hasBalanceOnly
+                }),
+                getCustomerIntelligenceStats()
+            ]);
+
+            if (custResult.success && Array.isArray(custResult.customers)) {
+                setCustomers(custResult.customers);
+            }
+            
+            if (statsResult.success) {
+                setIntelligenceStats(statsResult);
             }
         } catch (error) {
-            toast.error("Failed to load customers");
+            toast.error("Failed to load intelligence data");
         } finally {
             setLoading(false);
         }
@@ -79,7 +100,7 @@ export default function CustomerAccountsTab() {
         const val = e.target.value;
         setSearchQuery(val);
         // Debounce search
-        const timeoutId = setTimeout(() => loadCustomers(val), 500);
+        const timeoutId = setTimeout(() => loadData(val), 500);
         return () => clearTimeout(timeoutId);
     };
 
@@ -93,6 +114,17 @@ export default function CustomerAccountsTab() {
         setSelectedCustomer(customer);
         setLimitValue(customer.creditLimit ? customer.creditLimit.toString() : '');
         setShowLimitModal(true);
+    };
+
+    const handleOpenEdit = (customer: any) => {
+        setSelectedCustomer(customer);
+        setEditForm({
+            name: customer.name,
+            phone: customer.phone,
+            email: customer.email || '',
+            address: customer.address || ''
+        });
+        setShowEditModal(true);
     };
 
     const handleOpenDetails = async (customer: any) => {
@@ -128,7 +160,7 @@ export default function CustomerAccountsTab() {
                 if (res?.success) {
                     toast.success(t('paymentModal.success'));
                     setShowPaymentModal(false);
-                    loadCustomers();
+                    loadData();
                 } else if (res?.error) {
                     toast.error(res.error);
                 }
@@ -151,12 +183,35 @@ export default function CustomerAccountsTab() {
                 if (res?.success) {
                     toast.success(t('creditModal.success'));
                     setShowLimitModal(false);
-                    loadCustomers();
+                    loadData();
                 } else if (res?.error) {
                     toast.error(res.error);
                 }
             } catch (error) {
                 toast.error('Failed to update limit');
+            }
+        });
+    };
+
+    const submitEdit = async () => {
+        if (!selectedCustomer) return;
+
+        startTransition(async () => {
+            try {
+                const res = await updateCustomer({
+                    id: selectedCustomer.id,
+                    ...editForm
+                });
+
+                if (res.success) {
+                    toast.success(ct('SystemMessages.Success.updated'));
+                    setShowEditModal(false);
+                    loadData();
+                } else if (res.error) {
+                    toast.error(res.error);
+                }
+            } catch (error) {
+                toast.error('Failed to update customer');
             }
         });
     };
@@ -205,26 +260,37 @@ export default function CustomerAccountsTab() {
     return (
         <div className="space-y-6 animate-fly-in font-cairo" dir="rtl">
             {/* Header / Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-rose-500/50">
                     <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
-                        <ArrowUpRight className="w-3.5 h-3.5 text-rose-500" />
-                        {t('totalOwed')}
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                        {t('intelligence.outstanding')}
                     </span>
                     <span className="text-2xl font-black text-rose-600 dark:text-rose-500 font-mono flex items-center gap-1.5">
-                        {Number(totalOwed).toLocaleString()}
-                        <span className="text-xs font-normal opacity-70 italic">EGP</span>
+                        {Number(intelligenceStats?.totalOutstanding || 0).toLocaleString()}
+                        <span className="text-xs font-normal opacity-70 italic font-cairo">EGP</span>
                     </span>
                 </div>
                 
                 <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-emerald-500/50">
                     <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
-                        <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500" />
-                        {t('totalCredit')}
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                        {t('intelligence.avgSuccess')}
                     </span>
                     <span className="text-2xl font-black text-emerald-600 dark:text-emerald-500 font-mono flex items-center gap-1.5">
-                        {Number(totalCredit).toLocaleString()}
-                        <span className="text-xs font-normal opacity-70 italic">EGP</span>
+                        {intelligenceStats?.avgSuccessRatio || 0}%
+                        <Activity className="w-4 h-4 opacity-50" />
+                    </span>
+                </div>
+
+                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-orange-500/50">
+                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
+                        <Clock className="w-3.5 h-3.5 text-orange-500" />
+                        {t('intelligence.highRiskCount')}
+                    </span>
+                    <span className="text-2xl font-black text-orange-600 dark:text-orange-500 font-mono flex items-center gap-1.5">
+                        {intelligenceStats?.highRiskCount || 0}
+                        <span className="text-xs font-normal opacity-70 italic font-cairo">{t('totalCustomersLabel')}</span>
                     </span>
                 </div>
 
@@ -234,7 +300,7 @@ export default function CustomerAccountsTab() {
                         {t('totalCustomers')}
                     </span>
                     <span className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-1.5">
-                        {customers.length}
+                        {intelligenceStats?.totalCustomers || 0}
                         <span className="text-xs font-normal opacity-70 italic font-cairo">{t('totalCustomersLabel')}</span>
                     </span>
                 </div>
@@ -280,23 +346,16 @@ export default function CustomerAccountsTab() {
                                     {getSortIcon('name')}
                                 </div>
                             </th>
-                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest">{t('table.phone')}</th>
-                            <th 
-                                className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none"
-                                onClick={() => handleSort('balance')}
-                            >
+                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none" onClick={() => handleSort('balance')}>
                                 <div className="flex items-center gap-2">
                                     <span className={cn("transition-transform group-hover:translate-x-1", sortConfig.key === 'balance' && "underline underline-offset-4 decoration-2")}>{t('table.balance')}</span>
                                     {getSortIcon('balance')}
                                 </div>
                             </th>
-                            <th 
-                                className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none"
-                                onClick={() => handleSort('creditLimit')}
-                            >
+                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" onClick={() => handleSort('successRatio')}>
                                 <div className="flex items-center gap-2">
-                                    <span className={cn("transition-transform group-hover:translate-x-1", sortConfig.key === 'creditLimit' && "underline underline-offset-4 decoration-2")}>{t('table.creditLimit')}</span>
-                                    {getSortIcon('creditLimit')}
+                                    <span className={cn("transition-transform group-hover:translate-x-1", sortConfig.key === 'successRatio' && "underline underline-offset-4 decoration-2")}>{t('table.intelligence')}</span>
+                                    {getSortIcon('successRatio')}
                                 </div>
                             </th>
                             <th className="px-6 py-4 text-end font-black text-[10px] uppercase tracking-widest">{t('table.actions')}</th>
@@ -325,22 +384,27 @@ export default function CustomerAccountsTab() {
                             </tr>
                         ) : (
                             sortedCustomers.map((customer) => (
-                                <tr key={customer.id} className="hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group border-none">
+                                <tr 
+                                    key={customer.id} 
+                                    className="hover:bg-zinc-50 dark:hover:bg-white/5 transition-all group border-none cursor-pointer"
+                                    onClick={() => handleOpenDetails(customer)}
+                                >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black text-xs shrink-0 shadow-lg shadow-zinc-900/10">
                                                 {customer.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="font-black text-zinc-900 dark:text-white text-sm group-hover:underline transition-all cursor-pointer truncate max-w-[200px]" onClick={() => handleOpenDetails(customer)}>{customer.name}</span>
-                                                <span className="text-[10px] text-zinc-400 font-bold truncate max-w-[200px]">{customer.email || "—"}</span>
+                                                <span className="font-black text-zinc-900 dark:text-white text-sm group-hover:underline transition-all truncate max-w-[200px]">{customer.name}</span>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[10px] text-zinc-500 font-bold flex items-center gap-1">
+                                                        <Phone className="w-2.5 h-2.5 opacity-50" /> {customer.phone}
+                                                    </span>
+                                                    {customer.email && (
+                                                        <span className="text-[10px] text-zinc-400 font-bold truncate max-w-[120px]">• {customer.email}</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">
-                                        <div className="flex items-center gap-2 text-[11px] font-bold">
-                                            <Phone className="w-3.5 h-3.5 opacity-50" />
-                                            {customer.phone}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
@@ -353,46 +417,100 @@ export default function CustomerAccountsTab() {
                                             )}>
                                                 {Math.abs(customer.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
-                                            {customer.balance < 0 && <span className="text-[9px] text-emerald-600 dark:text-emerald-500 font-black uppercase tracking-widest mx-1 text-right block w-full">رصيد للعميل</span>}
-                                            {customer.balance > 0 && <span className="text-[9px] text-rose-600 dark:text-rose-500 font-black uppercase tracking-widest mx-1 text-right block w-full">عليه - مديونية</span>}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400 text-[11px] font-bold">
-                                        {customer.creditLimit ? (
-                                            <div className="flex items-center gap-2 text-zinc-900 dark:text-white font-mono">
-                                                <Info className="w-3.5 h-3.5 opacity-50 text-zinc-400" />
-                                                {Number(customer.creditLimit).toLocaleString()}
+                                            <div className="flex items-center gap-2">
+                                                {customer.balance !== 0 && (
+                                                    <span className={cn(
+                                                        "text-[9px] font-black uppercase tracking-widest",
+                                                        customer.balance > 0 ? "text-rose-600" : "text-emerald-600"
+                                                    )}>
+                                                        {customer.balance > 0 ? "DEBIT" : "CREDIT"}
+                                                    </span>
+                                                )}
+                                                {customer.creditLimit && (
+                                                    <span className="text-[9px] text-zinc-400 font-bold">/ Limit: {customer.creditLimit}</span>
+                                                )}
                                             </div>
-                                        ) : (
-                                            <span className="opacity-50 uppercase tracking-widest text-[9px]">{t('details.unlimited')}</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 text-end">
-                                        <div className="flex justify-end gap-2 translate-x-1">
-                                            <button 
-                                                onClick={() => handleOpenPayment(customer)} 
-                                                className="h-8 px-3 flex items-center justify-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg transition-all shadow-sm active:scale-90 font-bold text-[10px] uppercase"
-                                                title={t('actions.payment')}
-                                            >
-                                                <Wallet className="w-3.5 h-3.5" />
-                                                <span>دفع</span>
-                                            </button>
-                                            <button 
-                                                onClick={() => handleOpenLimit(customer)} 
-                                                className="h-8 px-3 flex items-center justify-center gap-1.5 bg-zinc-100 dark:bg-white/5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-zinc-900 rounded-lg transition-all shadow-sm active:scale-90 font-bold text-[10px] uppercase"
-                                                title={t('actions.creditLimit')}
-                                            >
-                                                <Settings className="w-3.5 h-3.5" />
-                                                <span>الحد الائتماني</span>
-                                            </button>
-                                            <button 
-                                                onClick={() => handleOpenDetails(customer)} 
-                                                className="w-8 h-8 flex items-center justify-center bg-zinc-100 dark:bg-white/5 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-lg transition-all shadow-sm active:scale-90"
-                                                title={t('actions.view')}
-                                            >
-                                                <History className="w-4 h-4" />
-                                            </button>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-4">
+                                            {/* Risk Indicator */}
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[8px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.riskLevel')}</span>
+                                                <Badge variant="outline" className={cn(
+                                                    "text-[9px] h-5 font-black uppercase",
+                                                    customer.riskLevel === 'high' ? "bg-rose-500/10 text-rose-600 border-rose-200" :
+                                                    customer.riskLevel === 'medium' ? "bg-orange-500/10 text-orange-600 border-orange-200" :
+                                                    "bg-emerald-500/10 text-emerald-600 border-emerald-200"
+                                                )}>
+                                                    {t(`intelligence.${customer.riskLevel}Risk`)}
+                                                </Badge>
+                                            </div>
+
+                                            {/* Success Ratio */}
+                                            <div className="flex flex-col gap-1 w-20">
+                                                <div className="flex justify-between items-center px-0.5">
+                                                    <span className="text-[8px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.successRatio')}</span>
+                                                    <span className="text-[9px] font-black font-mono">{customer.successRatio}%</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-zinc-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={cn(
+                                                            "h-full transition-all duration-1000",
+                                                            customer.successRatio >= 90 ? "bg-emerald-500" :
+                                                            customer.successRatio >= 70 ? "bg-orange-500" :
+                                                            "bg-rose-500"
+                                                        )}
+                                                        style={{ width: `${customer.successRatio}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Activity Status */}
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[8px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.activityGap')}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className={cn(
+                                                        "w-2 h-2 rounded-full animate-pulse",
+                                                        customer.daysSinceLastActivity < 7 ? "bg-emerald-500" :
+                                                        customer.daysSinceLastActivity < 30 ? "bg-orange-500" :
+                                                        "bg-rose-500"
+                                                    )} />
+                                                    <span className="text-[10px] font-bold text-zinc-500">
+                                                        {customer.daysSinceLastActivity === 0 ? t('intelligence.active') : t('intelligence.staleDays', { days: customer.daysSinceLastActivity })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-end" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5">
+                                                    <MoreVertical className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 rounded-2xl shadow-2xl p-2 font-cairo">
+                                                <DropdownMenuLabel className="text-[10px] uppercase font-black tracking-widest text-zinc-400 px-3 py-2">{t('actions.menu')}</DropdownMenuLabel>
+                                                <DropdownMenuItem onClick={() => handleOpenDetails(customer)} className="rounded-xl px-3 py-2.5 gap-3 cursor-pointer group">
+                                                    <History className="w-4 h-4 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white" />
+                                                    <span className="font-bold text-sm">{t('actions.view')}</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleOpenPayment(customer)} className="rounded-xl px-3 py-2.5 gap-3 cursor-pointer group text-emerald-600 dark:text-emerald-400">
+                                                    <Wallet className="w-4 h-4" />
+                                                    <span className="font-bold text-sm">{t('actions.payment')}</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator className="bg-zinc-100 dark:bg-white/5 my-1" />
+                                                <DropdownMenuItem onClick={() => handleOpenEdit(customer)} className="rounded-xl px-3 py-2.5 gap-3 cursor-pointer group">
+                                                    <Edit2 className="w-4 h-4 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white" />
+                                                    <span className="font-bold text-sm">{t('actions.edit')}</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleOpenLimit(customer)} className="rounded-xl px-3 py-2.5 gap-3 cursor-pointer group">
+                                                    <Settings className="w-4 h-4 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white" />
+                                                    <span className="font-bold text-sm">{t('actions.creditLimit')}</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </td>
                                 </tr>
                             ))
@@ -556,6 +674,13 @@ export default function CustomerAccountsTab() {
                                     <ShoppingBag className="w-4 h-4" />
                                     {t('details.tabs.sales')}
                                 </TabsTrigger>
+                                <TabsTrigger
+                                    value="tickets"
+                                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-900 dark:data-[state=active]:border-white data-[state=active]:text-zinc-900 dark:data-[state=active]:text-white px-0 gap-2 h-full font-black text-xs uppercase tracking-widest transition-all text-zinc-500"
+                                >
+                                    <Wrench className="w-4 h-4" />
+                                    {t('details.tabs.tickets')}
+                                </TabsTrigger>
                             </TabsList>
                         </div>
 
@@ -595,6 +720,126 @@ export default function CustomerAccountsTab() {
                                 )}
                             </TabsContent>
 
+                            <TabsContent value="tickets" className="mt-0 outline-none">
+                                {loading ? (
+                                    <div className="flex flex-col items-center justify-center py-24 gap-4">
+                                        <CasperLoader width={60} />
+                                        <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">{t('details.authenticatingHistory')}</p>
+                                    </div>
+                                ) : !customerDetails?.tickets?.length ? (
+                                    <div className="text-center py-24 text-zinc-400 font-bold">{t('details.noTickets')}</div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {/* Intelligence Summary Bar */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-900/40 p-1.5 rounded-3xl border border-zinc-200 dark:border-white/5">
+                                            <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
+                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">{t('intelligence.successRatio')}</p>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xl font-black">{customerDetails.intelligence.ticketSuccessRatio}%</span>
+                                                    <div className="h-1.5 flex-1 bg-zinc-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={cn(
+                                                                "h-full transition-all duration-1000",
+                                                                customerDetails.intelligence.ticketSuccessRatio >= 90 ? "bg-emerald-500" :
+                                                                customerDetails.intelligence.ticketSuccessRatio >= 70 ? "bg-orange-500" :
+                                                                "bg-rose-500"
+                                                            )}
+                                                            style={{ width: `${customerDetails.intelligence.ticketSuccessRatio}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
+                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Unpaid Dues</p>
+                                                <p className="text-xl font-black text-rose-500 font-mono">
+                                                    {customerDetails.intelligence.unpaidMaintenance.toLocaleString()} <span className="text-[10px] font-normal italic">EGP</span>
+                                                </p>
+                                            </div>
+                                            <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
+                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Repair Frequency</p>
+                                                <p className="text-xl font-black">
+                                                    {customerDetails.intelligence.maintenanceGapDays !== null ? `${customerDetails.intelligence.maintenanceGapDays} Days` : "—"}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {customerDetails.tickets.map((ticket: any) => (
+                                                <div key={ticket.id} className="group bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-5 transition-all hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:shadow-zinc-900/5 hover:-translate-y-1">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black shadow-lg">
+                                                                <Wrench className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-zinc-900 dark:text-white uppercase tracking-tighter text-lg">{ticket.device}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <Badge variant="outline" className="text-[9px] h-5 px-2 font-black border-zinc-200 dark:border-white/10 uppercase tracking-widest">#{ticket.barcode}</Badge>
+                                                                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
+                                                                        {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(ticket.createdAt))}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <Badge className={cn(
+                                                                "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl",
+                                                                ticket.status === 'COMPLETED' || ticket.status === 'DELIVERED' ? "bg-emerald-500 text-white" :
+                                                                ticket.status === 'CANCELLED' || ticket.status === 'VOIDED' ? "bg-rose-500 text-white" :
+                                                                "bg-orange-500 text-white"
+                                                            )}>
+                                                                {ticket.status}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-3 gap-6 pt-4 border-t border-zinc-100 dark:border-white/5">
+                                                        <div>
+                                                            <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status Workflow</p>
+                                                            <div className="flex gap-1">
+                                                                {[1, 2, 3, 4].map((step) => (
+                                                                    <div 
+                                                                        key={step} 
+                                                                        className={cn(
+                                                                            "h-1.5 flex-1 rounded-full",
+                                                                            step === 1 ? "bg-emerald-500" :
+                                                                            (step === 2 && ['DIAGNOSING', 'REPAIRING', 'COMPLETED', 'DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
+                                                                            (step === 3 && ['COMPLETED', 'DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
+                                                                            (step === 4 && ['DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
+                                                                            "bg-zinc-200 dark:bg-white/10"
+                                                                        )}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1">Financial State</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-black font-mono">
+                                                                    {ticket.repairPrice.toLocaleString()} <span className="text-[9px] font-normal">Price</span>
+                                                                </span>
+                                                                <span className="text-[10px] text-zinc-300">|</span>
+                                                                <span className="text-xs font-black font-mono text-emerald-600">
+                                                                    {ticket.deposit.toLocaleString()} <span className="text-[9px] font-normal">Paid</span>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-end">
+                                                            <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1">Remaining Due</p>
+                                                            <p className={cn(
+                                                                "text-sm font-black font-mono",
+                                                                ticket.due > 0 ? "text-rose-600" : "text-emerald-600"
+                                                            )}>
+                                                                {ticket.due.toLocaleString()} <span className="text-[9px]">EGP</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </TabsContent>
                             <TabsContent value="sales" className="mt-0 outline-none">
                                 {loading ? (
                                     <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -645,6 +890,65 @@ export default function CustomerAccountsTab() {
                             </TabsContent>
                         </div>
                     </Tabs>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Customer Modal */}
+            <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                <DialogContent className="sm:max-w-[425px] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 shadow-2xl rounded-3xl text-zinc-900 dark:text-white font-cairo">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">
+                            <div className="p-2 rounded-xl bg-orange-500/10 text-orange-500">
+                                <Edit2 className="w-5 h-5" />
+                            </div>
+                            {t('editModal.title')}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-6 border-y border-zinc-100 dark:border-white/5 my-2">
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('editModal.name')}</label>
+                            <Input
+                                className="h-11 bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/10 rounded-xl"
+                                value={editForm.name}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('editModal.phone')}</label>
+                            <Input
+                                className="h-11 bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/10 rounded-xl font-mono"
+                                value={editForm.phone}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('editModal.email')}</label>
+                            <Input
+                                type="email"
+                                className="h-11 bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/10 rounded-xl font-mono"
+                                value={editForm.email}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('editModal.address')}</label>
+                            <textarea
+                                className="w-full min-h-[80px] p-3 text-sm bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                                value={editForm.address}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-3">
+                        <Button variant="ghost" className="rounded-xl font-bold flex-1 h-12" onClick={() => setShowEditModal(false)}>{ct('cancel')}</Button>
+                        <Button
+                            className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black flex-1 h-12"
+                            onClick={submitEdit}
+                            disabled={isPending}
+                        >
+                            {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : t('editModal.save')}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

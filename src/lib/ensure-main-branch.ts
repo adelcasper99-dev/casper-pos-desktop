@@ -36,29 +36,27 @@ const PAYMENT_TREASURIES = [
 export async function ensureMainBranch(): Promise<string> {
     // ── Migration Check (MAIN-001 -> MAIN) ──
     if (!migrationChecked) {
-        const legacyBranch = await prisma.branch.findUnique({ where: { code: 'MAIN-001' } });
-        if (legacyBranch) {
-            const mainBranch = await prisma.branch.findUnique({ where: { code: MAIN_BRANCH_CODE } });
-            if (mainBranch) {
-                // Collision: user doesn't need current database data. 
-                // Move users to MAIN so they can still log in, but clear other records to avoid conflicts.
-                await prisma.$transaction([
-                    prisma.user.updateMany({ where: { branchId: legacyBranch.id }, data: { branchId: mainBranch.id } }),
-                    prisma.treasury.deleteMany({ where: { branchId: legacyBranch.id } }),
-                    prisma.warehouse.deleteMany({ where: { branchId: legacyBranch.id } }),
-                    prisma.stockRequest.deleteMany({ where: { branchId: legacyBranch.id } }),
-                    prisma.branch.deleteMany({ where: { id: legacyBranch.id } })
-                ]).catch(async () => {
-                    // Fallback: If transaction fails (e.g. more complex FKs), just rename it to avoid code conflict
-                    await prisma.branch.update({ where: { id: legacyBranch.id }, data: { code: `OLD-${legacyBranch.id.slice(0, 4)}` } });
-                });
-            } else {
-                // Safe to rename
-                await prisma.branch.update({ where: { id: legacyBranch.id }, data: { code: MAIN_BRANCH_CODE } });
-            }
+        // ── Self-Healing: Fix users with orphaned branchId links ──
+        const allBranches = await prisma.branch.findMany({ select: { id: true } });
+        const allBranchIds = allBranches.map(b => b.id);
+        const mainBranch = allBranches.find(b => b.id === 'branch-1' || b.id === 'MAIN') || await prisma.branch.findFirst({ where: { code: MAIN_BRANCH_CODE } });
+        
+        if (mainBranch) {
+            await prisma.user.updateMany({
+                where: {
+                    OR: [
+                        { branchId: null },
+                        { branchId: { notIn: allBranchIds } }
+                    ]
+                },
+                data: { branchId: mainBranch.id }
+            });
         }
+        
         migrationChecked = true;
     }
+
+
 
     // ── V-08: Extreme Fast Path (Memory) ──────────────────────────────────────────
     if (cachedMainBranchId) return cachedMainBranchId;
@@ -246,14 +244,9 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
         }
     }
 
-    // Assign all users without a branch to this branch
-    await prisma.user.updateMany({
-        where: { branchId: null },
-        data: { branchId: branch.id }
-    });
-
     return branch.id;
 }
+
 
 
 
