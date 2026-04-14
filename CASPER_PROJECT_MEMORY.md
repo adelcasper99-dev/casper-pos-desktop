@@ -87,7 +87,22 @@ This document serves as the "Source of Truth" for critical architectural decisio
 
 ---
 
-## 🛠️ 5. Development & Audit Workflows
+## 🖨️ 6. Hardware Bridge & Hybrid Printing Architecture
+
+### ⚡ Hybrid Environment Detection
+*   **Rule**: The POS must seamlessly adapt its printing mechanism based on the environment context (Zero-configuration).
+*   **Desktop Native (Electron)**: Direct and instantaneous access via Native IPC (`electronAPI`) for Zero-Latency ESC/POS raw operations.
+*   **Web / Network Node**: API-based routing to the standalone Windows micro-service (`Casper Hardware Bridge` on port 4040).
+
+### 🌐 Network Routing & Node Targeting
+*   **Rule**: Network printing components MUST bypass `localhost` if a master target IP is configured.
+*   **Logic**: The `print-service.ts` resolves the `bridgeIpAddress` from the `PrinterRegistry`. If a user connects via an iPad, the POS directs the payload to `http://<Master_IP>:4040/api/print` resolving the localhost trap.
+*   **Handling Offline Services**: All fetch requests to the Bridge API use `AbortController` combined with `Promise.race()` to guarantee maximum timeout guardrails (e.g., 15s). Printing processes MUST NOT freeze the UI if a target printer node drops off the network.
+
+---
+
+## 🛠️ 7. Development & Audit Workflows
+
 
 ### The "Integrity Success Ratio"
 *   **Metric**: `(Completed - Voided) / Completed`.
@@ -96,4 +111,4 @@ This document serves as the "Source of Truth" for critical architectural decisio
 
 ---
 *Created: April 2, 2026*
-*Last Update: April 11, 2026 (Hardening of Sync Architecture, Temporal Integrity, and Sequential Atomicity)*
+*Last Update: April 14, 2026 (Network Hybrid Printing & Casper Hardware Bridge Architecture)*

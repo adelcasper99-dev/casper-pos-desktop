@@ -141,17 +141,16 @@ function checkForConflictMarkers(files) {
 
     for (const file of files) {
         // Skip non-text files and markdown
-        if (file.endsWith('.md') || file.endsWith('.png') || file.endsWith('.jpg') ||
+        if (file.endsWith('.png') || file.endsWith('.jpg') ||
             file.endsWith('.jpeg') || file.endsWith('.gif') || file.endsWith('.svg') ||
             file.endsWith('.ico') || file.endsWith('.woff') || file.endsWith('.woff2') ||
-            file.endsWith('.ttf') || file.endsWith('.eot') || file.endsWith('.js') ||
-            file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.tsx')) {
-            // Note: We still check .js/.ts files because they commonly have conflicts
-            // But we'll be more precise about marker detection below
+            file.endsWith('.ttf') || file.endsWith('.eot') ||
+            file.includes('node_modules/')) {
+            continue;
         }
 
         try {
-            const content = execSync(`git show :${file}`, { encoding: 'utf-8' });
+            const content = execSync(`git show :"${file}"`, { encoding: 'utf-8' });
 
             // Check for conflict markers at the START of lines (with optional whitespace)
             // This avoids false positives from strings containing these patterns

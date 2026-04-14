@@ -22,6 +22,7 @@ export default function PrinterSettings() {
     const [installing, setInstalling] = useState(false);
 
     // Preferences
+    const [bridgeIpAddress, setBridgeIpAddress] = useState<string>('');
     const [thermalPrinter, setThermalPrinter] = useState<string>('');
     const [a4Printer, setA4Printer] = useState<string>('');
     const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
@@ -40,6 +41,7 @@ export default function PrinterSettings() {
     const loadSettings = () => {
         const registry = printService.getRegistry();
         if (registry) {
+            if (registry.bridgeIpAddress) setBridgeIpAddress(registry.bridgeIpAddress);
             if (registry.thermalPrinter) setThermalPrinter(registry.thermalPrinter);
             if (registry.a4Printer) setA4Printer(registry.a4Printer);
             if (registry.receiptFormat) setReceiptFormat(registry.receiptFormat);
@@ -116,7 +118,7 @@ export default function PrinterSettings() {
 
     const handleSave = () => {
         printService.updateRegistry({
-            thermalPrinter, a4Printer, receiptFormat, labelPrinter,
+            bridgeIpAddress, thermalPrinter, a4Printer, receiptFormat, labelPrinter,
             enableThermal, enableA4, enableSpeedPrint, defaultCopies
         });
         localStorage.setItem('casper_default_print_copies', defaultCopies.toString());
@@ -166,10 +168,22 @@ export default function PrinterSettings() {
                     {qzStatus?.online ? <CheckCircle className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
                 </div>
                 <div className="flex-1">
-                    <div className="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Host Connection</div>
-                    <div className="text-xl font-black tracking-tight">{qzStatus?.online ? "Local Service Online" : "Service Offline"}</div>
+                    <div className="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">
+                        {printService.isElectron() ? "Host Connection" : "Network Target Connection"}
+                    </div>
+                    <div className="text-xl font-black tracking-tight flex items-center gap-2">
+                        {qzStatus?.online ? (
+                             printService.isElectron() ? (
+                                 <><ShieldCheck className="w-5 h-5 text-emerald-400" /> Native Core Enabled</>
+                             ) : (
+                                 "Hardware Bridge Connected"
+                             )
+                        ) : "Service Offline"}
+                    </div>
                     <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                        {qzStatus?.online ? `Protocol Version v${qzStatus.version}` : "Connection to QZ Tray failed on this device"}
+                        {qzStatus?.online 
+                            ? (qzStatus.version?.includes('Bridge') ? `Remote Connection ${qzStatus.version}` : `Protocol Version v${qzStatus.version}`)
+                            : "Connection to physical hardware failed"}
                     </div>
                 </div>
                 <Button 
@@ -232,12 +246,31 @@ export default function PrinterSettings() {
                     <div className="space-y-2">
                         <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
                             <Printer className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
-                            Telemetry Routing
+                            Hardware Telemetry & Routing
                         </h3>
                         <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Route POS documents to local physical devices</p>
                     </div>
 
                     <div className="grid gap-8">
+                        {/* Hardware Bridge IP (Network Printing) */}
+                        {!printService.isElectron() && (
+                            <div className="space-y-4 pb-6 border-b border-border/20">
+                                <Label className="text-xs font-black uppercase tracking-widest text-foreground ml-1 flex items-center gap-2">
+                                    <Zap className="w-3 h-3 text-cyan-500" /> Hardware Bridge IP Address (Network Node)
+                                </Label>
+                                <input
+                                    type="text"
+                                    value={bridgeIpAddress}
+                                    onChange={(e) => setBridgeIpAddress(e.target.value)}
+                                    placeholder="e.g. 192.168.1.15"
+                                    className="w-full glass-card bg-background/60 border-border/40 text-foreground font-bold text-sm h-14 rounded-2xl px-6 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
+                                />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">
+                                    Required for Web browsers & mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.
+                                </p>
+                            </div>
+                        )}
+
                         {/* Thermal Configuration */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">

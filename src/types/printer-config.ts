@@ -5,8 +5,12 @@ export interface PrinterRegistry {
     /** Unique ID for this workstation/browser instance */
     workstationId: string;
 
+    /** Network IP for Casper Hardware Bridge (e.g., 192.168.1.15) */
+    bridgeIpAddress?: string;
+
     /** Assigned printer for receipts (A4 or Thermal - legacy fallback) */
     receiptPrinter?: string;
+
 
     /** Assigned printer for thermal receipts specifically */
     thermalPrinter?: string;

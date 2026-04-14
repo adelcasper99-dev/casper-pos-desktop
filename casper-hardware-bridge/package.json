@@ -1,0 +1,50 @@
+{
+  "name": "casper-hardware-bridge",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "author": "adelcasper99-dev",
+  "license": "ISC",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "auto-launch": "^5.0.6",
+    "cors": "^2.8.6",
+    "electron-store": "^11.0.2",
+    "express": "^5.2.1",
+    "node-thermal-printer": "^4.6.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.caspererp.bridge",
+    "productName": "Casper Hardware Bridge",
+    "copyright": "Copyright © 2026 Casper POS",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "license": "build/license.txt",
+      "installerIcon": "build/installerIcon.ico",
+      "uninstallerIcon": "build/uninstallerIcon.ico",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "language": "1025"
+    }
+  }
+}

@@ -107,14 +107,37 @@ class ElectronPrintChannel {
 const electronChannel = new ElectronPrintChannel();
 
 // ─────────────────────────────────────────────
-// Channel 2: Casper Agent (HTTP sidecar)
+// Channel 2: Casper Hardware Bridge (Network HTTP API)
 // ─────────────────────────────────────────────
-const AGENT_URL = 'http://localhost:21234';
 
-class CasperAgentClient {
+class HardwareBridgeClient {
+  private getBridgeUrl(): string {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(PRINTER_REGISTRY_KEY);
+      if (stored) {
+        try {
+          const registry = JSON.parse(stored) as PrinterRegistry;
+          if (registry.bridgeIpAddress && registry.bridgeIpAddress.trim() !== '') {
+            let ip = registry.bridgeIpAddress.trim().replace(/\/$/, '');
+            if (!ip.startsWith('http')) ip = `http://${ip}`;
+            // If there's only one colon (from 'http://'), it means no port was specified
+            if ((ip.match(/:/g) || []).length === 1) {
+              ip = `${ip}:4040`;
+            }
+            return ip;
+          }
+        } catch (e) {}
+      }
+    }
+    return 'http://localhost:4040';
+  }
+
   async isAvailable(): Promise<boolean> {
     try {
-      const res = await fetch(`${AGENT_URL}/status`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${this.getBridgeUrl()}/api/status`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
       return false;
@@ -123,41 +146,42 @@ class CasperAgentClient {
 
   async getStatus() {
     try {
-      const res = await fetch(`${AGENT_URL}/status`);
-      if (!res.ok) throw new Error('Agent responding but with error');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${this.getBridgeUrl()}/api/status`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error('Bridge responding but with error');
       return await res.json();
     } catch (e) {
-      throw new Error('Agent offline');
+      throw new Error('Bridge offline');
     }
   }
 
-  async printHTML(html: string, printerName?: string) {
-    const res = await fetch(`${AGENT_URL}/print`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html, printer: printerName })
-    });
+  async printDocument(html: string, jobType: 'receipt' | 'barcode' | 'a4', printerName?: string) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    try {
+      const res = await fetch(`${this.getBridgeUrl()}/api/print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html, jobType, printer: printerName }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Agent print failed');
-    }
-  }
-
-  async printThermal(html: string, printerName: string) {
-    const res = await fetch(`${AGENT_URL}/print/thermal`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ printerName, html })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Agent thermal print failed');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Bridge print failed');
+      }
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      throw new Error(e.name === 'AbortError' ? 'Bridge print request timed out' : (e.message || 'Bridge offline'));
     }
   }
 }
 
-const agentClient = new CasperAgentClient();
+const hardwareBridge = new HardwareBridgeClient();
 
 // ─────────────────────────────────────────────
 // Channel 3: QZ Tray (lazy loaded)
@@ -263,13 +287,13 @@ class PrintService {
       }
     }
 
-    // 2. Casper Agent
+    // 2. Hardware Bridge
     try {
-      const agentStatus = await agentClient.getStatus();
+      const bridgeStatus = await hardwareBridge.getStatus();
       return {
         online: true,
-        version: `Agent ${agentStatus.version}`,
-        printers: agentStatus.printers?.map((p: any) => p.name) || [],
+        version: `Bridge ${bridgeStatus.version || '1.0'}`,
+        printers: bridgeStatus.printers?.map((p: any) => p.name) || [],
       };
     } catch (e) {
       // Fall through
@@ -303,10 +327,10 @@ class PrintService {
       }
     }
 
-    // 2. Agent
+    // 2. Bridge
     try {
-      const agentStatus = await agentClient.getStatus();
-      if (agentStatus.printers) return agentStatus.printers.map((p: any) => p.name);
+      const bridgeStatus = await hardwareBridge.getStatus();
+      if (bridgeStatus.printers) return bridgeStatus.printers.map((p: any) => p.name);
     } catch (e) { /* ignore */ }
 
     // 3. QZ
@@ -434,16 +458,23 @@ class PrintService {
       console.log('[PrintService] Electron channel not available, checking other channels...');
     }
 
-    // 2. Casper Agent
+    // 2. Hardware Bridge
     try {
-      const isAgentAvailable = await agentClient.isAvailable();
-      if (isAgentAvailable) {
-        await agentClient.printHTML(html, printerName);
-        logger.info(`✓ [Agent] Printed to "${printerName}"`);
+      const isBridgeAvailable = await hardwareBridge.isAvailable();
+      if (isBridgeAvailable) {
+        // Determine jobType based on context heuristics
+        const paperWidth = options?.paperWidthMm || 80;
+        let jobType: 'receipt' | 'barcode' | 'a4' = 'receipt';
+        
+        if (paperWidth > 150) jobType = 'a4';
+        else if (paperWidth < 60) jobType = 'barcode'; // or 58mm thermal, bridge handles both well if routed.
+
+        await hardwareBridge.printDocument(html, jobType, printerName);
+        logger.info(`✓ [Bridge] Printed to "${printerName || 'Mapped Target'}"`);
         return true;
       }
     } catch (e) {
-      console.warn('[PrintService] Agent print failed', e);
+      console.warn('[PrintService] Bridge print failed', e);
     }
 
     // 3. QZ Tray
