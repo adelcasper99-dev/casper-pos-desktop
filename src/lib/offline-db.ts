@@ -67,6 +67,7 @@ export interface OfflineSale {
     idempotencyKey?: string; // 🆕 Added for replay protection
     discountAmount: number;
     discountPercentage: number;
+    isTimeSuspicious?: boolean;
 }
 
 export interface OfflineTreasuryTransaction {
@@ -84,6 +85,7 @@ export interface OfflineTreasuryTransaction {
     syncError?: string;
     shiftId?: string;
     categoryId?: string;
+    isTimeSuspicious?: boolean;
 }
 
 export interface OfflineInventoryMovement {
@@ -131,12 +133,12 @@ class CasperOfflineDB extends Dexie {
 
     constructor() {
         super('CasperOfflineDB');
-        this.version(4).stores({
-            sales: 'id, syncStatus, offlineFlag, createdAt, synced',
+        this.version(5).stores({
+            sales: 'id, syncStatus, offlineFlag, createdAt, synced, isTimeSuspicious',
             products: 'id, barcode, syncPriority',
             tickets: 'id, syncStatus, idempotencyKey, createdAt, synced',
             syncMetadata: 'key',
-            treasuryTransactions: 'id, syncStatus, idempotencyKey, createdAt, synced',
+            treasuryTransactions: 'id, syncStatus, idempotencyKey, createdAt, synced, isTimeSuspicious',
             inventoryMovements: 'id, syncStatus, idempotencyKey, createdAt, synced',
             returns: 'id, syncStatus, idempotencyKey, createdAt, synced'
         });

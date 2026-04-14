@@ -17,6 +17,7 @@ import { getCurrentUser } from "@/actions/auth";
 import { initDatabase } from "@/lib/db-init";
 import { getStoreSettings } from "@/actions/settings";
 import LayoutContent from "./LayoutContent";
+import { TimeSyncWarning } from "@/components/layout/TimeSyncWarning";
  
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function RootLayout({
         <html lang="ar" dir="rtl" suppressHydrationWarning>
             <body className="antialiased">
                 <Providers initialToken={csrfToken}>
+                    <TimeSyncWarning />
                     <NavigationHotkeys />
                     <LayoutWrapper user={user} settings={settings}>
                         {children}

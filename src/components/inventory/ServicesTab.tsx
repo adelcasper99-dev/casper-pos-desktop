@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Layers, Box, Edit2, Trash2, Infinity, AlertTriangle, Check } from "lucide-react";
+import { Plus, Search, Layers, Box, Edit2, Trash2, Infinity as InfinityIcon, AlertTriangle, Check, Lock } from "lucide-react";
 import { getProducts, updateProduct, deleteProduct, createProduct } from "@/actions/inventory";
 import { toast } from "sonner";
 import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 import { useTranslations } from "@/lib/i18n-mock";
 
@@ -21,7 +22,8 @@ export default function ServicesTab({ categories, csrfToken }: any) {
         name: "",
         sku: "",
         sellPrice: 0,
-        categoryId: ""
+        categoryId: "",
+        trackStock: false
     });
     const queryClient = useQueryClient();
 
@@ -41,7 +43,7 @@ export default function ServicesTab({ categories, csrfToken }: any) {
 
     const handleOpenCreate = () => {
         setEditingService(null);
-        setFormData({ name: "", sku: "", sellPrice: 0, categoryId: "" });
+        setFormData({ name: "", sku: "", sellPrice: 0, categoryId: "", trackStock: false });
         setIsModalOpen(true);
     };
 
@@ -51,7 +53,8 @@ export default function ServicesTab({ categories, csrfToken }: any) {
             name: service.name,
             sku: service.sku,
             sellPrice: Number(service.sellPrice),
-            categoryId: service.categoryId || ""
+            categoryId: service.categoryId || "",
+            trackStock: service.trackStock ?? false
         });
         setIsModalOpen(true);
     };
@@ -75,7 +78,6 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                     costPrice: 0,
                     stock: 0,
                     minStock: 0,
-                    trackStock: false,
                     csrfToken
                 } as any);
             } else {
@@ -84,7 +86,6 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                     costPrice: 0,
                     stock: 0,
                     minStock: 0,
-                    trackStock: false,
                     csrfToken
                 } as any);
             }
@@ -93,7 +94,7 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                 toast.success(editingService ? t('services.modal.updateSuccess') : t('services.modal.success'));
                 setIsModalOpen(false);
                 setEditingService(null);
-                setFormData({ name: "", sku: "", sellPrice: 0, categoryId: "" });
+                setFormData({ name: "", sku: "", sellPrice: 0, categoryId: "", trackStock: false });
                 queryClient.invalidateQueries({ queryKey: ['products-services'] });
             } else {
                 throw new Error(res.error || t('services.modal.error'));
@@ -141,7 +142,7 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                 <div>
                     <h2 className="text-2xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
                         <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                            <Infinity className="w-6 h-6" />
+                            <InfinityIcon className="w-6 h-6" />
                         </div>
                         {t('services.title')}
                     </h2>
@@ -182,7 +183,7 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                         <div key={item.id} className="bg-white dark:bg-card/50 border border-zinc-200 dark:border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-all group relative shadow-sm hover:shadow-md">
                             <div className="flex justify-between items-start mb-6">
                                 <div className="p-3 bg-primary/10 rounded-xl">
-                                    <Infinity className="w-6 h-6 text-primary" />
+                                    <InfinityIcon className="w-6 h-6 text-primary" />
                                 </div>
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
                                     <button 
@@ -276,6 +277,51 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                                         onChange={e => setFormData({ ...formData, sellPrice: parseFloat(e.target.value) })}
                                     />
                                 </div>
+                            </div>
+
+                            {/* Track Stock Toggle (Integrity Protected) */}
+                            <div className="space-y-3">
+                                <div className={cn(
+                                    "flex items-center gap-3 p-4 rounded-2xl border transition-all shadow-sm",
+                                    editingService?.hasHistory 
+                                        ? "bg-slate-50 dark:bg-zinc-900/40 border-slate-200 dark:border-white/5 opacity-80" 
+                                        : "bg-slate-100 dark:bg-muted/20 border-slate-200 dark:border-border text-primary"
+                                )}>
+                                    <input
+                                        type="checkbox"
+                                        id="trackStock"
+                                        checked={formData.trackStock}
+                                        disabled={editingService?.hasHistory}
+                                        onChange={e => setFormData({ ...formData, trackStock: e.target.checked })}
+                                        className={cn(
+                                            "w-5 h-5 rounded-lg text-primary cursor-pointer accent-primary",
+                                            editingService?.hasHistory && "cursor-not-allowed opacity-50"
+                                        )}
+                                    />
+                                    <label htmlFor="trackStock" className={cn(
+                                        "text-sm font-black flex items-center gap-3 cursor-pointer",
+                                        editingService?.hasHistory ? "text-slate-500 cursor-not-allowed" : "text-zinc-900 dark:text-white"
+                                    )}>
+                                        {formData.trackStock ? 
+                                            <Box className={cn("w-5 h-5", editingService?.hasHistory ? "text-slate-300" : "text-slate-400 dark:text-zinc-400")} /> : 
+                                            <InfinityIcon className={cn("w-5 h-5", editingService?.hasHistory ? "text-primary/30" : "text-primary")} />
+                                        }
+                                        تفعيل تتبع المخزون (تحويل لمنتج)
+                                        {editingService?.hasHistory && <Lock className="w-3.5 h-3.5 text-amber-500 ml-auto" />}
+                                    </label>
+                                </div>
+                                
+                                {editingService?.hasHistory && (
+                                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
+                                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                        <div className="space-y-1">
+                                            <div className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-tight">حماية نزاهة المخزون</div>
+                                            <div className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 leading-relaxed">
+                                                لا يمكن تغيير النوع لوجود حركات سابقة كخدمة (مبيعات). يرجى أرشفة الخدمة وإنشاء منتج جديد بدلاً منها.
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-2">

@@ -5,7 +5,7 @@ import {
     Search, Box, Edit, Loader2, Save, Wand2, Trash2, 
     ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon, 
     Plus, Filter, ChevronDown, Clock, Calendar, Activity as ActivityIcon, 
-    ArrowUpDown, ChevronUp 
+    ArrowUpDown, ChevronUp, AlertTriangle 
 } from "lucide-react";
 import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
@@ -64,6 +64,7 @@ interface Product {
     modelId?: string | null;
     modelName?: string | null;
     attributeId?: string | null;
+    hasHistory?: boolean;
 }
 
 interface Category {
@@ -924,18 +925,48 @@ export default function ProductsTab({
                             ) : null}
                         </div>
 
-                        <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-muted/20 rounded-2xl border border-slate-200 dark:border-border shadow-sm">
-                            <input
-                                type="checkbox"
-                                id="trackStock"
-                                checked={editingProduct.trackStock}
-                                onChange={e => setEditingProduct({ ...editingProduct, trackStock: e.target.checked })}
-                                className="w-5 h-5 rounded-lg text-cyan-500 cursor-pointer accent-cyan-500"
-                            />
-                            <label htmlFor="trackStock" className="text-sm font-black flex items-center gap-3 cursor-pointer text-slate-700 dark:text-white">
-                                {editingProduct.trackStock ? <Box className="w-5 h-5 text-slate-400 dark:text-zinc-400" /> : <InfinityIcon className="w-5 h-5 text-cyan-500" />}
-                                {t('trackStock')}
-                            </label>
+                        <div className="space-y-3">
+                            <div className={cn(
+                                "flex items-center gap-3 p-4 rounded-2xl border transition-all shadow-sm",
+                                editingProduct.hasHistory 
+                                    ? "bg-slate-50 dark:bg-zinc-900/40 border-slate-200 dark:border-white/5 opacity-80" 
+                                    : "bg-slate-100 dark:bg-muted/20 border-slate-200 dark:border-border"
+                            )}>
+                                <input
+                                    type="checkbox"
+                                    id="trackStock"
+                                    checked={editingProduct.trackStock}
+                                    disabled={editingProduct.hasHistory}
+                                    onChange={e => setEditingProduct({ ...editingProduct, trackStock: e.target.checked })}
+                                    className={cn(
+                                        "w-5 h-5 rounded-lg text-cyan-500 cursor-pointer accent-cyan-500",
+                                        editingProduct.hasHistory && "cursor-not-allowed opacity-50"
+                                    )}
+                                />
+                                <label htmlFor="trackStock" className={cn(
+                                    "text-sm font-black flex items-center gap-3 cursor-pointer text-slate-700 dark:text-white",
+                                    editingProduct.hasHistory && "cursor-not-allowed"
+                                )}>
+                                    {editingProduct.trackStock ? 
+                                        <Box className={cn("w-5 h-5", editingProduct.hasHistory ? "text-slate-300" : "text-slate-400 dark:text-zinc-400")} /> : 
+                                        <InfinityIcon className={cn("w-5 h-5", editingProduct.hasHistory ? "text-cyan-300" : "text-cyan-500")} />
+                                    }
+                                    {t('trackStock')}
+                                    {editingProduct.hasHistory && <Lock className="w-3.5 h-3.5 text-amber-500 ml-auto" />}
+                                </label>
+                            </div>
+                            
+                            {editingProduct.hasHistory && (
+                                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
+                                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                    <div className="space-y-1">
+                                        <div className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-tight">حماية نزاهة المخزون</div>
+                                        <div className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 leading-relaxed">
+                                            لا يمكن تغيير نوع تتبع المخزون لوجود حركات سابقة (مبيعات، مشتريات) أو كمية متوفرة. لتغيير طبيعة العمل، يرجى أرشفة الصنف وإنشاء صنف جديد.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {editingProduct.trackStock && (

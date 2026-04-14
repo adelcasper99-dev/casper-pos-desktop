@@ -1935,8 +1935,10 @@ export const removeTicketPart = secureAction(async (data: {
 /**
  * Get products for selection in parts manager
  */
-export const getProductsForSelector = secureAction(async (warehouseId?: string) => {
+export const getProductsForSelector = secureAction(async (data: { search?: string, warehouseId?: string }) => {
+    const { search, warehouseId } = data || {};
     let targetWarehouseId = warehouseId;
+
     if (warehouseId === 'MAIN') {
         const mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
         targetWarehouseId = mainWh?.id || undefined;
@@ -1951,14 +1953,30 @@ export const getProductsForSelector = secureAction(async (warehouseId?: string) 
         }
     }
 
+    const where: Prisma.ProductWhereInput = {
+        deletedAt: null,
+    };
+
+    if (search && search.trim().length > 0) {
+        const searchTerms = search.trim().split(/\s+/);
+        where.AND = searchTerms.map(term => ({
+            OR: [
+                { name: { contains: term, mode: 'insensitive' } },
+                { sku: { contains: term, mode: 'insensitive' } }
+            ]
+        }));
+    }
+
     const products = await prisma.product.findMany({
+        where,
+        take: 50,
         orderBy: { name: 'asc' },
         include: {
             stocks: true
         }
     });
 
-    const data = products.map(p => {
+    const resultData = products.map(p => {
         let stockValue = p.stock;
         if (targetWarehouseId) {
             const st = p.stocks.find(s => s.warehouseId === targetWarehouseId);
@@ -1980,7 +1998,7 @@ export const getProductsForSelector = secureAction(async (warehouseId?: string) 
         };
     }).filter(p => !p.trackStock || p.stock > 0);
 
-    return { success: true, data };
+    return { success: true, data: resultData };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
 /**

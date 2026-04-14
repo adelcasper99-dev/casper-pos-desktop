@@ -107,6 +107,8 @@ export default function TicketPartsManager({
     const [products, setProducts] = useState<ProductData[]>([]);
 
     const [selectedProductId, setSelectedProductId] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [selectedPriceTier, setSelectedPriceTier] = useState<"A" | "B" | "C">("A");
     const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1">("COST");
@@ -121,16 +123,26 @@ export default function TicketPartsManager({
     const [lossPercent, setLossPercent] = useState(70);
 
     useEffect(() => {
-        if (isAddingPart) {
-            loadData();
-        }
-    }, [isAddingPart, usageType]);
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
-    const loadData = async () => {
+    useEffect(() => {
+        if (isAddingPart) {
+            loadData(debouncedSearchQuery);
+        }
+    }, [isAddingPart, usageType, debouncedSearchQuery]);
+
+    const loadData = async (query?: string) => {
         setIsLoading(true);
         // If transfer, load global, otherwise prioritizing technician's warehouse
         const targetWhId = usageType === "transfer" ? undefined : (technicianId || undefined);
-        const res = await getProductsForSelector(targetWhId);
+        const res = await getProductsForSelector({ 
+            search: query, 
+            warehouseId: targetWhId 
+        });
         if (res.success) setProducts((res.data || []) as ProductData[]);
         setIsLoading(false);
     };
@@ -513,7 +525,12 @@ export default function TicketPartsManager({
                                                 value: p.id
                                             }))}
                                             value={selectedProductId}
-                                            onChange={(val) => setSelectedProductId(val)}
+                                            onChange={(val) => {
+                                                setSelectedProductId(val);
+                                                // Clear search when selected to avoid loops, but keep it if we want to filter more?
+                                                // For now, simple selection is enough.
+                                            }}
+                                            onSearch={(query) => setSearchQuery(query)}
                                             placeholder="اختر القطعة..."
                                         />
                                     </div>
@@ -560,6 +577,7 @@ export default function TicketPartsManager({
                                     }))}
                                     value={selectedProductId}
                                     onChange={(val) => setSelectedProductId(val)}
+                                    onSearch={(query) => setSearchQuery(query)}
                                     placeholder={t('searchPlaceholder')}
                                 />
                                 {selectedProduct && (

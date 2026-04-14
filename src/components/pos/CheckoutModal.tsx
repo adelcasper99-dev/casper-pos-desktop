@@ -19,6 +19,7 @@ import { Zap } from "lucide-react";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
 
 import { useRouter } from "next/navigation";
+import { casperClock } from "@/lib/CasperClock";
 // import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
 
 interface CheckoutModalProps {
@@ -70,6 +71,9 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         async function loadTreasuries() {
             setFetchingTreasuries(true);
             try {
+                // Background sync clock
+                casperClock.sync().catch(console.error);
+                
                 // Fetch all treasuries to ensure they appear even if branch IDs mismatch
                 const res = await getBranchTreasuriesForDropdown('all');
                 if (res.success && res.data && isMounted) {
@@ -318,7 +322,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
             tableName: tableName,
             force: force, // <--- Send Force Flag
             csrfToken,
-            idempotencyKey
+            idempotencyKey,
+            isTimeSuspicious: casperClock.isTimeSuspicious()
         };
 
         if (!navigator.onLine) {
@@ -343,7 +348,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 syncRetries: 0,
                 offlineFlag: true,
                 syncStatus: 'PENDING',
-                createdAt: Date.now(),
+                createdAt: casperClock.now(),
+                isTimeSuspicious: casperClock.isTimeSuspicious()
             });
             clearCart();
             toast.success('تم حفظ المبيعة محلياً — ستُزامَن عند استعادة الاتصال');
@@ -358,7 +364,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 discountAmount: discountAmount,
                 discountPercentage: discountPercentage,
                 taxAmount: taxAmount,
-                date: new Date(),
+                date: casperClock.getDate(),
+                isTimeSuspicious: casperClock.isTimeSuspicious(),
                 customer: saleCustomerData,
                 customerName: saleCustomerData?.name,
                 customerPhone: saleCustomerData?.phone,
@@ -368,7 +375,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 tableName: tableName,
                 warranty: warrantyEnabled ? {
                     warrantyDays: warrantyDays,
-                    warrantyExpiryDate: new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000)
+                    warrantyExpiryDate: new Date(casperClock.now() + warrantyDays * 24 * 60 * 60 * 1000)
                 } : undefined
             });
             router.refresh();
@@ -389,7 +396,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 discountAmount: discountAmount,
                 discountPercentage: discountPercentage,
                 taxAmount: taxAmount,
-                date: new Date(),
+                date: casperClock.getDate(),
+                isTimeSuspicious: casperClock.isTimeSuspicious(),
                 customer: saleCustomerData,
                 customerName: saleCustomerData?.name,
                 customerPhone: saleCustomerData?.phone,
@@ -399,7 +407,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 tableName: tableName,
                 warranty: warrantyEnabled ? {
                     warrantyDays: warrantyDays,
-                    warrantyExpiryDate: new Date(Date.now() + warrantyDays * 24 * 60 * 60 * 1000)
+                    warrantyExpiryDate: new Date(casperClock.now() + warrantyDays * 24 * 60 * 60 * 1000)
                 } : undefined
             });
             clearCart();

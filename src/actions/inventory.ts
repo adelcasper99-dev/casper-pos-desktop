@@ -581,6 +581,30 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
     const effectiveTrackStock = isBundle ? false : (productFields.trackStock ?? true);
     const effectiveStock = isBundle ? 0 : (productFields.stock ?? 0);
 
+    const oldProduct = await prisma.product.findUnique({
+        where: { id },
+        select: { 
+            trackStock: true,
+            stock: true,
+            _count: {
+                select: {
+                    purchaseItems: true,
+                    saleItems: true,
+                    stockMovements: true,
+                    wastages: true,
+                    ticketParts: true,
+                }
+            }
+        }
+    });
+
+    if (oldProduct && oldProduct.trackStock !== effectiveTrackStock) {
+        const hasHistory = (oldProduct._count.purchaseItems + oldProduct._count.saleItems + oldProduct._count.stockMovements + oldProduct._count.wastages + oldProduct._count.ticketParts) > 0 || oldProduct.stock !== 0;
+        if (hasHistory) {
+            throw new Error("لا يمكن تغيير نوع تتبع المخزون لهذا المنتج لوجود حركات سابقة أو كمية متوفرة. يرجى أرشفة المنتج وإنشاء صنف جديد بدلاً منه.");
+        }
+    }
+
     await prisma.$transaction(async (tx) => {
         // Update core product fields
         await (tx.product.update as any)({
@@ -2002,7 +2026,16 @@ export const getProducts = secureAction(async (params: {
                 unitOfMeasure: { select: { code: true, name: true, abbreviation: true } },
                 stocks: params.warehouseId ? {
                     where: { warehouseId: params.warehouseId }
-                } : false
+                } : false,
+                _count: {
+                    select: {
+                        purchaseItems: true,
+                        saleItems: true,
+                        stockMovements: true,
+                        wastages: true,
+                        ticketParts: true,
+                    }
+                }
             }
         }),
         prisma.product.count({ where })
@@ -2026,6 +2059,7 @@ export const getProducts = secureAction(async (params: {
             createdAt: p.createdAt.toISOString(),
             updatedAt: p.updatedAt.toISOString(),
             deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
+            hasHistory: (p._count.purchaseItems + p._count.saleItems + p._count.stockMovements + p._count.wastages + p._count.ticketParts) > 0 || (p.stock !== 0),
         })),
         pagination: {
             total,

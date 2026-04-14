@@ -115,6 +115,10 @@
         "password": "كلمة المرور",
         "login": "تسجيل الدخول",
         "rememberMe": "تذكرني",
+        "forgotPassword": "نسيت كلمة المرور؟",
+        "savedUsers": "مستخدمين محفوظين",
+        "searchResults": "نتائج البحث",
+        "remove": "حذف",
         "defaultCreds": "الافتراضي: admin / admin123",
         "error": "خطأ في تسجيل الدخول"
     },

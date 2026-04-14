@@ -547,6 +547,7 @@ model Sale {
   parentId           String?
   branchId           String?
   relatedSupplierId  String?
+  isTimeSuspicious   Boolean        @default(false)
   journalEntries     JournalEntry[]
   customer           Customer?      @relation(fields: [customerId], references: [id])
   shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
@@ -695,6 +696,7 @@ model Transaction {
   referenceId          String?
   referenceType        String?
   isReversed           Boolean   @default(false)
+  isTimeSuspicious     Boolean   @default(false)
   categoryId           String?
   idempotencyKey       String?   @unique
   category             CashCategory? @relation(fields: [categoryId], references: [id])

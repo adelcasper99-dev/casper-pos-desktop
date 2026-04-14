@@ -1,5 +1,6 @@
 import { offlineDB } from './offline-db';
 import { logger } from './logger';
+import { casperClock } from './CasperClock';
 
 // ── Key Generation ─────────────────────────────────────────────────────────────
 // Always generate BEFORE any network call — the key is stored locally first,
@@ -47,7 +48,8 @@ export async function saveTreasuryTransactionOffline(
             paymentMethod,
             treasuryId,
             idempotencyKey,
-            createdAt: Date.now(),
+            createdAt: casperClock.now(),
+            isTimeSuspicious: casperClock.isTimeSuspicious(),
             syncStatus: 'PENDING',
             synced: 0,
             syncRetries: 0,
@@ -55,7 +57,7 @@ export async function saveTreasuryTransactionOffline(
             categoryId,
         });
 
-        logger.info(`📱 Offline treasury transaction queued: ${id}`);
+        logger.info(`📱 Offline treasury transaction queued: ${id} (Suspicious: ${casperClock.isTimeSuspicious()})`);
         return { success: true, id, idempotencyKey, offline: true };
     } catch (error) {
         logger.error('Failed to save offline treasury transaction', error);
@@ -132,7 +134,7 @@ export async function saveReturnOffline(
             reason,
             items,
             idempotencyKey,
-            createdAt: Date.now(),
+            createdAt: casperClock.now(),
             syncStatus: 'PENDING',
             synced: 0,
             syncRetries: 0,

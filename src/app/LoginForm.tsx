@@ -3,7 +3,7 @@
 import { login } from "@/actions/auth";
 import { useState, useEffect, useRef } from "react";
 import { CasperLogo } from "@/components/ui/CasperLogo";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown, X } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import { useRouter } from "next/navigation";
 
@@ -12,7 +12,16 @@ export default function LoginForm() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [username, setUsername] = useState("");
-    const [rememberMe, setRememberMe] = useState(false);
+    const [rememberMe, setRememberMe] = useState(true);
+    const [rememberedUsers, setRememberedUsers] = useState<string[]>([]);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const filteredUsers = rememberedUsers.filter(u => 
+        u.toLowerCase().includes(username.toLowerCase())
+    );
+
     const quotes = [
         { text: "إن الله يحب إذا عمل أحدكم عملاً أن يتقنه", author: "حديث شريف" },
         { text: "التاجر الصدوق الأمين مع النبيين والصديقين", author: "حديث شريف" },
@@ -50,16 +59,56 @@ export default function LoginForm() {
     useEffect(() => {
         setCurrentQuote(quotes[Math.floor(Math.random() * quotes.length)]);
 
-        const storedUsername = localStorage.getItem('rememberedAccount');
-        const storedRememberMe = localStorage.getItem('rememberMe') === 'true';
-        if (storedUsername && storedRememberMe) {
-            setUsername(storedUsername);
-            setRememberMe(storedRememberMe);
+        // Load remembered users (migration from single string to array)
+        try {
+            const stored = localStorage.getItem('rememberedUsers');
+            let users: string[] = [];
+            if (stored) {
+                users = JSON.parse(stored);
+            } else {
+                // Migrate legacy single user
+                const legacy = localStorage.getItem('rememberedAccount');
+                if (legacy) users = [legacy];
+            }
+            
+            if (Array.isArray(users)) {
+                setRememberedUsers(users);
+                if (users.length > 0) {
+                    setUsername(users[users.length - 1]);
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load remembered users', e);
+        }
+
+        const storedRememberMe = localStorage.getItem('rememberMe');
+        if (storedRememberMe !== null) {
+            setRememberMe(storedRememberMe === 'true');
         }
 
         usernameRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Click outside handler for dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsFocused(false);
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const removeUser = (userToRemove: string) => {
+        const updated = rememberedUsers.filter(u => u !== userToRemove);
+        setRememberedUsers(updated);
+        localStorage.setItem('rememberedUsers', JSON.stringify(updated));
+        if (username === userToRemove) setUsername('');
+        if (updated.length === 0) setShowDropdown(false);
+    };
 
     const handleUsernameKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
@@ -72,20 +121,40 @@ export default function LoginForm() {
         setLoading(true);
         setError("");
 
+        // Save state optimistically before redirect
+        const currentUsername = formData.get('username') as string;
+        const originalUsers = localStorage.getItem('rememberedUsers');
+        
+        try {
+            localStorage.setItem('rememberMe', rememberMe.toString());
+            localStorage.setItem('sessionStart', Date.now().toString());
+            
+            let users: string[] = JSON.parse(originalUsers || '[]');
+            if (!Array.isArray(users)) users = [];
+
+            if (rememberMe) {
+                if (!users.includes(currentUsername)) {
+                    users.push(currentUsername);
+                    localStorage.setItem('rememberedUsers', JSON.stringify(users));
+                }
+            } else {
+                users = users.filter(u => u !== currentUsername);
+                localStorage.setItem('rememberedUsers', JSON.stringify(users));
+            }
+        } catch (err) {
+            console.warn('Failed to save session data', err);
+        }
+
         try {
             const res = await login(formData);
 
             if (res?.success === false) {
                 setError(res.message);
                 setLoading(false);
+                // Revert localStorage if login failed
+                if (originalUsers) localStorage.setItem('rememberedUsers', originalUsers);
+                else localStorage.removeItem('rememberedUsers');
             } else {
-                localStorage.setItem('rememberMe', rememberMe.toString());
-                localStorage.setItem('sessionStart', Date.now().toString());
-                if (rememberMe) {
-                    localStorage.setItem('rememberedAccount', formData.get('username') as string);
-                } else {
-                    localStorage.removeItem('rememberedAccount');
-                }
                 router.refresh();
                 router.push('/dashboard');
             }
@@ -184,23 +253,61 @@ export default function LoginForm() {
 
                     {/* Form */}
                     <form action={handleSubmit} className="space-y-5">
+                        {/* Hidden field to sync custom checkbox state with FormData */}
+                        <input type="hidden" name="rememberMe" value={rememberMe ? 'on' : 'off'} />
 
                         {/* Username */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 overflow-visible">
                             <label className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block px-1">
                                 {t('username')}
                             </label>
-                            <input
-                                ref={usernameRef}
-                                name="username"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                onKeyDown={handleUsernameKeyDown}
-                                className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
-                                required
-                                autoComplete="username"
-                                placeholder="..."
-                            />
+                            
+                             <div className="relative" ref={dropdownRef}>
+                                <input
+                                    ref={usernameRef}
+                                    name="username"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    onFocus={() => setIsFocused(true)}
+                                    onKeyDown={handleUsernameKeyDown}
+                                    className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
+                                    required
+                                    autoComplete="off"
+                                    placeholder={t('username') + "..."}
+                                />
+                                
+                                {isFocused && rememberedUsers.length > 0 && (
+                                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-zinc-900 border border-slate-100 dark:border-white/5 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        {rememberedUsers
+                                            .filter(u => !username || u.toLowerCase().includes(username.toLowerCase()))
+                                            .map(u => (
+                                            <div 
+                                                key={u}
+                                                className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5 group transition-colors cursor-pointer border-b border-slate-50 dark:border-white/5 last:border-0"
+                                                onClick={() => {
+                                                    setUsername(u);
+                                                    setIsFocused(false);
+                                                }}
+                                            >
+                                                <span className="flex-1 text-right text-sm font-black text-slate-700 dark:text-zinc-300 truncate">
+                                                    {u}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        removeUser(u);
+                                                    }}
+                                                    className="text-slate-300 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                    title={t('remove')}
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Password */}
@@ -209,9 +316,6 @@ export default function LoginForm() {
                                 <label className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block">
                                     {t('password')}
                                 </label>
-                                <button type="button" className="text-[10px] font-black text-slate-400 hover:text-[var(--primary)] transition-colors uppercase tracking-wider">
-                                    نسيت كلمة المرور؟
-                                </button>
                             </div>
                             <input
                                 ref={passwordRef}
@@ -220,7 +324,7 @@ export default function LoginForm() {
                                 className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
                                 required
                                 autoComplete="off"
-                                placeholder="••••••••"
+                                placeholder={t('password') + "..."}
                             />
                         </div>
 
@@ -248,6 +352,12 @@ export default function LoginForm() {
                                 <span>{t('login')}</span>
                             )}
                         </button>
+
+                        <div className="text-center mt-4">
+                            <button type="button" className="text-[10px] font-black text-slate-400 hover:text-[var(--primary)] transition-colors uppercase tracking-[0.25em]">
+                                {t('forgotPassword')}
+                            </button>
+                        </div>
                     </form>
 
                     {/* Footer */}
@@ -262,3 +372,4 @@ export default function LoginForm() {
         </div>
     );
 }
+

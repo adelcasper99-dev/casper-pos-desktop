@@ -4,14 +4,16 @@ import React, { useState, useEffect } from 'react';
 import {
     Database,
     Save,
-    Download,
     Wand2,
     Wifi,
     WifiOff,
     RefreshCw,
     Printer,
-    AlertCircle
+    Clock,
+    Globe
 } from 'lucide-react';
+import { NetworkGuideModal } from '@/components/layout/NetworkGuideModal';
+import { casperClock } from '@/lib/CasperClock';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { LocalPersistenceService } from '@/lib/local-persistence';
@@ -28,6 +30,12 @@ export const DesktopStatus: React.FC = () => {
     // Printer Status State
     const [printerStatus, setPrinterStatus] = useState<'connected' | 'offline' | 'checking'>('checking');
     const [isRetryingPrinter, setIsRetryingPrinter] = useState(false);
+    
+    // Clock Status State
+    const [clockStatus, setClockStatus] = useState<'verified' | 'protected' | 'untrusted'>('untrusted');
+
+    // Network Guide State
+    const [isNetworkGuideOpen, setIsNetworkGuideOpen] = useState(false);
 
     const checkPrinterStatus = async () => {
         try {
@@ -66,10 +74,25 @@ export const DesktopStatus: React.FC = () => {
             });
         }
 
+        // Clock Check
+        const updateClockStatus = () => {
+            const isSuspicious = casperClock.isTimeSuspicious();
+            if (isSuspicious) {
+                setClockStatus('untrusted');
+            } else if (!navigator.onLine) {
+                setClockStatus('protected');
+            } else {
+                setClockStatus('verified');
+            }
+        };
+        updateClockStatus();
+        const clockInterval = setInterval(updateClockStatus, 5000);
+
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             clearInterval(printerInterval);
+            clearInterval(clockInterval);
             unsubProgress();
             unsubDownloaded();
         };
@@ -130,27 +153,6 @@ export const DesktopStatus: React.FC = () => {
         }
     };
 
-    const handleExportBundle = async () => {
-        if (!window.electronAPI?.storage?.exportSupportBundle) {
-            toast.error("Support export only available in Desktop version");
-            return;
-        }
-
-        setIsActionInProgress(true);
-        try {
-            const result = await window.electronAPI.storage.exportSupportBundle();
-            if (result?.success) {
-                toast.success(`Support bundle exported to: ${result.path}`);
-            } else if (result) {
-                toast.error(`Export failed: ${result.error}`);
-            }
-        } catch (error) {
-            toast.error("Export failed");
-        } finally {
-            setIsActionInProgress(false);
-        }
-    };
-
     return (
         <div className="flex items-center gap-3 glass-card bg-black/40 px-3 py-1.5 border border-white/5 shadow-sm">
             {/* Network Status */}
@@ -190,6 +192,25 @@ export const DesktopStatus: React.FC = () => {
 
             <div className="w-px h-3 bg-border" />
 
+            {/* Temporal Status */}
+            <div 
+                className={clsx(
+                    "flex items-center gap-1.5 px-1 shrink-0",
+                    clockStatus === 'verified' ? "text-cyan-500" : clockStatus === 'protected' ? "text-amber-500" : "text-red-500"
+                )}
+                title={clockStatus === 'verified' ? "Time Verified via Server" : clockStatus === 'protected' ? "Offline - Using Monotonic Drift Protection" : "Clock Untrusted - Verify System Time"}
+            >
+                <Clock className="w-3 h-3" />
+                <span className="font-bold text-[10px] uppercase">
+                    {clockStatus === 'verified' ? "Verified" : clockStatus === 'protected' ? "Protected" : "Untrusted"}
+                </span>
+                {clockStatus === 'protected' && (
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                )}
+            </div>
+
+            <div className="w-px h-3 bg-border" />
+
             {/* Database Info */}
             <div
                 className="flex items-center gap-1.5 cursor-pointer hover:text-blue-400 transition-colors shrink-0"
@@ -206,6 +227,16 @@ export const DesktopStatus: React.FC = () => {
 
             {/* Maintenance Actions */}
             <div className="flex items-center gap-0.5">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 hover:bg-white/10"
+                    onClick={() => setIsNetworkGuideOpen(true)}
+                    title="الشبكة المحلية (LAN)"
+                >
+                    <Globe className="w-3 h-3 text-cyan-400" />
+                </Button>
+
                 <Button
                     variant="ghost"
                     size="icon"
@@ -250,6 +281,11 @@ export const DesktopStatus: React.FC = () => {
                     </div>
                 </>
             )}
+
+            <NetworkGuideModal 
+                isOpen={isNetworkGuideOpen} 
+                onClose={() => setIsNetworkGuideOpen(false)} 
+            />
         </div>
     );
 };

@@ -37,6 +37,7 @@ interface ProcessSaleData extends z.infer<typeof saleSchema> {
     id?: string; // Used as the offline UUID
     idempotencyKey?: string;
     treasuryId?: string;
+    isTimeSuspicious?: boolean;
 }
 
 import { rateLimit } from "@/lib/rate-limit";
@@ -224,6 +225,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 tableName: rawData.tableName || null,
                 tableId: rawData.tableId || null,
                 offlineFlag: rawData.offlineFlag || false,
+                isTimeSuspicious: rawData.isTimeSuspicious || false,
                 syncStatus: rawData.offlineFlag ? 'SYNCED' : 'PENDING',
                 relatedSupplierId: (rawData.isSupplier && data.customer?.id) ? data.customer.id : null,
                 items: {
@@ -520,7 +522,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                         paymentMethod: p.method,
                         description: `Sale #${sale.id.split('-')[0].toUpperCase()}`,
                         shiftId: currentShift.id,
-                        treasuryId: assignedTreasuryId || undefined
+                        treasuryId: assignedTreasuryId || undefined,
+                        isTimeSuspicious: rawData.isTimeSuspicious || false
                     }
                 });
 

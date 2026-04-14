@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
             shiftId,
             customerId,
             createdAt, 
+            isTimeSuspicious,
             items = [],
         } = body;
 
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
                     status: 'COMPLETED',
                     syncStatus: 'SYNCED',
                     offlineFlag: true,
+                    isTimeSuspicious: isTimeSuspicious || false,
                     idempotencyKey: idempotencyKey ?? undefined,
                     createdAt: createdAt ? new Date(createdAt) : undefined,
                     items: {

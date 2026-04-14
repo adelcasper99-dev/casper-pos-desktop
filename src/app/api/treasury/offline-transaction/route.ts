@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
             shiftId,
             categoryId,
             idempotencyKey,
+            isTimeSuspicious,
             createdAt // 🆕 Extract original timestamp
         } = body;
 
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
                 shiftId,
                 categoryId,
                 idempotencyKey,
+                isTimeSuspicious: isTimeSuspicious || false,
                 createdAt: createdAt ? new Date(createdAt) : undefined // 🆕 Use original time
             }
         });
