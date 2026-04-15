@@ -482,6 +482,25 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
     const effectiveStock = isBundle ? 0 : (productData.stock ?? 0);
     const effectiveTrackStock = isBundle ? false : (productData.trackStock ?? true);
 
+    // I-02: Static Name Concatenation for Model and Attribute
+    let finalProductName = productData.name;
+
+    if (validated.modelId) {
+        const model = await prisma.model.findUnique({ where: { id: validated.modelId } });
+        if (model && !finalProductName.includes(model.name)) {
+            finalProductName += ` - ${model.name}`;
+        }
+    }
+
+    if (validated.attributeId) {
+        const attr = await prisma.attribute.findUnique({ where: { id: validated.attributeId } });
+        if (attr && !finalProductName.includes(attr.name)) {
+            finalProductName += ` - ${attr.name}`;
+        }
+    }
+    
+    productData.name = finalProductName;
+
     // TRANSACTION: Ensure Product + Stock + BundleItems are created together
     const product = await prisma.$transaction(async (tx) => {
         // 1. Create Product
@@ -604,6 +623,25 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
             throw new Error("لا يمكن تغيير نوع تتبع المخزون لهذا المنتج لوجود حركات سابقة أو كمية متوفرة. يرجى أرشفة المنتج وإنشاء صنف جديد بدلاً منه.");
         }
     }
+
+    // I-03: Static Name Concatenation for Model and Attribute
+    let finalProductName = productFields.name;
+
+    if (validated.modelId) {
+        const model = await prisma.model.findUnique({ where: { id: validated.modelId } });
+        if (model && !finalProductName.includes(model.name)) {
+            finalProductName += ` - ${model.name}`;
+        }
+    }
+
+    if (validated.attributeId) {
+        const attr = await prisma.attribute.findUnique({ where: { id: validated.attributeId } });
+        if (attr && !finalProductName.includes(attr.name)) {
+            finalProductName += ` - ${attr.name}`;
+        }
+    }
+
+    productFields.name = finalProductName;
 
     await prisma.$transaction(async (tx) => {
         // Update core product fields
@@ -914,12 +952,23 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
     else if (paidAmountDec.gt(0)) status = "PARTIAL";
 
-    // Prepare Products Lookup (Batch Read)
-    const skusToCheck = items.filter(i => !i.productId && i.sku).map(i => i.sku as string);
-    const existingProducts = skusToCheck.length > 0
-        ? await prisma.product.findMany({ where: { sku: { in: skusToCheck } } })
+    // Prepare Products Lookup (Batch Read - Defensive against stale IDs)
+    const skusToCheck = items.map(i => i.sku).filter(Boolean) as string[];
+    const idsToCheck = items.map(i => i.productId).filter(Boolean) as string[];
+
+    const existingProducts = (skusToCheck.length > 0 || idsToCheck.length > 0)
+        ? await prisma.product.findMany({ 
+            where: { 
+                OR: [
+                    { id: { in: idsToCheck } },
+                    { sku: { in: skusToCheck } }
+                ]
+            } 
+        })
         : [];
-    const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
+
+    const idMap = new Map(existingProducts.map(p => [p.id, p]));
+    const skuMap = new Map(existingProducts.map(p => [p.sku, p]));
 
     // Prepare Warehouse ID
     let warehouseId = header.warehouseId;
@@ -939,19 +988,31 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         const productsToCreate: any[] = [];
         const processedItems: any[] = [];
 
-        // Identify what needs creation
+        // Identify what needs creation or mapping
         for (const item of items) {
             let pid = item.productId;
-            if (!pid && item.sku) {
-                const existing = existingProductMap.get(item.sku);
-                if (existing) {
-                    pid = existing.id;
+            
+            // 1. Validate provided ID if exists
+            const productById = pid ? idMap.get(pid) : null;
+            
+            if (productById) {
+                // Verified ID exists
+                pid = productById.id;
+            } else if (item.sku) {
+                // ID missing or invalid -> fallback to SKU lookup
+                const productBySku = skuMap.get(item.sku);
+                if (productBySku) {
+                    pid = productBySku.id;
                 } else {
-                    // Queue for creation
+                    // Truly new item (no ID, no SKU in DB) -> Queue for creation
                     productsToCreate.push({ ...item });
-                    continue; // Skip adding to processed yet
+                    continue;
                 }
+            } else {
+                // Terminal case: Item has no ID and no SKU
+                throw new Error(String(await getTranslations('SystemMessages.Errors').then(t => t('productMissingIdentifiers') || "Product lacks both ID and SKU")));
             }
+
             if (pid) {
                 processedItems.push({ ...item, productId: pid });
             }
@@ -1118,48 +1179,79 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             }
         }
 
-        // G. Stock Updates (PARALLEL & BATCHED)
-        // 1. Sort items to prevent deadlocks (by productId)
-        const sortedItems = [...processedItems].sort((a, b) => a.productId.localeCompare(b.productId));
+        // G. Stock Updates (CONSOLIDATED / THREAD-SAFE)
+        // ---------------------------------------------------------------------
+        
+        // 1. Aggregate duplicates to prevent parallel-update collisions on the same ID
+        // This is the CRITICAL fix for "Record to update not found" in SQLite/Prisma
+        const aggregatedMap = new Map<string, {
+            productId: string,
+            totalQuantity: Decimal,
+            latestUnitCost: number,
+            latestSellPrice?: number,
+            latestSellPrice2?: number,
+            latestSellPrice3?: number,
+        }>();
 
-        // 2. Prepare Stock Movements for Batch Insert
-        const movementsData = sortedItems.map(item => {
+        for (const item of processedItems) {
+            const existing = aggregatedMap.get(item.productId);
             const factor = new Decimal(String(item.conversionFactor || 1));
-            const effectiveQty = new Decimal(String(item.quantity)).times(factor);
+            const qty = new Decimal(String(item.quantity)).times(factor);
 
-            return {
-                type: 'PURCHASE',
-                productId: item.productId,
-                fromWarehouseId: null,
-                toWarehouseId: warehouseId!,
-                quantity: effectiveQty,
-                reason: `Purchase Invoice #${finalInvoiceNumber}`,
-                branchId: wh?.branchId || null
-            };
-        });
+            if (existing) {
+                existing.totalQuantity = existing.totalQuantity.plus(qty);
+                existing.latestUnitCost = item.unitCost; // Last line wins for pricing
+                if (item.sellPrice) existing.latestSellPrice = item.sellPrice;
+                if (item.sellPrice2) existing.latestSellPrice2 = item.sellPrice2;
+                if (item.sellPrice3) existing.latestSellPrice3 = item.sellPrice3;
+            } else {
+                aggregatedMap.set(item.productId, {
+                    productId: item.productId,
+                    totalQuantity: qty,
+                    latestUnitCost: item.unitCost,
+                    latestSellPrice: item.sellPrice,
+                    latestSellPrice2: item.sellPrice2,
+                    latestSellPrice3: item.sellPrice3,
+                });
+            }
+        }
+
+        const aggregatedItems = Array.from(aggregatedMap.values());
+
+        // 2. Prepare Stock Movements (keep per-line for audit trail granularity)
+        const movementsData = processedItems.map(item => ({
+            type: 'PURCHASE',
+            productId: item.productId,
+            fromWarehouseId: null,
+            toWarehouseId: warehouseId!,
+            quantity: new Decimal(String(item.quantity)).times(item.conversionFactor || 1),
+            reason: `Purchase Invoice #${finalInvoiceNumber}`,
+            branchId: wh?.branchId || null
+        }));
 
         await tx.stockMovement.createMany({
             data: movementsData
         });
 
-        // 3. Update Product & Warehouse Stock (Concurrent)
-        // We use Promise.all for parallelism. Prisma handles connection pooling.
+        // 3. Perform Consolidated Updates (One per Product ID)
         await Promise.all([
             // Update Products
-            ...sortedItems.map(item =>
+            ...aggregatedItems.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
                     data: {
-                        stock: { increment: new Decimal(String(item.quantity)).times(item.conversionFactor || 1).toNumber() },
-                        costPrice: new Decimal(String(item.unitCost)).div(item.conversionFactor || 1),
-                        ...(item.sellPrice ? { sellPrice: item.sellPrice } : {}),
-                        ...(item.sellPrice2 ? { sellPrice2: item.sellPrice2 } : {}),
-                        ...(item.sellPrice3 ? { sellPrice3: item.sellPrice3 } : {})
+                        stock: { increment: item.totalQuantity.toNumber() },
+                        // Cost should reflect the unit cost (already adjusted for factor if needed, 
+                        // but here we use the line's unitCost as per existing logic)
+                        costPrice: item.latestUnitCost, 
+                        ...(item.latestSellPrice ? { sellPrice: item.latestSellPrice } : {}),
+                        ...(item.latestSellPrice2 ? { sellPrice2: item.latestSellPrice2 } : {}),
+                        ...(item.latestSellPrice3 ? { sellPrice3: item.latestSellPrice3 } : {})
                     }
                 })
             ),
             // Update Warehouse Stock
-            ...sortedItems.map(item =>
+            ...aggregatedItems.map(item =>
                 tx.stock.upsert({
                     where: {
                         productId_warehouseId: {
@@ -1167,11 +1259,11 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                             warehouseId: warehouseId!
                         }
                     },
-                    update: { quantity: { increment: new Decimal(String(item.quantity)).times(item.conversionFactor || 1).toNumber() } },
+                    update: { quantity: { increment: item.totalQuantity.toNumber() } },
                     create: {
                         productId: item.productId,
                         warehouseId: warehouseId!,
-                        quantity: new Decimal(String(item.quantity)).times(item.conversionFactor || 1).toNumber()
+                        quantity: item.totalQuantity.toNumber()
                     }
                 })
             )
@@ -2211,8 +2303,25 @@ export const reportWastage = secureAction(async (data: {
     return { success: true, wastage: result };
 }, { permission: 'INVENTORY_EDIT' });
 
-export const getPurchaseInvoices = secureAction(async () => {
+export const getPurchaseInvoices = secureAction(async (tabFilter?: 'ACTIVE' | 'ALL' | 'RETURNS') => {
+    let whereClause: Prisma.PurchaseInvoiceWhereInput = {};
+    if (tabFilter === 'ACTIVE') {
+        whereClause = { 
+            status: { notIn: ['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'] }, 
+            voidedAt: null 
+        };
+    } else if (tabFilter === 'RETURNS') {
+        whereClause = { 
+            OR: [
+                { isReturn: true },
+                { status: { in: ['RETURN', 'RETURNED', 'PARTIAL_RETURN', 'CANCELLED', 'VOIDED'] } },
+                { voidedAt: { not: null } }
+            ]
+        };
+    }
+
     const invoices = await prisma.purchaseInvoice.findMany({
+        where: whereClause,
         orderBy: { purchaseDate: 'desc' },
         include: {
             supplier: { select: { name: true } },

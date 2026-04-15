@@ -143,11 +143,15 @@ export default function PurchasesTab({
     const t = useTranslations('Purchasing');
     const tCommon = useTranslations('Common');
 
+    const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL' | 'RETURNS'>('ACTIVE');
+    const [dateFilter, setDateFilter] = useState("all");
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
+
     // Real-time polling for invoices
     const { data: activeInvoices } = useQuery({
-        queryKey: ['purchase-invoices'],
+        queryKey: ['purchase-invoices', statusFilter],
         queryFn: async () => {
-            const res = await getPurchaseInvoices();
+            const res = await getPurchaseInvoices(statusFilter);
             if (!res.success) throw new Error(res.error || 'Failed to fetch invoices');
             return res.data || [];
         },
@@ -155,10 +159,6 @@ export default function PurchasesTab({
         refetchInterval: 5000,
         staleTime: 4000
     });
-
-    const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL' | 'VOIDED' | 'RETURNS'>('ACTIVE');
-    const [dateFilter, setDateFilter] = useState("all");
-    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
     
     // Local State for Master Data (to support Quick Create)
     const [suppliersList, setSuppliersList] = useState<Supplier[]>(suppliers);
@@ -212,7 +212,9 @@ export default function PurchasesTab({
             sellPrice3: Number(item.product?.sellPrice3 || 0),
             categoryId: item.product?.categoryId,
             modelId: item.product?.modelId,
+            modelName: item.product?.model?.name,
             attributeId: item.product?.attributeId,
+            attributeName: item.product?.attribute?.name,
             unitOfMeasureId: item.product?.unitOfMeasureId,
             conversionFactor: item.product?.conversionFactor ?? 1,
             isDevice: item.isDevice,
@@ -510,9 +512,10 @@ export default function PurchasesTab({
 
     const filteredInvoices = [...(activeInvoices || [])]
         .filter((inv: any) => {
-            if (statusFilter === 'ACTIVE' && inv.status === 'VOIDED') return false;
-            if (statusFilter === 'VOIDED' && inv.status !== 'VOIDED') return false;
-            if (statusFilter === 'RETURNS' && !inv.isReturn && !['RETURN', 'RETURNED', 'PARTIAL_RETURN'].includes(inv.status)) return false;
+            const isCancelled = ['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN', 'PARTIAL_RETURN'].includes(inv.status) || inv.isReturn;
+            if (statusFilter === 'ACTIVE' && isCancelled) return false;
+            // The RETURNS tab acts as a catch-all for anything canceled or returned
+            if (statusFilter === 'RETURNS' && !isCancelled) return false;
 
             if (dateRange?.from && dateRange?.to) {
                 return isWithinInterval(new Date(inv.purchaseDate), {
@@ -541,8 +544,8 @@ export default function PurchasesTab({
         });
 
     const stats = {
-        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (inv.status !== 'VOIDED' ? inv.totalAmount : 0), 0),
-        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (inv.status !== 'VOIDED' ? inv.paidAmount : 0), 0),
+        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.totalAmount : 0), 0),
+        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.paidAmount : 0), 0),
     };
 
     const barcodeItems = selectedTableInvoice ? selectedTableInvoice.items : cart;
@@ -599,7 +602,7 @@ export default function PurchasesTab({
                 <div className="flex justify-between items-center gap-4">
                     {/* Status Tabs */}
                     <div className="flex gap-2 p-1 bg-zinc-100 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/5">
-                        {['ACTIVE', 'ALL', 'VOIDED', 'RETURNS'].map((status) => (
+                        {['ACTIVE', 'ALL', 'RETURNS'].map((status) => (
                             <button
                                 key={status}
                                 onClick={() => setStatusFilter(status as any)}
@@ -612,8 +615,7 @@ export default function PurchasesTab({
                             >
                                 {status === 'ACTIVE' ? t('filter.active') :
                                  status === 'ALL' ? t('filter.all') :
-                                 status === 'RETURNS' ? t('filter.returns') :
-                                 t('filter.voided')}
+                                 'ملغى / مرتجع'}
                             </button>
                         ))}
                     </div>
@@ -719,10 +721,15 @@ export default function PurchasesTab({
                                                 "inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
                                                 inv.status === 'PAID' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" :
                                                 inv.status === 'PENDING' ? "bg-amber-500/10 border-amber-500/20 text-amber-500" :
+                                                inv.status === 'PARTIAL' ? "bg-blue-500/10 border-blue-500/20 text-blue-500" :
+                                                inv.status === 'PARTIAL_RETURN' ? "bg-purple-500/10 border-purple-500/20 text-purple-500" :
                                                 "bg-rose-500/10 border-rose-500/20 text-rose-500"
                                             )}>
                                                 {inv.status === 'PAID' ? 'تم السداد' : 
-                                                 inv.status === 'PENDING' ? 'آجل' : 'ملغي'}
+                                                 inv.status === 'PENDING' ? 'آجل' : 
+                                                 inv.status === 'PARTIAL' ? 'سداد جزئي' :
+                                                 inv.status === 'PARTIAL_RETURN' ? 'مرتجع جزئي' :
+                                                 'ملغي'}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -744,7 +751,7 @@ export default function PurchasesTab({
                                                 >
                                                   <Barcode className="w-4 h-4" />
                                                 </button>
-                                                {inv.status !== 'VOIDED' && (
+                                                {(!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status)) && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); voidInvoice(inv.id); }}
                                                         className="p-2 hover:bg-rose-500 hover:text-white rounded-lg transition-all"

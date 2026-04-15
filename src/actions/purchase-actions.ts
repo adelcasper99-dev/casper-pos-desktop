@@ -50,6 +50,10 @@ export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ 
                             select: {
                                 name: true,
                                 sku: true,
+                                modelId: true,
+                                model: { select: { name: true } },
+                                attributeId: true,
+                                attribute: { select: { name: true } },
                                 stocks: {
                                     select: { warehouseId: true, quantity: true }
                                 }
@@ -91,7 +95,12 @@ export const getPurchase = secureAction(async (id: string) => {
         include: {
             items: {
                 include: {
-                    product: true
+                    product: {
+                        include: {
+                            model: { select: { name: true } },
+                            attribute: { select: { name: true } }
+                        }
+                    }
                 }
             }
         }

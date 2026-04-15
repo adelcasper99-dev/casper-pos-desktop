@@ -421,10 +421,12 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             attachmentUrl: (isWalkin && attachmentUrl) ? attachmentUrl : undefined,
             warehouseId: selectedWarehouseId || undefined,
             items: cart.map(i => ({
-                productId: i.productId, // Might be undefined if new
+                productId: i.productId,
                 name: i.name,
                 sku: i.sku,
                 categoryId: i.categoryId,
+                modelId: i.modelId,
+                attributeId: i.attributeId,
                 sellPrice: i.sellPrice,
                 sellPrice2: i.sellPrice2,
                 sellPrice3: i.sellPrice3,

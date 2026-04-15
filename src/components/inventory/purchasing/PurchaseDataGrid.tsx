@@ -11,6 +11,9 @@ import { useTranslations } from "@/lib/i18n-mock";
 import { useRouter } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1226,6 +1229,25 @@ export function PurchaseDataGrid({
     const [resizingIdx, setResizingIdx] = useState<number | null>(null);
     const [isAutoFitting, setIsAutoFitting] = useState(false);
 
+    // ── CRUD State for Modern Prompts (window.prompt replacement) ───────────
+    const [crudState, setCrudState] = useState<{
+        isOpen: boolean;
+        type: 'EDIT_CATEGORY' | 'DELETE_CATEGORY' | 'EDIT_MODEL' | 'DELETE_MODEL' | 'EDIT_ATTRIBUTE' | 'DELETE_ATTRIBUTE' | 'EDIT_UNIT' | 'DELETE_UNIT' | null;
+        targetId: string;
+        targetValue: string;
+        initialValue: string;
+        loading: boolean;
+        variant: 'danger' | 'warning' | 'info';
+    }>({
+        isOpen: false,
+        type: null,
+        targetId: '',
+        targetValue: '',
+        initialValue: '',
+        loading: false,
+        variant: 'info'
+    });
+
     // ── Load/Save Persistence ───────────────────────────────────────────────
     useEffect(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -1613,108 +1635,169 @@ export function PurchaseDataGrid({
 
     // ── Management Handlers (CRUD) ───────────────────────────────────────────
 
-    const handleEditCategory = async (id: string, currentName: string) => {
-        const newName = window.prompt("تعديل اسم الفئة:", currentName);
-        if (newName && newName.trim() !== currentName) {
-            const res = await updateCategory({ id, name: newName.trim(), isHidden: false, csrfToken });
-            if (res.success) {
-                toast.success("تم التعديل بنجاح");
+    const handleEditCategory = (id: string, currentName: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'EDIT_CATEGORY',
+            targetId: id,
+            targetValue: currentName,
+            initialValue: currentName,
+            loading: false,
+            variant: 'info'
+        });
+    };
+
+    const handleDeleteCategory = (id: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'DELETE_CATEGORY',
+            targetId: id,
+            targetValue: '',
+            initialValue: '',
+            loading: false,
+            variant: 'danger'
+        });
+    };
+
+    const handleEditModel = (id: string, currentName: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'EDIT_MODEL',
+            targetId: id,
+            targetValue: currentName,
+            initialValue: currentName,
+            loading: false,
+            variant: 'info'
+        });
+    };
+
+    const handleDeleteModel = (id: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'DELETE_MODEL',
+            targetId: id,
+            targetValue: '',
+            initialValue: '',
+            loading: false,
+            variant: 'danger'
+        });
+    };
+
+    const handleEditAttribute = (id: string, currentName: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'EDIT_ATTRIBUTE',
+            targetId: id,
+            targetValue: currentName,
+            initialValue: currentName,
+            loading: false,
+            variant: 'info'
+        });
+    };
+
+    const handleDeleteAttribute = (id: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'DELETE_ATTRIBUTE',
+            targetId: id,
+            targetValue: '',
+            initialValue: '',
+            loading: false,
+            variant: 'danger'
+        });
+    };
+
+    const handleEditUnit = (id: string, current: UnitOption) => {
+        setCrudState({
+            isOpen: true,
+            type: 'EDIT_UNIT',
+            targetId: id,
+            targetValue: current.name,
+            initialValue: current.name,
+            loading: false,
+            variant: 'info'
+        });
+    };
+
+    const handleDeleteUnit = (id: string) => {
+        setCrudState({
+            isOpen: true,
+            type: 'DELETE_UNIT',
+            targetId: id,
+            targetValue: '',
+            initialValue: '',
+            loading: false,
+            variant: 'danger'
+        });
+    };
+
+    const handleCrudConfirm = async () => {
+        const { type, targetId, targetValue, initialValue } = crudState;
+        
+        // If it's an edit and value hasn't changed, just close
+        if (type?.startsWith('EDIT') && targetValue.trim() === initialValue) {
+            setCrudState(prev => ({ ...prev, isOpen: false }));
+            return;
+        }
+
+        setCrudState(prev => ({ ...prev, loading: true }));
+        
+        try {
+            let res: any;
+            switch (type) {
+                case 'EDIT_CATEGORY':
+                    res = await updateCategory({ id: targetId, name: targetValue.trim(), isHidden: false, csrfToken });
+                    break;
+                case 'DELETE_CATEGORY':
+                    res = await deleteCategory({ id: targetId, csrfToken });
+                    break;
+                case 'EDIT_MODEL':
+                    const model = models.find(m => m.id === targetId);
+                    if (model) {
+                         res = await updateModel({ id: targetId, name: targetValue.trim(), categoryId: model.categoryId, csrfToken });
+                    }
+                    break;
+                case 'DELETE_MODEL':
+                    res = await deleteModel({ id: targetId, csrfToken });
+                    break;
+                case 'EDIT_ATTRIBUTE':
+                    res = await updateAttribute({ id: targetId, name: targetValue.trim(), csrfToken });
+                    break;
+                case 'DELETE_ATTRIBUTE':
+                    res = await deleteAttribute({ id: targetId, csrfToken });
+                    break;
+                case 'EDIT_UNIT':
+                     const unit = units.find(u => u.id === targetId);
+                     if (unit) {
+                         res = await updateUnitOfMeasure({ 
+                            id: targetId, 
+                            name: targetValue.trim(), 
+                            abbreviation: targetValue.trim().slice(0, 2),
+                            code: targetValue.trim().toUpperCase(),
+                            conversionFactor: unit.conversionFactor || 1,
+                            isActive: true,
+                            csrfToken
+                        });
+                     }
+                    break;
+                case 'DELETE_UNIT':
+                    res = await deleteUnitOfMeasure({ id: targetId, csrfToken });
+                    break;
+            }
+
+            if (res?.success) {
+                toast.success("تمت العملية بنجاح");
                 router.refresh();
+                setCrudState(prev => ({ ...prev, isOpen: false, loading: false }));
+            } else if (res?.error) {
+                toast.error(res.error);
+                setCrudState(prev => ({ ...prev, loading: false }));
             } else {
-                toast.error("فشل التعديل");
+                setCrudState(prev => ({ ...prev, isOpen: false, loading: false }));
             }
-        }
-    };
-
-    const handleDeleteCategory = async (id: string) => {
-        if (window.confirm("هل أنت متأكد من حذف هذه الفئة؟")) {
-            const res = await deleteCategory({ id, csrfToken });
-            if (res.success) {
-                toast.success("تم الحذف بنجاح");
-                router.refresh();
-            } else {
-                toast.error(res.error || "لا يمكن الحذف - الفئة مرتبطة بمنتجات.");
-            }
-        }
-    };
-
-    const handleEditModel = async (id: string, currentName: string) => {
-        const newName = window.prompt("تعديل اسم الموديل:", currentName);
-        if (newName && newName.trim() !== currentName) {
-            // Finding the model to get its current categoryId
-            const model = models.find(m => m.id === id);
-            if (!model) return;
-            const res = await updateModel({ id, name: newName.trim(), categoryId: model.categoryId, csrfToken });
-            if (res.success) {
-                toast.success("تم التعديل بنجاح");
-                router.refresh();
-            }
-        }
-    };
-
-    const handleDeleteModel = async (id: string) => {
-        if (window.confirm("هل أنت متأكد من حذف هذا الموديل؟")) {
-            const res = await deleteModel({ id, csrfToken });
-            if (res.success) {
-                toast.success("تم الحذف بنجاح");
-                router.refresh();
-            } else {
-                toast.error(res.error || "خطأ أثناء الحذف");
-            }
-        }
-    };
-
-    const handleEditAttribute = async (id: string, currentName: string) => {
-        const newName = window.prompt("تعديل الوصف:", currentName);
-        if (newName && newName.trim() !== currentName) {
-            const res = await updateAttribute({ id, name: newName.trim(), csrfToken });
-            if (res.success) {
-                toast.success("تم التعديل بنجاح");
-                router.refresh();
-            }
-        }
-    };
-
-    const handleDeleteAttribute = async (id: string) => {
-        if (window.confirm("تحذير: هل أنت متأكد من حذف هذا الوصف؟")) {
-            const res = await deleteAttribute({ id, csrfToken });
-            if (res.success) {
-                toast.success("تم الحذف بنجاح");
-                router.refresh();
-            } else {
-                toast.error(res.error || "لا يمكن الحذف");
-            }
-        }
-    };
-
-    const handleEditUnit = async (id: string, current: UnitOption) => {
-        const newName = window.prompt("تعديل اسم الوحدة:", current.name);
-        if (newName && newName.trim()) {
-            const res = await updateUnitOfMeasure({ 
-                id, 
-                name: newName.trim(), 
-                abbreviation: current.name.slice(0, 2),
-                code: current.name.toUpperCase(),
-                conversionFactor: current.conversionFactor || 1,
-                isActive: true,
-                csrfToken
-            });
-            if (res.success) {
-                toast.success("تم التعديل");
-                router.refresh();
-            }
-        }
-    };
-
-    const handleDeleteUnit = async (id: string) => {
-        if (window.confirm("حذف الوحدة؟")) {
-            const res = await deleteUnitOfMeasure({ id, csrfToken });
-            if (res.success) {
-                toast.success("تم الحذف");
-                router.refresh();
-            } else {
-                toast.error(res.error || "خطأ");
-            }
+        } catch (error) {
+            toast.error("حدث خطأ غير متوقع");
+            setCrudState(prev => ({ ...prev, loading: false }));
         }
     };
 
@@ -2161,6 +2244,51 @@ export function PurchaseDataGrid({
                     </div>
                 </div>
             </div>
+
+            {/* ── Dynamic Confirmation Modal (window.prompt/confirm Replacement) ── */}
+            <ConfirmationModal
+                isOpen={crudState.isOpen}
+                onClose={() => setCrudState(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={handleCrudConfirm}
+                loading={crudState.loading}
+                title={
+                    crudState.type?.startsWith('EDIT') ? "تعديل البيانات" : "تأكيد الحذف"
+                }
+                message={
+                    crudState.type === 'DELETE_CATEGORY' ? "هل أنت متأكد من حذف هذه الفئة؟" :
+                    crudState.type === 'DELETE_MODEL' ? "هل أنت متأكد من حذف هذا الموديل؟" :
+                    crudState.type === 'DELETE_ATTRIBUTE' ? "هل أنت متأكد من حذف هذا الوصف؟" :
+                    crudState.type === 'DELETE_UNIT' ? "هل أنت متأكد من حذف هذه الوحدة؟" :
+                    "يرجى إدخال الاسم الجديد:"
+                }
+                variant={crudState.variant}
+            >
+                {crudState.type?.startsWith('EDIT') && (
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="modal-input" className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">
+                                {crudState.type.split('_')[1] === 'CATEGORY' ? 'اسم الفئة' : 
+                                 crudState.type.split('_')[1] === 'MODEL' ? 'اسم الموديل' :
+                                 crudState.type.split('_')[1] === 'ATTRIBUTE' ? 'الوصف' : 'اسم الوحدة'}
+                            </Label>
+                            <Input
+                                id="modal-input"
+                                value={crudState.targetValue}
+                                onChange={(e) => setCrudState(prev => ({ ...prev, targetValue: e.target.value }))}
+                                placeholder="أدخل القيمة الجديدة هنا..."
+                                className="h-12 rounded-xl border-border bg-background px-4 font-bold text-sm focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleCrudConfirm();
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </ConfirmationModal>
         </div>
     );
 }
@@ -2183,7 +2311,9 @@ export function gridRowsToCartItems(rows: GridRow[]): InvoiceItem[] {
             sellPrice3: r.sellPrice3,
             isNew: r.isNew,
             modelId: r.modelId || undefined,
+            modelName: r.modelName,
             attributeId: r.attributeId || undefined,
+            attributeName: r.attributeName,
             isDevice: r.isDevice,
             deviceType: r.deviceType,
             condition: r.condition,
@@ -2201,7 +2331,9 @@ export function cartItemsToGridRows(items: InvoiceItem[]): GridRow[] {
         itemName: i.name,
         categoryId: i.categoryId ?? "",
         modelId: i.modelId ?? "",
+        modelName: i.modelName,
         attributeId: i.attributeId ?? "",
+        attributeName: i.attributeName,
         unit: "قطعة",
         quantity: i.quantity,
         unitPrice: i.unitCost,
