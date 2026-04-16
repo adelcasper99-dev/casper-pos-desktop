@@ -2,38 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 
+import { getFormattedTicketNumber } from '@/lib/id-generator';
+
 /**
- * Sequential barcode generation with collision protection (Transactional version)
+ * Sequential barcode generation with atomic protection
  */
-async function getNextTicketNumberInsideTx(tx: any) {
-    let attempts = 0;
-    while (attempts < 5) {
-        const lastTickets = await tx.ticket.findMany({
-            where: { barcode: { startsWith: 'T-' } },
-            orderBy: { createdAt: 'desc' },
-            take: 20,
-            select: { barcode: true }
+async function getNextTicketNumberInsideTx(tx: any, branchId?: string) {
+    let branchCode = '';
+    if (branchId) {
+        const branch = await tx.branch.findUnique({
+            where: { id: branchId },
+            select: { code: true }
         });
-
-        let maxSeq = 0;
-        for (const ticket of lastTickets) {
-            const match = ticket.barcode.match(/^T-(\d+)$/);
-            if (match) {
-                const num = parseInt(match[1], 10);
-                if (!isNaN(num) && num > maxSeq) maxSeq = num;
-            }
-        }
-
-        const nextNum = maxSeq + 1;
-        const candidate = `T-${nextNum.toString().padStart(3, '0')}`;
-
-        const exists = await tx.ticket.findUnique({ where: { barcode: candidate } });
-        if (!exists) return candidate;
-
-        attempts++;
-        await new Promise(r => setTimeout(r, Math.random() * 50));
+        branchCode = branch?.code || '';
     }
-    return `T-F${Date.now().toString().slice(-6)}`;
+
+    return await getFormattedTicketNumber(branchCode);
 }
 
 export async function POST(request: NextRequest) {
@@ -96,7 +80,7 @@ export async function POST(request: NextRequest) {
         // ── Transaction ────────────────────────────────────────────────────────
         const ticket = await prisma.$transaction(async (tx) => {
             // 1. Barcode Generation
-            const barcode = await getNextTicketNumberInsideTx(tx);
+            const barcode = await getNextTicketNumberInsideTx(tx, branchId);
 
             // 2. Customer Handshake
             let customerId = undefined;

@@ -67,7 +67,10 @@ export class SyncService {
                 await this.retryWithBackoff(async () => {
                     const response = await fetch('/api/pos/offline-sale', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                        },
                         body: JSON.stringify(sale)
                     });
 
@@ -134,7 +137,10 @@ export class SyncService {
                 await this.retryWithBackoff(async () => {
                     const response = await fetch('/api/tickets/offline-ticket', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                        },
                         body: JSON.stringify(ticket)
                     });
 

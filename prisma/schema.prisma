@@ -334,8 +334,8 @@ model Product {
   sellPrice         Decimal            @default(0.00)
   sellPrice2        Decimal            @default(0.00)
   sellPrice3        Decimal            @default(0.00)
-  stock             Int                @default(0)
-  minStock          Int                @default(5)
+  stock             Decimal            @default(0.00)
+  minStock          Decimal            @default(5.00)
   trackStock        Boolean            @default(true)
   itemType          String             @default("PHYSICAL")
   isBundle          Boolean            @default(false)
@@ -371,7 +371,7 @@ model BundleItem {
   id                 String  @id @default(uuid())
   bundleProductId    String
   componentProductId String
-  quantityIncluded   Int     @default(1)
+  quantityIncluded   Decimal @default(1.00)
   componentProduct   Product @relation("ComponentProduct", fields: [componentProductId], references: [id])
   bundleProduct      Product @relation("BundleProduct", fields: [bundleProductId], references: [id], onDelete: Cascade)
 
@@ -504,7 +504,7 @@ model PurchaseItem {
   purchaseInvoiceId String
   productId         String
   quantity          Decimal    @default(0.00)
-  returnedQty       Int        @default(0)
+  returnedQty       Decimal    @default(0.00)
   unitCost          Decimal
   imei              String?
   condition         String?
@@ -579,7 +579,7 @@ model SaleItem {
   saleId      String
   productId   String
   quantity    Decimal    @default(0.00)
-  refundedQty Int        @default(0)
+  refundedQty Decimal    @default(0.00)
   unitPrice   Decimal
   unitCost    Decimal @default(0.00)
   imei        String?
@@ -884,7 +884,7 @@ model TicketPart {
   productId     String?
   name          String?
   quantity      Decimal    @default(1.00)
-  refundedQty   Int        @default(0)
+  refundedQty   Decimal    @default(0.00)
   cost          Decimal    @default(0.00)
   price         Decimal    @default(0.00)
   baseCostPrice Decimal    @default(0.00)
@@ -1099,4 +1099,9 @@ model CashCategory {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   transactions Transaction[]
+}
+
+model Sequence {
+  name  String @id
+  value Int    @default(0)
 }

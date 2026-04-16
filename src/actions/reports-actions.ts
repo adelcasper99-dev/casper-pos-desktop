@@ -51,7 +51,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
 
         const purchaseWhere: any = {
             purchaseDate: { gte: startDate, lte: endDate },
-            status: { not: 'VOIDED' },
+            status: { notIn: ['CANCELLED', 'RETURNED', 'RETURN'] },
             warehouse: branchFilter.branchId ? { branchId: branchFilter.branchId } : undefined
         };
 
@@ -554,6 +554,7 @@ export async function getCategoriesForFilter(): Promise<{ success: boolean; cate
 export async function getProductsForFilter(): Promise<{ success: boolean; products: any[] }> {
     try {
         const products = await prisma.product.findMany({
+            where: { deletedAt: null },
             select: { id: true, name: true, sku: true },
             orderBy: { name: 'asc' }
         });

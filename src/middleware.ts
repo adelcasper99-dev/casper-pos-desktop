@@ -46,11 +46,26 @@ export function middleware(request: NextRequest) {
     const sessionToken = request.cookies.get('session')?.value;
     const path = request.nextUrl.pathname;
 
-    // Define public routes that don't require auth
-    const isPublicRoute = path === '/login' || path === '/setup' || path.startsWith('/assets') || path.startsWith('/_next');
+    // Define public routes that don't require session auth
+    const publicRoutes = ['/login', '/setup'];
+    const publicApiPrefixes = ['/assets', '/_next'];
+    
+    // Explicit public API whitelist (Hardened: only allow known-safe endpoints with their own auth)
+    const publicApiWhitelist = [
+        '/api/tickets/offline-ticket', // Uses x-sync-secret auth
+        '/api/pos/offline-sale',        // Uses x-sync-secret auth
+        '/api/auth/session',            // Next-auth session endpoint
+        '/api/auth/signin',
+        '/api/auth/callback',
+        '/api/auth/logout'
+    ];
+
+    const isPublic = publicRoutes.includes(path) || 
+                     publicApiPrefixes.some(pref => path.startsWith(pref)) ||
+                     publicApiWhitelist.includes(path);
 
     // If no session and trying to access a protected route
-    if (!sessionToken && !isPublicRoute) {
+    if (!sessionToken && !isPublic) {
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
@@ -70,12 +85,9 @@ export function middleware(request: NextRequest) {
 export const config = {
     matcher: [
         /*
-         * Match all request paths except for the ones starting with:
-         * - api (API routes)
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
+         * Match all request paths except for:
+         * - static files (favicon.ico)
          */
-        '/((?!api|_next/static|_next/image|favicon.ico).*)',
+        '/((?!favicon.ico).*)',
     ],
 };

@@ -7,7 +7,9 @@ import { z } from 'zod';
 import { Decimal } from "@prisma/client/runtime/library";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { secureAction } from "@/lib/safe-action";
-import { financialRepo } from "@/lib/repositories/financial-repo";
+import { getNextAtomicId } from "@/lib/id-generator";
+import { financialRepo } from '@/lib/repositories/financial-repo';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
 import { productSchema, supplierSchema, categorySchema, purchaseSchema, warehouseSchema, unitOfMeasureSchema } from "@/lib/validation/inventory";
 import { CACHE_TAGS } from "@/lib/cache-keys";
@@ -30,7 +32,7 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
             const t = await getTranslations('SystemMessages.Errors');
 
             // Try to find the actual supplier if it's a supplier duplicate
-            let existingSupplier = null;
+            let existingSupplier: any = null;
             if (phoneCheck.usedBy === 'SUPPLIER' && phoneCheck.entityId) {
                 existingSupplier = await prisma.supplier.findUnique({
                     where: { id: phoneCheck.entityId }
@@ -78,8 +80,8 @@ export const createSupplier = secureAction(async (data: z.infer<typeof supplierS
                 reference: s.id,
                 branchId: currentUser?.branchId ?? undefined,
                 lines: [
-                    { accountCode: '3000', debit: validated.openingBalance, credit: 0, description: 'Opening Balance Equity' },
-                    { accountCode: '2000', debit: 0, credit: validated.openingBalance, description: 'Initial Accounts Payable' }
+                    { accountCode: GL.EQUITY.CAPITAL, debit: validated.openingBalance, credit: 0, description: 'Opening Balance Equity' },
+                    { accountCode: GL.LIABILITIES.PAYABLES, debit: 0, credit: validated.openingBalance, description: 'Initial Accounts Payable' }
                 ]
             }, tx);
         }
@@ -252,15 +254,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         }
 
         // 🆕 Accounting Entry: DR 2000 (AP) / CR Cash/Bank
-        const accountMap: Record<string, string> = {
-            CASH: '1000',
-            BANK: '1010',
-            VISA: '1010',
-            CARD: '1010',
-            INSTAPAY: '1020',
-            WALLET: '1020'
-        };
-        const creditAccount = accountMap[method] || '1000';
+        const creditAccount = PAYMENT_METHOD_GL_MAP[method] ?? GL.ASSETS.CASH;
 
         const { AccountingEngine } = await import('@/lib/accounting/transaction-factory');
         await AccountingEngine.recordTransaction({
@@ -268,7 +262,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             reference: payment.id,
             branchId: user?.branchId ?? undefined,
             lines: [
-                { accountCode: '2000', debit: amountDec.toNumber(), credit: 0, description: `Accounts Payable Reduced` },
+                { accountCode: GL.LIABILITIES.PAYABLES, debit: amountDec.toNumber(), credit: 0, description: `Accounts Payable Reduced` },
                 { accountCode: creditAccount, debit: 0, credit: amountDec.toNumber(), description: `Payment via ${method}` }
             ]
         }, tx);
@@ -284,7 +278,7 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
             }
         });
 
-        let remainingAllocation = new Decimal(amount);
+        let remainingAllocation = amountDec;
 
         for (const invoice of pendingInvoices) {
             if (remainingAllocation.lte(0)) break;
@@ -416,22 +410,18 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
             });
         }
 
-        // 6. Record Accounting Reversal
-        try {
-            const creditAccount = payment.method === 'CASH' ? '1000' : '1010';
-            const paymentAmountDec = new Decimal(payment.amount.toString());
-            await AccountingEngine.recordTransaction({
-                description: `VOID Supplier Payment - ${payment.supplierId.substring(0, 8)}`,
-                reference: payment.supplierId,
-                branchId: user?.branchId ?? undefined,
-                lines: [
-                    { accountCode: '2000', debit: 0, credit: paymentAmountDec.toNumber(), description: 'Accounts Payable Restored' },
-                    { accountCode: creditAccount, debit: paymentAmountDec.toNumber(), credit: 0, description: 'Cash/Bank Restored' }
-                ]
-            }, tx as any);
-        } catch (err) {
-            console.error("Accounting reversal failed:", err);
-        }
+        // 6. Record Accounting Reversal — throws on failure to abort the transaction
+        const creditAccount = PAYMENT_METHOD_GL_MAP[payment.method] ?? GL.ASSETS.CASH;
+        const paymentAmountDec = new Decimal(payment.amount.toString());
+        await AccountingEngine.recordTransaction({
+            description: `VOID Supplier Payment - ${payment.supplierId.substring(0, 8)}`,
+            reference: payment.supplierId,
+            branchId: user?.branchId ?? undefined,
+            lines: [
+                { accountCode: GL.LIABILITIES.PAYABLES, debit: 0, credit: paymentAmountDec.toNumber(), description: 'Accounts Payable Restored' },
+                { accountCode: creditAccount, debit: paymentAmountDec.toNumber(), credit: 0, description: 'Cash/Bank Restored' }
+            ]
+        }, tx);
 
         // 7. Delete the payment record
         await tx.supplierPayment.delete({
@@ -618,7 +608,7 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
     });
 
     if (oldProduct && oldProduct.trackStock !== effectiveTrackStock) {
-        const hasHistory = (oldProduct._count.purchaseItems + oldProduct._count.saleItems + oldProduct._count.stockMovements + oldProduct._count.wastages + oldProduct._count.ticketParts) > 0 || oldProduct.stock !== 0;
+        const hasHistory = (oldProduct._count.purchaseItems + oldProduct._count.saleItems + oldProduct._count.stockMovements + oldProduct._count.wastages + oldProduct._count.ticketParts) > 0 || !new Decimal(oldProduct.stock.toString()).isZero();
         if (hasHistory) {
             throw new Error("لا يمكن تغيير نوع تتبع المخزون لهذا المنتج لوجود حركات سابقة أو كمية متوفرة. يرجى أرشفة المنتج وإنشاء صنف جديد بدلاً منه.");
         }
@@ -1048,22 +1038,11 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             });
         }
 
-        // C. Generate Invoice Number (Keep inside for sequence safety, but it's fast)
+        // C. Generate Invoice Number (Atomic & Unique)
         let finalInvoiceNumber = header.invoiceNumber;
         if (!finalInvoiceNumber) {
-            const lastInvoice = await tx.purchaseInvoice.findFirst({
-                where: { invoiceNumber: { startsWith: 'P-' } },
-                orderBy: { createdAt: 'desc' },
-                select: { invoiceNumber: true } // Select only needed field
-            });
-            let nextSeq = 1;
-            if (lastInvoice?.invoiceNumber) {
-                const parts = lastInvoice.invoiceNumber.split('-');
-                if (parts.length === 2 && !isNaN(parseInt(parts[1]))) {
-                    nextSeq = parseInt(parts[1]) + 1;
-                }
-            }
-            finalInvoiceNumber = `P-${nextSeq.toString().padStart(3, '0')}`;
+            const seq = await getNextAtomicId('purchase_invoice');
+            finalInvoiceNumber = `P-${seq.toString().padStart(5, '0')}`;
         }
 
         // D. Create Invoice & Items
@@ -1145,7 +1124,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             // Treasury Logic
             if (user?.branchId || treasuryId) {
                 // If explicit treasury given, use it. Otherwise fallback to branch default
-                let treasury = null;
+                let treasury: any = null;
                 if (treasuryId) {
                     treasury = await tx.treasury.findUnique({
                         where: { id: treasuryId },
@@ -1327,21 +1306,21 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         const t = await getTranslations('SystemMessages.Errors');
 
         if (!oldInvoice) throw new Error(t('notFound'));
-        if (oldInvoice.status === 'VOIDED') throw new Error(t('voidedInvoice'));
+        if (['CANCELLED', 'VOIDED', 'RETURNED'].includes(oldInvoice.status)) {
+            throw new Error(t('voidedInvoice'));
+        }
 
         await Promise.all([
             ...oldInvoice.items.map(item =>
                 tx.product.update({
                     where: { id: item.productId },
-                    // @ts-ignore - Prisma decimal type issue
-                    data: { stock: { decrement: new Decimal(String(item.quantity)).times(new Decimal(String(item.conversionFactor || 1))).toNumber() } }
+                    data: { stock: { decrement: new Decimal(String(item.quantity)).times(new Decimal(String(item.conversionFactor || 1))) } }
                 })
             ),
             ...oldInvoice.items.map(item =>
-                tx.stock.update({
-                    where: { productId_warehouseId: { productId: item.productId, warehouseId: oldInvoice.warehouseId! } },
-                    // @ts-ignore - Prisma decimal type issue
-                    data: { quantity: { decrement: new Decimal(String(item.quantity)).times(new Decimal(String(item.conversionFactor || 1))).toNumber() } }
+                tx.stock.updateMany({
+                    where: { productId: item.productId, warehouseId: oldInvoice.warehouseId! },
+                    data: { quantity: { decrement: new Decimal(String(item.quantity)).times(new Decimal(String(item.conversionFactor || 1))) } }
                 })
             )
         ]);
@@ -1464,7 +1443,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
             });
 
             if (user?.branchId || treasuryId) {
-                let treasury = null;
+                let treasury: any = null;
                 if (treasuryId) {
                     treasury = await tx.treasury.findUnique({ where: { id: treasuryId }, select: { id: true } });
                 }
@@ -1543,8 +1522,8 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
             const effectiveQty = new Decimal(String(item.quantity)).times(factor).toNumber();
 
             await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: effectiveQty } } });
-            await tx.stock.update({
-                where: { productId_warehouseId: { productId: item.productId, warehouseId: old.warehouseId! } },
+            await tx.stock.updateMany({
+                where: { productId: item.productId, warehouseId: old.warehouseId! },
                 data: { quantity: { decrement: effectiveQty } }
             });
         }
@@ -1554,7 +1533,7 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
         const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
         await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase voided");
         
-        await tx.purchaseInvoice.update({ where: { id }, data: { status: 'VOIDED' } });
+        await tx.purchaseInvoice.update({ where: { id }, data: { status: 'CANCELLED' } });
     });
 
     revalidatePath("/inventory", 'page');
@@ -1658,7 +1637,6 @@ export const adjustStock = secureAction(async (data: {
         });
         const trueTotal = Number(aggregation._sum.quantity) || 0;
 
-        // @ts-ignore - Prisma decimal type issue
         await tx.product.update({
             where: { id: data.productId },
             data: { stock: trueTotal }
@@ -1683,31 +1661,8 @@ export const getWarehouses = secureAction(async () => {
         user.role === 'Manager' ||
         user.branchType === 'CENTER';
 
-    // --- Self-Healing: Deduplicate MAIN warehouses if any phantom ones exist ---
-    const allBranches = await prisma.branch.findMany({ select: { id: true } });
-    for (const b of allBranches) {
-        const defaultWarehouses = await prisma.warehouse.findMany({
-            where: { branchId: b.id, isDefault: true, deletedAt: null },
-            orderBy: { createdAt: 'asc' }
-        });
-
-        if (defaultWarehouses.length > 1) {
-            for (let i = 1; i < defaultWarehouses.length; i++) {
-                const duplicateWh = defaultWarehouses[i];
-                
-                // Soft-delete the phantom duplicate
-                await prisma.warehouse.update({
-                    where: { id: duplicateWh.id },
-                    data: { 
-                        isDefault: false, 
-                        deletedAt: new Date(),
-                        name: `${duplicateWh.name} (Deleted)` 
-                    }
-                });
-            }
-        }
-    }
-    // --------------------------------------------------------------------------
+    // Self-healing removed from read path for safety (BUG-01). 
+    // Use fixDuplicateWarehouses() admin action instead.
 
     const warehouses = await prisma.warehouse.findMany({
         where: isHQUser ? { deletedAt: null } : { branchId: user.branchId || '', deletedAt: null },
@@ -1717,6 +1672,43 @@ export const getWarehouses = secureAction(async () => {
 
     return { data: warehouses, isHQUser };
 }, { requireCSRF: false });
+
+/**
+ * Admin action to fix duplicate default warehouses caused by sync/manual errors.
+ * (Extracted from getWarehouses for safety - BUG-01)
+ */
+export const fixDuplicateWarehouses = secureAction(async () => {
+    const allBranches = await prisma.branch.findMany({ select: { id: true } });
+    let fixed = 0;
+    
+    await prisma.$transaction(async (tx) => {
+        for (const b of allBranches) {
+            const defaultWarehouses = await tx.warehouse.findMany({
+                where: { branchId: b.id, isDefault: true, deletedAt: null },
+                orderBy: { createdAt: 'asc' }
+            });
+
+            if (defaultWarehouses.length > 1) {
+                // Keep the oldest, soft-delete others
+                for (let i = 1; i < defaultWarehouses.length; i++) {
+                    const duplicateWh = defaultWarehouses[i];
+                    await tx.warehouse.update({
+                        where: { id: duplicateWh.id },
+                        data: { 
+                            isDefault: false, 
+                            deletedAt: new Date(),
+                            name: `${duplicateWh.name} (Deleted)` 
+                        }
+                    });
+                    fixed++;
+                }
+            }
+        }
+    });
+
+    revalidatePath("/inventory");
+    return { success: true, fixed };
+}, { permission: 'INVENTORY_MANAGE' });
 
 export const getWarehousesByBranch = secureAction(async (branchId: string) => {
     const warehouses = await prisma.warehouse.findMany({
@@ -2314,7 +2306,7 @@ export const getPurchaseInvoices = secureAction(async (tabFilter?: 'ACTIVE' | 'A
         whereClause = { 
             OR: [
                 { isReturn: true },
-                { status: { in: ['RETURN', 'RETURNED', 'PARTIAL_RETURN', 'CANCELLED', 'VOIDED'] } },
+                { status: { in: ['RETURN', 'RETURNED', 'PARTIAL_RETURN'] } },
                 { voidedAt: { not: null } }
             ]
         };
@@ -2449,9 +2441,24 @@ export const bulkImportPurchases = secureAction(async (data: {
             data: missingCategories.map(name => ({ name, color: '#6b7280' }))
         });
 
-        // Re-fetch to get IDs
         const newCats = await prisma.category.findMany({ where: { name: { in: missingCategories } } });
         newCats.forEach(c => categoryMap.set(c.name, c));
+    }
+
+    // Create Missing Suppliers (BUG-07)
+    const missingSuppliers = Array.from(allSupplierNames).filter(name => !supplierMap.has(name));
+    if (missingSuppliers.length > 0) {
+        await prisma.supplier.createMany({
+            data: missingSuppliers.map(name => ({ name, balance: 0 }))
+        });
+        const newSuppliers = await prisma.supplier.findMany({ where: { name: { in: missingSuppliers } } });
+        newSuppliers.forEach(s => supplierMap.set(s.name, s));
+        
+        results.gaps.push(...missingSuppliers.map(name => ({
+            type: 'SUPPLIER' as const,
+            message: `Auto-created missing supplier: '${name}'`,
+            item: name
+        })));
     }
 
     // Identify Missing Products for Batch Creation
@@ -2515,8 +2522,8 @@ export const bulkImportPurchases = secureAction(async (data: {
         try {
             const supplier = supplierMap.get(invoice.supplier);
             if (!supplier) {
-                results.gaps.push({ type: 'SUPPLIER', message: `Supplier '${invoice.supplier}' not found.`, item: invoice.supplier });
-                throw new Error(`Supplier '${invoice.supplier}' not found.`);
+                // Should never happen due to auto-creation above
+                throw new Error(`Supplier '${invoice.supplier}' logic error.`);
             }
 
             let warehouseId = invoice.warehouse ? warehouseMap.get(invoice.warehouse)?.id : defaultWarehouse?.id;

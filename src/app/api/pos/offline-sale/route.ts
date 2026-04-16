@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
+import { decrementWarehouseStock } from '@/lib/stock-helpers';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -128,24 +130,63 @@ export async function POST(request: NextRequest) {
                 });
             }
 
-            // ── Decrement Stock ────────────────────────────────────────────────
+            // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
+            // 1. Snapshot product metadata for bundle detection
+            const pIds = items.map((i: any) => i.productId).filter(Boolean);
+            const productMetas = await tx.product.findMany({
+                where: { id: { in: pIds } },
+                select: { id: true, isBundle: true, trackStock: true }
+            });
+
+            const metaMap = new Map(productMetas.map(p => [p.id, p]));
+
             for (const item of items) {
                 if (!item.productId || !item.quantity) continue;
-                await tx.stock.updateMany({
-                    where: { productId: item.productId, warehouseId },
-                    data: { quantity: { decrement: item.quantity } },
-                });
-                await tx.stockMovement.create({
-                    data: {
-                        type: 'SALE',
-                        productId: item.productId,
-                        fromWarehouseId: warehouseId,
-                        quantity: item.quantity,
-                        reason: `Offline sale sync: ${newSale.id}`,
-                        branchId,
-                        createdAt: createdAt ? new Date(createdAt) : undefined,
-                    },
-                });
+                const meta = metaMap.get(item.productId);
+                if (!meta) continue;
+
+                if (meta.isBundle) {
+                    // Fetch components for this bundle
+                    const components = await tx.bundleItem.findMany({
+                        where: { bundleProductId: item.productId },
+                        include: { componentProduct: { select: { id: true, trackStock: true } } }
+                    });
+
+                    for (const comp of components) {
+                        if (!comp.componentProduct.trackStock) continue;
+                        const compQty = new Decimal(item.quantity).mul(new Decimal(comp.quantityIncluded.toString())).toNumber();
+                        
+                        await decrementWarehouseStock(tx, comp.componentProductId, warehouseId, compQty);
+                        
+                        // Log component movement
+                        await tx.stockMovement.create({
+                            data: {
+                                type: 'SALE_BUNDLE_COMPONENT',
+                                productId: comp.componentProductId,
+                                fromWarehouseId: warehouseId,
+                                quantity: compQty,
+                                reason: `Offline sale bundle sync: ${newSale.id} (Member of ${item.productId})`,
+                                branchId,
+                                createdAt: createdAt ? new Date(createdAt) : undefined,
+                            },
+                        });
+                    }
+                } else if (meta.trackStock) {
+                    // Regular product decrement
+                    await decrementWarehouseStock(tx, item.productId, warehouseId, Number(item.quantity));
+                    
+                    await tx.stockMovement.create({
+                        data: {
+                            type: 'SALE',
+                            productId: item.productId,
+                            fromWarehouseId: warehouseId,
+                            quantity: item.quantity,
+                            reason: `Offline sale sync: ${newSale.id}`,
+                            branchId,
+                            createdAt: createdAt ? new Date(createdAt) : undefined,
+                        },
+                    });
+                }
             }
 
             return newSale;

@@ -12,27 +12,8 @@
 import { CustomerTransaction, SupplierPayment, EmployeeTransaction } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from './prisma';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
-const PAYMENT_GL_MAP: Record<string, string> = {
-  CASH: '1000',
-  VISA: '1010',
-  CARD: '1010',
-  BANK: '1010',
-  TRANSFER: '1010',
-  VODAFONE_CASH: '1020',
-  INSTAPAY: '1020',
-  WALLET: '1020',
-  DEFERRED: '1100',
-  ACCOUNT: '1100',
-};
-
-const EXPENSE_GL_MAP: Record<string, string> = {
-  SALARY: '5100',
-  BONUS: '5100',
-  ADDITION: '5100',
-  DEDUCTION: '5100',
-  PENALTY: '5200',
-};
 
 /**
  * Get account ID from GL code
@@ -73,13 +54,13 @@ async function createCustomerTransactionJournal(
     case 'RECEIPT':
       // Debit Cash, Credit AR
       lines.push({
-        accountId: await getAccountId(tx, PAYMENT_GL_MAP[method] || '1000'),
+        accountId: await getAccountId(tx, PAYMENT_METHOD_GL_MAP[method] || GL.ASSETS.CASH),
         debit: amount,
         credit: 0,
         description: 'Cash/Bank Received'
       });
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: 0,
         credit: amount,
         description: 'AR Reduced'
@@ -89,13 +70,13 @@ async function createCustomerTransactionJournal(
     case 'CREDIT':
       // Debit AR, Credit Revenue
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: amount,
         credit: 0,
         description: 'Customer AR'
       });
       lines.push({
-        accountId: await getAccountId(tx, '4000'),
+        accountId: await getAccountId(tx, GL.REVENUE.SALES),
         debit: 0,
         credit: amount,
         description: 'Sales Revenue'
@@ -105,13 +86,13 @@ async function createCustomerTransactionJournal(
     case 'REFUND':
       // Debit AR (reversal), Credit Cash
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: amount,
         credit: 0,
         description: 'AR Refund'
       });
       lines.push({
-        accountId: await getAccountId(tx, PAYMENT_GL_MAP[method] || '1000'),
+        accountId: await getAccountId(tx, PAYMENT_METHOD_GL_MAP[method] || GL.ASSETS.CASH),
         debit: 0,
         credit: amount,
         description: 'Cash Refunded'
@@ -121,13 +102,13 @@ async function createCustomerTransactionJournal(
     default:
       // For other types like DEBIT, just track AR
       lines.push({
-        accountId: await getAccountId(tx, '1100'),
+        accountId: await getAccountId(tx, GL.ASSETS.RECEIVABLES),
         debit: amount,
         credit: 0,
         description: data.description || 'Customer Transaction'
       });
       lines.push({
-        accountId: await getAccountId(tx, '4000'),
+        accountId: await getAccountId(tx, GL.REVENUE.SALES),
         debit: 0,
         credit: amount,
         description: data.description || 'Revenue'
@@ -164,12 +145,12 @@ async function createSupplierPaymentJournal(
   const amount = Number(data.amount);
   if (amount <= 0) return;
 
-  const glCode = PAYMENT_GL_MAP[data.method] || '1000';
+  const glCode = PAYMENT_METHOD_GL_MAP[data.method] || GL.ASSETS.CASH;
   const lines: any[] = [];
 
   // Debit AP, Credit Cash/Bank
   lines.push({
-    accountId: await getAccountId(tx, '2000'),
+    accountId: await getAccountId(tx, GL.LIABILITIES.PAYABLES),
     debit: amount,
     credit: 0,
     description: 'AP Reduced'
@@ -208,7 +189,7 @@ async function createEmployeeTransactionJournal(
   const amount = Number(data.amount);
   if (amount <= 0) return;
 
-  const expenseCode = EXPENSE_GL_MAP[data.type] || '5100';
+  const expenseCode = (data.type === 'PENALTY' ? GL.EXPENSES.OPERATION_EXPENSES : GL.EXPENSES.SALARIES);
   const lines: any[] = [];
 
   // Debit Expense, Credit Cash
@@ -219,7 +200,7 @@ async function createEmployeeTransactionJournal(
     description: `${data.type}: ${data.description || data.id.slice(0, 8)}`
   });
   lines.push({
-    accountId: await getAccountId(tx, '1000'),
+    accountId: await getAccountId(tx, GL.ASSETS.CASH),
     debit: 0,
     credit: amount,
     description: 'Cash Paid'

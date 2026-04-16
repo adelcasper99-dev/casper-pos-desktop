@@ -7,8 +7,9 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
-import { PERMISSIONS } from '@/lib/permissions';
+import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { calculateProratedRefundValue } from '@/utils/refund-calculations';
+import { GL } from '@/shared/constants/accounting-mappings';
 
 interface PurchaseFilters {
     startDate?: string;
@@ -204,9 +205,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 paidAmount: new Decimal(0),
                 status: 'RETURN',
                 paymentMethod: invoice.paymentMethod,
-                // @ts-ignore
                 isReturn: true,
-                // @ts-ignore
                 parentId: id,
                 branchId: (invoice as any).branchId || currentUser.branchId || null,
                 items: {
@@ -245,6 +244,27 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         }
 
         // 3. Supplier Balance Adjustment (based on actual returned amount)
+        // Guard: Prevent silent negative supplier balance on void if not authorized
+        const supplierForCheck = await tx.supplier.findUnique({
+            where: { id: invoice.supplierId },
+            select: { balance: true, name: true }
+        });
+        const currentBalance = new Decimal(supplierForCheck?.balance?.toString() || '0');
+        const willGoNegative = currentBalance.lt(actualReturnAmount);
+
+        if (willGoNegative) {
+            const canGoNegative = hasPermission(
+                currentUser?.permissions,
+                PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE
+            );
+            if (!canGoNegative) {
+                throw new Error(
+                    `رصيد المورد الحالي (${currentBalance.toFixed(2)}) غير كافٍ لإتمام الإرجاع. ` +
+                    `يُرجى مراجعة المدير أو تسوية الرصيد أولاً.`
+                );
+            }
+        }
+
         await tx.supplier.update({
             where: { id: invoice.supplierId },
             data: { balance: { decrement: actualReturnAmount } }
@@ -275,9 +295,9 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         }
 
         // 6. Accounting Reversal
-        const accountingLines = [];
-        accountingLines.push({ accountCode: '2000', debit: actualReturnAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: actualReturnAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        const accountingLines: any[] = [];
+        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: actualReturnAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: actualReturnAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
@@ -341,7 +361,8 @@ export const partialReturnPurchase = secureAction(async (data: {
         });
 
         if (!invoice) throw new Error("الفاتورة غير موجودة");
-        if (invoice.status === 'VOIDED') throw new Error("هذه الفاتورة ملغاة بالفعل");
+        if (invoice.status === 'CANCELLED') throw new Error("هذه الفاتورة ملغاة ولا يمكن إرجاعها");
+        if (invoice.status === 'RETURNED') throw new Error("هذه الفاتورة مُرجَّعة بالكامل بالفعل");
 
         // 2. Validate return quantities (Aggregated check across all linked returns)
         const previousReturns = await (tx.purchaseInvoice as any).findMany({
@@ -426,9 +447,7 @@ export const partialReturnPurchase = secureAction(async (data: {
                 paidAmount: new Decimal(0), // All go to balance/credit
                 status: 'RETURN',
                 paymentMethod: invoice.paymentMethod,
-                // @ts-ignore
                 isReturn: true,
-                // @ts-ignore
                 parentId: purchaseId,
                 branchId: (invoice as any).branchId || currentUser.branchId || null,
                 items: {
@@ -491,9 +510,9 @@ export const partialReturnPurchase = secureAction(async (data: {
         /* Skipping Treasury Adjustment to keep full amount in Supplier Balance (Credit) */
 
         // 7. Accounting Entry for the Return Invoice
-        const accountingLines = [];
-        accountingLines.push({ accountCode: '2000', debit: returnTotal.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: '1200', debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        const accountingLines: any[] = [];
+        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: returnTotal.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Partial Return Invoice: ${returnInvoice.invoiceNumber}`,

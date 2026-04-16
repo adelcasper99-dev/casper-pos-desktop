@@ -11,29 +11,6 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { createCustomerTransactionJournal, createSupplierPaymentJournal, createEmployeeTransactionJournal } from '../accounting/inline-journal-helpers';
 
-const PAYMENT_GL_MAP: Record<string, string> = {
-  CASH: '1000',
-  VISA: '1010',
-  CARD: '1010',
-  BANK: '1010',
-  TRANSFER: '1010',
-  VODAFONE_CASH: '1020',
-  INSTAPAY: '1020',
-  WALLET: '1020',
-  DEFERRED: '1100',
-  ACCOUNT: '1100',
-  SALE_OFFSET: '1100',
-  ADJUSTMENT: '1100',
-};
-
-const EXPENSE_GL_MAP: Record<string, string> = {
-  SALARY: '5100',
-  BONUS: '5100',
-  ADDITION: '5100',
-  DEDUCTION: '5100',
-  PENALTY: '5200',
-  SALES_DEDUCTION: '5100',
-};
 
 export const financialRepo = {
 

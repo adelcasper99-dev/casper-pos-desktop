@@ -343,7 +343,7 @@ export class AccountingEngine {
         // 1. Core Revenue Reversal
         const lines: TransactionLineInput[] = [
             { 
-                accountCode: '4000', 
+                accountCode: GL.REVENUE.SALES, 
                 debit: new Decimal(totalRefund).toNumber(), 
                 credit: 0, 
                 description: `Sales Revenue Reversed: #${saleId.slice(0, 8)}` 
@@ -352,13 +352,13 @@ export class AccountingEngine {
 
         // 2. Financial Reversals
         if (new Decimal(cashPortion).gt(0)) {
-            lines.push({ accountCode: '1000', debit: 0, credit: new Decimal(cashPortion).toNumber(), description: 'Cash Refunded' });
+            lines.push({ accountCode: GL.ASSETS.CASH, debit: 0, credit: new Decimal(cashPortion).toNumber(), description: 'Cash Refunded' });
         }
         if (new Decimal(arPortion).gt(0)) {
-            lines.push({ accountCode: '1100', debit: 0, credit: new Decimal(arPortion).toNumber(), description: 'AR Reduced' });
+            lines.push({ accountCode: GL.ASSETS.RECEIVABLES, debit: 0, credit: new Decimal(arPortion).toNumber(), description: 'AR Reduced' });
         }
         if (new Decimal(walletPortion).gt(0)) {
-            lines.push({ accountCode: '2150', debit: 0, credit: new Decimal(walletPortion).toNumber(), description: 'Store Credit Issued' });
+            lines.push({ accountCode: GL.LIABILITIES.STORE_CREDIT, debit: 0, credit: new Decimal(walletPortion).toNumber(), description: 'Store Credit Issued' });
         }
 
         // 3. COGS / Inventory Reversal (Centralized Bypass Logic)
@@ -385,13 +385,13 @@ export class AccountingEngine {
 
         if (totalCogsReversal.gt(0)) {
             lines.push({ 
-                accountCode: '1200', 
+                accountCode: GL.ASSETS.INVENTORY, 
                 debit: totalCogsReversal.toNumber(), 
                 credit: 0, 
                 description: 'Inventory Asset Restored' 
             });
             lines.push({ 
-                accountCode: '5000', 
+                accountCode: GL.EXPENSES.COGS, 
                 debit: 0, 
                 credit: totalCogsReversal.toNumber(), 
                 description: 'COGS Reversed' 
@@ -401,13 +401,13 @@ export class AccountingEngine {
         // If any item was damaged, immediately write it off from Inventory to Spoilage
         if (totalSpoilage.gt(0)) {
             lines.push({ 
-                accountCode: '5600', 
+                accountCode: GL.EXPENSES.SPOILAGE, 
                 debit: totalSpoilage.toNumber(), 
                 credit: 0, 
                 description: 'Spoilage (Damaged Return)' 
             });
             lines.push({ 
-                accountCode: '1200', 
+                accountCode: GL.ASSETS.INVENTORY, 
                 debit: 0, 
                 credit: totalSpoilage.toNumber(), 
                 description: 'Inventory Written Off' 
@@ -434,8 +434,8 @@ export class AccountingEngine {
     }, tx?: any) {
         const amount = new Decimal(data.amount);
         const lines: TransactionLineInput[] = [
-            { accountCode: '5600', debit: amount.toNumber(), credit: 0, description: 'Inventory Wastage/Shrinkage' },
-            { accountCode: '1200', debit: 0, credit: amount.toNumber(), description: 'Inventory Asset Reduced' }
+            { accountCode: GL.EXPENSES.SPOILAGE, debit: amount.toNumber(), credit: 0, description: 'Inventory Wastage/Shrinkage' },
+            { accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: amount.toNumber(), description: 'Inventory Asset Reduced' }
         ];
 
         return this.recordTransaction({
@@ -457,8 +457,8 @@ export class AccountingEngine {
     }, tx?: any) {
         const amount = new Decimal(data.amount);
         const lines: TransactionLineInput[] = [
-            { accountCode: '1200', debit: amount.toNumber(), credit: 0, description: 'Inventory Asset Increased' },
-            { accountCode: '4400', debit: 0, credit: amount.toNumber(), description: 'Inventory Surplus / Other Income' }
+            { accountCode: GL.ASSETS.INVENTORY, debit: amount.toNumber(), credit: 0, description: 'Inventory Asset Increased' },
+            { accountCode: GL.REVENUE.OTHER_INCOME, debit: 0, credit: amount.toNumber(), description: 'Inventory Surplus / Other Income' }
         ];
 
         return this.recordTransaction({

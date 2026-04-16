@@ -20,17 +20,6 @@ export const getStoreSettings = secureAction(async () => {
             where: { id: "settings" }
         });
 
-        if (!settings) {
-            settings = await prisma.storeSettings.create({
-                data: {
-                    id: "settings",
-                    name: "Casper Store",
-                    currency: "EGP",
-                    taxRate: 0.0
-                }
-            });
-        }
-
         // Ensure one main branch exists (single-branch mode)
         await ensureMainBranch();
 
@@ -38,8 +27,25 @@ export const getStoreSettings = secureAction(async () => {
         return {
             success: true,
             data: {
-                ...settings,
-                taxRate: Number(settings.taxRate)
+                id: settings?.id || "settings",
+                name: settings?.name || "Casper Store",
+                phone: settings?.phone || null,
+                address: settings?.address || null,
+                currency: settings?.currency || "EGP",
+                taxRate: Number(settings?.taxRate || 0),
+                vatNumber: settings?.vatNumber || null,
+                receiptFooter: settings?.receiptFooter || "Thank you for shopping with us!",
+                logoUrl: settings?.logoUrl || null,
+                autoPrint: settings?.autoPrint || false,
+                autoPrintTicket: settings?.autoPrintTicket || false,
+                autoPrintEngineerCopy: settings?.autoPrintEngineerCopy || false,
+                paperSize: settings?.paperSize || "80mm",
+                features: settings?.features || "{}",
+                locationLat: settings?.locationLat || 24.7136,
+                locationLng: settings?.locationLng || 46.6753,
+                locationRadius: settings?.locationRadius || 500,
+                allowNegativeStock: settings?.allowNegativeStock || false,
+                blindCloseEnabled: settings?.blindCloseEnabled ?? true,
             }
         };
     } catch (error: any) {

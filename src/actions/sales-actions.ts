@@ -241,7 +241,7 @@ export const refundSale = secureAction(async (data: {
         const finalAmountToCash = refundMethod === 'STORE_CREDIT' ? 0 : amountToCash;
 
         // 🏦 Find treasury when the refund needs to touch physical cash
-        let treasury = null;
+        let treasury: any = null;
         if (treasuryId) {
             treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
         }
@@ -273,9 +273,7 @@ export const refundSale = secureAction(async (data: {
                 shiftId: currentShift.id,
                 customerId: sale.customerId,
                 userId: currentUser.id,
-                // @ts-ignore
                 isReturn: true,
-                // @ts-ignore
                 parentId: saleId,
                 items: {
                     create: sale.items.map((i: any) => {
@@ -312,16 +310,19 @@ export const refundSale = secureAction(async (data: {
 
         // 🏦 Deduct physical cash from treasury (only the cash portion)
         if (treasury && finalAmountToCash > 0) {
+            const treasuryBalance = new Decimal(treasury.balance?.toString() || 0);
+            const amountToDeduct = new Decimal(finalAmountToCash);
+            
             // Check for negative balance permission
-            if (Number(treasury.balance) < finalAmountToCash) {
+            if (treasuryBalance.lt(amountToDeduct)) {
                 const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
                 if (!canGoNegative) {
-                    throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
+                    throw new Error(`رصيد الخزنة غير كافٍ (${treasuryBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
                 }
             }
             await tx.treasury.update({
                 where: { id: treasury.id },
-                data: { balance: { decrement: finalAmountToCash } }
+                data: { balance: { decrement: amountToDeduct } }
             });
         }
 
@@ -791,7 +792,7 @@ export const partialRefundSale = secureAction(async (data: {
         const amountToWallet = refundMethod === 'STORE_CREDIT' ? amountToCash : 0;
         const finalAmountToCash = refundMethod === 'STORE_CREDIT' ? 0 : amountToCash;
 
-        let treasury = null;
+        let treasury: any = null;
         if (finalAmountToCash > 0) {
             if (treasuryId) {
                 treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
@@ -819,9 +820,7 @@ export const partialRefundSale = secureAction(async (data: {
                 shiftId: currentShift.id,
                 customerId: sale.customerId,
                 userId: currentUser.id,
-                // @ts-ignore
                 isReturn: true,
-                // @ts-ignore
                 parentId: saleId,
                 items: {
                     create: processedItems.map(p => ({
@@ -862,14 +861,20 @@ export const partialRefundSale = secureAction(async (data: {
                 }
             });
             if (treasury) {
+                const treasuryBalance = new Decimal(treasury.balance?.toString() || 0);
+                const deductionAmount = new Decimal(finalAmountToCash);
+                
                 // Check for negative balance permission
-                if (Number(treasury.balance) < finalAmountToCash) {
+                if (treasuryBalance.lt(deductionAmount)) {
                     const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
                     if (!canGoNegative) {
-                        throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
+                        throw new Error(`رصيد الخزنة غير كافٍ (${treasuryBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
                     }
                 }
-                await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: finalAmountToCash } } });
+                await tx.treasury.update({ 
+                    where: { id: treasury.id }, 
+                    data: { balance: { decrement: deductionAmount } } 
+                });
             }
         }
 
@@ -1042,9 +1047,7 @@ export const partialRefundSale = secureAction(async (data: {
             where: { id: currentShift.id },
             data: {
                 totalRefunds: { increment: refundTotal },
-                // @ts-ignore
                 totalCashRefunds: { increment: finalAmountToCash },
-                // @ts-ignore
                 totalAccountRefunds: { increment: amountToAccount }
             }
         });

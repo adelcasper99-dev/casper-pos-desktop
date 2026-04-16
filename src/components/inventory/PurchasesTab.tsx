@@ -912,7 +912,7 @@ export default function PurchasesTab({
                                 >
                                     إغلاق النافذة
                                 </Button>
-                                {selectedDetailsInvoice.status !== 'VOIDED' && !selectedDetailsInvoice.isReturn && (
+                                {!['VOIDED', 'CANCELLED'].includes(selectedDetailsInvoice.status) && !selectedDetailsInvoice.isReturn && (
                                     <>
                                         <Button
                                             variant="outline"

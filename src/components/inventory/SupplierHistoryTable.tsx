@@ -533,14 +533,14 @@ export default function SupplierHistoryTable({
                                             {/* ACTIONS */}
                                             <td className="p-3 text-center">
                                                 <button
-                                                    disabled={tx.status === 'VOIDED'}
+                                                    disabled={['VOIDED', 'CANCELLED', 'RETURNED'].includes(tx.status)}
                                                     onClick={() => {
                                                         setTransactionToVoid(tx);
                                                         setVoidDialogOpen(true);
                                                     }}
                                                     className={cn(
                                                         "p-2 rounded-lg transition-all",
-                                                        tx.status === 'VOIDED' 
+                                                        ['VOIDED', 'CANCELLED', 'RETURNED'].includes(tx.status)
                                                             ? "text-muted-foreground/30 cursor-not-allowed" 
                                                             : "text-red-500 hover:bg-red-500/10 hover:shadow-lg hover:shadow-red-500/10"
                                                     )}

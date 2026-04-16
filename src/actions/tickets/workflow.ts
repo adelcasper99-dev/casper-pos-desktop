@@ -8,53 +8,22 @@ import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 import { serialize } from "@/lib/serialization";
 
+import { getFormattedTicketNumber } from "@/lib/id-generator";
+
 /**
  * Helper to get next sequential ticket number (T-001, T-002...) with collision protection
  */
 export async function getNextTicketNumber(branchId?: string): Promise<string> {
-    let prefix = 'T-';
+    let branchCode = '';
     if (branchId) {
         const branch = await prisma.branch.findUnique({
             where: { id: branchId },
             select: { code: true }
         });
-        if (branch?.code) {
-            prefix = `${branch.code}-T`;
-        }
+        branchCode = branch?.code || '';
     }
 
-    let attempts = 0;
-    while (attempts < 5) {
-        const lastTickets = await prisma.ticket.findMany({
-            where: { barcode: { startsWith: prefix } },
-            orderBy: { createdAt: 'desc' },
-            take: 20,
-            select: { barcode: true }
-        });
-
-        let maxSeq = 0;
-        // Escape prefix for regex
-        const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`^${escapedPrefix}(\\d+)$`);
-        
-        for (const ticket of lastTickets) {
-            const match = ticket.barcode.match(regex);
-            if (match) {
-                const num = parseInt(match[1], 10);
-                if (!isNaN(num) && num > maxSeq) maxSeq = num;
-            }
-        }
-
-        const nextNum = maxSeq + 1;
-        const candidate = `${prefix}${nextNum.toString().padStart(3, '0')}`;
-
-        const exists = await prisma.ticket.findUnique({ where: { barcode: candidate } });
-        if (!exists) return candidate;
-
-        attempts++;
-        await new Promise(r => setTimeout(r, Math.random() * 50));
-    }
-    return `${prefix}F${Date.now().toString().slice(-6)}`;
+    return await getFormattedTicketNumber(branchCode);
 }
 
 /**

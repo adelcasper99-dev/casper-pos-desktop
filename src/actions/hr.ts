@@ -274,15 +274,14 @@ export const getHRDashboardSummary = secureAction(async (params?: { month?: numb
         select: { amount: true, type: true }
     });
 
-    let creditSales = 0;
+    let creditSales = new Decimal(0);
     for (const t of transactions) {
-        const amt = t.amount ? Number(t.amount) : 0;
-        const safeAmt = isNaN(amt) ? 0 : amt;
+        const amt = new Decimal(t.amount?.toString() || 0);
         
         if (t.type === 'SALES_DEDUCTION' || t.type === 'MAINTENANCE_DEDUCTION') {
-            creditSales += safeAmt;
+            creditSales = creditSales.plus(amt);
         } else if (t.type === 'SALES_DEDUCTION_REVERSAL' || t.type === 'MAINTENANCE_DEDUCTION_REVERSAL') {
-            creditSales -= safeAmt;
+            creditSales = creditSales.minus(amt);
         }
     }
 
@@ -290,7 +289,7 @@ export const getHRDashboardSummary = secureAction(async (params?: { month?: numb
         data: {
             expectedSalaries: totalNetDue.toNumber(),
             totalAbsences,
-            employeeCreditSales: creditSales
+            employeeCreditSales: creditSales.toNumber()
         }
     };
 }, { permission: PERMISSIONS.HR_VIEW_ATTENDANCE, requireCSRF: false });

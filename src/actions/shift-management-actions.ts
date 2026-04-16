@@ -233,12 +233,10 @@ export const closeShift = secureAction(async (data: {
     const totalCardSales = shift.totalCardSales;
     const totalWalletSales = shift.totalWalletSales;
     const totalInstapay = shift.totalInstapay;
-    // @ts-ignore
-    const totalAccountSales = shift.totalAccountSales || new Decimal(0);
-    // @ts-ignore
-    const totalCashRefundsAccumulated = shift.totalCashRefunds || new Decimal(0);
-    // @ts-ignore
-    const totalAccountRefundsAccumulated = shift.totalAccountRefunds || new Decimal(0);
+    const shiftAny = shift as any;
+    const totalAccountSales = new Decimal(String(shiftAny.totalAccountSales ?? 0));
+    const totalCashRefundsAccumulated = new Decimal(String(shiftAny.totalCashRefunds ?? 0));
+    const totalAccountRefundsAccumulated = new Decimal(String(shiftAny.totalAccountRefunds ?? 0));
 
     // Only count split payments (doesn't affect money totals)
     let splitPaymentCount = 0;
@@ -350,35 +348,33 @@ export const closeShift = secureAction(async (data: {
     // 🆕 CRITICAL: Set endCash = actualCash when there's variance (for balanced books)
     const finalEndCash = !cashVariance.isZero() ? actualCashDecimal : expectedCash;
     
+    const shiftUpdateData: any = {
+        status: "CLOSED",
+        closedAt: new Date(),
+        actualCash: actualCashDecimal,
+        endCash: finalEndCash, // ✅ Balanced: actualCash when variance exists
+        cashVariance,
+        totalCashSales,
+        totalCardSales,
+        totalWalletSales,
+        totalInstapay,
+        totalAccountSales,
+        totalCashRefunds: totalCashRefundsAccumulated,
+        totalAccountRefunds: totalAccountRefundsAccumulated,
+        totalSplitPayments: splitPaymentCount,
+        totalExpenses: totalAllExpenses,
+        totalSales: finalSalesCount,      // ✅ Verified
+        totalTickets: finalTicketsCount,  // ✅ Verified
+        hasAdjustments: hasDiscrepancy,   // ✅ Flag if corrected
+        cashBreakdown: data.cashBreakdown ? JSON.stringify(data.cashBreakdown) : undefined,
+        notes: hasDiscrepancy
+            ? `${data.notes || ''}\n\n[AUTO-CORRECTED]: ${discrepancyNotes.join('\n')}`
+            : data.notes || shift.notes
+    };
+
     const closedShift = await prisma.shift.update({
         where: { id: data.shiftId },
-        data: {
-            status: "CLOSED",
-            closedAt: new Date(),
-            actualCash: actualCashDecimal,
-            endCash: finalEndCash, // ✅ Balanced: actualCash when variance exists
-            cashVariance,
-            totalCashSales,
-            totalCardSales,
-            totalWalletSales,
-            totalInstapay,
-            // @ts-ignore
-            totalAccountSales,
-            // @ts-ignore
-            totalCashRefunds: totalCashRefundsAccumulated,
-            // @ts-ignore
-            totalAccountRefunds: totalAccountRefundsAccumulated,
-            totalSplitPayments: splitPaymentCount,
-            totalExpenses: totalAllExpenses,
-            totalSales: finalSalesCount,      // ✅ Verified
-            totalTickets: finalTicketsCount,  // ✅ Verified
-            hasAdjustments: hasDiscrepancy,   // ✅ Flag if corrected
-            // @ts-ignore
-            cashBreakdown: data.cashBreakdown ? JSON.stringify(data.cashBreakdown) : undefined,
-            notes: hasDiscrepancy
-                ? `${data.notes || ''}\n\n[AUTO-CORRECTED]: ${discrepancyNotes.join('\n')}`
-                : data.notes || shift.notes
-        }
+        data: shiftUpdateData
     });
 
     // Handle Safe Drop (Treasury Transfer) AND Accounting Entries

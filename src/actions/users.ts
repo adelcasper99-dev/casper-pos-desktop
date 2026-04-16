@@ -210,13 +210,15 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema> &
     const hashedPassword = await bcrypt.hash(password, 10)
 
     // Fetch Branch & Role with validation to avoid P2003 on stale session data
-    let branch = null;
+    let branchInDb: any = null;
     if (branchId) {
-        branch = await prisma.branch.findUnique({ where: { id: branchId } });
+        branchInDb = await prisma.branch.findUnique({
+            where: { id: branchId }
+        });
     }
-    const effectiveBranchId = branch?.id || await ensureMainBranch();
+    const effectiveBranchId = branchInDb?.id || await ensureMainBranch();
 
-    let role = null;
+    let role: any = null;
     let roleName = "STAFF";
     if (roleId) {
         role = await prisma.role.findUnique({ where: { id: roleId } });
@@ -353,7 +355,7 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
     }
 
     // Sync roleStr
-    let roleName = null;
+    let roleName: string | null = null;
     if (roleId) {
         const role = await prisma.role.findUnique({ where: { id: roleId } });
         if (role) {
@@ -432,6 +434,14 @@ export const deleteUser = secureAction(async (data: { id: string }) => {
 
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, undefined, id);
+
+    let userAccountInDb: any = null;
+    if (id) {
+        userAccountInDb = await prisma.user.findUnique({
+            where: { id: id },
+            select: { id: true, name: true, role: { select: { permissions: true } } }
+        });
+    }
 
     try {
         const user = await prisma.user.findUnique({

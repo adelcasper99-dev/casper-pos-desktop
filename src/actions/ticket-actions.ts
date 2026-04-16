@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use server";
 
 import { prisma } from "@/lib/prisma";
@@ -21,41 +20,13 @@ import { handleReturnedPartStock, decrementWarehouseStock, incrementWarehouseSto
 import { serialize } from "@/lib/serialization";
 
 
-// Helper to get next sequential ticket number (T-001, T-002...) with collision protection
+import { getFormattedTicketNumber } from "@/lib/id-generator";
+
+/**
+ * Hardened atomic sequential ticket number generation
+ */
 async function getNextTicketNumber() {
-    let attempts = 0;
-    while (attempts < 5) {
-        const lastTickets = await prisma.ticket.findMany({
-            where: { barcode: { startsWith: 'T-' } },
-            orderBy: { createdAt: 'desc' },
-            take: 20, // Increased sample size
-            select: { barcode: true }
-        });
-
-        let maxSeq = 0;
-        for (const ticket of lastTickets) {
-            const match = ticket.barcode.match(/^T-(\d+)$/);
-            if (match) {
-                const num = parseInt(match[1], 10);
-                if (!isNaN(num) && num > maxSeq) maxSeq = num;
-            }
-        }
-
-        const nextNum = maxSeq + 1;
-        const candidate = `T-${nextNum.toString().padStart(3, '0')}`;
-
-        // Double check existence (safety first)
-        const exists = await prisma.ticket.findUnique({ where: { barcode: candidate } });
-        if (!exists) return candidate;
-
-        attempts++;
-        // If exists, loop will naturally increment maxSeq based on the newly found ticket in next iteration
-        // or just wait a bit (jitter) for race conditions
-        await new Promise(r => setTimeout(r, Math.random() * 50));
-    }
-
-    // Fallback to timestamp-based if we fail 5 times (highly unlikely)
-    return `T-F${Date.now().toString().slice(-6)}`;
+    return await getFormattedTicketNumber();
 }
 
 /**
@@ -531,6 +502,7 @@ export const assignTechnician = secureAction(async (data: { ticketId: string, te
         }
     }
 
+
     const result = await prisma.$transaction(async (tx) => {
         const technician = await tx.technician.findUnique({
             where: { id: technicianId },
@@ -539,7 +511,7 @@ export const assignTechnician = secureAction(async (data: { ticketId: string, te
 
         if (!technician) throw new Error("Technician profile not found");
 
-        const oldTechName = existing.technician?.name || existing.technician?.username || "غير مسند";
+        const oldTechName = existing.technician?.name || "غير مسند";
         const newTechName = technician.name || "فني غير معروف";
 
         const ticket = await tx.ticket.update({
@@ -589,11 +561,18 @@ export const updateTicketDetails = secureAction(async (ticketId: string, updates
     if (updates.issueDescription !== undefined) data.issueDescription = updates.issueDescription;
     if (updates.securityCode !== undefined) data.securityCode = updates.securityCode;
     if (updates.patternData !== undefined) data.patternData = updates.patternData;
-    if (updates.technicianId !== undefined) data.technicianId = updates.technicianId || null;
+    if (updates.technicianId !== undefined) {
+        if (updates.technicianId) {
+            data.technician = { connect: { id: updates.technicianId } };
+        } else {
+            data.technician = { disconnect: true };
+        }
+    }
     if (updates.expectedDuration !== undefined) data.expectedDuration = updates.expectedDuration;
 
-    const existing = await prisma.ticket.findUnique({ where: { id: ticketId } });
-    if (existing && checkTicketLock(existing, await getCurrentUser())) {
+    const existing = await prisma.ticket.findUnique({ where: { id: ticketId }, include: { technician: true } });
+    const currentUser = await getCurrentUser();
+    if (existing && checkTicketLock(existing, currentUser as any)) {
         throw new Error("هذه التذكرة مغلقة ولا يمكن تعديل بياناتها.");
     }
 
@@ -655,7 +634,10 @@ export const updateTicketStatus = secureAction(async (data: {
             }
 
             updateData.completedAt = new Date();
-            updateData.completedById = technicianId || existingTicket.technicianId;
+            const compId = technicianId || existingTicket.technicianId;
+            if (compId) {
+                updateData.completedBy = { connect: { id: compId } };
+            }
             if (repairPrice !== undefined) updateData.repairPrice = new Decimal(repairPrice);
             if (partsCost !== undefined) updateData.partsCost = new Decimal(partsCost);
             // Warranty date is now set ONLY upon payment/delivery confirmation to ensure it starts from the receipt date.
@@ -1063,7 +1045,7 @@ export const softDeleteTicket = secureAction(async (data: {
 
     // 2. Shift Guard if money needs to be reversed
     const amountToRefund = Number(ticket.amountPaid) || 0;
-    let currentShift = null;
+    let currentShift: any = null;
     if (amountToRefund > 0) {
         const shiftResult = await getCurrentShiftInternal({ userId: user.id });
         if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
@@ -1074,14 +1056,14 @@ export const softDeleteTicket = secureAction(async (data: {
 
     const result = await prisma.$transaction(async (tx) => {
         // --- Part 1: Stock Reversal ---
-        let totalPartsCostReversal = 0;
+        let totalPartsCostReversal = new Decimal(0);
         for (const part of ticket.parts) {
             if (part.productId) {
-                totalPartsCostReversal += (Number(part.cost) || 0) * part.quantity;
+                totalPartsCostReversal = totalPartsCostReversal.plus(new Decimal(part.cost || 0).mul(part.quantity));
                 await handleReturnedPartStock(tx, {
                     productId: part.productId,
                     warehouseId: ticket.technician?.warehouseId || part.warehouseId || null,
-                    quantity: part.quantity,
+                    quantity: new Decimal(part.quantity).toNumber(),
                     isDamaged: false, // Return implies parts are good
                     reason: `مسح التذكرة #${ticket.barcode}: ${reason}`,
                     performedById: user.id
@@ -1586,7 +1568,7 @@ export const addTicketPart = secureAction(async (data: {
             let finalStock = stock;
             let finalWarehouseId = sourceWarehouseId;
 
-            if (!finalStock || finalStock.quantity < data.quantity) {
+            if (!finalStock || new Decimal(finalStock.quantity).lt(data.quantity)) {
                  // Try fallback to main warehouse if we started with tech custody
                  if (ticket.technician?.warehouseId && sourceWarehouseId === ticket.technician.warehouseId) {
                     const mainWh = await prisma.warehouse.findFirst({ 
@@ -1601,7 +1583,7 @@ export const addTicketPart = secureAction(async (data: {
                                 }
                             }
                         });
-                        if (mainStock && mainStock.quantity >= data.quantity) {
+                        if (mainStock && new Decimal(mainStock.quantity).gte(data.quantity)) {
                             finalStock = mainStock;
                             finalWarehouseId = mainWh.id;
                         }
@@ -1609,8 +1591,8 @@ export const addTicketPart = secureAction(async (data: {
                  }
             }
 
-            const availableStock = finalStock?.quantity ?? 0;
-            if (availableStock < data.quantity) {
+            const availableStock = finalStock?.quantity ?? new Decimal(0);
+            if (new Decimal(availableStock).lt(data.quantity)) {
                 throw new Error(`عفواً، الكمية المطلوبة غير متاحة. المتاح حالياً: ${availableStock}`);
             }
 
@@ -1672,8 +1654,8 @@ export const addTicketPart = secureAction(async (data: {
     const allParts = await prisma.ticketPart.findMany({ 
         where: { ticketId: ticket.id, status: 'ACTIVE' } 
     });
-    const totalPartsCost = allParts.reduce((sum, p) => sum + (Number(p.cost) * p.quantity), 0);
-    const totalSellPrice = allParts.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0);
+    const totalPartsCost = allParts.reduce((sum, p) => sum.plus(new Decimal(p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+    const totalSellPrice = allParts.reduce((sum, p) => sum.plus(new Decimal(p.price?.toString() || 0).mul(p.quantity)), new Decimal(0));
 
     const isWarrantyFix = ticket.status === 'RETURNED_FOR_REFIX';
     const updateData: Prisma.TicketUpdateInput = {
@@ -1733,7 +1715,7 @@ export const refundTicketPart = secureAction(async (data: {
             await handleReturnedPartStock(tx, {
                 productId,
                 warehouseId: targetWhId || null,
-                quantity,
+                quantity: new Decimal(quantity).toNumber(),
                 isDamaged: true,
                 reason: `Refunded/Defective in Ticket #${part.ticket.barcode}`,
                 performedById: user?.id || 'system',
@@ -1743,12 +1725,12 @@ export const refundTicketPart = secureAction(async (data: {
             // --- T-029: Automated Salary Deduction for Damaged Parts (With Percentage) ---
             if (part.ticket?.technicianId) {
                 const partCost = new Decimal(part.baseCostPrice?.toString() || part.cost?.toString() || 0).mul(quantity);
-                const lossRate = Number(part.ticket.technician.lossRate || 100);
+                const lossRate = Number(part.ticket.technician?.lossRate || 100);
                 const techDeduction = partCost.mul(lossRate / 100);
                 const centerLoss = partCost.sub(techDeduction);
                 
                 // 1. Tech Share
-                if (techDeduction.gt(0)) {
+                if (techDeduction.gt(0) && part.ticket.technician) {
                     await (tx as any).employeeTransaction.create({
                         data: {
                             userId: part.ticket.technician.userId,
@@ -1775,8 +1757,8 @@ export const refundTicketPart = secureAction(async (data: {
         }
 
         const activeParts = await tx.ticketPart.findMany({ where: { ticketId, status: 'ACTIVE' } });
-        const totalCost = activeParts.reduce((sum, p) => sum + (Number(p.cost) * p.quantity), 0);
-        const totalSell = activeParts.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0);
+        const totalCost = activeParts.reduce((sum, p) => sum.plus(new Decimal(p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+        const totalSell = activeParts.reduce((sum, p) => sum.plus(new Decimal(p.price?.toString() || 0).mul(p.quantity)), new Decimal(0));
         
         // Tiered Pricing Summary
         const techBillingPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.transferPrice?.toString() || p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
@@ -1841,7 +1823,7 @@ export const removeTicketPart = secureAction(async (data: {
 
         if (productId) {
             // Determine target warehouse for return/wastage
-            let targetWhId = warehouseId || part.warehouseId;
+            let targetWhId: string | null | undefined = warehouseId || part.warehouseId;
             
             // If still no warehouseId, fallback to technician's warehouse
             if (!targetWhId && part.ticket?.technicianId) {
@@ -1851,22 +1833,22 @@ export const removeTicketPart = secureAction(async (data: {
             await handleReturnedPartStock(tx, {
                 productId,
                 warehouseId: targetWhId || null,
-                quantity,
+                quantity: new Decimal(quantity).toNumber(),
                 isDamaged: !!isDamaged,
                 reason: `${isDamaged ? 'Replaced/Damaged' : 'Returned'} from Ticket #${part.ticket?.barcode || part.ticketId} (Part Removed)`,
                 performedById: user?.id || 'system',
-                branchId: part.ticket?.currentBranchId || undefined
+                branchId: part.ticket?.currentBranchId ?? undefined
             });
 
             // --- T-029: Automated Salary Deduction for Damaged Parts (With Percentage Override) ---
             if (isDamaged && part.ticket?.technicianId) {
                 const partCost = new Decimal(part.baseCostPrice?.toString() || part.cost?.toString() || 0).mul(quantity);
-                const effectiveLossRate = lossRateOverride ?? Number(part.ticket.technician.lossRate || 100);
+                const effectiveLossRate = lossRateOverride ?? Number(part.ticket.technician?.lossRate || 100);
                 const techDeduction = partCost.mul(effectiveLossRate / 100);
                 const centerLoss = partCost.sub(techDeduction);
                 
                 // 1. Tech Share
-                if (techDeduction.gt(0)) {
+                if (techDeduction.gt(0) && part.ticket.technician) {
                     await (tx as any).employeeTransaction.create({
                         data: {
                             userId: part.ticket.technician.userId,
@@ -1895,8 +1877,8 @@ export const removeTicketPart = secureAction(async (data: {
         const activeParts = await tx.ticketPart.findMany({ 
             where: { ticketId, status: 'ACTIVE' } 
         });
-        const totalPartsCost = activeParts.reduce((sum, p) => sum + (Number(p.cost) * p.quantity), 0);
-        const totalSellPrice = activeParts.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0);
+        const totalPartsCost = activeParts.reduce((sum, p) => sum.plus(new Decimal(p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+        const totalSellPrice = activeParts.reduce((sum, p) => sum.plus(new Decimal(p.price?.toString() || 0).mul(p.quantity)), new Decimal(0));
         
         // Tiered Pricing Summary
         const techBillingPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.transferPrice?.toString() || p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
@@ -1904,7 +1886,7 @@ export const removeTicketPart = secureAction(async (data: {
 
         const isWarrantyFix = part.ticket?.status === 'RETURNED_FOR_REFIX';
         const updateFields: Prisma.TicketUpdateInput = {
-            partsCost: new Decimal(totalPartsCost),
+            partsCost: totalPartsCost,
             techBillingPrice,
             partCostPrice,
         };
@@ -1977,10 +1959,10 @@ export const getProductsForSelector = secureAction(async (data: { search?: strin
     });
 
     const resultData = products.map(p => {
-        let stockValue = p.stock;
+        let stockValue: Decimal | number = p.stock;
         if (targetWarehouseId) {
             const st = p.stocks.find(s => s.warehouseId === targetWarehouseId);
-            stockValue = st ? st.quantity : 0;
+            stockValue = st ? st.quantity : new Decimal(0);
         }
 
         const trackStock = (p as any).trackStock !== false;
@@ -2050,23 +2032,23 @@ export const processTicketPayment = secureAction(async (data: {
     }
     const currentShift = shiftResult.shift;
 
-    const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? Number(ticket.parentTicket.amountPaid) : 0;
-    const previousPaid = Number(ticket.amountPaid) || 0;
-    const repairPrice = Number(ticket.repairPrice) || 0;
+    const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? new Decimal(ticket.parentTicket.amountPaid || 0) : new Decimal(0);
+    const previousPaid = new Decimal(ticket.amountPaid || 0);
+    const repairPrice = new Decimal(ticket.repairPrice || 0);
 
-    let effectiveAmount = amount;
+    let effectiveAmount = new Decimal(amount);
     
     // Absorption Logic: If this is a warranty return and we haven't absorbed the credit yet (amountPaid === 0),
     // include the inheritedCredit in the new total paid calculation.
-    let newTotalPaid = previousPaid + effectiveAmount;
-    if (ticket.isWarrantyReturn && previousPaid === 0) {
-        newTotalPaid += inheritedCredit;
+    let newTotalPaid = previousPaid.plus(effectiveAmount);
+    if (ticket.isWarrantyReturn && previousPaid.isZero()) {
+        newTotalPaid = newTotalPaid.plus(inheritedCredit);
     }
 
     let paymentStatus = 'partial';
-    if (newTotalPaid >= repairPrice && repairPrice > 0) {
+    if (newTotalPaid.gte(repairPrice) && repairPrice.gt(0)) {
         paymentStatus = 'paid';
-    } else if (newTotalPaid === 0) {
+    } else if (newTotalPaid.isZero()) {
         paymentStatus = 'unpaid';
     }
 
@@ -2075,7 +2057,7 @@ export const processTicketPayment = secureAction(async (data: {
         let isSalaryDeduction = false;
 
         if (paymentMethod === 'ACCOUNT') {
-            let employeeId = null;
+            let employeeId: string | null = null;
 
             if ((ticket.customer as any)?.linkedEmployeeId) {
                 employeeId = (ticket.customer as any).linkedEmployeeId;
@@ -2100,7 +2082,7 @@ export const processTicketPayment = secureAction(async (data: {
                 await (tx as any).employeeTransaction.create({
                     data: {
                         userId: employeeId,
-                        amount: new Prisma.Decimal(Math.abs(effectiveAmount)),
+                        amount: new Prisma.Decimal(Math.abs(effectiveAmount.toNumber())),
                         type: txType,
                         referenceId: ticket.id,
                         referenceType: isActuallyRefund ? 'TICKET_REFUND' : 'TICKET',
@@ -2132,11 +2114,11 @@ export const processTicketPayment = secureAction(async (data: {
             }
         }
 
-        if (effectiveAmount !== 0) {
+        if (!effectiveAmount.isZero()) {
             await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
-                    type: effectiveAmount < 0 ? 'REFUND' : paymentType,
+                    type: effectiveAmount.lt(0) ? 'REFUND' : paymentType,
                     amount: new Prisma.Decimal(effectiveAmount),
                     method: paymentMethod,
                     reference: reference || null,
@@ -2146,7 +2128,7 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         const effectiveCustomerId = actualCustomerId || (paymentMethod === 'ACCOUNT' ? customerId : null);
-        if (effectiveCustomerId && effectiveAmount !== 0 && !isSalaryDeduction) {
+        if (effectiveCustomerId && !effectiveAmount.isZero() && !isSalaryDeduction) {
             const isDeferred = paymentMethod === 'ACCOUNT';
             let description = `Ticket #${ticket.barcode}`;
             if (paymentType === 'DEPOSIT') description += ' - Deposit';
@@ -2159,7 +2141,7 @@ export const processTicketPayment = secureAction(async (data: {
                     customerId: effectiveCustomerId,
                     // 💰 [STANDARD] CREDIT increases wallet/balance. DEBIT increases debt.
                     type: isDeferred ? 'DEBIT' : 'CREDIT',
-                    amount: new Prisma.Decimal(Math.abs(effectiveAmount)),
+                    amount: new Prisma.Decimal(Math.abs(effectiveAmount.toNumber())),
                     description,
                     reference: ticket.id,
                     createdBy: currentUser.id,
@@ -2208,7 +2190,7 @@ export const processTicketPayment = secureAction(async (data: {
                 techBillingPrice,
                 techCommissionAmount,
                 centerLaborProfit,
-                branchId: currentUser?.branchId || null
+                branchId: currentUser?.branchId ?? undefined
             });
         }
 
@@ -2274,9 +2256,9 @@ export const processTicketPayment = secureAction(async (data: {
             }
         }
 
-        if (paymentMethod !== 'ACCOUNT' && effectiveAmount !== 0) {
+        if (paymentMethod !== 'ACCOUNT' && !effectiveAmount.isZero()) {
             const shiftUpdate: any = {};
-            const absAmount = new Prisma.Decimal(Math.abs(effectiveAmount));
+            const absAmount = new Prisma.Decimal(Math.abs(effectiveAmount.toNumber()));
 
             switch (paymentMethod) {
                 case 'CASH':
@@ -2354,7 +2336,7 @@ export const processTicketPayment = secureAction(async (data: {
             // Unified Accounting Integration (Fix B17 & B18)
             if (isActuallyRefund) {
                 await AccountingEngine.recordRefund({
-                    amount: Math.abs(effectiveAmount),
+                    amount: Math.abs(effectiveAmount.toNumber()),
                     method: paymentMethod,
                     description: `Ticket #${ticket.barcode} Refund`,
                     reference: ticket.id,
@@ -2371,7 +2353,7 @@ export const processTicketPayment = secureAction(async (data: {
                     branchId: currentUser.branchId ?? undefined
                 }, tx);
             }
-        } else if (paymentMethod === 'ACCOUNT' && effectiveAmount !== 0) {
+        } else if (paymentMethod === 'ACCOUNT' && !effectiveAmount.isZero()) {
             // B18 Fix: Record deferred revenue in GL
             await AccountingEngine.recordMaintenancePayment({
                 amount: effectiveAmount,
@@ -2728,7 +2710,7 @@ export const fullTicketReturn = secureAction(async (data: {
         let totalDamagedPartsCost = new Decimal(0);
         let totalPartsCostReversal = new Decimal(0);
         for (const part of ticket.parts) {
-            if (part.productId && part.quantity > 0) {
+            if (part.productId && new Decimal(part.quantity).gt(0)) {
                 const isDamaged = damagedPartIds.includes(part.id);
                 const partCost = new Decimal(part.cost?.toString() || 0).mul(part.quantity);
                 
@@ -2741,7 +2723,7 @@ export const fullTicketReturn = secureAction(async (data: {
                 await handleReturnedPartStock(tx, {
                     productId: part.productId,
                     warehouseId: part.warehouseId,
-                    quantity: part.quantity,
+                    quantity: new Decimal(part.quantity).toNumber(),
                     isDamaged: isDamaged,
                     reason: `${isDamaged ? '[DAMAGED]' : '[GOOD]'} Full Return of Ticket #${ticket.barcode}`,
                     performedById: currentUser.id
@@ -2750,8 +2732,8 @@ export const fullTicketReturn = secureAction(async (data: {
         }
 
         // --- Part 2: Financial Refund ---
-        const amountToRefund = Number(ticket.amountPaid) || 0;
-        if (amountToRefund > 0) {
+        const amountToRefund = new Decimal(ticket.amountPaid || 0);
+        if (amountToRefund.gt(0)) {
             const lastPayment = ticket.payments.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
             const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
@@ -2942,7 +2924,7 @@ export const fullTicketReturn = secureAction(async (data: {
 
                 if (treasuryId) {
                     const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
-                    if (treasury && Number(treasury.balance) < amountToRefund) {
+                    if (treasury && new Decimal(treasury.balance).lt(amountToRefund)) {
                         const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
                         if (!canGoNegative) {
                             throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
@@ -3082,7 +3064,7 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
     while (root.parentTicketId) {
         const nextParent = await prisma.ticket.findUnique({
             where: { id: root.parentTicketId },
-            select: { id: true, parentTicketId: true, barcode: true }
+            include: { returnTickets: { select: { id: true } } }
         });
         if (!nextParent) break;
         root = nextParent;
@@ -3224,8 +3206,8 @@ export const partialRefundTicket = secureAction(async (data: {
             const part = ticket.parts.find(p => p.id === returnItem.itemId);
             if (!part) throw new Error(`Part ${returnItem.itemId} not found in ticket`);
 
-            const available = part.quantity - (part.refundedQty || 0);
-            if (returnItem.quantity > available) {
+            const available = new Decimal(part.quantity).minus(part.refundedQty || 0);
+            if (new Decimal(returnItem.quantity).gt(available)) {
                 throw new Error(`Cannot refund more than available for ${part.name || 'part'}`);
             }
 
@@ -3234,7 +3216,7 @@ export const partialRefundTicket = secureAction(async (data: {
                 where: { id: part.id },
                 data: {
                     refundedQty: { increment: returnItem.quantity },
-                    status: available === returnItem.quantity ? 'REFUNDED' : part.status
+                    status: available.equals(returnItem.quantity) ? 'REFUNDED' : part.status
                 }
             });
 
@@ -3243,7 +3225,7 @@ export const partialRefundTicket = secureAction(async (data: {
                 await handleReturnedPartStock(tx, {
                     productId: part.productId,
                     warehouseId: part.warehouseId,
-                    quantity: returnItem.quantity,
+                    quantity: new Decimal(returnItem.quantity).toNumber(),
                     isDamaged: returnItem.isDamaged,
                     reason: `Partial Refund: Ticket #${ticket.barcode}`,
                     performedById: currentUser.id
@@ -3400,13 +3382,13 @@ export const fullRefundTicket = secureAction(async (data: {
 
         // 1. Loop through ALL parts and return to stock
         for (const part of ticket.parts) {
-            const qtyToRefund = part.quantity - (part.refundedQty || 0);
-            if (qtyToRefund <= 0) continue;
+            const qtyToRefund = new Decimal(part.quantity).minus(part.refundedQty || 0);
+            if (qtyToRefund.lte(0)) continue;
 
             await tx.ticketPart.update({
                 where: { id: part.id },
                 data: {
-                    refundedQty: { increment: qtyToRefund },
+                    refundedQty: { increment: qtyToRefund.toNumber() },
                     status: 'REFUNDED'
                 }
             });
@@ -3415,7 +3397,7 @@ export const fullRefundTicket = secureAction(async (data: {
                 await handleReturnedPartStock(tx, {
                     productId: part.productId,
                     warehouseId: part.warehouseId,
-                    quantity: qtyToRefund,
+                    quantity: qtyToRefund.toNumber(),
                     isDamaged: isDamagedAll,
                     reason: `Full Refund: Ticket #${ticket.barcode}`,
                     performedById: currentUser.id

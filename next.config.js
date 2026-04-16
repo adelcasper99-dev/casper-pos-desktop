@@ -11,6 +11,7 @@ const nextConfig = {
         unoptimized: true,
     },
     experimental: {
+        instrumentationHook: true,
         serverComponentsExternalPackages: ["bcryptjs"],
         serverActions: {
             allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],

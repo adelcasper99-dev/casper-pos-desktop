@@ -92,7 +92,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
 
         const isReturn = p.isReturn || p._isReturnEntry;
         const matchesStatus = statusFilter === "all" || 
-            (statusFilter === "VOIDED" ? (isReturn || p.status === 'VOIDED') : p.status === statusFilter);
+            (statusFilter === "VOIDED" ? (isReturn || ['VOIDED', 'CANCELLED'].includes(p.status)) : p.status === statusFilter);
 
         let matchesDate = true;
         const date = new Date(p.purchaseDate);
@@ -121,12 +121,12 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const computedTotals = {
         actualTotal: filteredPurchases.reduce((acc, p) => {
             const isReturn = p.isReturn || p._isReturnEntry;
-            if (p.status === 'VOIDED' && !isReturn) return acc;
+            if (['VOIDED', 'CANCELLED'].includes(p.status) && !isReturn) return acc;
             return acc + Number(p.totalAmount);
         }, 0),
         remaining: filteredPurchases.reduce((acc, p) => {
             const isReturn = p.isReturn || p._isReturnEntry;
-            if (p.status === 'VOIDED' && !isReturn) return acc;
+            if (['VOIDED', 'CANCELLED'].includes(p.status) && !isReturn) return acc;
             return acc + (Number(p.totalAmount) - Number(p.paidAmount));
         }, 0)
     };
@@ -214,9 +214,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     };
 
     const getStatusBadge = (status: string, total: number, paid: number, isReturn?: boolean) => {
-        if (isReturn || status === 'VOIDED' || status === 'RETURNED') return (
+        if (isReturn || ['VOIDED', 'CANCELLED', 'RETURNED'].includes(status)) return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
-                <XCircle className="w-3 h-3" /> {isReturn ? 'فاتورة مرتجع' : (status === 'VOIDED' ? 'ملغاة (مسترد)' : 'مرتجع كلي')}
+                <XCircle className="w-3 h-3" /> {isReturn ? 'فاتورة مرتجع' : (['VOIDED', 'CANCELLED'].includes(status) ? 'ملغاة (مسترد)' : 'مرتجع كلي')}
             </span>
         );
 
@@ -427,7 +427,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                     className={cn(
                                         "border-border hover:bg-primary/10 transition-all group cursor-pointer border-b",
                                         "even:bg-muted/70",
-                                        (inv.status === 'VOIDED' || inv.isReturn) && "opacity-60 bg-red-500/[0.02]",
+                                        (inv.status === 'VOIDED' || inv.status === 'CANCELLED' || inv.isReturn) && "opacity-60 bg-red-500/[0.02]",
                                         inv.isReturn && "bg-red-500/[0.04]"
                                     )}
                                     onClick={() => setSelectedPurchase(inv)}
@@ -504,7 +504,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             >
                                                 <Package className="w-4 h-4" />
                                             </Button>
-                                            {inv.status !== 'VOIDED' && !inv.isReturn && (
+                                            {!['VOIDED', 'CANCELLED'].includes(inv.status) && !inv.isReturn && (
                                                 <>
                                                     <Button
                                                         variant="ghost"
@@ -682,7 +682,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                 >
                                     إغلاق النافذة
                                 </Button>
-                                {selectedPurchase.status !== 'VOIDED' && !selectedPurchase.isReturn && (
+                                {['VOIDED', 'CANCELLED'].includes(selectedPurchase.status) ? null : (!selectedPurchase.isReturn && (
                                     <>
                                         <Button
                                             variant="outline"
@@ -700,7 +700,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             مرتجع جزئي
                                         </Button>
                                     </>
-                                )}
+                                ))}
                             </div>
                         </div>
                     </DialogContent>

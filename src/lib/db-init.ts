@@ -59,6 +59,21 @@ export async function initDatabase(): Promise<void> {
         await seedCashCategories();
         logger.info('[DB] Cash Categories sync complete.');
 
+        // ── Ensure Store Settings (Crucial for production render safety)
+        logger.info('[DB] Ensuring default store settings exist...');
+        let settings = await prisma.storeSettings.findUnique({ where: { id: 'settings' } });
+        if (!settings) {
+            settings = await prisma.storeSettings.create({
+                data: {
+                    id: "settings",
+                    name: "Casper Store",
+                    currency: "EGP",
+                    taxRate: 0.0
+                }
+            });
+            logger.info('[DB] Default store settings created.');
+        }
+
         // ── Ensure Main Branch (V-05 fix: run once at startup, not on every login)
         const { ensureMainBranch } = await import('./ensure-main-branch');
         await ensureMainBranch();

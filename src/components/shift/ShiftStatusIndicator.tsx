@@ -249,17 +249,13 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
         Number(shift.startCash) +
         Number(shift.totalCashSales || 0) -
         Number(shift.totalExpenses || 0) -
-        // @ts-ignore
         Number(shift.totalCashRefunds || 0)
     );
     const actualCashNum = actualCash !== "" ? Number(actualCash) : 0;
     const varianceValue = actualCashNum - expectedCashValue;
 
-    // @ts-ignore
     const totalCashRefunds = Number(shift.totalCashRefunds || 0);
-    // @ts-ignore
     const totalAccountRefunds = Number(shift.totalAccountRefunds || 0);
-    // @ts-ignore
     const totalAccountSales = Number(shift.totalAccountSales || 0);
 
     return (

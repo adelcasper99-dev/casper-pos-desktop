@@ -101,14 +101,26 @@ This document serves as the "Source of Truth" for critical architectural decisio
 
 ---
 
-## 🛠️ 7. Development & Audit Workflows
+## 🛡️ 8. System Hardening & Data Integrity Guardrails
 
+### 🛡️ [NEW] Destructive Read Protection
+*   **Rule**: Read-only server actions (e.g., `getWarehouses`, `getProducts`) MUST NOT perform silent database mutations under any circumstances.
+*   **Protocol**: Extract "Self-Healing" or "Cleanup" logic (like deduplicating phantom warehouses) into explicit, permission-gated admin actions (e.g., `fixDuplicateWarehouses`). This prevents accidental data loss and side-effects during normal UI navigation.
 
-### The "Integrity Success Ratio"
-*   **Metric**: `(Completed - Voided) / Completed`.
-*   **Rule**: High void/return counts should trigger a "Technician Quality Audit."
-*   **Log**: Maintain `AUDIT_TRACKING.md` for major schema or treasury logic changes.
+### 🛡️ [NEW] Resilient Stock Reversals
+*   **Rule**: When voiding or updating invoices, stock reversals MUST NOT rely on the guaranteed existence of a per-warehouse `Stock` record.
+*   **Technique**: Use `tx.stock.updateMany({ where: { productId, warehouseId }, data: { quantity: { decrement: ... } } })`. This prevents transaction aborts (P2025) if a stock record was missing due to historical corruption or incomplete imports, maintaining financial integrity in the main transaction.
+
+### 🛡️ [NEW] Unified Status Convention (Purchases)
+*   **Status Mapping**: 
+    -   `'CANCELLED'`: The canonical status for a voided/deleted purchase invoice (goods never received or transaction rolled back).
+    -   `'RETURNED'`: Specifically reserved for goods sent back to the supplier after receipt.
+*   **Guardrails**: All financial calculations (Purchase Logs, Shift Totals) must treat `CANCELLED` and `VOIDED` as inactive/ignored to prevent double-counting.
+
+### 🛡️ [NEW] High-Success Batch Ingestion
+*   **Rule**: Bulk CSV imports MUST auto-create secondary dependencies (e.g., Suppliers, Categories) during the pre-processing phase.
+*   **Protocol**: This ensures the import process is "resilient" and doesn't hard-fail on single unknown entries while correctly deduplicating via pre-fetched maps.
 
 ---
 *Created: April 2, 2026*
-*Last Update: April 14, 2026 (Network Hybrid Printing & Casper Hardware Bridge Architecture)*
+*Last Update: April 16, 2026 (System Hardening, Data Integrity Guardrails & Destructive Read Protection)*

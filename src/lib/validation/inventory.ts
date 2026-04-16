@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const bundleItemSchema = z.object({
     componentProductId: z.string().min(1),
-    quantityIncluded: z.coerce.number().int().min(1),
+    quantityIncluded: z.coerce.number().min(0.001, "Quantity must be at least 0.001"),
 });
 
 export const productSchema = z.object({

@@ -52,7 +52,12 @@ export default async function PurchasingPage() {
     });
 
     // 3. Products (for search in Purchase)
-    const productsRaw = await prisma.product.findMany();
+    const productsRaw = await prisma.product.findMany({
+        where: {
+            deletedAt: null,
+            archived: false,
+        }
+    });
     const products = productsRaw.map(p => ({
         id: p.id,
         sku: p.sku,

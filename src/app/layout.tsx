@@ -14,7 +14,6 @@ import { cookies } from "next/headers";
 import Sidebar from "@/components/Sidebar";
 import NavigationHotkeys from "@/components/NavigationHotkeys";
 import { getCurrentUser } from "@/actions/auth";
-import { initDatabase } from "@/lib/db-init";
 import { getStoreSettings } from "@/actions/settings";
 import LayoutContent from "./LayoutContent";
 import { TimeSyncWarning } from "@/components/layout/TimeSyncWarning";
@@ -31,7 +30,7 @@ export default async function RootLayout({
 }: {
     children: React.ReactNode;
 }) {
-    await initDatabase(); // Phase 2: WAL mode + FK enforcement + CoA seed on cold start
+    // Database and seeding are now handled by src/instrumentation.ts on server startup
     const user = await getCurrentUser();
     const cookieStore = await cookies();
     const csrfToken = cookieStore.get('csrf-token')?.value || null;

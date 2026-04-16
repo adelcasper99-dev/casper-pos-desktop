@@ -49,6 +49,10 @@ export default async function InventoryPage() {
     }));
 
     const productsRaw = await prisma.product.findMany({
+        where: {
+            deletedAt: null,
+            archived: false,
+        },
         include: { model: true }
     });
     const products = productsRaw.map((p: any) => ({

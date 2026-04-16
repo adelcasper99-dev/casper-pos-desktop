@@ -10,6 +10,7 @@ import { getCurrentShiftInternal } from './shift-management-actions';
 import { AccountingEngine } from '@/lib/accounting/transaction-factory';
 import { financialRepo } from '@/lib/repositories/financial-repo';
 import { CustomerIndexingService } from '@/lib/customer-indexing-service';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 import { z } from 'zod';
 
 
@@ -145,8 +146,8 @@ export const createCustomer = secureAction(async ({ name, phone, address, linked
                     reference: transaction.id,
                     branchId: currentUser?.branchId ?? undefined,
                     lines: [
-                        { accountCode: '1100', debit: openingBalance, credit: 0, description: 'Initial Accounts Receivable' },
-                        { accountCode: '3000', debit: 0, credit: openingBalance, description: 'Opening Balance Equity' }
+                        { accountCode: GL.ASSETS.RECEIVABLES, debit: openingBalance, credit: 0, description: 'Initial Accounts Receivable' },
+                        { accountCode: GL.EQUITY.CAPITAL, debit: 0, credit: openingBalance, description: 'Opening Balance Equity' }
                     ]
                 }, tx);
             }
@@ -427,9 +428,11 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
     
     const unpaidMaintenance = customer.tickets.reduce((sum, t) => {
         if (t.status === 'CANCELLED' || t.status === 'VOIDED') return sum;
-        const due = Number(t.repairPrice) - Number(t.deposit);
-        return sum + (due > 0 ? due : 0);
-    }, 0);
+        const repairPrice = new Decimal(t.repairPrice?.toString() || 0);
+        const deposit = new Decimal(t.deposit?.toString() || 0);
+        const due = repairPrice.minus(deposit);
+        return sum.plus(due.gt(0) ? due : 0);
+    }, new Decimal(0));
 
     const lastTicketDate = customer.tickets[0]?.createdAt;
     const maintenanceGapDays = lastTicketDate ? Math.floor((new Date().getTime() - lastTicketDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -440,13 +443,13 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
         phone: customer.phone,
         email: customer.email,
         address: customer.address,
-        balance: Number(customer.balance),
-        creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+        balance: customer.balance.toNumber(),
+        creditLimit: customer.creditLimit ? customer.creditLimit.toNumber() : null,
         intelligence: {
             ticketSuccessRatio: Number(ticketSuccessRatio.toFixed(1)),
-            unpaidMaintenance,
+            unpaidMaintenance: unpaidMaintenance.toNumber(),
             maintenanceGapDays,
-            totalMaintenanceSpent: customer.tickets.reduce((sum, t) => sum + Number(t.repairPrice), 0)
+            totalMaintenanceSpent: customer.tickets.reduce((sum, t) => sum.plus(new Decimal(t.repairPrice?.toString() || 0)), new Decimal(0)).toNumber()
         },
         transactions: customer.transactions.map(tx => ({
             ...tx,
@@ -572,13 +575,8 @@ export const recordCustomerPayment = secureAction(async (data: {
         }
 
         // 6. Accounting Engine Sync
-        // Fix A: Use correct GL asset account based on paymentMethod
-        const customerGlMap: Record<string, string> = {
-            CASH: '1000', VISA: '1010', CARD: '1010',
-            MASTERCARD: '1010', BANK: '1010',
-            INSTAPAY: '1020', WALLET: '1020', VODAFONE_CASH: '1020'
-        };
-        const customerPaymentGlCode = customerGlMap[paymentMethod] ?? '1000';
+        // Use correct GL asset account based on paymentMethod
+        const customerPaymentGlCode = PAYMENT_METHOD_GL_MAP[paymentMethod] ?? GL.ASSETS.CASH;
         try {
             await AccountingEngine.recordTransaction({
                 description: `Customer Payment: ${customer.name}`,
@@ -586,7 +584,7 @@ export const recordCustomerPayment = secureAction(async (data: {
                 branchId: currentUser.branchId ?? undefined,
                 lines: [
                     { accountCode: customerPaymentGlCode, debit: amount, credit: 0, description: `${paymentMethod} Received` },
-                    { accountCode: '1100', debit: 0, credit: amount, description: 'Customer AR Reduced' }
+                    { accountCode: GL.ASSETS.RECEIVABLES, debit: 0, credit: amount, description: 'Customer AR Reduced' }
                 ]
             }, tx);
         } catch (accError) {
@@ -690,12 +688,12 @@ export const adjustAccountBalance = secureAction(async (data: {
             // Write-off: DR 5270 (Miscellaneous Expense) / CR 1100 (AR)
             const lines = amount > 0 
                 ? [
-                    { accountCode: '1100', debit: absAmount, credit: 0, description: `Manual Fee: ${reason}` },
-                    { accountCode: '4400', debit: 0, credit: absAmount, description: `Manual Fee: ${reason}` }
+                    { accountCode: GL.ASSETS.RECEIVABLES, debit: absAmount, credit: 0, description: `Manual Fee: ${reason}` },
+                    { accountCode: GL.REVENUE.OTHER_INCOME, debit: 0, credit: absAmount, description: `Manual Fee: ${reason}` }
                   ]
                 : [
-                    { accountCode: '5270', debit: absAmount, credit: 0, description: `Manual Adjustment: ${reason}` },
-                    { accountCode: '1100', debit: 0, credit: absAmount, description: `Manual Adjustment: ${reason}` }
+                    { accountCode: GL.EXPENSES.OPERATION_EXPENSES, debit: absAmount, credit: 0, description: `Manual Adjustment: ${reason}` },
+                    { accountCode: GL.ASSETS.RECEIVABLES, debit: 0, credit: absAmount, description: `Manual Adjustment: ${reason}` }
                   ];
 
             await AccountingEngine.recordTransaction({
@@ -727,12 +725,12 @@ export const adjustAccountBalance = secureAction(async (data: {
             // Decrease Liability (Credit from supplier): DR 2000 (AP) / CR 4400 (Other Income)
             const lines = amount > 0
                 ? [
-                    { accountCode: '5270', debit: absAmount, credit: 0, description: `Supplier Adjustment: ${reason}` },
-                    { accountCode: '2000', debit: 0, credit: absAmount, description: `Supplier Adjustment: ${reason}` }
+                    { accountCode: GL.EXPENSES.OPERATION_EXPENSES, debit: absAmount, credit: 0, description: `Supplier Adjustment: ${reason}` },
+                    { accountCode: GL.LIABILITIES.PAYABLES, debit: 0, credit: absAmount, description: `Supplier Adjustment: ${reason}` }
                   ]
                 : [
-                    { accountCode: '2000', debit: absAmount, credit: 0, description: `Supplier Credit: ${reason}` },
-                    { accountCode: '4400', debit: 0, credit: absAmount, description: `Supplier Credit: ${reason}` }
+                    { accountCode: GL.LIABILITIES.PAYABLES, debit: absAmount, credit: 0, description: `Supplier Credit: ${reason}` },
+                    { accountCode: GL.REVENUE.OTHER_INCOME, debit: 0, credit: absAmount, description: `Supplier Credit: ${reason}` }
                   ];
 
             await AccountingEngine.recordTransaction({
