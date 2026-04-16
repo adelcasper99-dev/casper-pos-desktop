@@ -122,5 +122,47 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Protocol**: This ensures the import process is "resilient" and doesn't hard-fail on single unknown entries while correctly deduplicating via pre-fetched maps.
 
 ---
+### 🛡️ [NEW] System Maintenance & Safety
+*   **Database Reset Protocol**: 
+    -   **Action**: `resetDatabase()` deletes all **Transactional Data** (Sales, Tickets, Payments, Shifts, Logs) but **Preserves Master Data** (Products, Users, Customers, Suppliers, Branches).
+    -   **Logic**: Resets all inventory quantities and balances (Treasury, Customer, Supplier) to 0.
+    -   **Safety**: Uses a single atomic transaction with a 30s timeout guard. Only accessible to Super Admins.
+
+### 🛡️ [NEW] Unified Accounting Core
+*   **Automatic Journaling**: Inherited Odoo-style double-entry bookkeeping.
+*   **Service**: `AutoJournalService` automatically generates balanced debits/credits for:
+    -   Customer Payments (Cash → AR).
+    -   Maintenance Distributions (Revenue/Commission/Profit splits).
+    -   Supplier Payments (AP → Cash).
+    -   Stock Wastage (Expense → Inventory).
+*   **Consistency**: All financial entries are "Branch-Aware" and use the central GL mapping defined in `accounting-mappings.ts`.
+
+---
+
+## 🔄 9. Formalized Workflows
+
+### 🛸 Sales Return Workflow (Arabic)
+1.  **Selection**: Located in Logs > Sales.
+2.  **Full Refund**: Mark as VOIDED/CANCELLED. All profit and commission reversed.
+3.  **Partial Refund**: Select specific items. Prompt for "Good" or "Damaged".
+4.  **Financial Impact**: Automatic journal reversal + stock re-entry (or wastage if damaged).
+
+### 🛸 Purchase Return Workflow
+1.  **Standard Procedure**: Use "Partial Return" for returning stock to suppliers.
+2.  **Stock Impact**: Decrements warehouse stock and supplier balance.
+3.  **Document ID**: Generates an `RTN-P` prefixed document for tracking.
+
+---
+
+## 🌐 10. Multi-Device Connectivity
+
+### Dynamic IP Detection
+*   **Logic**: The system uses `os.networkInterfaces()` to detect the local IPv4 address during bootup.
+*   **Purpose**: Allows secondary devices (iPads, Android Tablets) to connect to the Windows master terminal hosting the database and hardware bridge without manual configuration.
+*   **Port Mapping**:
+    -   **POS UI**: Port 3000.
+    -   **Hardware Bridge**: Port 4040 (Network Printing).
+
+---
 *Created: April 2, 2026*
-*Last Update: April 16, 2026 (System Hardening, Data Integrity Guardrails & Destructive Read Protection)*
+*Last Update: April 16, 2026 (Unified Accounting, Return Workflows & Connectivity)*
