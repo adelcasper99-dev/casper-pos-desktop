@@ -42,6 +42,7 @@ export const INCOME_CATEGORY_MAP: Record<string, { glCode: string; labelAr: stri
     'TIPS_INCOME': { glCode: '4400', labelAr: 'بقشيش/خدمة', labelEn: 'Tips / Service' },
     'SCRAP_SALE': { glCode: '4400', labelAr: 'بيع خردة/هالك', labelEn: 'Sale of Scrap' },
     'MISC_INCOME': { glCode: '4400', labelAr: 'إيرادات أخرى', labelEn: 'Other Income' },
+    'WALLET_COMMISSION': { glCode: '4500', labelAr: 'إيرادات المحافظ الإلكترونية', labelEn: 'E-Wallet Commission' },
 };
 
 
@@ -77,6 +78,7 @@ export const GL = {
         SUSPENDED_PROFIT: '4200',
         DISCOUNTS: '4300',
         OTHER_INCOME: '4400',
+        WALLET_REVENUE: '4500',
     },
     EXPENSES: {
         COGS: '5000',

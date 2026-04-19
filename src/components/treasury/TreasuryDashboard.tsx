@@ -28,44 +28,18 @@ import {
     transferBetweenTreasuries,
     getCashCategories,
 } from "@/actions/treasury";
+import { WalletTransactionModal } from "@/components/treasury/WalletTransactionModal";
 import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n-mock";
 import { cn } from "@/lib/utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Transaction {
-    id: string;
-    type: string;
-    description: string | null;
-    amount: number;
-    paymentMethod: string;
-    treasuryId?: string | null;
-    treasuryName?: string;
-    categoryName?: string; // 🆕 Added field
-    createdAt: string;
-}
-
-interface Treasury {
-    id: string;
-    name: string;
-    balance: number;
-    isDefault: boolean;
-    paymentMethod?: string | null;
-}
-
-interface TreasuryData {
-    byMethod: Record<string, number>;
-    transactions: Transaction[];
-    treasuries: Treasury[];
-}
-
-interface CashCategory {
-    id: string;
-    name: string;
-    type: string;
-    glCode: string | null;
-}
+import { 
+    Treasury, 
+    TreasuryTransaction as Transaction, 
+    TreasuryData, 
+    CashCategory 
+} from "@/types/treasury";
 
 const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT", "TRANSFER_IN"];
 const TYPE_LABELS: Record<string, string> = {
@@ -89,6 +63,7 @@ function CreateTreasuryModal({
     const t = useTranslations('Treasury');
     const [name, setName] = useState("");
     const [branchId, setBranchId] = useState(branches[0]?.id || "");
+    const [paymentMethod, setPaymentMethod] = useState("CASH");
     const [isDefault, setIsDefault] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -98,7 +73,7 @@ function CreateTreasuryModal({
         setError("");
         setLoading(true);
         try {
-            const res = await createTreasury({ name, branchId, isDefault });
+            const res = await createTreasury({ name, branchId, isDefault, paymentMethod });
             if (res.success) {
                 setName(""); setIsDefault(false);
                 onSuccess(); onClose();
@@ -147,6 +122,21 @@ function CreateTreasuryModal({
                         </select>
                     </div>
                 )}
+
+                <div className="space-y-2">
+                    <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-[0.2em] px-1 block">نوع الخزنة / وسيلة الدفع</label>
+                    <select 
+                        className="w-full bg-zinc-50 dark:bg-white/[0.03] border-none rounded-2xl h-14 px-5 text-zinc-900 dark:text-white font-black text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all appearance-none cursor-pointer" 
+                        value={paymentMethod} 
+                        onChange={e => setPaymentMethod(e.target.value)} 
+                        required
+                    >
+                        <option value="CASH" className="bg-white dark:bg-zinc-950 font-black">نقدية (CASH)</option>
+                        <option value="WALLET" className="bg-white dark:bg-zinc-950 font-black">محفظة إلكترونية (WALLET)</option>
+                        <option value="INSTAPAY" className="bg-white dark:bg-zinc-950 font-black">إنستا باي (INSTAPAY)</option>
+                        <option value="CARD" className="bg-white dark:bg-zinc-950 font-black">بطاقة بنكية (CARD)</option>
+                    </select>
+                </div>
 
                 <div className="flex items-center gap-4 p-5 bg-zinc-50 dark:bg-white/[0.02] rounded-[2rem] border border-zinc-100 dark:border-white/5 group transition-all hover:bg-zinc-100 dark:hover:bg-white/[0.04]">
                     <div className="relative flex items-center">
@@ -364,6 +354,7 @@ export default function TreasuryDashboard({
 
     // Deposit Modal state
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+    const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
 
     // Edit / delete state
     const [reason, setReason] = useState("");
@@ -774,6 +765,9 @@ export default function TreasuryDashboard({
                         <button onClick={() => setIsCreateTreasuryOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground border border-zinc-200 dark:border-white/10 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
                             <PlusCircle className="w-4 h-4" /> {"إضافة خزنة جديدة"}
                         </button>
+                        <button onClick={() => setIsWalletModalOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
+                            <Smartphone className="w-4 h-4" /> {"عملية محفظة"}
+                        </button>
                         <button onClick={() => setIsTransferOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
                             <ArrowLeftRight className="w-4 h-4" /> {"تحويل"}
                         </button>
@@ -946,6 +940,15 @@ export default function TreasuryDashboard({
                     treasuries={data.treasuries}
                     onSubmit={handleDepositSubmit}
                     categories={categories.filter(c => c.type === 'IN')}
+                />
+
+                <WalletTransactionModal 
+                    isOpen={isWalletModalOpen}
+                    onClose={() => {
+                        setIsWalletModalOpen(false);
+                        refresh();
+                    }}
+                    treasuries={data.treasuries}
                 />
 
                 <GlassModal

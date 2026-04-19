@@ -74,8 +74,8 @@ export async function login(formData: FormData) {
         } catch (e) {
             console.error("Failed to parse permissions", e);
         }
-    } else if (user.roleStr === 'ADMIN') {
-        // Fallback for hardcoded admin if no role assigned
+    } else if (user.isGlobalAdmin) {
+        // Fallback for global admin if no role assigned
         permissions = ['*'];
     }
 

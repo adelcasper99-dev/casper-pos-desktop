@@ -1656,9 +1656,9 @@ export const getWarehouses = secureAction(async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    // Check if HQ user
-    const isHQUser = user.role === 'ADMIN' ||
-        user.role === 'Manager' ||
+    // Check if HQ user: has cross-branch visibility via HQ_VIEW permission or '*'
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.HQ_VIEW) ||
+        hasPermission(user.permissions, '*') ||
         user.branchType === 'CENTER';
 
     // Self-healing removed from read path for safety (BUG-01). 
@@ -2211,7 +2211,7 @@ export const reportWastage = secureAction(async (data: {
         // V-06 audit fix: handle required reportedBy for super-admin virtual ID
         let reportedBy: string = user.id;
         if (reportedBy === 'super-admin') {
-            const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+            const fallback = await tx.user.findFirst({ where: { isGlobalAdmin: true } }) || await tx.user.findFirst();
             if (fallback) {
                 reportedBy = fallback.id;
             } else {

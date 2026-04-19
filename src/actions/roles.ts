@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { validatePermissions, resolvePermissionDependencies } from "@/lib/permission-validation";
 import { invalidateRoleCache } from "@/lib/permission-cache";
 import { invalidateUserSessions, getSession } from "@/lib/auth";
@@ -189,8 +189,8 @@ async function checkRolePrivilegeEscalation(
     roleId?: string,
     newPermissions?: string[]
 ) {
-    // 1. Admins and super-admins bypass all checks
-    if (sessionUser.role === 'ADMIN' || sessionUser.permissions?.includes('*')) {
+    // 1. Super-admins (wildcard permission) bypass all checks
+    if (hasPermission(sessionUser.permissions, '*')) {
         return;
     }
 
@@ -200,16 +200,15 @@ async function checkRolePrivilegeEscalation(
     if (roleId) {
         const targetRole = await prisma.role.findUnique({ where: { id: roleId } });
         if (targetRole) {
-            const targetRoleName = targetRole.name.toUpperCase();
-            if (targetRoleName === 'ADMIN' || targetRoleName === 'ADMINISTRATOR' || targetRoleName === 'مدير النظام' || targetRoleName === 'المالك') {
-                throw new Error("Forbidden: You cannot modify or delete system administrator roles.");
-            }
-
             let existingPerms: string[] = [];
             try {
                 existingPerms = JSON.parse(targetRole.permissions || '[]');
             } catch (e) {
                 existingPerms = [];
+            }
+
+            if (existingPerms.includes('*')) {
+                throw new Error("Forbidden: You cannot modify or delete system administrator roles (Wildcard permission).");
             }
 
             if (forbiddenPerms.some(p => existingPerms.includes(p))) {

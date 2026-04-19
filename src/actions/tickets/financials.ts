@@ -37,11 +37,15 @@ export const processTicketPayment = secureAction(async (data: {
         });
 
         // 1. Update Ticket financials
+        const amountDec = new Decimal(data.amount);
+        const newPaid = new Decimal(ticket.amountPaid?.toString() || '0').add(amountDec);
+        const repairPrice = new Decimal(ticket.repairPrice?.toString() || '0');
+
         await tx.ticket.update({
             where: { id: data.ticketId },
             data: {
-                amountPaid: { increment: data.amount },
-                paymentStatus: (ticket.amountPaid.add(data.amount).gte(ticket.repairPrice)) ? 'paid' : 'partial'
+                amountPaid: newPaid,
+                paymentStatus: (newPaid.gte(repairPrice)) ? 'paid' : 'partial'
             }
         });
 
@@ -114,9 +118,12 @@ export const refundTicket = secureAction(async (data: {
         if (!allowedStatuses.includes(ticket.status)) {
             throw new Error("Cannot refund this ticket in its current status.");
         }
-        const currentPaid = Number(ticket.amountPaid) || 0;
-        if (!amount || amount <= 0) throw new Error("Invalid refund amount.");
-        if (amount > currentPaid) throw new Error("Refund amount exceeds paid amount.");
+        const amountDec = new Decimal(amount);
+        const currentPaid = new Decimal(ticket.amountPaid?.toString() || '0');
+        const repairPrice = new Decimal(ticket.repairPrice?.toString() || '0');
+
+        if (amountDec.lte(0)) throw new Error("Invalid refund amount.");
+        if (amountDec.gt(currentPaid)) throw new Error("Refund amount exceeds paid amount.");
 
         const lastPayment = ticket.payments.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
         const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
@@ -125,7 +132,7 @@ export const refundTicket = secureAction(async (data: {
         const payment = await tx.repairPayment.create({
             data: {
                 ticketId,
-                amount: new Decimal(amount),
+                amount: amountDec,
                 type: 'REFUND',
                 method: refundMethod,
                 reference: reason,
@@ -134,16 +141,15 @@ export const refundTicket = secureAction(async (data: {
         });
 
         // 2. Update financials
-        const newAmountPaid = currentPaid - amount;
-        const repairPrice = Number(ticket.repairPrice) || 0;
+        const newAmountPaid = currentPaid.minus(amountDec);
         let paymentStatus = 'partial';
-        if (newAmountPaid <= 0) paymentStatus = 'unpaid';
-        else if (repairPrice > 0 && newAmountPaid >= repairPrice) paymentStatus = 'paid';
+        if (newAmountPaid.lte(0)) paymentStatus = 'unpaid';
+        else if (repairPrice.gt(0) && newAmountPaid.gte(repairPrice)) paymentStatus = 'paid';
         
         await tx.ticket.update({
             where: { id: ticketId },
             data: {
-                amountPaid: { decrement: amount },
+                amountPaid: newAmountPaid,
                 paymentStatus
             }
         });

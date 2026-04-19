@@ -17,7 +17,7 @@ async function getNextTicketNumberInsideTx(tx: any, branchId?: string) {
         branchCode = branch?.code || '';
     }
 
-    return await getFormattedTicketNumber(branchCode);
+    return await getFormattedTicketNumber(branchCode, tx);
 }
 
 export async function POST(request: NextRequest) {

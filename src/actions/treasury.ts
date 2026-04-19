@@ -29,34 +29,42 @@ export async function getTreasuryData(filters?: {
   paymentMethod?: string;
 }) {
   try {
-    const where: any = { deletedAt: null };
+    // Always scope to the current main branch — prevents orphaned records from ghost branches appearing
+    const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+    const branchId = await ensureMainBranch();
+
+    // Transaction has no direct branchId — scope through the treasury relation
+    const transactionWhere: any = {
+      deletedAt: null,
+      treasury: { branchId }, // Scope via relation: only transactions in this branch's treasuries
+    };
 
     if (filters?.startDate || filters?.endDate) {
-      where.createdAt = {};
-      if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+      transactionWhere.createdAt = {};
+      if (filters.startDate) transactionWhere.createdAt.gte = new Date(filters.startDate);
       if (filters.endDate) {
         const endDate = new Date(filters.endDate);
         endDate.setHours(23, 59, 59, 999);
-        where.createdAt.lte = endDate;
+        transactionWhere.createdAt.lte = endDate;
       }
     }
 
     if (filters?.paymentMethod && filters.paymentMethod !== "ALL") {
-      where.paymentMethod = filters.paymentMethod;
+      transactionWhere.paymentMethod = filters.paymentMethod;
     }
 
     const [transactions, rawTreasuries] = await Promise.all([
       prisma.transaction.findMany({
-        where,
+        where: transactionWhere,
         orderBy: { createdAt: "desc" },
         include: { 
           treasury: true,
-          category: true // 🆕 Include CashCategory details
+          category: true
         },
         take: 500,
       }),
       prisma.treasury.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, branchId }, // Treasury has direct branchId
         orderBy: { isDefault: "desc" },
       }),
     ]);
@@ -87,7 +95,7 @@ export async function getTreasuryData(filters?: {
           paymentMethod: t.paymentMethod,
           treasuryId: t.treasuryId,
           treasuryName: t.treasury?.name,
-          categoryName: t.category?.name, // 🆕 Add category label
+          categoryName: t.category?.name,
           createdAt: t.createdAt.toISOString(),
         })),
         treasuries: rawTreasuries.map((t) => ({
@@ -96,6 +104,7 @@ export async function getTreasuryData(filters?: {
           balance: Number(t.balance),
           isDefault: t.isDefault,
           branchId: t.branchId,
+          paymentMethod: t.paymentMethod,
         })),
       },
     };
@@ -458,6 +467,7 @@ export async function createTreasury(data: {
   name: string;
   branchId: string;
   isDefault?: boolean;
+  paymentMethod?: string;
 }) {
   try {
     if (data.isDefault) {
@@ -472,6 +482,7 @@ export async function createTreasury(data: {
         name: data.name,
         branchId: data.branchId,
         isDefault: data.isDefault || false,
+        paymentMethod: data.paymentMethod || "CASH",
       },
     });
 
@@ -508,8 +519,11 @@ export async function deleteTreasury(id: string) {
 // ─── Get All Treasuries ───────────────────────────────────────────────────────
 export async function getTreasuries() {
   try {
+    const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+    const branchId = await ensureMainBranch();
+
     const treasuries = await prisma.treasury.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, branchId },
       include: { branch: true },
       orderBy: { createdAt: "desc" },
     });

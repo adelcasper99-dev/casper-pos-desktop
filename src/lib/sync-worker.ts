@@ -46,19 +46,19 @@ export class SyncWorker {
         this.isSyncing = true;
         try {
             const status = await SyncService.getQueueStatus();
-            if (status.total === 0) return { success: true, synced: 0, failures: [] };
-
-            logger.info(
-                `[SyncWorker] Pending queue — Sales:${status.salesCount} Tickets:${status.ticketsCount} ` +
-                `Treasury:${status.treasuryCount} Inventory:${status.inventoryCount} Returns:${status.returnsCount}`
-            );
+            
+            // Only log the pending queue if there is something to push
+            if (status.total > 0) {
+                logger.info(
+                    `[SyncWorker] Pending push queue — Sales:${status.salesCount} Tickets:${status.ticketsCount} ` +
+                    `Treasury:${status.treasuryCount} Inventory:${status.inventoryCount} Returns:${status.returnsCount}`
+                );
+            }
 
             const results = await SyncService.syncAll();
 
             if (!results.success) {
-                logger.warn(`[SyncWorker] Sync completed with ${results.failures.length} failure(s).`);
-            } else {
-                logger.info('[SyncWorker] All queues flushed successfully.');
+                logger.warn(`[SyncWorker] Sync cycle finished with issues.`);
             }
             return results;
         } catch (error) {

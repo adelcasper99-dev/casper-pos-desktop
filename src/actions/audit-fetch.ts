@@ -3,11 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+
 export async function getAuditLogs(entityType?: string, limit: number = 50) {
     try {
         const session = await getSession();
-        // Basic security: only admins/managers can view logs
-        if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "Admin" && session.user.role !== "Manager")) {
+        // Basic security: require LOGS_VIEW permission
+        if (!session?.user || !hasPermission(session.user.permissions, PERMISSIONS.LOGS_VIEW)) {
             return [];
         }
 

@@ -113,6 +113,15 @@ export interface WorkflowTicket {
     previousStatus?: string | null;
     warrantyExpiryDate?: Date | null;
     parts?: TicketPart[];
+    logs?: TicketNotificationLog[];
+}
+
+export interface TicketNotificationLog {
+    id: string;
+    type: string;
+    status: string;
+    metadata: any;
+    sentAt: Date;
 }
 
 export interface TicketPart {

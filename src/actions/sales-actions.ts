@@ -429,7 +429,7 @@ export const refundSale = secureAction(async (data: {
             // V-07 audit fix: ensure valid DB userId for StockMovement constraint
             let performedById: string | undefined = currentUser.id;
             if (performedById === 'super-admin') {
-                const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+                const fallback = await tx.user.findFirst({ where: { isGlobalAdmin: true } }) || await tx.user.findFirst();
                 performedById = fallback?.id || undefined;
             }
 
@@ -921,7 +921,7 @@ export const partialRefundSale = secureAction(async (data: {
             // V-07 audit fix: ensure valid DB userId for StockMovement constraint
             let performedById: string | undefined = currentUser.id;
             if (performedById === 'super-admin') {
-                const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst();
+                const fallback = await tx.user.findFirst({ where: { isGlobalAdmin: true } }) || await tx.user.findFirst();
                 performedById = fallback?.id || undefined;
             }
 

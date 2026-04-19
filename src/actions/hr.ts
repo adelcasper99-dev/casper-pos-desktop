@@ -85,7 +85,7 @@ export async function getUsersForAttendancePage() {
     const session = await getSession();
     if (!session?.user) throw new Error("Unauthorized");
 
-    const hasAccess = hasPermission(session.user.permissions, PERMISSIONS.HR_VIEW_ATTENDANCE) || session.user.role === "ADMIN";
+    const hasAccess = hasPermission(session.user.permissions, PERMISSIONS.HR_VIEW_ATTENDANCE);
     if (!hasAccess) throw new Error("Forbidden");
 
     const users = await db.user.findMany({
@@ -127,10 +127,9 @@ export async function updateEmployeeData(userId: string, data: {
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = ["ADMIN", "owner", "SystemManager"].includes(session.user.role || "");
     const canManageUsers = hasPermission(session.user.permissions as string[], PERMISSIONS.MANAGE_USERS);
 
-    if (!isAdmin && !canManageUsers) {
+    if (!canManageUsers) {
         return { success: false, error: "Forbidden" };
     }
 
@@ -176,10 +175,9 @@ export async function toggleUserFreeze(userId: string) {
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = session.user.role === "ADMIN" || session.user.role === "مدير النظام" || session.user.role === "المالك";
     const canManageUsers = hasPermission(session.user.permissions, PERMISSIONS.MANAGE_USERS);
 
-    if (!isAdmin && !canManageUsers) {
+    if (!canManageUsers) {
         return { success: false, error: "Forbidden" };
     }
 
@@ -304,8 +302,8 @@ export const payEmployeeSalary = secureAction(async (data: {
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
-    if (!isAdmin) return { success: false, error: "Forbidden: Admin access required" };
+    const canPaySalary = hasPermission(session.user.permissions, PERMISSIONS.HR_MANAGE_PAYROLL);
+    if (!canPaySalary) return { success: false, error: "Forbidden: HR Payroll permission required" };
 
     try {
         // H-01: Strict Financial Validation

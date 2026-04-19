@@ -111,7 +111,7 @@ export async function getMonthlyLogsForPage(monthStr: string) {
     }
 
     const user = session.user;
-    const hasAccess = hasPermission(user.permissions, PERMISSIONS.HR_VIEW_ATTENDANCE) || user.role === "ADMIN";
+    const hasAccess = hasPermission(user.permissions, PERMISSIONS.HR_VIEW_ATTENDANCE);
 
     if (!hasAccess) {
         throw new Error(t('forbidden'));

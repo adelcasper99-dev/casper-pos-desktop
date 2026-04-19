@@ -26,9 +26,32 @@ export class SyncService {
         throw lastError;
     }
 
+    private static pullFailureCount = 0;
+    private static lastPullAttempt = 0;
+
     // ⚡ SPEED: Sync all pending data
     static async syncAll() {
-        logger.info('🔄 Starting universal sync...');
+        // 📥 PHASE 1: Pull Master Data Delta
+        const now = Date.now();
+        // Simple backoff: If failed previously, wait longer before trying again (exponential-ish)
+        const backoffDelay = Math.min(this.pullFailureCount * 60000, 300000); // Max 5 mins
+
+        if (now - this.lastPullAttempt > backoffDelay) {
+            this.lastPullAttempt = now;
+            const pullResult = await this.pullMasterData();
+            if (pullResult.success) {
+                this.pullFailureCount = 0;
+            } else {
+                this.pullFailureCount++;
+                logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}). skipping push sync if critical.`);
+            }
+        }
+
+        // 📤 PHASE 2: Push Local Changes
+        // Only trigger push if we are online and have a cloud URL
+        const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
+        if (!cloudUrl) return { success: false, error: 'No Cloud URL' };
+
         const results = await Promise.allSettled([
             this.syncSales(),
             this.syncTickets(),
@@ -37,13 +60,118 @@ export class SyncService {
             this.syncReturns()
         ]);
 
-        const failures = results.filter(r => r.status === 'rejected');
-        logger.info(`✅ Sync complete. ${failures.length} failures.`);
+        const totalFailed = results.reduce((acc, r) => {
+            if (r.status === 'rejected') return acc + 1;
+            return acc + (r.value.failed || 0);
+        }, 0);
+        
+        const anyCriticalError = results.some(r => r.status === 'rejected');
+
+        if (totalFailed > 0) {
+            logger.error(`[Sync:Push] Completed with ${totalFailed} item failures.`);
+        }
 
         return {
-            success: failures.length === 0,
-            failures
+            success: !anyCriticalError && totalFailed === 0,
+            failures: results.filter(r => r.status === 'rejected')
         };
+    }
+
+    // 📥 NEW: Pull delta master data from cloud
+    static async pullMasterData() {
+        try {
+            const metadata = await offlineDB.syncMetadata.get('lastPullTimestamp');
+            const lastPull = metadata ? metadata.lastSyncTime.toISOString() : new Date(0).toISOString();
+
+            // Use the same secret for pulling as pushing
+            const secret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
+            const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
+
+            if (!cloudUrl) return { success: false, error: 'Cloud URL not configured' };
+
+            const response = await fetch(`${cloudUrl}/api/sync/pull?since=${lastPull}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-sync-secret': secret
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Pull failed (${response.status})`);
+            }
+
+            const { data, timestamp } = await response.json();
+            
+            const hasData = (data.products?.length > 0) || 
+                            (data.categories?.length > 0) || 
+                            (data.models?.length > 0) || 
+                            data.storeSettings || 
+                            data.systemConfig;
+
+            if (!hasData) return { success: true, pulled: 0 };
+
+            logger.info(`[Sync:Pull] Found updates since ${lastPull}. Merging...`);
+
+            // 1. Merge Products
+            if (data.products?.length > 0) {
+                const mappedProducts = data.products.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    sku: p.sku,
+                    barcode: p.sku, 
+                    price: Number(p.sellPrice),
+                    stock: Number(p.stock),
+                    categoryId: p.categoryId,
+                    modelId: p.modelId,
+                    categoryName: p.category?.name || 'Uncategorized',
+                    costPrice: Number(p.costPrice),
+                    trackStock: p.trackStock,
+                    isBundle: p.isBundle,
+                    lastSynced: new Date(),
+                    syncPriority: 0,
+                    updatedAt: p.updatedAt
+                }));
+                await offlineDB.products.bulkPut(mappedProducts);
+            }
+
+            // 2. Merge Categories
+            if (data.categories?.length > 0) {
+                await offlineDB.categories.bulkPut(data.categories.map((c: any) => ({
+                    id: c.id,
+                    name: c.name,
+                    color: c.color,
+                    updatedAt: c.updatedAt
+                })));
+            }
+
+            // 3. Merge Models
+            if (data.models?.length > 0) {
+                await offlineDB.models.bulkPut(data.models.map((m: any) => ({
+                    id: m.id,
+                    name: m.name,
+                    categoryId: m.categoryId,
+                    updatedAt: m.updatedAt
+                })));
+            }
+
+            // 4. Update Settings
+            if (data.storeSettings) await offlineDB.storeSettings.put(data.storeSettings);
+            if (data.systemConfig) await offlineDB.systemConfigs.put(data.systemConfig);
+
+            // 5. Update the checkpoint
+            await offlineDB.syncMetadata.put({
+                key: 'lastPullTimestamp',
+                lastSyncTime: new Date(timestamp),
+                syncStatus: 'SUCCESS',
+                recordCount: (data.products?.length || 0) + (data.categories?.length || 0)
+            });
+
+            logger.info(`[Sync:Pull] Successfully merged delta from ${timestamp}`);
+            return { success: true, pulled: 1 };
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
     }
 
     // 🛡️ RELIABILITY: Sync sales with conflict detection

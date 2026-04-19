@@ -8,6 +8,7 @@ export interface OfflineProduct {
     price: number;       // maps to sellPrice
     stock: number;
     categoryId?: string | null;
+    modelId?: string | null;  // 🆕 Added model link
     categoryName: string;
     costPrice: number;
     trackStock: boolean;
@@ -15,6 +16,40 @@ export interface OfflineProduct {
     image?: string | null;
     lastSynced: Date;
     syncPriority: number;
+    updatedAt?: string; // 🆕 Added for pull tracking
+}
+
+export interface OfflineCategory {
+    id: string;
+    name: string;
+    color?: string;
+    updatedAt: string;
+}
+
+export interface OfflineModel {
+    id: string;
+    name: string;
+    categoryId: string;
+    updatedAt: string;
+}
+
+export interface OfflineStoreSettings {
+    id: string;
+    name: string;
+    phone?: string;
+    address?: string;
+    taxRate: number;
+    currency: string;
+    receiptFooter: string;
+    updatedAt: string;
+}
+
+export interface OfflineSystemConfig {
+    id: string;
+    warrantyDays: number;
+    taxEnabled: boolean;
+    taxRate: number;
+    updatedAt: string;
 }
 
 export interface OfflineTicket {
@@ -125,6 +160,10 @@ export interface OfflineReturn {
 class CasperOfflineDB extends Dexie {
     sales!: EntityTable<OfflineSale, 'id'>;
     products!: EntityTable<OfflineProduct, 'id'>;
+    categories!: EntityTable<OfflineCategory, 'id'>;
+    models!: EntityTable<OfflineModel, 'id'>;
+    storeSettings!: EntityTable<OfflineStoreSettings, 'id'>;
+    systemConfigs!: EntityTable<OfflineSystemConfig, 'id'>;
     tickets!: EntityTable<OfflineTicket, 'id'>;
     syncMetadata!: EntityTable<SyncMetadata, 'key'>;
     treasuryTransactions!: EntityTable<OfflineTreasuryTransaction, 'id'>;
@@ -133,9 +172,13 @@ class CasperOfflineDB extends Dexie {
 
     constructor() {
         super('CasperOfflineDB');
-        this.version(5).stores({
+        this.version(6).stores({
             sales: 'id, syncStatus, offlineFlag, createdAt, synced, isTimeSuspicious',
-            products: 'id, barcode, syncPriority',
+            products: 'id, barcode, syncPriority, updatedAt',
+            categories: 'id, updatedAt',
+            models: 'id, categoryId, updatedAt',
+            storeSettings: 'id, updatedAt',
+            systemConfigs: 'id, updatedAt',
             tickets: 'id, syncStatus, idempotencyKey, createdAt, synced',
             syncMetadata: 'key',
             treasuryTransactions: 'id, syncStatus, idempotencyKey, createdAt, synced, isTimeSuspicious',

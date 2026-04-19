@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import {
     Loader2, ArrowRight, XCircle, CheckCircle, Truck, Wrench, Search,
-    ChevronDown, Settings2, MoreHorizontal, RotateCcw, ShieldCheck
+    ChevronDown, Settings2, MoreHorizontal, RotateCcw, ShieldCheck, MessageCircle
 } from "lucide-react";
 import { isBefore, startOfDay } from "date-fns";
 import { canTransition } from "@/lib/workflow";
@@ -27,6 +27,8 @@ import TicketPaymentModal from "./TicketPaymentModal";
 import EstimationModal from "./EstimationModal";
 import TechnicianAssignmentModal from "./TechnicianAssignmentModal";
 import { ReturnInitiationModal } from "./wizard/ReturnInitiationModal";
+import WhatsAppQuickButton from "./WhatsAppQuickButton";
+
 
 interface WorkflowActionsProps {
     ticket: WorkflowTicket;
@@ -164,8 +166,8 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
     const secondaryActions = transitions.filter(tr => tr !== primaryAction);
 
     return (
-        <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center gap-2 w-full justify-end">
+        <div className="flex flex-col gap-3 w-full">
+            <div className="flex flex-wrap items-center gap-2 w-full justify-end">
                 {(['PAID_DELIVERED', 'DELIVERED', 'RETURNED_FOR_REFIX'].includes(ticket.status)) && (
                     <div className="flex flex-col gap-2 items-end">
                         {ticket.status === 'RETURNED_FOR_REFIX' && (
@@ -222,7 +224,32 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
                     </div>
                 )}
 
+                { (ticket.status === TicketStatus.COMPLETED || 
+                   ticket.status === TicketStatus.READY_AT_BRANCH || 
+                   ticket.status === TicketStatus.REJECTED) && ticket.customerPhone && (
+                    <div className="flex flex-col gap-1 items-end">
+                        <WhatsAppQuickButton 
+                            ticketId={ticket.id}
+                            customerPhone={ticket.customerPhone}
+                            customerName={ticket.customerName}
+                            ticketNumber={ticket.barcode}
+                            totalCost={ticket.repairPrice}
+                            status={ticket.status}
+                            onSuccess={onUpdate}
+                        />
+                        {ticket.logs && ticket.logs.length > 0 && (
+                            <div className="text-[10px] text-zinc-500 font-medium px-2 flex items-center gap-1.5">
+                                <MessageCircle className="w-3 h-3" />
+                                آخر إبلاغ: {new Date(ticket.logs[0].sentAt).toLocaleString('ar-EG', { 
+                                    hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' 
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {transitions.length > 0 ? (
+
                     <>
                         {ticket.previousStatus && 
                          (user.role === 'ADMIN' || user.role === 'MANAGER' || user.role === 'مدير النظام' || user.role === 'المالك') && 

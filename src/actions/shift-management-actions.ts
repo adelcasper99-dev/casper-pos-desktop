@@ -14,7 +14,7 @@ import { getCurrentUser } from "./auth";
 import { secureAction } from "@/lib/safe-action";
 import { getTranslations } from "@/lib/i18n-mock";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
-
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { Decimal } from "@prisma/client/runtime/library";
 import { serialize } from "@/lib/serialization";
 import { PAYMENT_METHOD_GL_MAP } from "@/shared/constants/accounting-mappings";
@@ -117,7 +117,7 @@ export const openShift = secureAction(async (data: {
     let checkUserId = userId;
     if (userId === 'super-admin') {
         const fallbackAdmin = await prisma.user.findFirst({
-            where: { roleStr: 'ADMIN' }
+            where: { isGlobalAdmin: true }
         }) || await prisma.user.findFirst();
         if (fallbackAdmin) checkUserId = fallbackAdmin.id;
     }
@@ -148,7 +148,7 @@ export const openShift = secureAction(async (data: {
 
     if (userId === 'super-admin') {
         const fallbackAdmin = await prisma.user.findFirst({
-            where: { roleStr: 'ADMIN' }
+            where: { isGlobalAdmin: true }
         }) || await prisma.user.findFirst();
 
         if (fallbackAdmin) {
@@ -567,7 +567,7 @@ export async function getCurrentShiftInternal(filters?: {
     let checkUserId = userId;
     if (userId === 'super-admin') {
         const fallbackAdmin = await prisma.user.findFirst({
-            where: { roleStr: 'ADMIN' }
+            where: { isGlobalAdmin: true }
         }) || await prisma.user.findFirst();
         if (fallbackAdmin) checkUserId = fallbackAdmin.id;
     }
@@ -607,7 +607,7 @@ export const getCurrentShift = secureAction(async (filters?: {
     let checkUserId = userId;
     if (userId === 'super-admin') {
         const fallbackAdmin = await prisma.user.findFirst({
-            where: { roleStr: 'ADMIN' }
+            where: { isGlobalAdmin: true }
         }) || await prisma.user.findFirst();
         if (fallbackAdmin) checkUserId = fallbackAdmin.id;
     }
@@ -878,9 +878,9 @@ export const handoffShift = secureAction(async (data: {
     // ✅ BL-05 fix: Only the current owner or an ADMIN can hand off
     const currentUser = await getCurrentUser();
     const isOwner = shift.userId === currentUser?.id;
-    const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.permissions?.includes('*');
+    const canHandoff = hasPermission(currentUser?.permissions, PERMISSIONS.SHIFT_ADMIN);
 
-    if (!isOwner && !isAdmin) {
+    if (!isOwner && !canHandoff) {
         throw new Error(t('forbidden'));
     }
 

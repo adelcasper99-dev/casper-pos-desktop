@@ -247,6 +247,7 @@ export default function ProfitLossPage() {
                                         {[
                                             { label: 'مبيعات POS', value: reportData.income.posRevenue },
                                             { label: 'صيانة وخدمة', value: reportData.income.maintenanceRevenue },
+                                            { label: 'إيرادات المحافظ', value: reportData.income.walletRevenue },
                                             { label: 'إيرادات أخرى', value: reportData.income.otherIncome },
                                             { label: 'الإجمالي (Total)', value: reportData.income.totalRevenue, isTotal: true }
                                         ].map((row, idx) => (

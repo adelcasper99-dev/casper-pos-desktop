@@ -10,8 +10,12 @@ import {
     RefreshCw,
     Printer,
     Clock,
-    Globe
+    Globe,
+    ArrowDownCircle,
+    RotateCw
 } from 'lucide-react';
+import { SyncService } from '@/lib/sync-service';
+import { offlineDB } from '@/lib/offline-db';
 import { NetworkGuideModal } from '@/components/layout/NetworkGuideModal';
 import { casperClock } from '@/lib/CasperClock';
 import { Button } from "@/components/ui/button";
@@ -33,6 +37,9 @@ export const DesktopStatus: React.FC = () => {
     
     // Clock Status State
     const [clockStatus, setClockStatus] = useState<'verified' | 'protected' | 'untrusted'>('untrusted');
+
+    const [lastSync, setLastSync] = useState<Date | null>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Network Guide State
     const [isNetworkGuideOpen, setIsNetworkGuideOpen] = useState(false);
@@ -88,11 +95,20 @@ export const DesktopStatus: React.FC = () => {
         updateClockStatus();
         const clockInterval = setInterval(updateClockStatus, 5000);
 
+        // Sync Status Check
+        const checkSyncStatus = async () => {
+            const meta = await offlineDB.syncMetadata.get('lastPullTimestamp');
+            if (meta) setLastSync(meta.lastSyncTime);
+        };
+        checkSyncStatus();
+        const syncInterval = setInterval(checkSyncStatus, 15000);
+
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             clearInterval(printerInterval);
             clearInterval(clockInterval);
+            clearInterval(syncInterval);
             unsubProgress();
             unsubDownloaded();
         };
@@ -129,6 +145,26 @@ export const DesktopStatus: React.FC = () => {
             toast.error("Backup failed");
         } finally {
             setIsActionInProgress(false);
+        }
+    };
+
+    const handleManualSync = async () => {
+        if (isSyncing) return;
+        setIsSyncing(true);
+        try {
+            const result = await SyncService.manualSync();
+            if (result.success) {
+                toast.success("Catalog updated successfully");
+                const meta = await offlineDB.syncMetadata.get('lastPullTimestamp');
+                if (meta) setLastSync(meta.lastSyncTime);
+            } else {
+                const errorMsg = (result as any).message || (result as any).error || "Unknown error";
+                toast.error("Sync failed: " + errorMsg);
+            }
+        } catch (error) {
+            toast.error("Sync error");
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -209,6 +245,20 @@ export const DesktopStatus: React.FC = () => {
                 )}
             </div>
 
+            {/* Sync Status */}
+            <div
+                className={clsx(
+                    "flex items-center gap-1.5 px-1 shrink-0 transition-colors",
+                    isSyncing ? "text-cyan-400" : "text-muted-foreground"
+                )}
+                title={lastSync ? `Last Catalog Update: ${lastSync.toLocaleTimeString()}` : "Catalog not synced"}
+            >
+                <ArrowDownCircle className={clsx("w-3 h-3", isSyncing && "animate-bounce")} />
+                <span className="font-bold text-[10px] uppercase">
+                    {isSyncing ? "Syncing..." : lastSync ? "Catalog OK" : "No Sync"}
+                </span>
+            </div>
+
             <div className="w-px h-3 bg-border" />
 
             {/* Database Info */}
@@ -227,6 +277,17 @@ export const DesktopStatus: React.FC = () => {
 
             {/* Maintenance Actions */}
             <div className="flex items-center gap-0.5">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 hover:bg-white/10"
+                    onClick={handleManualSync}
+                    disabled={isSyncing}
+                    title="Force Catalog Sync"
+                >
+                    <RotateCw className={clsx("w-3 h-3 text-emerald-400", isSyncing && "animate-spin")} />
+                </Button>
+
                 <Button
                     variant="ghost"
                     size="icon"

@@ -83,8 +83,18 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
         });
         const otherIncome = new Decimal(otherIncomeAgg._sum.credit?.toString() || '0');
 
+        // 4. E-Wallet Commissions (4500)
+        const walletRevenueAgg = await prisma.journalLine.aggregate({
+            where: {
+                account: { code: '4500' },
+                journalEntry: { date: { gte: startDate, lte: endDate } }
+            },
+            _sum: { credit: true }
+        });
+        const walletRevenue = new Decimal(walletRevenueAgg._sum.credit?.toString() || '0');
+
         // Total Revenue
-        const totalRevenue = posRevenue.plus(maintenanceRevenue).plus(otherIncome);
+        const totalRevenue = posRevenue.plus(maintenanceRevenue).plus(otherIncome).plus(walletRevenue);
 
         // ─────────────────────────────────────────────────────────────────────
         // 📉 COST OF GOODS SOLD (COGS)
@@ -215,6 +225,7 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
                 income: {
                     posRevenue: posRevenue.toNumber(),
                     maintenanceRevenue: maintenanceRevenue.toNumber(),
+                    walletRevenue: walletRevenue.toNumber(),
                     otherIncome: otherIncome.toNumber(),
                     totalRevenue: totalRevenue.toNumber()
                 },

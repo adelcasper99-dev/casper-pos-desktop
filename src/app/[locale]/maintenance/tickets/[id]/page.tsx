@@ -11,10 +11,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
     ArrowLeft, Printer, Shield, ShieldCheck, Lock, Smartphone, User,
     DollarSign, Send, CheckCircle, Receipt, Eye, EyeOff, Edit2,
-    RotateCcw, Save, X, XCircle, ScanBarcode, Clock, Plus, Database, Settings as SettingsIcon
+    RotateCcw, Save, X, XCircle, ScanBarcode, Clock, Plus, Database, Settings as SettingsIcon, Check,
+    Bell, MessageSquare, History, BadgeCheck, AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,6 +29,7 @@ import {
     updateTicketDetails,
     getAllTechnicians
 } from "@/actions/ticket-actions";
+import { updateCustomer } from "@/actions/customer-actions";
 import { getCurrentUser } from "@/actions/auth";
 import { getEffectiveStoreSettings } from "@/actions/settings";
 import { getDefaultWarehouses } from "@/actions/inventory";
@@ -742,6 +745,52 @@ export default function TicketDetailPage() {
                                 </div>
                             </div>
                         </section>
+
+                        {/* ── [NEW] Notification History (Intelligence Log) ── */}
+                        <section id="section-notifications" className="pt-8 border-t-2 border-slate-300 dark:border-zinc-700">
+                            <SectionHeader icon={Bell}>سجل الإشعارات وذكاء التواصل</SectionHeader>
+                            <div className="bg-white/50 dark:bg-zinc-900/50 backdrop-blur-xl border-2 border-slate-300 dark:border-zinc-700 rounded-[24px] overflow-hidden shadow-2xl">
+                                <div className="px-6 py-6 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                    {!ticket.logs || ticket.logs.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-zinc-600">
+                                            <MessageSquare className="w-12 h-12 mb-3 opacity-20" />
+                                            <p className="text-sm font-bold tracking-wide">لا يوجد إشعارات مرسلة بعد</p>
+                                        </div>
+                                    ) : (
+                                        ticket.logs.map((log: any) => {
+                                            const metadata = log.metadata ? JSON.parse(log.metadata) : {};
+                                            return (
+                                                <div key={log.id} className="group flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 hover:border-slate-400 dark:hover:border-white/20 transition-all">
+                                                    <div className={cn(
+                                                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg",
+                                                        log.status === 'SENT' ? "bg-emerald-500/10 text-emerald-500" : (log.status === 'FAILED' ? "bg-red-500/10 text-red-500" : "bg-cyan-500/10 text-cyan-500 animate-pulse")
+                                                    )}>
+                                                        {log.status === 'SENT' ? <BadgeCheck className="w-5 h-5" /> : (log.status === 'FAILED' ? <History className="w-5 h-5" /> : <Clock className="w-5 h-5" />)}
+                                                    </div>
+                                                    <div className="flex-1 space-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[10px] font-black uppercase text-slate-500 dark:text-zinc-400 tracking-widest">{log.type} • {log.status}</span>
+                                                            <span className="text-[10px] text-slate-400 dark:text-zinc-600 font-mono">{new Date(log.sentAt).toLocaleString('ar-EG')}</span>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                                                            {metadata.triggeredStatus ? `تحديث الحالة إلى: ${metadata.triggeredStatus}` : 'إشعار مخصص للمحافظة على العميل'}
+                                                        </p>
+                                                        {metadata.riskLevel && (
+                                                            <div className="flex items-center gap-3 mt-2">
+                                                                <Badge className={cn("text-[9px] px-2 py-0", metadata.riskLevel === 'high' ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500")}>
+                                                                    Risk: {metadata.riskLevel}
+                                                                </Badge>
+                                                                <span className="text-[9px] text-slate-500 dark:text-zinc-500">Gap: {metadata.gapHours}h</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        </section>
                     </div>
 
                     {/* ── Left: Sticky Scrollspy Stepper ── */}
@@ -772,9 +821,13 @@ export default function TicketDetailPage() {
                                 variant="outline"
                                 className="w-full h-10 bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black rounded-xl text-[9px] font-black uppercase tracking-widest mt-1 transition-all"
                                 onClick={() => {
+                                    if (!ticket.customer) {
+                                        toast.error("يرجى ربط العميل أولاً لإرسال إشعارات تلقائية");
+                                        return;
+                                    }
                                     const template = getStatusTemplate(ticket.status, 'ar');
-                                    const url = generateWhatsAppUrl(ticket.customerPhone, template, {
-                                        name: ticket.customerName,
+                                    const url = generateWhatsAppUrl(ticket.customer.phone, template, {
+                                        name: ticket.customer.name,
                                         device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
                                         barcode: ticket.barcode, branch: 'الفرع الرئيسي', issue: ticket.issueDescription
                                     });
@@ -783,6 +836,71 @@ export default function TicketDetailPage() {
                             >
                                 <Send className="h-3.5 w-3.5 ml-2" /> مراسلة تليفونية
                             </Button>
+
+                            <div className="w-full pt-4 border-t border-slate-100 dark:border-white/5 mt-2 space-y-4">
+                                <div className="flex items-center justify-between px-1">
+                                    <div className="flex flex-col items-start gap-0.5">
+                                        <span className="text-[10px] font-black text-slate-900 dark:text-white flex items-center gap-1.5 uppercase">
+                                            <Bell className="w-3 h-3 text-cyan-500" />
+                                            استقبال الإشعارات
+                                        </span>
+                                        <span className="text-[8px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider">SMS / WHATSAPP</span>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={async () => {
+                                            if (!ticket.customer) {
+                                                toast.error("هذا العميل غير مسجل كعضو دائم");
+                                                return;
+                                            }
+                                            const currentVal = ticket.customer.receivesNotifications ?? true;
+                                            const newVal = !currentVal;
+                                            const res = await updateCustomer({ 
+                                                id: ticket.customer.id, 
+                                                name: ticket.customer.name, 
+                                                phone: ticket.customer.phone, 
+                                                receivesNotifications: newVal 
+                                            });
+                                            if (res.success) {
+                                                toast.success("تم تحديث خيارات الخصوصية");
+                                                loadData();
+                                            }
+                                        }}
+                                        className={cn(
+                                            "h-8 px-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2",
+                                            (ticket.customer?.receivesNotifications ?? true)
+                                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20"
+                                                : "bg-rose-500/10 text-rose-600 border-rose-500/20 hover:bg-rose-500/20"
+                                        )}
+                                    >
+                                        {(ticket.customer?.receivesNotifications ?? true) ? (
+                                            <>
+                                                <Check className="w-3.5 h-3.5" />
+                                                مفعل
+                                            </>
+                                        ) : (
+                                            <>
+                                                <X className="w-3.5 h-3.5" />
+                                                غير مفعل
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                                
+                                <div className="flex flex-col gap-1 px-1">
+                                    <span className="text-[9px] font-black text-slate-500 dark:text-zinc-600 uppercase tracking-widest">معدل النجاح التاريخي</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-1.5 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-emerald-500 relative shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-1000" 
+                                                style={{ width: `${ticket.successRatio || 0}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-black text-emerald-500 tabular-nums">{Math.round(ticket.successRatio || 0)}%</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </section>
 

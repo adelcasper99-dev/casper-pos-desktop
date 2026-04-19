@@ -77,6 +77,24 @@ export async function initDatabase(): Promise<void> {
         // ── Ensure Main Branch (V-05 fix: run once at startup, not on every login)
         const { ensureMainBranch } = await import('./ensure-main-branch');
         await ensureMainBranch();
+
+        // ── Orphan Purge (Permanent Fix: runs once at startup) ───────────────
+        // Removes any treasury/warehouse records whose branchId no longer exists.
+        // This is a safety net for data created before the onDelete: Cascade was applied.
+        const validBranches = await prisma.branch.findMany({ select: { id: true } });
+        const validBranchIds = validBranches.map(b => b.id);
+
+        if (validBranchIds.length > 0) {
+            const orphanedTreasuries = await prisma.treasury.deleteMany({
+                where: { branchId: { notIn: validBranchIds } }
+            });
+            const orphanedWarehouses = await prisma.warehouse.deleteMany({
+                where: { branchId: { notIn: validBranchIds } }
+            });
+            if (orphanedTreasuries.count > 0 || orphanedWarehouses.count > 0) {
+                logger.warn(`[DB] Orphan purge: removed ${orphanedTreasuries.count} treasuries, ${orphanedWarehouses.count} warehouses.`);
+            }
+        }
     } catch (err) {
         logger.error('[DB] initDatabase failed', err);
         // Non-fatal — app can still serve requests, just with reduced safety guarantees

@@ -34,6 +34,7 @@ export const DEFAULT_ACCOUNTS = [
     { code: '4200', name: 'Sales Returns',    type: ACCOUNT_TYPES.REVENUE, isSystem: true }, // Contra-revenue
     { code: '4300', name: 'Sales Discounts',  type: ACCOUNT_TYPES.REVENUE, isSystem: true }, // Contra-revenue
     { code: '4400', name: 'Other Income',     type: ACCOUNT_TYPES.REVENUE, isSystem: true }, // Misc income, tips, scrap
+    { code: '4500', name: 'E-Wallet Commission Revenue', type: ACCOUNT_TYPES.REVENUE, isSystem: true },
 
     // Expenses (5000-5999)
     { code: '5000', name: 'Cost of Goods Sold',            type: ACCOUNT_TYPES.EXPENSE, isSystem: true },

@@ -6,6 +6,7 @@ import { secureAction } from "@/lib/safe-action";
 
 import { getCurrentUser } from "./auth";
 import { getTranslations } from "@/lib/i18n-mock";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 
 /**
  * Get branches visible to current user
@@ -19,10 +20,9 @@ export const getVisibleBranches = secureAction(async () => {
 
 
     // Check if user is HQ/Admin who can see all branches
-    // We check role OR if their branch type is 'CENTER' (HQ)
-    const roleUpper = user.role?.toUpperCase() || '';
-    const isHQUser = roleUpper === 'ADMIN' ||
-        roleUpper === 'MANAGER' ||
+    // We check permissions OR if their branch type is 'CENTER' (HQ)
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.BRANCH_VIEW) || 
+        hasPermission(user.permissions, PERMISSIONS.REPORTS_VIEW_ALL) ||
         user.branchType === 'CENTER';
 
     // Fix: If user has no branchId but is not HQ, return all branches
@@ -51,10 +51,8 @@ export const getWarehousesByBranch = secureAction(async (branchId: string) => {
     if (!user) throw new Error("Not authenticated");
 
     // Check if user can access this branch
-    // Check if user can access this branch
-    const roleUpper = user.role?.toUpperCase() || '';
-    const isHQUser = roleUpper === 'ADMIN' ||
-        roleUpper === 'MANAGER' ||
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.BRANCH_VIEW) || 
+        hasPermission(user.permissions, PERMISSIONS.REPORTS_VIEW_ALL) ||
         user.branchType === 'CENTER';
 
     const t = await getTranslations('SystemMessages.Errors');
@@ -80,9 +78,8 @@ export const getAllWarehouses = secureAction(async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error(t('unauthorized'));
 
-    const roleUpper = user.role?.toUpperCase() || '';
-    const isHQUser = roleUpper === 'ADMIN' ||
-        roleUpper === 'MANAGER' ||
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.BRANCH_VIEW) || 
+        hasPermission(user.permissions, PERMISSIONS.REPORTS_VIEW_ALL) ||
         user.branchType === 'CENTER';
 
     let where: Prisma.WarehouseWhereInput = { deletedAt: null };

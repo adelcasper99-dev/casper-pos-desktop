@@ -164,5 +164,42 @@ This document serves as the "Source of Truth" for critical architectural decisio
     -   **Hardware Bridge**: Port 4040 (Network Printing).
 
 ---
+
+## 🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)
+
+### 🛸 Delta-based Pull Architecture
+*   **Rule**: The local POS database MUST periodically pull master data (Products, Categories, Models, Settings) from the cloud to ensure enterprise-wide consistency.
+*   **Delta Pull**: To minimize bandwidth and payload, the synchronizer uses a `since` timestamp. It only fetches records where `updatedAt >= lastPullTimestamp`.
+*   **Checkpointing**: The client stores a `lastPullTimestamp` in `syncMetadata` after every successful pull to mark the baseline for the next cycle.
+
+### 🛡️ Sync Hardening & Observability
+*   **Heartbeat Backoff**: `SyncService` implements a linear backoff (up to 5 minutes) if the cloud is unreachable, preventing "request storms" during network outages.
+*   **Decoupled Sync**: The Pull phase is decoupled from the Push queue. Terminals will check for HQ price updates even if no local sales are pending.
+*   **In-Cart Price Locking**: The POS Cart (`useCartStore`) captures and "locks" the price at the moment an item is added. Background pulls to the catalog do **not** affect active transactions, ensuring pricing consistency for customers at the counter.
+*   **Refined Reporting**: `SyncService` aggregates "soft failures" from individual operations. High-level logs now report exact item failure counts (e.g., "3 sales failed") instead of generic promise rejections.
+
+### 🔒 Sync Security & UI
+*   **Manual Override**: A "Force Catalog Sync" button allows cashiers to bypass the 30s heartbeat for immediate updates after an HQ price change.
+*   **Live Status Indicator**: A dedicated section in the POS status bar shows the catalog state (`Catalog OK`, `Syncing...`) and the timestamp of the last successful master data pull.
+*   **Payload Protection**: All pull endpoints are protected by the `x-sync-secret` header and restricted by a matching `SYNC_SECRET` environment variable.
+
+---
+
+### 🛡️ [NEW] E-Wallet Module & Isolated Commission Accounting
+*   **Module Objective**: Manage digital treasury movements (Vodafone Cash, InstaPay) independently of core sales.
+*   **Atomic Accounting**: Implements a 3-line journal entry within `prisma.$transaction`:
+    1.  **Digital Leg**: Movement in the digital treasury (e.g., charge 1000 EGP).
+    2.  **Physical Leg**: Balancing movement in the cash safe (e.g., receive 1005 EGP).
+    3.  **Revenue Leg**: Isolated recording of the 5 EGP commission in **GL Account 4500 (E-Wallet Commission Revenue)**.
+*   **Shift Z-Report Sync**: Wallet transactions automatically update `totalCashSales` and `totalWalletSales` in the active `Shift` record to ensure zero variance during cashier reconciliation.
+*   **Replay Protection**: Mandatory `idempotencyKey` generation in the UI to prevent double-processing during network lag.
+
+### 🏗️ [NEW] Domain Type Centralization Protocol
+*   **Problem**: Local interface duplication causes "Two different types with this name exist" build failures during schema updates.
+*   **Protocol**: All shared entities (Treasury, Sale, Ticket, Product) MUST be defined in centralized files within `src/types/`.
+*   **Rule**: Component-level "Shadow Types" are strictly forbidden for core domain entities. Components MUST import from `@/types/[domain].ts` to ensure build-time synchronization with backend actions.
+
+---
+
 *Created: April 2, 2026*
-*Last Update: April 16, 2026 (Unified Accounting, Return Workflows & Connectivity)*
+*Last Update: April 19, 2026 (E-Wallet Module, Atomic Accounting & Type Centralization)*

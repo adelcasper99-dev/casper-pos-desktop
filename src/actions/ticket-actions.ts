@@ -34,10 +34,10 @@ async function getNextTicketNumber() {
  * Returns true if the ticket is LOCKED.
  * Admins can always bypass the lock.
  */
-function checkTicketLock(ticket: { status: string }, user: { role: string }) {
+function checkTicketLock(ticket: { status: string }, user: any) {
     if (!ticket || !user) return false;
-    const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
-    if (isAdmin) return false;
+    const canBypassLock = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (canBypassLock) return false;
 
     if (ticket.status === 'RETURNED_FOR_REFIX') return false;
 
@@ -213,7 +213,17 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
             clientSupplier: true,
             completedBy: true,
             movement: true,
-            logs: { orderBy: { sentAt: 'desc' } },
+            logs: { 
+                select: {
+                    id: true,
+                    type: true,
+                    status: true,
+                    metadata: true,
+                    sentAt: true
+                },
+                orderBy: { sentAt: 'desc' },
+                take: 5
+            },
             notes: { orderBy: { createdAt: 'desc' } },
             parts: { include: { product: true } },
             payments: true,
@@ -234,9 +244,54 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
 
     if (!ticket) throw new Error("Ticket not found");
 
+    // 🔍 Auto-Link/Fallback: If no direct customer relation, try lookup by phone
+    let effectiveCustomer = ticket.customer;
+    if (!effectiveCustomer && ticket.customerPhone) {
+        effectiveCustomer = await prisma.customer.findUnique({
+            where: { phone: ticket.customerPhone }
+        });
+    }
+
+    // 🚀 Intelligence Metrics Calculation
+    const now = new Date();
+    const lastUpdate = new Date(ticket.updatedAt);
+    const diffMs = now.getTime() - lastUpdate.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    
+    let gap = '';
+    if (diffDays > 0) gap = `${diffDays}d ${diffHours % 24}h`;
+    else if (diffHours > 0) gap = `${diffHours}h`;
+    else gap = `${Math.floor(diffMs / 60000)}m`;
+
+    let riskLevel = 'low';
+    let isOverdue = false;
+    if (ticket.expectedDuration && !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'REJECTED'].includes(ticket.status)) {
+        const created = new Date(ticket.createdAt).getTime();
+        const dueTime = created + (ticket.expectedDuration * 60000);
+        isOverdue = now.getTime() > dueTime;
+    }
+
+    if (isOverdue || (ticket as any).returnCount > 1) {
+        riskLevel = 'high';
+    } else if (diffDays >= 3) {
+        riskLevel = 'medium';
+    }
+
+    // Success Ratio: Customer's historical completion rate
+    const totalCustomerTickets = await prisma.ticket.count({ where: { customerId: ticket.customerId } });
+    const successfulCustomerTickets = await prisma.ticket.count({ 
+        where: { 
+            customerId: ticket.customerId, 
+            status: { in: ['COMPLETED', 'DELIVERED', 'PAID_DELIVERED', 'PICKED_UP', 'READY_AT_BRANCH'] } 
+        } 
+    });
+    const successRatio = totalCustomerTickets > 0 ? (successfulCustomerTickets / totalCustomerTickets) * 100 : 100;
+
     return {
         ticket: {
             ...ticket,
+            customer: effectiveCustomer,
             initialQuote: Number(ticket.initialQuote),
             repairPrice: Number(ticket.repairPrice),
             partsCost: Number(ticket.partsCost),
@@ -244,6 +299,10 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
             commissionAmount: Number(ticket.commissionAmount),
             netProfit: Number(ticket.netProfit),
             amountPaid: Number(ticket.amountPaid),
+            gap,
+            riskLevel,
+            isOverdue,
+            successRatio,
             parts: ticket.parts.map(p => ({
                 ...p,
                 cost: Number(p.cost),
@@ -494,11 +553,11 @@ export const assignTechnician = secureAction(async (data: { ticketId: string, te
         throw new Error("هذه التذكرة مغلقة ولا يمكن تغيير الفني المسؤول.");
     }
 
-    // 🛡️ STRICT WARRANTY GUARD: Block reassignment for warranty returns unless ADMIN
+    // 🛡️ STRICT WARRANTY GUARD: Block reassignment for warranty returns unless Admin/Override
     if (existing.isWarrantyReturn) {
-        const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
-        if (!isAdmin) {
-            throw new Error("لا يمكن إعادة تعيين الفني لتذكرة ضمان إلا من قبل مدير النظام.");
+        const canOverride = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+        if (!canOverride) {
+            throw new Error("لا يمكن إعادة تعيين الفني لتذكرة ضمان إلا من قبل مدير النظام (صلاحية تجاوز).");
         }
     }
 
@@ -678,6 +737,16 @@ export const updateTicketStatus = secureAction(async (data: {
 
         return ticket;
     }, { timeout: 60000 });
+    
+    // 🚀 Intelligence-Aware Notifications (Async/Non-blocking)
+    const notificationTriggers = ['COMPLETED', 'READY_AT_BRANCH', 'REJECTED', 'IN_PROGRESS', 'PICKED_UP'];
+    if (notificationTriggers.includes(status)) {
+        // We use dynamic import to ensure the service is loaded only when needed 
+        // and to keep this action's initial bundle smaller.
+        import('@/lib/notification-service').then(({ NotificationService }) => {
+            NotificationService.sendTicketStatusNotification(ticketId, status);
+        }).catch(err => console.error('[Notification Trigger Error]:', err));
+    }
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     revalidatePath("/ar/maintenance/tickets");
@@ -685,6 +754,38 @@ export const updateTicketStatus = secureAction(async (data: {
 
     return { success: true, ticket: result };
 }, { permission: PERMISSIONS.TICKET_WORKFLOW });
+
+/**
+ * Log a manual notification attempt (e.g. WhatsApp Quick Button)
+ */
+export const logTicketNotification = secureAction(async (data: {
+    ticketId: string;
+    type: string;
+    status: string;
+    metadata?: any;
+}) => {
+    const { ticketId, type, status, metadata } = data;
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const log = await prisma.notificationLog.create({
+        data: {
+            ticketId,
+            type,
+            status,
+            metadata: metadata ? JSON.stringify({
+                ...metadata,
+                staffName: user.name || user.username,
+                source: 'MANUAL_UI'
+            }) : JSON.stringify({
+                staffName: user.name || user.username,
+                source: 'MANUAL_UI'
+            })
+        }
+    });
+
+    return { success: true, log };
+}, { permission: PERMISSIONS.TICKET_VIEW }); // View permission is enough to log communication attempts
 
 /**
  * Undo the last status change for a ticket
@@ -749,10 +850,10 @@ export const rejectTicket = secureAction(async (data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // Check if user is admin or supervisor
-    const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
-    if (!isAdmin) {
-        throw new Error("لا يمكنك رفض التذكرة. يتطلب الأمر صلاحية المدير أو المشرف");
+    // Check if user has override or workflow admin permissions
+    const canReject = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE) || hasPermission(user.permissions, PERMISSIONS.TICKET_WORKFLOW);
+    if (!canReject) {
+        throw new Error("لا يمكنك رفض التذكرة. يتطلب الأمر صلاحية المدير أو المشرف.");
     }
 
     // Validate reason is provided
@@ -1803,7 +1904,7 @@ export const removeTicketPart = secureAction(async (data: {
 
     const user = await getCurrentUser();
     if (part.ticket && ['DELIVERED', 'PICKED_UP', 'PAID_DELIVERED'].includes(part.ticket.status)) {
-        const canEditClosed = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'مدير النظام' || user?.role === 'المالك';
+        const canEditClosed = hasPermission(user?.permissions, PERMISSIONS.TICKET_OVERRIDE);
         if (!canEditClosed) {
             throw new Error("This ticket is closed and parts can only be removed by an Admin or Manager.");
         }
@@ -2434,7 +2535,7 @@ export const addCollaborator = secureAction(async (data: {
     });
 
     if (!ticket) throw new Error("Ticket not found");
-    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    const isGlobalAdmin = currentUser.isGlobalAdmin || hasPermission(currentUser.permissions, '*');
     if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
         throw new Error("Unauthorized: Ticket belongs to another branch");
     }
@@ -2480,7 +2581,7 @@ export const removeCollaborator = secureAction(async (data: {
     });
 
     if (!ticket) throw new Error("Ticket not found");
-    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    const isGlobalAdmin = currentUser.isGlobalAdmin || hasPermission(currentUser.permissions, '*');
     if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
         throw new Error("Unauthorized: Ticket belongs to another branch");
     }
@@ -2521,7 +2622,7 @@ export const updateCollaboratorCommission = secureAction(async (data: {
     });
 
     if (!ticket) throw new Error("Ticket not found");
-    const isGlobalAdmin = currentUser.role === 'ADMIN' || currentUser.isGlobalAdmin;
+    const isGlobalAdmin = currentUser.isGlobalAdmin || hasPermission(currentUser.permissions, '*');
     if (!isGlobalAdmin && currentUser.branchId && ticket.currentBranchId !== currentUser.branchId) {
         throw new Error("Unauthorized: Ticket belongs to another branch");
     }
@@ -2689,9 +2790,9 @@ export const fullTicketReturn = secureAction(async (data: {
     }
 
     // 2. Auth/Guard check
-    const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER' || currentUser.role === 'مدير النظام' || currentUser.role === 'المالك';
-    if (!isAdmin) {
-        throw new Error("Only an Admin or Manager can perform a full ticket return.");
+    const canReturnTicket = hasPermission(currentUser.permissions, PERMISSIONS.TICKET_OVERRIDE) || hasPermission(currentUser.permissions, PERMISSIONS.TICKET_EDIT);
+    if (!canReturnTicket) {
+        throw new Error("Only users with Ticket Override or Edit permission can perform a full ticket return.");
     }
 
     // 3. Prevent multiple returns
@@ -2842,16 +2943,21 @@ export const fullTicketReturn = secureAction(async (data: {
                         });
 
                         for (const collab of collaborators) {
-                            const collabCommission = (new Decimal(ticket.repairPrice?.toString() || 0).minus(new Decimal(ticket.partsCost?.toString() || 0)))
-                                .mul(new Decimal(collab.commissionRate?.toString() || 0))
-                                .div(100);
+                            // Find the actual commission transaction for this collaborator
+                            const postedCollabComm = await tx.employeeTransaction.findFirst({
+                                where: {
+                                    userId: collab.technician.userId,
+                                    referenceId: ticket.id,
+                                    type: 'MAINTENANCE_COMMISSION'
+                                }
+                            });
 
-                            if (collabCommission.gt(0)) {
+                            if (postedCollabComm) {
                                 await tx.employeeTransaction.create({
                                     data: {
                                         userId: collab.technician.userId,
                                         type: 'MAINTENANCE_COMMISSION_REVERSAL',
-                                        amount: collabCommission,
+                                        amount: postedCollabComm.amount,
                                         description: `عكس عمولة تعاون (مرتجع كلي) - تذكرة #${ticket.barcode}`,
                                         referenceId: ticket.id,
                                         referenceType: 'TICKET_RETURN',

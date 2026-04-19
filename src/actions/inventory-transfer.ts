@@ -207,8 +207,8 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                     reference: `TRF-${Date.now()}`,
                     branchId: sourceBranchId,
                     lines: [
-                        { accountCode: destGlCode, debit: toNumber(totalTransferValue), credit: 0, description: `Inventory Received at ${destName}` },
-                        { accountCode: sourceGlCode, debit: 0, credit: toNumber(totalTransferValue), description: `Inventory Dispatched from ${sourceName}` }
+                        { accountCode: destGlCode, debit: totalTransferValue, credit: 0, description: `Inventory Received at ${destName}` },
+                        { accountCode: sourceGlCode, debit: 0, credit: totalTransferValue, description: `Inventory Dispatched from ${sourceName}` }
                     ]
                 }, tx);
             }
@@ -241,7 +241,7 @@ export const getTransferHistory = async (filters?: z.infer<typeof TransferHistor
         }
 
         const user = session.user;
-        const hasAccess = hasPermission(user.permissions, PERMISSIONS.INVENTORY_VIEW) || user.role === 'ADMIN';
+        const hasAccess = hasPermission(user.permissions, PERMISSIONS.INVENTORY_VIEW);
         if (!hasAccess) {
             return { success: false, message: "Insufficient permissions" };
         }

@@ -47,6 +47,7 @@ vi.mock('../lib/prisma', () => ({
         ticketNote: {
             create: vi.fn(),
         },
+        $queryRaw: vi.fn(),
         $transaction: vi.fn((cb) => cb(prisma)),
     },
 }));
@@ -110,35 +111,31 @@ describe('Ticket Modular Actions', () => {
 
     describe('getNextTicketNumber', () => {
         it('should return B1-T001 if no tickets exist for branch B1', async () => {
-            (prisma.ticket.findMany as any).mockResolvedValue([]);
-            (prisma.ticket.findUnique as any).mockResolvedValue(null);
+            (prisma.$queryRaw as any).mockResolvedValue([{ value: 1 }]);
 
             const result = await getNextTicketNumber('b1');
             expect(result).toBe('B1-T001');
         });
 
-        it('should increment the highest found ticket number for branch B1', async () => {
-            (prisma.ticket.findMany as any).mockResolvedValue([
-                { barcode: 'B1-T005' },
-                { barcode: 'B1-T002' }
-            ]);
-            (prisma.ticket.findUnique as any).mockResolvedValue(null);
+        it('should increment the sequence value for branch B1', async () => {
+            (prisma.$queryRaw as any).mockResolvedValue([{ value: 6 }]);
 
             const result = await getNextTicketNumber('b1');
             expect(result).toBe('B1-T006');
         });
 
-        it('should respect branch isolation (B1 vs B2)', async () => {
+        it('should respect branch isolation via sequence name', async () => {
             (prisma.branch.findUnique as any).mockImplementation((args: any) => {
                 if (args.where.id === 'b1') return Promise.resolve({ id: 'b1', code: 'B1' });
                 if (args.where.id === 'b2') return Promise.resolve({ id: 'b2', code: 'B2' });
                 return Promise.resolve(null);
             });
 
-            (prisma.ticket.findMany as any).mockImplementation((args: any) => {
-                if (args.where.barcode.startsWith === 'B1-T') return Promise.resolve([{ barcode: 'B1-T010' }]);
-                if (args.where.barcode.startsWith === 'B2-T') return Promise.resolve([{ barcode: 'B2-T020' }]);
-                return Promise.resolve([]);
+            (prisma.$queryRaw as any).mockImplementation((query: any, ...args: any[]) => {
+                const seqName = args[0];
+                if (seqName === 'B1-T') return Promise.resolve([{ value: 11 }]);
+                if (seqName === 'B2-T') return Promise.resolve([{ value: 21 }]);
+                return Promise.resolve([{ value: 1 }]);
             });
 
             const res1 = await getNextTicketNumber('b1');
@@ -151,8 +148,7 @@ describe('Ticket Modular Actions', () => {
 
     describe('createTicket', () => {
         it('should create a ticket with B1- branch prefix', async () => {
-            (prisma.ticket.findMany as any).mockResolvedValue([]);
-            (prisma.ticket.findUnique as any).mockResolvedValue(null);
+            (prisma.$queryRaw as any).mockResolvedValue([{ value: 1 }]);
             (prisma.customer.upsert as any).mockResolvedValue({ id: 'cust-1' });
             (prisma.ticket.create as any).mockResolvedValue({ id: 't-1', barcode: 'B1-T001' });
             (prisma.shift.findUnique as any).mockResolvedValue({ id: 'shift-1' });

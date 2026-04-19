@@ -194,7 +194,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         // Audit: ensure valid DB userId
         let creatorId: string | null = currentUser.id;
         if (creatorId === 'super-admin') {
-            const fallback = await tx.user.findFirst({ where: { roleStr: 'ADMIN' } }) || await tx.user.findFirst({ where: { isGlobalAdmin: true } });
+            const fallback = await tx.user.findFirst({ where: { isGlobalAdmin: true } }) || await tx.user.findFirst();
             creatorId = fallback?.id || null;
         }
 

@@ -10,6 +10,7 @@ import { userSchema } from '@/lib/validation/users';
 import { logger } from '@/lib/logger';
 import { getSession, invalidateUserSessions, UserSession } from '@/lib/auth';
 import { ensureMainBranch } from '@/lib/ensure-main-branch';
+import { hasPermission, PERMISSIONS } from '@/lib/permissions';
 
 /**
  * Validates that the active user has sufficient privileges to create/modify/delete
@@ -20,8 +21,8 @@ async function checkPrivilegeEscalation(
     targetRoleId?: string,
     existingUserId?: string
 ) {
-    // 1. Admins and super-admins bypass all checks
-    if (sessionUser.role === 'ADMIN' || sessionUser.role === 'مدير النظام' || sessionUser.role === 'المالك' || sessionUser.permissions?.includes('*')) {
+    // 1. Super-admins (wildcard permission) bypass all checks
+    if (hasPermission(sessionUser.permissions, '*')) {
         return;
     }
 
@@ -35,9 +36,16 @@ async function checkPrivilegeEscalation(
         });
 
         if (targetUser) {
-            // Protect Admin role
-            if (targetUser.roleStr === 'ADMIN' || targetUser.role?.name === 'Admin' || targetUser.role?.name === 'مدير النظام' || targetUser.role?.name === 'المالك' || targetUser.isGlobalAdmin) {
-                throw new Error("Forbidden: You cannot modify or delete a system administrator.");
+            // Protect System Admins (Wildcard or Global flag)
+            let targetPerms: string[] = [];
+            try {
+                targetPerms = JSON.parse(targetUser.role?.permissions || '[]');
+            } catch (e) {
+                targetPerms = [];
+            }
+
+            if (targetPerms.includes('*') || targetUser.isGlobalAdmin) {
+                throw new Error("Forbidden: You cannot modify or delete a system administrator (Wildcard permissions).");
             }
 
             // Protect users with 'settings' or 'roles' permissions
@@ -65,14 +73,6 @@ async function checkPrivilegeEscalation(
         const targetRole = await prisma.role.findUnique({ where: { id: targetRoleId } });
         if (!targetRole) return;
 
-        const targetRoleName = targetRole.name.toUpperCase();
-
-        // Non-admins cannot assign Admin roles
-        if (targetRoleName === 'ADMIN' || targetRoleName === 'ADMINISTRATOR' || targetRoleName === 'مدير النظام' || targetRoleName === 'المالك') {
-            throw new Error("Forbidden: Only system admins can assign the Administrator role.");
-        }
-
-        // Validate that target role doesn't contain forbidden permissions
         let targetPerms: string[] = [];
         try {
             targetPerms = JSON.parse(targetRole.permissions || '[]');
@@ -80,6 +80,12 @@ async function checkPrivilegeEscalation(
             targetPerms = [];
         }
 
+        // Non-globals cannot assign roles with the wildcard permission
+        if (targetPerms.includes('*')) {
+            throw new Error("Forbidden: Only system admins can assign roles with unrestricted (*) permissions.");
+        }
+
+        // Validate that target role doesn't contain forbidden permissions
         if (forbiddenPerms.some(p => targetPerms.includes(p))) {
             throw new Error("Forbidden: You cannot assign a role that contains system configuration permissions (Settings/Roles).");
         }
@@ -103,9 +109,8 @@ type UserWithRelations = Prisma.UserGetPayload<{
 
 export const getUsers = secureAction(async () => {
     const session = await getSession();
-    // In desktop project, simplified permissions might mean session.user.permissions is undefined or empty
-    const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'مدير النظام' || session?.user?.role === 'المالك' || session?.user?.permissions?.includes('*');
-    const canViewSalary = isAdmin || session?.user?.permissions?.includes('HR_VIEW_COMPENSATION');
+    const isSuperAdmin = hasPermission(session?.user?.permissions, '*');
+    const canViewSalary = isSuperAdmin || hasPermission(session?.user?.permissions, PERMISSIONS.HR_VIEW_COMPENSATION);
 
     const users = await prisma.user.findMany({
         where: { deletedAt: null },
@@ -132,8 +137,8 @@ export const getUsers = secureAction(async () => {
 
 export const getUsersByBranch = secureAction(async (branchId: string) => {
     const session = await getSession();
-    const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'مدير النظام' || session?.user?.role === 'المالك' || session?.user?.permissions?.includes('*');
-    const canViewSalary = isAdmin || session?.user?.permissions?.includes('HR_VIEW_COMPENSATION');
+    const isSuperAdmin = hasPermission(session?.user?.permissions, '*');
+    const canViewSalary = isSuperAdmin || hasPermission(session?.user?.permissions, PERMISSIONS.HR_VIEW_COMPENSATION);
 
     const users = await prisma.user.findMany({
         where: { branchId, deletedAt: null },
@@ -169,8 +174,7 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema> &
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId);
 
-    const isAdmin = (role: string) => role === 'ADMIN' || role === 'مدير النظام' || role === 'المالك';
-    if (isGlobalAdmin && !isAdmin(session.user.role)) {
+    if (isGlobalAdmin && !hasPermission(session.user.permissions, '*')) {
         throw new Error("Forbidden: Only admins can set global admin status.");
     }
 
@@ -301,8 +305,7 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
     // Privilege Escalation Check
     await checkPrivilegeEscalation(session.user, roleId, id);
 
-    const isSystemAdmin = (role: string) => role === 'ADMIN' || role === 'مدير النظام' || role === 'المالك';
-    if (isGlobalAdmin && !isSystemAdmin(session.user.role)) {
+    if (isGlobalAdmin && !hasPermission(session.user.permissions, '*')) {
         throw new Error("Forbidden: Only admins can set global admin status.");
     }
 
@@ -526,15 +529,15 @@ export async function getUsersForPage() {
     }
 
     const user = session.user;
-    const hasPermission = user.role === 'ADMIN' || user.role === 'مدير النظام' || user.role === 'المالك' || user.permissions?.includes('MANAGE_USERS') || user.permissions?.includes('*');
+    const canManageUsers = hasPermission(user.permissions, PERMISSIONS.MANAGE_USERS);
 
-    if (!hasPermission) {
+    if (!canManageUsers) {
         const { getTranslations } = await import('@/lib/i18n-mock');
         const t = await getTranslations('SystemMessages.Errors');
         throw new Error(t('forbidden'));
     }
 
-    const canViewSalary = user.role === 'ADMIN' || user.permissions?.includes('HR_VIEW_COMPENSATION');
+    const canViewSalary = hasPermission(user.permissions, PERMISSIONS.HR_VIEW_COMPENSATION);
 
     const users = await prisma.user.findMany({
         where: { deletedAt: null },

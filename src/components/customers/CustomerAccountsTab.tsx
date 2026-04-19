@@ -7,7 +7,7 @@ import {
     ArrowUpRight, ArrowDownLeft, Settings,
     ShoppingBag, Wallet, Info, ChevronUp, ChevronDown, ArrowUpDown,
     MoreVertical, Edit2, AlertTriangle, TrendingUp, Clock, Activity, Loader2,
-    MapPin, Mail, Wrench
+    MapPin, Mail, Wrench, Check, X
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
@@ -65,7 +65,7 @@ export default function CustomerAccountsTab() {
     // Form States
     const [paymentData, setPaymentData] = useState({ amount: '', method: 'CASH' as any, reference: '' });
     const [limitValue, setLimitValue] = useState('');
-    const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '' });
+    const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', receivesNotifications: true });
 
     useEffect(() => {
         loadData();
@@ -122,7 +122,8 @@ export default function CustomerAccountsTab() {
             name: customer.name,
             phone: customer.phone,
             email: customer.email || '',
-            address: customer.address || ''
+            address: customer.address || '',
+            receivesNotifications: customer.receivesNotifications ?? true
         });
         setShowEditModal(true);
     };
@@ -937,6 +938,26 @@ export default function CustomerAccountsTab() {
                                 value={editForm.address}
                                 onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-zinc-500">خيارات الإشعارات</label>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setEditForm(prev => ({ ...prev, receivesNotifications: !prev.receivesNotifications }))}
+                                className={cn(
+                                    "w-full h-11 rounded-xl flex items-center justify-between px-4 transition-all",
+                                    editForm.receivesNotifications 
+                                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" 
+                                        : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                                )}
+                            >
+                                <span className="font-bold text-sm">استقبال الإشعارات (SMS/WhatsApp)</span>
+                                <div className="flex items-center gap-2">
+                                    {editForm.receivesNotifications ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                    <span className="text-[10px] font-black uppercase">{editForm.receivesNotifications ? "مفعل" : "غير مفعل"}</span>
+                                </div>
+                            </Button>
                         </div>
                     </div>
                     <DialogFooter className="gap-3">

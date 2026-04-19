@@ -149,7 +149,7 @@ model Warehouse {
   wastages             StockWastage[]
   technicians          Technician[]
   ticketParts          TicketPart[]
-  branch               Branch            @relation(fields: [branchId], references: [id])
+  branch               Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
 }
 
 model Customer {
@@ -169,6 +169,7 @@ model Customer {
   transactions     CustomerTransaction[]
   sales            Sale[]
   tickets          Ticket[]
+  receivesNotifications Boolean @default(true)
 }
 
 model CustomerTransaction {
@@ -673,7 +674,7 @@ model Treasury {
   deletedAt     DateTime?
   glCode        String?       @default("1000")
   transactions  Transaction[]
-  branch        Branch        @relation(fields: [branchId], references: [id])
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, name])
 }
@@ -873,7 +874,7 @@ model NotificationLog {
   ticketId String
   type     String
   status   String
-  message  String?
+  metadata String?
   sentAt   DateTime @default(now())
   ticket   Ticket   @relation(fields: [ticketId], references: [id])
 }

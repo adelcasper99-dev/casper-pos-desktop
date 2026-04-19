@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "../auth";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
@@ -29,10 +29,10 @@ export async function getNextTicketNumber(branchId?: string): Promise<string> {
 /**
  * Helper to check if a ticket is locked
  */
-export function checkTicketLock(ticket: { status: string }, user: { role: string }) {
+export function checkTicketLock(ticket: { status: string }, user: any) {
     if (!ticket || !user) return false;
-    const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
-    if (isAdmin) return false;
+    const canBypassLock = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (canBypassLock) return false;
 
     if (ticket.status === 'RETURNED_FOR_REFIX') return false;
 
@@ -56,11 +56,11 @@ export const assignTechnician = secureAction(async (data: { ticketId: string, te
         throw new Error("هذه التذكرة مغلقة ولا يمكن تغيير الفني المسؤول.");
     }
 
-    // 🛡️ STRICT WARRANTY GUARD: Block reassignment for warranty returns unless ADMIN
+    // 🛡️ STRICT WARRANTY GUARD: Block reassignment for warranty returns unless Admin/Override
     if (existing.isWarrantyReturn) {
-        const isAdmin = ['ADMIN', 'مدير النظام', 'المالك'].includes(user.role);
-        if (!isAdmin) {
-            throw new Error("لا يمكن إعادة تعيين الفني لتذكرة ضمان إلا من قبل مدير النظام.");
+        const canOverride = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+        if (!canOverride) {
+            throw new Error("لا يمكن إعادة تعيين الفني لتذكرة ضمان إلا من قبل مدير النظام (صلاحية تجاوز).");
         }
     }
 

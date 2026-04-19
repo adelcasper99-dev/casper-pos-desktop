@@ -119,6 +119,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return () => ipcRenderer.removeListener('updater:error', handler);
         },
         installUpdate: () => ipcRenderer.invoke('app:install-update')
+    },
+
+    /**
+     * Shell API (Safe access to OS-level functions)
+     */
+    shell: {
+        openExternal: (url) => ipcRenderer.invoke('shell:open-external', url)
     }
 });
 

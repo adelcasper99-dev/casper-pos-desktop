@@ -13,22 +13,96 @@ import bcrypt from "bcryptjs";
 /**
  * Wipes all application data so setup can run on a clean slate.
  */
-async function resetForSetup(): Promise<void> {
-    // Reset in-memory caches before any DB wipe
+/**
+ * Selective Reset Options
+ */
+export interface ResetOptions {
+    keepProducts?: boolean;
+    keepCustomers?: boolean;
+    keepEmployees?: boolean;
+    keepSettings?: boolean;
+    keepTreasuryAndWarehouses?: boolean;
+}
+
+/**
+ * Wipes application data selectively so setup can run on a clean slate.
+ */
+async function resetForSetup(options: ResetOptions = {}): Promise<void> {
     const { resetBranchCache } = await import('@/lib/ensure-main-branch');
     resetBranchCache();
 
     await prisma.$executeRawUnsafe('PRAGMA foreign_keys=OFF;');
     try {
+        // ALWAYS WIPE (Sensitive/Session Data)
         await prisma.session.deleteMany({});
-        await prisma.user.deleteMany({});
+        await prisma.actionLog.deleteMany({});
         await prisma.auditLog.deleteMany({});
-        await prisma.treasury.deleteMany({});
-        await prisma.warehouse.deleteMany({});
-        await prisma.branch.deleteMany({});
-        await prisma.storeSettings.deleteMany({});
-        await prisma.account.deleteMany({});
-        await prisma.unitOfMeasure.deleteMany({});
+
+        // MODULE: Financials & Sales (Usually wiped to clear balances)
+        await prisma.journalLine.deleteMany({});
+        await prisma.journalEntry.deleteMany({});
+        await prisma.transaction.deleteMany({});
+        await prisma.customerTransaction.deleteMany({});
+        await prisma.supplierPayment.deleteMany({});
+        await prisma.saleItem.deleteMany({});
+        await prisma.sale.deleteMany({});
+        await prisma.purchaseItem.deleteMany({});
+        await prisma.purchaseInvoice.deleteMany({});
+        await prisma.expense.deleteMany({});
+        await prisma.shiftAdjustment.deleteMany({});
+        await prisma.shift.deleteMany({});
+
+        // MODULE: Maintenance & Tickets
+        await prisma.ticketPart.deleteMany({});
+        await prisma.ticketCollaborator.deleteMany({});
+        await prisma.ticket.deleteMany({});
+
+        // MODULE: Inventory Movements
+        await prisma.stockMovement.deleteMany({});
+        await prisma.stockRequestItem.deleteMany({});
+        await prisma.stockRequest.deleteMany({});
+        await prisma.stockWastage.deleteMany({});
+        await prisma.stock.deleteMany({});
+
+        // CONDITIONAL MODULE: Products
+        if (!options.keepProducts) {
+            await prisma.bundleItem.deleteMany({});
+            await prisma.product.deleteMany({});
+            await prisma.model.deleteMany({});
+            await prisma.category.deleteMany({});
+            await prisma.attribute.deleteMany({});
+            await prisma.unitOfMeasure.deleteMany({});
+        }
+
+        // CONDITIONAL MODULE: People (Customers/Suppliers)
+        if (!options.keepCustomers) {
+            await prisma.customer.deleteMany({});
+            await prisma.supplier.deleteMany({});
+        }
+
+        // CONDITIONAL MODULE: Employees
+        if (!options.keepEmployees) {
+            await prisma.technicianPerformance.deleteMany({});
+            await prisma.technician.deleteMany({});
+            await prisma.dailyWorkLog.deleteMany({});
+            await prisma.employeeTransaction.deleteMany({});
+            await prisma.user.deleteMany({});
+            await prisma.role.deleteMany({});
+        }
+
+        // CONDITIONAL MODULE: Infrastructure (Treasury/Warehouse/Branch)
+        if (!options.keepTreasuryAndWarehouses) {
+            await prisma.treasury.deleteMany({});
+            await prisma.warehouse.deleteMany({});
+            
+            // Only wipe branch/settings if we are not keeping anything
+            if (!options.keepSettings) {
+                await prisma.branch.deleteMany({});
+                await prisma.storeSettings.deleteMany({});
+                await prisma.account.deleteMany({});
+            }
+        }
+
     } finally {
         await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
     }
@@ -47,13 +121,21 @@ export async function performSetup(data: {
     settings: {
         taxRate: number;
         currency: string;
-    }
+    },
+    options?: ResetOptions
 }) {
-    await resetForSetup();
+    // Perform selective reset
+    await resetForSetup(data.options || {});
 
-    // Store Settings (read by ensureMainBranch to name warehouse correctly)
-    await prisma.storeSettings.create({
-        data: {
+    // Ensure core settings exist (Upsert logic to avoid duplication if kept)
+    await prisma.storeSettings.upsert({
+        where: { id: "settings" },
+        update: {
+            name: data.branch.name,
+            taxRate: data.settings.taxRate,
+            currency: data.settings.currency,
+        },
+        create: {
             id: "settings",
             name: data.branch.name,
             taxRate: data.settings.taxRate,
@@ -61,40 +143,62 @@ export async function performSetup(data: {
         }
     });
 
-    await prisma.$transaction(async (tx) => {
-        // 1. Branch
-        const branch = await tx.branch.create({
-            data: {
+    // We use a transaction for the core structural creation
+    const result = await prisma.$transaction(async (tx) => {
+        // 1. Branch (Upsert to prevent duplication)
+        const branch = await tx.branch.upsert({
+            where: { code: "MAIN" },
+            update: {
+                name: data.branch.name,
+                type: data.branch.type,
+            },
+            create: {
                 name: data.branch.name,
                 code: "MAIN",
                 type: data.branch.type,
             }
         });
 
-        // 2. Default Warehouse (always created with setup)
-        await tx.warehouse.create({
-            data: {
-                name: data.branch.name,
-                branchId: branch.id,
-                isDefault: true,
-            }
+        // 2. Default Warehouse
+        const existingWarehouse = await tx.warehouse.findFirst({
+            where: { branchId: branch.id, isDefault: true }
         });
+        if (!existingWarehouse) {
+            await tx.warehouse.create({
+                data: {
+                    name: data.branch.name,
+                    branchId: branch.id,
+                    isDefault: true,
+                }
+            });
+        }
 
         // 3. Default CASH Treasury
-        await tx.treasury.create({
-            data: {
-                name: 'الخزنة النقدية',
-                paymentMethod: 'CASH',
-                branchId: branch.id,
-                isDefault: true,
-                balance: 0,
-            }
+        const existingTreasury = await tx.treasury.findFirst({
+            where: { branchId: branch.id, paymentMethod: 'CASH' }
         });
+        if (!existingTreasury) {
+            await tx.treasury.create({
+                data: {
+                    name: 'الخزنة النقدية',
+                    paymentMethod: 'CASH',
+                    branchId: branch.id,
+                    isDefault: true,
+                    balance: 0,
+                }
+            });
+        }
 
-        // 4. Admin User
+        // 4. Admin User (Upsert)
         const hashedPassword = await bcrypt.hash(data.admin.password, 10);
-        await tx.user.create({
-            data: {
+        await tx.user.upsert({
+            where: { username: data.admin.username },
+            update: {
+                password: hashedPassword,
+                name: data.admin.name,
+                roleStr: "ADMIN",
+            },
+            create: {
                 username: data.admin.username,
                 password: hashedPassword,
                 name: data.admin.name,
@@ -102,13 +206,15 @@ export async function performSetup(data: {
                 branchId: branch.id
             }
         });
+
+        return { branchId: branch.id };
     });
 
-    // Seed Chart of Accounts (outside transaction — BL-09 fix)
+    // Seed Chart of Accounts if missing
     const { seedAccounts } = await import('@/lib/accounting/seed-accounts');
     await seedAccounts();
 
-    // Seed default units of measure
+    // Seed default units if missing
     const { seedUnits } = await import('@/lib/inventory/seed-units');
     await seedUnits();
 

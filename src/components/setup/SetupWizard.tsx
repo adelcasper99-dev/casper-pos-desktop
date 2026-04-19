@@ -15,11 +15,8 @@ import { performSetup } from "@/actions/setup";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const STEPS = [
-    { id: 'welcome', title: 'Welcome', icon: Rocket },
-    { id: 'database', title: 'Database Location', icon: Database },
-    { id: 'admin', title: 'Admin Account', icon: Shield },
-    { id: 'branch', title: 'Branch Details', icon: Building },
     { id: 'settings', title: 'System Settings', icon: Settings },
+    { id: 'data-options', title: 'Data Retention', icon: Database },
     { id: 'finish', title: 'Ready!', icon: CheckCircle2 },
 ];
 
@@ -35,7 +32,14 @@ export default function SetupWizard() {
     const [formData, setFormData] = useState({
         admin: { username: 'admin', name: 'System Admin', password: '' },
         branch: { name: 'Main Branch', type: 'RETAIL' },
-        settings: { taxRate: 14, currency: 'EGP' }
+        settings: { taxRate: 14, currency: 'EGP' },
+        options: {
+            keepProducts: false,
+            keepCustomers: false,
+            keepEmployees: false,
+            keepSettings: false,
+            keepTreasuryAndWarehouses: false,
+        }
     });
 
     useEffect(() => {
@@ -272,6 +276,66 @@ export default function SetupWizard() {
                 )}
 
                 {step === 5 && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                        <div className="space-y-4">
+                            <h2 className="text-2xl font-bold text-slate-900">Data Retention Options</h2>
+                            <p className="text-sm text-slate-500">
+                                Select which data you want to <span className="font-bold text-indigo-600">KEEP</span> from the previous installation. 
+                                Unchecked items will be permanently wiped.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {[
+                                { id: 'keepProducts', label: 'Keep Products', desc: 'Preserves categories, products, models and units.', icon: FolderOpen },
+                                { id: 'keepCustomers', label: 'Keep CRM Data', desc: 'Preserves customer and supplier directories.', icon: Shield },
+                                { id: 'keepEmployees', label: 'Keep Employees', desc: 'Preserves users, technicians and roles.', icon: Building },
+                                { id: 'keepTreasuryAndWarehouses', label: 'Keep Infrastructure', desc: 'Preserves your treasuries and warehouses.', icon: Database },
+                            ].map((opt) => (
+                                <div 
+                                    key={opt.id} 
+                                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                                        (formData.options as any)[opt.id] 
+                                            ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' 
+                                            : 'border-slate-100 bg-white hover:border-slate-200'
+                                    }`}
+                                    onClick={() => setFormData({
+                                        ...formData,
+                                        options: {
+                                            ...formData.options,
+                                            [opt.id]: !(formData.options as any)[opt.id]
+                                        }
+                                    })}
+                                >
+                                    <div className={`p-2 rounded-lg ${
+                                        (formData.options as any)[opt.id] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'
+                                    }`}>
+                                        <opt.icon className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-bold text-slate-900">{opt.label}</div>
+                                        <div className="text-[10px] text-slate-500 leading-tight">{opt.desc}</div>
+                                    </div>
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                        (formData.options as any)[opt.id] ? 'bg-indigo-600 border-indigo-600' : 'border-slate-200'
+                                    }`}>
+                                        {(formData.options as any)[opt.id] && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <Alert className="bg-amber-50 border-amber-200 text-amber-900">
+                            <AlertCircle className="w-4 h-4 stroke-amber-600" />
+                            <AlertTitle className="font-bold">Important Notice</AlertTitle>
+                            <AlertDescription className="text-xs">
+                                Financial transactions, sales, and purchase history will ALWAYS be wiped during setup to ensure accounting integrity.
+                            </AlertDescription>
+                        </Alert>
+                    </div>
+                )}
+
+                {step === 6 && (
                     <div className="text-center space-y-6 animate-in zoom-in duration-500">
                         <div className="flex justify-center">
                             <div className="p-4 bg-green-100 rounded-full">

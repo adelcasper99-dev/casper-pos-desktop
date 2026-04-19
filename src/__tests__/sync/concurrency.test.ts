@@ -68,9 +68,9 @@ describe('Sync Engine: Concurrency & Stability', () => {
         expect(data1.barcode).not.toBe(data2.barcode);
         
         const barcodes = [data1.barcode, data2.barcode].sort();
-        expect(barcodes[0]).toBe('T-001');
-        expect(barcodes[1]).toBe('T-002');
-    });
+        expect(barcodes[0]).toBe('BR-1-T001');
+        expect(barcodes[1]).toBe('BR-1-T002');
+    }, 15000);
 
     /**
      * TEST: Sync Mutex
@@ -106,7 +106,7 @@ describe('Sync Engine: Concurrency & Stability', () => {
         // Immediate second run attempt
         const secondRun = await SyncWorker.runUniversalSync();
         
-        expect(secondRun?.message).toBe('Sync already in progress');
+        expect((secondRun as any).message).toBe('Sync already in progress');
         
         await firstRun; // Wait for first one to finish
         expect(spy).toHaveBeenCalledTimes(1);

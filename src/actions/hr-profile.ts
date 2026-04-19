@@ -233,14 +233,14 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                     }
 
                     const finalPrice = getTicketFinalPrice(t as any);
-                    const transferVal = Number((t as any).techBillingPrice || t.partsCost || 0);
-                    const laborAmount = (isEligible || isLoss) ? (finalPrice - transferVal) : 0;
+                    const transferVal = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
+                    const laborAmount = (isEligible || isLoss) ? finalPrice.minus(transferVal).toNumber() : 0;
 
                     // 💎 Separate Accounting: Show historical intended profit here.
                     // Losses and reversals will appear in the "Transactions" ledger.
                     return {
                         ...t,
-                        totalAmount: finalPrice,
+                        totalAmount: finalPrice.toNumber(),
                         laborAmount: laborAmount,
                         displayCommission: commission.toNumber()
                     }

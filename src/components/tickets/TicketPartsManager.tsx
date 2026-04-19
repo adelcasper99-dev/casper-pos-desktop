@@ -12,6 +12,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import GlassModal from "@/components/ui/GlassModal";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Decimal } from "decimal.js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCSRF } from "@/contexts/CSRFContext";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,7 @@ export default function TicketPartsManager({
     lastReturnedAt
 }: TicketPartsManagerProps) {
     const t = useTranslations("Tickets.PartsManager");
-    const formatCurrency = useFormatCurrency();
+    const formatCurrencyCtx = useFormatCurrency();
     const router = useRouter();
     const { token: csrfToken } = useCSRF();
     
@@ -390,7 +391,7 @@ export default function TicketPartsManager({
                                                             "text-[10px] font-bold uppercase tracking-widest opacity-80",
                                                             isRefunded ? "text-muted-foreground/80" : "text-muted-foreground"
                                                         )}>
-                                                            {formatCurrency(Number(part.price))} /الوحدة
+                                                            {formatCurrencyCtx(Number(part.price))} /الوحدة
                                                             {part.addedBy && (
                                                                 <span className="mr-2 opacity-70">| بواسطة: {part.addedBy.name}</span>
                                                             )}
@@ -402,13 +403,9 @@ export default function TicketPartsManager({
                                                     isRefunded ? "text-muted-foreground" : "text-foreground/80"
                                                 )}>{part.quantity}</TableCell>
                                                 <TableCell className="text-left px-6">
-                                                    <span className={cn(
-                                                        "font-mono font-black text-sm tracking-tighter",
-                                                        isRefunded ? "text-muted-foreground line-through decoration-red-500/50" : 
-                                                        isWarrantyPart ? "text-emerald-600 dark:text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "text-foreground"
-                                                    )}>
-                                                        {formatCurrency(part.quantity * Number(part.price))}
-                                                    </span>
+                                                    <div className="text-sm font-bold text-cyan-400">
+                                                        {formatCurrencyCtx(new Decimal(part.price.toString()).mul(part.quantity).toNumber())}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-6 text-left">
                                                     <div className="flex items-center justify-end">
@@ -477,8 +474,8 @@ export default function TicketPartsManager({
                 {parts.length > 0 && (
                     <div className="flex justify-between items-center px-6 py-4 mt-4 bg-muted/40 rounded-2xl border border-border">
                         <span className="text-xs font-black text-muted-foreground tracking-wider uppercase">{t('totalconsumption')}</span>
-                        <span className="text-2xl font-black text-foreground tabular-nums">
-                            {formatCurrency(parts.filter(p => p.status !== 'REFUNDED').reduce((acc, p) => acc + (p.quantity * Number(p.price)), 0))}
+                        <span className="text-lg font-bold text-cyan-400">
+                            {formatCurrencyCtx(parts.filter(p => p.status !== 'REFUNDED').reduce((acc, p) => acc.add(new Decimal(p.price.toString()).mul(p.quantity)), new Decimal(0)).toNumber())}
                         </span>
                     </div>
                 )}
@@ -552,13 +549,13 @@ export default function TicketPartsManager({
                                                     onClick={() => setTransferPriceChoice("COST")}
                                                     className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                                 >
-                                                    بسعر التكلفة {selectedProduct ? `(${formatCurrency(selectedProduct.costPrice)})` : ''}
+                                                    بسعر التكلفة {selectedProduct ? `(${formatCurrencyCtx(selectedProduct.costPrice)})` : ''}
                                                 </button>
                                                 <button
                                                     onClick={() => setTransferPriceChoice("SELL_1")}
                                                     className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                                 >
-                                                    بالسعر 1 {selectedProduct ? `(${formatCurrency(selectedProduct.sellPrice)})` : ''}
+                                                    بالسعر 1 {selectedProduct ? `(${formatCurrencyCtx(selectedProduct.sellPrice)})` : ''}
                                                 </button>
                                             </div>
                                         </div>
@@ -615,7 +612,7 @@ export default function TicketPartsManager({
                                                     <span className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">
                                                         {tier === 'A' ? 'S' : tier === 'B' ? 'M' : 'L'} Tier
                                                     </span>
-                                                    <span className="text-sm font-black tabular-nums">{formatCurrency(Number(price))}</span>
+                                                    <span className="text-sm font-black tabular-nums">{formatCurrencyCtx(Number(price))}</span>
                                                 </button>
                                             );
                                         })}
@@ -632,14 +629,14 @@ export default function TicketPartsManager({
                                             className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                         >
                                             <span className="text-[10px] mb-1 opacity-60">سعر التكلفة الأساسي</span>
-                                            {formatCurrency(selectedProduct.costPrice)}
+                                            {formatCurrencyCtx(selectedProduct.costPrice)}
                                         </button>
                                         <button
                                             onClick={() => setTransferPriceChoice("SELL_1")}
                                             className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                         >
                                             <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
-                                            {formatCurrency(selectedProduct.sellPrice)}
+                                            {formatCurrencyCtx(selectedProduct.sellPrice)}
                                         </button>
                                     </div>
                                 </div>

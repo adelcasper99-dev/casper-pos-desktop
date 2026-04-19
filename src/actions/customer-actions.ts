@@ -95,7 +95,7 @@ export const searchCustomers = secureAction(async (query: string) => {
 /**
  * Create a new customer with name and phone
  */
-export const createCustomer = secureAction(async ({ name, phone, address, linkedEmployeeId, openingBalance = 0 }: { name: string; phone: string; address?: string; linkedEmployeeId?: string | null; openingBalance?: number }) => {
+export const createCustomer = secureAction(async ({ name, phone, address, linkedEmployeeId, openingBalance = 0, receivesNotifications = true }: { name: string; phone: string; address?: string; linkedEmployeeId?: string | null; openingBalance?: number; receivesNotifications?: boolean }) => {
     if (!name || name.trim().length < 2) {
         return { error: 'الاسم قصير جداً' };
     }
@@ -127,7 +127,8 @@ export const createCustomer = secureAction(async ({ name, phone, address, linked
                     phone: phone.trim(),
                     address: address?.trim() || null,
                     linkedEmployeeId: linkedEmployeeId || null,
-                    balance: new Decimal(openingBalance)
+                    balance: new Decimal(openingBalance),
+                    receivesNotifications
                 }
             });
 
@@ -265,8 +266,9 @@ export const updateCustomer = secureAction(async (data: {
     phone: string;
     email?: string | null;
     address?: string | null;
+    receivesNotifications?: boolean;
 }) => {
-    const { id, name, phone, email, address } = data;
+    const { id, name, phone, email, address, receivesNotifications } = data;
 
     if (!name || name.trim().length < 2) {
         return { error: 'الاسم قصير جداً' };
@@ -291,7 +293,8 @@ export const updateCustomer = secureAction(async (data: {
                 name: name.trim(),
                 phone: phone.trim(),
                 email: email?.trim() || null,
-                address: address?.trim() || null
+                address: address?.trim() || null,
+                receivesNotifications
             }
         });
 

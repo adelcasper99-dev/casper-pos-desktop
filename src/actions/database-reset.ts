@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 /**
  * Resets the database, deleting all transactional data but keeping settings,
@@ -16,7 +17,7 @@ export async function resetDatabase() {
         const user = session?.user;
 
         // Security check: only global admins or those with MANAGE_SETTINGS
-        const isAdmin = user?.role === 'ADMIN' || user?.role === 'مدير النظام' || user?.role === 'المالك' || user?.permissions?.includes('*') || user?.permissions?.includes('MANAGE_SETTINGS');
+        const isAdmin = hasPermission(user?.permissions, '*') || hasPermission(user?.permissions, PERMISSIONS.MANAGE_SETTINGS);
 
         if (!isAdmin) {
             return { success: false, error: "غير مصرح لك بالقيام بهذا الإجراء." };

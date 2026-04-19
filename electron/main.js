@@ -449,6 +449,16 @@ ipcMain.on('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmax
 ipcMain.on('window:close', () => mainWindow?.close());
 ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
+ipcMain.handle('shell:open-external', async (event, url) => {
+    try {
+        await shell.openExternal(url);
+        return { success: true };
+    } catch (error) {
+        log(`Shell openExternal Error: ${error.message}`);
+        return { success: false, error: error.message };
+    }
+});
+
 ipcMain.handle('printers:list', async () => {
     if (!mainWindow) return [];
     try {

@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 const UUIDErrorMessage = "معرّف المستخدم غير صالح";
 const AmountErrorMessage = "المبلغ يجب أن يكون أكبر من صفر";
@@ -25,9 +26,8 @@ export async function upsertEmployeeTransaction(data: z.infer<typeof Transaction
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
-    // Assuming HR management permission exists or is covered by Admin
-    if (!isAdmin) return { success: false, error: "Forbidden: Admin access required" };
+    const canManagePayroll = hasPermission(session.user.permissions, PERMISSIONS.HR_MANAGE_PAYROLL);
+    if (!canManagePayroll) return { success: false, error: "غير مصرح لك بإجراء تعديلات مالية على سجلات الموظفين." };
 
     try {
         const validatedData = TransactionSchema.parse(data);
@@ -85,8 +85,8 @@ export async function deleteEmployeeTransaction(id: string, userId: string, reas
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
-    if (!isAdmin) return { success: false, error: "Forbidden" };
+    const canManagePayroll = hasPermission(session.user.permissions, PERMISSIONS.HR_MANAGE_PAYROLL);
+    if (!canManagePayroll) return { success: false, error: "Forbidden" };
 
     try {
         const existing = await prisma.employeeTransaction.findUnique({ where: { id } });
@@ -131,8 +131,8 @@ export async function updateAttendanceEntry(data: { id: string, bonus?: number, 
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
-    if (!isAdmin) return { success: false, error: "Forbidden" };
+    const canManagePayroll = hasPermission(session.user.permissions, PERMISSIONS.HR_MANAGE_PAYROLL);
+    if (!canManagePayroll) return { success: false, error: "Forbidden" };
 
     try {
         const existing = await prisma.dailyWorkLog.findUnique({ where: { id: data.id } });
@@ -174,8 +174,8 @@ export async function deleteAttendanceEntry(id: string, type: string, userId: st
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
-    const isAdmin = ["ADMIN", "مدير النظام", "المالك"].includes(session.user.role || "");
-    if (!isAdmin) return { success: false, error: "Forbidden" };
+    const canManagePayroll = hasPermission(session.user.permissions, PERMISSIONS.HR_MANAGE_PAYROLL);
+    if (!canManagePayroll) return { success: false, error: "Forbidden" };
 
     try {
         const existing = await prisma.dailyWorkLog.findUnique({ where: { id } });
