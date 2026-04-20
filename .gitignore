@@ -52,6 +52,7 @@ nul
 
 casper-hardware-bridge/node_modules/
 casper-hardware-bridge/dist/
+
 # Agent & Skill Library (Local only)
 /.gemini/
 /.agents/
