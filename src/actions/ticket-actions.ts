@@ -13,7 +13,7 @@ import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-managemen
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { ticketSchema } from "@/lib/validation/tickets";
 import { logger } from "@/lib/logger";
-import { calculateNetProfit, calculateCommission } from "@/lib/commission-validation";
+import { calculateNetProfit, calculateCommission, resolveCommission } from "@/lib/commission-validation";
 import { getBranchFilter } from "@/lib/data-filters";
 import { TicketStatus } from "@/lib/constants";
 import { handleReturnedPartStock, decrementWarehouseStock, incrementWarehouseStock } from "@/lib/stock-helpers";
@@ -696,10 +696,30 @@ export const updateTicketStatus = secureAction(async (data: {
             const compId = technicianId || existingTicket.technicianId;
             if (compId) {
                 updateData.completedBy = { connect: { id: compId } };
+
+                const leadTech = await prisma.technician.findUnique({ 
+                    where: { id: compId },
+                    include: { commissionRule: true }
+                });
+
+                if (leadTech) {
+                    // Fetch final parts cost and repair price with Decimal precision
+                    const ticketTotal = await prisma.ticket.findUnique({
+                        where: { id: ticketId },
+                        select: { repairPrice: true, partsCost: true }
+                    });
+
+                    const currentRepairPrice = new Decimal(ticketTotal?.repairPrice?.toString() || '0');
+                    const currentPartsCost = new Decimal(ticketTotal?.partsCost?.toString() || '0');
+                    const netProfit = calculateNetProfit(currentRepairPrice, currentPartsCost);
+
+                    const { commissionAmount, commissionRate } = resolveCommission(leadTech, netProfit);
+
+                    updateData.commissionRate = commissionRate;
+                    updateData.commissionAmount = commissionAmount;
+                    updateData.netProfit = netProfit;
+                }
             }
-            if (repairPrice !== undefined) updateData.repairPrice = new Decimal(repairPrice);
-            if (partsCost !== undefined) updateData.partsCost = new Decimal(partsCost);
-            // Warranty date is now set ONLY upon payment/delivery confirmation to ensure it starts from the receipt date.
         }
 
         if (status === 'DELIVERED') {
@@ -1638,7 +1658,19 @@ export const addTicketPart = secureAction(async (data: {
             if (ticket.technician?.warehouseId) {
                 sourceWarehouseId = ticket.technician.warehouseId;
             } 
-                // Priority 2: isMaintenanceDefault (Dedicated Maintenance Warehouse)
+            // Priority 2: Branch-Scoped Default Warehouse
+            else {
+                const branchDefaultWh = await prisma.warehouse.findFirst({
+                    where: {
+                        branchId: user.branchId!,
+                        isDefault: true,
+                        deletedAt: null
+                    }
+                });
+                if (branchDefaultWh) {
+                    sourceWarehouseId = branchDefaultWh.id;
+                }
+                // Priority 3: isMaintenanceDefault (Legacy/Fallback)
                 else {
                     const maintenanceWh = await prisma.warehouse.findFirst({
                         where: {
@@ -1646,13 +1678,9 @@ export const addTicketPart = secureAction(async (data: {
                             deletedAt: null
                         }
                     });
-                    if (maintenanceWh) {
-                        sourceWarehouseId = maintenanceWh.id;
-                    } 
-                    // STRICT SEPARATION: No fallback to isDefault (POS) here.
-                    // If no maintenance warehouse is found, operations will fail 
-                    // later with stock-related errors rather than pulling from POS.
+                    if (maintenanceWh) sourceWarehouseId = maintenanceWh.id;
                 }
+            }
         }
 
         if (sourceWarehouseId) {
@@ -1996,13 +2024,23 @@ export const removeTicketPart = secureAction(async (data: {
             updateFields.repairPrice = new Decimal(totalSellPrice);
         }
 
-        const finalPrice = isWarrantyFix ? Number(part.ticket?.repairPrice || 0) : totalSellPrice;
-        const netProfit = calculateNetProfit(new Decimal(finalPrice), new Decimal(totalPartsCost));
-        updateFields.netProfit = new Decimal(netProfit);
+        const finalPrice = isWarrantyFix ? new Decimal(part.ticket?.repairPrice?.toString() || 0) : totalSellPrice;
+        const netProfit = calculateNetProfit(finalPrice, totalPartsCost);
+        updateFields.netProfit = netProfit;
 
+        // T-030: Precise Commission & Loss Recalculation
         if (part.ticket?.technicianId) {
-            const commission = calculateCommission(netProfit, Number(part.ticket.commissionRate || 0));
-            updateFields.commissionAmount = new Decimal(commission);
+            const leadTech = await tx.technician.findUnique({
+                where: { id: part.ticket.technicianId },
+                include: { commissionRule: true }
+            });
+
+            if (leadTech) {
+                const { commissionAmount, commissionRate, sharedLossAmount } = resolveCommission(leadTech, netProfit);
+                updateFields.commissionAmount = commissionAmount;
+                updateFields.commissionRate = commissionRate;
+                updateFields.sharedLossAmount = sharedLossAmount;
+            }
         }
 
         await tx.ticket.update({

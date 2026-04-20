@@ -124,6 +124,59 @@ export function formatCommissionBreakdown(data: {
   };
 }
 
+
+/**
+ * Resolves commission and shared loss based on technician rules and net profit.
+ * Centralized logic for PERCENTAGE, FIXED, and manual rate fallbacks.
+ */
+export function resolveCommission(
+  leadTech: { 
+    commissionRate?: Decimal | number | null;
+    sharedLossRate?: Decimal | number | null;
+    commissionRule?: { 
+      type: string; 
+      value: Decimal | number | string;
+    } | null;
+  }, 
+  netProfit: Decimal | number | string
+): { 
+  commissionAmount: Decimal; 
+  commissionRate: Decimal; 
+  sharedLossAmount: Decimal;
+} {
+  const profit = new Decimal(netProfit.toString());
+  let commissionRate = new Decimal(leadTech.commissionRate?.toString() || '0');
+  let commissionAmount = new Decimal(0);
+  let sharedLossAmount = new Decimal(0);
+
+  // 1. Handle Positive Profit (Commission)
+  if (profit.gt(0)) {
+    if (leadTech.commissionRule) {
+      const rule = leadTech.commissionRule;
+      if (rule.type === 'PERCENTAGE') {
+        commissionRate = new Decimal(rule.value.toString());
+        commissionAmount = calculateCommission(profit, commissionRate);
+      } else if (rule.type === 'FIXED') {
+        commissionAmount = new Decimal(rule.value.toString());
+        // Rate is effectively 100% of the fixed amount, but we keep the tech's base rate for reporting
+      }
+    } else {
+      commissionAmount = calculateCommission(profit, commissionRate);
+    }
+  } 
+  // 2. Handle Negative Profit (Shared Loss/Wastage)
+  else if (profit.lt(0)) {
+    const lossRate = new Decimal(leadTech.sharedLossRate?.toString() || '0');
+    sharedLossAmount = calculateSharedLoss(profit, lossRate);
+  }
+
+  return {
+    commissionAmount: commissionAmount.toDecimalPlaces(4),
+    commissionRate,
+    sharedLossAmount: sharedLossAmount.toDecimalPlaces(4)
+  };
+}
+
 /**
  * Gets the final total price of a ticket for display and profit calculation.
  */

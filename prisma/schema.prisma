@@ -743,6 +743,7 @@ model Technician {
   email                 String?
   skills                String?
   commissionRate        Decimal                @default(0.00)
+  commissionRuleId      String?
   lossRate              Decimal                @default(70.00)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
@@ -751,6 +752,7 @@ model Technician {
   deletedAt             DateTime?
   user                  User                   @relation(fields: [userId], references: [id])
   warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
+  commissionRule        CommissionRule?        @relation(fields: [commissionRuleId], references: [id])
   TechnicianPerformance TechnicianPerformance?
   tickets               Ticket[]
   completedTickets      Ticket[]               @relation("CompletedBy")
@@ -892,6 +894,7 @@ model TicketPart {
   transferPrice Decimal    @default(0.00)
   createdAt     DateTime   @default(now())
   status        String     @default("ACTIVE")
+  updatedAt     DateTime   @updatedAt
   isDamaged     Boolean    @default(false)
   deletedAt     DateTime?
   warehouseId   String?
@@ -1105,4 +1108,14 @@ model CashCategory {
 model Sequence {
   name  String @id
   value Int    @default(0)
+}
+
+model CommissionRule {
+  id          String       @id @default(uuid())
+  name        String
+  type        String // PERCENTAGE | FIXED
+  value       Decimal      @default(0.00)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  technicians Technician[]
 }
