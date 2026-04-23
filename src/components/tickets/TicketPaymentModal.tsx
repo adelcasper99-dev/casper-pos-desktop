@@ -214,7 +214,9 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
             // Only auto-print when explicitly enabled to avoid unexpected behavior
             // 🛡️ FIX: Wait for settings to load and check loading state
-            if (!settingsLoading && settings && settings.autoPrintTicket === true) {
+            const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
+
+            if (!settingsLoading && settings && settings.autoPrintTicket === true && isSpeedPrintEnabled) {
                 // We use a small delay to ensure the success state is rendered or the state is ready
                 setTimeout(() => {
                     handlePrint(true);
@@ -226,7 +228,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             } else if (settingsLoading) {
                 // 🛡️ Settings still loading - wait for them to load then auto-print
                 const checkSettingsAndPrint = () => {
-                    if (settings && settings.autoPrintTicket === true) {
+                    if (settings && settings.autoPrintTicket === true && printService.getRegistry()?.enableSpeedPrint !== false) {
                         handlePrint(true);
                         setTimeout(() => onClose(), 1200);
                     } else {

@@ -41,6 +41,36 @@ interface TicketPrintOptionsModalProps {
     singleDocument?: boolean  // when true, only print defaultMode (no full receipt+engineer+label sequence)
 }
 
+/**
+ * 🛡️ Printer Guard: Checks if required printers are configured.
+ * Redirects to settings if missing.
+ * Returns true if printers are ready, false if redirecting.
+ */
+export async function checkPrinterAndRedirect(
+    mode: 'receipt' | 'label' | 'engineer',
+    router: any,
+    locale: string
+): Promise<boolean> {
+    const registry = printService.getRegistry();
+    const thermal = registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer');
+    const label = registry?.labelPrinter || localStorage.getItem('printer_label') || localStorage.getItem('printer_barcode');
+
+    let missing = false;
+    if ((mode === 'receipt' || mode === 'engineer') && !thermal) missing = true;
+    if (mode === 'label' && (!label || label === 'none')) missing = true;
+
+    if (missing) {
+        toast.error("الطابعة غير معرفة. سيتم تحويلك للاعدادات لتعريفها.", {
+            duration: 4000,
+            id: "printer-not-configured"
+        });
+        router.push(`/${locale}/settings/store`);
+        return false;
+    }
+    return true;
+}
+
+
 export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, settings, defaultMode = 'receipt', silent = false, singleDocument = false }: TicketPrintOptionsModalProps) {
     const t = useTranslations('Common')
     const tPrint = useTranslations('Purchasing.Print.Ticket')
@@ -133,15 +163,19 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             // For Electron mode, we can skip the isServerOnline check since Electron has its own print channel
             const isOnline = isElectron ? true : await printService.isServerOnline();
 
+            const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
+
+            const isAutoPrintRequested = (settings?.autoPrintTicket || silent);
+
             // 🛡️ Show error if print service is offline (not just QZ)
-            if (!isOnline && (settings?.autoPrintTicket || silent)) {
+            if (!isOnline && (isAutoPrintRequested && isSpeedPrintEnabled)) {
                 toast.error("الطابعة غير متصلة. يرجى تشغيل برنامج الطباعة.", {
                     id: "printer-offline-warning"
                 });
                 return;
             }
 
-            if ((settings?.autoPrintTicket || silent) && isOnline) {
+            if (isAutoPrintRequested && isSpeedPrintEnabled && isOnline) {
                 const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);
 
                 if (!hasAutoPrintedSession) {
@@ -153,20 +187,10 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
 
                         // 🛡️ [CONSISTENCY] Resolve printers once for the whole sequence
                         const registry = printService.getRegistry();
-                        const receiptPrinter = selectedPrinter || 
-                                              registry?.thermalPrinter || 
-                                              registry?.receiptPrinter || 
-                                              localStorage.getItem('thermal_printer') || 
-                                              localStorage.getItem('casper_receipt_printer');
-                                              
                         const labelPrinter = selectedLabelPrinter || 
                                             registry?.labelPrinter || 
                                             localStorage.getItem('printer_label') || 
                                             localStorage.getItem('printer_barcode');
-
-                        if (!receiptPrinter && !silent) {
-                            toast.error("No receipt printer configured. Please set one in settings.");
-                        }
 
                         if (singleDocument) {
                             // 🎯 Manual button: print ONLY the requested document
@@ -213,11 +237,13 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                     } catch (error) {
                         console.error("Auto print sequence failed", error);
                         toast.error("Auto-print failed. Please try manually.");
+                        if (silent) onClose();
                     }
                 } else {
-                    if (silent) {
+                    if (silent && isMounted) {
                         console.log("[AutoPrint] Skipped: already printed in this session.");
                         toast.info("Ticket already printed. Skipping auto-print.", { id: "autoprint-skipped", duration: 2000 });
+                        onClose();
                     }
                 }
             }
@@ -528,20 +554,19 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                        (defaultMode === 'label' && (selectedLabelPrinter || registry?.labelPrinter || localStorage.getItem('printer_label'))) ||
                        (defaultMode === 'engineer' && (selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer')));
 
-    if (silent && hasPrinter) return null;
+    if (silent) return null;
 
     return (
-        <GlassModal
-            isOpen={isOpen}
-            onClose={onClose}
-            title="Ticket Created"
-        >
-            <div className="flex flex-col items-center justify-center p-6 space-y-6">
+        <GlassModal 
+            isOpen={isOpen} 
+            onClose={onClose} 
+            title={tPrint('printOptions')}
+            className="max-w-4xl"
+        >    <div className="flex flex-col items-center justify-center p-6 space-y-6">
                 <div className="flex flex-col items-center gap-2">
-                    <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.5)]">
-                        <CheckCircle className="w-10 h-10" />
+                    <div className="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center text-cyan-500 border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+                        <Printer className="w-8 h-8" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white tracking-wide">Ticket Created!</h2>
                 </div>
 
                 <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 w-full max-w-[320px]">
@@ -618,7 +643,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                     {qzStatus === 'loading' && (
                         <div className="flex items-center justify-center gap-2 text-sm text-zinc-400 py-2">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Connecting to QZ Tray...</span>
+                            <span>{tTicket('workflow.syncing')}</span>
                         </div>
                     )}
 
@@ -678,11 +703,17 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                             </div>
                         </div>
                     )}
+                    <div className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 rounded-lg border border-white/10 mb-4 mx-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                        <span className="text-[11px] text-zinc-400 font-medium tracking-wide">
+                            {tTicket('details.printOptions.shiftClickHint') || '💡 (Shift + Click) skip this window'}
+                        </span>
+                    </div>
                 </div>
 
                 <div className="flex gap-3 w-full">
                     <Button onClick={onClose} variant="ghost" className="flex-1 py-6 rounded-xl text-lg text-white hover:bg-white/10">
-                        Close
+                        {tTicket('details.cancel')}
                     </Button>
                     {previewMode === 'receipt' ? (
                         <div className="flex-[2] flex gap-2">
@@ -692,7 +723,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                                 className="flex-1 py-6 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 text-lg gap-2 shadow-lg shadow-cyan-500/20"
                             >
                                 {isPrintingReceipt ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                                {isPrintingReceipt ? "Printing..." : "Print Both"}
+                                {isPrintingReceipt ? tTicket('workflow.syncing') : tTicket('details.printOptions.printBoth')}
                             </Button>
                             <Button
                                 onClick={() => handlePrintReceipt(false, false)}
@@ -711,7 +742,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                             className="flex-[2] py-6 rounded-xl bg-orange-500 text-black font-bold hover:bg-orange-400 text-lg gap-2 shadow-lg shadow-orange-500/20"
                         >
                             {isPrintingEngineer ? <Loader2 className="w-5 h-5 animate-spin" /> : <SettingsIcon className="w-5 h-5" />}
-                            {isPrintingEngineer ? t('loading') : tTicket('details.printOptions.printEngineer')}
+                            {isPrintingEngineer ? tTicket('workflow.syncing') : tTicket('details.printOptions.printEngineer')}
                         </Button>
                     ) : (
                         <Button
@@ -720,7 +751,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                             className="flex-[2] py-6 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-500 text-lg gap-2 shadow-lg shadow-purple-600/20"
                         >
                             {isPrintingLabel ? <Loader2 className="w-5 h-5 animate-spin" /> : <StickyNote className="w-5 h-5" />}
-                            {isPrintingLabel ? "Printing..." : "Print Label"}
+                            {isPrintingLabel ? tTicket('workflow.syncing') : tTicket('details.printOptions.printLabel')}
                         </Button>
                     )}
                 </div>

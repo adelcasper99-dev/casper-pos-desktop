@@ -2039,7 +2039,7 @@ export const removeTicketPart = secureAction(async (data: {
                 const { commissionAmount, commissionRate, sharedLossAmount } = resolveCommission(leadTech, netProfit);
                 updateFields.commissionAmount = commissionAmount;
                 updateFields.commissionRate = commissionRate;
-                updateFields.sharedLossAmount = sharedLossAmount;
+                updateFields.excessLossAmount = sharedLossAmount;
             }
         }
 

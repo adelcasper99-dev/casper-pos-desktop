@@ -188,13 +188,37 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
       'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
       'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
+      'ALTER TABLE "Technician" ADD COLUMN "commissionRuleId" TEXT',
 
       // Warehouse & Branch
       'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
       'ALTER TABLE "Warehouse" ADD COLUMN "isMaintenanceDefault" BOOLEAN NOT NULL DEFAULT false',
       'ALTER TABLE "Branch" ADD COLUMN "isMaintenanceHQ" BOOLEAN NOT NULL DEFAULT false',
 
-      // New Tables
+      // New Tables & Missing Columns from recent updates
+      'CREATE TABLE IF NOT EXISTS "Model" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS "Model_name_categoryId_key" ON "Model"("name", "categoryId")',
+      'CREATE TABLE IF NOT EXISTS "Attribute" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS "Attribute_name_key" ON "Attribute"("name")',
+      'CREATE TABLE IF NOT EXISTS "Sequence" ("name" TEXT NOT NULL PRIMARY KEY, "value" INTEGER NOT NULL DEFAULT 0)',
+      'CREATE TABLE IF NOT EXISTS "CommissionRule" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "value" DECIMAL NOT NULL DEFAULT 0.00, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+      'ALTER TABLE "Customer" ADD COLUMN "totalPurchaseValue" DECIMAL NOT NULL DEFAULT 0.00',
+      'ALTER TABLE "Customer" ADD COLUMN "receivesNotifications" BOOLEAN NOT NULL DEFAULT true',
+      'ALTER TABLE "JournalEntry" ADD COLUMN "idempotencyKey" TEXT',
+      'ALTER TABLE "JournalEntry" ADD COLUMN "transactionId" TEXT',
+      'ALTER TABLE "NotificationLog" ADD COLUMN "metadata" TEXT',
+      'ALTER TABLE "Product" ADD COLUMN "modelId" TEXT',
+      'ALTER TABLE "Product" ADD COLUMN "attributeId" TEXT',
+      'ALTER TABLE "PurchaseItem" ADD COLUMN "unitOfMeasureId" TEXT',
+      'ALTER TABLE "PurchaseItem" ADD COLUMN "conversionFactor" DECIMAL NOT NULL DEFAULT 1.00',
+      'ALTER TABLE "Sale" ADD COLUMN "idempotencyKey" TEXT',
+      'ALTER TABLE "Sale" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "TicketPart" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+      'ALTER TABLE "Transaction" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "StockMovement" ADD COLUMN "idempotencyKey" TEXT',
+      'ALTER TABLE "Ticket" ADD COLUMN "idempotencyKey" TEXT',
+
+      // Legacy New Tables
       'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
       'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
       'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',

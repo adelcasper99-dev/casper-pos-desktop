@@ -1315,6 +1315,12 @@
             "rejected": "مرفوض",
             "voided": "ملغاة (مسترد)"
         },
+        "printOptions": {
+            "printLabel": "طباعة الملصق",
+            "printReceipt": "إيصال العميل",
+            "printEngineer": "نسخة المهندس",
+            "shiftClickHint": "(Shift + Click) للمعاينة اليدوية"
+        },
         "table": {
             "status": "الحالة",
             "ticketInfo": "معلومات التذكرة",
@@ -1426,7 +1432,8 @@
                 "printReceipt": "إيصال العميل",
                 "printEngineer": "نسخة المهندس",
                 "printBoth": "طباعة النسختين",
-                "customerOnly": "للعميل فقط"
+                "customerOnly": "للعميل فقط",
+                "shiftClickHint": "(Shift + Click) للمعاينة اليدوية"
             },
             "workflowHeader": "سير العمل",
             "workflowProgress": "تقدم العمل",

@@ -42,7 +42,7 @@ import TicketPaymentModal from "@/components/tickets/TicketPaymentModal";
 import ReturnForRepairModal from "@/components/tickets/ReturnForRepairModal";
 import RefundTicketModal from "@/components/tickets/RefundTicketModal";
 import RejectTicketModal from "@/components/tickets/RejectTicketModal";
-import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModal";
+import TicketPrintOptionsModal, { checkPrinterAndRedirect } from "@/components/tickets/TicketPrintOptionsModal";
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
@@ -260,11 +260,7 @@ export default function TicketDetailPage() {
     const [defaultPrintMode, setDefaultPrintMode] = useState<'receipt' | 'label'>('receipt');
     const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
 
-    // Helper: detect configured printers & clear session guard for re-print
-    const hasThermalPrinter = () =>
-        !!(localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer') || localStorage.getItem('casper_ticket_printer'));
-    const hasLabelPrinter = () =>
-        !!(localStorage.getItem('printer_label') || localStorage.getItem('casper_barcode_printer') || localStorage.getItem('casper_label_printer'));
+
     const clearPrintGuard = () =>
         ticket?.id && sessionStorage.removeItem(`ticket_autoprint_${ticket.id}`);
 
@@ -429,13 +425,21 @@ export default function TicketDetailPage() {
         }
     };
 
-    // Function to open print modal
-    const openBarcodePrint = () => {
+    const openBarcodePrint = async (e?: React.MouseEvent) => {
         console.log('[DirectPrint] Manual Label request');
+        
+        const isManualOverride = e?.shiftKey;
+        if (!isManualOverride && !await checkPrinterAndRedirect('label', router, locale)) return;
+
         clearPrintGuard();
         setDefaultPrintMode('label');
-        // Enable silent only if printer is configured AND Speed Print is enabled
-        const silent = hasLabelPrinter() && isSpeedPrintEnabled;
+        
+        // Check printers for silent flag
+        const registry = printService.getRegistry();
+        const hasLabelPrinter = !!(registry?.labelPrinter || localStorage.getItem('printer_label') || localStorage.getItem('printer_barcode'));
+        
+        // Enable silent only if printer is configured AND Speed Print is enabled AND NOT manual override
+        const silent = hasLabelPrinter && isSpeedPrintEnabled && !isManualOverride;
         setIsSilentPrint(silent);
         setShowPrintOptions(true);
     };
@@ -514,10 +518,17 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { 
+                        onClick={async (e) => { 
+                            const isManualOverride = e.shiftKey;
+                            if (!isManualOverride && !await checkPrinterAndRedirect('engineer', router, locale)) return;
+
                             clearPrintGuard(); 
                             setDefaultPrintMode('engineer' as any); 
-                            const silent = hasThermalPrinter() && isSpeedPrintEnabled;
+                            
+                            const registry = printService.getRegistry();
+                            const hasThermalPrinter = !!(registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer'));
+                            
+                            const silent = hasThermalPrinter && isSpeedPrintEnabled && !isManualOverride;
                             setIsSilentPrint(silent); 
                             setShowPrintOptions(true); 
                         }}
@@ -528,10 +539,17 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { 
+                        onClick={async (e) => { 
+                            const isManualOverride = e.shiftKey;
+                            if (!isManualOverride && !await checkPrinterAndRedirect('receipt', router, locale)) return;
+
                             clearPrintGuard(); 
                             setDefaultPrintMode('receipt'); 
-                            const silent = hasThermalPrinter() && isSpeedPrintEnabled;
+
+                            const registry = printService.getRegistry();
+                            const hasThermalPrinter = !!(registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer'));
+
+                            const silent = hasThermalPrinter && isSpeedPrintEnabled && !isManualOverride;
                             setIsSilentPrint(silent); 
                             setShowPrintOptions(true); 
                         }}
@@ -540,6 +558,10 @@ export default function TicketDetailPage() {
                         <Printer className="h-4 w-4" />
                         <span className="text-xs font-bold">{t('printOptions.printReceipt')}</span>
                     </Button>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-500/10 rounded-md border border-zinc-500/20 ml-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
+                        <span className="text-[10px] text-zinc-400 font-medium">{t('printOptions.shiftClickHint') || 'Shift + Click للمعاينة'}</span>
+                    </div>
                     <div className="h-8 w-[1px] bg-slate-300 dark:bg-white/10 mx-1" />
                     <div className="flex -space-x-2 rtl:space-x-reverse shrink-0">
                         <div className="w-10 h-10 rounded-full border-2 border-white dark:border-[#09090b] bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-zinc-400">

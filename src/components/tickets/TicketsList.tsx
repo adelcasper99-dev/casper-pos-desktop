@@ -10,7 +10,7 @@ import { printService } from "@/lib/print-service"
 import { useRouter } from 'next/navigation'
 import { useDebouncedCallback } from 'use-debounce'
 import { CasperLoader } from "@/components/ui/CasperLoader"
-import { useTranslations } from '@/lib/i18n-mock'
+import { useTranslations, useLocale } from '@/lib/i18n-mock'
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,11 +34,12 @@ import { getTickets as fetchTickets } from "@/actions/ticket-actions"
 import { getEffectiveStoreSettings, updateStoreSettings } from "@/actions/settings"
 import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
-import TicketPrintOptionsModal from './TicketPrintOptionsModal'
+import TicketPrintOptionsModal, { checkPrinterAndRedirect } from './TicketPrintOptionsModal'
 import { toast } from "sonner"
 
 export default function TicketsList() {
     const t = useTranslations('Tickets');
+    const locale = useLocale();
     const [tickets, setTickets] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -68,12 +69,6 @@ export default function TicketsList() {
     const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
     const [isSilentPrint, setIsSilentPrint] = useState(false)
     const [enableSpeedPrint, setEnableSpeedPrint] = useState(true)
-
-    // Helper: check if default printers are configured
-    const hasThermalPrinter = () =>
-        !!(localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer') || localStorage.getItem('casper_ticket_printer'));
-    const hasLabelPrinter = () =>
-        !!(localStorage.getItem('printer_label') || localStorage.getItem('casper_barcode_printer') || localStorage.getItem('casper_label_printer'));
 
     // Clear the auto-print session guard so re-printing works
     const clearPrintGuard = (ticketId: string) =>
@@ -181,6 +176,21 @@ export default function TicketsList() {
             debouncedSetQuery.cancel();
             setQuery(searchTerm);
         }
+    }
+
+    const handleDirectPrint = async (ticket: any, e?: React.MouseEvent) => {
+        const isManualOverride = e?.shiftKey;
+        if (!isManualOverride && !await checkPrinterAndRedirect('receipt', router, locale)) return;
+
+        setPrintTicket(ticket)
+        setPrintMode('receipt')
+        
+        const registry = printService.getRegistry();
+        const hasThermalPrinter = !!(registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer'));
+        
+        const silent = hasThermalPrinter && enableSpeedPrint && !isManualOverride;
+        setIsSilentPrint(silent)
+        setShowPrintOptions(true)
     }
 
     const getStatusColor = (status: string) => {
@@ -464,6 +474,10 @@ export default function TicketsList() {
                             className="scale-[0.8] ms-1 data-[state=checked]:bg-indigo-500"
                         />
                     </div>
+                    <div className="flex items-center gap-1.5 px-2 h-10 bg-zinc-500/10 rounded-lg border border-zinc-500/20">
+                        <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
+                        <span className="text-[10px] text-zinc-400 font-bold whitespace-nowrap">{t('printOptions.shiftClickHint') || '(Shift + Click) للمعاينة'}</span>
+                    </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black">
@@ -557,7 +571,6 @@ export default function TicketsList() {
                                 {sortedTickets.map((ticket) => {
                                     const urgency = getUrgencyInfo(ticket);
                                     const risk = getRiskInfo(ticket);
-                                    const RiskIcon = risk.icon;
                                     return (
                                         <tr
                                             key={ticket.id}
@@ -631,69 +644,78 @@ export default function TicketsList() {
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                        <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200 dark:hover:bg-white/10">
-                                                            <MoreHorizontal className="h-4 w-4 text-slate-500 dark:text-zinc-400" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-[160px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-xl">
-                                                        <DropdownMenuLabel className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('list.actions')}</DropdownMenuLabel>
-                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/ar/maintenance/tickets/${ticket.id}`) }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                            <Search className="mr-2 h-4 w-4 text-cyan-500" />
-                                                            <span>{t('list.viewDetails')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingTicket(ticket); setShowEditModal(true); }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                            <Edit2 className="mr-2 h-4 w-4 text-amber-500" />
-                                                            <span>{t('list.editDetails')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator className="bg-slate-200 dark:bg-white/5" />
-                                                        <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation();
-                                                            clearPrintGuard(ticket.id);
-                                                            const silent = hasThermalPrinter() && enableSpeedPrint;
-                                                            setPrintTicket(ticket); 
-                                                            setPrintMode('receipt'); 
-                                                            setIsSilentPrint(silent);
-                                                            setShowPrintOptions(true); 
-                                                        }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                            <Printer className="mr-2 h-4 w-4 text-blue-500" />
-                                                            <span>{t('list.printReceipt')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation();
-                                                            clearPrintGuard(ticket.id);
-                                                            const silent = hasThermalPrinter() && enableSpeedPrint;
-                                                            setPrintTicket(ticket); 
-                                                            setPrintMode('engineer'); 
-                                                            setIsSilentPrint(silent);
-                                                            setShowPrintOptions(true); 
-                                                        }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                            <SettingsIcon className="mr-2 h-4 w-4 text-orange-500" />
-                                                            <span>{t('list.printEngineer')}</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={(e) => { 
-                                                            e.stopPropagation();
-                                                            clearPrintGuard(ticket.id);
-                                                            const silent = hasLabelPrinter() && enableSpeedPrint;
-                                                            setPrintTicket(ticket); 
-                                                            setPrintMode('label'); 
-                                                            setIsSilentPrint(silent);
-                                                            setShowPrintOptions(true); 
-                                                        }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                            <StickyNote className="mr-2 h-4 w-4 text-purple-500" />
-                                                            <span>Print Label</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator className="bg-slate-200 dark:bg-white/5" />
-                                                        <DropdownMenuItem
-                                                            className="text-red-500 focus:text-red-500 focus:bg-red-50 dark:focus:bg-red-500/10 font-bold cursor-pointer hover:bg-red-50 dark:hover:bg-red-500/10"
-                                                            onClick={(e) => { e.stopPropagation(); setDeletingTicket(ticket); setShowDeleteDialog(true); }}
-                                                        >
-                                                            <Trash2 className="mr-2 h-4 w-4" />
-                                                            <span>{t('list.deleteTicket')}</span>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleDirectPrint(ticket, e); }}
+                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors group relative"
+                                                        title="Quick Print (Shift+Click for preview)"
+                                                    >
+                                                        <Printer className="h-4 w-4 text-slate-500 group-hover:text-cyan-500" />
+                                                    </button>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                            <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-slate-200 dark:hover:bg-white/10">
+                                                                <MoreHorizontal className="h-4 w-4 text-slate-500 dark:text-zinc-400" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-[160px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-xl">
+                                                            <DropdownMenuLabel className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('list.actions')}</DropdownMenuLabel>
+                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/ar/maintenance/tickets/${ticket.id}`) }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
+                                                                <Search className="mr-2 h-4 w-4 text-cyan-500" />
+                                                                <span>{t('list.viewDetails')}</span>
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingTicket(ticket); setShowEditModal(true); }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
+                                                                <Edit2 className="mr-2 h-4 w-4 text-amber-500" />
+                                                                <span>{t('list.editDetails')}</span>
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator className="bg-slate-200 dark:bg-white/5" />
+                                                            <DropdownMenuItem onClick={async (e) => {
+                                                                const isManualOverride = e.shiftKey;
+                                                                if (!isManualOverride && !await checkPrinterAndRedirect('label', router, locale)) return;
+                                                                setPrintTicket(ticket);
+                                                                setPrintMode('label');
+                                                                clearPrintGuard(ticket.id);
+
+                                                                const registry = printService.getRegistry();
+                                                                const hasLabelPrinter = !!(registry?.labelPrinter || localStorage.getItem('printer_label') || localStorage.getItem('printer_barcode'));
+
+                                                                const silent = hasLabelPrinter && enableSpeedPrint && !isManualOverride;
+                                                                setIsSilentPrint(silent);
+                                                                setShowPrintOptions(true);
+                                                            }} className="gap-2 cursor-pointer">
+                                                                <StickyNote className="h-4 w-4" />
+                                                                <span>{t('printOptions.printLabel') || 'Print Label'}</span>
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={async (e) => {
+                                                                const isManualOverride = e.shiftKey;
+                                                                if (!isManualOverride && !await checkPrinterAndRedirect('engineer', router, locale)) return;
+
+                                                                setPrintTicket(ticket);
+                                                                setPrintMode('engineer');
+                                                                clearPrintGuard(ticket.id);
+                                                                
+                                                                const registry = printService.getRegistry();
+                                                                const hasThermalPrinter = !!(registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer'));
+
+                                                                const silent = hasThermalPrinter && enableSpeedPrint && !isManualOverride;
+                                                                setIsSilentPrint(silent);
+                                                                setShowPrintOptions(true);
+                                                            }} className="gap-2 cursor-pointer">
+                                                                <SettingsIcon className="h-4 w-4" />
+                                                                <span>{t('list.printEngineer')}</span>
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator className="bg-slate-200 dark:bg-white/5" />
+                                                            <DropdownMenuItem
+                                                                className="text-red-500 focus:text-red-500 focus:bg-red-50 dark:focus:bg-red-500/10 font-bold cursor-pointer hover:bg-red-50 dark:hover:bg-red-500/10"
+                                                                onClick={(e) => { e.stopPropagation(); setDeletingTicket(ticket); setShowDeleteDialog(true); }}
+                                                            >
+                                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                                <span>{t('list.deleteTicket')}</span>
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
