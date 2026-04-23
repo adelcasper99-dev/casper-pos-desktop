@@ -126,6 +126,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     shell: {
         openExternal: (url) => ipcRenderer.invoke('shell:open-external', url)
+    },
+
+    /**
+     * Boot Progress API (Used by Splash Screen)
+     */
+    onBootStatus: (callback) => {
+        const handler = (_event, status) => callback(status);
+        ipcRenderer.on('boot-status', handler);
+        return () => ipcRenderer.removeListener('boot-status', handler);
     }
 });
 

@@ -31,31 +31,28 @@ const DEFAULT_CASH_CATEGORIES = [
 ];
 
 export async function seedCashCategories() {
-    console.log('Seeding default cash categories...');
+    try {
+        const existing = await prisma.cashCategory.findMany({
+            select: { name: true }
+        });
+        const existingNames = new Set(existing.map(c => c.name));
 
-    for (const cat of DEFAULT_CASH_CATEGORIES) {
-        try {
-            const exists = await prisma.cashCategory.findFirst({
-                where: { name: cat.name }
+        const missing = DEFAULT_CASH_CATEGORIES.filter(c => !existingNames.has(c.name));
+
+        if (missing.length > 0) {
+            console.log(`[SEED] Creating ${missing.length} missing cash categories...`);
+            await prisma.cashCategory.createMany({
+                data: missing.map(cat => ({
+                    name: cat.name,
+                    type: cat.type,
+                    isSystem: cat.isSystem,
+                    glCode: cat.glCode,
+                    isActive: true
+                }))
             });
-
-            if (!exists) {
-                await prisma.cashCategory.create({
-                    data: {
-                        name: cat.name,
-                        type: cat.type,
-                        isSystem: cat.isSystem,
-                        glCode: cat.glCode,
-                        isActive: true
-                    }
-                });
-                console.log(`[SEED] Created CashCategory: ${cat.name} (${cat.type})`);
-            } else {
-                console.log(`[SEED] CashCategory "${cat.name}" already exists`);
-            }
-        } catch (error) {
-            console.error(`[SEED ERROR] Failed for category ${cat.name}:`, error);
+            console.log(`[SEED] Successfully created ${missing.length} cash categories.`);
         }
+    } catch (error) {
+        console.error('[SEED ERROR] Failed to seed cash categories:', error);
     }
-    console.log('[SEED] Finished cash categories check.');
 }

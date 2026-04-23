@@ -66,6 +66,7 @@ const getDatabasePath = () => {
 const runMigrations = (dbPath) => {
     if (!app.isPackaged) return;
     log('Migrations: Starting...');
+    const startTime = Date.now();
 
     const normalizedDbPath = dbPath.replace(/\\/g, '/');
     const dbUrl = `file:${normalizedDbPath}`;
@@ -86,151 +87,185 @@ const runMigrations = (dbPath) => {
         PRISMA_CLI_QUERY_ENGINE_TYPE: 'library'
     };
 
-    const runSql = (sql) => {
+    const runSqlWithOutput = (sql) => {
         try {
-            execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+            return execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
                 env, input: sql, windowsHide: true, encoding: 'utf-8'
             });
-            return true;
         } catch (e) {
-            return false;
+            return null;
+        }
+    };
+
+    const sendStatus = (status) => {
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.webContents.send('boot-status', status);
         }
     };
 
     // ─── Pre-Patch: Apply each missing column individually ────────────────────
-    // Each statement runs in isolation so "duplicate column" errors on already-
-    // patched databases are silently ignored without blocking the full migration.
     const prePatchStatements = [
-      // Product
-      'ALTER TABLE "Product" ADD COLUMN "isDevice" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Product" ADD COLUMN "deviceType" TEXT',
-      'ALTER TABLE "Product" ADD COLUMN "condition" TEXT',
-      'ALTER TABLE "Product" ADD COLUMN "color" TEXT',
+        // Product
+        'ALTER TABLE "Product" ADD COLUMN "isDevice" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Product" ADD COLUMN "deviceType" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "condition" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "color" TEXT',
 
-      // PurchaseItem
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "imei" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "condition" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "color" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "deviceType" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "returnedQty" INTEGER NOT NULL DEFAULT 0',
+        // PurchaseItem
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "imei" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "condition" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "color" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "deviceType" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "returnedQty" INTEGER NOT NULL DEFAULT 0',
 
-      // SaleItem
-      'ALTER TABLE "SaleItem" ADD COLUMN "imei" TEXT',
-      'ALTER TABLE "SaleItem" ADD COLUMN "condition" TEXT',
-      'ALTER TABLE "SaleItem" ADD COLUMN "color" TEXT',
-      'ALTER TABLE "SaleItem" ADD COLUMN "deviceType" TEXT',
+        // SaleItem
+        'ALTER TABLE "SaleItem" ADD COLUMN "imei" TEXT',
+        'ALTER TABLE "SaleItem" ADD COLUMN "condition" TEXT',
+        'ALTER TABLE "SaleItem" ADD COLUMN "color" TEXT',
+        'ALTER TABLE "SaleItem" ADD COLUMN "deviceType" TEXT',
 
-      // PurchaseInvoice
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isWalkin" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinName" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinPhone" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinNationalId" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "attachmentUrl" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidReason" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedAt" DATETIME',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedBy" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "parentId" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "branchId" TEXT',
+        // PurchaseInvoice
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isWalkin" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinName" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinPhone" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinNationalId" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "attachmentUrl" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidReason" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedAt" DATETIME',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedBy" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "parentId" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "branchId" TEXT',
 
-      // Transaction
-      'ALTER TABLE "Transaction" ADD COLUMN "categoryId" TEXT',
-      'ALTER TABLE "Transaction" ADD COLUMN "idempotencyKey" TEXT',
+        // Transaction
+        'ALTER TABLE "Transaction" ADD COLUMN "categoryId" TEXT',
+        'ALTER TABLE "Transaction" ADD COLUMN "idempotencyKey" TEXT',
 
-      // Sale
-      'ALTER TABLE "Sale" ADD COLUMN "warrantyDays" INTEGER',
-      'ALTER TABLE "Sale" ADD COLUMN "warrantyExpiryDate" DATETIME',
-      'ALTER TABLE "Sale" ADD COLUMN "customerId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "tableId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "tableName" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "userId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "syncStatus" TEXT NOT NULL DEFAULT "PENDING"',
-      'ALTER TABLE "Sale" ADD COLUMN "offlineFlag" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Sale" ADD COLUMN "discountPercentage" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "Sale" ADD COLUMN "previousStatus" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Sale" ADD COLUMN "parentId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "branchId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "relatedSupplierId" TEXT',
+        // Sale
+        'ALTER TABLE "Sale" ADD COLUMN "warrantyDays" INTEGER',
+        'ALTER TABLE "Sale" ADD COLUMN "warrantyExpiryDate" DATETIME',
+        'ALTER TABLE "Sale" ADD COLUMN "customerId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "tableId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "tableName" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "userId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "syncStatus" TEXT NOT NULL DEFAULT "PENDING"',
+        'ALTER TABLE "Sale" ADD COLUMN "offlineFlag" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Sale" ADD COLUMN "discountPercentage" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "Sale" ADD COLUMN "previousStatus" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Sale" ADD COLUMN "parentId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "branchId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "relatedSupplierId" TEXT',
 
-      // Ticket
-      'ALTER TABLE "Ticket" ADD COLUMN "finalCustomerPrice" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "techBillingPrice" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "partCostPrice" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "laborPoolAmount" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "techCommissionAmount" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "centerLaborProfit" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "centerPartProfit" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "commissionClawback" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "lastReturnedAt" DATETIME',
-      'ALTER TABLE "Ticket" ADD COLUMN "originalTechId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "returnCount" INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE "Ticket" ADD COLUMN "returnReason" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "rejectionReason" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "rejectedAt" DATETIME',
-      'ALTER TABLE "Ticket" ADD COLUMN "clientSupplierId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "clientUserId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "parentTicketId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "barcode" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
+        // Ticket
+        'ALTER TABLE "Ticket" ADD COLUMN "finalCustomerPrice" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "techBillingPrice" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "partCostPrice" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "laborPoolAmount" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "techCommissionAmount" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "centerLaborProfit" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "centerPartProfit" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "commissionClawback" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "lastReturnedAt" DATETIME',
+        'ALTER TABLE "Ticket" ADD COLUMN "originalTechId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "returnCount" INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE "Ticket" ADD COLUMN "returnReason" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "rejectionReason" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "rejectedAt" DATETIME',
+        'ALTER TABLE "Ticket" ADD COLUMN "clientSupplierId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "clientUserId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "parentTicketId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "barcode" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
 
-      // User
-      'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "User" ADD COLUMN "monthlyOffDays" INTEGER DEFAULT 4',
-      'ALTER TABLE "User" ADD COLUMN "hireDate" DATETIME',
-      'ALTER TABLE "User" ADD COLUMN "maxDiscount" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "User" ADD COLUMN "maxDiscountAmount" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "User" ADD COLUMN "isFrozen" BOOLEAN NOT NULL DEFAULT false',
+        // User
+        'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "User" ADD COLUMN "monthlyOffDays" INTEGER DEFAULT 4',
+        'ALTER TABLE "User" ADD COLUMN "hireDate" DATETIME',
+        'ALTER TABLE "User" ADD COLUMN "maxDiscount" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "User" ADD COLUMN "maxDiscountAmount" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "User" ADD COLUMN "isFrozen" BOOLEAN NOT NULL DEFAULT false',
 
-      // Technician
-      'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
-      'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
-      'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
-      'ALTER TABLE "Technician" ADD COLUMN "commissionRuleId" TEXT',
+        // Technician
+        'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
+        'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
+        'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
+        'ALTER TABLE "Technician" ADD COLUMN "commissionRuleId" TEXT',
 
-      // Warehouse & Branch
-      'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
-      'ALTER TABLE "Warehouse" ADD COLUMN "isMaintenanceDefault" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Branch" ADD COLUMN "isMaintenanceHQ" BOOLEAN NOT NULL DEFAULT false',
+        // Warehouse & Branch
+        'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
+        'ALTER TABLE "Warehouse" ADD COLUMN "isMaintenanceDefault" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Branch" ADD COLUMN "isMaintenanceHQ" BOOLEAN NOT NULL DEFAULT false',
 
-      // New Tables & Missing Columns from recent updates
-      'CREATE TABLE IF NOT EXISTS "Model" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE UNIQUE INDEX IF NOT EXISTS "Model_name_categoryId_key" ON "Model"("name", "categoryId")',
-      'CREATE TABLE IF NOT EXISTS "Attribute" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE UNIQUE INDEX IF NOT EXISTS "Attribute_name_key" ON "Attribute"("name")',
-      'CREATE TABLE IF NOT EXISTS "Sequence" ("name" TEXT NOT NULL PRIMARY KEY, "value" INTEGER NOT NULL DEFAULT 0)',
-      'CREATE TABLE IF NOT EXISTS "CommissionRule" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "value" DECIMAL NOT NULL DEFAULT 0.00, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'ALTER TABLE "Customer" ADD COLUMN "totalPurchaseValue" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Customer" ADD COLUMN "receivesNotifications" BOOLEAN NOT NULL DEFAULT true',
-      'ALTER TABLE "JournalEntry" ADD COLUMN "idempotencyKey" TEXT',
-      'ALTER TABLE "JournalEntry" ADD COLUMN "transactionId" TEXT',
-      'ALTER TABLE "NotificationLog" ADD COLUMN "metadata" TEXT',
-      'ALTER TABLE "Product" ADD COLUMN "modelId" TEXT',
-      'ALTER TABLE "Product" ADD COLUMN "attributeId" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "unitOfMeasureId" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "conversionFactor" DECIMAL NOT NULL DEFAULT 1.00',
-      'ALTER TABLE "Sale" ADD COLUMN "idempotencyKey" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "TicketPart" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
-      'ALTER TABLE "Transaction" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "StockMovement" ADD COLUMN "idempotencyKey" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "idempotencyKey" TEXT',
+        // New Tables & Missing Columns
+        'CREATE TABLE IF NOT EXISTS "Model" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "Model_name_categoryId_key" ON "Model"("name", "categoryId")',
+        'CREATE TABLE IF NOT EXISTS "Attribute" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "Attribute_name_key" ON "Attribute"("name")',
+        'CREATE TABLE IF NOT EXISTS "Sequence" ("name" TEXT NOT NULL PRIMARY KEY, "value" INTEGER NOT NULL DEFAULT 0)',
+        'CREATE TABLE IF NOT EXISTS "CommissionRule" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "value" DECIMAL NOT NULL DEFAULT 0.00, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'ALTER TABLE "Customer" ADD COLUMN "totalPurchaseValue" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Customer" ADD COLUMN "receivesNotifications" BOOLEAN NOT NULL DEFAULT true',
+        'ALTER TABLE "JournalEntry" ADD COLUMN "idempotencyKey" TEXT',
+        'ALTER TABLE "JournalEntry" ADD COLUMN "transactionId" TEXT',
+        'ALTER TABLE "NotificationLog" ADD COLUMN "metadata" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "modelId" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "attributeId" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "unitOfMeasureId" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "conversionFactor" DECIMAL NOT NULL DEFAULT 1.00',
+        'ALTER TABLE "Sale" ADD COLUMN "idempotencyKey" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "TicketPart" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'ALTER TABLE "Transaction" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "StockMovement" ADD COLUMN "idempotencyKey" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "idempotencyKey" TEXT',
 
-      // Legacy New Tables
-      'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
-      'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
+        // Legacy New Tables
+        'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
+        'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
+        'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
     ];
 
-    log('Migrations: Applying pre-patch SQL statements...');
-    for (const sql of prePatchStatements) {
-        const ok = runSql(sql + ';');
-        log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
+    const CURRENT_SCHEMA_VERSION = prePatchStatements.length;
+    log(`Migrations: Target schema version: ${CURRENT_SCHEMA_VERSION}`);
+
+    // Check current version
+    const versionOutput = runSqlWithOutput('PRAGMA user_version;');
+    let currentVersion = 0;
+    if (versionOutput) {
+        try {
+            const parsed = JSON.parse(versionOutput);
+            currentVersion = parsed[0]?.user_version || 0;
+        } catch (e) {
+            log(`Migrations: Failed to parse user_version: ${e.message}`);
+        }
     }
-    log('Migrations: Pre-patch complete.');
+    log(`Migrations: Current schema version: ${currentVersion}`);
+
+    if (currentVersion < CURRENT_SCHEMA_VERSION) {
+        log(`Migrations: Applying ${CURRENT_SCHEMA_VERSION - currentVersion} missing patches...`);
+        sendStatus(`Optimizing Database (${currentVersion}/${CURRENT_SCHEMA_VERSION})...`);
+
+        for (let i = currentVersion; i < CURRENT_SCHEMA_VERSION; i++) {
+            const sql = prePatchStatements[i];
+            const ok = runSql(sql + ';');
+            if (ok) {
+                // Update version after each successful patch to allow resuming
+                runSql(`PRAGMA user_version = ${i + 1};`);
+            }
+            if (i % 5 === 0 || i === CURRENT_SCHEMA_VERSION - 1) {
+                sendStatus(`Optimizing Database (${i + 1}/${CURRENT_SCHEMA_VERSION})...`);
+            }
+            log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
+        }
+        log('Migrations: Pre-patch complete.');
+    } else {
+        log('Migrations: Database already up to date.');
+    }
+    log(`Migrations: Phase complete in ${Date.now() - startTime}ms.`);
     // ──────────────────────────────────────────────────────────────────────────
 
     const attemptMigration = (attempt) => {
@@ -261,21 +296,7 @@ const runMigrations = (dbPath) => {
         }
     };
 
-    // Check for schema integrity BEFORE running migrations if possible,
-    // though Prisma handle migration safety, PRAGMA check is for data durability.
-    try {
-        log('Database: Running integrity check...');
-        const output = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
-            env, input: 'PRAGMA integrity_check;', windowsHide: true, encoding: 'utf-8'
-        });
-        if (output.includes('ok')) {
-            log('Database: Integrity check - OK');
-        } else {
-            log(`Database: Integrity check found issues: ${output}`);
-        }
-    } catch (e) {
-        log(`Database: Integrity check failed to run: ${e.message}`);
-    }
+    // REMOVED Redundant Integrity Check (handled in db-init.ts)
 
     // First attempt
     const firstAttempt = attemptMigration(1);
@@ -384,7 +405,10 @@ const startServer = () => {
 const createSplashWindow = () => {
     splashWindow = new BrowserWindow({
         width: 400, height: 400, transparent: true, frame: false, alwaysOnTop: true,
-        webPreferences: { nodeIntegration: false, contextIsolation: true }
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false, contextIsolation: true
+        }
     });
     splashWindow.loadFile(path.join(__dirname, 'splash.html'));
 };

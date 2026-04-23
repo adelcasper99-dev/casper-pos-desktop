@@ -172,17 +172,28 @@
     </div>
 
     <script>
-        const statuses = [
-            "Initializing Systems...",
-            "Connecting Database...",
-            "Starting Web Server...",
-            "Loading Modules..."
-        ];
-        let i = 0;
-        setInterval(() => {
-            i = (i + 1) % statuses.length;
-            document.getElementById('status-text').innerText = statuses[i];
-        }, 1200);
+        const statusEl = document.getElementById('status-text');
+        
+        // Listen for real-time boot status from Electron main process
+        if (window.electronAPI && window.electronAPI.onBootStatus) {
+            window.electronAPI.onBootStatus((status) => {
+                statusEl.innerText = status;
+            });
+        } else {
+            // Fallback: cycle through default messages if IPC isn't active yet
+            const statuses = [
+                "Initializing Systems...",
+                "Connecting Database...",
+                "Starting Web Server...",
+                "Loading Modules..."
+            ];
+            let i = 0;
+            const fallbackInterval = setInterval(() => {
+                // If the main process starts sending real data, we could clear this
+                i = (i + 1) % statuses.length;
+                statusEl.innerText = statuses[i];
+            }, 1500);
+        }
     </script>
 </body>
 

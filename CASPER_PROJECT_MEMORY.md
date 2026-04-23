@@ -2,6 +2,13 @@
 
 This document serves as the "Source of Truth" for critical architectural decisions, financial logic, and system integrity protocols established for the Casper POS & ERP system.
 
+## 🧠 Documented Solutions & Knowledge Base
+*   **Knowledge Store**: `docs/solutions/` contains detailed documentation of past problems, fixes, and best practices.
+*   **Protocol**: Before implementing new features or debugging complex issues, agents should search `docs/solutions/` for relevant context.
+*   **Structure**: Docs are organized by category (e.g., `ui-bugs`, `workflow-issues`, `best-practices`) and include YAML frontmatter for discoverability.
+
+---
+
 ## 💰 1. Financial Integrity & Payroll Protocols
 
 ### 💰 [NEW] Financial Integrity: Separate Accounting & Reversals
@@ -98,6 +105,8 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Rule**: Network printing components MUST bypass `localhost` if a master target IP is configured.
 *   **Logic**: The `print-service.ts` resolves the `bridgeIpAddress` from the `PrinterRegistry`. If a user connects via an iPad, the POS directs the payload to `http://<Master_IP>:4040/api/print` resolving the localhost trap.
 *   **Handling Offline Services**: All fetch requests to the Bridge API use `AbortController` combined with `Promise.race()` to guarantee maximum timeout guardrails (e.g., 15s). Printing processes MUST NOT freeze the UI if a target printer node drops off the network.
+*   **[NEW] Headless Default**: To maximize throughput, the system defaults to "Headless Printing" (Directly to hardware without a preview modal) when printers are already configured.
+
 
 ---
 
@@ -201,5 +210,39 @@ This document serves as the "Source of Truth" for critical architectural decisio
 
 ---
 
+---
+
+## 🛡️ 12. Headless Printing & Workflow Automation
+
+### 🛸 Headless Printing Logic (Silent Mode)
+*   **Rule**: If the "Speed Print" (Direct Print) toggle is enabled, the system bypasses the preview modal for immediate hardware handoff.
+*   **Printer Verification**: The system uses `checkPrinterAndRedirect` to verify printer availability BEFORE attempting a silent print.
+*   **Automatic Redirection**: If a required printer (Thermal or Label) is unconfigured, the system automatically redirects the user to the Store Settings page with a warning notification, preventing silent failures.
+
+### 🛡️ Manual Preview Override (Shift + Click)
+*   **Protocol**: Users can ALWAYS bypass silent printing by holding the **Shift** key while clicking any print button.
+*   **Behavior**: This force-opens the `TicketPrintOptionsModal` (Preview Modal), allowing users to change printers, select specific copies, or view the layout before printing.
+*   **UI Guidance**: A persistent localized hint `(Shift + Click) للمعاينة اليدوية` is displayed near print controls and inside the modal.
+
+### 🌍 Workflow Localization & UX
+*   **RTL Optimization**: All print hints and automated messages are fully localized in `ar.json`.
+*   **Interactive Feedback**: Buttons change state to "Printing..." (جاري التحقق...) with loading spinners during the headless handoff to provide immediate feedback despite the lack of a modal.
+
 *Created: April 2, 2026*
-*Last Update: April 19, 2026 (E-Wallet Module, Atomic Accounting & Type Centralization)*
+*Last Update: April 23, 2026 (Startup Performance Optimization, Headless Printing, Shift+Click Override & UI Localization)*
+
+---
+
+## 🚀 13. Boot Performance & Initialization Protocols
+
+### ⚡ [NEW] Electron Startup Optimization (SQL Batching & Versioning)
+*   **Rule**: The Electron main process MUST NOT block the UI with redundant schema checks.
+*   **Technique (Schema Versioning)**: Utilize `PRAGMA user_version` to track the current database state. On boot, the app checks this version and skips all 120+ `prePatchStatements` instantly if the version matches.
+*   **Protocol**: Whenever new schema patches are added to `electron/main.js`, the target `user_version` MUST be incremented.
+*   **Live Progress (IPC)**: Initialization tasks (Migrations, Server Start) MUST emit real-time status updates via the `boot-status` IPC channel.
+*   **UI Feedback**: The splash screen (`splash.html`) MUST listen for these events and display a progress indicator (e.g., "Optimizing Database (45/123)...") to provide immediate user feedback.
+
+### 🛡️ [NEW] Optimized Backend Seeding
+*   **Rule**: Database seeding during initialization MUST use batched operations to prevent "Request Storms".
+*   **Implementation**: Use `createMany` combined with a pre-fetch `Set` of existing keys. This reduces dozens of sequential `findUnique` + `create` calls into just two atomic operations (Fetch + Batch Create).
+*   **Redundancy**: Core integrity checks (`PRAGMA integrity_check`) should be executed during the server runtime (`db-init.ts`) but removed from the main Electron boot sequence to minimize blocking latency.
