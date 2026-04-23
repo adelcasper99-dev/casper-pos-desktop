@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useTranslations } from "@/lib/i18n-mock";
+import { printService } from "@/lib/print-service";
 
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
@@ -66,6 +67,13 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                 locationLng: parseFloat(form.locationLng) || 46.6753,
                 locationRadius: parseInt(form.locationRadius) || 500
             };
+            
+            // 🛡️ [SYNC FIX] Keep local speed print toggle in sync with global setting
+            if (form.autoPrintTicket !== undefined) {
+                const currentRegistry = printService.getRegistry() || {};
+                printService.updateRegistry({ ...currentRegistry, enableSpeedPrint: form.autoPrintTicket === true });
+            }
+
             const result = await updateStoreSettings(payload);
             if (result?.success) {
                 toast.success(t('success'));

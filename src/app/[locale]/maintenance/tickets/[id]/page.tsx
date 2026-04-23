@@ -46,6 +46,7 @@ import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModa
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
+import { printService } from "@/lib/print-service";
 
 // Helper to ensure all Decimal fields are converted to numbers
 function serializeTicket(ticket: any) {
@@ -257,6 +258,7 @@ export default function TicketDetailPage() {
     const [showPrintOptions, setShowPrintOptions] = useState(false);
     const [isSilentPrint, setIsSilentPrint] = useState(false);
     const [defaultPrintMode, setDefaultPrintMode] = useState<'receipt' | 'label'>('receipt');
+    const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
 
     // Helper: detect configured printers & clear session guard for re-print
     const hasThermalPrinter = () =>
@@ -295,17 +297,10 @@ export default function TicketDetailPage() {
         }
 
         const shouldPrint = searchParams.get('print') === 'true';
-        console.log('[AutoPrint] shouldPrint:', shouldPrint);
+        console.log('[AutoPrint] shouldPrint:', shouldPrint, 'speedPrintEnabled:', isSpeedPrintEnabled);
 
-        // If print=true in URL, show print options regardless of settings
-        // This ensures the print dialog works immediately after ticket creation
+        // Clean URL if we have print=true
         if (shouldPrint && ticket && !hasPrinted) {
-            console.log('[AutoPrint] ✓ Triggering from print=true URL param');
-            setHasPrinted(true);
-            setIsSilentPrint(true);
-            setShowPrintOptions(true);
-            
-            // Clean URL
             try {
                 const url = new URL(window.location.href);
                 url.searchParams.delete('print');
@@ -313,17 +308,18 @@ export default function TicketDetailPage() {
             } catch (e) {
                 console.log('[AutoPrint] URL clean failed:', e);
             }
-            return;
         }
 
-        // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
-        const autoPrintEnabled = settings?.autoPrintTicket === true;
-        console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
-        if (autoPrintEnabled && ticket && !hasPrinted) {
-            console.log('[AutoPrint] ✓ Triggering from settings');
-            setIsSilentPrint(true);
-            setShowPrintOptions(true);
-            setHasPrinted(true);
+        if (isSpeedPrintEnabled && ticket && !hasPrinted) {
+            const autoPrintEnabled = settings?.autoPrintTicket === true;
+            
+            // 🛡️ ONLY auto-print if BOTH ?print=true AND autoPrintEnabled in settings are true
+            if (shouldPrint && autoPrintEnabled) {
+                console.log('[AutoPrint] ✓ Triggering auto-print (shouldPrint and settings enabled)');
+                setHasPrinted(true);
+                setIsSilentPrint(true);
+                setShowPrintOptions(true);
+            }
         }
     }, [searchParams, ticket, loading, hasPrinted, settings, showPrintOptions]);
 
@@ -435,10 +431,12 @@ export default function TicketDetailPage() {
 
     // Function to open print modal
     const openBarcodePrint = () => {
-        console.log('[TEST] Force opening print modal');
+        console.log('[DirectPrint] Manual Label request');
         clearPrintGuard();
         setDefaultPrintMode('label');
-        setIsSilentPrint(hasLabelPrinter());
+        // Enable silent only if printer is configured AND Speed Print is enabled
+        const silent = hasLabelPrinter() && isSpeedPrintEnabled;
+        setIsSilentPrint(silent);
         setShowPrintOptions(true);
     };
 
@@ -516,7 +514,13 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter()); setShowPrintOptions(true); }}
+                        onClick={() => { 
+                            clearPrintGuard(); 
+                            setDefaultPrintMode('engineer' as any); 
+                            const silent = hasThermalPrinter() && isSpeedPrintEnabled;
+                            setIsSilentPrint(silent); 
+                            setShowPrintOptions(true); 
+                        }}
                         className="bg-orange-500/5 border-orange-500/20 text-orange-400 h-10 px-3 flex gap-2 items-center hover:bg-orange-500/10 transition-colors"
                     >
                         <SettingsIcon className="h-4 w-4" />
@@ -524,7 +528,13 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter()); setShowPrintOptions(true); }}
+                        onClick={() => { 
+                            clearPrintGuard(); 
+                            setDefaultPrintMode('receipt'); 
+                            const silent = hasThermalPrinter() && isSpeedPrintEnabled;
+                            setIsSilentPrint(silent); 
+                            setShowPrintOptions(true); 
+                        }}
                         className="bg-slate-200/50 dark:bg-zinc-800/50 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-300 h-10 px-3 flex gap-2 items-center hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <Printer className="h-4 w-4" />

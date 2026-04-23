@@ -31,7 +31,7 @@ import {
 import { DateRange } from "react-day-picker"
 import { cn } from '@/lib/utils'
 import { getTickets as fetchTickets } from "@/actions/ticket-actions"
-import { getEffectiveStoreSettings } from "@/actions/settings"
+import { getEffectiveStoreSettings, updateStoreSettings } from "@/actions/settings"
 import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
 import TicketPrintOptionsModal from './TicketPrintOptionsModal'
@@ -108,11 +108,18 @@ export default function TicketsList() {
         }
     }, [])
 
-    const handleSpeedPrintToggle = (val: boolean) => {
+    const handleSpeedPrintToggle = async (val: boolean) => {
         setEnableSpeedPrint(val);
         const current = printService.getRegistry() || {};
         printService.updateRegistry({ ...current, enableSpeedPrint: val });
-        toast.success(val ? "تم تفعيل الطباعة المباشرة" : "تم تعطيل الطباعة المباشرة");
+        
+        // 🛡️ [SYNC FIX] Also update the global store setting so they are linked
+        if (settings) {
+            setSettings({ ...settings, autoPrintTicket: val });
+        }
+        await updateStoreSettings({ autoPrintTicket: val });
+        
+        toast.success(val ? "تم تفعيل الطباعة المباشرة والتلقائية" : "تم تعطيل الطباعة المباشرة والتلقائية");
     };
 
     async function loadData() {
@@ -123,7 +130,15 @@ export default function TicketsList() {
 
     async function loadSettings() {
         const res = await getEffectiveStoreSettings()
-        if (res?.data) setSettings(res.data)
+        if (res?.data) {
+            setSettings(res.data)
+            // 🛡️ [SYNC FIX] Ensure the local lightning bolt matches the global setting
+            if (res.data.autoPrintTicket !== undefined && res.data.autoPrintTicket !== enableSpeedPrint) {
+                setEnableSpeedPrint(res.data.autoPrintTicket === true);
+                const current = printService.getRegistry() || {};
+                printService.updateRegistry({ ...current, enableSpeedPrint: res.data.autoPrintTicket === true });
+            }
+        }
     }
 
     async function loadTickets() {
