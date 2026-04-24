@@ -8,21 +8,7 @@ import CategoryModal from "../CategoryModal";
 import { useState } from "react";
 
 // Define the Product type for existing item props
-interface Product {
-    id: string;
-    name: string;
-    sku: string;
-    stock: number;
-    costPrice: number;
-    sellPrice: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
-}
-
-interface Category {
-    id: string;
-    name: string;
-}
+import { Product, Category } from "@/types/product";
 
 interface PurchaseItemEntryProps {
     entryMode: 'SEARCH' | 'NEW';

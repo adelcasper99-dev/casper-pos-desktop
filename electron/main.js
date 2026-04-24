@@ -11,6 +11,35 @@ const log = (msg) => {
     fs.appendFileSync(debugLog, `[${new Date().toISOString()}] [PROCESS ${process.pid}] ${msg}\n`);
 };
 
+/**
+ * Hardened IPC Error Handlers
+ */
+const safeHandle = (channel, handler) => {
+    ipcMain.handle(channel, async (event, ...args) => {
+        try {
+            const result = await handler(event, ...args);
+            // If the result is already in {success, data} format, return it directly
+            if (result && typeof result === 'object' && ('success' in result)) {
+                return result;
+            }
+            return { success: true, data: result };
+        } catch (error) {
+            log(`IPC Error [${channel}]: ${error.message}`);
+            return { success: false, error: error.message };
+        }
+    });
+};
+
+const safeOn = (channel, handler) => {
+    ipcMain.on(channel, (event, ...args) => {
+        try {
+            handler(event, ...args);
+        } catch (error) {
+            log(`IPC Exception [${channel}]: ${error.message}`);
+        }
+    });
+};
+
 // Configure autoUpdater logger
 autoUpdater.logger = {
     info(msg) { log(`Updater: ${msg}`); },
@@ -439,34 +468,26 @@ autoUpdater.on('update-downloaded', (info) => {
     if (mainWindow) mainWindow.webContents.send('updater:update-downloaded', info);
 });
 
-ipcMain.handle('app:install-update', () => {
-    log('Updater: Installing update and quitting...');
-    autoUpdater.quitAndInstall(false, true);
+safeHandle('app:install-update', () => {
+    autoUpdater.quitAndInstall();
 });
 
-ipcMain.on('window:minimize', () => mainWindow?.minimize());
-ipcMain.on('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
-ipcMain.on('window:close', () => mainWindow?.close());
-ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() || false);
+safeOn('window:minimize', () => mainWindow?.minimize());
+safeOn('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
+safeOn('window:close', () => mainWindow?.close());
+safeHandle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
-ipcMain.handle('shell:open-external', async (event, url) => {
-    try {
-        await shell.openExternal(url);
-        return { success: true };
-    } catch (error) {
-        log(`Shell openExternal Error: ${error.message}`);
-        return { success: false, error: error.message };
-    }
+safeHandle('shell:open-external', async (event, url) => {
+    await shell.openExternal(url);
 });
 
-ipcMain.handle('printers:list', async () => {
-    if (!mainWindow) return [];
-    try {
-        return await mainWindow.webContents.getPrintersAsync();
-    } catch (error) {
-        log(`Error getting printers: ${error.message}`);
-        return [];
-    }
+safeHandle('printers:list', async () => {
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map(p => ({
+        name: p.name,
+        isDefault: p.isDefault,
+        status: p.status
+    }));
 });
 
 /**
@@ -664,12 +685,12 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
 });
 
 ipcMain.handle('print:standard', handleStandardPrint);
-ipcMain.handle('print:thermal', async (event, html, printerName, paperWidthMm) => {
+safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 // Legacy support
 ipcMain.handle('print:silent', handleStandardPrint);
-ipcMain.handle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
+safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 
@@ -687,8 +708,7 @@ const loadConfig = () => {
     return {};
 };
 
-ipcMain.handle('dialog:showOpenDialog', async () => {
-    if (!mainWindow) return null;
+safeHandle('dialog:showOpenDialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Database Folder'
@@ -696,8 +716,7 @@ ipcMain.handle('dialog:showOpenDialog', async () => {
     return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle('dialog:showBackupFolderDialog', async () => {
-    if (!mainWindow) return null;
+safeHandle('dialog:showBackupFolderDialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Custom Backup Folder'
@@ -714,32 +733,27 @@ ipcMain.handle('dialog:showBackupFolderDialog', async () => {
     return selectedPath;
 });
 
-ipcMain.handle('app:get-config', () => {
+safeHandle('app:get-config', () => {
     return loadConfig();
 });
 
-ipcMain.handle('app:get-db-path', () => {
+safeHandle('app:get-db-path', () => {
     return path.dirname(getDatabasePath());
 });
 
-ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
-    try {
-        const userDataPath = app.getPath('userData');
-        const configPath = path.join(userDataPath, 'casper-config.json');
-        const existingConfig = loadConfig();
-        const newConfig = { ...existingConfig, dbPath: newDbFolder };
+safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
+    const userDataPath = app.getPath('userData');
+    const configPath = path.join(userDataPath, 'casper-config.json');
+    const existingConfig = loadConfig();
+    const newConfig = { ...existingConfig, dbPath: newDbFolder };
 
-        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
-        log(`Saved new config path: ${newDbFolder}. Restarting...`);
+    fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
+    log(`Saved new config path: ${newDbFolder}. Restarting...`);
 
-        // Relaunch the application and exit
-        app.relaunch();
-        app.quit();
-        return true;
-    } catch (err) {
-        log(`Failed save-config-and-restart: ${err.message}`);
-        return false;
-    }
+    // Relaunch the application and exit
+    app.relaunch();
+    app.quit();
+    return true;
 });
 
 ipcMain.handle('app:save-backup-config', async (event, configData) => {

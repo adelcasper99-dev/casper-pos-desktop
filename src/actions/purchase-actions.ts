@@ -10,6 +10,7 @@ import { getCurrentShiftInternal } from './shift-management-actions';
 import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { calculateProratedRefundValue } from '@/utils/refund-calculations';
 import { GL } from '@/shared/constants/accounting-mappings';
+import { PurchaseInvoice } from '@/types/product';
 
 interface PurchaseFilters {
     startDate?: string;
@@ -21,7 +22,7 @@ interface PurchaseFilters {
 /**
  * Fetch purchase history
  */
-export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ success: boolean; purchases?: any[]; error?: string }> {
+export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ success: boolean; purchases?: PurchaseInvoice[]; error?: string }> {
     try {
         const { startDate, endDate, supplierId, status } = filters || {};
 
@@ -43,7 +44,7 @@ export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ 
                     select: { name: true }
                 },
                 warehouse: {
-                    select: { name: true, branch: { select: { name: true } } }
+                    select: { name: true, branch: { select: { name: true, code: true } } }
                 },
                 items: {
                     include: {

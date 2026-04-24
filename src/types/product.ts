@@ -1,3 +1,5 @@
+import { Decimal } from '@prisma/client/runtime/library';
+
 /**
  * Shared TypeScript type definitions for Product entities
  * Used across POS, Cart, Inventory, and Purchasing modules
@@ -19,10 +21,22 @@ export interface Product {
     stock: number;
     minStock: number;
     categoryId: string;
-    createdAt: Date;
-    updatedAt: Date;
-    deletedAt: Date | null;
+    createdAt: Date | string; // Union for JSON compatibility
+    updatedAt: Date | string;
+    deletedAt: Date | string | null;
     version: number;
+
+    // missing fields for inventory components
+    archived?: boolean;
+    trackStock?: boolean;
+    unitOfMeasureId?: string | null;
+    unitCode?: string | null;
+    unitName?: string | null;
+    unitAbbreviation?: string | null;
+    modelId?: string | null;
+    modelName?: string | null;
+    attributeId?: string | null;
+    hasHistory?: boolean;
 }
 
 /**
@@ -40,14 +54,95 @@ export interface CartProduct {
     trackStock?: boolean;
 }
 
-/**
- * Product with category information
- * Used in inventory lists and product displays
- */
-export interface ProductWithCategory extends Product {
-    category: {
-        id: string;
+export interface Category {
+    id: string;
+    name: string;
+    color?: string | null;
+    description?: string | null;
+}
+
+export interface Unit {
+    id: string;
+    name: string;
+    code: string;
+    category: string;
+    abbreviation?: string | null;
+    conversionFactor?: number;
+    isActive?: boolean;
+}
+
+export interface Supplier {
+    id: string;
+    name: string;
+    phone?: string | null;
+    address?: string | null;
+    openingBalance?: number;
+}
+
+export interface Branch {
+    id: string;
+    name: string;
+    code: string;
+    type?: string;
+    address?: string | null;
+}
+
+export interface Warehouse {
+    id: string;
+    name: string;
+    address?: string | null;
+    isDefault: boolean;
+    branchId: string;
+    branch?: Branch;
+}
+
+export interface Model {
+    id: string;
+    name: string;
+    categoryId: string;
+}
+
+export interface PurchaseItem {
+    id: string;
+    purchaseInvoiceId: string;
+    productId: string;
+    product: {
         name: string;
-        color: string | null;
+        sku: string;
+        modelId?: string | null;
+        model?: { name: string } | null;
+        attributeId?: string | null;
+        attribute?: { name: string } | null;
+        stocks?: { warehouseId: string; quantity: number | Decimal }[];
     };
+    quantity: number | Decimal;
+    unitCost: number | Decimal;
+    returnedQty: number | Decimal;
+}
+
+export interface PurchaseInvoice {
+    id: string;
+    invoiceNumber: string | null;
+    supplierId?: string;
+    supplier?: { name: string; phone?: string | null; address?: string | null };
+    totalAmount: number;
+    paidAmount: number;
+    deliveryCharge: number;
+    status: string;
+    purchaseDate: Date | string;
+    paymentMethod?: string;
+    isReturn?: boolean;
+    branch?: { name: string };
+    warehouse?: {
+        name: string;
+        branch?: {
+            name: string;
+            code: string;
+        }
+    };
+    items?: PurchaseItem[];
+}
+
+export interface ProductWithCategory extends Product {
+    category: Category;
 }

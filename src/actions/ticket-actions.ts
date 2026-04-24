@@ -455,7 +455,8 @@ export const syncCustomersFromActivity = secureAction(async () => {
             customerId: null,
             customerPhone: { not: '' }
         },
-        select: { id: true, customerName: true, customerPhone: true }
+        select: { id: true, customerName: true, customerPhone: true },
+        take: 1000 // Safety cap for batch sync
     });
 
     let createdCount = 0;
@@ -2036,10 +2037,10 @@ export const removeTicketPart = secureAction(async (data: {
             });
 
             if (leadTech) {
-                const { commissionAmount, commissionRate, sharedLossAmount } = resolveCommission(leadTech, netProfit);
+                const { commissionAmount, commissionRate, excessLossAmount } = resolveCommission(leadTech, netProfit);
                 updateFields.commissionAmount = commissionAmount;
                 updateFields.commissionRate = commissionRate;
-                updateFields.sharedLossAmount = sharedLossAmount;
+                updateFields.excessLossAmount = excessLossAmount;
             }
         }
 

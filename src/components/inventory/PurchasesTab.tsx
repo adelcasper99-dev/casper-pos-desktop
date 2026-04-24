@@ -40,76 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-interface Product {
-    id: string;
-    name: string;
-    sku: string;
-    costPrice: number;
-    stock: number;
-    sellPrice: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
-}
-
-interface Supplier {
-    id: string;
-    name: string;
-    phone?: string | null;
-    address?: string | null;
-}
-
-interface Category {
-    id: string;
-    name: string;
-}
-
-interface Model {
-    id: string;
-    name: string;
-    categoryId: string;
-}
-
-interface PurchaseInvoice {
-    id: string;
-    invoiceNumber: string | null;
-    supplier: { name: string };
-    totalAmount: number;
-    paidAmount: number;
-    deliveryCharge: number;
-    status: string;
-    purchaseDate: Date;
-    paymentMethod?: string;
-    isReturn?: boolean;
-    branch?: { name: string };
-    warehouse?: {
-        name: string;
-        branch?: {
-            name: string;
-            code: string;
-        }
-    };
-    items?: any[];
-}
-
-interface Branch {
-    id: string;
-    name: string;
-    code: string;
-    type: string;
-}
-
-interface Warehouse {
-    id: string;
-    name: string;
-    address: string | null;
-    isDefault: boolean;
-    branchId: string;
-    branch: {
-        id: string;
-        name: string;
-        code: string;
-    };
-}
+import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse } from "@/types/product";
 
 export default function PurchasesTab({
     suppliers,

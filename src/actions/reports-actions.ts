@@ -439,6 +439,7 @@ export async function getSalesByProductAndCategory(
         const branchFilter = filters?.branchId ? { branchId: filters.branchId } : {};
 
         // Fetch all SaleItems in range (non-refunded sales only)
+        // Safety cap: Limit aggregation to 10,000 items to prevent memory pressure
         const saleItems = await prisma.saleItem.findMany({
             where: {
                 sale: {
@@ -449,6 +450,7 @@ export async function getSalesByProductAndCategory(
                 ...(filters?.productId ? { productId: filters.productId } : {}),
                 ...(filters?.categoryId ? { product: { categoryId: filters.categoryId } } : {})
             },
+            take: 10000,
             include: {
                 product: {
                     include: {
@@ -542,7 +544,8 @@ export async function getCategoriesForFilter(): Promise<{ success: boolean; cate
     try {
         const categories = await prisma.category.findMany({
             select: { id: true, name: true },
-            orderBy: { name: 'asc' }
+            orderBy: { name: 'asc' },
+            take: 100 // Reasonable limit for filter dropdown
         });
         return { success: true, categories };
     } catch (error: any) {
@@ -556,7 +559,8 @@ export async function getProductsForFilter(): Promise<{ success: boolean; produc
         const products = await prisma.product.findMany({
             where: { deletedAt: null },
             select: { id: true, name: true, sku: true },
-            orderBy: { name: 'asc' }
+            orderBy: { name: 'asc' },
+            take: 1000 // Cap at 1000 for performance
         });
         return { success: true, products };
     } catch (error: any) {
