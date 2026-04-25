@@ -1,6 +1,7 @@
 import { db, type OfflineSale } from './offline-db';
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger';
+import { extractIpcData } from './ipc-utils';
 
 const prisma = new PrismaClient();
 
@@ -90,8 +91,9 @@ export class LocalPersistenceService {
         let intervalMinutes = 15; // default
         if ((window as any).electronAPI?.config?.getConfig) {
             try {
-                const config = await (window as any).electronAPI.config.getConfig();
-                if (config.backupInterval) {
+                const res = await (window as any).electronAPI.config.getConfig();
+                const config = extractIpcData<any>(res, 'app:get-config');
+                if (config && config.backupInterval) {
                     intervalMinutes = parseInt(config.backupInterval, 10) || 15;
                 }
             } catch (e) {

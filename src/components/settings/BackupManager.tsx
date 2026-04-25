@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { LocalPersistenceService } from "@/lib/local-persistence";
 import { resetDatabase } from "@/actions/database-reset";
 import { cn } from "@/lib/utils";
+import { extractIpcData } from "@/lib/ipc-utils";
 
 export default function BackupManager() {
     const [backupPath, setBackupPath] = useState<string>('');
@@ -33,10 +34,13 @@ export default function BackupManager() {
         setIsLoading(true);
         try {
             if (window.electronAPI?.config?.getConfig) {
-                const config = await window.electronAPI.config.getConfig();
-                if (config.backupPath) setBackupPath(config.backupPath);
-                if (config.backupInterval) setBackupInterval(config.backupInterval.toString());
-                if (config.maxBackups) setMaxBackups(config.maxBackups.toString());
+                const res = await window.electronAPI.config.getConfig();
+                const config = extractIpcData(res, 'app:get-config');
+                if (config) {
+                    if (config.backupPath) setBackupPath(config.backupPath);
+                    if (config.backupInterval) setBackupInterval(config.backupInterval.toString());
+                    if (config.maxBackups) setMaxBackups(config.maxBackups.toString());
+                }
             }
         } catch (error) {
             console.error("Failed to load config", error);
@@ -64,8 +68,13 @@ export default function BackupManager() {
             toast.error(t('messages.selectFolderError'));
             return;
         }
-        const folder = await window.electronAPI.config.selectBackupFolder();
-        if (folder) setBackupPath(folder);
+        try {
+            const res = await window.electronAPI.config.selectBackupFolder();
+            const folder = extractIpcData(res, 'dialog:showBackupFolderDialog');
+            if (folder) setBackupPath(folder);
+        } catch (err: any) {
+            toast.error(t('messages.selectFolderError'));
+        }
     };
 
     const handleSaveConfig = async () => {
@@ -114,7 +123,11 @@ export default function BackupManager() {
             if (result.success) {
                 toast.success(t('messages.deleteSuccess'));
                 fetchBackups();
+            } else {
+                toast.error(t('messages.deleteError', { error: result.error }));
             }
+        } catch (error: any) {
+            toast.error(t('messages.deleteError', { error: error.message }));
         } finally {
             setIsSaving(false);
         }

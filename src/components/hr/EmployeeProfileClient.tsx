@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useTranslations, useLocale } from '@/lib/i18n-mock'
+import { Decimal } from 'decimal.js'
 import { 
     CreditCard, 
     Wrench, 
@@ -242,7 +243,28 @@ export default function EmployeeProfileClient({
         }
     }
 
-    const kpiCards = [
+    const [y, m] = monthStr.split('-').map(Number);
+    const now = new Date();
+    const isCurrentMonth = now.getFullYear() === y && (now.getMonth() + 1) === m;
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(y, m, 0).getDate();
+    
+    // Calculate projections for the current month
+    // currentDay is always >= 1 (Date.getDate()), but we guard currentDay > 0 for safety
+    const projectedNet = isCurrentMonth && currentDay > 0 
+        ? new Decimal(kpis.netAccrued).dividedBy(currentDay).mul(daysInMonth).toNumber() 
+        : null;
+
+    type KpiCard = {
+        title: string;
+        value: string;
+        icon: React.ReactNode;
+        desc: string;
+        highlight?: boolean;
+        badge?: { text: string; tooltip: string } | null;
+    };
+
+    const kpiCards: KpiCard[] = [
         { 
             title: "الراتب الأساسي", 
             value: `${kpis.contractualSalary.toLocaleString()} EGP`, 
@@ -254,7 +276,11 @@ export default function EmployeeProfileClient({
             value: `${kpis.netAccrued.toLocaleString()} EGP`, 
             icon: <TrendingUp className="w-5 h-5 text-cyan-400" />,
             desc: "المبلغ الإجمالي بعد التسويات",
-            highlight: true
+            highlight: true,
+            badge: projectedNet ? {
+                text: "تقديري",
+                tooltip: `بناءً على معدل اليوم الحالي، الراتب المتوقع بنهاية الشهر هو ${Math.round(projectedNet).toLocaleString()} EGP`
+            } : null
         },
         { 
             title: "إجمالي المكسب", 
@@ -410,6 +436,15 @@ export default function EmployeeProfileClient({
                                     )}>
                                         {card.icon}
                                     </div>
+                                    {card.badge && (
+                                        <Badge 
+                                            variant="secondary" 
+                                            className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-[8px] font-black uppercase tracking-tighter"
+                                            title={card.badge.tooltip}
+                                        >
+                                            {card.badge.text}
+                                        </Badge>
+                                    )}
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{card.title}</p>

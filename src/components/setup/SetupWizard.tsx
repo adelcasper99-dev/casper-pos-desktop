@@ -13,8 +13,13 @@ import { toast } from "sonner";
 import { Rocket, Shield, Building, Settings, CheckCircle2, Database, FolderOpen, AlertCircle } from "lucide-react";
 import { performSetup } from "@/actions/setup";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { extractIpcData, expectIpcOk } from '@/lib/ipc-utils';
 
 const STEPS = [
+    { id: 'welcome', title: 'Welcome', icon: Rocket },
+    { id: 'db', title: 'Database', icon: Database },
+    { id: 'admin', title: 'Administrator', icon: Shield },
+    { id: 'branch', title: 'Branch', icon: Building },
     { id: 'settings', title: 'System Settings', icon: Settings },
     { id: 'data-options', title: 'Data Retention', icon: Database },
     { id: 'finish', title: 'Ready!', icon: CheckCircle2 },
@@ -46,10 +51,15 @@ export default function SetupWizard() {
         // Fetch current DB path on mount
         const fetchDbPath = async () => {
             if (window.electronAPI && window.electronAPI.config) {
-                const currentPath = await window.electronAPI.config.getDbPath();
-                if (currentPath) {
-                    setDbPath(currentPath);
-                    setOriginalDbPath(currentPath);
+                try {
+                    const res = await window.electronAPI.config.getDbPath();
+                    const currentPath = extractIpcData(res, 'app:get-db-path');
+                    if (currentPath) {
+                        setDbPath(currentPath);
+                        setOriginalDbPath(currentPath);
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch DB path:', err);
                 }
             }
         };
@@ -58,9 +68,14 @@ export default function SetupWizard() {
 
     const handleBrowseDb = async () => {
         if (!window.electronAPI || !window.electronAPI.config) return;
-        const newPath = await window.electronAPI.config.showOpenDialog();
-        if (newPath) {
-            setDbPath(newPath);
+        try {
+            const res = await window.electronAPI.config.showOpenDialog();
+            const newPath = extractIpcData(res, 'dialog:showOpenDialog');
+            if (newPath) {
+                setDbPath(newPath);
+            }
+        } catch (err: any) {
+            toast.error("Browse failed: " + err.message);
         }
     };
 
@@ -69,7 +84,8 @@ export default function SetupWizard() {
         setRestarting(true);
         try {
             toast.info("Saving configuration and restarting application...", { duration: 5000 });
-            await window.electronAPI.config.saveConfigAndRestart(dbPath);
+            const res = await window.electronAPI.config.saveConfigAndRestart(dbPath);
+            expectIpcOk(res, 'app:save-config-and-restart');
             // The app will close, so we don't necessarily need to reset loading
         } catch (error: any) {
             toast.error("Failed to update configuration: " + error.message);

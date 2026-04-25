@@ -11,6 +11,7 @@ import type { LabelProduct, LabelTemplate } from './label-commands';
 import { PRINTER_REGISTRY_KEY, type PrinterRegistry } from '@/types/printer-config';
 import { safeRandomUUID } from './utils';
 import { logger } from './logger';
+import { extractIpcData } from './ipc-utils';
 
 
 
@@ -20,6 +21,12 @@ export interface PrinterStatus {
   printers?: string[];
   error?: string;
 }
+
+export type PrinterInfo = {
+  name: string;
+  isDefault: boolean;
+  status: number;
+};
 
 let qzService: any = null;
 
@@ -32,12 +39,15 @@ class ElectronPrintChannel {
   }
 
   async getPrinters(): Promise<string[]> {
-    const printers = await window.electronAPI!.getPrinters();
-    return printers.map(p => p.name);
+    const res = await window.electronAPI!.getPrinters();
+    const printers = extractIpcData<PrinterInfo[]>(res, 'printers:list');
+    return printers?.map(p => p.name) || [];
   }
 
   async getDefaultPrinterName(): Promise<string | null> {
-    const printers = await window.electronAPI!.getPrinters();
+    const res = await window.electronAPI!.getPrinters();
+    const printers = extractIpcData<PrinterInfo[]>(res, 'printers:list');
+    if (!printers || printers.length === 0) return null;
     const def = printers.find(p => p.isDefault);
     return def?.name ?? (printers[0]?.name ?? null);
   }

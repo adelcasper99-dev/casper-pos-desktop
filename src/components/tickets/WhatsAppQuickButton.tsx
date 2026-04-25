@@ -65,42 +65,45 @@ export default function WhatsAppQuickButton({
     const webLink = generateWhatsAppLink(customerPhone, message, true);
 
     try {
-      // 1. Log the attempt to the database
-      await logTicketNotification({
+      // Logic for notification payload
+      const notificationData = {
         ticketId,
-        type: 'WHATSAPP',
-        status: 'SENT',
+        type: 'WHATSAPP' as const,
+        status: 'SENT' as const,
         metadata: { messageType: status, target: 'QUICK_BUTTON' }
-      });
+      };
 
-      // 2. Open WhatsApp (Native or Web)
       if (window.electronAPI) {
-        // Safe Electron call
         const res = await window.electronAPI.shell.openExternal(deepLink);
-        if (!res.success) {
+        if (res.success) {
+          await logTicketNotification(notificationData);
+          onSuccess?.();
+        } else {
+          console.warn('Electron openExternal failed, falling back to webLink:', res.error);
           window.open(webLink, '_blank');
+          toast.info('جاري فتح واتساب ويب...');
+          // Optional: We could log a different status or skip logging here since it's a fallback
         }
-        setIsOpening(false);
       } else {
         // Standard Web handling with fallback
         window.location.href = deepLink;
         const timeout = setTimeout(() => {
-          setIsOpening(false);
           window.open(webLink, '_blank');
           toast.info('جاري فتح واتساب ويب...');
         }, 2500);
 
-        const handleBlur = () => {
+        const handleBlur = async () => {
           clearTimeout(timeout);
-          setIsOpening(false);
           window.removeEventListener('blur', handleBlur);
+          await logTicketNotification(notificationData);
+          onSuccess?.();
+          setIsOpening(false); // Cleanup early on success
         };
         window.addEventListener('blur', handleBlur);
       }
-      
-      onSuccess?.();
     } catch (error) {
       console.error('WhatsApp trigger failed:', error);
+    } finally {
       setIsOpening(false);
     }
   };

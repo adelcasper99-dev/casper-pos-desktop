@@ -204,6 +204,8 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
       'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
       'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
+      // Backfill: Migrate sharedLossAmount to new field (Skips NULL and zero intentionally)
+      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE "sharedLossAmount" > 0',
 
       // User
       'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
@@ -217,6 +219,8 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
       'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
       'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
+      // Backfill: Migrate sharedLossRate to lossRate (Prevents overwriting fresh 70.00 defaults)
+      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
 
       // Warehouse & Branch
       'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
