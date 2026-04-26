@@ -22,13 +22,13 @@ const DONE_STATUSES = ['COMPLETED', 'DELIVERED', 'READY_AT_BRANCH', 'PICKED_UP',
  */
 export const getEngineersStats = secureAction(async () => {
     try {
-        const technicians = await (prisma as any).technician.findMany({
+        const technicians = await prisma.technician.findMany({
             where: { deletedAt: null },
             include: { user: true, warehouse: true }
-        }) as any[];
+        });
 
         const techIds = technicians.map(t => t.id);
-        const allTickets = await (prisma as any).ticket.findMany({
+        const allTickets = await prisma.ticket.findMany({
             where: {
                 OR: [
                     { technicianId: { in: techIds } },
@@ -41,7 +41,7 @@ export const getEngineersStats = secureAction(async () => {
                 createdAt: true,
                 completedAt: true,
                 collaborators: { select: { technicianId: true } }
-            } as any
+            }
         });
 
         const stats = technicians.map((tech: any) => {
@@ -131,7 +131,7 @@ export const upsertEngineer = secureAction(async (data: {
             }
 
             if (data.id) {
-                await (tx as any).technician.update({
+                await tx.technician.update({
                     where: { id: data.id },
                     data: {
                         name: data.name,
@@ -145,7 +145,7 @@ export const upsertEngineer = secureAction(async (data: {
                     }
                 });
             } else {
-                await (tx as any).technician.create({
+                await tx.technician.create({
                     data: {
                         name: data.name,
                         phone: data.phone,
@@ -173,7 +173,7 @@ export const upsertEngineer = secureAction(async (data: {
  */
 export const deleteEngineer = secureAction(async (data: { id: string, csrfToken?: string }) => {
     const { id } = data;
-    await (prisma as any).technician.update({
+    await prisma.technician.update({
         where: { id },
         data: { deletedAt: new Date() }
     });
@@ -186,7 +186,7 @@ export const deleteEngineer = secureAction(async (data: { id: string, csrfToken?
  */
 export const getAllTechnicians = secureAction(async () => {
     try {
-        const technicians = await (prisma as any).technician.findMany({
+        const technicians = await prisma.technician.findMany({
             where: { deletedAt: null },
             orderBy: { name: 'asc' }
         });
@@ -263,11 +263,11 @@ export const getEngineerDetails = secureAction(async (id: string) => {
         const techIds = [id];
 
         // 1. Fetch ALL tickets involving this engineer
-        const allTickets = await (prisma as any).ticket.findMany({
+        const allTickets = await prisma.ticket.findMany({
             where: {
                 OR: [
                     { technicianId: id },
-                    { collaborators: { some: { technicianId: id } } } as any
+                    { collaborators: { some: { technicianId: id } } }
                 ]
             },
             select: {
@@ -275,9 +275,11 @@ export const getEngineerDetails = secureAction(async (id: string) => {
                 status: true,
                 createdAt: true,
                 completedAt: true,
-                repairPrice: true // For revenue calc if needed later
+                repairPrice: true, // For revenue calc if needed later
+                returnCount: true,
+                paymentStatus: true
             }
-        }) as any[];
+        });
 
         // 2. Calculate Stats
         const totalTickets = allTickets.length;
