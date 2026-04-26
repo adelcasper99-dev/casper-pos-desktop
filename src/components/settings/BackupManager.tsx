@@ -149,6 +149,43 @@ export default function BackupManager() {
         }
     };
 
+    const handleExternalRestore = async () => {
+        if (!window.electronAPI?.config?.showOpenDialog) return;
+        
+        try {
+            // 1. Show file picker
+            const filePath = await window.electronAPI.config.showOpenDialog();
+            if (!filePath) return; // Canceled
+
+            // 2. Confirm
+            if (!confirm(t('restoreExternalConfirm', 'Warning: This will replace your current database with the selected file and restart the application. All current unsaved data will be lost. Continue?'))) return;
+
+            setIsRestoring(true);
+            const tid = toast.loading(t('messages.restoring', 'Restoring database...'));
+
+            // 3. Perform restore
+            if (window.electronAPI?.storage?.restoreFromExternalFile) {
+                const result = await window.electronAPI.storage.restoreFromExternalFile(filePath);
+                if (!result.success) {
+                    toast.error(t('messages.restoreError', { error: result.error }), { id: tid });
+                    setIsRestoring(false);
+                }
+            } else if (window.electronAPI?.storage?.restoreFromBackup) {
+                // Fallback or explicit handler check (should be in storage if we followed pattern, but I added it to app context in main.js)
+                // Actually in main.js I used 'app:restore-from-external-file'
+                // Let's check preload.js again or just call ipcRenderer.invoke directly if exposed
+                const res = await (window as any).electronAPI.storage.restoreFromExternalFile(filePath);
+                if (!res.success) {
+                    toast.error(t('messages.restoreError', { error: res.error }), { id: tid });
+                    setIsRestoring(false);
+                }
+            }
+        } catch (error: any) {
+            toast.error(t('messages.restoreError', { error: error.message }));
+            setIsRestoring(false);
+        }
+    };
+
     const handleDatabaseReset = async () => {
         if (resetConfirmText !== 'RESET') {
             toast.error(t('messages.resetConfirmError'));
@@ -279,6 +316,19 @@ export default function BackupManager() {
                             </div>
                         </div>
                         <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">{t('recoveryDesc')}</p>
+                    </div>
+
+                    {/* NEW: Restore from External File Button */}
+                    <div className="flex justify-end">
+                        <Button
+                            variant="outline"
+                            onClick={handleExternalRestore}
+                            disabled={isRestoring || isSaving}
+                            className="h-14 rounded-2xl px-8 border-orange-500/30 hover:bg-orange-500/10 hover:border-orange-500 font-black text-[10px] uppercase tracking-widest transition-all group/ext"
+                        >
+                            <FolderOpen className="w-4 h-4 mr-2 text-orange-400 group-hover/ext:scale-110 transition-transform" />
+                            {t('restoreFromExternal', 'Restore from External File')}
+                        </Button>
                     </div>
 
                     <div className="rounded-[2rem] border border-border/40 bg-background/20 overflow-hidden shadow-inner">

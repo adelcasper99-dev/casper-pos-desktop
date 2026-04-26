@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getAvailableBackups: () => ipcRenderer.invoke('app:get-available-backups'),
         deleteBackup: (filePath) => ipcRenderer.invoke('app:delete-backup', filePath),
         restoreFromBackup: (filePath) => ipcRenderer.invoke('app:restore-from-backup', filePath),
+        restoreFromExternalFile: (filePath) => ipcRenderer.invoke('app:restore-from-external-file', filePath),
         exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
         vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
         printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),

@@ -1026,4 +1026,49 @@ ipcMain.handle('app:vacuum-db', async () => {
     } catch (err) { return { success: false, error: err.message }; }
 });
 
+// --- Restore From External File ---
+ipcMain.handle('dialog:showOpenDialog', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'اختر ملف قاعدة البيانات لاستعادته',
+        filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+        properties: ['openFile']
+    });
+    if (canceled) return null;
+    return filePaths[0];
+});
+
+ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
+    try {
+        if (!fs.existsSync(sourcePath)) throw new Error('الملف المختار غير موجود');
+
+        log(`RESTORE EXTERNAL: From ${sourcePath}`);
+        const activeDbPath = getDatabasePath();
+
+        // 1. Kill Next Server to release locks
+        if (nextServer) nextServer.kill('SIGKILL');
+        await new Promise(r => setTimeout(r, 1500));
+
+        // 2. Backup current as safety
+        const backupPath = `${activeDbPath}.pre-ext-restore.${Date.now()}.bak`;
+        if (fs.existsSync(activeDbPath)) fs.copyFileSync(activeDbPath, backupPath);
+
+        // 3. Copy new file
+        fs.copyFileSync(sourcePath, activeDbPath);
+
+        // 4. Cleanup WAL/SHM
+        const walPath = `${activeDbPath}-wal`;
+        const shmPath = `${activeDbPath}-shm`;
+        if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+        if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+
+        log(`RESTORE EXTERNAL: Complete. Relaunching...`);
+        app.relaunch();
+        app.quit();
+        return { success: true };
+    } catch (err) {
+        log(`RESTORE EXTERNAL ERROR: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
 app.whenReady().then(createWindow);
