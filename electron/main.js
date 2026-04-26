@@ -205,7 +205,10 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
       'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
       // Backfill: Migrate sharedLossAmount to new field (Skips NULL and zero intentionally)
-      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE "sharedLossAmount" > 0',
+      // Safety: Only run if sharedLossAmount column actually exists to prevent SQLite from interpreting the name as a string literal
+      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE (SELECT COUNT(*) FROM pragma_table_info("Ticket") WHERE name = "sharedLossAmount") > 0 AND "sharedLossAmount" > 0',
+      // Self-healing: If data was already corrupted by the string literal "sharedLossAmount", reset it to 0.00
+      'UPDATE "Ticket" SET "excessLossAmount" = 0.00 WHERE typeof("excessLossAmount") = "text"',
 
       // User
       'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
@@ -220,7 +223,10 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
       'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
       // Backfill: Migrate sharedLossRate to lossRate (Prevents overwriting fresh 70.00 defaults)
-      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
+      // Safety: Only run if sharedLossRate column actually exists to prevent SQLite from interpreting the name as a string literal
+      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE (SELECT COUNT(*) FROM pragma_table_info("Technician") WHERE name = "sharedLossRate") > 0 AND "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
+      // Self-healing: If data was already corrupted by the string literal "sharedLossRate", reset it to 70.00
+      'UPDATE "Technician" SET "lossRate" = 70.00 WHERE typeof("lossRate") = "text"',
 
       // Warehouse & Branch
       'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
@@ -231,7 +237,41 @@ const runMigrations = (dbPath) => {
       'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
       'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
       'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
+      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")',
+
+      // --- COMPREHENSIVE DATA HEALING (Prevention of "White Screen" crashes) ---
+      // These statements reset any Decimal columns that were corrupted with string literals 
+      // (a common SQLite quirk when using double quotes in UPDATE statements with missing columns).
+      
+      // Product Healing
+      'UPDATE "Product" SET "costPrice" = 0.00 WHERE typeof("costPrice") = "text"',
+      'UPDATE "Product" SET "sellPrice" = 0.00 WHERE typeof("sellPrice") = "text"',
+      'UPDATE "Product" SET "sellPrice2" = 0.00 WHERE typeof("sellPrice2") = "text"',
+      'UPDATE "Product" SET "sellPrice3" = 0.00 WHERE typeof("sellPrice3") = "text"',
+      
+      // SaleItem Healing
+      'UPDATE "SaleItem" SET "unitPrice" = 0.00 WHERE typeof("unitPrice") = "text"',
+      'UPDATE "SaleItem" SET "unitCost" = 0.00 WHERE typeof("unitCost") = "text"',
+      
+      // Sale Healing
+      'UPDATE "Sale" SET "totalAmount" = 0.00 WHERE typeof("totalAmount") = "text"',
+      'UPDATE "Sale" SET "subTotal" = 0.00 WHERE typeof("subTotal") = "text"',
+      'UPDATE "Sale" SET "discountAmount" = 0.00 WHERE typeof("discountAmount") = "text"',
+      'UPDATE "Sale" SET "taxAmount" = 0.00 WHERE typeof("taxAmount") = "text"',
+      
+      // User/Employee Healing
+      'UPDATE "User" SET "salary" = 0.00 WHERE typeof("salary") = "text"',
+      'UPDATE "User" SET "maxDiscount" = 0.00 WHERE typeof("maxDiscount") = "text"',
+      'UPDATE "User" SET "maxDiscountAmount" = 0.00 WHERE typeof("maxDiscountAmount") = "text"',
+
+      // Shift Healing (CRITICAL: Prevents White Screen on Z-Report)
+      'UPDATE "Shift" SET "totalCashSales" = 0.00 WHERE typeof("totalCashSales") = "text"',
+      'UPDATE "Shift" SET "totalCardSales" = 0.00 WHERE typeof("totalCardSales") = "text"',
+      'UPDATE "Shift" SET "totalWalletSales" = 0.00 WHERE typeof("totalWalletSales") = "text"',
+      'UPDATE "Shift" SET "totalInstapay" = 0.00 WHERE typeof("totalInstapay") = "text"',
+      'UPDATE "Shift" SET "totalAccountSales" = 0.00 WHERE typeof("totalAccountSales") = "text"',
+      'UPDATE "Shift" SET "totalCashRefunds" = 0.00 WHERE typeof("totalCashRefunds") = "text"',
+      'UPDATE "Shift" SET "totalAccountRefunds" = 0.00 WHERE typeof("totalAccountRefunds") = "text"'
     ];
 
     log('Migrations: Applying pre-patch SQL statements...');

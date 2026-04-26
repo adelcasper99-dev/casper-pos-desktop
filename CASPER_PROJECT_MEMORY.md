@@ -219,3 +219,8 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ### 🛡️ [NEW] Strict Schema-to-Code Parity
 *   **Protocol**: All shared interfaces (e.g., `PurchaseInvoice`, `PurchaseItem`) MUST maintain 1:1 field parity with the Prisma schema. Renaming properties in the backend (e.g., `invoiceId` -> `purchaseInvoiceId`) must be immediately reflected in the centralized domain types.
 *   **Domain Alignment**: The `PurchaseItem` interface is the canonical type for all goods-receipt logic, replacing ad-hoc `any` arrays to ensure compile-time safety for tax and subtotal calculations.
+
+### 🛡️ [NEW] UI Financial Precision & Strict TypeScript Integrity
+*   **Defensive Decimal Validation**: All user-provided string inputs mapped to financial values must be parsed with `Decimal.js` inside a `try/catch` block before checking bounds (`<= 0`). This prevents unhandled `[DecimalError]` crashes if non-numeric inputs bypass frontend limits.
+*   **Null-Coalescing in React Aggregations**: `.reduce()` methods in React components that calculate totals (e.g., `totalOwed`, `totalCredit`) must always use strict null-coalescing (`c.balance ?? 0`) inside `new Decimal()` constructors to prevent `String(null)` execution failures.
+*   **Explicit State Interfaces vs. `any`**: Component `useState` hooks must explicitly map to Prisma payload interfaces (e.g., `StockWithProduct[]`, `CustomerWithBalance[]`) rather than `any[]`. This guarantees that components will fail safely at compile-time (`npx tsc`) if backend relation structures or schemas change, preventing silent runtime masking.
