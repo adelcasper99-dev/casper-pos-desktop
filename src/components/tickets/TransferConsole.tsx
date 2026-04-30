@@ -68,10 +68,10 @@ export interface StockWithProduct {
     product: {
         name: string;
         sku: string;
-        costPrice: number;
-        sellPrice: number;
-        sellPrice2?: number;
-        sellPrice3?: number;
+        costPrice: number | string;
+        sellPrice: number | string;
+        sellPrice2?: number | string;
+        sellPrice3?: number | string;
     };
 }
 
@@ -244,7 +244,7 @@ export default function TransferConsole({
         }
     };
 
-    const totalItems = stagingItems.reduce((acc, item) => acc + item.transferQty, 0);
+    const totalItems = stagingItems.reduce((acc, item) => acc + Number(item.transferQty), 0);
 
     return (
         <GlassModal

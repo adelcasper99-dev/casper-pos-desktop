@@ -21,10 +21,10 @@ interface TicketData {
     date: Date;
     customerName: string;
     technicianName: string;
-    revenue: number;
-    partsCost: number;
-    commission: number;
-    netProfit: number;
+    revenue: number | string;
+    partsCost: number | string;
+    commission: number | string;
+    netProfit: number | string;
     gap: string;
     riskLevel: string;
     status: string;
@@ -55,8 +55,11 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
             let bValue = b[sortBy];
 
             if (sortBy === 'date') {
-                aValue = new Date(aValue).getTime();
-                bValue = new Date(bValue).getTime();
+                aValue = new Date(aValue).getTime() as any;
+                bValue = new Date(bValue).getTime() as any;
+            } else if (['revenue', 'partsCost', 'commission', 'netProfit'].includes(sortBy)) {
+                aValue = Number(aValue) as any;
+                bValue = Number(bValue) as any;
             }
 
             if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
@@ -202,13 +205,13 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                                     {ticket.technicianName}
                                 </div>
                             </TableCell>
-                            <TableCell className="font-mono font-black text-sm text-foreground/90">{formatCurrency(ticket.revenue)}</TableCell>
-                            <TableCell className="text-rose-600 dark:text-rose-400/80 font-mono text-[11px] font-black">-{formatCurrency(ticket.partsCost)}</TableCell>
-                            <TableCell className="text-fuchsia-600 dark:text-fuchsia-400/80 font-mono text-[11px] font-black">-{formatCurrency(ticket.commission)}</TableCell>
+                            <TableCell className="font-mono font-black text-sm text-foreground/90">{formatCurrency(Number(ticket.revenue))}</TableCell>
+                            <TableCell className="text-rose-600 dark:text-rose-400/80 font-mono text-[11px] font-black">-{formatCurrency(Number(ticket.partsCost))}</TableCell>
+                            <TableCell className="text-fuchsia-600 dark:text-fuchsia-400/80 font-mono text-[11px] font-black">-{formatCurrency(Number(ticket.commission))}</TableCell>
                             <TableCell>
                                 <div className="font-black text-primary text-sm font-mono flex items-center gap-1.5">
                                     <Wallet className="w-3.5 h-3.5 opacity-30" />
-                                    {formatCurrency(ticket.netProfit)}
+                                    {formatCurrency(Number(ticket.netProfit))}
                                 </div>
                             </TableCell>
                             <TableCell>

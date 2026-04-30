@@ -24,13 +24,13 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
     // Customer details
     const customerName = saleData.customerName || '';
     const customerPhone = saleData.customerPhone || '';
-    const customerBalance = saleData.customerBalance !== undefined ? saleData.customerBalance : null;
+    const customerBalance = saleData.customerBalance !== undefined ? Number(saleData.customerBalance) : null;
     const customerAddress = saleData.customerAddress || '';
 
     // Calculate tax backwards (assuming prices are tax-inclusive by default in this template logic context,
     // though this depends on your actual standard. Adapting the existing POS logic)
-    const baseTotal = taxRate > 0 ? (total / (1 + (taxRate / 100))) : total;
-    const taxAmount = taxRate > 0 ? (total - baseTotal) : 0;
+    const baseTotal = taxRate > 0 ? (Number(total) / (1 + (taxRate / 100))) : Number(total);
+    const taxAmount = taxRate > 0 ? (Number(total) - baseTotal) : 0;
 
     const receiptLabel = saleData.invoiceNumber === "DRAFT" ? "معاينة الفاتورة - غير مدفوعة" : "فاتورة ضريبية مبسطة";
     const invoiceNumber = saleData.invoiceNumber || "0000";
@@ -263,9 +263,9 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                                 <strong style="font-size: 14px;">${item.name}</strong>
                                 ${(item.storage || item.color) ? `<br><span style="font-size:12px;color:#666;">${[item.storage, item.color].filter(Boolean).join(' - ')}</span>` : ''}
                             </td>
-                            <td style="text-align:center;">${item.quantity || 1}</td>
-                            <td>${formatCurrency(item.price, currency)}</td>
-                            <td style="text-align:left;"><strong>${formatCurrency(item.price * (item.quantity || 1), currency)}</strong></td>
+                            <td style="text-align:center;">${Number(item.quantity) || 1}</td>
+                            <td>${formatCurrency(Number(item.price), currency)}</td>
+                            <td style="text-align:left;"><strong>${formatCurrency(Number(item.price) * (Number(item.quantity) || 1), currency)}</strong></td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -276,8 +276,8 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                     ${customerBalance !== null ? `
                         <div class="notes-box">
                             <strong>كشف حساب مختصر للعميل:</strong><br/>
-                            الرصيد المتبقي: <span style="color: ${customerBalance > 0 ? '#b91c1c' : '#15803d'}; font-weight: bold;">
-                                ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(customerBalance)}
+                            الرصيد المتبقي: <span style="color: ${Number(customerBalance) > 0 ? '#b91c1c' : '#15803d'}; font-weight: bold;">
+                                ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(Number(customerBalance))}
                             </span>
                         </div>
                     ` : ''}
@@ -293,7 +293,7 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                 <div class="summary">
                     <div class="summary-row">
                         <span>المجموع الفرعي:</span>
-                        <span>${formatCurrency(saleData.subTotal || baseTotal, currency)}</span>
+                        <span>${formatCurrency(Number(saleData.subTotal || baseTotal), currency)}</span>
                     </div>
                     ${(saleData.discountAmount && Number(saleData.discountAmount) > 0) ? `
                         <div class="summary-row" style="color: #ef4444; font-weight: bold;">
@@ -309,7 +309,7 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                     ` : ''}
                     <div class="summary-row total">
                         <span>الإجمالي المطلوب:</span>
-                        <span>${formatCurrency(total, currency)}</span>
+                        <span>${formatCurrency(Number(total), currency)}</span>
                     </div>
                 </div>
             </div>

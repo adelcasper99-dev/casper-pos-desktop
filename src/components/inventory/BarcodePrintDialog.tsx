@@ -13,7 +13,7 @@ interface Product {
   id: string;
   name: string;
   sku: string;
-  sellPrice: number;
+  sellPrice: number | string;
 }
 
 interface BarcodePrintDialogProps {
@@ -85,7 +85,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
 
   // handleQzPrint removed - handled by ThermalPrintLabel now
 
-  const totalLabels = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
+  const totalLabels = Object.values(quantities).reduce((sum, qty) => sum + Number(qty), 0);
 
   return (
     <>
@@ -290,7 +290,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
                               }
 
                               if (id === 'productname') content = editableData[product.id]?.name || product.name;
-                              else if (id === 'price') content = `LE ${(editableData[product.id]?.price ?? product.sellPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                              else if (id === 'price') content = `LE ${Number(editableData[product.id]?.price ?? product.sellPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
                               else if (id === 'sku') content = editableData[product.id]?.sku || product.sku;
                               else if (id === 'storename') content = storeName;
                               else content = el.label;
@@ -385,7 +385,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
                     products={products.map(p => ({
                       sku: editableData[p.id]?.sku || p.sku,
                       name: editableData[p.id]?.name || p.name,
-                      price: editableData[p.id]?.price ?? p.sellPrice,
+                      price: editableData[p.id]?.price ?? Number(p.sellPrice),
                       quantity: quantities[p.id] || 1,
                     }))}
                   />
@@ -397,7 +397,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
                     products={products.map(p => ({
                       sku: editableData[p.id]?.sku || p.sku,
                       name: editableData[p.id]?.name || p.name,
-                      price: editableData[p.id]?.price ?? p.sellPrice,
+                      price: editableData[p.id]?.price ?? Number(p.sellPrice),
                       quantity: quantities[p.id] || 1,
                     }))}
                   />

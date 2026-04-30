@@ -16,9 +16,9 @@ interface BranchMatrixItem {
     branchName: string;
     activeTickets: number;
     avgRepairTime: string;
-    sparePartsCost: number;
-    serviceRevenue: number;
-    netProfit: number;
+    sparePartsCost: number | string;
+    serviceRevenue: number | string;
+    netProfit: number | string;
 }
 
 interface MatrixProps {
@@ -92,7 +92,7 @@ export const BranchPerformanceMatrix: React.FC<MatrixProps> = ({ data, loading, 
                                         <div className="flex items-center gap-1.5 text-zinc-500 font-medium text-[10px]">
                                             {t('netProfit')}
                                         </div>
-                                        <div className={`font-bold text-base ${branch.netProfit > 0 ? 'text-cyan-400' : 'text-rose-400'}`}>
+                                        <div className={`font-bold text-base ${Number(branch.netProfit) > 0 ? 'text-cyan-400' : 'text-rose-400'}`}>
                                             {Number(branch.netProfit).toLocaleString()} <span className="text-[10px] font-normal opacity-50">EGP</span>
                                         </div>
                                     </div>
