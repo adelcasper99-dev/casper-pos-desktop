@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 // Schedule configuration schema
 const scheduleSchema = z.object({
   enabled: z.boolean(),
-  frequency: z.enum(['15min', '1hour', '6hours', 'daily']),
+  frequency: z.enum(['5min', '15min', '1hour', '6hours', 'daily']),
 });
 
 // StoreSettings features key for backup schedule
@@ -110,6 +110,9 @@ function calculateNextRun(from: Date, frequency: string): Date {
   const next = new Date(from);
   
   switch (frequency) {
+    case '5min':
+      next.setMinutes(next.getMinutes() + 5);
+      break;
     case '15min':
       next.setMinutes(next.getMinutes() + 15);
       break;

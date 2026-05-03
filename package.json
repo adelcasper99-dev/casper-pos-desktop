@@ -19,7 +19,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "test:sync": "vitest run src/__tests__/sync"
+        "test:sync": "vitest run src/__tests__/sync",
+        "schema-check": "node scripts/check-schema-types.js"
     },
     "build": {
         "appId": "com.caspererp.app",

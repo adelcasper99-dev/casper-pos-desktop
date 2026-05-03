@@ -70,8 +70,9 @@ export default function SetupWizard() {
         if (!window.electronAPI || !window.electronAPI.config) return;
         try {
             const res = await window.electronAPI.config.showOpenDialog();
-            if (res) {
-                setDbPath(res);
+            const folder = extractIpcData(res, 'dialog:showOpenDialog');
+            if (folder) {
+                setDbPath(folder);
             }
         } catch (err: any) {
             toast.error("Browse failed: " + err.message);

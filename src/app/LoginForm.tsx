@@ -155,6 +155,8 @@ export default function LoginForm() {
                 if (originalUsers) localStorage.setItem('rememberedUsers', originalUsers);
                 else localStorage.removeItem('rememberedUsers');
             } else {
+                // 🔄 Reset shift prompt gate so it re-evaluates on each new login
+                try { sessionStorage.removeItem('shift_prompt_dismissed'); } catch { /* noop */ }
                 router.refresh();
                 router.push('/dashboard');
             }

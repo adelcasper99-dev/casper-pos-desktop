@@ -150,11 +150,12 @@ export default function BackupManager() {
     };
 
     const handleExternalRestore = async () => {
-        if (!window.electronAPI?.config?.showOpenDialog) return;
+        if (!window.electronAPI?.storage?.showOpenDbFileDialog) return;
         
         try {
             // 1. Show file picker
-            const filePath = await window.electronAPI.config.showOpenDialog();
+            const res = await window.electronAPI.storage.showOpenDbFileDialog();
+            const filePath = extractIpcData(res, 'dialog:showOpenDbFileDialog');
             if (!filePath) return; // Canceled
 
             // 2. Confirm
@@ -164,21 +165,10 @@ export default function BackupManager() {
             const tid = toast.loading(t('messages.restoring', 'Restoring database...'));
 
             // 3. Perform restore
-            if (window.electronAPI?.storage?.restoreFromExternalFile) {
-                const result = await window.electronAPI.storage.restoreFromExternalFile(filePath);
-                if (!result.success) {
-                    toast.error(t('messages.restoreError', { error: result.error }), { id: tid });
-                    setIsRestoring(false);
-                }
-            } else if (window.electronAPI?.storage?.restoreFromBackup) {
-                // Fallback or explicit handler check (should be in storage if we followed pattern, but I added it to app context in main.js)
-                // Actually in main.js I used 'app:restore-from-external-file'
-                // Let's check preload.js again or just call ipcRenderer.invoke directly if exposed
-                const res = await (window as any).electronAPI.storage.restoreFromExternalFile(filePath);
-                if (!res.success) {
-                    toast.error(t('messages.restoreError', { error: res.error }), { id: tid });
-                    setIsRestoring(false);
-                }
+            const result = await window.electronAPI.storage.restoreFromExternalFile(filePath);
+            if (!result.success) {
+                toast.error(t('messages.restoreError', { error: result.error }), { id: tid });
+                setIsRestoring(false);
             }
         } catch (error: any) {
             toast.error(t('messages.restoreError', { error: error.message }));
@@ -228,6 +218,7 @@ export default function BackupManager() {
                                 onChange={(e) => setBackupInterval(e.target.value)}
                                 className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
                             >
+                                <option value="5" className="bg-card font-black">{t('intervalTitles.5')}</option>
                                 <option value="15" className="bg-card font-black">{t('intervalTitles.15')}</option>
                                 <option value="60" className="bg-card font-black">{t('intervalTitles.60')}</option>
                                 <option value="360" className="bg-card font-black">{t('intervalTitles.360')}</option>

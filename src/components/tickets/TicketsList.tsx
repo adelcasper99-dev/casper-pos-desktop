@@ -2,7 +2,7 @@ import { useState, useEffect, useTransition, useMemo } from 'react'
 import {
     Search, User as UserIcon, Plus, Edit2, Trash2, MoreHorizontal,
     Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download,
-    Printer, Settings as SettingsIcon, StickyNote, Zap
+    Printer, Settings as SettingsIcon, StickyNote, Zap, Activity
 } from "lucide-react"
 
 import { Switch } from "@/components/ui/switch"
@@ -249,6 +249,27 @@ export default function TicketsList() {
         return { level: 'low', color: 'text-emerald-500', icon: Clock };
     }
 
+    const getWorkflowStage = (status: string) => {
+        const stages = [
+            ['NEW', 'RETURNED_FOR_REFIX'],
+            ['DIAGNOSING'],
+            ['AT_CENTER', 'PENDING_APPROVAL', 'IN_PROGRESS', 'WAITING_FOR_PARTS'],
+            ['QC_PENDING'],
+            ['COMPLETED', 'READY_AT_BRANCH', 'IN_TRANSIT_TO_BRANCH'],
+            ['PICKED_UP', 'DELIVERED'],
+            ['PAID_DELIVERED']
+        ];
+        
+        const stageIndex = stages.findIndex(s => s.includes(status));
+        if (stageIndex === -1) return { current: 1, total: 7, label: getStatusLabel(status) };
+        
+        return {
+            current: stageIndex + 1,
+            total: 7,
+            label: getStatusLabel(status)
+        };
+    };
+
     const handleSort = (key: string) => {
         setSortConfig(prev => {
             if (prev.key === key) {
@@ -289,6 +310,18 @@ export default function TicketsList() {
                     bVal = b.repairPrice - (b.amountPaid || 0);
                 }
 
+                if (sortConfig.key === 'gap') {
+                    aVal = new Date(a.updatedAt).getTime();
+                    bVal = new Date(b.updatedAt).getTime();
+                } else if (sortConfig.key === 'customerSuccessRatio') {
+                    aVal = Number(a.customerSuccessRatio);
+                    bVal = Number(b.customerSuccessRatio);
+                } else if (sortConfig.key === 'riskLevel') {
+                    const riskMap: any = { 'high': 3, 'medium': 2, 'low': 1 };
+                    aVal = riskMap[a.riskLevel] || 0;
+                    bVal = riskMap[b.riskLevel] || 0;
+                }
+
                 if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
                 if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
@@ -299,38 +332,65 @@ export default function TicketsList() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-cairo">
-                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-cairo">
+                {/* Card 1: Success Ratio */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl">
-                        <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-0 font-black h-6">
-                            {stats.delivered}
-                        </Badge>
+                    {/* Circular progress chart */}
+                    <div className="relative w-16 h-16 flex-shrink-0">
+                        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-zinc-100 dark:text-white/5" />
+                            <circle
+                                cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3"
+                                strokeDasharray={100}
+                                strokeDashoffset={100 - parseFloat(stats.ratio)}
+                                strokeLinecap="round"
+                                className="text-emerald-500 transition-all duration-700"
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-lg font-black text-zinc-900 dark:text-white tabular-nums leading-none">{stats.ratio}%</span>
+                        </div>
                     </div>
-                    <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">{t('table.successRatio')}</p>
-                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.ratio}%</h3>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.successRatio')}</p>
+                        <p className="text-zinc-900 dark:text-white font-black text-sm">{stats.delivered} <span className="text-zinc-400 font-normal text-xs">{t('filters.delivered')}</span></p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                            <div className="h-1 w-1 rounded-full bg-emerald-500" />
+                            <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
+
+                {/* Card 2: High Risk */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-2xl">
-                        <AlertTriangle className="h-6 w-6 text-rose-500" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-rose-500/10 border border-rose-500/20 animate-pulse" />
+                        <AlertTriangle className="h-7 w-7 text-rose-500 relative z-10" />
                     </div>
-                    <div className="flex flex-col items-center">
-                        <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">حالات حرجة (Critical)</p>
-                        <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1">مرتجعات متكررة أو تأخير شديد</span>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.risk')}</p>
+                        <p className="text-3xl font-black text-rose-500 tabular-nums leading-none">{stats.highRiskCount}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                            <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>
+                            <span className="text-[10px] text-zinc-400 font-black">حالات تحتاج متابعة عاجلة</span>
+                        </div>
                     </div>
-                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.highRiskCount}</h3>
                 </div>
-                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm gap-2 relative overflow-hidden group">
+
+                {/* Card 3: Overdue */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="p-3 bg-cyan-50 dark:bg-cyan-500/10 rounded-2xl">
-                        <Clock className="h-6 w-6 text-cyan-500" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-cyan-500/10 border border-cyan-500/20" />
+                        <Clock className="h-7 w-7 text-cyan-500 relative z-10" />
                     </div>
-                    <div className="flex flex-col items-center">
-                        <p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-black uppercase tracking-widest">متأخرات (Overdue)</p>
-                        <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1">تجاوزت الوقت المتوقع للإصلاح</span>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الفجوة (Gap/SLO)</p>
+                        <p className="text-3xl font-black text-cyan-500 tabular-nums leading-none">{stats.overdueCount}</p>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-black">تجاوزت الوقت المتوقع للإصلاح</span>
                     </div>
-                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">{stats.overdueCount}</h3>
                 </div>
             </div>
 
@@ -481,6 +541,12 @@ export default function TicketsList() {
                     >
                         {t('filters.stale')}
                     </Button>
+
+                    <div className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 px-4 rounded-xl flex items-center gap-2 h-10 shadow-sm ml-auto sm:ml-0">
+                        <Activity className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-black uppercase tracking-widest">{t('table.totalResults') || 'النتائج'}:</span>
+                        <span className="text-sm font-black tabular-nums">{sortedTickets.length}</span>
+                    </div>
                 </div>
             </div>
 
@@ -494,7 +560,20 @@ export default function TicketsList() {
                 <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden shadow-sm font-cairo">
                     <div className="overflow-x-auto custom-scrollbar">
                         <table className="zebra-table w-full text-right text-sm text-zinc-900 dark:text-zinc-200 table-fixed" dir="rtl">
-                            <colgroup><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[100px]" /><col className="w-[120px]" /><col className="w-[100px]" /><col className="w-[180px]" /><col className="w-[180px]" /><col className="w-[120px]" /><col className="w-[160px]" /></colgroup>
+                            <colgroup>
+                                <col className="w-[150px]" /> {/* Status */}
+                                <col className="w-[80px]" />  {/* Gap */}
+                                <col className="w-[80px]" />  {/* Risk */}
+                                <col className="w-[100px]" /> {/* Success */}
+                                <col className="w-[120px]" /> {/* Date */}
+                                <col className="w-[120px]" /> {/* Info */}
+                                <col className="w-[120px]" /> {/* Paid */}
+                                <col className="w-[120px]" /> {/* Due */}
+                                <col className="w-[180px]" /> {/* Customer */}
+                                <col className="w-[180px]" /> {/* Device */}
+                                <col className="w-[100px]" /> {/* Time */}
+                                <col className="w-[50px]" />  {/* Actions */}
+                            </colgroup>
                                 <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 uppercase font-black text-[11px] tracking-wider border-b border-zinc-200 dark:border-white/10">
                                     <tr>
                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('status')}>
@@ -503,6 +582,24 @@ export default function TicketsList() {
                                                 {t('table.status')}
                                             </div>
                                         </th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('gap')}>
+                                             <div className="flex items-center gap-2">
+                                                 {getSortIcon('gap')}
+                                                 {t('table.gap')}
+                                             </div>
+                                         </th>
+                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('riskLevel')}>
+                                             <div className="flex items-center gap-2">
+                                                 {getSortIcon('riskLevel')}
+                                                 {t('table.risk')}
+                                             </div>
+                                         </th>
+                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerSuccessRatio')}>
+                                             <div className="flex items-center gap-2">
+                                                 {getSortIcon('customerSuccessRatio')}
+                                                 {t('table.successRatio')}
+                                             </div>
+                                         </th>
                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('createdAt')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('createdAt')}
@@ -550,17 +647,105 @@ export default function TicketsList() {
                                             className="bg-white even:bg-slate-100 dark:bg-transparent dark:even:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer group"
                                         >
                                             <td className="px-6 py-4 whitespace-nowrap font-black">
-                                                <Badge className={`${getStatusColor(ticket.status)} text-white font-bold border-0 hover:${getStatusColor(ticket.status)}`}>
-                                                    {getStatusLabel(ticket.status)}
-                                                </Badge>
-                                                {ticket.status === 'REJECTED' && ticket.rejectionReason && (
-                                                    <div className="text-[10px] text-red-400 mt-1 max-w-[100px] truncate" title={ticket.rejectionReason}>
-                                                        📝 {ticket.rejectionReason}
-                                                    </div>
-                                                )}
+                                                <div className="flex flex-col gap-1.5">
+                                                    <Badge className={`${getStatusColor(ticket.status)} text-white font-bold border-0 hover:${getStatusColor(ticket.status)}`}>
+                                                        {getStatusLabel(ticket.status)}
+                                                    </Badge>
+                                                    {/* 🌊 Workflow Stage Progress Bar */}
+                                                    {(() => {
+                                                        const workflow = getWorkflowStage(ticket.status);
+                                                        const stageLabels = ['استلام', 'فحص', 'إصلاح', 'QC', 'جاهز', 'تسليم', 'مسدد'];
+                                                        return (
+                                                            <div className="mt-1.5">
+                                                                <div className="flex gap-[2px] w-full mb-0.5">
+                                                                    {[...Array(workflow.total)].map((_, i) => (
+                                                                        <div 
+                                                                            key={i} 
+                                                                            title={stageLabels[i]}
+                                                                            className={`h-[3px] flex-1 rounded-full transition-all ${
+                                                                                i < workflow.current 
+                                                                                    ? (i === workflow.current - 1 ? `${getStatusColor(ticket.status)} opacity-100` : `${getStatusColor(ticket.status)} opacity-60`) 
+                                                                                    : 'bg-zinc-200 dark:bg-white/10'
+                                                                            }`} 
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                                <span className="text-[8px] text-zinc-400 dark:text-zinc-600 font-black">
+                                                                    {workflow.current}/{workflow.total}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4 font-black text-slate-700 dark:text-zinc-400">
-                                                <span className="text-xs">{new Date(ticket.createdAt).toLocaleDateString()}</span>
+
+                                            {/* ⏱ Gap Column */}
+                                            <td className="px-4 py-4">
+                                                {(() => {
+                                                    const isLong = ticket.gap?.includes('d') || (ticket.gap?.includes('h') && parseInt(ticket.gap) > 8);
+                                                    return (
+                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black tabular-nums ${
+                                                            ticket.isOverdue 
+                                                                ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                                                                : isLong 
+                                                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-500'
+                                                                    : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-500'
+                                                        }`}>
+                                                            <Clock className="w-2.5 h-2.5" />
+                                                            {ticket.gap}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+
+                                            {/* 🎯 Risk Column */}
+                                            <td className="px-4 py-4">
+                                                {(() => {
+                                                    const riskStyles = {
+                                                        high: { bg: 'bg-red-500/10 border-red-500/30', text: 'text-red-500', label: 'عالي', pulse: true },
+                                                        medium: { bg: 'bg-orange-500/10 border-orange-500/30', text: 'text-orange-500', label: 'متوسط', pulse: false },
+                                                        low: { bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-500', label: 'منخفض', pulse: false }
+                                                    };
+                                                    const style = riskStyles[risk.level as keyof typeof riskStyles] || riskStyles.low;
+                                                    return (
+                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border ${style.bg}`}>
+                                                            {style.pulse && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>}
+                                                            <RiskIcon className={`w-2.5 h-2.5 ${style.text}`} />
+                                                            <span className={`text-[9px] font-black uppercase tracking-tighter ${style.text}`}>{style.label}</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+
+                                            {/* 🏆 Customer Success Ratio */}
+                                            <td className="px-4 py-4">
+                                                {(() => {
+                                                    const ratio = Number(ticket.customerSuccessRatio) || 100;
+                                                    const color = ratio >= 80 ? 'text-emerald-500' : ratio >= 50 ? 'text-orange-500' : 'text-rose-500';
+                                                    const trackColor = ratio >= 80 ? 'text-emerald-500' : ratio >= 50 ? 'text-orange-500' : 'text-rose-500';
+                                                    const r = 9; const circ = 2 * Math.PI * r;
+                                                    return (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="relative w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                                                <svg viewBox="0 0 24 24" className="w-full h-full -rotate-90">
+                                                                    <circle cx="12" cy="12" r={r} fill="transparent" stroke="currentColor" strokeWidth="2.5" className="text-zinc-200 dark:text-white/5" />
+                                                                    <circle 
+                                                                        cx="12" cy="12" r={r}
+                                                                        fill="transparent" stroke="currentColor" strokeWidth="2.5"
+                                                                        strokeDasharray={circ}
+                                                                        strokeDashoffset={circ - (circ * ratio / 100)}
+                                                                        strokeLinecap="round"
+                                                                        className={`${trackColor} transition-all duration-500`}
+                                                                    />
+                                                                </svg>
+                                                                <span className={`absolute text-[7px] font-black ${color}`}>{ratio}%</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td className="px-6 py-4 font-black text-slate-700 dark:text-zinc-400 text-xs tabular-nums">
+                                                {new Date(ticket.createdAt).toLocaleDateString()}
                                             </td>
                                             <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col gap-1">

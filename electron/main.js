@@ -80,6 +80,9 @@ const getDatabasePath = () => {
         try {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             if (config.dbPath) {
+                if (!fs.existsSync(config.dbPath)) {
+                    fs.mkdirSync(config.dbPath, { recursive: true });
+                }
                 // Return custom path with local.db appended
                 return path.join(config.dbPath, 'local.db');
             }
@@ -1027,14 +1030,13 @@ ipcMain.handle('app:vacuum-db', async () => {
 });
 
 // --- Restore From External File ---
-ipcMain.handle('dialog:showOpenDialog', async () => {
+safeHandle('dialog:showOpenDbFileDialog', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
         title: 'اختر ملف قاعدة البيانات لاستعادته',
         filters: [{ name: 'SQLite Database', extensions: ['db'] }],
         properties: ['openFile']
     });
-    if (canceled) return null;
-    return filePaths[0];
+    return canceled ? null : filePaths[0];
 });
 
 ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {

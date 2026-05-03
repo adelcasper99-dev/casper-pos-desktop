@@ -22,6 +22,10 @@ function getDynamicDbUrl() {
             try {
                 const config = JSON.parse(rawConfig) as { dbPath?: string };
                 if (config.dbPath) {
+                    // HARDENING: Ensure the custom database directory exists before SQLite access
+                    if (!fs.existsSync(config.dbPath)) {
+                        fs.mkdirSync(config.dbPath, { recursive: true });
+                    }
                     const normalizedDbPath = path.join(config.dbPath, 'local.db').replace(/\\/g, '/');
                     return `file:${normalizedDbPath}`;
                 }

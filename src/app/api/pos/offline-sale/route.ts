@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 import { decrementWarehouseStock } from '@/lib/stock-helpers';
 import { logger } from '@/lib/logger';
+import { OfflineSaleSchema, type OfflineSaleInput } from '@/lib/validations/sync-schemas';
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -11,9 +12,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
     }
 
-    let body: any = null;
+    let body: OfflineSaleInput | null = null;
     try {
-        body = await request.json();
+        const rawBody = await request.json();
+        const parseResult = OfflineSaleSchema.safeParse(rawBody);
+        
+        if (!parseResult.success) {
+            return NextResponse.json({ 
+                success: false, 
+                error: 'Validation failed', 
+                details: parseResult.error.format() 
+            }, { status: 400 });
+        }
+
+        body = parseResult.data;
         const {
             id,
             idempotencyKey,
@@ -24,15 +36,15 @@ export async function POST(request: NextRequest) {
             branchId,
             totalAmount,
             paymentMethod,
-            taxAmount = 0,
+            taxAmount,
             subTotal,
-            discountAmount = 0,
-            discountPercentage = 0,
+            discountAmount,
+            discountPercentage,
             shiftId,
             customerId,
             createdAt, 
             isTimeSuspicious,
-            items = [],
+            items,
         } = body;
 
         // ── Idempotency Guard ──────────────────────────────────────────────────
@@ -50,13 +62,6 @@ export async function POST(request: NextRequest) {
                     message: 'Sale already processed',
                 });
             }
-        }
-
-        if (!warehouseId || !totalAmount || !paymentMethod) {
-            return NextResponse.json(
-                { success: false, error: 'Missing required fields: warehouseId, totalAmount, paymentMethod' },
-                { status: 400 }
-            );
         }
 
         // 📐 Precision Validation (Decimal.js)
@@ -112,23 +117,25 @@ export async function POST(request: NextRequest) {
             });
             const cashAccount = await tx.account.findUnique({ where: { code: treasury?.glCode || '1000' } });
 
-            if (salesAccount && cashAccount) {
-                await tx.journalEntry.create({
-                    data: {
-                        date: createdAt ? new Date(createdAt) : new Date(),
-                        description: `Sale Sync: ${newSale.id} (${customerName || 'Walk-in'})`,
-                        branchId,
-                        saleId: newSale.id,
-                        idempotencyKey: `journal-sale-${newSale.id}`,
-                        lines: {
-                            create: [
-                                { accountId: cashAccount.id, debit: dTotal.toString(), credit: '0' },
-                                { accountId: salesAccount.id, debit: '0', credit: dTotal.toString() }
-                            ]
-                        }
-                    }
-                });
+            if (!salesAccount || !cashAccount) {
+                throw new Error(`[offline-sale] GL accounts missing for branchId=${branchId}. salesAccount:${salesAccount?.id}, cashAccount:${cashAccount?.id}. Seed GL accounts before syncing.`);
             }
+
+            await tx.journalEntry.create({
+                data: {
+                    date: createdAt ? new Date(createdAt) : new Date(),
+                    description: `Sale Sync: ${newSale.id} (${customerName || 'Walk-in'})`,
+                    branchId,
+                    saleId: newSale.id,
+                    idempotencyKey: `journal-sale-${newSale.id}`,
+                    lines: {
+                        create: [
+                            { accountId: cashAccount.id, debit: dTotal.toString(), credit: '0' },
+                            { accountId: salesAccount.id, debit: '0', credit: dTotal.toString() }
+                        ]
+                    }
+                }
+            });
 
             // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
             // 1. Snapshot product metadata for bundle detection

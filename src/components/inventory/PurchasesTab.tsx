@@ -475,8 +475,8 @@ export default function PurchasesTab({
         });
 
     const stats = {
-        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.totalAmount : 0), 0),
-        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.paidAmount : 0), 0),
+        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? Number(inv.totalAmount) : 0), 0),
+        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? Number(inv.paidAmount) : 0), 0),
     };
 
     const barcodeItems = selectedTableInvoice ? selectedTableInvoice.items : cart;
@@ -488,7 +488,7 @@ export default function PurchasesTab({
     }));
     const barcodeQuantities = (barcodeItems || []).reduce((acc: any, item: any) => {
         const id = item.productId || item.product?.id || `temp-${item.sku}`;
-        acc[id] = item.quantity;
+        acc[id] = Number(item.quantity);
         return acc;
     }, {});
 

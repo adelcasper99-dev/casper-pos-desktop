@@ -30,7 +30,7 @@ declare global {
 
       /** Database Configuration API */
       config?: {
-        showOpenDialog: () => Promise<string | null>;
+        showOpenDialog: () => Promise<{ success: boolean; data: string | null; error?: string }>;
         selectBackupFolder: () => Promise<{ success: boolean; data: string | null; error?: string }>;
         getConfig: () => Promise<{ success: boolean; data: any; error?: string }>;
         getDbPath: () => Promise<{ success: boolean; data: string; error?: string }>;
@@ -46,6 +46,7 @@ declare global {
         deleteBackup: (filePath: string) => Promise<{ success: boolean; error?: string }>;
         restoreFromBackup: (filePath: string) => Promise<{ success: boolean; error?: string }>;
         restoreFromExternalFile: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+        showOpenDbFileDialog: () => Promise<{ success: boolean; data: string | null; error?: string }>;
         exportSupportBundle: () => Promise<{ success: boolean; path?: string; error?: string }>;
         vacuumDatabase: () => Promise<{ success: boolean; error?: string }>;
       };

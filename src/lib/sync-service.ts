@@ -485,7 +485,10 @@ export class SyncService {
                 await this.retryWithBackoff(async () => {
                     const response = await fetch('/api/sales/offline-return', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                        },
                         body: JSON.stringify({
                             ...r,
                             idempotencyKey: r.idempotencyKey

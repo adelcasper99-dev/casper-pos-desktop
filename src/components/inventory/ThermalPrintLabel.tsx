@@ -40,7 +40,7 @@ export function ThermalPrintLabel({
     const t = useTranslations('Inventory.labels');
     const formatCurrency = useFormatCurrency();
     const printContentRef = useRef<HTMLDivElement>(null);
-    const totalLabels = products.reduce((acc, p) => acc + p.quantity, 0);
+    const totalLabels = products.reduce((acc, p) => acc + Number(p.quantity), 0);
 
     const handlePrint = React.useCallback(async () => {
         const content = printContentRef.current;

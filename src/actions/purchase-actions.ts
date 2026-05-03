@@ -82,9 +82,9 @@ export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ 
                 }))
             }))
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[getPurchasesHistory] Error:', error);
-        return { success: false, purchases: [], error: error.message };
+        return { success: false, purchases: [], error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
 
@@ -150,26 +150,27 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         const currentShift = shiftResult.shift;
 
         // 🔍 Calculate exactly what remains to be returned
-        const previousReturns = await (tx.purchaseInvoice as any).findMany({
-            where: { parentId: id, isReturn: true }
+        const previousReturns = await tx.purchaseInvoice.findMany({
+            where: { parentId: id, isReturn: true },
+            include: { items: true }
         });
 
-        const totalReturnedValue = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.totalAmount).abs()), new Decimal(0));
-        const totalReturnedPaid = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.paidAmount).abs()), new Decimal(0));
+        const totalReturnedValue = previousReturns.reduce((s, r) => s.plus(new Decimal(r.totalAmount.toString()).abs()), new Decimal(0));
+        const totalReturnedPaid = previousReturns.reduce((s, r) => s.plus(new Decimal(r.paidAmount.toString()).abs()), new Decimal(0));
         
-        const remainingTotalAmount = Decimal.max(0, new Decimal(invoice.totalAmount).minus(totalReturnedValue));
-        const remainingPaidAmount = Decimal.max(0, new Decimal(invoice.paidAmount).minus(totalReturnedPaid));
+        const remainingTotalAmount = Decimal.max(0, new Decimal(invoice.totalAmount.toString()).minus(totalReturnedValue));
+        const remainingPaidAmount = Decimal.max(0, new Decimal(invoice.paidAmount.toString()).minus(totalReturnedPaid));
 
         if (remainingTotalAmount.lte(0)) {
             throw new Error("هذه الفاتورة تم إرجاعها بالكامل بالفعل عبر مستندات مرتجع جزئية");
         }
 
         // 🔒 Pre-compute items to return, capped by actual warehouse stock
-        const returnableItems: { productId: string; quantity: number; unitCost: any }[] = [];
+        const returnableItems: { productId: string; quantity: number; unitCost: string }[] = [];
         for (const i of invoice.items) {
-            const alreadyReturnedQty = (previousReturns as any[]).reduce((sum, ret) => {
-                const matched = (ret.items || []).find((ii: any) => ii.productId === i.productId);
-                return sum + (matched?.quantity || 0);
+            const alreadyReturnedQty = previousReturns.reduce((sum, ret) => {
+                const matched = ret.items?.find((ii) => ii.productId === i.productId);
+                return sum + Number(matched?.quantity || 0);
             }, 0);
             const invoiceRemaining = Math.max(0, Number(i.quantity) - alreadyReturnedQty);
             if (invoiceRemaining <= 0) continue;
@@ -182,7 +183,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             const qtyToReturn = Math.min(invoiceRemaining, actualStock);
             if (qtyToReturn <= 0) continue;
 
-            returnableItems.push({ productId: i.productId, quantity: qtyToReturn, unitCost: i.unitCost });
+            returnableItems.push({ productId: i.productId, quantity: qtyToReturn, unitCost: i.unitCost.toString() });
         }
 
         if (returnableItems.length === 0) {
@@ -208,15 +209,15 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 paymentMethod: invoice.paymentMethod,
                 isReturn: true,
                 parentId: id,
-                branchId: (invoice as any).branchId || currentUser.branchId || null,
+                branchId: invoice.branchId || currentUser.branchId || null,
                 items: {
                     create: returnableItems.map(item => ({
                         productId: item.productId,
                         quantity: item.quantity,
-                        unitCost: item.unitCost
+                        unitCost: new Decimal(item.unitCost)
                     }))
                 }
-            } as any
+            }
         });
 
         // 2. Reverse Inventory (only for items that are actually in stock)
@@ -286,7 +287,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
 
         // 5.1 Increment returnedQty on original items
         for (const item of returnableItems) {
-            const originalItem = invoice.items.find((i: any) => i.productId === item.productId);
+            const originalItem = invoice.items.find((i) => i.productId === item.productId);
             if (originalItem) {
                 await tx.purchaseItem.update({
                     where: { id: originalItem.id },
@@ -304,7 +305,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
             reference: returnInvoice.id,
             purchaseId: returnInvoice.id,
-            branchId: (returnInvoice as any).branchId ?? (currentUser.branchId || undefined),
+            branchId: returnInvoice.branchId ?? currentUser.branchId ?? undefined,
             lines: accountingLines
         }, tx);
 
@@ -327,10 +328,10 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
 }, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: false });
 
 export interface PartialPurchaseReturnResult {
-    returnedAmount: number;
+    returnedAmount: string;
     returnId: string;
     allReturned: boolean;
-    newTotal: number;
+    newTotal: string;
 }
 
 /**
@@ -366,24 +367,24 @@ export const partialReturnPurchase = secureAction(async (data: {
         if (invoice.status === 'RETURNED') throw new Error("هذه الفاتورة مُرجَّعة بالكامل بالفعل");
 
         // 2. Validate return quantities (Aggregated check across all linked returns)
-        const previousReturns = await (tx.purchaseInvoice as any).findMany({
+        const previousReturns = await tx.purchaseInvoice.findMany({
             where: { parentId: purchaseId, isReturn: true },
             include: { items: true }
         });
 
-        const totalReturnedValueSoFar = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.totalAmount).abs()), new Decimal(0));
-        const totalReturnedPaidSoFar = (previousReturns as any[]).reduce((s, r) => s.plus(new Decimal(r.paidAmount).abs()), new Decimal(0));
+        const totalReturnedValueSoFar = previousReturns.reduce((s, r) => s.plus(new Decimal(r.totalAmount.toString()).abs()), new Decimal(0));
+        const totalReturnedPaidSoFar = previousReturns.reduce((s, r) => s.plus(new Decimal(r.paidAmount.toString()).abs()), new Decimal(0));
 
         let returnTotal = new Decimal(0);
         const processedItems: { productId: string; returnQty: number; unitCost: number; name: string }[] = [];
 
         for (const returnItem of returnItems) {
-            const originalItem = invoice.items.find((i: any) => i.id === returnItem.itemId);
+            const originalItem = invoice.items.find((i) => i.id === returnItem.itemId);
             if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
 
             // Check how many have been returned in PREVIOUS separate return documents
-            const alreadyReturned = (previousReturns as any[]).reduce((sum: number, ret: any) => {
-                const matchedItem = (ret.items as any[]).find((i: any) => i.productId === originalItem.productId);
+            const alreadyReturned = previousReturns.reduce((sum: number, ret) => {
+                const matchedItem = ret.items.find((i) => i.productId === originalItem.productId);
                 return sum + Number(matchedItem?.quantity || 0);
             }, 0);
 
@@ -430,8 +431,8 @@ export const partialReturnPurchase = secureAction(async (data: {
         }
 
         // 📊 Determine remaining debt and cash on the ORIGINAL invoice
-        const currentUnpaidAmount = Decimal.max(0, new Decimal(invoice.totalAmount).minus(invoice.paidAmount).minus(totalReturnedValueSoFar.minus(totalReturnedPaidSoFar)));
-        const currentPaidCashRemaining = Decimal.max(0, new Decimal(invoice.paidAmount).minus(totalReturnedPaidSoFar));
+        const currentUnpaidAmount = Decimal.max(0, new Decimal(invoice.totalAmount.toString()).minus(new Decimal(invoice.paidAmount.toString())).minus(totalReturnedValueSoFar.minus(totalReturnedPaidSoFar)));
+        const currentPaidCashRemaining = Decimal.max(0, new Decimal(invoice.paidAmount.toString()).minus(totalReturnedPaidSoFar));
 
         // 🔀 Split the return between debt-reduction and cash-back
         const debtReduction = Decimal.min(returnTotal, currentUnpaidAmount);
@@ -450,7 +451,7 @@ export const partialReturnPurchase = secureAction(async (data: {
                 paymentMethod: invoice.paymentMethod,
                 isReturn: true,
                 parentId: purchaseId,
-                branchId: (invoice as any).branchId || currentUser.branchId || null,
+                branchId: invoice.branchId || currentUser.branchId || null,
                 items: {
                     create: processedItems.map(p => ({
                         productId: p.productId,
@@ -458,16 +459,16 @@ export const partialReturnPurchase = secureAction(async (data: {
                         unitCost: new Decimal(p.unitCost)
                     }))
                 }
-            } as any
+            }
         });
 
         // 4. Update Original Invoice Status (but keep totals)
         const allItemsOriginal = invoice.items;
-        const totalPurchasedQty = allItemsOriginal.reduce((s: number, i: any) => s + i.quantity, 0);
+        const totalPurchasedQty = allItemsOriginal.reduce((s: number, i) => s + Number(i.quantity), 0);
         
         // Sum all returned quantities for ALL items in ALL related return invoices
-        const totalReturnedQtySoFar = previousReturns.reduce((s: number, r: any) => s + r.items.reduce((ss: number, ii: any) => ss + ii.quantity, 0), 0) + 
-                                     processedItems.reduce((s: number, p: any) => s + p.returnQty, 0);
+        const totalReturnedQtySoFar = previousReturns.reduce((s: number, r) => s + r.items.reduce((ss: number, ii) => ss + Number(ii.quantity), 0), 0) + 
+                                     processedItems.reduce((s: number, p) => s + p.returnQty, 0);
 
         await tx.purchaseInvoice.update({
             where: { id: purchaseId },
@@ -542,14 +543,14 @@ export const partialReturnPurchase = secureAction(async (data: {
         });
 
         return {
-            returnTotal: returnTotal.toNumber(),
+            returnTotal: returnTotal.toString(),
             returnId: returnInvoice.id,
             itemCount: processedItems.length,
             invoiceNumber: returnInvoice.invoiceNumber,
             supplierId: invoice.supplierId,
             totalReturnedQtySoFar,
             totalPurchasedQty,
-            newTotal: Number(invoice.totalAmount) // Keeping original total for reference or tracking
+            newTotal: invoice.totalAmount.toString() // Keeping original total for reference or tracking
         };
     });
 

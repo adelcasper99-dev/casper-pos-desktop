@@ -105,7 +105,7 @@ export default function EngineersManager() {
     }
 
     const totalEngineers = engineers.length
-    const activeTicketsCount = engineers.reduce((sum, e) => sum + (e.activeTicketsCount || 0), 0)
+    const activeTicketsCount = engineers.reduce((sum, e) => sum + Number(e.activeTicketsCount || 0), 0)
     const avgCommission = totalEngineers > 0
         ? (engineers.reduce((sum, e) => sum + Number(e.commissionRate || 0), 0) / totalEngineers).toFixed(1)
         : 0
