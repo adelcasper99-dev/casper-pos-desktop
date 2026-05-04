@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
+import { OfflineReturnSchema, type OfflineReturnInput } from '@/lib/validations/sync-schemas';
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -9,30 +10,34 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
     }
 
-    let body: any = null;
+    let body: OfflineReturnInput | null = null;
     try {
-        body = await request.json();
+        const rawBody = await request.json();
+        const parseResult = OfflineReturnSchema.safeParse(rawBody);
+
+        if (!parseResult.success) {
+            return NextResponse.json({ 
+                success: false, 
+                error: 'Validation failed', 
+                details: parseResult.error.format() 
+            }, { status: 400 });
+        }
+
+        body = parseResult.data;
         const {
             id,
             idempotencyKey,
             originalSaleId,
-            returnType = 'CASH',
+            returnType,
             amount,
             reason,
-            items = [],
+            items,
             customerPhone,
             warehouseId,
             shiftId,
             branchId,
             createdAt
         } = body;
-
-        if (!originalSaleId || !amount) {
-            return NextResponse.json(
-                { success: false, error: 'Missing required fields: originalSaleId, amount' },
-                { status: 400 }
-            );
-        }
 
         // ── Idempotency Guard ──────────────────────────────────────────────────
         if (idempotencyKey || id) {
@@ -62,7 +67,8 @@ export async function POST(request: NextRequest) {
         }
 
         const resolvedWarehouseId = warehouseId ?? originalSale.warehouseId;
-        const resolvedBranchId = branchId ?? originalSale.branchId;
+        // Coerce null → undefined: Prisma StringFilter rejects null in where clauses
+        const resolvedBranchId = (branchId ?? originalSale.branchId) ?? undefined;
 
         const returnSale = await prisma.$transaction(async (tx) => {
             // 1. Create the return sale record
@@ -102,23 +108,25 @@ export async function POST(request: NextRequest) {
             });
             const cashAccount = await tx.account.findUnique({ where: { code: treasury?.glCode || '1000' } });
 
-            if (salesAccount && cashAccount) {
-                await tx.journalEntry.create({
-                    data: {
-                        date: createdAt ? new Date(createdAt) : new Date(),
-                        description: `Return Sync: ${refundSale.id} (Original: ${originalSaleId})`,
-                        branchId: resolvedBranchId,
-                        saleId: refundSale.id,
-                        idempotencyKey: `journal-return-${refundSale.id}`,
-                        lines: {
-                            create: [
-                                { accountId: salesAccount.id, debit: dAmount.abs().toString(), credit: '0' },
-                                { accountId: cashAccount.id, debit: '0', credit: dAmount.abs().toString() }
-                            ]
-                        }
-                    }
-                });
+            if (!salesAccount || !cashAccount) {
+                throw new Error(`[offline-return] GL accounts missing for branchId=${resolvedBranchId}. salesAccount:${salesAccount?.id}, cashAccount:${cashAccount?.id}. Seed GL accounts before syncing.`);
             }
+
+            await tx.journalEntry.create({
+                data: {
+                    date: createdAt ? new Date(createdAt) : new Date(),
+                    description: `Return Sync: ${refundSale.id} (Original: ${originalSaleId})`,
+                    branchId: resolvedBranchId,
+                    saleId: refundSale.id,
+                    idempotencyKey: `journal-return-${refundSale.id}`,
+                    lines: {
+                        create: [
+                            { accountId: salesAccount.id, debit: dAmount.abs().toString(), credit: '0' },
+                            { accountId: cashAccount.id, debit: '0', credit: dAmount.abs().toString() }
+                        ]
+                    }
+                }
+            });
 
             // 3. Increment Stock
             for (const item of items) {

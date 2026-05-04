@@ -202,4 +202,25 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ---
 
 *Created: April 2, 2026*
-*Last Update: April 19, 2026 (E-Wallet Module, Atomic Accounting & Type Centralization)*
+*Last Update: April 23, 2026 (Financial Performance Hardening, Bulk Aggregation & Schema-to-Code Parity)*
+
+---
+
+## 🛡️ 12. Advanced Performance & Financial Hardening
+
+### 🛡️ [NEW] Financial Performance & Scalability
+*   **Bulk Aggregation Protocol**: High-level dashboards (HR, Finance, Inventory) MUST use database-level aggregation (`groupBy`, `_sum`, `_count`) rather than in-memory iteration. This ensures $O(1)$ performance scaling and prevents Node.js event-loop blocking.
+*   **Mode-Aware Salary Proration**: All payroll and budget forecasting MUST use the centralized `calculateProratedBase` utility with explicit modes:
+    -   `accrued`: For earned-to-date payroll calculations (realized cost).
+    -   `projected`: For full-month budget expectations (expected cost).
+*   **Batch Safety Caps**: High-volume operations (Synchronization, Linking, Bulk Exports) MUST implement `take` limits (e.g., `100` for Master Data, `1000` for Transactions) to ensure memory safety in production environments.
+*   **Arithmetic Precision**: `Decimal.js` is the mandatory engine for all multi-step financial logic. Intermediate values must never be cast to `number` until the final display layer.
+
+### 🛡️ [NEW] Strict Schema-to-Code Parity
+*   **Protocol**: All shared interfaces (e.g., `PurchaseInvoice`, `PurchaseItem`) MUST maintain 1:1 field parity with the Prisma schema. Renaming properties in the backend (e.g., `invoiceId` -> `purchaseInvoiceId`) must be immediately reflected in the centralized domain types.
+*   **Domain Alignment**: The `PurchaseItem` interface is the canonical type for all goods-receipt logic, replacing ad-hoc `any` arrays to ensure compile-time safety for tax and subtotal calculations.
+
+### 🛡️ [NEW] UI Financial Precision & Strict TypeScript Integrity
+*   **Defensive Decimal Validation**: All user-provided string inputs mapped to financial values must be parsed with `Decimal.js` inside a `try/catch` block before checking bounds (`<= 0`). This prevents unhandled `[DecimalError]` crashes if non-numeric inputs bypass frontend limits.
+*   **Null-Coalescing in React Aggregations**: `.reduce()` methods in React components that calculate totals (e.g., `totalOwed`, `totalCredit`) must always use strict null-coalescing (`c.balance ?? 0`) inside `new Decimal()` constructors to prevent `String(null)` execution failures.
+*   **Explicit State Interfaces vs. `any`**: Component `useState` hooks must explicitly map to Prisma payload interfaces (e.g., `StockWithProduct[]`, `CustomerWithBalance[]`) rather than `any[]`. This guarantees that components will fail safely at compile-time (`npx tsc`) if backend relation structures or schemas change, preventing silent runtime masking.

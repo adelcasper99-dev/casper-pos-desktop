@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { updateTicketDetails, updateTicketStatus } from "@/actions/ticket-actions";
 import { useCSRF } from "@/contexts/CSRFContext";
 import { Decimal } from "decimal.js";
+import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
+import { getEffectiveStoreSettings } from "@/actions/settings";
 
 interface EstimationModalProps {
     isOpen: boolean;
@@ -19,6 +21,11 @@ interface EstimationModalProps {
         barcode: string;
         repairPrice?: number;
         expectedDuration?: number;
+        customerPhone: string;
+        customerName: string;
+        deviceBrand: string;
+        deviceModel: string;
+        issueDescription?: string | null;
     };
     onSuccess: () => void;
 }
@@ -43,14 +50,19 @@ export default function EstimationModal({
     onSuccess,
 }: EstimationModalProps) {
     const { token: csrfToken } = useCSRF();
+    const autoNotify = useWhatsAppAutoNotify();
     const [price, setPrice] = useState("");
     const [duration, setDuration] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
 
     useEffect(() => {
         if (isOpen) {
             setPrice(ticket.repairPrice ? ticket.repairPrice.toString() : "");
             setDuration(ticket.expectedDuration ?? null);
+            getEffectiveStoreSettings().then(res => {
+                if (res.success) setSettings(res.data);
+            });
         }
     }, [isOpen, ticket]);
 
@@ -88,6 +100,21 @@ export default function EstimationModal({
 
             if (statusRes.success) {
                 toast.success("✅ تم تحديد التكلفة — التذكرة في مرحلة الفحص");
+                
+                // 🚀 WhatsApp Auto-Notify (Non-blocking)
+                autoNotify('DIAGNOSING', {
+                    customerPhone: ticket.customerPhone,
+                    customerName: ticket.customerName,
+                    barcode: ticket.barcode,
+                    deviceBrand: ticket.deviceBrand,
+                    deviceModel: ticket.deviceModel,
+                    repairPrice: priceNum,
+                    issueDescription: ticket.issueDescription
+                }, {
+                    whatsappEnabled: settings?.whatsappEnabled,
+                    whatsappTemplates: settings?.whatsappTemplates
+                });
+
                 onSuccess();
                 onClose();
             } else {

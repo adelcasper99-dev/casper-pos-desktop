@@ -1,8 +1,8 @@
 import { db, type OfflineSale } from './offline-db';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './prisma';
 import { logger } from './logger';
+import { extractIpcData } from './ipc-utils';
 
-const prisma = new PrismaClient();
 
 export class LocalPersistenceService {
     /**
@@ -58,8 +58,8 @@ export class LocalPersistenceService {
    * (This is the "mirroring browser cache to local filesystem" referred to in Constitution)
    */
     static async backupToFilesystem(isManual = false) {
-        if (typeof window !== 'undefined' && (window as any).electronAPI) {
-            const result = await (window as any).electronAPI.storage.saveOfflineData({ isManual });
+        if (typeof window !== 'undefined' && window.electronAPI?.storage) {
+            const result = await window.electronAPI.storage.saveOfflineData({ isManual });
             if (result && result.success === false) {
                 if (isManual) throw new Error(result.error);
                 else console.warn(`[LocalPersistence] Auto-backup skipped/failed: ${result.error}`);
@@ -70,9 +70,9 @@ export class LocalPersistenceService {
     }
 
     static async restoreFromFilesystem() {
-        if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        if (typeof window !== 'undefined' && window.electronAPI?.storage) {
             try {
-                const data = await (window as any).electronAPI.storage.loadOfflineData();
+                const data = await window.electronAPI.storage.loadOfflineData();
                 if (data) {
                     logger.info('[LocalPersistence] Loaded offline data from filesystem backup');
                     return data;
@@ -88,10 +88,11 @@ export class LocalPersistenceService {
         if (typeof window === 'undefined') return;
 
         let intervalMinutes = 15; // default
-        if ((window as any).electronAPI?.config?.getConfig) {
+        if (window.electronAPI?.config?.getConfig) {
             try {
-                const config = await (window as any).electronAPI.config.getConfig();
-                if (config.backupInterval) {
+                const res = await window.electronAPI.config.getConfig();
+                const config = extractIpcData<{ backupInterval?: string }>(res, 'app:get-config');
+                if (config && config.backupInterval) {
                     intervalMinutes = parseInt(config.backupInterval, 10) || 15;
                 }
             } catch (e) {
@@ -102,11 +103,12 @@ export class LocalPersistenceService {
         logger.info(`[LocalPersistence] Auto-backup service started. Interval: ${intervalMinutes} minutes.`);
 
         // Clear any existing interval if we're restarting it
-        if ((window as any)._casperBackupTimer) {
-            clearInterval((window as any)._casperBackupTimer);
+        const win = window as Window & { _casperBackupTimer?: ReturnType<typeof setInterval> };
+        if (win._casperBackupTimer) {
+            clearInterval(win._casperBackupTimer);
         }
 
-        (window as any)._casperBackupTimer = setInterval(() => {
+        win._casperBackupTimer = setInterval(() => {
             this.backupToFilesystem().catch(err => logger.error('[LocalPersistence] Auto-backup failed', err));
         }, Math.max(1, intervalMinutes) * 60 * 1000);
     }

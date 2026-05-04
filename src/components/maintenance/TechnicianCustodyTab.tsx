@@ -30,10 +30,10 @@ type ProductItem = {
     categoryName: string;
     categoryColor: string | null;
     availableQuantity: number;
-    costPrice: number;
-    sellPrice: number;
-    sellPrice2: number;
-    sellPrice3: number;
+    costPrice: number | string;
+    sellPrice: number | string;
+    sellPrice2: number | string;
+    sellPrice3: number | string;
 };
 
 type CartItem = ProductItem & {
@@ -98,14 +98,14 @@ export default function TechnicianCustodyTab() {
             toast.error("اختار مهندس أولاً!");
             return;
         }
-        if (product.availableQuantity <= 0) {
+        if (Number(product.availableQuantity) <= 0) {
             toast.error("المنتج نفد من المخزن.");
             return;
         }
         setCart(prev => {
             const existing = prev.find(p => p.id === product.id);
             if (existing) {
-                if (existing.cartQuantity >= product.availableQuantity) {
+                if (Number(existing.cartQuantity) >= Number(product.availableQuantity)) {
                     toast.error("وصلت للحد الأقصى المتاح.");
                     return prev;
                 }
@@ -123,7 +123,7 @@ export default function TechnicianCustodyTab() {
         setCart(prev => prev.map(p => {
             if (p.id !== productId) return p;
             const newQty = p.cartQuantity + delta;
-            if (newQty > p.availableQuantity) { toast.error("وصلت للحد الأقصى"); return p; }
+            if (newQty > Number(p.availableQuantity)) { toast.error("وصلت للحد الأقصى"); return p; }
             return newQty > 0 ? { ...p, cartQuantity: newQty } : p;
         }));
     };
@@ -298,7 +298,7 @@ export default function TechnicianCustodyTab() {
                             </div>
                         ) : (
                             products.map(product => {
-                                const inStock = product.availableQuantity > 0;
+                                const inStock = Number(product.availableQuantity) > 0;
                                 return (
                                     <button
                                         key={product.id}
@@ -312,7 +312,7 @@ export default function TechnicianCustodyTab() {
                                     >
                                         <div className="flex justify-between items-start mb-3">
                                             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${inStock ? 'text-emerald-600 bg-emerald-50 dark:text-green-400 dark:bg-green-500/10' : 'text-slate-900 bg-slate-100 dark:text-zinc-100 dark:bg-white/10'}`}>
-                                                {inStock ? `${product.availableQuantity} متاح` : 'نفد'}
+                                                {inStock ? `${Number(product.availableQuantity)} متاح` : 'نفد'}
                                             </span>
                                             <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white uppercase tracking-wider">
                                                 {product.categoryName}
@@ -327,7 +327,7 @@ export default function TechnicianCustodyTab() {
                                                 <Plus className="w-4 h-4 text-black dark:text-white" />
                                             </div>
                                             <span className="font-black text-slate-900 dark:text-white text-base">
-                                                {product.sellPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                {Number(product.sellPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </button>
@@ -366,10 +366,10 @@ export default function TechnicianCustodyTab() {
                                         <div className="flex flex-col gap-2">
                                             <span className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">تسعير النقل</span>
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                <button onClick={() => updatePriceTier(item.id, 'Cost')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Cost' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>التكلفة ({item.costPrice})</button>
-                                                <button onClick={() => updatePriceTier(item.id, 'Sell 1')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 1' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>مفرق ({item.sellPrice})</button>
-                                                <button onClick={() => updatePriceTier(item.id, 'Sell 2')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 2' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>جملة ({item.sellPrice2})</button>
-                                                <button onClick={() => updatePriceTier(item.id, 'Sell 3')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 3' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>نص جملة ({item.sellPrice3})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Cost')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Cost' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>التكلفة ({Number(item.costPrice).toLocaleString()})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 1')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 1' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>مفرق ({Number(item.sellPrice).toLocaleString()})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 2')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 2' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>جملة ({Number(item.sellPrice2).toLocaleString()})</button>
+                                                <button onClick={() => updatePriceTier(item.id, 'Sell 3')} className={`px-2.5 py-1.5 text-[9px] font-black rounded-lg border transition-all ${item.priceTier === 'Sell 3' ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-slate-100 dark:bg-black/40 border-slate-300 dark:border-white/5 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/5'}`}>نص جملة ({Number(item.sellPrice3).toLocaleString()})</button>
                                             </div>
                                         </div>
                                     </div>
@@ -381,7 +381,7 @@ export default function TechnicianCustodyTab() {
                                             >
                                                 <Minus className="w-3.5 h-3.5" />
                                             </button>
-                                            <span className="w-12 text-center font-black text-slate-900 dark:text-white text-base">{item.cartQuantity}</span>
+                                            <span className="w-12 text-center font-black text-slate-900 dark:text-white text-base">{Number(item.cartQuantity)}</span>
                                             <button
                                                 onClick={() => updateQuantity(item.id, 1)}
                                                 className="w-9 h-9 flex items-center justify-center bg-white dark:bg-zinc-900 rounded-lg text-slate-700 dark:text-white hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all shadow-sm"
@@ -402,7 +402,7 @@ export default function TechnicianCustodyTab() {
                         {cart.length > 0 && (
                             <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400 mb-4 font-black uppercase tracking-widest">
                                 <span>إجمالي القطع</span>
-                                <span className="text-slate-900 dark:text-white underline underline-offset-4 decoration-slate-300">{cart.reduce((a, c) => a + c.cartQuantity, 0)} قطعة</span>
+                                <span className="text-slate-900 dark:text-white underline underline-offset-4 decoration-slate-300">{cart.reduce((a, c) => a + Number(c.cartQuantity), 0)} قطعة</span>
                             </div>
                         )}
                         <button
@@ -417,7 +417,7 @@ export default function TechnicianCustodyTab() {
                             {isPending ? (
                                 <><Loader2 className="w-6 h-6 animate-spin" /> جاري التحويل...</>
                             ) : (
-                                <><CheckCircle2 className="w-6 h-6" /> تأكيد التسليم ({cart.reduce((a, c) => a + c.cartQuantity, 0)} قطعة)</>
+                                <><CheckCircle2 className="w-6 h-6" /> تأكيد التسليم ({cart.reduce((a, c) => a + Number(c.cartQuantity), 0)} قطعة)</>
                             )}
                         </button>
                     </div>

@@ -20,6 +20,7 @@ import { getBundleComponents } from "@/actions/inventory";
 
 import { VirtuosoGrid } from 'react-virtuoso';
 import { DesktopStatus } from "@/components/pos/DesktopStatus";
+import { toNumber } from "@/lib/decimal-utils";
 
 // ... (other imports remain, remove unused if any)
 
@@ -419,7 +420,7 @@ export default function POSClientAPI({
 
     //                 <div>
     //                     <div className="font-bold text-sm line-clamp-2 text-zinc-200 group-hover:text-white">{p.name}</div>
-    //                     <div className="text-cyan-400 font-mono text-sm">${Number(p.sellPrice).toFixed(2)}</div>
+    //                     <div className="text-cyan-400 font-mono text-sm">${toNumber(p.sellPrice).toFixed(2)}</div>
     //                 </div>
     //             </button>
     //         </div>
@@ -542,8 +543,8 @@ export default function POSClientAPI({
     };
 
     const subTotal = getTotal();
-    const effectiveSubTotal = Math.max(0, subTotal - discountAmount);
-    const taxRate = Number(settings?.taxRate || 0);
+    const effectiveSubTotal = Math.max(0, subTotal - toNumber(discountAmount));
+    const taxRate = toNumber(settings?.taxRate || 0);
     const taxAmount = effectiveSubTotal * (taxRate / 100);
     const finalTotal = effectiveSubTotal + taxAmount;
 
@@ -1171,7 +1172,7 @@ export default function POSClientAPI({
                                         </div>
                                         <div className="flex justify-between items-center mt-1">
                                             <div className="text-slate-800 dark:text-white font-semibold dark:font-black font-mono text-sm">{formatCurrency(p[priceTier] || p.sellPrice)}</div>
-                                            {permissions.canViewCost && showCostPrice && p.costPrice > 0 && (
+                                            {permissions.canViewCost && showCostPrice && toNumber(p.costPrice) > 0 && (
                                                 <div className="text-muted-foreground opacity-60 text-[10px] font-mono" title={t('costPrice') || "Cost"}>{formatCurrency(p.costPrice)}</div>
                                             )}
                                         </div>

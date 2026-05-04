@@ -19,6 +19,8 @@ import PatternLockCanvas from "@/components/tickets/PatternLockCanvas"
 import { generateIdempotencyKey } from '@/lib/offline-transaction-helper';
 import { offlineDB } from "@/lib/offline-db";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
+import { getEffectiveStoreSettings } from "@/actions/settings";
 
 import { getPresets, addPreset, deletePreset } from "@/actions/preset-actions";
 import { getDevicePresets, upsertDevice } from "@/actions/device-actions";
@@ -33,8 +35,10 @@ export default function NewTicketPage() {
     const router = useRouter()
     const { isOnline } = useNetworkStatus();
     const { token: csrfToken } = useCSRF();
+    const autoNotify = useWhatsAppAutoNotify();
     const [submitting, setSubmitting] = useState(false)
     const [isEditingPresets, setIsEditingPresets] = useState<"ISSUE" | "CONDITION" | null>(null)
+    const [settings, setSettings] = useState<any>(null);
 
     // Dynamic Presets
     const [issuesList, setIssuesList] = useState<{ id: string, name: string }[]>([]);
@@ -118,6 +122,11 @@ export default function NewTicketPage() {
             }
         };
         loadPresets();
+
+        // Load settings for WhatsApp
+        getEffectiveStoreSettings().then(res => {
+            if (res.success) setSettings(res.data);
+        });
     }, []);
 
     // Derived Device Data
@@ -257,7 +266,24 @@ export default function NewTicketPage() {
             } else {
                 // 🛡️ FIX: Don't show success toast when auto-print is enabled - it causes confusion
                 // The print modal will show automatically
-                const ticketId = (res as any).ticketId || (res as any).data?.ticketId;
+                const ticketData = (res as any).data || res;
+                const ticketId = ticketData.id || ticketData.ticketId;
+                const barcode = ticketData.barcode;
+
+                // 🚀 WhatsApp Auto-Notify (Non-blocking)
+                autoNotify('NEW', {
+                    customerPhone: formData.customerPhone,
+                    customerName: formData.customerName,
+                    barcode: barcode || tempBarcode,
+                    deviceBrand: formData.deviceBrand,
+                    deviceModel: formData.deviceModel,
+                    repairPrice: Number(formData.repairPrice),
+                    branchName: settings?.name ?? undefined,
+                    issueDescription: formData.issueDescription
+                }, {
+                    whatsappEnabled: settings?.whatsappEnabled,
+                    whatsappTemplates: settings?.whatsappTemplates
+                });
 
                 console.log('[AutoPrint] Ticket created, redirecting with print=true, ticketId:', ticketId);
 

@@ -1,4 +1,4 @@
-import { Decimal } from "@prisma/client/runtime/library";
+import { Decimal } from 'decimal.js';
 
 /**
  * Safely converts any numeric value (number, string, or Decimal) to a Prisma Decimal.

@@ -21,6 +21,7 @@ import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-managemen
 import { getCurrentUser } from "./auth";
 import { PERMISSIONS } from "@/lib/permissions";
 import { CustomerIndexingService } from "@/lib/customer-indexing-service";
+import { toDecimal, toNumber } from "@/lib/decimal-utils";
 
 interface ProcessSaleData extends z.infer<typeof saleSchema> {
     registerId?: string;
@@ -131,13 +132,13 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
         // Recalculate Totals for Integrity (S-03 using Decimal for precision)
         const subTotalAmountDecimal = data.items
-            .reduce((acc, item) => acc.plus(new Decimal(String(item.price)).times(item.quantity)), new Decimal(0));
-        const discountAmountDecimal = new Decimal(data.discountAmount || 0);
+            .reduce((acc, item) => acc.plus(toDecimal(item.price).times(item.quantity)), toDecimal(0));
+        const discountAmountDecimal = toDecimal(data.discountAmount || 0);
 
         // Guard: Discount cannot exceed subtotal
         const effectiveSubTotalDecimal = Decimal.max(0, subTotalAmountDecimal.sub(discountAmountDecimal));
 
-        const taxRateDecimal = new Decimal(taxRate).div(100);
+        const taxRateDecimal = toDecimal(taxRate).div(100);
         const taxAmountDecimal = effectiveSubTotalDecimal.mul(taxRateDecimal);
         const totalAmountDecimal = effectiveSubTotalDecimal.add(taxAmountDecimal);
 
@@ -181,12 +182,12 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             if ((p as any).isBundle) {
                 const comps = bundleComponentsMap.get(p.id) || [];
                 const bundleCost = comps.reduce(
-                    (sum: number, c: any) => sum + (Number(c.componentProduct.costPrice) * c.quantityIncluded),
+                    (sum: number, c: any) => sum + (toNumber(c.componentProduct.costPrice) * c.quantityIncluded),
                     0
                 );
                 costPriceMap.set(p.id, bundleCost);
             } else {
-                costPriceMap.set(p.id, Number(p.costPrice));
+                costPriceMap.set(p.id, toNumber(p.costPrice));
             }
         }
 
@@ -204,11 +205,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 idempotencyKey: idempotencyKey ?? undefined,
                 customerId: (data.customer?.id && data.customer.id.trim() !== "" && !rawData.isSupplier) ? data.customer.id : null,
                 warehouseId: mainWarehouseId,
-                totalAmount: new Decimal(totalAmount),
-                subTotal: new Decimal(subTotalAmount),
-                discountAmount: new Decimal(discountAmount),
-                discountPercentage: data.discountPercentage ? new Decimal(data.discountPercentage) : null,
-                taxAmount: new Decimal(taxAmount),
+                totalAmount: toDecimal(totalAmount),
+                subTotal: toDecimal(subTotalAmount),
+                discountAmount: toDecimal(discountAmount),
+                discountPercentage: data.discountPercentage ? toDecimal(data.discountPercentage) : null,
+                taxAmount: toDecimal(taxAmount),
                 paymentMethod: data.paymentMethod,
                 shiftId: currentShift.id,
                 userId: creatorId,
@@ -239,10 +240,10 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
                 payments: {
                     create: data.payments ? data.payments.map(p => ({
                         method: p.method,
-                        amount: new Decimal(p.amount)
+                        amount: toDecimal(p.amount)
                     })) : {
                         method: data.paymentMethod,
-                        amount: new Decimal(totalAmount)
+                        amount: toDecimal(totalAmount)
                     }
                 },
                 branchId: currentUser.branchId || null
@@ -270,7 +271,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         let amountToAccount = new Decimal(0);
         for (const p of paymentsToProcess) {
             if (p.method === 'ACCOUNT' || p.method === 'DEFERRED') {
-                amountToAccount = amountToAccount.add(new Decimal(String(p.amount)));
+                amountToAccount = amountToAccount.add(toDecimal(p.amount));
             }
         }
 
@@ -450,7 +451,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
 
 
         for (const p of paymentsToProcess) {
-            const amt = Number(p.amount);
+            const amt = toNumber(p.amount);
             switch (p.method) {
                 case 'CASH': cashIncrement += amt; break;
                 case 'VISA':
@@ -511,14 +512,14 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         };
 
         for (const p of paymentsToProcess) {
-            const amt = Number(p.amount);
+            const amt = toNumber(p.amount);
             if (amt > 0) {
                 const isMainPayment = p.method === data.paymentMethod;
                 const assignedTreasuryId = getTreasuryForMethod(p.method, isMainPayment ? treasuryId : undefined);
                 await tx.transaction.create({
                     data: {
                         type: 'SALE',
-                        amount: new Decimal(amt),
+                        amount: toDecimal(amt),
                         paymentMethod: p.method,
                         description: `Sale #${sale.id.split('-')[0].toUpperCase()}`,
                         shiftId: currentShift.id,

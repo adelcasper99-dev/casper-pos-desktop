@@ -15,8 +15,8 @@ interface RefundTicketModalProps {
     ticket: {
         id: string;
         barcode: string;
-        amountPaid: number;
-        repairPrice: number;
+        amountPaid: number | string;
+        repairPrice: number | string;
     };
     onSuccess?: () => void;
 }
@@ -71,7 +71,7 @@ export default function RefundTicketModal({ isOpen, onClose, ticket, onSuccess }
         }
     };
 
-    const maxRefund = ticket.amountPaid;
+    const maxRefund = Number(ticket.amountPaid);
 
     const handleRefund = async () => {
         setLoading(true);

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { CasperLogo } from "@/components/ui/CasperLogo";
 import { Minus, Square, Copy, X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { extractIpcData } from "@/lib/ipc-utils";
 
 /**
  * TitleBar – Custom frameless window chrome replacement.
@@ -27,7 +28,12 @@ export default function TitleBar() {
         const controls = window.electronAPI?.windowControls;
         if (!controls) return;
 
-        controls.isMaximized().then(setIsMaximized).catch(() => { });
+        controls.isMaximized().then(res => {
+            const val = extractIpcData(res, 'window:isMaximized');
+            if (typeof val === 'boolean') setIsMaximized(val);
+        }).catch((err) => { 
+            console.warn('[TitleBar] Failed to get initial maximize state:', err); 
+        });
 
         const unsub = controls.onMaximizeChange((val: boolean) => setIsMaximized(val));
         return unsub;

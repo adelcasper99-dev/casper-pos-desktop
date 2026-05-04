@@ -17,7 +17,7 @@ import { offlineDB } from '@/lib/offline-db';
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { Zap } from "lucide-react";
 import { useFormatCurrency } from "@/contexts/SettingsContext";
-
+import { toNumber, toDecimal } from "@/lib/decimal-utils";
 import { useRouter } from "next/navigation";
 import { casperClock } from "@/lib/CasperClock";
 // import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
@@ -273,8 +273,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
     // ... (Calculations stay same)
     // Recalculate Totals
     const subTotal = getTotal();
-    const effectiveSubTotal = Math.max(0, subTotal - discountAmount);
-    const taxRate = Number(settings?.taxRate || 0);
+    const effectiveSubTotal = Math.max(0, subTotal - toNumber(discountAmount));
+    const taxRate = toNumber(settings?.taxRate || 0);
     const taxAmount = effectiveSubTotal * (taxRate / 100);
     const finalTotal = effectiveSubTotal + taxAmount;
 
@@ -719,7 +719,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                 <div className="space-y-1">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase italic">الباقي للعميل</label>
                                     <div className={`h-9 flex items-center justify-center rounded-lg border font-bold ${typeof receivedAmount === 'number' && receivedAmount < finalTotal ? 'text-xs text-red-400 bg-red-500/10 border-red-500/30' : 'text-lg'} transition-colors ${typeof receivedAmount === 'number' && receivedAmount >= finalTotal ? 'text-green-400 bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]' : typeof receivedAmount === 'number' && receivedAmount < finalTotal ? '' : 'text-zinc-500 bg-white/5 border-white/10'}`}>
-                                        {typeof receivedAmount === 'number' ? (receivedAmount >= finalTotal ? formatCurrency(receivedAmount - finalTotal) : 'مبلغ غير كافٍ') : '0.00'}
+                                        {typeof receivedAmount === 'number' ? (receivedAmount >= finalTotal ? formatCurrency(toNumber(receivedAmount - finalTotal)) : 'مبلغ غير كافٍ') : '0.00'}
                                     </div>
                                 </div>
                             </div>

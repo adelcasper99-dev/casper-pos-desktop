@@ -1,36 +1,23 @@
 /**
- * Rotate CSRF token (generate new one via API)
- * 
- * ✅ Client-Side Safe: Uses fetch, no server-only imports.
- * Call after sensitive operations or when token is missing.
+ * ✅ Client-side CSRF utilities
+ * These functions are safe to use in "use client" components
+ * as they do not import next/headers or other server-only modules.
  */
-import { logger } from './logger';
-export async function rotateCSRFToken(): Promise<string> {
-    try {
-        // ✅ PRODUCTION FIX: Use relative path (works in all environments)
-        const response = await fetch('/api/csrf/generate', {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
 
-        if (!response.ok) {
-            // Try getting error text
-            const text = await response.text();
-            throw new Error(`Failed to rotate CSRF token: ${response.status} ${text}`);
+export async function generateCSRFToken(): Promise<string> {
+    // Call the API route to generate and set the cookie
+    // ✅ PRODUCTION FIX: Use relative path (works in all environments)
+    const response = await fetch('/api/csrf/generate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
         }
+    });
 
-        const data = await response.json();
-
-        if (process.env.NODE_ENV === 'development') {
-            logger.info('[CSRF] Token rotated successfully');
-        }
-
-        return data.token;
-    } catch (error) {
-        logger.error('[CSRF] Token rotation failed', error);
-        throw error;
+    if (!response.ok) {
+        throw new Error('Failed to generate CSRF token');
     }
+
+    const data = await response.json();
+    return data.token;
 }

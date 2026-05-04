@@ -5,10 +5,41 @@ const os = require('os');
 const net = require('net');
 const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
+const whatsappService = require('./whatsappService');
+
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
 const log = (msg) => {
     fs.appendFileSync(debugLog, `[${new Date().toISOString()}] [PROCESS ${process.pid}] ${msg}\n`);
+};
+
+/**
+ * Hardened IPC Error Handlers
+ */
+const safeHandle = (channel, handler) => {
+    ipcMain.handle(channel, async (event, ...args) => {
+        try {
+            const result = await handler(event, ...args);
+            // If the result is already in {success, data} format, return it directly
+            if (result && typeof result === 'object' && ('success' in result)) {
+                return result;
+            }
+            return { success: true, data: result };
+        } catch (error) {
+            log(`IPC Error [${channel}]: ${error.message}`);
+            return { success: false, error: error.message };
+        }
+    });
+};
+
+const safeOn = (channel, handler) => {
+    ipcMain.on(channel, (event, ...args) => {
+        try {
+            handler(event, ...args);
+        } catch (error) {
+            log(`IPC Exception [${channel}]: ${error.message}`);
+        }
+    });
 };
 
 // Configure autoUpdater logger
@@ -51,6 +82,9 @@ const getDatabasePath = () => {
         try {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             if (config.dbPath) {
+                if (!fs.existsSync(config.dbPath)) {
+                    fs.mkdirSync(config.dbPath, { recursive: true });
+                }
                 // Return custom path with local.db appended
                 return path.join(config.dbPath, 'local.db');
             }
@@ -175,6 +209,11 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
       'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
       'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
+      // Backfill: Migrate sharedLossAmount to new field (Skips NULL and zero intentionally)
+      // Safety: Only run if sharedLossAmount column actually exists to prevent SQLite from interpreting the name as a string literal
+      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE (SELECT COUNT(*) FROM pragma_table_info("Ticket") WHERE name = "sharedLossAmount") > 0 AND "sharedLossAmount" > 0',
+      // Self-healing: If data was already corrupted by the string literal "sharedLossAmount", reset it to 0.00
+      'UPDATE "Ticket" SET "excessLossAmount" = 0.00 WHERE typeof("excessLossAmount") = "text"',
 
       // User
       'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
@@ -188,6 +227,11 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
       'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
       'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
+      // Backfill: Migrate sharedLossRate to lossRate (Prevents overwriting fresh 70.00 defaults)
+      // Safety: Only run if sharedLossRate column actually exists to prevent SQLite from interpreting the name as a string literal
+      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE (SELECT COUNT(*) FROM pragma_table_info("Technician") WHERE name = "sharedLossRate") > 0 AND "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
+      // Self-healing: If data was already corrupted by the string literal "sharedLossRate", reset it to 70.00
+      'UPDATE "Technician" SET "lossRate" = 70.00 WHERE typeof("lossRate") = "text"',
 
       // Warehouse & Branch
       'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
@@ -198,7 +242,41 @@ const runMigrations = (dbPath) => {
       'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
       'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
       'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
+      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")',
+
+      // --- COMPREHENSIVE DATA HEALING (Prevention of "White Screen" crashes) ---
+      // These statements reset any Decimal columns that were corrupted with string literals 
+      // (a common SQLite quirk when using double quotes in UPDATE statements with missing columns).
+      
+      // Product Healing
+      'UPDATE "Product" SET "costPrice" = 0.00 WHERE typeof("costPrice") = "text"',
+      'UPDATE "Product" SET "sellPrice" = 0.00 WHERE typeof("sellPrice") = "text"',
+      'UPDATE "Product" SET "sellPrice2" = 0.00 WHERE typeof("sellPrice2") = "text"',
+      'UPDATE "Product" SET "sellPrice3" = 0.00 WHERE typeof("sellPrice3") = "text"',
+      
+      // SaleItem Healing
+      'UPDATE "SaleItem" SET "unitPrice" = 0.00 WHERE typeof("unitPrice") = "text"',
+      'UPDATE "SaleItem" SET "unitCost" = 0.00 WHERE typeof("unitCost") = "text"',
+      
+      // Sale Healing
+      'UPDATE "Sale" SET "totalAmount" = 0.00 WHERE typeof("totalAmount") = "text"',
+      'UPDATE "Sale" SET "subTotal" = 0.00 WHERE typeof("subTotal") = "text"',
+      'UPDATE "Sale" SET "discountAmount" = 0.00 WHERE typeof("discountAmount") = "text"',
+      'UPDATE "Sale" SET "taxAmount" = 0.00 WHERE typeof("taxAmount") = "text"',
+      
+      // User/Employee Healing
+      'UPDATE "User" SET "salary" = 0.00 WHERE typeof("salary") = "text"',
+      'UPDATE "User" SET "maxDiscount" = 0.00 WHERE typeof("maxDiscount") = "text"',
+      'UPDATE "User" SET "maxDiscountAmount" = 0.00 WHERE typeof("maxDiscountAmount") = "text"',
+
+      // Shift Healing (CRITICAL: Prevents White Screen on Z-Report)
+      'UPDATE "Shift" SET "totalCashSales" = 0.00 WHERE typeof("totalCashSales") = "text"',
+      'UPDATE "Shift" SET "totalCardSales" = 0.00 WHERE typeof("totalCardSales") = "text"',
+      'UPDATE "Shift" SET "totalWalletSales" = 0.00 WHERE typeof("totalWalletSales") = "text"',
+      'UPDATE "Shift" SET "totalInstapay" = 0.00 WHERE typeof("totalInstapay") = "text"',
+      'UPDATE "Shift" SET "totalAccountSales" = 0.00 WHERE typeof("totalAccountSales") = "text"',
+      'UPDATE "Shift" SET "totalCashRefunds" = 0.00 WHERE typeof("totalCashRefunds") = "text"',
+      'UPDATE "Shift" SET "totalAccountRefunds" = 0.00 WHERE typeof("totalAccountRefunds") = "text"'
     ];
 
     log('Migrations: Applying pre-patch SQL statements...');
@@ -439,34 +517,59 @@ autoUpdater.on('update-downloaded', (info) => {
     if (mainWindow) mainWindow.webContents.send('updater:update-downloaded', info);
 });
 
-ipcMain.handle('app:install-update', () => {
-    log('Updater: Installing update and quitting...');
-    autoUpdater.quitAndInstall(false, true);
+safeHandle('app:install-update', () => {
+    autoUpdater.quitAndInstall();
 });
 
-ipcMain.on('window:minimize', () => mainWindow?.minimize());
-ipcMain.on('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
-ipcMain.on('window:close', () => mainWindow?.close());
-ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() || false);
+safeOn('window:minimize', () => mainWindow?.minimize());
+safeOn('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
+safeOn('window:close', () => mainWindow?.close());
+safeHandle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
-ipcMain.handle('shell:open-external', async (event, url) => {
+safeHandle('shell:open-external', async (event, url) => {
+    await shell.openExternal(url);
+});
+
+// --- WhatsApp Native Engine ---
+const initWhatsApp = async () => {
+    const waLogger = {
+        info: (m) => log(`[WhatsApp] ${m}`),
+        warn: (m) => log(`[WhatsApp] WARN: ${m}`),
+        error: (m) => log(`[WhatsApp] ERROR: ${m}`)
+    };
+
     try {
-        await shell.openExternal(url);
+        await whatsappService.initialize((event, payload) => {
+            if (mainWindow && !mainWindow.webContents.isDestroyed()) {
+                mainWindow.webContents.send(`whatsapp:${event}`, payload);
+            }
+        }, waLogger);
         return { success: true };
-    } catch (error) {
-        log(`Shell openExternal Error: ${error.message}`);
-        return { success: false, error: error.message };
+    } catch (err) {
+        log(`[WhatsApp] Init error: ${err.message}`);
+        return { success: false, error: err.message };
     }
+};
+
+safeHandle('whatsapp:initialize', async () => {
+    return await initWhatsApp();
 });
 
-ipcMain.handle('printers:list', async () => {
-    if (!mainWindow) return [];
-    try {
-        return await mainWindow.webContents.getPrintersAsync();
-    } catch (error) {
-        log(`Error getting printers: ${error.message}`);
-        return [];
-    }
+safeHandle('whatsapp:send-message', (_, to, body) => whatsappService.sendMessage(to, body));
+safeHandle('whatsapp:get-status', () => ({ status: whatsappService.getStatus() }));
+safeHandle('whatsapp:logout', async () => { 
+    const result = await whatsappService.logout();
+    return result;
+});
+
+
+safeHandle('printers:list', async () => {
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map(p => ({
+        name: p.name,
+        isDefault: p.isDefault,
+        status: p.status
+    }));
 });
 
 /**
@@ -664,12 +767,12 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
 });
 
 ipcMain.handle('print:standard', handleStandardPrint);
-ipcMain.handle('print:thermal', async (event, html, printerName, paperWidthMm) => {
+safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 // Legacy support
 ipcMain.handle('print:silent', handleStandardPrint);
-ipcMain.handle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
+safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 
@@ -687,8 +790,7 @@ const loadConfig = () => {
     return {};
 };
 
-ipcMain.handle('dialog:showOpenDialog', async () => {
-    if (!mainWindow) return null;
+safeHandle('dialog:showOpenDialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Database Folder'
@@ -696,8 +798,7 @@ ipcMain.handle('dialog:showOpenDialog', async () => {
     return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle('dialog:showBackupFolderDialog', async () => {
-    if (!mainWindow) return null;
+safeHandle('dialog:showBackupFolderDialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Custom Backup Folder'
@@ -714,32 +815,27 @@ ipcMain.handle('dialog:showBackupFolderDialog', async () => {
     return selectedPath;
 });
 
-ipcMain.handle('app:get-config', () => {
+safeHandle('app:get-config', () => {
     return loadConfig();
 });
 
-ipcMain.handle('app:get-db-path', () => {
+safeHandle('app:get-db-path', () => {
     return path.dirname(getDatabasePath());
 });
 
-ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
-    try {
-        const userDataPath = app.getPath('userData');
-        const configPath = path.join(userDataPath, 'casper-config.json');
-        const existingConfig = loadConfig();
-        const newConfig = { ...existingConfig, dbPath: newDbFolder };
+safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
+    const userDataPath = app.getPath('userData');
+    const configPath = path.join(userDataPath, 'casper-config.json');
+    const existingConfig = loadConfig();
+    const newConfig = { ...existingConfig, dbPath: newDbFolder };
 
-        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
-        log(`Saved new config path: ${newDbFolder}. Restarting...`);
+    fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
+    log(`Saved new config path: ${newDbFolder}. Restarting...`);
 
-        // Relaunch the application and exit
-        app.relaunch();
-        app.quit();
-        return true;
-    } catch (err) {
-        log(`Failed save-config-and-restart: ${err.message}`);
-        return false;
-    }
+    // Relaunch the application and exit
+    app.relaunch();
+    app.quit();
+    return true;
 });
 
 ipcMain.handle('app:save-backup-config', async (event, configData) => {
@@ -968,4 +1064,55 @@ ipcMain.handle('app:vacuum-db', async () => {
     } catch (err) { return { success: false, error: err.message }; }
 });
 
-app.whenReady().then(createWindow);
+// --- Restore From External File ---
+safeHandle('dialog:showOpenDbFileDialog', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'اختر ملف قاعدة البيانات لاستعادته',
+        filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+        properties: ['openFile']
+    });
+    return canceled ? null : filePaths[0];
+});
+
+ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
+    try {
+        if (!fs.existsSync(sourcePath)) throw new Error('الملف المختار غير موجود');
+
+        log(`RESTORE EXTERNAL: From ${sourcePath}`);
+        const activeDbPath = getDatabasePath();
+
+        // 1. Kill Next Server to release locks
+        if (nextServer) nextServer.kill('SIGKILL');
+        await new Promise(r => setTimeout(r, 1500));
+
+        // 2. Backup current as safety
+        const backupPath = `${activeDbPath}.pre-ext-restore.${Date.now()}.bak`;
+        if (fs.existsSync(activeDbPath)) fs.copyFileSync(activeDbPath, backupPath);
+
+        // 3. Copy new file
+        fs.copyFileSync(sourcePath, activeDbPath);
+
+        // 4. Cleanup WAL/SHM
+        const walPath = `${activeDbPath}-wal`;
+        const shmPath = `${activeDbPath}-shm`;
+        if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+        if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+
+        log(`RESTORE EXTERNAL: Complete. Relaunching...`);
+        app.relaunch();
+        app.quit();
+        return { success: true };
+    } catch (err) {
+        log(`RESTORE EXTERNAL ERROR: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+app.on('before-quit', () => {
+    whatsappService.destroyClient();
+});
+
+app.whenReady().then(async () => {
+    await initWhatsApp();
+    createWindow();
+});

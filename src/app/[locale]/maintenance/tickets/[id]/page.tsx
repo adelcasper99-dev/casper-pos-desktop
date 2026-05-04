@@ -319,7 +319,10 @@ export default function TicketDetailPage() {
         // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
         const autoPrintEnabled = settings?.autoPrintTicket === true;
         console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
-        if (autoPrintEnabled && ticket && !hasPrinted) {
+        
+        const alreadyPrinted = ticket?.id && sessionStorage.getItem(`ticket_autoprint_${ticket.id}`);
+
+        if (autoPrintEnabled && ticket && !hasPrinted && !alreadyPrinted) {
             console.log('[AutoPrint] ✓ Triggering from settings');
             setIsSilentPrint(true);
             setShowPrintOptions(true);
@@ -825,11 +828,17 @@ export default function TicketDetailPage() {
                                         toast.error("يرجى ربط العميل أولاً لإرسال إشعارات تلقائية");
                                         return;
                                     }
-                                    const template = getStatusTemplate(ticket.status, 'ar');
+                                    const template = getStatusTemplate(ticket.status, 'ar', settings?.whatsappTemplates);
+                                    if (!template) {
+                                        toast.error("هذا النوع من الرسائل معطل حالياً من الإعدادات");
+                                        return;
+                                    }
                                     const url = generateWhatsAppUrl(ticket.customer.phone, template, {
                                         name: ticket.customer.name,
                                         device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
-                                        barcode: ticket.barcode, branch: 'الفرع الرئيسي', issue: ticket.issueDescription
+                                        barcode: ticket.barcode, 
+                                        branch: settings?.name || 'الفرع الرئيسي', 
+                                        issue: ticket.issueDescription
                                     });
                                     window.open(url, '_blank');
                                 }}
@@ -974,6 +983,7 @@ export default function TicketDetailPage() {
                                     user={user} 
                                     onUpdate={loadData}
                                     onReject={['ADMIN', 'مدير النظام', 'المالك'].includes(user?.role) ? () => setShowRejectModal(true) : undefined}
+                                    whatsappTemplates={settings?.whatsappTemplates}
                                 />
                             </div>
                         </div>

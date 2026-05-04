@@ -77,13 +77,18 @@ export class NotificationService {
 
             // 5. Template Engine Integration
             const template = getStatusTemplate(status);
+            if (!template) {
+                console.warn(`[Notification] No template found for status ${status}. Skipping...`);
+                return { success: false, message: 'No template configured for this status' };
+            }
+            
             const replacements: Record<string, string> = {
                 name: customer.name,
                 device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
                 barcode: ticket.barcode,
                 price: ticket.repairPrice.toString(),
                 branch: ticket.currentBranch.name,
-                issue: ticket.issueDescription,
+                issue: ticket.issueDescription || "",
                 notes: ticket.conditionNotes || "",
                 store: storeName
             };

@@ -22,7 +22,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
     const kpis = [
         {
             title: "إجمالي الإيرادات",
-            value: formatCurrency(data.totalRevenue),
+            value: formatCurrency(Number(data.totalRevenue)),
             icon: Activity,
             color: "text-cyan-500",
             bg: "bg-cyan-500/10",
@@ -30,7 +30,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "تكلفة قطع الغيار",
-            value: formatCurrency(data.partsCOGS),
+            value: formatCurrency(Number(data.partsCOGS)),
             icon: CreditCard,
             color: "text-rose-500",
             bg: "bg-rose-500/10",
@@ -38,7 +38,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "صافي ربح القطع",
-            value: formatCurrency(data.partsNetProfit),
+            value: formatCurrency(Number(data.partsNetProfit)),
             icon: TrendingUp,
             color: "text-orange-500",
             bg: "bg-orange-500/10",
@@ -46,7 +46,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "عمولات المهندسين",
-            value: formatCurrency(data.totalCommissions),
+            value: formatCurrency(Number(data.totalCommissions)),
             icon: Users,
             color: "text-fuchsia-500",
             bg: "bg-fuchsia-500/10",
@@ -54,7 +54,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "ربح الصيانة (صافي)",
-            value: formatCurrency(data.laborNetProfit),
+            value: formatCurrency(Number(data.laborNetProfit)),
             icon: Briefcase,
             color: "text-emerald-500",
             bg: "bg-emerald-500/10",
@@ -70,7 +70,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "صافي الربح العام",
-            value: formatCurrency(data.totalNetProfit),
+            value: formatCurrency(Number(data.totalNetProfit)),
             icon: TrendingUp,
             color: "text-white",
             bg: "bg-primary",

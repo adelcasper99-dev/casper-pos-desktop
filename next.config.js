@@ -12,11 +12,23 @@ const nextConfig = {
     },
     experimental: {
         instrumentationHook: true,
-        serverComponentsExternalPackages: ["bcryptjs"],
+        serverComponentsExternalPackages: ["bcryptjs", "zod"],
         serverActions: {
             allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
             bodySizeLimit: '10mb',
         }
+    },
+    webpack: (config, { isServer }) => {
+        if (!isServer) {
+            config.resolve.fallback = {
+                ...config.resolve.fallback,
+                fs: false,
+                path: false,
+                os: false,
+                child_process: false,
+            };
+        }
+        return config;
     },
 };
 

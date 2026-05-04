@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { LocalPersistenceService } from "@/lib/local-persistence";
 import { resetDatabase } from "@/actions/database-reset";
 import { cn } from "@/lib/utils";
+import { extractIpcData } from "@/lib/ipc-utils";
 
 export default function BackupManager() {
     const [backupPath, setBackupPath] = useState<string>('');
@@ -33,10 +34,13 @@ export default function BackupManager() {
         setIsLoading(true);
         try {
             if (window.electronAPI?.config?.getConfig) {
-                const config = await window.electronAPI.config.getConfig();
-                if (config.backupPath) setBackupPath(config.backupPath);
-                if (config.backupInterval) setBackupInterval(config.backupInterval.toString());
-                if (config.maxBackups) setMaxBackups(config.maxBackups.toString());
+                const res = await window.electronAPI.config.getConfig();
+                const config = extractIpcData(res, 'app:get-config');
+                if (config) {
+                    if (config.backupPath) setBackupPath(config.backupPath);
+                    if (config.backupInterval) setBackupInterval(config.backupInterval.toString());
+                    if (config.maxBackups) setMaxBackups(config.maxBackups.toString());
+                }
             }
         } catch (error) {
             console.error("Failed to load config", error);
@@ -64,8 +68,13 @@ export default function BackupManager() {
             toast.error(t('messages.selectFolderError'));
             return;
         }
-        const folder = await window.electronAPI.config.selectBackupFolder();
-        if (folder) setBackupPath(folder);
+        try {
+            const res = await window.electronAPI.config.selectBackupFolder();
+            const folder = extractIpcData(res, 'dialog:showBackupFolderDialog');
+            if (folder) setBackupPath(folder);
+        } catch (err: any) {
+            toast.error(t('messages.selectFolderError'));
+        }
     };
 
     const handleSaveConfig = async () => {
@@ -114,7 +123,11 @@ export default function BackupManager() {
             if (result.success) {
                 toast.success(t('messages.deleteSuccess'));
                 fetchBackups();
+            } else {
+                toast.error(t('messages.deleteError', { error: result.error }));
             }
+        } catch (error: any) {
+            toast.error(t('messages.deleteError', { error: error.message }));
         } finally {
             setIsSaving(false);
         }
@@ -132,6 +145,33 @@ export default function BackupManager() {
             }
         } catch (error) {
             toast.error(t('messages.restoreError', { error: 'Unknown' }));
+            setIsRestoring(false);
+        }
+    };
+
+    const handleExternalRestore = async () => {
+        if (!window.electronAPI?.storage?.showOpenDbFileDialog) return;
+        
+        try {
+            // 1. Show file picker
+            const res = await window.electronAPI.storage.showOpenDbFileDialog();
+            const filePath = extractIpcData(res, 'dialog:showOpenDbFileDialog');
+            if (!filePath) return; // Canceled
+
+            // 2. Confirm
+            if (!confirm(t('restoreExternalConfirm', 'Warning: This will replace your current database with the selected file and restart the application. All current unsaved data will be lost. Continue?'))) return;
+
+            setIsRestoring(true);
+            const tid = toast.loading(t('messages.restoring', 'Restoring database...'));
+
+            // 3. Perform restore
+            const result = await window.electronAPI.storage.restoreFromExternalFile(filePath);
+            if (!result.success) {
+                toast.error(t('messages.restoreError', { error: result.error }), { id: tid });
+                setIsRestoring(false);
+            }
+        } catch (error: any) {
+            toast.error(t('messages.restoreError', { error: error.message }));
             setIsRestoring(false);
         }
     };
@@ -178,6 +218,7 @@ export default function BackupManager() {
                                 onChange={(e) => setBackupInterval(e.target.value)}
                                 className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
                             >
+                                <option value="5" className="bg-card font-black">{t('intervalTitles.5')}</option>
                                 <option value="15" className="bg-card font-black">{t('intervalTitles.15')}</option>
                                 <option value="60" className="bg-card font-black">{t('intervalTitles.60')}</option>
                                 <option value="360" className="bg-card font-black">{t('intervalTitles.360')}</option>
@@ -266,6 +307,19 @@ export default function BackupManager() {
                             </div>
                         </div>
                         <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">{t('recoveryDesc')}</p>
+                    </div>
+
+                    {/* NEW: Restore from External File Button */}
+                    <div className="flex justify-end">
+                        <Button
+                            variant="outline"
+                            onClick={handleExternalRestore}
+                            disabled={isRestoring || isSaving}
+                            className="h-14 rounded-2xl px-8 border-orange-500/30 hover:bg-orange-500/10 hover:border-orange-500 font-black text-[10px] uppercase tracking-widest transition-all group/ext"
+                        >
+                            <FolderOpen className="w-4 h-4 mr-2 text-orange-400 group-hover/ext:scale-110 transition-transform" />
+                            {t('restoreFromExternal', 'Restore from External File')}
+                        </Button>
                     </div>
 
                     <div className="rounded-[2rem] border border-border/40 bg-background/20 overflow-hidden shadow-inner">

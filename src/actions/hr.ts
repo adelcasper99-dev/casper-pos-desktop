@@ -9,7 +9,8 @@ import { startOfMonth, endOfMonth } from "date-fns";
 import { financialRepo } from "@/lib/repositories/financial-repo";
 
 const db = prisma as any;
-import { calculateNetDue } from "@/lib/salary-utils";
+import { Decimal } from '@prisma/client/runtime/library';
+import { calculateNetDue, calculateProratedBase, getCategoryClassification } from "@/lib/salary-utils";
 
 export const getStaffDirectory = secureAction(async (data?: { month?: number; year?: number }) => {
     const now = new Date();
@@ -22,6 +23,7 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
 
     const users = await db.user.findMany({
         where: { deletedAt: null },
+        take: 200, // Safety limit for staff directory
         include: {
             role: true,
             branch: true,
@@ -91,7 +93,8 @@ export async function getUsersForAttendancePage() {
     const users = await db.user.findMany({
         where: { deletedAt: null },
         include: { role: true },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
+        take: 200 // Safety limit
     });
 
     return users.map((u: any) => ({
@@ -216,78 +219,178 @@ export const getHRDashboardSummary = secureAction(async (params?: { month?: numb
     const start = new Date(targetYear, targetMonth, 1);
     const end = endOfMonth(start);
 
-    // 1. Calculate Net Expected Salaries for ALL active users
-    const activeUsers = await db.user.findMany({
-        where: {
-            deletedAt: null,
-            isFrozen: false
-        },
-        include: {
-            dailyLogs: {
-                where: { date: { gte: start, lte: end } }
-            },
-            employeeTransactions: {
-                where: { createdAt: { gte: start, lte: end } }
-            },
-            technician: {
-                include: {
-                    tickets: {
-                        where: { createdAt: { gte: start, lte: end } }
-                    }
-                }
-            }
+    const { Decimal } = await import("decimal.js");
+
+    // 🚀 PHASE 1: Optimized Bulk Aggregation (Scales to 10k+ users)
+    
+    // 1. Fetch all active users with minimal schema footprint
+    const users = await db.user.findMany({
+        where: { deletedAt: null, isFrozen: false },
+        select: { 
+            id: true, 
+            salary: true, 
+            hireDate: true, 
+            technician: { 
+                select: { id: true, commissionRate: true, lossRate: true } 
+            } 
         }
     });
 
-    const { Decimal } = await import("decimal.js");
-    let totalNetDue = new Decimal(0);
+    // 2. Bulk fetch Attendance Sums
+    const logAggs = await db.dailyWorkLog.groupBy({
+        by: ['userId'],
+        where: { date: { gte: start, lte: end } },
+        _sum: { bonus: true, deduction: true }
+    });
 
-    for (const u of activeUsers) {
-        const { netDue } = await calculateNetDue(u, start, end);
-        totalNetDue = totalNetDue.plus(netDue);
+    // 2b. Bulk fetch Absent Counts (for daily rate deduction if deduction=0)
+    const absentAggs = await db.dailyWorkLog.groupBy({
+        by: ['userId'],
+        where: { status: 'ABSENT', deduction: 0, date: { gte: start, lte: end } },
+        _count: { userId: true }
+    });
+    const absentMap = new Map(absentAggs.map((a: { userId: string, _count: { userId: number } }) => [a.userId, a._count.userId]));
+
+    // 3. Bulk fetch Ledger Transactions (Needed for categorization & deduplication)
+    const allTransactions = await db.employeeTransaction.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        select: { userId: true, type: true, amount: true, referenceId: true }
+    });
+
+    // 4. Bulk fetch Tickets (Needed for virtual commissions & KPIs)
+    const allTickets = await db.ticket.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        select: { 
+            technicianId: true, 
+            id: true, 
+            status: true, 
+            commissionAmount: true, 
+            commissionClawback: true, 
+            excessLossAmount: true, 
+            lossResponsibility: true 
+        }
+    });
+
+    interface DashboardTx { userId: string; type: string; amount: Decimal | number | string; referenceId: string | null; }
+    interface DashboardTicket { technicianId: string | null; id: string; status: string; commissionAmount: Decimal | number | string; commissionClawback: Decimal | number | string; excessLossAmount: Decimal | number | string; lossResponsibility: any; }
+
+    // 5. Build Aggregation Maps for O(1) Lookup
+    const logMap = new Map(logAggs.map((l: { userId: string, _sum: { bonus: Decimal | number | null, deduction: Decimal | number | null } }) => [l.userId, l]));
+    const txMap = new Map<string, DashboardTx[]>();
+    allTransactions.forEach((tx: DashboardTx) => {
+        if (!txMap.has(tx.userId)) txMap.set(tx.userId, []);
+        txMap.get(tx.userId)!.push(tx);
+    });
+    const ticketMap = new Map<string, DashboardTicket[]>();
+    allTickets.forEach((t: DashboardTicket) => {
+        if (t.technicianId) {
+            if (!ticketMap.has(t.technicianId)) ticketMap.set(t.technicianId, []);
+            ticketMap.get(t.technicianId)!.push(t);
+        }
+    });
+
+    let totalNetDue = new Decimal(0);
+    const lastDay = end.getDate();
+
+    // 6. Final Summation (Replaces N+1 loop)
+    for (const u of users) {
+        let userBonuses = new Decimal(0);
+        let userDeductions = new Decimal(0);
+
+        // A. Prorated Base
+        const baseSalary = calculateProratedBase(u.salary || 0, u.hireDate, start, end, 'projected');
+        const dailyRate = new Decimal(u.salary?.toString() || 0).dividedBy(lastDay);
+
+        // B. Attendance (Logs)
+        const logs = logMap.get(u.id) as { _sum: { bonus: Decimal | number | null, deduction: Decimal | number | null } } | undefined;
+        if (logs) {
+            userBonuses = userBonuses.plus(logs._sum.bonus?.toString() || 0);
+            userDeductions = userDeductions.plus(logs._sum.deduction?.toString() || 0);
+            
+            // Note: If someone is ABSENT and deduction is 0, we'd normally deduct dailyRate.
+            const absentCount = (absentMap.get(u.id) as number) || 0;
+            if (absentCount > 0) {
+                userDeductions = userDeductions.plus(dailyRate.times(absentCount));
+            }
+        }
+
+        // C. Ledger Transactions
+        const txs = (txMap.get(u.id) || []) as DashboardTx[];
+        txs.forEach((tx: DashboardTx) => {
+            const { isAddition, isDeduction, isReversal } = getCategoryClassification(tx.type);
+            const amt = new Decimal(tx.amount?.toString() || 0);
+            if (isAddition) userBonuses = userBonuses.plus(amt);
+            else if (isDeduction) userDeductions = userDeductions.plus(amt.abs());
+            else if (isReversal) {
+                if (tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' || tx.type === 'BONUS_REVERSAL') {
+                    userDeductions = userDeductions.plus(amt.abs());
+                } else {
+                    userBonuses = userBonuses.plus(amt.abs());
+                }
+            }
+        });
+
+        // D. Technician Logic (Virtual Commissions)
+        if (u.technician) {
+            const tickets = ticketMap.get(u.technician.id) || [];
+            
+            // Unposted Commissions
+            tickets.forEach((t: DashboardTicket) => {
+                if (t.status !== 'PAID_DELIVERED') return;
+                const isPosted = txs.some((tx: DashboardTx) => tx.type === 'MAINTENANCE_COMMISSION' && tx.referenceId === t.id);
+                if (!isPosted) {
+                    userBonuses = userBonuses.plus(t.commissionAmount?.toString() || 0);
+                }
+            });
+
+            // Unposted Clawbacks/Losses
+            tickets.forEach((t: DashboardTicket) => {
+                const clawback = new Decimal(t.commissionClawback?.toString() || 0);
+                const excessLoss = new Decimal(t.excessLossAmount?.toString() || 0);
+                const hasClawbackInLedger = txs.some((tx: DashboardTx) => 
+                    (tx.type === 'MAINTENANCE_COMMISSION_REVERSAL' && tx.referenceId === t.id) ||
+                    (tx.type === 'MAINTENANCE_COMMISSION' && tx.referenceId === t.id && Number(tx.amount) < 0)
+                );
+
+                if (!hasClawbackInLedger && (clawback.gt(0) || excessLoss.gt(0))) {
+                    let ded = clawback;
+                    if (t.lossResponsibility === 'TECH') ded = ded.plus(excessLoss);
+                    else if (t.lossResponsibility === 'SPLIT') {
+                        const rate = new Decimal(u.technician!.lossRate?.toString() || 70).dividedBy(100);
+                        ded = ded.plus(excessLoss.times(rate));
+                    }
+                    userDeductions = userDeductions.plus(ded);
+                }
+            });
+        }
+
+        totalNetDue = totalNetDue.plus(baseSalary).plus(userBonuses).minus(userDeductions);
     }
 
     // 2. Total Absences this month
     const totalAbsences = await db.dailyWorkLog.count({
         where: {
             status: 'ABSENT',
-            date: {
-                gte: start,
-                lte: end
-            }
+            date: { gte: start, lte: end }
         }
     });
 
-    // 3. Net Employee Credit Sales this month
-    const transactions = await db.employeeTransaction.findMany({
-        where: {
-            createdAt: {
-                gte: start,
-                lte: end
-            },
-            type: {
-                in: ['SALES_DEDUCTION', 'MAINTENANCE_DEDUCTION', 'SALES_DEDUCTION_REVERSAL', 'MAINTENANCE_DEDUCTION_REVERSAL']
-            }
-        },
-        select: { amount: true, type: true }
-    });
-
+    // 3. Net Employee Credit Sales this month (Re-using transactions already fetched in memory)
     let creditSales = new Decimal(0);
-    for (const t of transactions) {
+    (allTransactions as DashboardTx[]).forEach((t: DashboardTx) => {
         const amt = new Decimal(t.amount?.toString() || 0);
-        
-        if (t.type === 'SALES_DEDUCTION' || t.type === 'MAINTENANCE_DEDUCTION') {
+        if (['SALES_DEDUCTION', 'MAINTENANCE_DEDUCTION'].includes(t.type)) {
             creditSales = creditSales.plus(amt);
-        } else if (t.type === 'SALES_DEDUCTION_REVERSAL' || t.type === 'MAINTENANCE_DEDUCTION_REVERSAL') {
+        } else if (['SALES_DEDUCTION_REVERSAL', 'MAINTENANCE_DEDUCTION_REVERSAL'].includes(t.type)) {
             creditSales = creditSales.minus(amt);
         }
-    }
+    });
 
     return {
         data: {
-            expectedSalaries: totalNetDue.toNumber(),
+            expectedSalaries: totalNetDue.toDecimalPlaces(2).toNumber(),
             totalAbsences,
-            employeeCreditSales: creditSales.toNumber()
+            employeeCreditSales: creditSales.toDecimalPlaces(2).toNumber()
         }
     };
 }, { permission: PERMISSIONS.HR_VIEW_ATTENDANCE, requireCSRF: false });

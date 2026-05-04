@@ -18,17 +18,17 @@ export interface InvoiceItem {
     attributeId?: string;
     attributeName?: string;
     isNewAttribute?: boolean;
-    quantity: number;
-    unitCost: number;
-    sellPrice?: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
+    quantity: number | string;
+    unitCost: number | string;
+    sellPrice?: number | string;
+    sellPrice2?: number | string;
+    sellPrice3?: number | string;
     isDevice?: boolean;
     condition?: string;
     imei?: string;
     deviceType?: string;
     unitOfMeasureId?: string;
-    conversionFactor?: number;
+    conversionFactor?: number | string;
 }
 
 interface UsePurchaseFormProps {
@@ -121,7 +121,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
     // Computed
     const subtotal = useMemo(() => {
-        return cart.reduce((acc, item) => acc + (item.quantity * item.unitCost), 0);
+        return cart.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unitCost)), 0);
     }, [cart]);
 
     const totalAmount = useMemo(() => {
@@ -259,7 +259,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         const existing = cart.find(i => i.productId === product.id);
         if (existing) {
             const newCart = cart.map(i =>
-                i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
+                i.productId === product.id ? { ...i, quantity: Number(i.quantity) + 1 } : i
             );
             setCart(newCart);
             toast.success("Quantity updated");
@@ -351,7 +351,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                     const originalProduct = products.find(p => p.id === item.productId);
                     if (originalProduct && originalProduct.costPrice > 0) {
                         const oldPrice = originalProduct.costPrice;
-                        const newPrice = updates.unitCost;
+                        const newPrice = Number(updates.unitCost);
                         const variance = ((newPrice - oldPrice) / oldPrice) * 100;
 
                         if (variance > 5) {
@@ -396,10 +396,10 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
         // Validation: Cost <= Price
         const invalidItems = cart.filter(item => {
-            const cost = item.unitCost;
-            if ((item.sellPrice || 0) > 0 && (item.sellPrice || 0) < cost) return true;
-            if ((item.sellPrice2 || 0) > 0 && (item.sellPrice2 || 0) < cost) return true;
-            if ((item.sellPrice3 || 0) > 0 && (item.sellPrice3 || 0) < cost) return true;
+            const cost = Number(item.unitCost);
+            if (Number(item.sellPrice || 0) > 0 && Number(item.sellPrice || 0) < cost) return true;
+            if (Number(item.sellPrice2 || 0) > 0 && Number(item.sellPrice2 || 0) < cost) return true;
+            if (Number(item.sellPrice3 || 0) > 0 && Number(item.sellPrice3 || 0) < cost) return true;
             return false;
         });
 
@@ -427,17 +427,17 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 categoryId: i.categoryId,
                 modelId: i.modelId,
                 attributeId: i.attributeId,
-                sellPrice: i.sellPrice,
-                sellPrice2: i.sellPrice2,
-                sellPrice3: i.sellPrice3,
-                quantity: i.quantity,
-                unitCost: i.unitCost,
+                sellPrice: Number(i.sellPrice || 0),
+                sellPrice2: Number(i.sellPrice2 || 0),
+                sellPrice3: Number(i.sellPrice3 || 0),
+                quantity: Number(i.quantity),
+                unitCost: Number(i.unitCost),
                 isDevice: i.isDevice,
                 deviceType: i.deviceType,
                 condition: i.condition,
                 imei: i.imei,
                 unitOfMeasureId: i.unitOfMeasureId,
-                conversionFactor: i.conversionFactor || 1
+                conversionFactor: Number(i.conversionFactor || 1)
             })),
             paidAmount: parseFloat(paidAmount) || 0,
             deliveryCharge: parseFloat(deliveryCharge) || 0,

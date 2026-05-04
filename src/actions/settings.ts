@@ -46,6 +46,8 @@ export const getStoreSettings = secureAction(async () => {
                 locationRadius: settings?.locationRadius || 500,
                 allowNegativeStock: settings?.allowNegativeStock || false,
                 blindCloseEnabled: settings?.blindCloseEnabled ?? true,
+                whatsappEnabled: settings?.features ? JSON.parse(settings.features).whatsappEnabled || false : false,
+                whatsappTemplates: settings?.features ? JSON.parse(settings.features).whatsappTemplates || null : null,
             }
         };
     } catch (error: any) {
@@ -98,6 +100,23 @@ export const getEffectiveStoreSettings = secureAction(async () => {
 export const updateStoreSettings = secureAction(async (data: any) => {
     const validated = settingsSchema.parse(data);
 
+    // Fetch current settings to handle JSON merging for features
+    const currentSettings = await prisma.storeSettings.findUnique({
+        where: { id: "settings" }
+    });
+
+    let featuresString = validated.features;
+
+    // Merge logic for whatsappTemplates into features JSON
+    if (validated.whatsappTemplates !== undefined || validated.whatsappEnabled !== undefined) {
+        const currentFeatures = JSON.parse(currentSettings?.features || '{}');
+        featuresString = JSON.stringify({
+            ...currentFeatures,
+            whatsappTemplates: validated.whatsappTemplates ?? currentFeatures.whatsappTemplates,
+            whatsappEnabled: validated.whatsappEnabled ?? currentFeatures.whatsappEnabled
+        });
+    }
+
     await prisma.storeSettings.upsert({
         where: { id: "settings" },
         update: {
@@ -113,7 +132,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             autoPrintTicket: validated.autoPrintTicket ?? undefined,
             autoPrintEngineerCopy: validated.autoPrintEngineerCopy ?? undefined,
             paperSize: validated.paperSize ?? undefined,
-            features: validated.features ?? undefined,
+            features: featuresString ?? undefined,
             labelTemplate: validated.labelTemplate ?? undefined,
             locationLat: validated.locationLat ?? undefined,
             locationLng: validated.locationLng ?? undefined,
@@ -135,7 +154,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             autoPrintTicket: validated.autoPrintTicket || false,
             autoPrintEngineerCopy: validated.autoPrintEngineerCopy || false,
             paperSize: validated.paperSize || "80mm",
-            features: validated.features || "{}",
+            features: featuresString || "{}",
             labelTemplate: validated.labelTemplate || null,
             locationLat: validated.locationLat || 24.7136,
             locationLng: validated.locationLng || 46.6753,

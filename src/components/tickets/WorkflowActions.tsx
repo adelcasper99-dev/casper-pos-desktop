@@ -28,6 +28,7 @@ import EstimationModal from "./EstimationModal";
 import TechnicianAssignmentModal from "./TechnicianAssignmentModal";
 import { ReturnInitiationModal } from "./wizard/ReturnInitiationModal";
 import WhatsAppQuickButton from "./WhatsAppQuickButton";
+import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
 
 
 interface WorkflowActionsProps {
@@ -36,10 +37,22 @@ interface WorkflowActionsProps {
     onUpdate: () => void;
     onReject?: () => void;
     csrfToken?: string;
+    whatsappTemplates?: { 
+        NEW?: string; 
+        READY?: string;
+        PAID_DELIVERED?: string;
+        enabled?: {
+            NEW?: boolean;
+            READY?: boolean;
+            PAID_DELIVERED?: boolean;
+        }
+    } | null;
+    whatsappEnabled?: boolean;
 }
 
-export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Omit<WorkflowActionsProps, 'csrfToken'>) {
+export default function WorkflowActions({ ticket, user, onUpdate, onReject, whatsappTemplates, whatsappEnabled }: Omit<WorkflowActionsProps, 'csrfToken'>) {
     const t = useTranslations('Tickets.workflow');
+    const autoNotify = useWhatsAppAutoNotify();
     const { token: csrfToken } = useCSRF();
     const [loading, setLoading] = useState<string | null>(null);
     const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
@@ -94,6 +107,19 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
             const res = await updateTicketStatus({ ticketId: ticket.id, status: targetStatus, csrfToken: csrfToken ?? undefined });
             if (res.success) {
                 toast.success(t('statusUpdated'));
+                
+                // 🚀 WhatsApp Auto-Notify (Non-blocking)
+                autoNotify(targetStatus, {
+                    customerPhone: ticket.customerPhone,
+                    customerName: ticket.customerName,
+                    barcode: ticket.barcode,
+                    deviceBrand: ticket.deviceBrand,
+                    deviceModel: ticket.deviceModel,
+                    repairPrice: Number(ticket.repairPrice || 0),
+                    branchName: user.branchName ?? undefined,
+                    issueDescription: ticket.issueDescription
+                }, { whatsappEnabled, whatsappTemplates });
+
                 setOptimisticStatus(null);
                 onUpdate();
             } else {
@@ -226,7 +252,9 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
 
                 { (ticket.status === TicketStatus.COMPLETED || 
                    ticket.status === TicketStatus.READY_AT_BRANCH || 
-                   ticket.status === TicketStatus.REJECTED) && ticket.customerPhone && (
+                   ticket.status === TicketStatus.REJECTED ||
+                   ticket.status === TicketStatus.PAID_DELIVERED ||
+                   ticket.status === TicketStatus.NEW) && ticket.customerPhone && (
                     <div className="flex flex-col gap-1 items-end">
                         <WhatsAppQuickButton 
                             ticketId={ticket.id}
@@ -235,7 +263,10 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject }: Om
                             ticketNumber={ticket.barcode}
                             totalCost={ticket.repairPrice}
                             status={ticket.status}
+                            device={`${ticket.deviceBrand} ${ticket.deviceModel}`}
+                            issue={ticket.issueDescription || undefined}
                             onSuccess={onUpdate}
+                            whatsappTemplates={whatsappTemplates}
                         />
                         {ticket.logs && ticket.logs.length > 0 && (
                             <div className="text-[10px] text-zinc-500 font-medium px-2 flex items-center gap-1.5">

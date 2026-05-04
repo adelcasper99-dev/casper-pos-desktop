@@ -8,6 +8,7 @@ import { getEffectiveStoreSettings } from "@/actions/settings";
 import { getDefaultWarehouses } from "@/actions/inventory";
 import { getSession } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { toNumber } from "@/lib/decimal-utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -35,94 +36,112 @@ export default async function POSPage() {
     const shiftResult = await getCurrentShift();
     const currentShift = shiftResult.shift;
 
-    // Get Effective Settings (Global + Branch Overrides) and identify the default POS warehouse
-    const [settingsRes, whRes] = await Promise.all([
-        getEffectiveStoreSettings(),
-        getDefaultWarehouses()
-    ]);
-    const settings = settingsRes.success ? settingsRes.data : null;
-    const posDefault = whRes.success ? whRes.posDefault : null;
-    const posDefaultName = posDefault?.name || null;
-    const posDefaultId = posDefault?.id || null;
-
-    // Fetch initial data for SSR speed - filtering stock by POS default warehouse
-    const productsRaw = await prisma.product.findMany({
-        where: {
-            deletedAt: null,
-            archived: false,
-        },
-        include: {
-            model: true,
-            stocks: posDefaultId ? {
-                where: {
-                    warehouseId: posDefaultId
-                }
-            } : false
-        }
-    });
-
-    const products = productsRaw.map(p => {
-        // Calculate stock for the specific warehouse, or total if no default is found (fallback)
-        let warehouseStock = 0;
-        if (posDefaultId && p.stocks && p.stocks.length > 0) {
-            warehouseStock = p.stocks[0].quantity.toNumber();
-        }
-
-        return {
-            id: p.id,
-            sku: p.sku,
-            name: p.name,
-            stock: warehouseStock, // Now reflects the specific warehouse stock
-            categoryId: p.categoryId,
-            modelId: p.modelId,
-            modelName: p.model?.name || '-',
-            costPrice: p.costPrice.toNumber(),
-            sellPrice: p.sellPrice.toNumber(),
-            sellPrice2: p.sellPrice2?.toNumber() || 0,
-            sellPrice3: p.sellPrice3?.toNumber() || 0,
-            minStock: p.minStock,
-            trackStock: (p as any).trackStock ?? true,
-            isBundle: !!(p as any).isBundle,
-        };
-    });
-    const categories = await prisma.category.findMany();
-
-    // Example registers - In production, fetch from database
-    const registers = [
-        { id: "reg-1", name: "Main Register" },
-        { id: "reg-2", name: "Counter A" }
-    ];
-
-    // Fetch Floors and Tables unconditionally now
-    let floors: any[] = [];
     try {
-        floors = await prisma.floor.findMany({
-            include: { tables: true },
-            orderBy: { createdAt: 'asc' }
+        const [settingsRes, whRes] = await Promise.all([
+            getEffectiveStoreSettings(),
+            getDefaultWarehouses()
+        ]);
+        const settings = settingsRes.success ? settingsRes.data : null;
+        const posDefault = whRes.success ? whRes.posDefault : null;
+        const posDefaultName = posDefault?.name || null;
+        const posDefaultId = posDefault?.id || null;
+
+        // Fetch initial data for SSR speed - filtering stock by POS default warehouse
+        const productsRaw = await prisma.product.findMany({
+            where: {
+                deletedAt: null,
+                archived: false,
+            },
+            include: {
+                model: true,
+                stocks: posDefaultId ? {
+                    where: {
+                        warehouseId: posDefaultId
+                    }
+                } : false
+            }
         });
-    } catch (e) {
-        console.error("Failed to fetch floors", e);
+
+        const products = productsRaw.map(p => {
+            // Calculate stock for the specific warehouse, or total if no default is found (fallback)
+            let warehouseStock = 0;
+            if (posDefaultId && p.stocks && p.stocks.length > 0) {
+                warehouseStock = toNumber(p.stocks[0].quantity);
+            }
+
+            return {
+                id: p.id,
+                sku: p.sku,
+                name: p.name,
+                stock: warehouseStock, // Now reflects the specific warehouse stock
+                categoryId: p.categoryId,
+                modelId: p.modelId,
+                modelName: p.model?.name || '-',
+                costPrice: toNumber(p.costPrice),
+                sellPrice: toNumber(p.sellPrice),
+                sellPrice2: toNumber(p.sellPrice2),
+                sellPrice3: toNumber(p.sellPrice3),
+                minStock: p.minStock,
+                trackStock: (p as any).trackStock ?? true,
+                isBundle: !!(p as any).isBundle,
+            };
+        });
+        const categories = await prisma.category.findMany();
+
+        // Example registers - In production, fetch from database
+        const registers = [
+            { id: "reg-1", name: "Main Register" },
+            { id: "reg-2", name: "Counter A" }
+        ];
+
+        // Fetch Floors and Tables unconditionally now
+        let floors: any[] = [];
+        try {
+            floors = await prisma.floor.findMany({
+                include: { tables: true },
+                orderBy: { createdAt: 'asc' }
+            });
+        } catch (e) {
+            console.error("Failed to fetch floors", e);
+        }
+
+        return (
+            <div className="flex flex-col h-screen overflow-hidden">
+                {/* Top Bar: Shift Status */}
+                <div className="shrink-0 p-4 pb-0">
+                    <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
+                </div>
+
+                {/* POS Interface - fills remaining height */}
+                <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden p-4 animate-fly-in">
+                    <POSClientAPI
+                        products={products}
+                        categories={categories}
+                        settings={settings}
+                        csrfToken={csrfToken || ''}
+                        floors={floors}
+                        permissions={permissions}
+                        posDefaultName={posDefaultName}
+                    />
+                </div>
+            </div>
+        );
+    } catch (error) {
+        console.error("POS Critical Error:", error);
+        return (
+            <div className="flex flex-col items-center justify-center h-screen p-4 text-center">
+                <h1 className="text-2xl font-bold text-red-600 mb-4">خطأ في تحميل نقطة البيع</h1>
+                <p className="text-gray-600 mb-6">حدث خطأ تقني أثناء تحميل البيانات. قد يكون ذلك بسبب تلف مؤقت في البيانات المحلية.</p>
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 max-w-md">
+                    <p className="text-yellow-700">يرجى محاولة إغلاق التطبيق وإعادة تشغيله. سيقوم النظام بمحاولة إصلاح البيانات تلقائياً عند التشغيل.</p>
+                </div>
+                <button 
+                    onClick={() => window.location.reload()} 
+                    className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+                >
+                    إعادة المحاولة
+                </button>
+            </div>
+        );
     }
-
-    return (
-        <div className="flex flex-col h-screen overflow-hidden">
-            {/* Top Bar: Shift Status */}
-            <div className="shrink-0 p-4 pb-0">
-                <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
-            </div>
-
-            {/* POS Interface - fills remaining height */}
-            <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden p-4 animate-fly-in">
-                <POSClientAPI
-                    products={products}
-                    categories={categories}
-                    settings={settings}
-                    csrfToken={csrfToken || ''}
-                    floors={floors}
-                    permissions={permissions}
-                    posDefaultName={posDefaultName}
-                />
-            </div>
-        </div>
-    );
 }

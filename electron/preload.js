@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getAvailableBackups: () => ipcRenderer.invoke('app:get-available-backups'),
         deleteBackup: (filePath) => ipcRenderer.invoke('app:delete-backup', filePath),
         restoreFromBackup: (filePath) => ipcRenderer.invoke('app:restore-from-backup', filePath),
+        restoreFromExternalFile: (filePath) => ipcRenderer.invoke('app:restore-from-external-file', filePath),
+        showOpenDbFileDialog: () => ipcRenderer.invoke('dialog:showOpenDbFileDialog'),
         exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
         vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
         printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),
@@ -126,6 +128,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     shell: {
         openExternal: (url) => ipcRenderer.invoke('shell:open-external', url)
+    },
+
+    /**
+     * Native WhatsApp Automation API
+     */
+    whatsapp: {
+        sendMessage: (to, body) => ipcRenderer.invoke('whatsapp:send-message', to, body),
+        getStatus: () => ipcRenderer.invoke('whatsapp:get-status'),
+        logout: () => ipcRenderer.invoke('whatsapp:logout'),
+        initialize: () => ipcRenderer.invoke('whatsapp:initialize'),
+        onQRUpdate: (cb) => {
+            const handler = (_event, qr) => cb(qr);
+            ipcRenderer.on('whatsapp:qr', handler);
+            return () => ipcRenderer.removeListener('whatsapp:qr', handler);
+        },
+        onStatusChange: (cb) => {
+            const handler = (_event, status) => cb(status);
+            ipcRenderer.on('whatsapp:status', handler);
+            return () => ipcRenderer.removeListener('whatsapp:status', handler);
+        }
     }
 });
 

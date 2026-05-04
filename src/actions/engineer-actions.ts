@@ -22,13 +22,13 @@ const DONE_STATUSES = ['COMPLETED', 'DELIVERED', 'READY_AT_BRANCH', 'PICKED_UP',
  */
 export const getEngineersStats = secureAction(async () => {
     try {
-        const technicians = await (prisma as any).technician.findMany({
+        const technicians = await prisma.technician.findMany({
             where: { deletedAt: null },
             include: { user: true, warehouse: true }
-        }) as any[];
+        });
 
         const techIds = technicians.map(t => t.id);
-        const allTickets = await (prisma as any).ticket.findMany({
+        const allTickets = await prisma.ticket.findMany({
             where: {
                 OR: [
                     { technicianId: { in: techIds } },
@@ -41,21 +41,21 @@ export const getEngineersStats = secureAction(async () => {
                 createdAt: true,
                 completedAt: true,
                 collaborators: { select: { technicianId: true } }
-            } as any
+            }
         });
 
-        const stats = technicians.map((tech: any) => {
-            const techTickets = allTickets.filter((t: any) =>
+        const stats = technicians.map((tech) => {
+            const techTickets = allTickets.filter((t) =>
                 t.technicianId === tech.id ||
-                t.collaborators?.some((c: any) => c.technicianId === tech.id)
+                t.collaborators?.some((c) => c.technicianId === tech.id)
             );
 
-            const activeTickets = techTickets.filter((t: any) => !DONE_STATUSES.includes(t.status));
-            const completedTickets = techTickets.filter((t: any) => DONE_STATUSES.includes(t.status));
+            const activeTickets = techTickets.filter((t) => !DONE_STATUSES.includes(t.status));
+            const completedTickets = techTickets.filter((t) => DONE_STATUSES.includes(t.status));
 
             let totalHours = 0;
             let countWithTime = 0;
-            completedTickets.forEach((t: any) => {
+            completedTickets.forEach((t) => {
                 if (t.completedAt) {
                     totalHours += getHoursDiff(new Date(t.createdAt), new Date(t.completedAt));
                     countWithTime++;
@@ -66,7 +66,7 @@ export const getEngineersStats = secureAction(async () => {
 
             return {
                 ...tech,
-                commissionRate: Number(tech.commissionRate),
+                commissionRate: tech.commissionRate.toString(),
                 activeTicketsCount: activeTickets.length,
                 completedTicketsCount: completedTickets.length,
                 averageRepairTime: avgTime,
@@ -74,9 +74,9 @@ export const getEngineersStats = secureAction(async () => {
         });
 
         return serialize({ data: stats });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching engineer stats:", error);
-        throw new Error(`Failed to fetch stats`);
+        throw new Error(error instanceof Error ? error.message : `Failed to fetch stats`);
     }
 }, { permission: PERMISSIONS.ENGINEER_VIEW, requireCSRF: false });
 
@@ -89,7 +89,7 @@ export const upsertEngineer = secureAction(async (data: {
     phone: string,
     email?: string,
     skills?: string,
-    commissionRate: number,
+    commissionRate: string | number | Decimal,
     username?: string,
     password?: string,
     createWarehouse?: boolean,
@@ -131,27 +131,27 @@ export const upsertEngineer = secureAction(async (data: {
             }
 
             if (data.id) {
-                await (tx as any).technician.update({
+                await tx.technician.update({
                     where: { id: data.id },
                     data: {
                         name: data.name,
                         phone: data.phone,
                         email: data.email,
                         skills: data.skills,
-                        commissionRate: data.commissionRate,
+                        commissionRate: new Decimal(data.commissionRate.toString()),
                         defaultPriceTier: data.defaultPriceTier || 'COST',
                         ...(userId ? { userId } : {}),
                         ...(warehouseId ? { warehouseId } : {})
                     }
                 });
             } else {
-                await (tx as any).technician.create({
+                await tx.technician.create({
                     data: {
                         name: data.name,
                         phone: data.phone,
                         email: data.email,
                         skills: data.skills,
-                        commissionRate: data.commissionRate,
+                        commissionRate: new Decimal(data.commissionRate.toString()),
                         defaultPriceTier: data.defaultPriceTier || 'COST',
                         userId: userId!,
                         warehouseId: warehouseId || undefined
@@ -162,9 +162,9 @@ export const upsertEngineer = secureAction(async (data: {
 
         revalidatePath('/maintenance/technicians');
         return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Upsert Engineer Error:", error);
-        throw new Error(error.message);
+        throw new Error(error instanceof Error ? error.message : "Unknown error");
     }
 }, { permission: PERMISSIONS.ENGINEER_MANAGE });
 
@@ -173,7 +173,7 @@ export const upsertEngineer = secureAction(async (data: {
  */
 export const deleteEngineer = secureAction(async (data: { id: string, csrfToken?: string }) => {
     const { id } = data;
-    await (prisma as any).technician.update({
+    await prisma.technician.update({
         where: { id },
         data: { deletedAt: new Date() }
     });
@@ -186,14 +186,14 @@ export const deleteEngineer = secureAction(async (data: { id: string, csrfToken?
  */
 export const getAllTechnicians = secureAction(async () => {
     try {
-        const technicians = await (prisma as any).technician.findMany({
+        const technicians = await prisma.technician.findMany({
             where: { deletedAt: null },
             orderBy: { name: 'asc' }
         });
         return { success: true, technicians };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching all technicians:", error);
-        return { success: false, message: "Failed to fetch technicians", technicians: [] };
+        return { success: false, message: error instanceof Error ? error.message : "Failed to fetch technicians", technicians: [] };
     }
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
@@ -206,9 +206,9 @@ export const getBranches = async () => {
             orderBy: { name: 'asc' }
         });
         return { success: true, data: branches };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching branches:", error);
-        return { success: false, error: "Failed to fetch branches" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to fetch branches" };
     }
 };
 
@@ -230,9 +230,9 @@ export const getEngineerStock = secureAction(async (warehouseId: string) => {
             }
         });
         return serialize({ success: true, data: stocks });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching engineer stock:", error);
-        return { success: false, message: "Failed to fetch stock" };
+        return { success: false, message: error instanceof Error ? error.message : "Failed to fetch stock" };
     }
 }, { permission: PERMISSIONS.ENGINEER_VIEW, requireCSRF: false });
 export const getEngineerDetails = secureAction(async (id: string) => {
@@ -263,11 +263,11 @@ export const getEngineerDetails = secureAction(async (id: string) => {
         const techIds = [id];
 
         // 1. Fetch ALL tickets involving this engineer
-        const allTickets = await (prisma as any).ticket.findMany({
+        const allTickets = await prisma.ticket.findMany({
             where: {
                 OR: [
                     { technicianId: id },
-                    { collaborators: { some: { technicianId: id } } } as any
+                    { collaborators: { some: { technicianId: id } } }
                 ]
             },
             select: {
@@ -275,9 +275,11 @@ export const getEngineerDetails = secureAction(async (id: string) => {
                 status: true,
                 createdAt: true,
                 completedAt: true,
-                repairPrice: true // For revenue calc if needed later
+                repairPrice: true, // For revenue calc if needed later
+                returnCount: true,
+                paymentStatus: true
             }
-        }) as any[];
+        });
 
         // 2. Calculate Stats
         const totalTickets = allTickets.length;
@@ -329,23 +331,23 @@ export const getEngineerDetails = secureAction(async (id: string) => {
         return serialize({
             data: {
                 ...serializedTech,
-                commissionRate: Number(engineer.commissionRate),
+                commissionRate: engineer.commissionRate.toString(),
                 activeTicketsCount: pendingTickets,
                 completedTicketsCount: completedTickets.length,
                 totalTicketsCount: totalTickets,
                 returnedTicketsCount: returnedTickets,
                 refundedTicketsCount: refundedTickets,
                 lossCount: lossCount,
-                lossAmount: lossAmount,
+                lossAmount: lossAmount.toString(),
                 averageRepairTime: avgTime,
                 createdAt: engineer.createdAt,
                 updatedAt: engineer.updatedAt,
             }
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching engineer details:", error);
-        throw new Error(`Failed to fetch engineer details`);
+        throw new Error(error instanceof Error ? error.message : `Failed to fetch engineer details`);
     }
 }, { permission: PERMISSIONS.ENGINEER_VIEW, requireCSRF: false });
 
@@ -380,9 +382,9 @@ export const getEngineerHistory = secureAction(async (engineerId: string) => {
 
         // Use helper to serialize Decimal and Dates
         return serialize({ data: history });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching engineer history:", error);
-        throw new Error("Failed to fetch history");
+        throw new Error(error instanceof Error ? error.message : "Failed to fetch history");
     }
 }, { permission: PERMISSIONS.ENGINEER_VIEW, requireCSRF: false });
 
@@ -411,8 +413,8 @@ export const getEngineerConsumption = secureAction(async (engineerId: string) =>
         });
 
         return serialize({ data: consumption });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching engineer consumption:", error);
-        throw new Error("Failed to fetch consumption");
+        throw new Error(error instanceof Error ? error.message : "Failed to fetch consumption");
     }
 }, { permission: PERMISSIONS.ENGINEER_VIEW, requireCSRF: false });

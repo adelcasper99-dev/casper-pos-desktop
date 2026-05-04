@@ -18,6 +18,7 @@ import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { Decimal } from "@prisma/client/runtime/library";
 import { serialize } from "@/lib/serialization";
 import { PAYMENT_METHOD_GL_MAP } from "@/shared/constants/accounting-mappings";
+import { toDecimal, toNumber } from "@/lib/decimal-utils";
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -164,7 +165,7 @@ export const openShift = secureAction(async (data: {
             userId: actualUserId,
             registerId: data.registerId,
             registerName: data.registerName,
-            startCash: new Decimal(data.startCash ?? 0),
+            startCash: toDecimal(data.startCash ?? 0),
             cashierName: actualCashierName,
             timezone,
             businessDate,
@@ -229,14 +230,14 @@ export const closeShift = secureAction(async (data: {
     // ✅ CRITICAL FIX: Use ACCUMULATED values (tracked in real-time)
     // DO NOT recalculate from shift.sales.payments - causes data loss!
     // These values are incremented with every sale/payment during the shift
-    const totalCashSales = shift.totalCashSales;
-    const totalCardSales = shift.totalCardSales;
-    const totalWalletSales = shift.totalWalletSales;
-    const totalInstapay = shift.totalInstapay;
+    const totalCashSales = toDecimal(shift.totalCashSales);
+    const totalCardSales = toDecimal(shift.totalCardSales);
+    const totalWalletSales = toDecimal(shift.totalWalletSales);
+    const totalInstapay = toDecimal(shift.totalInstapay);
     const shiftAny = shift as any;
-    const totalAccountSales = new Decimal(String(shiftAny.totalAccountSales ?? 0));
-    const totalCashRefundsAccumulated = new Decimal(String(shiftAny.totalCashRefunds ?? 0));
-    const totalAccountRefundsAccumulated = new Decimal(String(shiftAny.totalAccountRefunds ?? 0));
+    const totalAccountSales = toDecimal(shiftAny.totalAccountSales ?? 0);
+    const totalCashRefundsAccumulated = toDecimal(shiftAny.totalCashRefunds ?? 0);
+    const totalAccountRefundsAccumulated = toDecimal(shiftAny.totalAccountRefunds ?? 0);
 
     // Only count split payments (doesn't affect money totals)
     let splitPaymentCount = 0;
@@ -249,13 +250,13 @@ export const closeShift = secureAction(async (data: {
     const totalCashExpenses = shift.expenses
         .filter(exp => (exp.paymentMethod || 'CASH').toUpperCase() === 'CASH')
         .reduce(
-            (sum, exp) => sum.add(new Decimal(exp.amount)),
-            new Decimal(0)
+            (sum, exp) => sum.add(toDecimal(exp.amount)),
+            toDecimal(0)
         );
 
     const totalAllExpenses = shift.expenses.reduce(
-        (sum, exp) => sum.add(new Decimal(exp.amount)),
-        new Decimal(0)
+        (sum, exp) => sum.add(toDecimal(exp.amount)),
+        toDecimal(0)
     );
 
     // ✅ FIX: Subtract CASH refunds issued during this shift from expectedCash
@@ -263,12 +264,12 @@ export const closeShift = secureAction(async (data: {
     const totalCashRefundsToUse = totalCashRefundsAccumulated;
 
     // Calculate expected cash: Start + Cash Sales - Cash Expenses - Cash Refunds
-    const expectedCash = shift.startCash
+    const expectedCash = toDecimal(shift.startCash)
         .add(totalCashSales)
         .minus(totalCashExpenses)
         .minus(totalCashRefundsToUse);
 
-    const actualCashDecimal = new Decimal(data.actualCash);
+    const actualCashDecimal = toDecimal(data.actualCash);
     const cashVariance = actualCashDecimal.minus(expectedCash);
 
     // ✅ FIX #2: VERIFY COUNTS (Don't recalculate!)
@@ -383,7 +384,7 @@ export const closeShift = secureAction(async (data: {
             await tx.transaction.create({
                 data: {
                     type: 'SAFE_DROP',
-                    amount: new Decimal(data.safeDropAmount || 0),
+                    amount: toDecimal(data.safeDropAmount || 0),
                     paymentMethod: 'CASH',
                     description: `Safe Drop from Shift #${shift.id}`,
                     treasuryId: data.safeDropTreasuryId
@@ -444,7 +445,7 @@ export const closeShift = secureAction(async (data: {
                 await tx.transaction.create({
                     data: {
                         type: isShortage ? 'EXPENSE' : 'IN',
-                        amount: new Decimal(varianceAmt),
+                        amount: toDecimal(varianceAmt),
                         paymentMethod: 'CASH',
                         description: `Z-Report Cash ${isShortage ? 'Shortage' : 'Overage'} - Shift #${shift.id.slice(0, 8)}`,
                         shiftId: shift.id,
@@ -521,13 +522,13 @@ export const getShiftStatusPreview = secureAction(async (data: { shiftId: string
     
     const totalCashExpenses = shiftData.expenses
         .filter((exp: any) => (exp.paymentMethod || 'CASH').toUpperCase() === 'CASH')
-        .reduce((sum: Decimal, exp: any) => sum.add(new Decimal(exp.amount.toString())), new Decimal(0));
+        .reduce((sum: Decimal, exp: any) => sum.add(toDecimal(exp.amount)), toDecimal(0));
 
     // Expected Cash = Start + Cash Revenue - Cash Expenses - Cash Refunds
-    const expectedCash = shift.startCash
-        .add(shift.totalCashSales)
+    const expectedCash = toDecimal(shift.startCash)
+        .add(toDecimal(shift.totalCashSales))
         .minus(totalCashExpenses)
-        .minus(shift.totalCashRefunds || 0);
+        .minus(toDecimal(shift.totalCashRefunds || 0));
 
     return serialize({
         success: true,
@@ -775,11 +776,11 @@ export const forceCloseShift = secureAction(async (data: {
 
     // ✅ BL-04 fix: Use ATOMIC aggregated totals already in the Shift record
     // recalculating from sales/expenses causes data loss if records are soft-deleted or shifted.
-    const totalCashSales = shift.totalCashSales;
-    const totalExpenses = shift.totalExpenses;
-    const totalCashRefunds = (shift as any).totalCashRefunds ?? shift.totalRefunds;
+    const totalCashSales = toDecimal(shift.totalCashSales);
+    const totalExpenses = toDecimal(shift.totalExpenses);
+    const totalCashRefunds = toDecimal((shift as any).totalCashRefunds ?? shift.totalRefunds);
 
-    const estimatedCash = shift.startCash.add(totalCashSales).minus(totalExpenses).minus(totalCashRefunds);
+    const estimatedCash = toDecimal(shift.startCash).add(totalCashSales).minus(totalExpenses).minus(totalCashRefunds);
 
     const closedShift = await prisma.shift.update({
         where: { id: data.shiftId },
@@ -791,7 +792,7 @@ export const forceCloseShift = secureAction(async (data: {
             forceCloseReason: data.reason,
             endCash: estimatedCash,
             actualCash: estimatedCash, // Assume perfect balance
-            cashVariance: new Decimal(0),
+            cashVariance: toDecimal(0),
             notes: `FORCE CLOSED: ${data.reason}`
         }
     });

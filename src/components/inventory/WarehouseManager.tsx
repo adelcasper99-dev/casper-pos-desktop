@@ -22,8 +22,8 @@ interface StockItem {
     id: string;
     name: string;
     sku: string;
-    quantity: number;
-    sellPrice: number;
+    quantity: number | string;
+    sellPrice: number | string;
     categoryId: string;
     categoryName: string;
 }
@@ -136,7 +136,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
     }, {} as Record<string, StockItem[]>);
 
     const totalItems = filteredStock.length;
-    const totalQuantity = filteredStock.reduce((sum, item) => sum + item.quantity, 0);
+    const totalQuantity = filteredStock.reduce((sum, item) => sum + Number(item.quantity), 0);
 
     const tCommon = useTranslations('Common');
 
@@ -341,7 +341,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                                                     <div className="text-right">
                                                         <div className={clsx(
                                                             "font-black text-2xl tracking-tight",
-                                                            item.quantity < 5 ? "text-rose-500" : "text-cyan-600 dark:text-cyan-400"
+                                                            Number(item.quantity) < 5 ? "text-rose-500" : "text-cyan-600 dark:text-cyan-400"
                                                         )}>
                                                             {Number.isInteger(Number(item.quantity)) ? Number(item.quantity) : Number(item.quantity).toFixed(3).replace(/\.?0+$/, '')}
                                                         </div>

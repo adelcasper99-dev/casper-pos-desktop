@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CartProduct } from '@/types/product';
+import { toNumber } from '@/lib/decimal-utils';
 
 export interface CartItem {
     id: string; // Product UUID
@@ -133,16 +134,16 @@ export const useCartStore = create<CartState>()(
                                  id: product.id,
                                  sku: product.sku,
                                  name: product.name,
-                                 price: Number(product[get().priceTier] || product.sellPrice),
+                                 price: toNumber(product[get().priceTier] || product.sellPrice),
                                  quantity: 1,
-                                 maxQuantity: product.stock,
+                                 maxQuantity: toNumber(product.stock),
                                  trackStock: product.trackStock,
                                  isBundle: !!(product as any).isBundle,
                                  bundleComponents: (product as any).bundleComponents || undefined,
                                  priceTier: get().priceTier,
-                                 price1: Number(product.sellPrice),
-                                 price2: Number(product.sellPrice2),
-                                 price3: Number(product.sellPrice3),
+                                 price1: toNumber(product.sellPrice),
+                                 price2: toNumber(product.sellPrice2),
+                                 price3: toNumber(product.sellPrice3),
                              },
                          ],
                          lastAddedId: product.id,
@@ -278,7 +279,7 @@ export const useCartStore = create<CartState>()(
             },
 
             getTotal: () => {
-                return get().items.reduce((total, item) => total + (item.price * item.quantity), 0);
+                return get().items.reduce((total, item) => total + (Number(item.price) * Number(item.quantity)), 0);
             }
         }),
         {

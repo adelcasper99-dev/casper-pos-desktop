@@ -4,7 +4,7 @@ declare global {
   interface Window {
     electronAPI?: {
       isElectron: true;
-      getPrinters: () => Promise<{ name: string; isDefault: boolean; status: number }[]>;
+      getPrinters: () => Promise<{ success: boolean; data: { name: string; isDefault: boolean; status: number }[]; error?: string }>;
       printStandard: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
       printThermal: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
       print: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
@@ -21,7 +21,7 @@ declare global {
         minimize: () => void;
         maximize: () => void;
         close: () => void;
-        isMaximized: () => Promise<boolean>;
+        isMaximized: () => Promise<{ success: boolean; data: boolean; error?: string }>;
         onMaximizeChange: (cb: (isMaximized: boolean) => void) => () => void;
         zoomIn: () => void;
         zoomOut: () => void;
@@ -30,11 +30,11 @@ declare global {
 
       /** Database Configuration API */
       config?: {
-        showOpenDialog: () => Promise<string | null>;
-        selectBackupFolder: () => Promise<string | null>;
-        getConfig: () => Promise<any>;
-        getDbPath: () => Promise<string>;
-        saveConfigAndRestart: (path: string) => Promise<boolean>;
+        showOpenDialog: () => Promise<{ success: boolean; data: string | null; error?: string }>;
+        selectBackupFolder: () => Promise<{ success: boolean; data: string | null; error?: string }>;
+        getConfig: () => Promise<{ success: boolean; data: any; error?: string }>;
+        getDbPath: () => Promise<{ success: boolean; data: string; error?: string }>;
+        saveConfigAndRestart: (path: string) => Promise<{ success: boolean; data: boolean; error?: string }>;
         saveBackupConfig: (config: { backupPath: string; backupInterval?: number; maxBackups?: number }) => Promise<{ success: boolean; error?: string }>;
       };
 
@@ -45,6 +45,8 @@ declare global {
         getAvailableBackups: () => Promise<{ success: boolean; backups?: any[]; error?: string }>;
         deleteBackup: (filePath: string) => Promise<{ success: boolean; error?: string }>;
         restoreFromBackup: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+        restoreFromExternalFile: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+        showOpenDbFileDialog: () => Promise<{ success: boolean; data: string | null; error?: string }>;
         exportSupportBundle: () => Promise<{ success: boolean; path?: string; error?: string }>;
         vacuumDatabase: () => Promise<{ success: boolean; error?: string }>;
       };
@@ -57,6 +59,26 @@ declare global {
         onError: (cb: (err: any) => void) => () => void;
         installUpdate: () => Promise<void>;
       };
+
+      /** Native WhatsApp Automation API */
+      whatsapp?: {
+        sendMessage: (to: string, body: string) => Promise<{ success: boolean; error?: string }>;
+        getStatus: () => Promise<{ success: boolean; data: { status: WhatsAppStatus }; error?: string }>;
+        logout: () => Promise<{ success: boolean; error?: string }>;
+        initialize: () => Promise<{ success: boolean; error?: string }>;
+        onQRUpdate: (cb: (qr: string) => void) => () => void;
+        onStatusChange: (cb: (status: WhatsAppStatus) => void) => () => void;
+      };
     };
   }
+
+  type WhatsAppStatus =
+    | 'INITIALIZING'
+    | 'AWAITING_QR'
+    | 'AUTHENTICATING'
+    | 'READY'
+    | 'DISCONNECTED'
+    | 'DEGRADED'
+    | 'FAILED'
+    | 'STOPPED';
 }

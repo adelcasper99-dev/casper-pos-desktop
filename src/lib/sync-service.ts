@@ -1,6 +1,9 @@
 import { offlineDB } from './offline-db';
 import { logger } from './logger';
 import { db } from './offline-db';
+import Decimal from 'decimal.js';
+
+const SYNC_BATCH_SIZE = 50;
 
 export class SyncService {
     // 🛡️ RELIABILITY: Retry logic with exponential backoff
@@ -31,6 +34,11 @@ export class SyncService {
 
     // ⚡ SPEED: Sync all pending data
     static async syncAll() {
+        const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
+        
+        // 🛡️ GUARD: If no cloud URL, skip sync entirely without noise
+        if (!cloudUrl) return { success: false, error: 'No Cloud URL configured' };
+
         // 📥 PHASE 1: Pull Master Data Delta
         const now = Date.now();
         // Simple backoff: If failed previously, wait longer before trying again (exponential-ish)
@@ -43,14 +51,18 @@ export class SyncService {
                 this.pullFailureCount = 0;
             } else {
                 this.pullFailureCount++;
-                logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}). skipping push sync if critical.`);
+                logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}): ${pullResult.error || 'Unknown error'}. skipping push sync if critical.`);
             }
         }
 
         // 📤 PHASE 2: Push Local Changes
-        // Only trigger push if we are online and have a cloud URL
-        const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
-        if (!cloudUrl) return { success: false, error: 'No Cloud URL' };
+
+        // 🛡️ GUARD: Sync secret is mandatory for authenticated push
+        const syncSecret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
+        if (!syncSecret) {
+            logger.error('[Sync:Push] NEXT_PUBLIC_SYNC_SECRET is not configured. Aborting push to prevent unauthorized sync.');
+            return { success: false, error: 'Sync secret not configured' };
+        }
 
         const results = await Promise.allSettled([
             this.syncSales(),
@@ -119,13 +131,14 @@ export class SyncService {
                     id: p.id,
                     name: p.name,
                     sku: p.sku,
-                    barcode: p.sku, 
-                    price: Number(p.sellPrice),
-                    stock: Number(p.stock),
+                    barcode: p.sku,
+                    // 🛡️ Decimal wrapping ensures precision survives the IndexedDB round-trip
+                    price: Number(new Decimal(p.sellPrice ?? 0).toFixed(2)),
+                    stock: Number(p.stock ?? 0),
                     categoryId: p.categoryId,
                     modelId: p.modelId,
                     categoryName: p.category?.name || 'Uncategorized',
-                    costPrice: Number(p.costPrice),
+                    costPrice: Number(new Decimal(p.costPrice ?? 0).toFixed(2)),
                     trackStock: p.trackStock,
                     isBundle: p.isBundle,
                     lastSynced: new Date(),
@@ -176,16 +189,19 @@ export class SyncService {
 
     // 🛡️ RELIABILITY: Sync sales with conflict detection
     static async syncSales() {
-        const unsyncedSales = await offlineDB.sales
-            .where('synced').equals(0) // 🛡️ Use 0 for false in IndexedDB
-            .and(sale => (sale.syncRetries || 0) < 5) // Max 5 retries
+        const allUnsynced = await offlineDB.sales
+            .where('synced').equals(0)
+            .and(sale => (sale.syncRetries || 0) < 5)
             .toArray();
+
+        // 🛡️ BATCH CAP: Process max 50 records per cycle to prevent connection bursts
+        const unsyncedSales = allUnsynced.slice(0, SYNC_BATCH_SIZE);
 
         if (unsyncedSales.length === 0) {
             return { synced: 0, failed: 0 };
         }
 
-        logger.info(`📤 Syncing ${unsyncedSales.length} sales...`);
+        logger.info(`📤 Syncing ${unsyncedSales.length}/${allUnsynced.length} sales (batch cap: ${SYNC_BATCH_SIZE})...`);
 
         let synced = 0;
         let failed = 0;
@@ -199,7 +215,8 @@ export class SyncService {
                             'Content-Type': 'application/json',
                             'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
                         },
-                        body: JSON.stringify(sale)
+                        // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
+                        body: JSON.stringify({ ...sale, idempotencyKey: sale.idempotencyKey ?? sale.id })
                     });
 
                     if (!response.ok) {
@@ -246,16 +263,19 @@ export class SyncService {
 
     // 🛡️ RELIABILITY: Sync tickets with error handling
     static async syncTickets() {
-        const unsyncedTickets = await offlineDB.tickets
-            .where('synced').equals(0) // 🛡️ Use 0 for false in IndexedDB
+        const allUnsynced = await offlineDB.tickets
+            .where('synced').equals(0)
             .and(ticket => (ticket.syncRetries || 0) < 5)
             .toArray();
+
+        // 🛡️ BATCH CAP: Process max 50 records per cycle
+        const unsyncedTickets = allUnsynced.slice(0, SYNC_BATCH_SIZE);
 
         if (unsyncedTickets.length === 0) {
             return { synced: 0, failed: 0 };
         }
 
-        logger.info(`📤 Syncing ${unsyncedTickets.length} tickets...`);
+        logger.info(`📤 Syncing ${unsyncedTickets.length}/${allUnsynced.length} tickets (batch cap: ${SYNC_BATCH_SIZE})...`);
 
         let synced = 0;
         let failed = 0;
@@ -269,7 +289,8 @@ export class SyncService {
                             'Content-Type': 'application/json',
                             'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
                         },
-                        body: JSON.stringify(ticket)
+                        // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
+                        body: JSON.stringify({ ...ticket, idempotencyKey: ticket.idempotencyKey ?? ticket.id })
                     });
 
                     if (!response.ok) {
@@ -466,7 +487,10 @@ export class SyncService {
                 await this.retryWithBackoff(async () => {
                     const response = await fetch('/api/sales/offline-return', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                        },
                         body: JSON.stringify({
                             ...r,
                             idempotencyKey: r.idempotencyKey

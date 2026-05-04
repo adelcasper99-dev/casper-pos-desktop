@@ -29,6 +29,7 @@ import { searchCustomers } from "@/actions/customer-actions";
 import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
 import { useDebounce } from "use-debounce";
 import clsx from "clsx";
+import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
 
 interface TicketPaymentModalProps {
     isOpen: boolean;
@@ -42,6 +43,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const router = useRouter();
     const commonT = useTranslations("Common");
     const { token: csrfToken } = useCSRF();
+    const autoNotify = useWhatsAppAutoNotify();
     const [isLoading, setIsLoading] = useState(false);
     const [settings, setSettings] = useState<any>(null);
     const [settingsLoading, setSettingsLoading] = useState(false);
@@ -210,6 +212,23 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             setSuccess(true);
             onSuccess?.();
             router.refresh();
+
+            // 🚀 WhatsApp Auto-Notify (Non-blocking)
+            if (paymentType === 'PAYMENT' || netDelta === 0) {
+                autoNotify('PAID_DELIVERED', {
+                    customerPhone: ticket.customerPhone,
+                    customerName: ticket.customerName,
+                    barcode: ticket.barcode,
+                    deviceBrand: ticket.deviceBrand,
+                    deviceModel: ticket.deviceModel,
+                    repairPrice: totalNewPrice,
+                    branchName: settings?.name ?? undefined,
+                    issueDescription: ticket.issueDescription
+                }, {
+                    whatsappEnabled: settings?.whatsappEnabled,
+                    whatsappTemplates: settings?.whatsappTemplates
+                });
+            }
 
             // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
             // Only auto-print when explicitly enabled to avoid unexpected behavior

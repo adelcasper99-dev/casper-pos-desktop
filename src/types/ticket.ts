@@ -108,6 +108,7 @@ export interface WorkflowTicket {
     technicianId: string | null;
     repairPrice: number;
     amountPaid: number;
+    issueDescription?: string | null;
     expectedDuration: number | null;
     notes?: TicketNote[];
     previousStatus?: string | null;
