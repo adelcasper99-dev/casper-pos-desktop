@@ -14,7 +14,6 @@ interface KPIProps {
         partsNetProfit: number;
         totalNetProfit: number;
         successRatio: string;
-        highRiskCount: number;
     };
 }
 
@@ -126,16 +125,6 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
                     </div>
                 </div>
             ))}
-            {data.highRiskCount > 0 && (
-                <div className="col-span-full mt-2">
-                    <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-600 dark:text-rose-200 text-sm backdrop-blur-md animate-pulse shadow-lg shadow-rose-500/10">
-                        <div className="p-2 bg-rose-500/20 rounded-lg">
-                            <AlertTriangle className="w-4 h-4 text-rose-500" />
-                        </div>
-                        <span className="font-black">تنبيه: يوجد عدد {data.highRiskCount} تذاكر عالية المخاطر (تكرار مرتجع أو تأخير كبير).</span>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

@@ -778,11 +778,8 @@ export default function TicketDetailPage() {
                                                         <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
                                                             {metadata.triggeredStatus ? `تحديث الحالة إلى: ${metadata.triggeredStatus}` : 'إشعار مخصص للمحافظة على العميل'}
                                                         </p>
-                                                        {metadata.riskLevel && (
+                                                        {metadata.gapHours !== undefined && (
                                                             <div className="flex items-center gap-3 mt-2">
-                                                                <Badge className={cn("text-[9px] px-2 py-0", metadata.riskLevel === 'high' ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500")}>
-                                                                    Risk: {metadata.riskLevel}
-                                                                </Badge>
                                                                 <span className="text-[9px] text-slate-500 dark:text-zinc-500">Gap: {metadata.gapHours}h</span>
                                                             </div>
                                                         )}
@@ -1001,12 +998,7 @@ export default function TicketDetailPage() {
                                         <span className="font-mono text-slate-800 dark:text-zinc-300">{ticket.gap || '--:--'}</span>
                                     </div>
                                 </DataRow>
-                                <DataRow label="تقدير المخاطرة الحالي">
-                                    <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${ticket.riskLevel === 'high' ? 'text-red-500' : (ticket.riskLevel === 'medium' ? 'text-orange-400' : 'text-emerald-400')}`}>
-                                        <div className={`w-2 h-2 rounded-full ${ticket.riskLevel === 'high' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : (ticket.riskLevel === 'medium' ? 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]')}`} />
-                                        {ticket.riskLevel === 'high' ? 'High Risk' : (ticket.riskLevel === 'medium' ? 'Medium' : 'Safe')}
-                                    </div>
-                                </DataRow>
+
                                 <div className="pt-4 border-t-2 border-slate-300 dark:border-zinc-700 mt-4 space-y-2">
                                     <div className="flex items-center justify-between px-1">
                                         <label className="text-[9px] font-black uppercase text-slate-500 dark:text-zinc-600 tracking-widest">الفني المسؤول</label>

@@ -26,7 +26,7 @@ interface TicketData {
     commission: number | string;
     netProfit: number | string;
     gap: string;
-    riskLevel: string;
+    issueDescription: string;
     status: string;
 }
 
@@ -80,13 +80,7 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
         );
     }
 
-    const getRiskColor = (level: string) => {
-        switch (level) {
-            case 'high': return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
-            case 'medium': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
-            default: return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
-        }
-    };
+
 
     const getStatusBadge = (status: string) => {
         const labels: Record<string, string> = {
@@ -161,7 +155,7 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                             </div>
                         </TableHead>
                         <TableHead className="text-right text-[10px] font-black text-foreground/80 uppercase tracking-widest">التأخير</TableHead>
-                        <TableHead className="text-right text-[10px] font-black text-foreground/80 uppercase tracking-widest">المخاطر</TableHead>
+                        <TableHead className="text-right text-[10px] font-black text-foreground/80 uppercase tracking-widest">العطل</TableHead>
                         <TableHead className="text-center text-[10px] font-black text-foreground/80 uppercase tracking-widest">الحالة</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -220,10 +214,10 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                                     {ticket.gap}
                                 </div>
                             </TableCell>
-                            <TableCell>
-                                <Badge className={cn("border px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-tighter shadow-sm", getRiskColor(ticket.riskLevel))}>
-                                    {ticket.riskLevel === 'high' ? 'عالي الخطورة' : ticket.riskLevel === 'medium' ? 'متوسط' : 'آمن'}
-                                </Badge>
+                             <TableCell>
+                                <div className="text-[10px] font-black text-muted-foreground truncate max-w-[120px]" title={ticket.issueDescription}>
+                                    {ticket.issueDescription}
+                                </div>
                             </TableCell>
                             <TableCell className="text-center">
                                 {getStatusBadge(ticket.status)}

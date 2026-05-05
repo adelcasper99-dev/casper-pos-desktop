@@ -169,21 +169,12 @@ export const getTickets = secureAction(async (filters?: {
         else if (diffHours > 0) gap = `${diffHours}h`;
         else gap = `${Math.floor(diffMs / 60000)}m`;
 
-        // Calculate Risk Level (Simplified server-side version)
-        let riskLevel = 'low';
+        // Calculate overdue status
         let isOverdue = false;
         if (t.expectedDuration && !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'REJECTED'].includes(t.status)) {
             const created = new Date(t.createdAt).getTime();
             const dueTime = created + (t.expectedDuration * 60000);
             isOverdue = now > dueTime;
-        }
-
-        const gapMinutes = Math.floor(diffMs / 60000);
-
-        if (isOverdue || (t as any).returnCount > 1) {
-            riskLevel = 'high';
-        } else if (gapMinutes > 3 * 24 * 60) { // 3 days
-            riskLevel = 'medium';
         }
 
         return {
@@ -193,13 +184,12 @@ export const getTickets = secureAction(async (filters?: {
             amountPaid: t.amountPaid?.toString() || "0",
             deposit: t.deposit?.toString() || "0",
             gap, 
-            riskLevel,
             isOverdue,
             customerSuccessRatio: t.customerId ? customerSuccessMap[t.customerId] : "100"
         };
     });
 
-    const highRiskCount = processedTickets.filter(t => t.riskLevel === 'high').length;
+
     const overdueCount = processedTickets.filter(t => t.isOverdue).length;
 
     const totalSummary = await prisma.ticket.aggregate({
@@ -216,7 +206,6 @@ export const getTickets = secureAction(async (filters?: {
             returns: returnCount,
             ratio: ratio.toFixed(1),
             totalPaid: Number(totalSummary._sum.amountPaid || 0),
-            highRiskCount,
             overdueCount
         }
     };
@@ -293,18 +282,11 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
     else if (diffHours > 0) gap = `${diffHours}h`;
     else gap = `${Math.floor(diffMs / 60000)}m`;
 
-    let riskLevel = 'low';
     let isOverdue = false;
     if (ticket.expectedDuration && !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'REJECTED'].includes(ticket.status)) {
         const created = new Date(ticket.createdAt).getTime();
         const dueTime = created + (ticket.expectedDuration * 60000);
         isOverdue = now.getTime() > dueTime;
-    }
-
-    if (isOverdue || (ticket as any).returnCount > 1) {
-        riskLevel = 'high';
-    } else if (diffDays >= 3) {
-        riskLevel = 'medium';
     }
 
     // Success Ratio: Customer's historical completion rate
@@ -329,7 +311,6 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
             netProfit: ticket.netProfit?.toString() || "0",
             amountPaid: ticket.amountPaid?.toString() || "0",
             gap,
-            riskLevel,
             isOverdue,
             successRatio,
             parts: ticket.parts.map(p => ({

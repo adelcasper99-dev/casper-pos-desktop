@@ -53,72 +53,6 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
     let totalRevenue = 0;
     let partsCOGS = 0;
     let laborRevenue = 0;
-    let totalCommissions = 0;
-    let highRiskCount = 0;
-    let deliveredCount = 0;
-    let returnCount = 0;
-
-    const mappedTickets = tickets.map(ticket => {
-        // Use final customer price if closed/paid, otherwise repair price
-        const ticketRevenue = Number(ticket.finalCustomerPrice || ticket.repairPrice || 0);
-        
-        // Fix: Use partCostPrice (True Cost) for accurate Center Margin calculation.
-        // Fallback to partsCost if historical/legacy ticket.
-        const ticketPartsCost = Number(ticket.partCostPrice) > 0 
-            ? Number(ticket.partCostPrice) 
-            : Number(ticket.partsCost || 0);
-            
-        const commission = Number(ticket.commissionAmount || 0);
-        
-        totalRevenue += ticketRevenue;
-        partsCOGS += ticketPartsCost;
-        totalCommissions += commission;
-
-        // Calculate Parts Revenue vs Cost
-        const ticketPartsRevenue = ticket.parts
-            .filter(p => p.product?.itemType !== 'SERVICE' && p.status !== 'SERVICE')
-            .reduce((sum, p) => sum + Number(p.price || 0), 0);
-        
-        // Use effective parts revenue to properly split the total repairPrice
-        const effectivePartsRevenue = Math.max(ticketPartsRevenue, ticketPartsCost);
-        const ticketLaborRevenue = ticketRevenue - effectivePartsRevenue;
-        
-        laborRevenue += ticketLaborRevenue;
-
-        // Refined Gap & Risk Analysis
-        const lastUpdate = new Date(ticket.updatedAt).getTime();
-        const diffMs = Date.now() - lastUpdate;
-        
-        // Workflow Gap (Delay vs Expected)
-        let gapDescription = "0m";
-        if (ticket.startedAt && ticket.expectedDuration) {
-            const endTime = ticket.completedAt || new Date();
-            const durationMs = endTime.getTime() - ticket.startedAt.getTime();
-            const expectedMs = ticket.expectedDuration * 60 * 60 * 1000;
-            if (durationMs > expectedMs) {
-                const overMs = durationMs - expectedMs;
-                const d = Math.floor(overMs / (1000 * 60 * 60 * 24));
-                const h = Math.floor((overMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                gapDescription = d > 0 ? `${d}d ${h}h` : `${h}h`;
-            }
-        }
-
-        // If no production delay, show time since last update
-        if (gapDescription === "0m") {
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            gapDescription = diffDays > 0 ? `${diffDays}d ${diffHours}h` : `${diffHours}h`;
-            if (diffDays === 0 && diffHours === 0) gapDescription = `${Math.floor(diffMs / 60000)}m`;
-        }
-
-        let riskLevel = 'low';
-        if (ticket.returnCount > 0 || ticket.isWarrantyReturn) {
-            riskLevel = 'high';
-            highRiskCount++;
-        } else if (diffMs > 3 * 24 * 60 * 60 * 1000) {
-            riskLevel = 'medium';
-        }
-
         if (['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP'].includes(ticket.status)) deliveredCount++;
         if (ticket.returnCount > 0) returnCount++;
 
@@ -133,8 +67,8 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             commission: commission,
             netProfit: ticketRevenue - (ticketPartsCost + commission),
             gap: gapDescription,
-            riskLevel,
-            status: ticket.status
+            status: ticket.status,
+            issueDescription: ticket.issueDescription
         };
     });
 
@@ -152,8 +86,7 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
                 laborNetProfit: laborRevenue - totalCommissions,
                 partsNetProfit: (totalRevenue - laborRevenue) - partsCOGS,
                 totalNetProfit: totalRevenue - (partsCOGS + totalCommissions),
-                successRatio: successRatio.toFixed(1),
-                highRiskCount
+                successRatio: successRatio.toFixed(1)
             },
             tickets: mappedTickets
         }

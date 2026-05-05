@@ -59,17 +59,10 @@ export class NotificationService {
             const gapMs = now.getTime() - lastUpdate.getTime();
             const gapHours = Math.floor(gapMs / (1000 * 60 * 60));
             
-            let riskLevel: 'low' | 'medium' | 'high' = 'low';
-            if (ticket.expectedDuration) {
-                 const createdTime = new Date(ticket.createdAt).getTime();
-                 const dueTime = createdTime + (ticket.expectedDuration * 60 * 1000);
-                 if (now.getTime() > dueTime) riskLevel = 'high';
-            }
-            if ((ticket as any).returnCount > 1) riskLevel = 'high';
+
 
             const metadata = {
                 gapHours,
-                riskLevel,
                 storeName,
                 triggeredStatus: status,
                 timestamp: now.toISOString()
@@ -118,7 +111,6 @@ export class NotificationService {
             logger.info(`[NotificationService] Initiating dispatch to ${customer.phone}`, {
                 barcode: ticket.barcode,
                 status: status,
-                risk: riskLevel
             });
 
             // Simulate the external API delay

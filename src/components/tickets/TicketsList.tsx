@@ -84,7 +84,6 @@ export default function TicketsList() {
         returns: 0, 
         ratio: '0.0', 
         totalPaid: 0,
-        highRiskCount: 0,
         overdueCount: 0
     });
 
@@ -241,14 +240,6 @@ export default function TicketsList() {
         return { label: 'عادي', color: 'bg-zinc-500/10 text-zinc-400 border-white/5', icon: Wrench };
     }
 
-    const getRiskInfo = (ticket: any) => {
-        const level = ticket.riskLevel || 'low';
-
-        if (level === 'high') return { level: 'high', color: 'text-red-500', icon: AlertCircle };
-        if (level === 'medium') return { level: 'medium', color: 'text-orange-500', icon: AlertTriangle };
-        return { level: 'low', color: 'text-emerald-500', icon: Clock };
-    }
-
     const getWorkflowStage = (status: string) => {
         const stages = [
             ['NEW', 'RETURNED_FOR_REFIX'],
@@ -316,10 +307,6 @@ export default function TicketsList() {
                 } else if (sortConfig.key === 'customerSuccessRatio') {
                     aVal = Number(a.customerSuccessRatio);
                     bVal = Number(b.customerSuccessRatio);
-                } else if (sortConfig.key === 'riskLevel') {
-                    const riskMap: any = { 'high': 3, 'medium': 2, 'low': 1 };
-                    aVal = riskMap[a.riskLevel] || 0;
-                    bVal = riskMap[b.riskLevel] || 0;
                 }
 
                 if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -362,22 +349,7 @@ export default function TicketsList() {
                     </div>
                 </div>
 
-                {/* Card 2: High Risk */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-rose-500/10 border border-rose-500/20 animate-pulse" />
-                        <AlertTriangle className="h-7 w-7 text-rose-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.risk')}</p>
-                        <p className="text-3xl font-black text-rose-500 tabular-nums leading-none">{stats.highRiskCount}</p>
-                        <div className="flex items-center gap-1 mt-1">
-                            <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>
-                            <span className="text-[10px] text-zinc-400 font-black">حالات تحتاج متابعة عاجلة</span>
-                        </div>
-                    </div>
-                </div>
+
 
                 {/* Card 3: Overdue */}
                 <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
@@ -563,7 +535,6 @@ export default function TicketsList() {
                             <colgroup>
                                 <col className="w-[150px]" /> {/* Status */}
                                 <col className="w-[80px]" />  {/* Gap */}
-                                <col className="w-[80px]" />  {/* Risk */}
                                 <col className="w-[100px]" /> {/* Success */}
                                 <col className="w-[120px]" /> {/* Date */}
                                 <col className="w-[120px]" /> {/* Info */}
@@ -571,6 +542,7 @@ export default function TicketsList() {
                                 <col className="w-[120px]" /> {/* Due */}
                                 <col className="w-[180px]" /> {/* Customer */}
                                 <col className="w-[180px]" /> {/* Device */}
+                                <col className="w-[180px]" /> {/* Fault/Issue */}
                                 <col className="w-[100px]" /> {/* Time */}
                                 <col className="w-[50px]" />  {/* Actions */}
                             </colgroup>
@@ -586,12 +558,6 @@ export default function TicketsList() {
                                              <div className="flex items-center gap-2">
                                                  {getSortIcon('gap')}
                                                  {t('table.gap')}
-                                             </div>
-                                         </th>
-                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('riskLevel')}>
-                                             <div className="flex items-center gap-2">
-                                                 {getSortIcon('riskLevel')}
-                                                 {t('table.risk')}
                                              </div>
                                          </th>
                                          <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerSuccessRatio')}>
@@ -626,6 +592,11 @@ export default function TicketsList() {
                                             </div>
                                         </th>
                                         <th className="px-6 py-4 text-start">{t('table.device')}</th>
+                                        <th className="px-6 py-4 text-start">
+                                             <div className="flex items-center gap-2">
+                                                 {t('table.risk')}
+                                             </div>
+                                         </th>
                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('expectedDuration')}
@@ -638,8 +609,6 @@ export default function TicketsList() {
                             <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                                 {sortedTickets.map((ticket) => {
                                     const urgency = getUrgencyInfo(ticket);
-                                    const risk = getRiskInfo(ticket);
-                                    const RiskIcon = risk.icon;
                                     return (
                                         <tr
                                             key={ticket.id}
@@ -693,25 +662,6 @@ export default function TicketsList() {
                                                         }`}>
                                                             <Clock className="w-2.5 h-2.5" />
                                                             {ticket.gap}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </td>
-
-                                            {/* 🎯 Risk Column */}
-                                            <td className="px-4 py-4">
-                                                {(() => {
-                                                    const riskStyles = {
-                                                        high: { bg: 'bg-red-500/10 border-red-500/30', text: 'text-red-500', label: 'عالي', pulse: true },
-                                                        medium: { bg: 'bg-orange-500/10 border-orange-500/30', text: 'text-orange-500', label: 'متوسط', pulse: false },
-                                                        low: { bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-500', label: 'منخفض', pulse: false }
-                                                    };
-                                                    const style = riskStyles[risk.level as keyof typeof riskStyles] || riskStyles.low;
-                                                    return (
-                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border ${style.bg}`}>
-                                                            {style.pulse && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>}
-                                                            <RiskIcon className={`w-2.5 h-2.5 ${style.text}`} />
-                                                            <span className={`text-[9px] font-black uppercase tracking-tighter ${style.text}`}>{style.label}</span>
                                                         </div>
                                                     );
                                                 })()}
@@ -791,6 +741,15 @@ export default function TicketsList() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="text-slate-900 dark:text-zinc-200 font-black uppercase truncate block">{ticket.deviceBrand} {ticket.deviceModel}</span>
+                                            </td>
+                                            {/* 🎯 Fault Column */}
+                                            <td className="px-4 py-4">
+                                                <div 
+                                                    className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] bg-zinc-100 dark:bg-white/5 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-white/10" 
+                                                    title={ticket.issueDescription}
+                                                >
+                                                    {ticket.issueDescription}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
