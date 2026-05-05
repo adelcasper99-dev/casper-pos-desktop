@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { getSession, invalidateUserSessions, UserSession } from '@/lib/auth';
 import { ensureMainBranch } from '@/lib/ensure-main-branch';
 import { hasPermission, PERMISSIONS } from '@/lib/permissions';
+import { AppError, ErrorCodes } from '@/lib/errors';
 
 /**
  * Validates that the active user has sufficient privileges to create/modify/delete
@@ -153,9 +154,9 @@ export const getUsersByBranch = secureAction(async (branchId: string) => {
         const u = user as any;
         return {
             ...user,
-            maxDiscount: u.maxDiscount ? Number(u.maxDiscount) : 0,
-            maxDiscountAmount: u.maxDiscountAmount ? Number(u.maxDiscountAmount) : 0,
-            salary: u.salary ? Number(u.salary) : 0,
+            maxDiscount: u.maxDiscount ? u.maxDiscount.toString() : "0",
+            maxDiscountAmount: u.maxDiscountAmount ? u.maxDiscountAmount.toString() : "0",
+            salary: u.salary ? u.salary.toString() : "0",
             managedHQIds: typeof user.managedHQIds === 'string' ? JSON.parse(user.managedHQIds) : user.managedHQIds
         }
     })
@@ -192,7 +193,11 @@ export const createUser = secureAction(async (data: z.infer<typeof userSchema> &
             } else {
                 const { getTranslations } = await import('@/lib/i18n-mock');
                 const t = await getTranslations('SystemMessages.Errors');
-                throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
+                throw new AppError(
+                    ErrorCodes.VALIDATION_ERROR, 
+                    t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }),
+                    { code: 'PHONE_IN_USE', usedBy: phoneCheck.usedBy, entityId: phoneCheck.entityId }
+                );
             }
         }
     }
@@ -321,7 +326,11 @@ export const updateUser = secureAction(async (id: string, data: z.infer<typeof u
             } else {
                 const { getTranslations } = await import('@/lib/i18n-mock');
                 const t = await getTranslations('SystemMessages.Errors');
-                throw new Error(t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }));
+                throw new AppError(
+                    ErrorCodes.VALIDATION_ERROR, 
+                    t('phoneInUse', { usedBy: phoneCheck.usedBy || 'Unknown' }),
+                    { code: 'PHONE_IN_USE', usedBy: phoneCheck.usedBy, entityId: phoneCheck.entityId }
+                );
             }
         }
     }
@@ -550,9 +559,9 @@ export async function getUsersForPage() {
 
     return users.map((u: any) => ({
         ...u,
-        maxDiscount: u.maxDiscount ? Number(u.maxDiscount) : 0,
-        maxDiscountAmount: u.maxDiscountAmount ? Number(u.maxDiscountAmount) : 0,
-        salary: u.salary ? Number(u.salary) : 0,
+        maxDiscount: u.maxDiscount ? u.maxDiscount.toString() : "0",
+        maxDiscountAmount: u.maxDiscountAmount ? u.maxDiscountAmount.toString() : "0",
+        salary: u.salary ? u.salary.toString() : "0",
         managedHQIds: typeof u.managedHQIds === 'string' ? JSON.parse(u.managedHQIds) : u.managedHQIds
     }));
 }

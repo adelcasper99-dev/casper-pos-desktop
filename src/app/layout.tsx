@@ -47,7 +47,7 @@ export default async function RootLayout({
                     <LayoutWrapper user={user} settings={settings}>
                         {children}
                     </LayoutWrapper>
-                    <Toaster />
+                    <Toaster richColors position="top-center" expand={true} style={{ zIndex: 10000 }} />
                 </Providers>
             </body>
         </html>

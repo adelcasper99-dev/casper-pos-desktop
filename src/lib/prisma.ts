@@ -22,6 +22,10 @@ function getDynamicDbUrl() {
             try {
                 const config = JSON.parse(rawConfig) as { dbPath?: string };
                 if (config.dbPath) {
+                    // HARDENING: Ensure the custom database directory exists before SQLite access
+                    if (!fs.existsSync(config.dbPath)) {
+                        fs.mkdirSync(config.dbPath, { recursive: true });
+                    }
                     const normalizedDbPath = path.join(config.dbPath, 'local.db').replace(/\\/g, '/');
                     return `file:${normalizedDbPath}`;
                 }
@@ -32,7 +36,11 @@ function getDynamicDbUrl() {
     } catch (error) {
         console.warn('Could not read casper-config.json for dynamic DB path, falling back to process.env:', error);
     }
-    return process.env.DATABASE_URL;
+    const fallbackUrl = process.env.DATABASE_URL;
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[PRISMA DEBUG] DB URL resolved to: ${fallbackUrl}`);
+    }
+    return fallbackUrl;
 }
 
 export const prisma =

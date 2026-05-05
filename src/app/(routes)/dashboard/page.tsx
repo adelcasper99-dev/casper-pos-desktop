@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Calculator, Package, ShoppingCart } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
@@ -10,12 +10,18 @@ import { getFinancialDashboardMetrics } from "@/features/dashboard/api/dashboard
 import { FinancialDashboardMetrics } from "@/features/dashboard/types";
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import { startOfMonth, endOfMonth } from "date-fns";
+import { getCurrentShift } from "@/actions/shift-management-actions";
+import ShiftPromptModal from "@/components/shift/ShiftPromptModal";
+
+const SHIFT_DISMISSED_KEY = "shift_prompt_dismissed";
 
 export default function Dashboard() {
     const t = useTranslations('Dashboard');
 
     const [metrics, setMetrics] = useState<FinancialDashboardMetrics | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showShiftPrompt, setShowShiftPrompt] = useState(false);
+    const shiftChecked = useRef(false);
 
     // Default to current month
     const [dateRange, setDateRange] = useState<{ from?: Date, to?: Date }>({
@@ -44,8 +50,37 @@ export default function Dashboard() {
         fetchMetrics(dateRange.from, dateRange.to);
     }, [dateRange, fetchMetrics]);
 
+    // 🚀 Shift Gate: check once per session on mount
+    useEffect(() => {
+        if (shiftChecked.current) return;
+        shiftChecked.current = true;
+
+        // Skip if already dismissed this session
+        try {
+            if (sessionStorage.getItem(SHIFT_DISMISSED_KEY)) return;
+        } catch {
+            // sessionStorage not available (e.g., SSR guard)
+            return;
+        }
+
+        getCurrentShift().then((res: any) => {
+            const shift = res?.shift ?? null;
+            if (!shift) {
+                setShowShiftPrompt(true);
+            }
+        }).catch(() => {
+            // Silently fail — shift check is non-blocking
+        });
+    }, []);
+
     return (
         <div className="p-8 space-y-8 animate-fade-in-up max-w-[2400px] mx-auto">
+            {/* 🕐 Post-Login Shift Prompt Modal */}
+            <ShiftPromptModal
+                open={showShiftPrompt}
+                onClose={() => setShowShiftPrompt(false)}
+            />
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 className="text-3xl font-bold">{t('title')}</h1>
 

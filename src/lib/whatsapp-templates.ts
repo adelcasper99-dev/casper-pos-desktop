@@ -9,7 +9,7 @@
  * - {branch} - Branch name
  */
 
-export const WHATSAPP_TEMPLATES: Record<string, { ar: string }> = {
+export const DEFAULT_WHATSAPP_TEMPLATES: Record<string, { ar: string }> = {
     NEW: {
         ar: "مرحباً {name}! 👋\n\nتم استلام جهازك {device} للإصلاح.\n📋 رقم التذكرة: {barcode}\n🔧 المشكلة: {issue}\n\nسنقوم بإعلامك بأي تحديثات. شكراً لثقتك!"
     },
@@ -31,6 +31,9 @@ export const WHATSAPP_TEMPLATES: Record<string, { ar: string }> = {
     COMPLETED: {
         ar: "مرحباً {name}! ✅\n\nتم إصلاح جهازك {device} بنجاح!\n💰 المبلغ: {price} جنيه\n\nجهازك جاهز للاستلام."
     },
+    READY: {
+        ar: "مرحباً {name}! 📦\n\nجهازك {device} جاهز للاستلام.\n💰 المبلغ: {price} جنيه\n\nنتشرف بخدمتك!"
+    },
     READY_AT_BRANCH: {
         ar: "مرحباً {name}! 📦\n\nجهازك {device} جاهز للاستلام من فرع {branch}.\n💰 المبلغ: {price} جنيه\n\nنتشرف بخدمتك!"
     },
@@ -44,6 +47,32 @@ export const WHATSAPP_TEMPLATES: Record<string, { ar: string }> = {
         ar: "مرحباً {name}!\n\nبخصوص جهازك {device}، نعتذر عن إعلامكم بأنه تعذر الإصلاح.\nنرجو استلام الجهاز من الفرع. شكراً لتفهمك."
     }
 };
+
+// Maintain compatibility with existing code
+export const WHATSAPP_TEMPLATES = DEFAULT_WHATSAPP_TEMPLATES;
+
+/**
+ * Resolve a status template using optional overrides from settings
+ */
+export function resolveStatusTemplate(statusKey: string, overrides?: any): string | null {
+    // Check if message is enabled (Default to true if flag is missing)
+    if (overrides?.enabled && overrides.enabled[statusKey] === false) {
+        return null;
+    }
+
+    // If we have an override for this specific status, use it
+    if (overrides && overrides[statusKey]) {
+        return overrides[statusKey];
+    }
+    
+    // Fallback to default
+    const template = DEFAULT_WHATSAPP_TEMPLATES[statusKey];
+    if (!template) {
+        return `مرحباً {name}! حالة جهازك {device}: ${statusKey}`;
+    }
+
+    return template.ar;
+}
 
 /**
  * Generate WhatsApp URL with pre-filled message
@@ -64,22 +93,16 @@ export function generateWhatsAppUrl(
     // Replace placeholders in template
     let message = template;
     for (const [key, value] of Object.entries(replacements)) {
-        message = message.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+        message = message.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value || ''));
     }
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
 /**
- * Get template for a specific status
+ * Get template for a specific status with optional overrides
  */
-export function getStatusTemplate(status: string, _lang?: 'ar' | 'en'): string {
+export function getStatusTemplate(status: string, _lang?: 'ar' | 'en', overrides?: any): string | null {
     const statusKey = status.toUpperCase().replace(/ /g, '_');
-    const template = WHATSAPP_TEMPLATES[statusKey];
-
-    if (!template) {
-        return `مرحباً {name}! حالة جهازك {device}: ${status}`;
-    }
-
-    return template.ar;
+    return resolveStatusTemplate(statusKey, overrides);
 }

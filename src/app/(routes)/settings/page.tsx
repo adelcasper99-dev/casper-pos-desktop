@@ -2,8 +2,9 @@ import { Suspense } from "react";
 import { getTranslations } from "@/lib/i18n-mock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw } from "lucide-react";
+import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle } from "lucide-react";
 import StoreConfig from "@/components/settings/StoreConfig";
+import MessagingSettings from "@/components/settings/MessagingSettings";
 import PrinterSettings from "@/components/settings/PrinterSettings";
 import BackupManager from "@/components/settings/BackupManager";
 import UserManagement from "@/components/settings/UserManagement";
@@ -59,6 +60,8 @@ export default async function SettingsPage() {
 
     const roles = rolesRes.success ? (rolesRes.data ?? []) : [];
     const settings = settingsRes?.data || {};
+    const whatsappTemplates = (settings as any).whatsappTemplates ?? null;
+    const rawFeatures = (settings as any).features ?? '{}';
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'مدير النظام' || session.user.role === 'المالك' || hasPermission(session.user.permissions, '*');
     
     // Permission Checks
@@ -109,6 +112,14 @@ export default async function SettingsPage() {
                             className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
                         >
                             <Store className="w-4 h-4 opacity-70" /> {t('tabs.general', 'General')}
+                        </TabsTrigger>
+                    )}
+                    {canManageGeneral && (
+                        <TabsTrigger 
+                            value="messaging" 
+                            className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400 data-[state=active]:border-green-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <MessageCircle className="w-4 h-4 opacity-70" /> {t('tabs.messaging', 'Messaging')}
                         </TabsTrigger>
                     )}
                     {canSeePrinters && (
@@ -186,6 +197,12 @@ export default async function SettingsPage() {
                     {canManageGeneral && (
                         <TabsContent value="general" className="outline-none focus-visible:ring-0">
                             <StoreConfig settings={settings} hideModules={true} />
+                        </TabsContent>
+                    )}
+
+                    {canManageGeneral && (
+                        <TabsContent value="messaging" className="outline-none focus-visible:ring-0">
+                            <MessagingSettings initialTemplates={whatsappTemplates} currentFeatures={rawFeatures} />
                         </TabsContent>
                     )}
 

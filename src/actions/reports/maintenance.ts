@@ -54,7 +54,6 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
     let partsCOGS = 0;
     let laborRevenue = 0;
     let totalCommissions = 0;
-    let highRiskCount = 0;
     let deliveredCount = 0;
     let returnCount = 0;
 
@@ -85,7 +84,7 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
         
         laborRevenue += ticketLaborRevenue;
 
-        // Refined Gap & Risk Analysis
+        // Refined Gap Analysis
         const lastUpdate = new Date(ticket.updatedAt).getTime();
         const diffMs = Date.now() - lastUpdate;
         
@@ -111,14 +110,6 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             if (diffDays === 0 && diffHours === 0) gapDescription = `${Math.floor(diffMs / 60000)}m`;
         }
 
-        let riskLevel = 'low';
-        if (ticket.returnCount > 0 || ticket.isWarrantyReturn) {
-            riskLevel = 'high';
-            highRiskCount++;
-        } else if (diffMs > 3 * 24 * 60 * 60 * 1000) {
-            riskLevel = 'medium';
-        }
-
         if (['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP'].includes(ticket.status)) deliveredCount++;
         if (ticket.returnCount > 0) returnCount++;
 
@@ -133,8 +124,8 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             commission: commission,
             netProfit: ticketRevenue - (ticketPartsCost + commission),
             gap: gapDescription,
-            riskLevel,
-            status: ticket.status
+            status: ticket.status,
+            issueDescription: ticket.issueDescription
         };
     });
 
@@ -152,8 +143,7 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
                 laborNetProfit: laborRevenue - totalCommissions,
                 partsNetProfit: (totalRevenue - laborRevenue) - partsCOGS,
                 totalNetProfit: totalRevenue - (partsCOGS + totalCommissions),
-                successRatio: successRatio.toFixed(1),
-                highRiskCount
+                successRatio: successRatio.toFixed(1)
             },
             tickets: mappedTickets
         }

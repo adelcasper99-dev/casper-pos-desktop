@@ -29,10 +29,12 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Implementation**: All offline sync API routes (`offline-sale`, `offline-ticket`, etc.) MUST accept a client-side `createdAt` timestamp.
 *   **Database mapping**: Both the primary record (e.g., `Sale`) and its side-effects (e.g., `StockMovement`, `Transaction`) MUST use this ingested timestamp to ensure financial and inventory reports match the actual real-world transaction date.
 
-### Decimal-Only Financial Math
-*   **Rule**: **NEVER USE FLOATS** for monetary calculations.
-*   **Tool**: All calculations (COGS, Commission, Tax, Payroll) MUST use `Decimal.js`.
-*   **Rounding**: Use `Decimal.ROUND_HALF_UP` for final storage.
+### Decimal-Only Financial Math & Precision Hardrails
+*   **Rule**: **NEVER USE FLOATS** for monetary calculations (Prices, Taxes, Salaries, COGS).
+*   **Tool**: All calculations MUST use `Decimal.js`.
+*   **Validation Hardening**: Use `z.union([z.string(), z.number()])` in Zod schemas for financial inputs. Avoid `z.coerce.number()` as it prematurely casts to JS floats.
+*   **Serialization Integrity**: Always convert `Decimal` fields to `.toString()` when returning data from server actions to client components to prevent precision loss during JSON serialization.
+*   **Calculation Logic**: Strictly avoid `.toNumber()` in intermediate steps or KPIs. Keep values as `Decimal` or `String` until the final display.
 
 ### Ledger Transparency (No Masking)
 *   **Rule**: The Employee Ledger UI must show raw signs from the database.
@@ -81,6 +83,10 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Typography**: Use Google Fonts (Inter/Outfit) exclusively.
 *   **Visuals**: High-contrast dark modes, subtle glassmorphism (backdrops), and vibrant but professional accent colors (Cyan for Tech, Rose for Risks).
 *   **Feedback**: Always use "Sonner" for toast notifications and sequential action handling.
+*   **Modal Layering Strategy**: 
+    -   Standard Modals (`GlassModal`): `z-index: 100`.
+    -   Alerts/Confirmations (`ConfirmationModal`): `z-index: 200`.
+    -   This hierarchy ensures critical confirmations always appear above active editor windows.
 
 ### RTL/LTR Universality
 *   **Rule**: Full support for Arabic (RTL) and English (LTR) using `next-intl`. All structural components must use flex-direction and logical spacing that adapts to the `dir` attribute.
@@ -138,6 +144,15 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Consistency**: All financial entries are "Branch-Aware" and use the central GL mapping defined in `accounting-mappings.ts`.
 
 ---
+### 🛡️ [NEW] User Identity Linking Pattern
+*   **Protocol**: Link employee accounts (Users) to existing customer profiles (Customers) via phone numbers.
+*   **Workflow**:
+    1.  Detect match during User creation/update.
+    2.  Trigger `PHONE_IN_USE` error with metadata (`usedBy: 'CUSTOMER'`).
+    3.  Prompt user with `ConfirmationModal` (variant: `warning`).
+    4.  Retry with `confirmLink: true` to execute atomic transaction link.
+*   **Atomicity**: Linking must occur within a `prisma.$transaction` using `tx.customer.updateMany({ where: { phone }, data: { linkedEmployeeId: userId } })`.
+*   **Normalization**: Always clean phone numbers using `.trim().replace(/\s+/g, '')` before any database operation.
 
 ## 🔄 9. Formalized Workflows
 
@@ -202,4 +217,25 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ---
 
 *Created: April 2, 2026*
-*Last Update: April 19, 2026 (E-Wallet Module, Atomic Accounting & Type Centralization)*
+*Last Update: May 5, 2026 (User Identity Linking, Phone Normalization, and Z-Index Hardening)*
+
+---
+
+## 🛡️ 12. Advanced Performance & Financial Hardening
+
+### 🛡️ [NEW] Financial Performance & Scalability
+*   **Bulk Aggregation Protocol**: High-level dashboards (HR, Finance, Inventory) MUST use database-level aggregation (`groupBy`, `_sum`, `_count`) rather than in-memory iteration. This ensures $O(1)$ performance scaling and prevents Node.js event-loop blocking.
+*   **Mode-Aware Salary Proration**: All payroll and budget forecasting MUST use the centralized `calculateProratedBase` utility with explicit modes:
+    -   `accrued`: For earned-to-date payroll calculations (realized cost).
+    -   `projected`: For full-month budget expectations (expected cost).
+*   **Batch Safety Caps**: High-volume operations (Synchronization, Linking, Bulk Exports) MUST implement `take` limits (e.g., `100` for Master Data, `1000` for Transactions) to ensure memory safety in production environments.
+*   **Arithmetic Precision**: `Decimal.js` is the mandatory engine for all multi-step financial logic. Intermediate values must never be cast to `number` until the final display layer.
+
+### 🛡️ [NEW] Strict Schema-to-Code Parity
+*   **Protocol**: All shared interfaces (e.g., `PurchaseInvoice`, `PurchaseItem`) MUST maintain 1:1 field parity with the Prisma schema. Renaming properties in the backend (e.g., `invoiceId` -> `purchaseInvoiceId`) must be immediately reflected in the centralized domain types.
+*   **Domain Alignment**: The `PurchaseItem` interface is the canonical type for all goods-receipt logic, replacing ad-hoc `any` arrays to ensure compile-time safety for tax and subtotal calculations.
+
+### 🛡️ [NEW] UI Financial Precision & Strict TypeScript Integrity
+*   **Defensive Decimal Validation**: All user-provided string inputs mapped to financial values must be parsed with `Decimal.js` inside a `try/catch` block before checking bounds (`<= 0`). This prevents unhandled `[DecimalError]` crashes if non-numeric inputs bypass frontend limits.
+*   **Null-Coalescing in React Aggregations**: `.reduce()` methods in React components that calculate totals (e.g., `totalOwed`, `totalCredit`) must always use strict null-coalescing (`c.balance ?? 0`) inside `new Decimal()` constructors to prevent `String(null)` execution failures.
+*   **Explicit State Interfaces vs. `any`**: Component `useState` hooks must explicitly map to Prisma payload interfaces (e.g., `StockWithProduct[]`, `CustomerWithBalance[]`) rather than `any[]`. This guarantees that components will fail safely at compile-time (`npx tsc`) if backend relation structures or schemas change, preventing silent runtime masking.

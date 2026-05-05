@@ -11,10 +11,12 @@ import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useCSRF } from '@/contexts/CSRFContext'
 
 export default function UserManagement({ users, roles, branches, branchId, currentUser }: { users: any[], roles: any[], branches: any[], branchId?: string, currentUser: any }) {
     const t = useTranslations('UserManagement')
     const router = useRouter()
+    const { token: csrfToken } = useCSRF()
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -49,7 +51,10 @@ export default function UserManagement({ users, roles, branches, branchId, curre
         setLoading(true)
         const data = Object.fromEntries(formData)
         if (!data.name || data.name === '') data.name = data.username
-        const phone = data.phone as string;
+        const rawPhone = data.phone as string;
+        const phone = rawPhone?.trim().replace(/\s+/g, '');
+        if (phone) formData.set('phone', phone); // Update formData with cleaned phone
+
         if (!bypassLinkCheck && phone && phone.length === 11) {
             const needsCheck = !editingUser || editingUser.phone !== phone;
             if (needsCheck) {
@@ -75,6 +80,24 @@ export default function UserManagement({ users, roles, branches, branchId, curre
             router.refresh()
             toast.success(editingUser ? t('success.updated') : t('success.created'))
         } else {
+            // Handle specific phone collision error code
+            if (res.code === 'PHONE_IN_USE') {
+                // If it's a customer, we can offer to link
+                const usedBy = (res as any).usedBy;
+                const entityId = (res as any).entityId;
+                const entityName = (res as any).entityName || usedBy;
+
+                if (usedBy === 'CUSTOMER') {
+                    // Try to fetch customer details for a better prompt
+                    const linkCheck = await checkPhoneLink(phone);
+                    setConfirmLinkModal({ 
+                        isOpen: true, 
+                        customer: linkCheck.exists ? linkCheck.customer : { name: entityName, id: entityId }, 
+                        formData 
+                    });
+                    return;
+                }
+            }
             toast.error(res.error || t(editingUser ? 'errors.updateError' : 'errors.createError'))
         }
     }
@@ -242,7 +265,10 @@ export default function UserManagement({ users, roles, branches, branchId, curre
                 onClose={() => { setIsModalOpen(false); setShowPassword(false); }}
                 title={editingUser ? t('editUser') : t('addUser')}
             >
-                <form action={handleSubmit} className="space-y-6">
+                <form action={async (formData) => {
+                    if (csrfToken) formData.append('csrfToken', csrfToken);
+                    await handleSubmit(formData);
+                }} className="space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">{t('name')}</label>

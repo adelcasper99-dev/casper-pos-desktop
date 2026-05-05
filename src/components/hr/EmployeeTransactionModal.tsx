@@ -7,7 +7,8 @@ import {
     DialogContent, 
     DialogHeader, 
     DialogTitle, 
-    DialogFooter 
+    DialogFooter,
+    DialogDescription
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -125,6 +126,9 @@ export default function EmployeeTransactionModal({
                         {transaction ? <Pencil className="w-5 h-5 text-cyan-400" /> : <Plus className="w-5 h-5 text-cyan-400" />}
                         {transaction ? 'تعديل حركة مالية' : 'إضافة حركة مالية جديدة'}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        تسجيل معاملة مالية على حساب الموظف.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-5 py-4">

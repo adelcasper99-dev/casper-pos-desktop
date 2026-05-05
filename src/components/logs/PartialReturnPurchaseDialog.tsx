@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
     Dialog, DialogContent,
-    DialogHeader, DialogTitle, DialogFooter
+    DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,17 +102,17 @@ export default function PartialReturnPurchaseDialog({
                 const updatedItems = items.map((i: any) => {
                     const r = returnData.find(ri => ri.itemId === i.id);
                     if (r) {
-                        return { ...i, quantity: i.quantity - r.quantity };
+                        return { ...i, quantity: Number(i.quantity) - r.quantity };
                     }
                     return i;
                 }).filter((i: any) => i.quantity > 0);
 
                 onReturnDone(
                     purchase.id,
-                    res.returnedAmount || totalToReturn,
+                    Number(res.returnedAmount) || totalToReturn,
                     !!res.allReturned,
                     returnedDetails,
-                    res.newTotal || 0,
+                    Number(res.newTotal) || 0,
                     updatedItems
                 );
                 onClose();
@@ -140,6 +140,9 @@ export default function PartialReturnPurchaseDialog({
                                 #{purchase.id.slice(0, 8).toUpperCase()}
                             </Badge>
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            اختر الأصناف وكمياتها لإتمام مرتجع المشتريات الجزئي.
+                        </DialogDescription>
                     </DialogHeader>
                 </div>
 
@@ -161,8 +164,8 @@ export default function PartialReturnPurchaseDialog({
                         const actualStock = stockInWarehouse ? Number(stockInWarehouse.quantity) : 0;
 
                         // The real max returnable = min(invoice remaining, actual stock)
-                        const availableQty = Math.min(invoiceAvailable, actualStock);
-                        const soldQty = Math.max(0, invoiceAvailable - actualStock);
+                        const availableQty = Math.min(Number(invoiceAvailable), Number(actualStock));
+                        const soldQty = Math.max(0, Number(invoiceAvailable) - Number(actualStock));
                         const isSelected = selectedItems[item.id] > 0;
 
                         if (invoiceAvailable <= 0) return null;
@@ -199,7 +202,7 @@ export default function PartialReturnPurchaseDialog({
                                         </span>
                                         <span className="w-1 h-1 rounded-full bg-border" />
                                         <span className="text-[10px] text-orange-600 dark:text-orange-400 font-black uppercase tracking-tighter">
-                                            المتاح: {availableQty} وحدة
+                                            المتاح: {Number(availableQty)} وحدة
                                         </span>
                                     </div>
                                 </div>
@@ -210,7 +213,7 @@ export default function PartialReturnPurchaseDialog({
                                         variant="ghost"
                                         size="icon"
                                         className="h-10 w-10 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10 rounded-xl active:scale-95 transition-all"
-                                        onClick={() => handleUpdateQty(item.id, -1, availableQty)}
+                                        onClick={() => handleUpdateQty(item.id, -1, Number(availableQty))}
                                     >
                                         <Minus className="w-4 h-4" />
                                     </Button>
@@ -223,7 +226,7 @@ export default function PartialReturnPurchaseDialog({
                                         variant="ghost"
                                         size="icon"
                                         className="h-10 w-10 text-orange-500 hover:bg-orange-500/10 rounded-xl active:scale-95 transition-all"
-                                        onClick={() => handleUpdateQty(item.id, 1, availableQty)}
+                                        onClick={() => handleUpdateQty(item.id, 1, Number(availableQty))}
                                     >
                                         <Plus className="w-4 h-4" />
                                     </Button>
@@ -248,7 +251,7 @@ export default function PartialReturnPurchaseDialog({
                         <div className="flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 opacity-60">سيتم خصم مالي بقيمة</span>
                             <span className="text-3xl font-black font-mono text-orange-600 dark:text-orange-400">
-                                {totalToReturn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                {Number(totalToReturn).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                         </div>
 

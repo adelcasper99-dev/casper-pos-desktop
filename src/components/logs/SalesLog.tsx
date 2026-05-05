@@ -23,7 +23,7 @@ import {
 import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker';
 import {
     Dialog, DialogContent, DialogHeader,
-    DialogTitle, DialogFooter
+    DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
@@ -156,9 +156,9 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
                     ...originalSale,
                     id: `refund-${saleId}`,
                     status: 'REFUNDED',
-                    totalAmount: -(res.refundedAmount ?? originalSale.totalAmount),
-                    taxAmount: -originalSale.taxAmount,
-                    subTotal: -originalSale.subTotal,
+                    totalAmount: -(res.refundedAmount ?? Number(originalSale.totalAmount)),
+                    taxAmount: -Number(originalSale.taxAmount),
+                    subTotal: -Number(originalSale.subTotal),
                     createdAt: new Date().toISOString(),
                     refundReason: data.reason || 'مرتجع',
                     _isRefundEntry: true,
@@ -235,7 +235,7 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
         const itemsHtml = (sale.items || []).map((item: any) => `
             <div class="item">
                 <span class="item-name">${formatArabicPrintText(item.product?.name || 'صنف')} x${item.quantity}</span>
-                <span class="price">${(Number(item.unitPrice) * item.quantity).toFixed(2)}</span>
+                <span class="price">${(Number(item.unitPrice) * Number(item.quantity)).toFixed(2)}</span>
             </div>
         `).join('');
 
@@ -636,6 +636,9 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             #{selectedSale.invoiceNumber || selectedSale.id.slice(0, 8).toUpperCase()}
                                         </Badge>
                                     </DialogTitle>
+                                    <DialogDescription className="sr-only">
+                                        عرض تفاصيل فاتورة البيع.
+                                    </DialogDescription>
                                 </DialogHeader>
 
                                 <div className="grid grid-cols-2 gap-4">
@@ -670,12 +673,12 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                                 <div className="flex-1">
                                                     <div className="font-black text-sm text-foreground">{item.product?.name || "صنف غير محدد"}</div>
                                                     <div className="text-[11px] text-muted-foreground font-mono mt-0.5 opacity-80">
-                                                        {item.quantity} وحدة <span className="mx-1.5 opacity-30">×</span> {Number(item.unitPrice).toLocaleString()} ج.م
+                                                        {Number(item.quantity)} وحدة <span className="mx-1.5 opacity-30">×</span> {Number(item.unitPrice).toLocaleString()} ج.م
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="font-mono font-black text-primary text-sm">
-                                                        {(item.quantity * Number(item.unitPrice)).toLocaleString()}
+                                                        {(Number(item.quantity) * Number(item.unitPrice)).toLocaleString()}
                                                     </div>
                                                     <div className="text-[9px] font-black uppercase text-muted-foreground opacity-40">صافي الصنف</div>
                                                 </div>
@@ -689,7 +692,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                     <div className="grid grid-cols-2 gap-y-3">
                                         <div className="flex justify-between items-center text-muted-foreground text-xs px-2">
                                             <span className="font-medium opacity-60 uppercase tracking-widest text-[10px]">المجموع قبل الخصم</span>
-                                            <span className="font-bold italic">{formatCurrency(selectedSale.subTotal)}</span>
+                                            <span className="font-bold italic">{formatCurrency(Number(selectedSale.subTotal))}</span>
                                         </div>
                                         <div className="flex justify-between items-center text-xs px-2 border-r border-border ml-2 pl-4">
                                             <span className="font-medium text-muted-foreground opacity-60 uppercase tracking-widest text-[10px]">طريقة السداد</span>
@@ -700,13 +703,13 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                         {Number(selectedSale.discountAmount) > 0 && (
                                             <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 text-xs px-2 col-span-2 bg-emerald-500/5 py-1.5 rounded-lg border border-emerald-500/10">
                                                 <span className="font-black uppercase tracking-widest text-[10px]">قيمة الخصم التجاري</span>
-                                                <span className="font-black">-{formatCurrency(selectedSale.discountAmount)}</span>
+                                                <span className="font-black">-{formatCurrency(Number(selectedSale.discountAmount))}</span>
                                             </div>
                                         )}
                                         {Number(selectedSale.taxAmount) > 0 && (
                                             <div className="flex justify-between items-center text-muted-foreground text-xs px-2 col-span-2 pt-1 border-t border-border mt-1">
                                                 <span className="font-black uppercase tracking-widest text-[10px] opacity-60">الضرائب المضافة</span>
-                                                <span className="font-bold">+{formatCurrency(selectedSale.taxAmount)}</span>
+                                                <span className="font-bold">+{formatCurrency(Number(selectedSale.taxAmount))}</span>
                                             </div>
                                         )}
                                     </div>
@@ -718,7 +721,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                         </div>
                                         <div className="text-right">
                                             <div className="text-4xl font-black font-mono tracking-tighter text-primary">
-                                                {selectedSale.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                {Number(selectedSale.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 <span className="text-xs font-bold text-muted-foreground mr-1.5 opacity-50 uppercase tracking-tighter">jod/egp</span>
                                             </div>
                                         </div>

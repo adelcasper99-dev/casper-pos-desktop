@@ -631,7 +631,8 @@ export const getEmployeesForLink = secureAction(async () => {
     try {
         const users = await prisma.user.findMany({
             where: { deletedAt: null },
-            select: { id: true, name: true, username: true }
+            select: { id: true, name: true, username: true },
+            take: 100 // Safety limit for linking dropdown
         });
 
         return {

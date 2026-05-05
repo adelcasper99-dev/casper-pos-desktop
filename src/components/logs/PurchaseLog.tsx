@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table';
 import {
     Dialog, DialogContent, DialogHeader,
-    DialogTitle, DialogFooter
+    DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker';
 import { toast } from 'sonner';
@@ -152,7 +152,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                     name: item.product?.name || item.name || "N/A",
                     sku: item.product?.sku || item.sku || "N/A",
                     unitCost: Number(item.unitCost),
-                    quantity: item.quantity
+                    quantity: Number(item.quantity)
                 })),
                 totalAmount: Number(inv.totalAmount),
                 paidAmount: Number(inv.paidAmount),
@@ -214,6 +214,8 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     };
 
     const getStatusBadge = (status: string, total: number, paid: number, isReturn?: boolean) => {
+        const numTotal = Number(total);
+        const numPaid = Number(paid);
         if (isReturn || ['VOIDED', 'CANCELLED', 'RETURNED'].includes(status)) return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
                 <XCircle className="w-3 h-3" /> {isReturn ? 'فاتورة مرتجع' : (['VOIDED', 'CANCELLED'].includes(status) ? 'ملغاة (مسترد)' : 'مرتجع كلي')}
@@ -226,13 +228,13 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             </span>
         );
 
-        if (paid >= total) return (
+        if (numPaid >= numTotal) return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
                 <CheckCircle2 className="w-3 h-3" /> مدفوعة
             </span>
         );
 
-        if (paid > 0) return (
+        if (numPaid > 0) return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
                 <AlertCircle className="w-3 h-3" /> جزئية
             </span>
@@ -590,6 +592,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                         {selectedPurchase.invoiceNumber || `#${selectedPurchase.id.slice(0, 8).toUpperCase()}`}
                                     </Badge>
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    عرض تفاصيل فاتورة الشراء.
+                                </DialogDescription>
                             </DialogHeader>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -624,12 +629,12 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             <div className="flex-1">
                                                 <div className="font-black text-sm text-foreground">{item.product?.name || "صنف غير محدد"}</div>
                                                 <div className="text-[11px] text-muted-foreground font-mono mt-0.5 opacity-80">
-                                                    {item.quantity} وحدة {item.unitCost ? <span className="mx-1.5 opacity-30">×</span> : ''} {item.unitCost ? Number(item.unitCost).toLocaleString() : ''}
+                                                    {Number(item.quantity)} وحدة {item.unitCost ? <span className="mx-1.5 opacity-30">×</span> : ''} {item.unitCost ? Number(item.unitCost).toLocaleString() : ''}
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="font-mono font-black text-secondary text-sm">
-                                                    {(item.quantity * Number(item.unitCost || 0)).toLocaleString()}
+                                                    {(Number(item.quantity) * Number(item.unitCost || 0)).toLocaleString()}
                                                 </div>
                                                 <div className="text-[9px] font-black uppercase text-muted-foreground opacity-40">صافي التكلفة</div>
                                             </div>
@@ -643,7 +648,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                 <div className="grid grid-cols-2 gap-y-3">
                                     <div className="flex justify-between items-center text-muted-foreground text-xs px-2">
                                         <span className="font-medium opacity-60 uppercase tracking-widest text-[10px]">إجمالي الفاتورة</span>
-                                        <span className="font-bold italic">{formatCurrency(selectedPurchase.totalAmount)}</span>
+                                        <span className="font-bold italic">{formatCurrency(Number(selectedPurchase.totalAmount))}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs px-2 border-r border-border ml-2 pl-4">
                                         <span className="font-medium text-muted-foreground opacity-60 uppercase tracking-widest text-[10px]">الحالة المالية</span>
@@ -656,7 +661,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                     </div>
                                     <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 text-xs px-2 col-span-2 pt-1 border-t border-border mt-1">
                                         <span className="font-black uppercase tracking-widest text-[10px] opacity-60">المدفوع للمورد</span>
-                                        <span className="font-black">+{formatCurrency(selectedPurchase.paidAmount)}</span>
+                                        <span className="font-black">+{formatCurrency(Number(selectedPurchase.paidAmount))}</span>
                                     </div>
                                 </div>
 
@@ -718,7 +723,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                     }))}
                     initialQuantities={selectedPurchase.items.reduce((acc: any, item: any) => {
                         const id = item.productId || item.product?.id || `temp-${item.sku}`;
-                        acc[id] = item.quantity;
+                        acc[id] = Number(item.quantity);
                         return acc;
                     }, {})}
                     onClose={() => setShowBarcodePrint(false)}

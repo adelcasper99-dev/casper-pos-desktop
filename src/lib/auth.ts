@@ -57,7 +57,7 @@ export async function getSession() {
     const token = cookieStore.get("session")?.value;
 
     if (process.env.NODE_ENV === 'development') {
-        console.log(`[AUTH DEBUG] Token from cookie: ${token ? 'Found' : 'MISSING'}`);
+        console.log(`[AUTH DEBUG] getSession() - Token in cookie: ${token ? 'Found' : 'MISSING'}`);
     }
 
     if (!token) return null;
@@ -70,44 +70,40 @@ export async function getSession() {
                 username: 'a',
                 name: 'Super Admin',
                 role: 'ADMIN',
-                branchId: null, // or fetch main branch
+                branchId: null,
                 permissions: ['*'],
                 maxDiscount: 100,
                 maxDiscountAmount: 9999999
-            } as UserSession
+            }
         };
     }
 
-    // Eager load user and branch if needed
-    const session = await prisma.session.findUnique({
-        where: { token },
-        include: {
-            user: {
-                include: {
-                    role: true
-                }
-            }
-        }
-    });
+    let session: any = null;
+    try {
+        session = await prisma.session.findUnique({
+            where: { token },
+            include: { user: { include: { role: true } } },
+        });
 
-
-    // Handle expired, not found, or frozen
-    if (!session || session.expiresAt < new Date() || session.user.isFrozen) {
-        if (session?.user.isFrozen && process.env.NODE_ENV === 'development') {
-            console.log(`[AUTH DEBUG] User ${session.user.username} is FROZEN. Blocking session.`);
+        if (!session) {
+            console.warn(`[AUTH DEBUG] Session token found in cookie but not in DB. This usually happens after a DB push/reset.`);
+            return null;
         }
 
-        // Use try-catch because cookies() might be unavailable in some contexts
-        try {
-            const cookieStore = cookies();
-            cookieStore.delete("session");
-            if (session) {
-                await prisma.session.deleteMany({ where: { token } });
-            }
-        } catch (e) {
-            // Silently ignore if cookies cannot be deleted (e.g. static rendering)
+        if (session.expiresAt < new Date()) {
+            console.warn(`[AUTH DEBUG] Session expired. Deleting cookie.`);
+            try { cookies().delete("session"); } catch (e) {}
+            return null;
         }
 
+        if (session.user.isFrozen) {
+            console.warn(`[AUTH DEBUG] User is frozen. Deleting cookie.`);
+            try { cookies().delete("session"); } catch (e) {}
+            return null;
+        }
+    } catch (dbError) {
+        // SEC-V10: Prevent silent cookie deletion on transient DB errors (locks, busy)
+        console.error(`[AUTH DEBUG] Database error during session lookup. PRESERVING cookie for retry.`, dbError);
         return null;
     }
 
@@ -189,7 +185,7 @@ export async function requirePermission(permission: string, fallbackRoute: strin
         return user;
     }
 
-    if (!hasPermission(user.permissions, permission)) {
+    if (!hasPermission(user.permissions || [], permission)) {
         redirect(fallbackRoute);
     }
 

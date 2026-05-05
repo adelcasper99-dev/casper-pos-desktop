@@ -188,7 +188,7 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
                 // Move balance if possible (simplified here to just cleanup duplicates)
                 const duplicates = allTreasuries.filter(x => (x.name === t.name || x.paymentMethod === t.paymentMethod) && x.id !== t.id);
                 for (const d of duplicates) {
-                    await prisma.treasury.delete({ where: { id: d.id } });
+                    await prisma.treasury.deleteMany({ where: { id: d.id } });
                 }
             }
         }

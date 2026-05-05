@@ -31,31 +31,31 @@ export interface GridRow {
     isNewModel?: boolean;
     isNewAttribute?: boolean;
     unit: string;
-    quantity: number;
-    unitPrice: number;
-    subTotal: number;
+    quantity: number | string;
+    unitPrice: number | string;
+    subTotal: number | string;
     // Carry-over for submission
-    sellPrice?: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
+    sellPrice?: number | string;
+    sellPrice2?: number | string;
+    sellPrice3?: number | string;
     isNew: boolean;
     isDevice?: boolean;
     deviceType?: string;
     condition?: string;
     imei?: string;
     unitOfMeasureId?: string;
-    conversionFactor: number;
+    conversionFactor: number | string;
 }
 
 interface ProductOption {
     id: string;
     name: string;
     sku: string;
-    costPrice: number;
-    sellPrice: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
-    stock: number;
+    costPrice: number | string;
+    sellPrice: number | string;
+    sellPrice2?: number | string;
+    sellPrice3?: number | string;
+    stock: number | string;
 }
 
 interface CategoryOption {
@@ -123,8 +123,8 @@ function createEmptyRow(): GridRow {
     };
 }
 
-function computeSubTotal(qty: number, price: number): number {
-    return Math.round(qty * price * 100) / 100;
+function computeSubTotal(qty: number | string, price: number | string): number {
+    return Math.round(Number(qty) * Number(price) * 100) / 100;
 }
 
 // Returns the next editable col, skipping categoryId for existing products
@@ -963,7 +963,7 @@ function ItemDropdown({ query, products, searchBy, onSelectExisting, onQuickCrea
                         <div className="text-[10px] text-muted-foreground font-mono">{p.sku}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                        <div className={clsx("text-xs font-bold font-mono", p.stock > 0 ? "text-cyan-500" : "text-rose-500")}>{p.stock}</div>
+                        <div className={clsx("text-xs font-bold font-mono", Number(p.stock) > 0 ? "text-cyan-500" : "text-rose-500")}>{p.stock}</div>
                         <div className="text-[9px] text-muted-foreground uppercase">مخزون</div>
                     </div>
                 </button>
@@ -1488,10 +1488,10 @@ export function PurchaseDataGrid({
                 const next = nextEditableCol(col, row?.isNew ?? false);
                 if (!next) {
                     // Validation: Sell price must not be less than cost price
-                    if (row.unitPrice > 0 && (
-                        ((row.sellPrice || 0) > 0 && (row.sellPrice || 0) < row.unitPrice) ||
-                        ((row.sellPrice2 || 0) > 0 && (row.sellPrice2 || 0) < row.unitPrice) ||
-                        ((row.sellPrice3 || 0) > 0 && (row.sellPrice3 || 0) < row.unitPrice)
+                    if (Number(row.unitPrice) > 0 && (
+                        (Number(row.sellPrice || 0) > 0 && Number(row.sellPrice || 0) < Number(row.unitPrice)) ||
+                        (Number(row.sellPrice2 || 0) > 0 && Number(row.sellPrice2 || 0) < Number(row.unitPrice)) ||
+                        (Number(row.sellPrice3 || 0) > 0 && Number(row.sellPrice3 || 0) < Number(row.unitPrice))
                     )) {
                         toast.error("تنبيه: سعر البيع أقل من سعر التكلفة! يرجى مراجعة الأسعار قبل إضافة سطر جديد.");
                         focusInput(rowIdx, "sellPrice");
@@ -2084,16 +2084,16 @@ export function PurchaseDataGrid({
                                      type="number"
                                      min="0"
                                      step="1"
-                                     value={row.quantity === 0 && focusCell?.[0] !== rowIdx ? "" : row.quantity}
+                                     value={Number(row.quantity) === 0 && focusCell?.[0] !== rowIdx ? "" : row.quantity}
                                      placeholder="1"
                                      className="font-black font-mono text-center"
                                      onChange={(e) => updateRow(rowIdx, { quantity: parseFloat(e.target.value) || 0 })}
                                      onFocus={(e) => { setFocusCell([rowIdx, "quantity"]); e.target.select(); }}
                                      onKeyDown={(e) => handleKeyDown(e, rowIdx, "quantity")}
                                  />
-                                 {row.conversionFactor > 1 && row.quantity > 0 && (
+                                 {Number(row.conversionFactor) > 1 && Number(row.quantity) > 0 && (
                                      <span className="text-[9px] font-black text-emerald-500 animate-in fade-in slide-in-from-top-1 text-center">
-                                         {row.quantity * row.conversionFactor} قطعة
+                                         {Number(row.quantity) * Number(row.conversionFactor)} قطعة
                                      </span>
                                  )}
                              </div>
@@ -2105,12 +2105,12 @@ export function PurchaseDataGrid({
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    value={row.unitPrice === 0 && focusCell?.[0] !== rowIdx ? "" : row.unitPrice}
+                                    value={Number(row.unitPrice) === 0 && focusCell?.[0] !== rowIdx ? "" : row.unitPrice}
                                     placeholder="0.00"
                                     className="font-black font-mono text-end"
                                     onChange={(e) => {
                                         const val = parseFloat(e.target.value) || 0;
-                                        updateRow(rowIdx, { unitPrice: val, sellPrice: row.isNew && (row.sellPrice === 0 || !row.sellPrice) ? val : row.sellPrice });
+                                        updateRow(rowIdx, { unitPrice: val, sellPrice: row.isNew && (Number(row.sellPrice) === 0 || !row.sellPrice) ? val : row.sellPrice });
                                     }}
                                     onFocus={(e) => { setFocusCell([rowIdx, "unitPrice"]); e.target.select(); }}
                                     onKeyDown={(e) => handleKeyDown(e, rowIdx, "unitPrice")}
@@ -2124,11 +2124,11 @@ export function PurchaseDataGrid({
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    value={row.sellPrice === 0 && focusCell?.[0] !== rowIdx ? "" : row.sellPrice}
+                                    value={Number(row.sellPrice) === 0 && focusCell?.[0] !== rowIdx ? "" : row.sellPrice}
                                     placeholder="0.00"
                                     className={clsx(
                                         "font-black font-mono text-end text-violet-500",
-                                        (row.sellPrice || 0) > 0 && (row.sellPrice || 0) < row.unitPrice && "bg-rose-500/20 text-rose-600 animate-pulse ring-1 ring-rose-500/50"
+                                        Number(row.sellPrice || 0) > 0 && Number(row.sellPrice || 0) < Number(row.unitPrice) && "bg-rose-500/20 text-rose-600 animate-pulse ring-1 ring-rose-500/50"
                                     )}
                                     onChange={(e) => updateRow(rowIdx, { sellPrice: parseFloat(e.target.value) || 0 })}
                                     onFocus={(e) => { setFocusCell([rowIdx, "sellPrice"]); e.target.select(); }}
@@ -2147,7 +2147,7 @@ export function PurchaseDataGrid({
                                     placeholder="0.00"
                                     className={clsx(
                                         "font-black font-mono text-end text-amber-500",
-                                        (row.sellPrice2 || 0) > 0 && (row.sellPrice2 || 0) < row.unitPrice && "bg-rose-500/20 text-rose-600 animate-pulse ring-1 ring-rose-500/50"
+                                        Number(row.sellPrice2 || 0) > 0 && Number(row.sellPrice2 || 0) < Number(row.unitPrice) && "bg-rose-500/20 text-rose-600 animate-pulse ring-1 ring-rose-500/50"
                                     )}
                                     onChange={(e) => updateRow(rowIdx, { sellPrice2: parseFloat(e.target.value) || 0 })}
                                     onFocus={(e) => { setFocusCell([rowIdx, "sellPrice2"]); e.target.select(); }}
@@ -2166,7 +2166,7 @@ export function PurchaseDataGrid({
                                     placeholder="0.00"
                                     className={clsx(
                                         "font-black font-mono text-end text-rose-500",
-                                        (row.sellPrice3 || 0) > 0 && (row.sellPrice3 || 0) < row.unitPrice && "bg-rose-500/20 text-rose-600 animate-pulse ring-1 ring-rose-500/50"
+                                        Number(row.sellPrice3 || 0) > 0 && Number(row.sellPrice3 || 0) < Number(row.unitPrice) && "bg-rose-500/20 text-rose-600 animate-pulse ring-1 ring-rose-500/50"
                                     )}
                                     onChange={(e) => updateRow(rowIdx, { sellPrice3: parseFloat(e.target.value) || 0 })}
                                     onFocus={(e) => { setFocusCell([rowIdx, "sellPrice3"]); e.target.select(); }}
@@ -2178,9 +2178,9 @@ export function PurchaseDataGrid({
                             <div className={clsx(CELL_CLS, "flex items-center justify-end px-3")}>
                                 <span className={clsx(
                                     "text-xs font-black font-mono tabular-nums",
-                                    row.subTotal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/25"
+                                    Number(row.subTotal) > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/25"
                                 )}>
-                                    {row.subTotal > 0 ? row.subTotal.toFixed(2) : "—"}
+                                    {Number(row.subTotal) > 0 ? Number(row.subTotal).toFixed(2) : "—"}
                                 </span>
                             </div>
 
@@ -2209,10 +2209,10 @@ export function PurchaseDataGrid({
                     className="h-9 px-4 border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white font-black rounded-xl gap-2 hover:bg-slate-50 dark:hover:bg-white/5 transition-all active:scale-95"
                     onClick={() => {
                         const lastRow = rows[rows.length - 1];
-                        if (lastRow && lastRow.unitPrice > 0 && (
-                            ((lastRow.sellPrice || 0) > 0 && (lastRow.sellPrice || 0) < lastRow.unitPrice) ||
-                            ((lastRow.sellPrice2 || 0) > 0 && (lastRow.sellPrice2 || 0) < lastRow.unitPrice) ||
-                            ((lastRow.sellPrice3 || 0) > 0 && (lastRow.sellPrice3 || 0) < lastRow.unitPrice)
+                        if (lastRow && Number(lastRow.unitPrice) > 0 && (
+                            (Number(lastRow.sellPrice || 0) > 0 && Number(lastRow.sellPrice || 0) < Number(lastRow.unitPrice)) ||
+                            (Number(lastRow.sellPrice2 || 0) > 0 && Number(lastRow.sellPrice2 || 0) < Number(lastRow.unitPrice)) ||
+                            (Number(lastRow.sellPrice3 || 0) > 0 && Number(lastRow.sellPrice3 || 0) < Number(lastRow.unitPrice))
                         )) {
                             toast.error("يرجى تصحيح سعر البيع في السطر الأخير قبل إضافة سطر جديد");
                             focusInput(rows.length - 1, "sellPrice");
@@ -2237,7 +2237,7 @@ export function PurchaseDataGrid({
                         <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">إجمالي المشتريات</span>
                         <div className="flex items-baseline gap-1">
                             <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-                                {rows.reduce((sum, r) => sum + r.subTotal, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                {rows.reduce((sum, r) => sum + Number(r.subTotal), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                             <span className="text-[10px] font-black text-zinc-500">EGP</span>
                         </div>
@@ -2297,7 +2297,7 @@ export function PurchaseDataGrid({
 
 export function gridRowsToCartItems(rows: GridRow[]): InvoiceItem[] {
     return rows
-        .filter((r) => r.itemName.trim() !== "" && (r.quantity > 0 || r.unitPrice > 0))
+        .filter((r) => r.itemName.trim() !== "" && (Number(r.quantity) > 0 || Number(r.unitPrice) > 0))
         .map((r) => ({
             id: r.id,
             productId: r.productId,
@@ -2362,7 +2362,7 @@ export function validateGridRows(rows: GridRow[]): string | null {
         return `يجب اختيار الفئة للأصناف الجديدة: ${names}`;
     }
 
-    const zeroPrice = filledRows.filter((r) => r.unitPrice <= 0);
+    const zeroPrice = filledRows.filter((r) => Number(r.unitPrice) <= 0);
     if (zeroPrice.length > 0) {
         return `يجب إدخال سعر التكلفة لجميع الأصناف`;
     }

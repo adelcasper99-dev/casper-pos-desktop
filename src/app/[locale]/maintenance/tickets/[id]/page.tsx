@@ -319,7 +319,10 @@ export default function TicketDetailPage() {
         // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
         const autoPrintEnabled = settings?.autoPrintTicket === true;
         console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
-        if (autoPrintEnabled && ticket && !hasPrinted) {
+        
+        const alreadyPrinted = ticket?.id && sessionStorage.getItem(`ticket_autoprint_${ticket.id}`);
+
+        if (autoPrintEnabled && ticket && !hasPrinted && !alreadyPrinted) {
             console.log('[AutoPrint] ✓ Triggering from settings');
             setIsSilentPrint(true);
             setShowPrintOptions(true);
@@ -775,11 +778,8 @@ export default function TicketDetailPage() {
                                                         <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
                                                             {metadata.triggeredStatus ? `تحديث الحالة إلى: ${metadata.triggeredStatus}` : 'إشعار مخصص للمحافظة على العميل'}
                                                         </p>
-                                                        {metadata.riskLevel && (
+                                                        {metadata.gapHours !== undefined && (
                                                             <div className="flex items-center gap-3 mt-2">
-                                                                <Badge className={cn("text-[9px] px-2 py-0", metadata.riskLevel === 'high' ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500")}>
-                                                                    Risk: {metadata.riskLevel}
-                                                                </Badge>
                                                                 <span className="text-[9px] text-slate-500 dark:text-zinc-500">Gap: {metadata.gapHours}h</span>
                                                             </div>
                                                         )}
@@ -825,11 +825,17 @@ export default function TicketDetailPage() {
                                         toast.error("يرجى ربط العميل أولاً لإرسال إشعارات تلقائية");
                                         return;
                                     }
-                                    const template = getStatusTemplate(ticket.status, 'ar');
+                                    const template = getStatusTemplate(ticket.status, 'ar', settings?.whatsappTemplates);
+                                    if (!template) {
+                                        toast.error("هذا النوع من الرسائل معطل حالياً من الإعدادات");
+                                        return;
+                                    }
                                     const url = generateWhatsAppUrl(ticket.customer.phone, template, {
                                         name: ticket.customer.name,
                                         device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
-                                        barcode: ticket.barcode, branch: 'الفرع الرئيسي', issue: ticket.issueDescription
+                                        barcode: ticket.barcode, 
+                                        branch: settings?.name || 'الفرع الرئيسي', 
+                                        issue: ticket.issueDescription
                                     });
                                     window.open(url, '_blank');
                                 }}
@@ -974,6 +980,7 @@ export default function TicketDetailPage() {
                                     user={user} 
                                     onUpdate={loadData}
                                     onReject={['ADMIN', 'مدير النظام', 'المالك'].includes(user?.role) ? () => setShowRejectModal(true) : undefined}
+                                    whatsappTemplates={settings?.whatsappTemplates}
                                 />
                             </div>
                         </div>
@@ -991,12 +998,7 @@ export default function TicketDetailPage() {
                                         <span className="font-mono text-slate-800 dark:text-zinc-300">{ticket.gap || '--:--'}</span>
                                     </div>
                                 </DataRow>
-                                <DataRow label="تقدير المخاطرة الحالي">
-                                    <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${ticket.riskLevel === 'high' ? 'text-red-500' : (ticket.riskLevel === 'medium' ? 'text-orange-400' : 'text-emerald-400')}`}>
-                                        <div className={`w-2 h-2 rounded-full ${ticket.riskLevel === 'high' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : (ticket.riskLevel === 'medium' ? 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]')}`} />
-                                        {ticket.riskLevel === 'high' ? 'High Risk' : (ticket.riskLevel === 'medium' ? 'Medium' : 'Safe')}
-                                    </div>
-                                </DataRow>
+
                                 <div className="pt-4 border-t-2 border-slate-300 dark:border-zinc-700 mt-4 space-y-2">
                                     <div className="flex items-center justify-between px-1">
                                         <label className="text-[9px] font-black uppercase text-slate-500 dark:text-zinc-600 tracking-widest">الفني المسؤول</label>

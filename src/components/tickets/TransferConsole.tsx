@@ -61,6 +61,20 @@ type TransferItem = {
     priceTier?: string;
 };
 
+export interface StockWithProduct {
+    id: string;
+    productId: string;
+    quantity: number;
+    product: {
+        name: string;
+        sku: string;
+        costPrice: number | string;
+        sellPrice: number | string;
+        sellPrice2?: number | string;
+        sellPrice3?: number | string;
+    };
+}
+
 type TransferConsoleProps = {
     isOpen: boolean;
     onClose: () => void;
@@ -83,7 +97,7 @@ export default function TransferConsole({
     const t = useTranslations('Tickets.engineers.transfer');
     const [sourceId, setSourceId] = useState<string>(initialSourceId || '');
     const [destinationId, setDestinationId] = useState<string>('');
-    const [sourceItems, setSourceItems] = useState<any[]>([]);
+    const [sourceItems, setSourceItems] = useState<StockWithProduct[]>([]);
     const [stagingItems, setStagingItems] = useState<TransferItem[]>([]);
     const [loadingSource, setLoadingSource] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -139,7 +153,7 @@ export default function TransferConsole({
         );
     }, [sourceItems, searchQuery]);
 
-    const addToStaging = (item: any) => {
+    const addToStaging = (item: StockWithProduct) => {
         setStagingItems(prev => {
             const existing = prev.find(p => p.id === item.id);
             if (existing) {
@@ -230,7 +244,7 @@ export default function TransferConsole({
         }
     };
 
-    const totalItems = stagingItems.reduce((acc, item) => acc + item.transferQty, 0);
+    const totalItems = stagingItems.reduce((acc, item) => acc + Number(item.transferQty), 0);
 
     return (
         <GlassModal

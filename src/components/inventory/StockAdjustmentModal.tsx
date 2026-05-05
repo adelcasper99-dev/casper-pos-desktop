@@ -12,8 +12,8 @@ interface Product {
     id: string;
     sku: string;
     name: string;
-    stock: number;
-    costPrice: number;
+    stock: number | string;
+    costPrice: number | string;
 }
 
 interface StockAdjustmentModalProps {

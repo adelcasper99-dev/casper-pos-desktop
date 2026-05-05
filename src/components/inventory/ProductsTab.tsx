@@ -39,38 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 
-interface Product {
-    id: string;
-    sku: string;
-    name: string;
-    stock: number;
-    costPrice: number;
-    sellPrice: number;
-    sellPrice2: number;
-    sellPrice3: number;
-    categoryId: string;
-    description: string | null;
-    createdAt: string;
-    updatedAt: string;
-    deletedAt: string | null;
-    archived: boolean;
-    minStock: number;
-    trackStock: boolean;
-    version: number;
-    unitOfMeasureId?: string | null;
-    unitCode?: string | null;
-    unitName?: string | null;
-    unitAbbreviation?: string | null;
-    modelId?: string | null;
-    modelName?: string | null;
-    attributeId?: string | null;
-    hasHistory?: boolean;
-}
-
-interface Category {
-    id: string;
-    name: string;
-}
+import { Product, Category } from "@/types/product";
 
 export default function ProductsTab({
     products: initialProducts,

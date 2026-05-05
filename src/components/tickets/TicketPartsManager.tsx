@@ -40,19 +40,19 @@ interface ProductData {
     name: string;
     sku: string;
     stock: number;
-    costPrice: number;
-    sellPrice: number;
+    costPrice: number | string;
+    sellPrice: number | string;
     trackStock: boolean;
-    sellPrice2?: number;
-    sellPrice3?: number;
+    sellPrice2?: number | string;
+    sellPrice3?: number | string;
 }
 
 interface TicketPart {
     id: string;
     productId: string | null;
     quantity: number;
-    cost: number;
-    price: number;
+    cost: number | string;
+    price: number | string;
     name?: string;
     status?: 'ACTIVE' | 'REFUNDED';
     isDamaged?: boolean;
@@ -164,7 +164,7 @@ export default function TicketPartsManager({
                     technicianId, 
                     productId: selectedProductId, 
                     quantity,
-                    transferPrice: priceValue,
+                    transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
                     transferPriceLabel: priceLabel,
                     csrfToken: csrfToken ?? undefined
                 });
@@ -193,15 +193,15 @@ export default function TicketPartsManager({
             // Determine Price based on Tier
             let unitPrice = 0;
             if (selectedProduct) {
-                if (selectedPriceTier === 'A') unitPrice = selectedProduct.sellPrice;
-                else if (selectedPriceTier === 'B') unitPrice = selectedProduct.sellPrice2 || selectedProduct.sellPrice;
-                else unitPrice = selectedProduct.sellPrice3 || selectedProduct.sellPrice;
+                if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
+                else if (selectedPriceTier === 'B') unitPrice = Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice);
+                else unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
             }
 
             // Determine Transfer Price (Cost to Engineer)
             let overrideTransferPrice = 0;
             if (selectedProduct) {
-                overrideTransferPrice = transferPriceChoice === 'COST' ? selectedProduct.costPrice : selectedProduct.sellPrice;
+                overrideTransferPrice = transferPriceChoice === 'COST' ? Number(selectedProduct.costPrice) : Number(selectedProduct.sellPrice);
             }
 
             setIsLoading(true);
@@ -592,9 +592,9 @@ export default function TicketPartsManager({
                                     <Label className="text-xs font-black text-muted-foreground mr-2">{t('priceTier')}</Label>
                                     <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
                                         {(['A', 'B', 'C'] as const).map((tier) => {
-                                            const price = tier === 'A' ? selectedProduct.sellPrice :
-                                                         tier === 'B' ? (selectedProduct.sellPrice2 || selectedProduct.sellPrice) :
-                                                         (selectedProduct.sellPrice3 || selectedProduct.sellPrice);
+                                            const price = tier === 'A' ? Number(selectedProduct.sellPrice) :
+                                                         tier === 'B' ? Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice) :
+                                                         Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
                                             
                                             const isSelected = selectedPriceTier === tier;
 

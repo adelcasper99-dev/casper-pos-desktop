@@ -35,6 +35,8 @@ import {
     type LucideIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import MoneyCounter from "@/components/shift/MoneyCounter";
 
 import { hasPermission, PERMISSIONS, PERMISSION_REGISTRY } from "@/lib/permissions";
 import { logout } from "@/actions/auth";
@@ -302,9 +304,37 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
             </nav>
 
             <div className="p-3 border-t-2 border-dashed border-zinc-300 dark:border-t dark:border-solid dark:border-white/5 space-y-2">
-                <div className={cn("flex gap-2 transition-all duration-300", isExpanded ? "flex-row" : "flex-col")}>
+                <div className={cn("flex gap-2 transition-all duration-300", isExpanded ? "flex-row" : "flex-col items-center")}>
                     <LanguageSwitcher />
                     <ModeToggle />
+                    
+                    {/* Money Counter Popover */}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                className={cn(
+                                    "flex items-center justify-center rounded-md transition-all duration-300 h-9 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
+                                    isExpanded ? "flex-1" : "w-10"
+                                )}
+                                title="Money Counter"
+                            >
+                                <Calculator className="w-4 h-4" />
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent 
+                            side={isExpanded ? "top" : "right"} 
+                            align="center" 
+                            className="w-80 p-0 border-none bg-transparent shadow-none"
+                        >
+                            <div className="glass-card bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-1 shadow-2xl rounded-2xl overflow-hidden">
+                                <MoneyCounter 
+                                    showToggle={false} 
+                                    defaultExpanded={true} 
+                                    currency="EGP" 
+                                />
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                     
                     {/* Offline Sync Badge */}
                     {(total > 0 || !isOnline) && (

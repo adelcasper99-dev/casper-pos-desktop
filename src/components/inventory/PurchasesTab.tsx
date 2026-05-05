@@ -37,79 +37,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-interface Product {
-    id: string;
-    name: string;
-    sku: string;
-    costPrice: number;
-    stock: number;
-    sellPrice: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
-}
-
-interface Supplier {
-    id: string;
-    name: string;
-    phone?: string | null;
-    address?: string | null;
-}
-
-interface Category {
-    id: string;
-    name: string;
-}
-
-interface Model {
-    id: string;
-    name: string;
-    categoryId: string;
-}
-
-interface PurchaseInvoice {
-    id: string;
-    invoiceNumber: string | null;
-    supplier: { name: string };
-    totalAmount: number;
-    paidAmount: number;
-    deliveryCharge: number;
-    status: string;
-    purchaseDate: Date;
-    paymentMethod?: string;
-    isReturn?: boolean;
-    branch?: { name: string };
-    warehouse?: {
-        name: string;
-        branch?: {
-            name: string;
-            code: string;
-        }
-    };
-    items?: any[];
-}
-
-interface Branch {
-    id: string;
-    name: string;
-    code: string;
-    type: string;
-}
-
-interface Warehouse {
-    id: string;
-    name: string;
-    address: string | null;
-    isDefault: boolean;
-    branchId: string;
-    branch: {
-        id: string;
-        name: string;
-        code: string;
-    };
-}
+import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse } from "@/types/product";
 
 export default function PurchasesTab({
     suppliers,
@@ -544,8 +475,8 @@ export default function PurchasesTab({
         });
 
     const stats = {
-        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.totalAmount : 0), 0),
-        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.paidAmount : 0), 0),
+        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? Number(inv.totalAmount) : 0), 0),
+        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? Number(inv.paidAmount) : 0), 0),
     };
 
     const barcodeItems = selectedTableInvoice ? selectedTableInvoice.items : cart;
@@ -557,7 +488,7 @@ export default function PurchasesTab({
     }));
     const barcodeQuantities = (barcodeItems || []).reduce((acc: any, item: any) => {
         const id = item.productId || item.product?.id || `temp-${item.sku}`;
-        acc[id] = item.quantity;
+        acc[id] = Number(item.quantity);
         return acc;
     }, {});
 
@@ -820,6 +751,9 @@ export default function PurchasesTab({
                                         {selectedDetailsInvoice.invoiceNumber || `#${selectedDetailsInvoice.id.slice(0, 8).toUpperCase()}`}
                                     </Badge>
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    عرض تفاصيل فاتورة المشتريات.
+                                </DialogDescription>
                             </DialogHeader>
 
                             <div className="grid grid-cols-2 gap-4">

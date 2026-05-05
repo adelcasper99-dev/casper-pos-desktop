@@ -36,6 +36,9 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "compound-engineering-plugin",
+    "casper-hardware-bridge",
+    "scripts"
   ]
 }

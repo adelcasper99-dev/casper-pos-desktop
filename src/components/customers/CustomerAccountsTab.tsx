@@ -37,6 +37,29 @@ import {
 } from '@/actions/customer-actions';
 import { CasperLoader } from '@/components/ui/CasperLoader';
 import clsx from 'clsx';
+import Decimal from 'decimal.js';
+
+export interface CustomerWithBalance {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+    receivesNotifications?: boolean;
+    balance: number;
+    creditLimit?: number | null;
+    riskLevel: 'high' | 'medium' | 'low';
+    successRatio: number;
+    daysSinceLastActivity: number;
+    [key: string]: any; // Allow dynamic key access for sorting
+}
+
+export interface IntelligenceStats {
+    totalOutstanding?: number;
+    avgSuccessRatio?: number;
+    highRiskCount?: number;
+    totalCustomers?: number;
+}
 
 export default function CustomerAccountsTab() {
     const t = useTranslations('Customers');
@@ -44,8 +67,8 @@ export default function CustomerAccountsTab() {
     const [isPending, startTransition] = useTransition();
 
     // State
-    const [customers, setCustomers] = useState<any[]>([]);
-    const [intelligenceStats, setIntelligenceStats] = useState<any>(null);
+    const [customers, setCustomers] = useState<CustomerWithBalance[]>([]);
+    const [intelligenceStats, setIntelligenceStats] = useState<IntelligenceStats | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [hasBalanceOnly, setHasBalanceOnly] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -55,7 +78,7 @@ export default function CustomerAccountsTab() {
     });
 
     // Selection for Modals
-    const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithBalance | null>(null);
     const [customerDetails, setCustomerDetails] = useState<any | null>(null);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showLimitModal, setShowLimitModal] = useState(false);
@@ -63,7 +86,7 @@ export default function CustomerAccountsTab() {
     const [showEditModal, setShowEditModal] = useState(false);
 
     // Form States
-    const [paymentData, setPaymentData] = useState({ amount: '', method: 'CASH' as any, reference: '' });
+    const [paymentData, setPaymentData] = useState<{ amount: string, method: 'CASH' | 'VISA' | 'WALLET' | 'INSTAPAY', reference: string }>({ amount: '', method: 'CASH', reference: '' });
     const [limitValue, setLimitValue] = useState('');
     const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', receivesNotifications: true });
 
@@ -149,11 +172,24 @@ export default function CustomerAccountsTab() {
     const submitPayment = async () => {
         if (!selectedCustomer || !paymentData.amount) return;
 
+        let paymentAmount: number;
+        try {
+            paymentAmount = new Decimal(paymentData.amount).toDecimalPlaces(2).toNumber();
+        } catch (e) {
+            toast.error(t('paymentModal.errorInvalidFormat', { defaultValue: 'Please enter a valid number' }));
+            return;
+        }
+
+        if (paymentAmount <= 0) {
+            toast.error(t('paymentModal.errorInvalidAmount', { defaultValue: 'Amount must be greater than zero' }));
+            return;
+        }
+
         startTransition(async () => {
             try {
                 const res = await recordCustomerPayment({
                     customerId: selectedCustomer.id,
-                    amount: parseFloat(paymentData.amount),
+                    amount: paymentAmount,
                     paymentMethod: paymentData.method,
                     reference: paymentData.reference
                 });
@@ -218,8 +254,12 @@ export default function CustomerAccountsTab() {
     };
 
     // Calculate Totals
-    const totalOwed = customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
-    const totalCredit = customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
+    const totalOwed = customers
+        .reduce((sum, c) => (c.balance ?? 0) > 0 ? sum.add(new Decimal(c.balance || 0)) : sum, new Decimal(0))
+        .toDecimalPlaces(2).toNumber();
+    const totalCredit = customers
+        .reduce((sum, c) => (c.balance ?? 0) < 0 ? sum.add(new Decimal(Math.abs(c.balance || 0))) : sum, new Decimal(0))
+        .toDecimalPlaces(2).toNumber();
     
     // Sorting Logic
     const sortedCustomers = useMemo(() => {
@@ -637,6 +677,10 @@ export default function CustomerAccountsTab() {
                                 </div>
                                 <div>
                                     <DialogTitle className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{selectedCustomer?.name}</DialogTitle>
+                                    <DialogDescription className="sr-only">
+                                        تفاصيل حساب العميل والمعاملات المالية.
+                                    </DialogDescription>
+
                                     <div className="flex items-center gap-4 text-sm text-zinc-500 mt-2 font-bold">
                                         <span className="flex items-center gap-1.5 border border-zinc-200 dark:border-white/10 px-3 py-1 rounded-lg bg-white dark:bg-black/20">
                                             <Phone className="w-3.5 h-3.5" /> {selectedCustomer?.phone}
@@ -651,7 +695,7 @@ export default function CustomerAccountsTab() {
                             </div>
                             <div className="text-left bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-sm min-w-[180px]">
                                 <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-1">{t('details.info.balance')}</p>
-                                <p className={`text-2xl font-black tabular-nums font-mono ${selectedCustomer?.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                <p className={`text-2xl font-black tabular-nums font-mono ${(selectedCustomer?.balance ?? 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                                     {Number(selectedCustomer?.balance).toLocaleString()} <span className="text-xs font-normal opacity-50 italic">EGP</span>
                                 </p>
                             </div>

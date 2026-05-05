@@ -58,18 +58,9 @@ export class NotificationService {
             const lastUpdate = new Date(ticket.updatedAt);
             const gapMs = now.getTime() - lastUpdate.getTime();
             const gapHours = Math.floor(gapMs / (1000 * 60 * 60));
-            
-            let riskLevel: 'low' | 'medium' | 'high' = 'low';
-            if (ticket.expectedDuration) {
-                 const createdTime = new Date(ticket.createdAt).getTime();
-                 const dueTime = createdTime + (ticket.expectedDuration * 60 * 1000);
-                 if (now.getTime() > dueTime) riskLevel = 'high';
-            }
-            if ((ticket as any).returnCount > 1) riskLevel = 'high';
 
             const metadata = {
                 gapHours,
-                riskLevel,
                 storeName,
                 triggeredStatus: status,
                 timestamp: now.toISOString()
@@ -77,13 +68,18 @@ export class NotificationService {
 
             // 5. Template Engine Integration
             const template = getStatusTemplate(status);
+            if (!template) {
+                console.warn(`[Notification] No template found for status ${status}. Skipping...`);
+                return { success: false, message: 'No template configured for this status' };
+            }
+            
             const replacements: Record<string, string> = {
                 name: customer.name,
                 device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
                 barcode: ticket.barcode,
                 price: ticket.repairPrice.toString(),
                 branch: ticket.currentBranch.name,
-                issue: ticket.issueDescription,
+                issue: ticket.issueDescription || "",
                 notes: ticket.conditionNotes || "",
                 store: storeName
             };
@@ -113,7 +109,6 @@ export class NotificationService {
             logger.info(`[NotificationService] Initiating dispatch to ${customer.phone}`, {
                 barcode: ticket.barcode,
                 status: status,
-                risk: riskLevel
             });
 
             // Simulate the external API delay

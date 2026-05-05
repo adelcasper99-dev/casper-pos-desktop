@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { useState, useEffect } from "react";
 import { User, LogOut, CalendarDays } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { logout } from "@/actions/auth";
@@ -85,6 +85,9 @@ function StaffProfileBadge({ user, isExpanded }: StaffProfileBadgeProps) {
                         <User className="w-5 h-5 text-cyan-400" />
                         Staff Profile
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        عرض تفاصيل ملف الموظف.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex flex-col items-center py-4 space-y-4">

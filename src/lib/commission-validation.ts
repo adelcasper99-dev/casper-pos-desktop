@@ -132,7 +132,7 @@ export function formatCommissionBreakdown(data: {
 export function resolveCommission(
   leadTech: { 
     commissionRate?: Decimal | number | null;
-    sharedLossRate?: Decimal | number | null;
+    lossRate?: Decimal | number | null;
     commissionRule?: { 
       type: string; 
       value: Decimal | number | string;
@@ -142,12 +142,12 @@ export function resolveCommission(
 ): { 
   commissionAmount: Decimal; 
   commissionRate: Decimal; 
-  sharedLossAmount: Decimal;
+  excessLossAmount: Decimal;
 } {
   const profit = new Decimal(netProfit.toString());
   let commissionRate = new Decimal(leadTech.commissionRate?.toString() || '0');
   let commissionAmount = new Decimal(0);
-  let sharedLossAmount = new Decimal(0);
+  let excessLossAmount = new Decimal(0);
 
   // 1. Handle Positive Profit (Commission)
   if (profit.gt(0)) {
@@ -166,14 +166,14 @@ export function resolveCommission(
   } 
   // 2. Handle Negative Profit (Shared Loss/Wastage)
   else if (profit.lt(0)) {
-    const lossRate = new Decimal(leadTech.sharedLossRate?.toString() || '0');
-    sharedLossAmount = calculateSharedLoss(profit, lossRate);
+    const lossRate = new Decimal(leadTech.lossRate?.toString() || '0');
+    excessLossAmount = calculateSharedLoss(profit, lossRate);
   }
 
   return {
     commissionAmount: commissionAmount.toDecimalPlaces(4),
     commissionRate,
-    sharedLossAmount: sharedLossAmount.toDecimalPlaces(4)
+    excessLossAmount: excessLossAmount.toDecimalPlaces(4)
   };
 }
 

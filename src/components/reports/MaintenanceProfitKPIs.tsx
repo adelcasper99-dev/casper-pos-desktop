@@ -14,7 +14,6 @@ interface KPIProps {
         partsNetProfit: number;
         totalNetProfit: number;
         successRatio: string;
-        highRiskCount: number;
     };
 }
 
@@ -22,7 +21,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
     const kpis = [
         {
             title: "إجمالي الإيرادات",
-            value: formatCurrency(data.totalRevenue),
+            value: formatCurrency(Number(data.totalRevenue)),
             icon: Activity,
             color: "text-cyan-500",
             bg: "bg-cyan-500/10",
@@ -30,7 +29,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "تكلفة قطع الغيار",
-            value: formatCurrency(data.partsCOGS),
+            value: formatCurrency(Number(data.partsCOGS)),
             icon: CreditCard,
             color: "text-rose-500",
             bg: "bg-rose-500/10",
@@ -38,7 +37,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "صافي ربح القطع",
-            value: formatCurrency(data.partsNetProfit),
+            value: formatCurrency(Number(data.partsNetProfit)),
             icon: TrendingUp,
             color: "text-orange-500",
             bg: "bg-orange-500/10",
@@ -46,7 +45,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "عمولات المهندسين",
-            value: formatCurrency(data.totalCommissions),
+            value: formatCurrency(Number(data.totalCommissions)),
             icon: Users,
             color: "text-fuchsia-500",
             bg: "bg-fuchsia-500/10",
@@ -54,7 +53,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "ربح الصيانة (صافي)",
-            value: formatCurrency(data.laborNetProfit),
+            value: formatCurrency(Number(data.laborNetProfit)),
             icon: Briefcase,
             color: "text-emerald-500",
             bg: "bg-emerald-500/10",
@@ -70,7 +69,7 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
         },
         {
             title: "صافي الربح العام",
-            value: formatCurrency(data.totalNetProfit),
+            value: formatCurrency(Number(data.totalNetProfit)),
             icon: TrendingUp,
             color: "text-white",
             bg: "bg-primary",
@@ -126,16 +125,6 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
                     </div>
                 </div>
             ))}
-            {data.highRiskCount > 0 && (
-                <div className="col-span-full mt-2">
-                    <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-600 dark:text-rose-200 text-sm backdrop-blur-md animate-pulse shadow-lg shadow-rose-500/10">
-                        <div className="p-2 bg-rose-500/20 rounded-lg">
-                            <AlertTriangle className="w-4 h-4 text-rose-500" />
-                        </div>
-                        <span className="font-black">تنبيه: يوجد عدد {data.highRiskCount} تذاكر عالية المخاطر (تكرار مرتجع أو تأخير كبير).</span>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

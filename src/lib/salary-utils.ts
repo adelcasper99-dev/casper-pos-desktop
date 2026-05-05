@@ -4,6 +4,51 @@ import { Decimal } from 'decimal.js';
  * Shared utility for HR and Finance to calculate net employee pay.
  * Ensures strict compliance with "hire date" requirements.
  */
+/**
+ * 1. Prorate Base Salary based on hire date AND current date
+ */
+export function calculateProratedBase(
+    salary: number | string | Decimal,
+    hireDateInput: Date | string | null | undefined,
+    startDate: Date,
+    endDate: Date,
+    mode: 'accrued' | 'projected' = 'accrued'
+): Decimal {
+    let baseSalary = new Decimal(salary.toString() || '0');
+    const hireDate = hireDateInput ? new Date(hireDateInput) : null;
+    const lastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+    const now = new Date();
+
+    if (hireDate) {
+        if (hireDate > endDate) {
+            return new Decimal(0);
+        } else if (hireDate > startDate) {
+            const hireDay = hireDate.getDate();
+            const currentCappedDay = (mode === 'accrued' && now > startDate && now < endDate) ? now.getDate() : lastDay;
+            const daysEarned = Math.max(0, currentCappedDay - hireDay + 1);
+            return baseSalary.times(daysEarned).dividedBy(lastDay);
+        } else {
+            if (mode === 'accrued' && now > startDate && now < endDate) {
+                return baseSalary.times(now.getDate()).dividedBy(lastDay);
+            }
+        }
+    } else if (mode === 'accrued' && now > startDate && now < endDate) {
+        return baseSalary.times(now.getDate()).dividedBy(lastDay);
+    }
+    return baseSalary;
+}
+
+/**
+ * Shared Categorization Logic for Ledger Transactions
+ */
+export function getCategoryClassification(type: string) {
+    return {
+        isAddition: type === 'BONUS' || type === 'ADDITION' || type === 'MAINTENANCE_COMMISSION',
+        isDeduction: type === 'DEDUCTION' || type === 'PENALTY' || type.endsWith('_DEDUCTION') || type === 'SALARY_PAYMENT' || type === 'CLAWBACK',
+        isReversal: type.endsWith('_REVERSAL')
+    };
+}
+
 export async function calculateNetDue(
     u: { 
         salary?: any, 
@@ -20,33 +65,9 @@ export async function calculateNetDue(
     startDate: Date, 
     endDate: Date
 ) {
-    let baseSalary = new Decimal(u.salary?.toString() || '0');
-    const hireDate = u.hireDate ? new Date(u.hireDate) : null;
-    
-    // 1. Prorate Base Salary based on hire date AND current date
+    const baseSalary = calculateProratedBase(u.salary || 0, u.hireDate, startDate, endDate);
     const lastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
-    const now = new Date();
-    
-    if (hireDate) {
-        if (hireDate > endDate) {
-            baseSalary = new Decimal(0);
-        } else if (hireDate > startDate) {
-            const hireDay = hireDate.getDate();
-            // Cap at the current date if viewing the active month
-            const currentCappedDay = (now > startDate && now < endDate) ? now.getDate() : lastDay;
-            const daysEarned = Math.max(0, currentCappedDay - hireDay + 1);
-            baseSalary = baseSalary.times(daysEarned).dividedBy(lastDay);
-        } else {
-            // Already employed before this month. Cap at current day if active month.
-            if (now > startDate && now < endDate) {
-                baseSalary = baseSalary.times(now.getDate()).dividedBy(lastDay);
-            }
-        }
-    } else if (now > startDate && now < endDate) {
-        // No hire date (old employee). Cap at current day if active month.
-        baseSalary = baseSalary.times(now.getDate()).dividedBy(lastDay);
-    }
-
+    const hireDate = u.hireDate ? new Date(u.hireDate) : null;
     const dailyRate = new Decimal(u.salary?.toString() || '0').dividedBy(lastDay);
 
     let totalBonuses = new Decimal(0);
@@ -85,9 +106,7 @@ export async function calculateNetDue(
         const amount = new Decimal(tx.amount?.toString() || '0');
         
         // 🏗️ Categorization Logic
-        const isAddition = type === 'BONUS' || type === 'ADDITION' || type === 'MAINTENANCE_COMMISSION';
-        const isDeduction = type === 'DEDUCTION' || type === 'PENALTY' || type.endsWith('_DEDUCTION') || type === 'SALARY_PAYMENT' || type === 'CLAWBACK';
-        const isReversal = type.endsWith('_REVERSAL');
+        const { isAddition, isDeduction, isReversal } = getCategoryClassification(type);
 
         if (isAddition) {
             totalBonuses = totalBonuses.plus(amount);
@@ -207,7 +226,7 @@ export async function calculateNetDue(
             returnCount,
             delayedTickets,
             successRatio: Math.round(successRatio * 100) / 100,
-            maintenanceCommissions: maintenanceCommissions.toNumber()
+            maintenanceCommissions: maintenanceCommissions.toDecimalPlaces(2).toNumber()
         }
     };
 }

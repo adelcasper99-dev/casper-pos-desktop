@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -106,7 +106,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
             setSelectedItems({});
         } else {
             const all: Record<string, { selected: boolean; quantity: number; isDamaged: boolean }> = {};
-            items.forEach((i: any) => { all[i.id] = { selected: true, quantity: i.quantity, isDamaged: false }; });
+            items.forEach((i: any) => { all[i.id] = { selected: true, quantity: Number(i.quantity), isDamaged: false }; });
             setSelectedItems(all);
         }
     };
@@ -159,7 +159,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                         lineTotal: Number(i.unitPrice) * selectedItems[i.id].quantity,
                     }));
 
-                setRefundSummary({ total: data.refundedAmount ?? 0, items: returnedItems });
+                setRefundSummary({ total: Number(data.refundedAmount ?? 0), items: returnedItems });
                 setRefundDone(true);
                 toast.success(data.message || 'تم تنفيذ المرتجع بنجاح');
                 onRefundDone(
@@ -217,13 +217,13 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
     ${refundSummary.items.map(i => `
       <div class="item">
         <span class="item-name">${formatArabicPrintText(i.name)} x${i.quantity}</span>
-        <span>${i.lineTotal.toFixed(2)}</span>
+        <span>${Number(i.lineTotal).toFixed(2)}</span>
       </div>
     `).join('')}
   </div>
 
   <div class="total">
-    <span>${refundSummary.total.toFixed(2)} ${formatArabicPrintText(settings?.currency || 'ج.م')}</span>
+    <span>${Number(refundSummary.total).toFixed(2)} ${formatArabicPrintText(settings?.currency || 'ج.م')}</span>
     <span>${formatArabicPrintText('المجموع المسترد')}</span>
   </div>
 
@@ -264,6 +264,9 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                 #{sale.id.slice(0, 8).toUpperCase()}
                             </Badge>
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            اختر الأصناف وكمياتها لإتمام المرتجع الجزئي.
+                        </DialogDescription>
                     </DialogHeader>
 
                     {!refundDone ? (
@@ -320,7 +323,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                                 <div className="text-[10px] font-bold text-muted-foreground mt-0.5 flex items-center gap-2">
                                                     <span className="font-mono">سعر الوحدة: {Number(item.unitPrice).toLocaleString()}</span>
                                                     <span className="w-1 h-1 rounded-full bg-border" />
-                                                    <span className="font-mono">المباع: {item.quantity}</span>
+                                                    <span className="font-mono">المباع: {Number(item.quantity)}</span>
                                                 </div>
                                                 {isSelected && item.product?.itemType !== 'SERVICE' && (
                                                     <Button 
@@ -347,7 +350,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-10 w-10 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-xl active:scale-95 transition-all"
-                                                        onClick={() => setItemQty(item.id, qty - 1, item.quantity)}
+                                                        onClick={() => setItemQty(item.id, qty - 1, Number(item.quantity))}
                                                     >
                                                         <Minus className="w-4 h-4" />
                                                     </Button>
@@ -360,7 +363,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-10 w-10 text-red-500 hover:bg-red-500/10 rounded-xl active:scale-95 transition-all"
-                                                        onClick={() => setItemQty(item.id, qty + 1, item.quantity)}
+                                                        onClick={() => setItemQty(item.id, qty + 1, Number(item.quantity))}
                                                     >
                                                         <Plus className="w-4 h-4" />
                                                     </Button>
@@ -396,7 +399,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                     {selectedTreasuryId !== ACCOUNT_VIRTUAL_ID && isCredit && sale?.paymentMethod === 'DEFERRED' && refundTotal > originalPaidCash && selectedCount > 0 && (
                                         <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1 px-1">
                                             <AlertCircle className="w-3 h-3" />
-                                            المبلغ يتجاوز المسدد نقداً ({originalPaidCash.toFixed(2)})
+                                            المبلغ يتجاوز المسدد نقداً ({Number(originalPaidCash).toFixed(2)})
                                         </p>
                                     )}
                                 </div>
@@ -482,7 +485,7 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                         <span className="text-[10px] text-muted-foreground mt-0.5">{new Date().toLocaleString('ar-EG')}</span>
                                     </div>
                                     <span className="text-3xl font-black text-red-600 dark:text-red-400">
-                                        {refundSummary?.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        {Number(refundSummary?.total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             </div>

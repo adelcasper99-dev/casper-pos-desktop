@@ -259,8 +259,8 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                                         <div style={{ fontSize: '10px', marginTop: '2px', fontWeight: 'bold' }}>📞 {saleData.customerPhone}</div>
                                     )}
                                     {saleData.customerBalance !== undefined && saleData.customerBalance !== null && (
-                                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: saleData.customerBalance > 0 ? '#b91c1c' : '#15803d' }}>
-                                            {t('balance') || "الرصيد"}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.currency || 'EGP' }).format(saleData.customerBalance)}
+                                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: Number(saleData.customerBalance) > 0 ? '#b91c1c' : '#15803d' }}>
+                                            {t('balance') || "الرصيد"}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.currency || 'EGP' }).format(Number(saleData.customerBalance))}
                                         </div>
                                     )}
                                 </div>
@@ -290,13 +290,13 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                                 <div key={i} style={{ padding: '6px 0', borderBottom: '1px solid #000000' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '12px' }}>
                                         <span>{item.name}{Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0 ? ' 📦' : ''}</span>
-                                        <span>{formatCurrency(item.price * (item.quantity || 1), currency)}</span>
+                                        <span>{formatCurrency(Number(item.price) * (Number(item.quantity) || 1), currency)}</span>
                                     </div>
                                     {(item.storage || item.color) && (
                                         <div style={{ fontSize: '11px', marginTop: '2px' }}>{[item.storage, item.color].filter(Boolean).join(' - ')}</div>
                                     )}
                                     {item.quantity > 1 && (
-                                        <div style={{ fontSize: '10px' }}>الكمية: {item.quantity} x {formatCurrency(item.price, currency)}</div>
+                                        <div style={{ fontSize: '10px' }}>الكمية: {Number(item.quantity)} x {formatCurrency(Number(item.price), currency)}</div>
                                     )}
                                     {Array.isArray(item.bundleComponents) && item.bundleComponents.map((c: any, ci: number) => (
                                         <div key={ci} style={{ fontSize: '10px', color: '#444', paddingRight: '8px', marginTop: '2px', fontWeight: 500 }}>
@@ -317,7 +317,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                                         map.set(c.name, (map.get(c.name) || 0) + (c.quantityIncluded || 1) * qty);
                                     }
                                 } else {
-                                    map.set(item.name, (map.get(item.name) || 0) + qty);
+                                    map.set(item.name, (map.get(item.name) || 0) + Number(qty));
                                 }
                             }
                             const hasBundle = items.some((i: any) => Array.isArray(i.bundleComponents) && i.bundleComponents.length > 0);
@@ -338,7 +338,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                         {/* Total Box */}
                         <div style={{ background: '#000000', color: '#ffffff', margin: '12px -12px', padding: '12px', textAlign: 'center' }}>
                             <div style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.8 }}>الإجمالي</div>
-                            <div style={{ fontSize: '20px', fontWeight: 700 }}>{formatCurrency(total, currency)}</div>
+                            <div style={{ fontSize: '20px', fontWeight: 700 }}>{formatCurrency(Number(total), currency)}</div>
                         </div>
 
                         {/* Footer */}

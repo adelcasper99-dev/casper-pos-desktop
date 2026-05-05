@@ -32,13 +32,13 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
 
   // Item rendering logic
   const itemsHTML = items.map((item: any) => {
-    const itemTotal = item.price * (item.quantity || 1);
+    const itemTotal = Number(item.price) * (Number(item.quantity) || 1);
     const details = [item.storage, item.color, item.condition].filter(Boolean).join(" - ");
     const hasComponents = Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0;
 
     const componentsHTML = hasComponents
       ? item.bundleComponents.map((c: any) =>
-          `<div class="bundle-component">‣ ${c.name}${c.quantity > 1 ? ` (${c.quantity})` : ""}</div>`
+          `<div class="bundle-component">‣ ${c.name}${Number(c.quantity) > 1 ? ` (${Number(c.quantity)})` : ""}</div>`
         ).join("")
       : "";
 
@@ -46,11 +46,11 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
             <div class="item">
                 <div class="item-header">
                     <span>${item.name || "صنف"}${hasComponents ? " 📦" : ""}</span>
-                    ${!isOrder ? `<span>${formatCurrency(itemTotal, currency)}</span>` : `<span class="qty-badge">x${item.quantity}</span>`}
+                    ${!isOrder ? `<span>${formatCurrency(Number(itemTotal), currency)}</span>` : `<span class="qty-badge">x${Number(item.quantity)}</span>`}
                 </div>
                 ${details ? `<div class="item-details">${details}</div>` : ""}
                 ${item.imei ? `<div class="item-imei">IMEI: ${item.imei}</div>` : ""}
-                ${!isOrder && item.quantity > 1 ? `<div class="item-details">الكمية: ${item.quantity} x ${formatCurrency(item.price, currency)}</div>` : ""}
+                ${!isOrder && Number(item.quantity) > 1 ? `<div class="item-details">الكمية: ${Number(item.quantity)} x ${formatCurrency(Number(item.price), currency)}</div>` : ""}
                 ${isOrder && item.note ? `<div class="item-details" style="color: #000; border: 0.2mm solid #000; padding: 1mm; margin-top: 1mm;">ملاحظة: ${item.note}</div>` : ""}
                 ${componentsHTML}
             </div>
@@ -61,17 +61,17 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
   // Build a map: productName -> totalQty (bundles expand into their components)
   const consolidatedMap = new Map<string, number>();
   for (const item of items) {
-    const qty = item.quantity || 1;
+    const qty = Number(item.quantity) || 1;
     if (Array.isArray(item.bundleComponents) && item.bundleComponents.length > 0) {
       // Expand bundle: each component * bundle qty * component quantityIncluded
       for (const c of item.bundleComponents) {
         const compKey = c.name;
-        const compQty = (c.quantityIncluded || 1) * qty;
+        const compQty = (Number(c.quantityIncluded) || 1) * qty;
         consolidatedMap.set(compKey, (consolidatedMap.get(compKey) || 0) + compQty);
       }
     } else {
       // Regular item
-      consolidatedMap.set(item.name || "صنف", (consolidatedMap.get(item.name) || 0) + qty);
+      consolidatedMap.set(item.name || "صنف", (consolidatedMap.get(item.name) || 0) + Number(qty));
     }
   }
   const hasAnyBundle = items.some((i: any) => Array.isArray(i.bundleComponents) && i.bundleComponents.length > 0);
@@ -224,7 +224,7 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
         ${customerPhone ? `<div style="font-size: 11px; font-weight: bold; margin-top: 1mm;">📞 ${customerPhone}</div>` : ""}
         ${customerBalance !== undefined && customerBalance !== null ? `
           <div style="font-size: 12px; font-weight: bold; margin-top: 1mm;">
-            الرصيد: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP' }).format(customerBalance)}
+            الرصيد: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP' }).format(Number(customerBalance))}
           </div>
         ` : ""}
       </div>
@@ -249,18 +249,18 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
 
   ${!isOrder ? `
   <div class="total">
-    ${discountAmount > 0 ? `
+    ${Number(discountAmount) > 0 ? `
     <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; margin-bottom: 2mm; padding-bottom: 2mm; border-bottom: 1px dashed rgba(255,255,255,0.3);">
       <span>الإجمالي قبل الخصم</span>
-      <span>${formatCurrency(subTotal, currency)}</span>
+      <span>${formatCurrency(Number(subTotal), currency)}</span>
     </div>
     <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; margin-bottom: 3mm; color: #ffcccc;">
       <span>الخصم</span>
-      <span>${formatCurrency(discountAmount, currency)} -</span>
+      <span>${formatCurrency(Number(discountAmount), currency)} -</span>
     </div>
     ` : ""}
     <div class="total-label">الصافي</div>
-    <div class="total-amount">${formatCurrency(totalAmount, currency)}</div>
+    <div class="total-amount">${formatCurrency(Number(totalAmount), currency)}</div>
   </div>
 
   <div class="payment" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; padding: 2mm 0; border-top: 1px dashed #ccc; color: #000;">
@@ -268,14 +268,14 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
     <span>${paymentMethod || "نقداً"}</span>
   </div>
 
-  ${remaining > 0 ? `
+  ${Number(remaining) > 0 ? `
   <div style="background: #eee; margin: 2mm 0; padding: 2mm; display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #000; border-radius: 1mm;">
     <span>المدفوع</span>
-    <span>${formatCurrency(paidAmount || 0, currency)}</span>
+    <span>${formatCurrency(Number(paidAmount) || 0, currency)}</span>
   </div>
   <div style="background: #000; color: #fff; margin: 1mm 0; padding: 3mm; display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; border-radius: 1mm;">
     <span>المتبقي</span>
-    <span>${formatCurrency(remaining, currency)}</span>
+    <span>${formatCurrency(Number(remaining), currency)}</span>
   </div>
   ` : ""}
   ` : ""}

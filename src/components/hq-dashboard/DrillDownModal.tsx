@@ -6,6 +6,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import {
     Table,
@@ -37,6 +38,9 @@ export const DrillDownModal: React.FC<DrillDownProps> = ({ isOpen, onClose, titl
                         <span>{title}</span>
                         {data && <Badge variant="secondary">{data.length} Results</Badge>}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        {title}
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto min-h-[400px]">

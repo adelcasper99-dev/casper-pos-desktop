@@ -2,7 +2,12 @@
 
 import { useState } from "react"
 import { AlertCircle, RotateCcw, Wrench, X, Loader2 } from "lucide-react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogTitle, 
+    DialogDescription 
+} from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useTranslations } from "@/lib/i18n-mock"
@@ -125,10 +130,12 @@ export function ReturnInitiationModal({ isOpen, onClose, ticketId, barcode, part
                                 <RotateCcw className="w-5 h-5 text-rose-600 dark:text-rose-500" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-black text-zinc-950 dark:text-white tracking-tight">إجراء مرتجع للتذكرة</h2>
-                                <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 font-bold">
+                                <DialogTitle className="text-xl font-black text-zinc-950 dark:text-white tracking-tight">
+                                    إجراء مرتجع للتذكرة
+                                </DialogTitle>
+                                <DialogDescription className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 font-bold">
                                     {barcode}
-                                </p>
+                                </DialogDescription>
                             </div>
                         </div>
                     </div>

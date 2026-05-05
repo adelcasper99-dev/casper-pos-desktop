@@ -123,10 +123,38 @@ export const getTickets = secureAction(async (filters?: {
         take: 200,
     });
 
-    // Calculate stats for the summary header
     const deliveredCount = tickets.filter(t => ['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP'].includes(t.status)).length;
     const returnCount = tickets.filter(t => (t as any).returnCount > 0 || t.status === 'RETURNED_FOR_REFIX').length;
     const ratio = (deliveredCount + returnCount) > 0 ? (deliveredCount / (deliveredCount + returnCount)) * 100 : 0;
+
+    // 🚀 Intelligence: Fetch success ratio for all customers in this batch in parallel
+    const customerIds = Array.from(new Set(tickets.map(t => t.customerId).filter(Boolean))) as string[];
+    
+    // Get total tickets per customer
+    const totalCounts = await prisma.ticket.groupBy({
+        by: ['customerId'],
+        where: { customerId: { in: customerIds }, deletedAt: null },
+        _count: { id: true }
+    });
+
+    // Get successful (delivered) tickets per customer
+    const successStatuses = ['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP', 'COMPLETED'];
+    const successCounts = await prisma.ticket.groupBy({
+        by: ['customerId'],
+        where: { 
+            customerId: { in: customerIds }, 
+            status: { in: successStatuses },
+            deletedAt: null 
+        },
+        _count: { id: true }
+    });
+
+    const customerSuccessMap: Record<string, string> = {};
+    customerIds.forEach(id => {
+        const total = totalCounts.find(c => c.customerId === id)?._count.id || 0;
+        const success = successCounts.find(c => c.customerId === id)?._count.id || 0;
+        customerSuccessMap[id] = total > 0 ? ((success / total) * 100).toFixed(0) : "100";
+    });
 
     const processedTickets = tickets.map(t => {
         // Calculate Gap: Time since last update
@@ -141,8 +169,7 @@ export const getTickets = secureAction(async (filters?: {
         else if (diffHours > 0) gap = `${diffHours}h`;
         else gap = `${Math.floor(diffMs / 60000)}m`;
 
-        // Calculate Risk Level (Simplified server-side version)
-        let riskLevel = 'low';
+        // Calculate overdue status
         let isOverdue = false;
         if (t.expectedDuration && !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'REJECTED'].includes(t.status)) {
             const created = new Date(t.createdAt).getTime();
@@ -150,27 +177,19 @@ export const getTickets = secureAction(async (filters?: {
             isOverdue = now > dueTime;
         }
 
-        const gapMinutes = Math.floor(diffMs / 60000);
-
-        if (isOverdue || (t as any).returnCount > 1) {
-            riskLevel = 'high';
-        } else if (gapMinutes > 3 * 24 * 60) { // 3 days
-            riskLevel = 'medium';
-        }
-
         return {
             ...t,
-            initialQuote: Number(t.initialQuote),
-            repairPrice: Number(t.repairPrice),
-            amountPaid: Number(t.amountPaid),
-            deposit: Number(t.deposit),
-            gap, // Rename to gap for UI consistency
-            riskLevel,
-            isOverdue
+            initialQuote: t.initialQuote?.toString() || "0",
+            repairPrice: t.repairPrice?.toString() || "0",
+            amountPaid: t.amountPaid?.toString() || "0",
+            deposit: t.deposit?.toString() || "0",
+            gap, 
+            isOverdue,
+            customerSuccessRatio: t.customerId ? customerSuccessMap[t.customerId] : "100"
         };
     });
 
-    const highRiskCount = processedTickets.filter(t => t.riskLevel === 'high').length;
+
     const overdueCount = processedTickets.filter(t => t.isOverdue).length;
 
     const totalSummary = await prisma.ticket.aggregate({
@@ -187,7 +206,6 @@ export const getTickets = secureAction(async (filters?: {
             returns: returnCount,
             ratio: ratio.toFixed(1),
             totalPaid: Number(totalSummary._sum.amountPaid || 0),
-            highRiskCount,
             overdueCount
         }
     };
@@ -264,18 +282,11 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
     else if (diffHours > 0) gap = `${diffHours}h`;
     else gap = `${Math.floor(diffMs / 60000)}m`;
 
-    let riskLevel = 'low';
     let isOverdue = false;
     if (ticket.expectedDuration && !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'REJECTED'].includes(ticket.status)) {
         const created = new Date(ticket.createdAt).getTime();
         const dueTime = created + (ticket.expectedDuration * 60000);
         isOverdue = now.getTime() > dueTime;
-    }
-
-    if (isOverdue || (ticket as any).returnCount > 1) {
-        riskLevel = 'high';
-    } else if (diffDays >= 3) {
-        riskLevel = 'medium';
     }
 
     // Success Ratio: Customer's historical completion rate
@@ -292,30 +303,29 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
         ticket: {
             ...ticket,
             customer: effectiveCustomer,
-            initialQuote: Number(ticket.initialQuote),
-            repairPrice: Number(ticket.repairPrice),
-            partsCost: Number(ticket.partsCost),
-            deposit: Number(ticket.deposit),
-            commissionAmount: Number(ticket.commissionAmount),
-            netProfit: Number(ticket.netProfit),
-            amountPaid: Number(ticket.amountPaid),
+            initialQuote: ticket.initialQuote?.toString() || "0",
+            repairPrice: ticket.repairPrice?.toString() || "0",
+            partsCost: ticket.partsCost?.toString() || "0",
+            deposit: ticket.deposit?.toString() || "0",
+            commissionAmount: ticket.commissionAmount?.toString() || "0",
+            netProfit: ticket.netProfit?.toString() || "0",
+            amountPaid: ticket.amountPaid?.toString() || "0",
             gap,
-            riskLevel,
             isOverdue,
             successRatio,
             parts: ticket.parts.map(p => ({
                 ...p,
-                cost: Number(p.cost),
-                price: Number(p.price),
+                cost: p.cost?.toString() || "0",
+                price: p.price?.toString() || "0",
             })),
             payments: ticket.payments.map(p => ({
                 ...p,
-                amount: Number(p.amount),
+                amount: p.amount?.toString() || "0",
             })),
             parentTicket: ticket.parentTicket ? {
                 ...ticket.parentTicket,
-                amountPaid: Number(ticket.parentTicket.amountPaid),
-                repairPrice: Number(ticket.parentTicket.repairPrice)
+                amountPaid: ticket.parentTicket.amountPaid?.toString() || "0",
+                repairPrice: ticket.parentTicket.repairPrice?.toString() || "0"
             } : null
         }
     };
@@ -359,7 +369,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     let clientUserId: string | undefined = undefined;
     let clientSupplierId: string | undefined = undefined;
 
-    const result = await (prisma as any).$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx: any) => {
         // TK-02: Secure Customer Linking (Atomic Upsert)
         if (data.customerPhone && data.customerPhone.trim().length > 0) {
             const normalizedPhone = data.customerPhone.trim();
@@ -455,7 +465,8 @@ export const syncCustomersFromActivity = secureAction(async () => {
             customerId: null,
             customerPhone: { not: '' }
         },
-        select: { id: true, customerName: true, customerPhone: true }
+        select: { id: true, customerName: true, customerPhone: true },
+        take: 1000 // Safety cap for batch sync
     });
 
     let createdCount = 0;
@@ -787,6 +798,19 @@ export const logTicketNotification = secureAction(async (data: {
     const { ticketId, type, status, metadata } = data;
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
+
+    // 🛡️ 60-second Deduplication Guard:
+    // Prevents double-send when manual button is clicked immediately after auto-trigger
+    const recentDup = await prisma.notificationLog.findFirst({
+        where: {
+            ticketId,
+            type: 'WHATSAPP',
+            metadata: { contains: `"messageType":"${metadata?.messageType || status}"` },
+            sentAt: { gte: new Date(Date.now() - 60000) }, // 60-second window
+        },
+        select: { id: true }
+    });
+    if (recentDup) return { success: true, log: recentDup, skipped: true };
 
     const log = await prisma.notificationLog.create({
         data: {
@@ -1166,7 +1190,7 @@ export const softDeleteTicket = secureAction(async (data: {
 
     // 2. Shift Guard if money needs to be reversed
     const amountToRefund = Number(ticket.amountPaid) || 0;
-    let currentShift: any = null;
+    let currentShift = null;
     if (amountToRefund > 0) {
         const shiftResult = await getCurrentShiftInternal({ userId: user.id });
         if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
@@ -1860,7 +1884,7 @@ export const refundTicketPart = secureAction(async (data: {
                 
                 // 1. Tech Share
                 if (techDeduction.gt(0) && part.ticket.technician) {
-                    await (tx as any).employeeTransaction.create({
+                    await tx.employeeTransaction.create({
                         data: {
                             userId: part.ticket.technician.userId,
                             type: 'DEDUCTION',
@@ -1978,7 +2002,7 @@ export const removeTicketPart = secureAction(async (data: {
                 
                 // 1. Tech Share
                 if (techDeduction.gt(0) && part.ticket.technician) {
-                    await (tx as any).employeeTransaction.create({
+                    await tx.employeeTransaction.create({
                         data: {
                             userId: part.ticket.technician.userId,
                             type: 'DEDUCTION',
@@ -2036,10 +2060,10 @@ export const removeTicketPart = secureAction(async (data: {
             });
 
             if (leadTech) {
-                const { commissionAmount, commissionRate, sharedLossAmount } = resolveCommission(leadTech, netProfit);
+                const { commissionAmount, commissionRate, excessLossAmount } = resolveCommission(leadTech, netProfit);
                 updateFields.commissionAmount = commissionAmount;
                 updateFields.commissionRate = commissionRate;
-                updateFields.sharedLossAmount = sharedLossAmount;
+                updateFields.excessLossAmount = excessLossAmount;
             }
         }
 
@@ -2198,8 +2222,8 @@ export const processTicketPayment = secureAction(async (data: {
         if (paymentMethod === 'ACCOUNT') {
             let employeeId: string | null = null;
 
-            if ((ticket.customer as any)?.linkedEmployeeId) {
-                employeeId = (ticket.customer as any).linkedEmployeeId;
+            if (ticket.customer?.linkedEmployeeId) {
+                employeeId = ticket.customer.linkedEmployeeId;
             } else {
                 const lookupPhone = ticket.customerPhone || (customerId && customerId.length > 5 ? customerId : '');
                 if (lookupPhone) {
@@ -2218,7 +2242,7 @@ export const processTicketPayment = secureAction(async (data: {
                     ? `عكس صيانة آجل - تذكرة #${ticket.barcode}`
                     : `صيانة آجل - تذكرة #${ticket.barcode}`;
 
-                await (tx as any).employeeTransaction.create({
+                await tx.employeeTransaction.create({
                     data: {
                         userId: employeeId,
                         amount: new Prisma.Decimal(Math.abs(effectiveAmount.toNumber())),
@@ -2381,7 +2405,7 @@ export const processTicketPayment = secureAction(async (data: {
                 const collabCommissionDec = netProfitDec.mul(collabRateDec.div(100));
 
                 if (collabCommissionDec.gt(0)) {
-                    await (tx as any).employeeTransaction.create({
+                    await tx.employeeTransaction.create({
                         data: {
                             userId: collab.technician.userId,
                             type: 'MAINTENANCE_COMMISSION',
@@ -2396,7 +2420,7 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         if (paymentMethod !== 'ACCOUNT' && !effectiveAmount.isZero()) {
-            const shiftUpdate: any = {};
+            const shiftUpdate: import("@prisma/client").Prisma.ShiftUpdateInput = {};
             const absAmount = new Prisma.Decimal(Math.abs(effectiveAmount.toNumber()));
 
             switch (paymentMethod) {
@@ -2630,7 +2654,7 @@ export const removeCollaborator = secureAction(async (data: {
                 ticketId_technicianId: { ticketId, technicianId }
             }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
             throw error;
         }
@@ -2689,7 +2713,7 @@ export const getAllTechnicians = secureAction(async () => {
             orderBy: { name: 'asc' }
         });
         return { success: true, technicians };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching all technicians:", error);
         return { success: false, message: "Failed to fetch technicians", technicians: [] };
     }

@@ -116,7 +116,12 @@ export class AccountingEngine {
         tx?: any
     ) {
         // Gross revenue is net paid + discount - tax
-        const netRevenue = payments.reduce((s, p) => s.add(new Decimal(p.amount)), new Decimal(0));
+        // 🛡️ Safe Decimal construction: use String conversion to reject NaN and avoid
+        // the falsy `|| 0` anti-pattern that would mask bad data.
+        const netRevenue = payments.reduce(
+            (s, p) => s.add(new Decimal(String(p.amount))),
+            new Decimal(0)
+        );
         const grossRevenue = netRevenue.add(new Decimal(discountAmount)).sub(new Decimal(taxAmount));
 
         const debitLines: TransactionLineInput[] = payments.map(p => {
@@ -205,15 +210,17 @@ export class AccountingEngine {
     /**
      * Helper: Record an Expense (Cash)
      */
-    static async recordExpense(expenseId: string, amount: number, description: string, branchId?: string, tx?: any) {
+    static async recordExpense(expenseId: string, amount: number | Decimal, description: string, branchId?: string, tx?: any) {
+        const cost = new Decimal(amount);
+        if (cost.lte(0)) throw new Error(`[AccountingEngine] recordExpense: invalid amount ${amount}`);
         return this.recordTransaction({
             description: `Expense: ${description}`,
             reference: expenseId,
             branchId,
             expenseId,
             lines: [
-                { accountCode: GL.EXPENSES.OPERATION_EXPENSES, debit: amount, credit: 0, description },
-                { accountCode: GL.ASSETS.CASH, debit: 0, credit: amount, description: 'Cash paid' } // Expense from Main Cash
+                { accountCode: GL.EXPENSES.OPERATION_EXPENSES, debit: cost, credit: 0, description },
+                { accountCode: GL.ASSETS.CASH, debit: 0, credit: cost, description: 'Cash paid' } // Expense from Main Cash
             ]
         }, tx);
     }

@@ -7,28 +7,7 @@ import GlassModal from "../ui/GlassModal";
 import { Combobox } from "@/components/ui/combobox";
 import { useTranslations } from "@/lib/i18n-mock";
 
-interface Category {
-    id: string;
-    name: string;
-}
-
-interface Unit {
-    id: string;
-    name: string;
-    code: string;
-    category: string;
-    abbreviation?: string;
-}
-
-interface Product {
-    id: string;
-    name: string;
-    sku: string;
-    costPrice: number;
-    sellPrice: number;
-    stock: number;
-    isBundle?: boolean;
-}
+import { Product, Category, Unit } from "@/types/product";
 
 interface BundleItemRow {
     componentProductId: string;

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
     Dialog, DialogContent, DialogHeader,
-    DialogTitle, DialogFooter
+    DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,6 +92,9 @@ export default function RefundSelectionDialog({ isOpen, onClose, onConfirm, sale
                             </div>
                             مرتجع مبيعات كامل
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            حدد طريقة المرتجع وخزينة الاسترداد.
+                        </DialogDescription>
                         <div className="flex items-center justify-between mt-2 pt-1">
                             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60 font-mono">
                                 فاتورة #{sale?.id.slice(0, 8).toUpperCase()}

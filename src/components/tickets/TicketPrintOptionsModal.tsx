@@ -217,7 +217,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                 } else {
                     if (silent) {
                         console.log("[AutoPrint] Skipped: already printed in this session.");
-                        toast.info("Ticket already printed. Skipping auto-print.", { id: "autoprint-skipped", duration: 2000 });
+                        // 🛡️ REMOVED: Redundant toast on every page view
                     }
                 }
             }
@@ -225,10 +225,14 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
 
         if (isOpen && (settings?.autoPrintTicket || silent)) {
             if (silent) {
-                toast.info("Auto-print starting...", {
-                    id: "autoprint-start",
-                    duration: 2000
-                });
+                // Only show "Starting" if we haven't checked the session guard yet
+                const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);
+                if (!hasAutoPrintedSession) {
+                    toast.info("Auto-print starting...", {
+                        id: "autoprint-start",
+                        duration: 2000
+                    });
+                }
             }
             
             // ⏳ [FIX] Shorter delay (1s) for better responsiveness

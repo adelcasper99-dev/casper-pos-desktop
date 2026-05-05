@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import GlassModal from '@/components/ui/GlassModal';
 import { XCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { rejectTicket } from '@/actions/ticket-actions';
 import { useTranslations } from '@/lib/i18n-mock';
 import { useCSRF } from "@/contexts/CSRFContext";
 import { toast } from "sonner";
+import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
+import { getEffectiveStoreSettings } from "@/actions/settings";
 
 interface RejectTicketModalProps {
     isOpen: boolean;
@@ -15,9 +17,11 @@ interface RejectTicketModalProps {
         id: string;
         barcode: string;
         customerName?: string;
+        customerPhone?: string;
         deviceBrand?: string;
         deviceModel?: string;
         status?: string;
+        issueDescription?: string | null;
     };
     onSuccess?: () => void;
 }
@@ -25,10 +29,17 @@ interface RejectTicketModalProps {
 export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }: RejectTicketModalProps) {
     const t = useTranslations('Tickets.details');
     const { token: csrfToken } = useCSRF();
-
+    const autoNotify = useWhatsAppAutoNotify();
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [settings, setSettings] = useState<any>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            getEffectiveStoreSettings().then(setSettings);
+        }
+    }, [isOpen]);
 
     const handleReject = async () => {
         if (!reason.trim()) {
@@ -53,6 +64,23 @@ export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }
 
             if (res.success) {
                 toast.success('تم رفض التذكرة بنجاح');
+                
+                // 🚀 WhatsApp Auto-Notify (Non-blocking)
+                if (ticket.customerPhone) {
+                    autoNotify('REJECTED', {
+                        customerPhone: ticket.customerPhone,
+                        customerName: ticket.customerName || 'عميل',
+                        barcode: ticket.barcode,
+                        deviceBrand: ticket.deviceBrand || '',
+                        deviceModel: ticket.deviceModel || '',
+                        issueDescription: reason,
+                        branchName: settings?.name ?? undefined
+                    }, {
+                        whatsappEnabled: settings?.whatsappEnabled,
+                        whatsappTemplates: settings?.whatsappTemplates
+                    });
+                }
+
                 setReason('');
                 onSuccess?.();
                 onClose();

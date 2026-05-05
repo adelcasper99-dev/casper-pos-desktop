@@ -122,7 +122,7 @@ export function secureAction<T, A extends any[]>(
             logger.error("SecureAction Error", error);
             // Handle AppError (expected errors)
             if (error instanceof AppError) {
-                return { success: false, error: error.message, code: error.code } as ActionResponse<T>;
+                return { success: false, error: error.message, code: error.code, ...error.metadata } as ActionResponse<T>;
             }
 
             // Handle Zod Validation Errors
@@ -145,7 +145,8 @@ export function secureAction<T, A extends any[]>(
             const { getTranslations } = await import('@/lib/i18n-mock');
             const t = await getTranslations('SystemMessages.Errors');
             const message = error.message || t('generic');
-            return { success: false, error: message, code: ErrorCodes.INTERNAL_ERROR } as ActionResponse<T>;
+            const code = error.code || (error instanceof AppError ? error.code : ErrorCodes.INTERNAL_ERROR);
+            return { success: false, error: message, code } as ActionResponse<T>;
         }
     };
 }
