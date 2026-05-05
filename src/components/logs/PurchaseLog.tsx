@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table';
 import {
     Dialog, DialogContent, DialogHeader,
-    DialogTitle, DialogFooter
+    DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker';
 import { toast } from 'sonner';
@@ -592,6 +592,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                         {selectedPurchase.invoiceNumber || `#${selectedPurchase.id.slice(0, 8).toUpperCase()}`}
                                     </Badge>
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    عرض تفاصيل فاتورة الشراء.
+                                </DialogDescription>
                             </DialogHeader>
 
                             <div className="grid grid-cols-2 gap-4">

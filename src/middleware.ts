@@ -13,9 +13,14 @@ export function middleware(request: NextRequest) {
 
         // Clone request headers to append the new cookie
         const requestHeaders = new Headers(request.headers);
-        // Append to existing Cookie header or create new
-        const cookieHeader = requestHeaders.get('cookie') || '';
-        requestHeaders.set('cookie', `${cookieHeader}; csrf-token=${newToken}`);
+        const cookieHeader = requestHeaders.get('cookie');
+        
+        // SEC-V09: Fix leading semicolon bug in manual cookie injection
+        const updatedCookieHeader = cookieHeader 
+            ? `${cookieHeader}; csrf-token=${newToken}`
+            : `csrf-token=${newToken}`;
+        
+        requestHeaders.set('cookie', updatedCookieHeader);
 
         // Create response with modified request headers so Server Components see the cookie
         const response = NextResponse.next({
@@ -45,6 +50,10 @@ export function middleware(request: NextRequest) {
     // --- Session Verification ---
     const sessionToken = request.cookies.get('session')?.value;
     const path = request.nextUrl.pathname;
+
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[Middleware] Path: ${path} | Session: ${sessionToken ? 'Present' : 'MISSING'} | CSRF: ${csrfToken ? 'Present' : 'MISSING'}`);
+    }
 
     // Define public routes that don't require session auth
     const publicRoutes = ['/login', '/setup'];

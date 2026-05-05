@@ -23,7 +23,7 @@ import {
 import { FlatpickrRangePicker } from '@/components/ui/flatpickr-range-picker';
 import {
     Dialog, DialogContent, DialogHeader,
-    DialogTitle, DialogFooter
+    DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
@@ -636,6 +636,9 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             #{selectedSale.invoiceNumber || selectedSale.id.slice(0, 8).toUpperCase()}
                                         </Badge>
                                     </DialogTitle>
+                                    <DialogDescription className="sr-only">
+                                        عرض تفاصيل فاتورة البيع.
+                                    </DialogDescription>
                                 </DialogHeader>
 
                                 <div className="grid grid-cols-2 gap-4">

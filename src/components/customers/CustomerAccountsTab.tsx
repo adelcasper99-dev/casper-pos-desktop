@@ -677,6 +677,10 @@ export default function CustomerAccountsTab() {
                                 </div>
                                 <div>
                                     <DialogTitle className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{selectedCustomer?.name}</DialogTitle>
+                                    <DialogDescription className="sr-only">
+                                        تفاصيل حساب العميل والمعاملات المالية.
+                                    </DialogDescription>
+
                                     <div className="flex items-center gap-4 text-sm text-zinc-500 mt-2 font-bold">
                                         <span className="flex items-center gap-1.5 border border-zinc-200 dark:border-white/10 px-3 py-1 rounded-lg bg-white dark:bg-black/20">
                                             <Phone className="w-3.5 h-3.5" /> {selectedCustomer?.phone}

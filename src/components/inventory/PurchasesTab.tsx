@@ -37,7 +37,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
 import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse } from "@/types/product";
@@ -751,6 +751,9 @@ export default function PurchasesTab({
                                         {selectedDetailsInvoice.invoiceNumber || `#${selectedDetailsInvoice.id.slice(0, 8).toUpperCase()}`}
                                     </Badge>
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    عرض تفاصيل فاتورة المشتريات.
+                                </DialogDescription>
                             </DialogHeader>
 
                             <div className="grid grid-cols-2 gap-4">

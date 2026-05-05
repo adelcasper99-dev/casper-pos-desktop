@@ -7,6 +7,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogFooter,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +50,9 @@ export function ReasonDialog({
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         {title || t("reasonRequired") || "السبب مطلوب"}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        أدخل سبباً لإتمام هذا الإجراء.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="py-6">
                     <Textarea

@@ -35,52 +35,68 @@ export class SyncService {
     // ⚡ SPEED: Sync all pending data
     static async syncAll() {
         const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
+        const syncSecret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
         
-        // 🛡️ GUARD: If no cloud URL, skip sync entirely without noise
-        if (!cloudUrl) return { success: false, error: 'No Cloud URL configured' };
+        // 🛡️ GUARD: Validation
+        if (!cloudUrl) {
+            logger.error('[Sync:All] NEXT_PUBLIC_CLOUD_URL is missing. Sync aborted.');
+            return { success: false, error: 'No Cloud URL' };
+        }
+        if (!syncSecret) {
+            logger.error('[Sync:All] NEXT_PUBLIC_SYNC_SECRET is missing. Sync aborted.');
+            return { success: false, error: 'No Sync Secret' };
+        }
 
         // 📥 PHASE 1: Pull Master Data Delta
         const now = Date.now();
-        // Simple backoff: If failed previously, wait longer before trying again (exponential-ish)
-        const backoffDelay = Math.min(this.pullFailureCount * 60000, 300000); // Max 5 mins
+        const backoffDelay = Math.min(this.pullFailureCount * 60000, 300000);
 
         if (now - this.lastPullAttempt > backoffDelay) {
             this.lastPullAttempt = now;
-            const pullResult = await this.pullMasterData();
-            if (pullResult.success) {
-                this.pullFailureCount = 0;
-            } else {
-                this.pullFailureCount++;
-                logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}): ${pullResult.error || 'Unknown error'}. skipping push sync if critical.`);
+            try {
+                const pullResult = await this.pullMasterData();
+                if (pullResult.success) {
+                    this.pullFailureCount = 0;
+                } else {
+                    this.pullFailureCount++;
+                    logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}): ${pullResult.error}`);
+                }
+            } catch (error) {
+                logger.error('[Sync:Pull] Fatal error in master data pull', error);
             }
         }
 
         // 📤 PHASE 2: Push Local Changes
+        const modules = [
+            { name: 'Sales', sync: () => this.syncSales() },
+            { name: 'Tickets', sync: () => this.syncTickets() },
+            { name: 'Treasury', sync: () => this.syncTreasuryTransactions() },
+            { name: 'Inventory', sync: () => this.syncInventoryMovements() },
+            { name: 'Returns', sync: () => this.syncReturns() }
+        ];
 
-        // 🛡️ GUARD: Sync secret is mandatory for authenticated push
-        const syncSecret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
-        if (!syncSecret) {
-            logger.error('[Sync:Push] NEXT_PUBLIC_SYNC_SECRET is not configured. Aborting push to prevent unauthorized sync.');
-            return { success: false, error: 'Sync secret not configured' };
-        }
+        const results = await Promise.allSettled(modules.map(m => m.sync()));
 
-        const results = await Promise.allSettled([
-            this.syncSales(),
-            this.syncTickets(),
-            this.syncTreasuryTransactions(),
-            this.syncInventoryMovements(),
-            this.syncReturns()
-        ]);
+        let totalFailed = 0;
+        let anyCriticalError = false;
 
-        const totalFailed = results.reduce((acc, r) => {
-            if (r.status === 'rejected') return acc + 1;
-            return acc + (r.value.failed || 0);
-        }, 0);
-        
-        const anyCriticalError = results.some(r => r.status === 'rejected');
+        results.forEach((r, i) => {
+            const moduleName = modules[i].name;
+            if (r.status === 'rejected') {
+                logger.error(`[Sync:Push] ${moduleName} REJECTED critically`, r.reason);
+                anyCriticalError = true;
+            } else {
+                const res = r.value as any;
+                const failed = res.failed || 0;
+                if (failed > 0) {
+                    logger.warn(`[Sync:Push] ${moduleName} finished with ${failed} item failures.`);
+                    totalFailed += failed;
+                }
+            }
+        });
 
-        if (totalFailed > 0) {
-            logger.error(`[Sync:Push] Completed with ${totalFailed} item failures.`);
+        if (totalFailed > 0 || anyCriticalError) {
+            logger.error(`[Sync:Push] Sync cycle failed. Critical:${anyCriticalError} ItemFailures:${totalFailed}`);
         }
 
         return {

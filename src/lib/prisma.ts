@@ -36,7 +36,11 @@ function getDynamicDbUrl() {
     } catch (error) {
         console.warn('Could not read casper-config.json for dynamic DB path, falling back to process.env:', error);
     }
-    return process.env.DATABASE_URL;
+    const fallbackUrl = process.env.DATABASE_URL;
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[PRISMA DEBUG] DB URL resolved to: ${fallbackUrl}`);
+    }
+    return fallbackUrl;
 }
 
 export const prisma =

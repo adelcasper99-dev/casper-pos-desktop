@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -54,7 +54,7 @@ export default function ConfirmationModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className={cn("max-w-md p-0 overflow-hidden border-border bg-background shadow-2xl animate-in zoom-in-95 duration-200", className)} dir="rtl">
+            <DialogContent className={cn("max-w-md p-0 overflow-hidden border-border bg-background shadow-2xl animate-in zoom-in-95 duration-200 z-[200]", className)} dir="rtl">
                 <DialogHeader className="p-6 border-b border-border bg-muted/30">
                     <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
                         <span className="p-2 bg-background rounded-lg border border-border shadow-sm">
@@ -66,9 +66,9 @@ export default function ConfirmationModal({
 
                 <div className="p-6 space-y-6">
                     <div className={cn("flex items-center gap-4 p-4 rounded-xl border transition-all", currentVariant.bg)}>
-                        <p className="text-foreground text-sm leading-relaxed font-bold">
+                        <DialogDescription className="text-foreground text-sm leading-relaxed font-bold m-0">
                             {message}
-                        </p>
+                        </DialogDescription>
                     </div>
 
                     {children && (

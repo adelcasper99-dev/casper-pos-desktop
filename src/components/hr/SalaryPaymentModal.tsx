@@ -7,7 +7,8 @@ import {
     DialogContent, 
     DialogHeader, 
     DialogTitle, 
-    DialogFooter 
+    DialogFooter,
+    DialogDescription
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -106,6 +107,9 @@ export default function SalaryPaymentModal({
                         <DollarSign className="w-5 h-5 text-emerald-400" />
                         سداد مرتب: {userName}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        تسجيل صرف راتب أو دفعة للموظف.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-5 py-4">

@@ -10,8 +10,8 @@ export const userSchema = z.object({
     branchId: z.string().optional().nullable(),
     managedHQIds: z.array(z.string()).optional(),
     isGlobalAdmin: z.boolean().optional(),
-    maxDiscount: z.coerce.number().min(0).max(100).optional().nullable(),
-    maxDiscountAmount: z.coerce.number().min(0).optional().nullable(),
-    salary: z.coerce.number().min(0).optional().nullable(),
+    maxDiscount: z.union([z.string(), z.number()]).optional().nullable(),
+    maxDiscountAmount: z.union([z.string(), z.number()]).optional().nullable(),
+    salary: z.union([z.string(), z.number()]).optional().nullable(),
     hireDate: z.string().optional().nullable(),
 });

@@ -226,7 +226,7 @@ export async function calculateNetDue(
             returnCount,
             delayedTickets,
             successRatio: Math.round(successRatio * 100) / 100,
-            maintenanceCommissions: maintenanceCommissions.toNumber()
+            maintenanceCommissions: maintenanceCommissions.toDecimalPlaces(2).toString()
         }
     };
 }

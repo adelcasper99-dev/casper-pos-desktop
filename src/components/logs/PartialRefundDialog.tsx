@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -264,6 +264,9 @@ export default function PartialRefundDialog({ isOpen, onClose, sale, csrfToken, 
                                 #{sale.id.slice(0, 8).toUpperCase()}
                             </Badge>
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            اختر الأصناف وكمياتها لإتمام المرتجع الجزئي.
+                        </DialogDescription>
                     </DialogHeader>
 
                     {!refundDone ? (

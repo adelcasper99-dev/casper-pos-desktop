@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -921,6 +921,9 @@ export default function EmployeeProfileClient({
                                     </Badge>
                                     <DialogTitle className="text-xl font-black tracking-tighter">تفاصيل الفاتورة</DialogTitle>
                                 </div>
+                                <DialogDescription className="sr-only">
+                                    عرض تفاصيل فاتورة البيع المرتبطة بالحركة.
+                                </DialogDescription>
                             </DialogHeader>
                             
                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
