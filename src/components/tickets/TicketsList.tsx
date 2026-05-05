@@ -348,9 +348,6 @@ export default function TicketsList() {
                         </div>
                     </div>
                 </div>
-
-
-
                 {/* Card 3: Overdue */}
                 <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

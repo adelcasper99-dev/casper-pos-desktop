@@ -58,8 +58,6 @@ export class NotificationService {
             const lastUpdate = new Date(ticket.updatedAt);
             const gapMs = now.getTime() - lastUpdate.getTime();
             const gapHours = Math.floor(gapMs / (1000 * 60 * 60));
-            
-
 
             const metadata = {
                 gapHours,
