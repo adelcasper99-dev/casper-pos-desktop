@@ -131,7 +131,7 @@ function computeSubTotal(qty: number | string, price: number | string): number {
 }
 
 // Returns the next editable col, skipping categoryId for existing products
-function nextEditableCol(current: EditableCol, isNew: boolean): EditableCol | null {
+function nextEditableCol(current: EditableCol, isNew: boolean, features?: any): EditableCol | null {
     const cols = ALL_EDITABLE_COLS;
     let idx = cols.indexOf(current) + 1;
     while (idx < cols.length) {
@@ -142,12 +142,14 @@ function nextEditableCol(current: EditableCol, isNew: boolean): EditableCol | nu
         if (col === "itemName" && isNew) { idx++; continue; }
         // Skip conversionFactor for new items (defaults to 1) for rapid entry
         if (col === "conversionFactor" && isNew) { idx++; continue; }
+        // Skip unit columns if visibility is off
+        if ((col === "unit" || col === "conversionFactor") && features?.unitVisibility === false) { idx++; continue; }
         return col;
     }
     return null;
 }
 
-function prevEditableCol(current: EditableCol, isNew: boolean): EditableCol | null {
+function prevEditableCol(current: EditableCol, isNew: boolean, features?: any): EditableCol | null {
     const cols = ALL_EDITABLE_COLS;
     let idx = cols.indexOf(current) - 1;
     while (idx >= 0) {
@@ -158,6 +160,8 @@ function prevEditableCol(current: EditableCol, isNew: boolean): EditableCol | nu
         if (col === "itemName" && isNew) { idx--; continue; }
         // Skip conversionFactor for new items
         if (col === "conversionFactor" && isNew) { idx--; continue; }
+        // Skip unit columns if visibility is off
+        if ((col === "unit" || col === "conversionFactor") && features?.unitVisibility === false) { idx--; continue; }
         return col;
     }
     return null;
@@ -1331,8 +1335,11 @@ export function PurchaseDataGrid({
             14: "subTotal"
         };
 
-        const headerLabels = ["#", "الكود", "اسم الصنف", "الفئة", "الوحدة", "الكمية", "التكلفة", "الإجمالي", "Action"];
-        const headerWidth = getTextWidth(headerLabels[index]) + 24; // text + padding
+        const headerLabels: Record<number, string> = {
+            0: "#", 1: "الكود", 2: "الفئة", 3: "الموديل", 4: "الصفة", 5: "الوصف الإضافي", 6: "اسم المنتج النهائي",
+            7: "الوحدة", 8: "العبوة", 9: "الكمية", 10: "التكلفة", 11: "سعر 1", 12: "سعر 2", 13: "سعر 3", 14: "الإجمالي"
+        };
+        const headerWidth = getTextWidth(headerLabels[index] || "") + 24; 
 
         let maxContentWidth = headerWidth;
 
@@ -1453,10 +1460,12 @@ export function PurchaseDataGrid({
 
             if (e.key === "Tab") {
                 e.preventDefault();
-                const next = nextEditableCol(col, row?.isNew ?? false);
+                const next = e.shiftKey 
+                    ? prevEditableCol(col, row?.isNew ?? false, features) 
+                    : nextEditableCol(col, row?.isNew ?? false, features);
                 if (next) {
                     focusInput(rowIdx, next);
-                } else {
+                } else if (!e.shiftKey) {
                     const targetRowIdx = rowIdx + 1;
                     if (targetRowIdx >= rows.length) {
                         const newRow = createEmptyRow();
@@ -1488,7 +1497,7 @@ export function PurchaseDataGrid({
                     }
                 }
 
-                const next = nextEditableCol(col, row?.isNew ?? false);
+                const next = nextEditableCol(col, row?.isNew ?? false, features);
                 if (!next) {
                     // Validation: Sell price must not be less than cost price
                     if (Number(row.unitPrice) > 0 && (
@@ -1555,13 +1564,13 @@ export function PurchaseDataGrid({
 
             // RTL-aware horizontal navigation
             if (e.key === "ArrowLeft") {
-                const next = nextEditableCol(col, row?.isNew ?? false);
+                const next = nextEditableCol(col, row?.isNew ?? false, features);
                 if (next) { e.preventDefault(); focusInput(rowIdx, next); }
                 else if (rowIdx + 1 < rows.length) { e.preventDefault(); focusInput(rowIdx + 1, "itemCode"); }
                 return;
             }
             if (e.key === "ArrowRight") {
-                const prev = prevEditableCol(col, row?.isNew ?? false);
+                const prev = prevEditableCol(col, row?.isNew ?? false, features);
                 if (prev) { e.preventDefault(); focusInput(rowIdx, prev); }
                 else if (rowIdx - 1 >= 0) { 
                     e.preventDefault(); 
@@ -1829,24 +1838,39 @@ export function PurchaseDataGrid({
                 style={{ gridTemplateColumns: gridTemplate }}
             >
                 {[
-                    "#", "الكود", "الفئة", "الموديل", "الصفة", "الوصف الإضافي", "اسم المنتج النهائي", 
-                    ...(features?.unitVisibility !== false ? ["الوحدة", "العبوة"] : []),
-                    "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
-                ].map((label, i) => (
+                    { label: "#", idx: 0 },
+                    { label: "الكود", idx: 1 },
+                    { label: "الفئة", idx: 2 },
+                    { label: "الموديل", idx: 3 },
+                    { label: "الصفة", idx: 4 },
+                    { label: "الوصف الإضافي", idx: 5 },
+                    { label: "اسم المنتج النهائي", idx: 6 },
+                    ...(features?.unitVisibility !== false ? [
+                        { label: "الوحدة", idx: 7 },
+                        { label: "العبوة", idx: 8 }
+                    ] : []),
+                    { label: "الكمية", idx: 9 },
+                    { label: "التكلفة", idx: 10 },
+                    { label: "سعر 1", idx: 11 },
+                    { label: "سعر 2", idx: 12 },
+                    { label: "سعر 3", idx: 13 },
+                    { label: "الإجمالي", idx: 14 },
+                    { label: "", idx: 15 }
+                ].map((col, i) => (
                     <div 
                         key={i} 
                         className={clsx(HEADER_CELL_CLS, i === 0 && "text-center px-1")}
-                        onDoubleClick={() => i > 0 && i < 8 && autoFitColumn(i)}
+                        onDoubleClick={() => col.idx > 0 && col.idx < 15 && autoFitColumn(col.idx)}
                     >
-                        {label}
-                        {i < 9 && (
+                        {col.label}
+                        {col.idx < 15 && (
                             <div 
                                 className={clsx(
                                     "absolute top-0 bottom-0 w-1 cursor-col-resize z-30 transition-colors hover:bg-cyan-500",
-                                    resizingIdx === i ? "bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]" : "bg-transparent group-hover/h:bg-slate-300 dark:group-hover/h:bg-white/10",
+                                    resizingIdx === col.idx ? "bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]" : "bg-transparent group-hover/h:bg-slate-300 dark:group-hover/h:bg-white/10",
                                     "end-0"
                                 )}
-                                onMouseDown={(e) => handleResizeStart(e, i)}
+                                onMouseDown={(e) => handleResizeStart(e, col.idx)}
                             />
                         )}
                     </div>
@@ -1990,13 +2014,13 @@ export function PurchaseDataGrid({
                                      onDelete={handleDeleteAttribute}
                                      onChange={(id) => {
                                          updateRow(rowIdx, { attributeId: id });
-                                         setTimeout(() => focusInput(rowIdx, "unit"), 50);
+                                         setTimeout(() => focusInput(rowIdx, "description"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateAttribute) {
                                              onQuickCreateAttribute(name, (newId) => {
                                                  updateRow(rowIdx, { attributeId: newId });
-                                                 setTimeout(() => focusInput(rowIdx, "unit"), 50);
+                                                 setTimeout(() => focusInput(rowIdx, "description"), 50);
                                              });
                                          }
                                      }}

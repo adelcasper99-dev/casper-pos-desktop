@@ -12,6 +12,7 @@
 ### Day 1: Database Schema & Core Architecture
 
 **Tasks:**
+
 - [ ] Review `prisma/schema.prisma` - identify all financial tables
 - [ ] Map entity relationships (sales, inventory, tickets, treasury, hr)
 - [ ] Identify journal entry tables and accounting integrations
@@ -19,6 +20,7 @@
 - [ ] Create data dictionary of financial entities
 
 **Files to Examine:**
+
 - `prisma/schema.prisma`
 - `src/lib/prisma.ts`
 - `src/lib/accounting/`
@@ -28,6 +30,7 @@
 ### Day 2: Action Layer & Transaction Flows
 
 **Tasks:**
+
 - [ ] Catalog all action files in `src/actions/`
 - [ ] Identify which actions create/modify financial data
 - [ ] Map action → database → accounting integration
@@ -35,6 +38,7 @@
 - [ ] Identify integration points between modules
 
 **Files to Examine:**
+
 - All files in `src/actions/`
 - `src/store/cart.ts`
 - `src/lib/accounting/transaction-factory.ts`
@@ -48,6 +52,7 @@
 ### Day 3: Sales & Revenue Audit
 
 **Files:**
+
 - `src/actions/pos.ts`
 - `src/actions/sales-actions.ts`
 - `src/components/pos/CheckoutModal.tsx`
@@ -55,6 +60,7 @@
 - `src/lib/accounting/auto-journal-service.ts`
 
 **Focus Areas:**
+
 - Pricing accuracy
 - Discount application
 - Tax calculations
@@ -67,12 +73,14 @@
 ### Day 4: Repairs & Services Audit
 
 **Files:**
+
 - `src/actions/ticket-actions.ts`
 - `src/components/tickets/TicketPartsManager.tsx`
 - `src/components/tickets/WorkflowActions.tsx`
 - `src/actions/employee-transaction-actions.ts`
 
 **Focus Areas:**
+
 - Cost tracking (parts + labor)
 - Labor billing rates
 - Revenue recognition
@@ -84,12 +92,14 @@
 ### Day 5: Tickets & Support Audit
 
 **Files:**
+
 - `src/actions/ticket-actions.ts` (full review)
 - `src/components/tickets/TicketsList.tsx`
 - `src/components/tickets/TicketDeleteDialog.tsx`
 - `src/actions/returns-fetchers.ts`
 
 **Focus Areas:**
+
 - SLA tracking
 - Resolution logging
 - Cost allocation
@@ -101,6 +111,7 @@
 ### Day 6: Engineering & Salaries Audit
 
 **Files:**
+
 - `src/actions/hr.ts`
 - `src/actions/employee-ledger.ts`
 - `src/actions/employee-transaction-actions.ts`
@@ -108,6 +119,7 @@
 - `scripts/verify-salary.js`
 
 **Focus Areas:**
+
 - Payroll calculations (gross → net)
 - Overtime calculations
 - Bonus/commission structures
@@ -120,6 +132,7 @@
 ### Day 7: Returns & Refunds Audit
 
 **Files:**
+
 - `src/actions/returns-fetchers.ts`
 - `src/components/logs/PartialRefundDialog.tsx`
 - `src/components/logs/ReturnPurchaseDialog.tsx`
@@ -127,6 +140,7 @@
 - `src/lib/accounting/`
 
 **Focus Areas:**
+
 - RMA issuance
 - Inventory restocking logic
 - Refund calculations
@@ -139,6 +153,7 @@
 ### Day 8: Treasury & Cash Management Audit
 
 **Files:**
+
 - `src/actions/treasury.ts`
 - `src/actions/cash-flow-actions.ts`
 - `src/components/treasury/TreasuryDashboard.tsx`
@@ -146,6 +161,7 @@
 - `src/components/pos/CheckoutModal.tsx`
 
 **Focus Areas:**
+
 - Cash drawer management
 - Bank reconciliation
 - Payment processing accuracy
@@ -158,12 +174,14 @@
 ### Day 9: Financial Reporting & Accuracy Audit
 
 **Files:**
+
 - `src/actions/reports-actions.ts`
 - `src/features/reports/`
 - `src/components/reports/`
 - `src/lib/accounting/`
 
 **Focus Areas:**
+
 - P&L accuracy
 - Balance Sheet integrity
 - Cash Flow statement correctness
@@ -178,6 +196,7 @@
 ## Phase 3: Control Effectiveness Testing (Day 10)
 
 **Tasks:**
+
 - [ ] Review access controls and permissions
 - [ ] Test approval workflows
 - [ ] Verify audit trail completeness
@@ -191,6 +210,7 @@
 ## Phase 4: Reporting & Documentation (Days 11-12)
 
 **Tasks:**
+
 - [ ] Compile all findings with evidence
 - [ ] Perform root cause analysis for each finding
 - [ ] Quantify material misstatements
@@ -199,6 +219,7 @@
 - [ ] Create executive summary
 
 **Deliverables:**
+
 1. Executive Summary
 2. Detailed Domain Reports (7 sections)
 3. Control Matrix
@@ -211,6 +232,7 @@
 ## Progress Log
 
 ### Day 1 (2025-03-18)
+
 - [ ] Phase 1 tasks in progress
 - [ ] Started schema review
 - [ ] Findings so far: None yet
@@ -220,8 +242,8 @@
 ## Key Findings (To be populated during audit)
 
 | Domain | Finding | Severity | Evidence | Recommendation |
-|--------|---------|----------|----------|----------------|
-|        |          |           |           |                |
+| :--- | :--- | :--- | :--- | :--- |
+| | | | | |
 
 ---
 
