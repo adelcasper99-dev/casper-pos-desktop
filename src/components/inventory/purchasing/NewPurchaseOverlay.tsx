@@ -39,6 +39,7 @@ interface NewPurchaseOverlayProps {
     onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string) => void) => void;
     onQuickCreateAttribute?: (name: string, callback: (id: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
+    features?: any;
 }
 
 export function NewPurchaseOverlay({
@@ -66,7 +67,8 @@ export function NewPurchaseOverlay({
     onQuickCreateCategory,
     onQuickCreateModel,
     onQuickCreateAttribute,
-    onQuickCreateUnit
+    onQuickCreateUnit,
+    features
 }: NewPurchaseOverlayProps) {
     const t = useTranslations('Purchasing');
     const tCommon = useTranslations('Common');
@@ -179,6 +181,7 @@ export function NewPurchaseOverlay({
                                 onQuickCreateUnit={onQuickCreateUnit}
                                 attributes={attributes}
                                 csrfToken={csrfToken}
+                                features={features}
                             />
                         </div>
 

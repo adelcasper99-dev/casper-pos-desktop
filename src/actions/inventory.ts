@@ -466,27 +466,37 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
         throw new AppError(ErrorCodes.VALIDATION_ERROR, t('skuExists'));
     }
 
-    const { categoryId, bundleItems, isBundle, unitOfMeasureId, ...productData } = validated;
+    const { categoryId, bundleItems, isBundle, unitOfMeasureId, description, ...productData } = validated;
 
     // Bundles don't carry their own physical stock
     const effectiveStock = isBundle ? 0 : (productData.stock ?? 0);
     const effectiveTrackStock = isBundle ? false : (productData.trackStock ?? true);
 
-    // I-02: Static Name Concatenation for Model and Attribute
+    // I-02: Static Name Concatenation for Category, Model, Attribute and Description
     let finalProductName = productData.name;
+    const nameParts = [];
+    
+    if (categoryId) {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+        if (cat) nameParts.push(cat.name);
+    }
 
     if (validated.modelId) {
         const model = await prisma.model.findUnique({ where: { id: validated.modelId } });
-        if (model && !finalProductName.includes(model.name)) {
-            finalProductName += ` - ${model.name}`;
-        }
+        if (model) nameParts.push(model.name);
     }
 
     if (validated.attributeId) {
         const attr = await prisma.attribute.findUnique({ where: { id: validated.attributeId } });
-        if (attr && !finalProductName.includes(attr.name)) {
-            finalProductName += ` - ${attr.name}`;
-        }
+        if (attr) nameParts.push(attr.name);
+    }
+
+    if (description) {
+        nameParts.push(description);
+    }
+
+    if (nameParts.length > 0) {
+        finalProductName = nameParts.join(' - ');
     }
     
     productData.name = finalProductName;
@@ -497,6 +507,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
         const newProduct = await (tx.product.create as any)({
             data: {
                 ...productData,
+                description: description || null,
                 stock: effectiveStock,
                 trackStock: effectiveTrackStock,
                 isBundle: isBundle ?? false,
@@ -585,7 +596,7 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
     const startTime = Date.now();
     const { id, ...productData } = data;
     const validated = productSchema.parse(productData);
-    const { bundleItems, isBundle, unitOfMeasureId, ...productFields } = validated;
+    const { bundleItems, isBundle, unitOfMeasureId, description, ...productFields } = validated;
 
     const effectiveTrackStock = isBundle ? false : (productFields.trackStock ?? true);
     const effectiveStock = isBundle ? 0 : (productFields.stock ?? 0);
@@ -614,21 +625,32 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
         }
     }
 
-    // I-03: Static Name Concatenation for Model and Attribute
+    // I-03: Static Name Concatenation for Category, Model, Attribute and Description
     let finalProductName = productFields.name;
+    const nameParts = [];
+
+    const categoryId = validated.categoryId;
+    if (categoryId) {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+        if (cat) nameParts.push(cat.name);
+    }
 
     if (validated.modelId) {
         const model = await prisma.model.findUnique({ where: { id: validated.modelId } });
-        if (model && !finalProductName.includes(model.name)) {
-            finalProductName += ` - ${model.name}`;
-        }
+        if (model) nameParts.push(model.name);
     }
 
     if (validated.attributeId) {
         const attr = await prisma.attribute.findUnique({ where: { id: validated.attributeId } });
-        if (attr && !finalProductName.includes(attr.name)) {
-            finalProductName += ` - ${attr.name}`;
-        }
+        if (attr) nameParts.push(attr.name);
+    }
+
+    if (description) {
+        nameParts.push(description);
+    }
+
+    if (nameParts.length > 0) {
+        finalProductName = nameParts.join(' - ');
     }
 
     productFields.name = finalProductName;
@@ -639,6 +661,7 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
             where: { id },
             data: {
                 ...productFields,
+                description: description || null,
                 stock: effectiveStock,
                 trackStock: effectiveTrackStock,
                 isBundle: isBundle ?? false,
@@ -1010,8 +1033,8 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
 
         // Create new products in Parallel
         if (productsToCreate.length > 0) {
-            const createdProducts = await Promise.all(productsToCreate.map(item =>
-                tx.product.create({
+            const createdProducts = await Promise.all(productsToCreate.map(async (item) => {
+                const p = await tx.product.create({
                     data: {
                         name: item.name!,
                         sku: item.sku!,
@@ -1023,13 +1046,41 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         isDevice: item.isDevice || false,
                         deviceType: item.deviceType || undefined,
                         condition: item.condition || undefined,
+                        description: item.description || undefined,
                         ...(item.categoryId ? { category: { connect: { id: item.categoryId } } } : {}),
                         ...(item.modelId ? { model: { connect: { id: item.modelId } } } : {}),
                         ...(item.attributeId ? { attribute: { connect: { id: item.attributeId } } } : {}),
                         ...(item.unitOfMeasureId ? { unitOfMeasure: { connect: { id: item.unitOfMeasureId } } } : {})
                     } as any
-                })
-            ));
+                });
+
+                // Standardized Naming Reconstruction
+                const nameParts = [];
+                if (item.categoryId) {
+                    const cat = await tx.category.findUnique({ where: { id: item.categoryId } });
+                    if (cat) nameParts.push(cat.name);
+                }
+                if (item.modelId) {
+                    const mod = await tx.model.findUnique({ where: { id: item.modelId } });
+                    if (mod) nameParts.push(mod.name);
+                }
+                if (item.attributeId) {
+                    const attr = await tx.attribute.findUnique({ where: { id: item.attributeId } });
+                    if (attr) nameParts.push(attr.name);
+                }
+                if (item.description) {
+                    nameParts.push(item.description);
+                }
+
+                if (nameParts.length > 0) {
+                    await tx.product.update({
+                        where: { id: p.id },
+                        data: { name: nameParts.join(' - ') }
+                    });
+                }
+
+                return p;
+            }));
 
             // Merge back
             createdProducts.forEach((p, idx) => {
@@ -1045,7 +1096,6 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             finalInvoiceNumber = `P-${seq.toString().padStart(5, '0')}`;
         }
 
-        // D. Create Invoice & Items
         // D. Create Invoice & Items
         // Note: Using nested createMany is faster than looping
         const wh = await tx.warehouse.findUnique({

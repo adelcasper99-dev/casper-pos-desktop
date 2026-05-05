@@ -28,6 +28,7 @@ export interface GridRow {
     modelName?: string;
     attributeId?: string;
     attributeName?: string;
+    description?: string;
     isNewModel?: boolean;
     isNewAttribute?: boolean;
     unit: string;
@@ -94,12 +95,13 @@ interface PurchaseDataGridProps {
     onQuickCreateAttribute?: (name: string, callback: (id: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
     csrfToken?: string;
+    features?: any;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // "categoryId" is skipped in Tab for existing rows — handled in handleKeyDown
-const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "itemName", "unit", "conversionFactor", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
+const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "description", "itemName", "unit", "conversionFactor", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
 type EditableCol = (typeof ALL_EDITABLE_COLS)[number];
 
 const CELL_CLS = "border-e border-slate-200 dark:border-white/10 last:border-e-0 truncate px-3 py-2 transition-colors";
@@ -114,6 +116,7 @@ function createEmptyRow(): GridRow {
         categoryId: "",
         modelId: "",
         attributeId: "",
+        description: "",
         unit: "قطعة",
         quantity: 1,
         unitPrice: 0,
@@ -172,7 +175,7 @@ function getTextWidth(text: string, font: string = "bold 11px Cairo, sans-serif"
     return context.measureText(text).width;
 }
 
-const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 250, 60, 60, 60, 90, 85, 85, 85, 100, 32];
+const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 110, 250, 60, 60, 60, 90, 85, 85, 85, 100, 32];
 const STORAGE_KEY = "casper-purchase-grid-widths-v1";
 
 // ─── Price History Popover ─────────────────────────────────────────────────────
@@ -1218,7 +1221,8 @@ export function PurchaseDataGrid({
     onQuickCreateAttribute,
     onQuickCreateUnit,
     attributes,
-    csrfToken
+    csrfToken,
+    features
 }: PurchaseDataGridProps) {
     const router = useRouter();
     const t = useTranslations("Inventory.Purchasing");
@@ -1315,15 +1319,16 @@ export function PurchaseDataGrid({
             2: "categoryId",
             3: "modelId",
             4: "attributeId",
-            5: "itemName",
-            6: "unit",
-            7: "conversionFactor",
-            8: "quantity",
-            9: "unitPrice",
-            10: "sellPrice",
-            11: "sellPrice2",
-            12: "sellPrice3",
-            13: "subTotal"
+            5: "description",
+            6: "itemName",
+            7: "unit",
+            8: "conversionFactor",
+            9: "quantity",
+            10: "unitPrice",
+            11: "sellPrice",
+            12: "sellPrice2",
+            13: "sellPrice3",
+            14: "subTotal"
         };
 
         const headerLabels = ["#", "الكود", "اسم الصنف", "الفئة", "الوحدة", "الكمية", "التكلفة", "الإجمالي", "Action"];
@@ -1381,24 +1386,22 @@ export function PurchaseDataGrid({
                     if (i !== rowIdx) return r;
                     let merged = { ...r, ...updates };
 
-                    // Centralized Naming Logic for New Products
-                    if (merged.isNew) {
-                         const hasHierarchyChange = 
-                            updates.hasOwnProperty('categoryId') || 
-                            updates.hasOwnProperty('modelId') || 
-                            updates.hasOwnProperty('attributeId');
+                    const hasHierarchyChange = 
+                        updates.hasOwnProperty('categoryId') || 
+                        updates.hasOwnProperty('modelId') || 
+                        updates.hasOwnProperty('attributeId') ||
+                        updates.hasOwnProperty('description');
 
-                        if (hasHierarchyChange) {
-                            const catName = categories.find(c => c.id === merged.categoryId)?.name || "";
-                            const modName = models.find(m => m.id === merged.modelId)?.name || "";
-                            const attrName = attributes.find(a => a.id === merged.attributeId)?.name || "";
-                            
-                            // Use " - " separator for cleaner hierarchical naming
-                            merged.itemName = [catName, modName, attrName]
-                                .filter(Boolean)
-                                .join(" - ")
-                                .trim();
-                        }
+                    if (hasHierarchyChange && (merged.isNew || merged.categoryId)) {
+                        const catName = categories.find(c => c.id === merged.categoryId)?.name || "";
+                        const modName = models.find(m => m.id === merged.modelId)?.name || "";
+                        const attrName = attributes.find(a => a.id === merged.attributeId)?.name || "";
+                        
+                        // Use " - " separator for cleaner hierarchical naming
+                        merged.itemName = [catName, modName, attrName, merged.description]
+                            .filter(Boolean)
+                            .join(" - ")
+                            .trim();
                     }
 
                     merged.subTotal = computeSubTotal(merged.quantity, merged.unitPrice);
@@ -1803,7 +1806,11 @@ export function PurchaseDataGrid({
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    const gridTemplate = columnWidths.map(w => `${w}px`).join(' ');
+    const visibleWidths = features?.unitVisibility !== false 
+        ? columnWidths 
+        : columnWidths.filter((_, i) => i !== 7 && i !== 8); // Skip Unit and Conversion Factor columns if hidden
+
+    const gridTemplate = visibleWidths.map(w => `${w}px`).join(' ');
 
     return (
         <div 
@@ -1822,7 +1829,9 @@ export function PurchaseDataGrid({
                 style={{ gridTemplateColumns: gridTemplate }}
             >
                 {[
-                    "#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الوحدة", "العبوة", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
+                    "#", "الكود", "الفئة", "الموديل", "الصفة", "الوصف الإضافي", "اسم المنتج النهائي", 
+                    ...(features?.unitVisibility !== false ? ["الوحدة", "العبوة"] : []),
+                    "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
                 ].map((label, i) => (
                     <div 
                         key={i} 
@@ -1830,7 +1839,7 @@ export function PurchaseDataGrid({
                         onDoubleClick={() => i > 0 && i < 8 && autoFitColumn(i)}
                     >
                         {label}
-                        {i < 8 && (
+                        {i < 9 && (
                             <div 
                                 className={clsx(
                                     "absolute top-0 bottom-0 w-1 cursor-col-resize z-30 transition-colors hover:bg-cyan-500",
@@ -1995,6 +2004,19 @@ export function PurchaseDataGrid({
                                      onKeyDown={(e) => handleKeyDown(e, rowIdx, "attributeId")}
                                  />
                              </div>
+                             {/* ── Description ───────────────────────────────── */}
+                             <div className={clsx(CELL_CLS, "relative flex items-center")}>
+                                 <CellInput
+                                     ref={getInputRef(rowIdx, "description") as (el: HTMLInputElement | null) => void}
+                                     type="text"
+                                     value={row.description || ""}
+                                     placeholder="وصف إضافي..."
+                                     className="font-bold text-slate-500"
+                                     onChange={(e) => updateRow(rowIdx, { description: e.target.value })}
+                                     onFocus={() => setFocusCell([rowIdx, "description"])}
+                                     onKeyDown={(e) => handleKeyDown(e, rowIdx, "description")}
+                                 />
+                             </div>
 
                              {/* ── Item Name (Read-Only when hierarchical) ──────────────── */}
                              <div 
@@ -2040,42 +2062,45 @@ export function PurchaseDataGrid({
                                  )}
                              </div>
 
-                            <div className={clsx(CELL_CLS, "relative flex items-center")}>
-                                <UnitDropdown
-                                    triggerRef={getInputRef(rowIdx, "unit") as any}
-                                    value={row.unit}
-                                    options={units}
-                                    onChange={(name, id, factor) => { updateRow(rowIdx, { unit: name, unitOfMeasureId: id, conversionFactor: factor || 1 }); setTimeout(() => focusInput(rowIdx, "quantity"), 0); }}
-                                    onQuickCreate={(name) => {
-                                        if (onQuickCreateUnit) {
-                                            onQuickCreateUnit(name, (id, unitName) => {
-                                                updateRow(rowIdx, { unit: unitName, unitOfMeasureId: id, conversionFactor: 1 });
-                                            });
-                                        }
-                                    }}
-                                    onFocus={() => setFocusCell([rowIdx, "unit"])}
-                                    onKeyDown={(e) => handleKeyDown(e, rowIdx, "unit")}
-                                />
-                            </div>
+                             {features?.unitVisibility !== false && (
+                                <div className={clsx(CELL_CLS, "relative flex items-center")}>
+                                    <UnitDropdown
+                                        triggerRef={getInputRef(rowIdx, "unit") as any}
+                                        value={row.unit}
+                                        options={units}
+                                        onChange={(name, id, factor) => { updateRow(rowIdx, { unit: name, unitOfMeasureId: id, conversionFactor: factor || 1 }); setTimeout(() => focusInput(rowIdx, "quantity"), 0); }}
+                                        onQuickCreate={(name) => {
+                                            if (onQuickCreateUnit) {
+                                                onQuickCreateUnit(name, (id, unitName) => {
+                                                    updateRow(rowIdx, { unit: unitName, unitOfMeasureId: id, conversionFactor: 1 });
+                                                });
+                                            }
+                                        }}
+                                        onFocus={() => setFocusCell([rowIdx, "unit"])}
+                                        onKeyDown={(e) => handleKeyDown(e, rowIdx, "unit")}
+                                    />
+                                </div>
+                             )}
 
-                            {/* ── Package Factor (العبوة) ───────────────────────── */}
-                            <div className={clsx(CELL_CLS, "flex items-center")}>
-                                <CellInput
-                                    ref={getInputRef(rowIdx, "conversionFactor") as any}
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    disabled={row.unit === "قطعة"}
-                                    value={row.conversionFactor}
-                                    className={clsx(
-                                        "font-black font-mono text-center",
-                                        row.unit === "قطعة" ? "opacity-30 cursor-not-allowed" : "text-blue-500"
-                                    )}
-                                    onChange={(e) => updateRow(rowIdx, { conversionFactor: parseFloat(e.target.value) || 1 })}
-                                    onFocus={(e) => { setFocusCell([rowIdx, "conversionFactor"]); e.target.select(); }}
-                                    onKeyDown={(e) => handleKeyDown(e, rowIdx, "conversionFactor")}
-                                />
-                            </div>
+                             {features?.unitVisibility !== false && (
+                                <div className={clsx(CELL_CLS, "flex items-center")}>
+                                    <CellInput
+                                        ref={getInputRef(rowIdx, "conversionFactor") as any}
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        disabled={row.unit === "قطعة"}
+                                        value={row.conversionFactor}
+                                        className={clsx(
+                                            "font-black font-mono text-center",
+                                            row.unit === "قطعة" ? "opacity-30 cursor-not-allowed" : "text-blue-500"
+                                        )}
+                                        onChange={(e) => updateRow(rowIdx, { conversionFactor: parseFloat(e.target.value) || 1 })}
+                                        onFocus={(e) => { setFocusCell([rowIdx, "conversionFactor"]); e.target.select(); }}
+                                        onKeyDown={(e) => handleKeyDown(e, rowIdx, "conversionFactor")}
+                                    />
+                                </div>
+                             )}
 
                              {/* ── Quantity ─────────────────────────────────── */}
                              <div className={clsx(CELL_CLS, "flex flex-col items-center justify-center py-0.5")}>
@@ -2318,6 +2343,7 @@ export function gridRowsToCartItems(rows: GridRow[]): InvoiceItem[] {
             deviceType: r.deviceType,
             condition: r.condition,
             imei: r.imei,
+            description: r.description,
             unitOfMeasureId: r.unitOfMeasureId,
             conversionFactor: r.conversionFactor || 1,
         }));
@@ -2342,6 +2368,7 @@ export function cartItemsToGridRows(items: InvoiceItem[]): GridRow[] {
         sellPrice2: i.sellPrice2,
         sellPrice3: i.sellPrice3,
         isNew: i.isNew ?? false,
+        description: i.description || "",
         isDevice: i.isDevice,
         deviceType: i.deviceType,
         condition: i.condition,

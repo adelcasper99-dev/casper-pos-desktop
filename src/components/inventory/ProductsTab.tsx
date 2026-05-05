@@ -50,7 +50,8 @@ export default function ProductsTab({
     currency = "EGP",
     initialUnits = [],
     models = [],
-    attributes = []
+    attributes = [],
+    features = {}
 }: any) {
     const updateDerivedName = (prod: any) => {
         const cat = categories.find((c: Category) => c.id === prod.categoryId);
@@ -58,11 +59,12 @@ export default function ProductsTab({
         const attr = attributes.find((a: any) => a.id === prod.attributeId);
         
         let newName = prod.name;
-        if (cat || mod || attr) {
+        if (cat || mod || attr || prod.description) {
             const parts = [];
             if (cat) parts.push(cat.name);
             if (mod) parts.push(mod.name);
             if (attr) parts.push(attr.name);
+            if (prod.description) parts.push(prod.description);
             newName = parts.join(' - ');
         }
         return newName;
@@ -235,6 +237,7 @@ export default function ProductsTab({
             unitOfMeasureId: editingProduct.unitOfMeasureId || undefined,
             modelId: editingProduct.modelId || undefined,
             attributeId: editingProduct.attributeId || undefined,
+            description: editingProduct.description || undefined,
             csrfToken
         } as any);
 
@@ -492,6 +495,7 @@ export default function ProductsTab({
                   models={models}
                   attributes={attributes}
                  csrfToken={csrfToken}
+                 features={features}
                  onSuccess={() => { refetch(); }}
              />
 
@@ -799,6 +803,21 @@ export default function ProductsTab({
                                 </select>
                             </div>
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">الوصف الإضافي</label>
+                                <input
+                                    className="glass-input w-full font-black text-slate-900 dark:text-white"
+                                    value={editingProduct.description || ""}
+                                    onChange={e => {
+                                        const newProd = { ...editingProduct, description: e.target.value };
+                                        newProd.name = updateDerivedName(newProd);
+                                        setEditingProduct(newProd);
+                                    }}
+                                    placeholder="مثلاً: 128GB، لون أسود..."
+                                />
+                            </div>
+                        </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -976,25 +995,27 @@ export default function ProductsTab({
                             </div>
                         )}
 
-                        <div>
-                            <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('unitOfMeasure') || 'وحدة القياس'}</label>
-                            <select
-                                className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
-                                value={editingProduct.unitOfMeasureId || ""}
-                                onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value || null })}
-                            >
-                                <option value="">{t('noUnit') || 'بدون وحدة'}</option>
-                                {Object.entries(unitsByCategory).map(([category, catUnits]: [string, any]) => (
-                                    <optgroup key={category} label={category}>
-                                        {catUnits.map((u: any) => (
-                                            <option key={u.id} value={u.id}>
-                                                {u.name} ({u.code})
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                ))}
-                            </select>
-                        </div>
+                        {features?.unitVisibility !== false && (
+                            <div>
+                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('unitOfMeasure') || 'وحدة القياس'}</label>
+                                <select
+                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    value={editingProduct.unitOfMeasureId || ""}
+                                    onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value || null })}
+                                >
+                                    <option value="">{t('noUnit') || 'بدون وحدة'}</option>
+                                    {Object.entries(unitsByCategory).map(([category, catUnits]: [string, any]) => (
+                                        <optgroup key={category} label={category}>
+                                            {catUnits.map((u: any) => (
+                                                <option key={u.id} value={u.id}>
+                                                    {u.name} ({u.code})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-white/5">
                             <button

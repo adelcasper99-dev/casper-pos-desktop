@@ -6,6 +6,7 @@ import { createProduct, generateNextSku, seedBundleCategory } from "@/actions/in
 import GlassModal from "../ui/GlassModal";
 import { Combobox } from "@/components/ui/combobox";
 import { useTranslations } from "@/lib/i18n-mock";
+import { cn } from "@/lib/utils";
 
 import { Product, Category, Unit } from "@/types/product";
 
@@ -53,6 +54,7 @@ export default function AddProductModal({
     models = [],
     attributes = [],
     csrfToken,
+    features = {},
     onSuccess,
 }: any) {
     const updateDerivedName = (currentForm: any) => {
@@ -61,11 +63,12 @@ export default function AddProductModal({
         const attr = attributes.find((a: any) => a.id === currentForm.attributeId);
         
         let newName = currentForm.name;
-        if (cat || mod || attr) {
+        if (cat || mod || attr || currentForm.description) {
             const parts = [];
             if (cat) parts.push(cat.name);
             if (mod) parts.push(mod.name);
             if (attr) parts.push(attr.name);
+            if (currentForm.description) parts.push(currentForm.description);
             newName = parts.join(' - ');
         }
         return newName;
@@ -115,8 +118,16 @@ export default function AddProductModal({
             if (bundleCat && form.categoryId === "") {
                 setForm(f => ({ ...f, categoryId: bundleCat.id }));
             }
+
+            // Set default unit to "قطعة" if unit visibility is hidden
+            if (features?.unitVisibility === false && form.unitOfMeasureId === "") {
+                const pieceUnit = units.find((u: Unit) => u.name === "قطعة" || u.code === "PCS" || u.code === "piece");
+                if (pieceUnit) {
+                    setForm(f => ({ ...f, unitOfMeasureId: pieceUnit.id }));
+                }
+            }
         }
-    }, [isOpen, categories, form.categoryId, csrfToken]);
+    }, [isOpen, categories, form.categoryId, csrfToken, features?.unitVisibility, units]);
 
     const handleAutoSku = async () => {
         setGeneratingSku(true);
@@ -168,6 +179,7 @@ export default function AddProductModal({
                 trackStock: false,
                 isBundle: true,
                 unitOfMeasureId: form.unitOfMeasureId || undefined,
+                description: form.description || undefined,
                 modelId: form.modelId || undefined,
                 attributeId: form.attributeId || undefined,
                 bundleItems: bundleItems.map(b => ({
@@ -281,24 +293,41 @@ export default function AddProductModal({
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">وحدة القياس</label>
-                        <select
-                            className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
-                            value={form.unitOfMeasureId}
-                            onChange={e => setForm(f => ({ ...f, unitOfMeasureId: e.target.value }))}
-                        >
-                            <option value="">بدون وحدة</option>
-                            { (Object.entries(unitsByCategory) as [string, Unit[]][]).map(([category, catUnits]) => (
-                                <optgroup key={category} label={category}>
-                                    {catUnits.map((u: Unit) => (
-                                        <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
-                                    ))}
-                                </optgroup>
-                            ))}
-                        </select>
+                    <div className="col-span-2">
+                        <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">الوصف الإضافي</label>
+                        <input
+                            className="glass-input w-full font-black text-slate-900 dark:text-white"
+                            value={form.description}
+                            onChange={e => {
+                                const nextForm = { ...form, description: e.target.value };
+                                setForm({ ...nextForm, name: updateDerivedName(nextForm) });
+                            }}
+                            placeholder="مثلاً: 128GB، لون أسود..."
+                        />
                     </div>
-                    <div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    {features?.unitVisibility !== false && (
+                        <div>
+                            <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">وحدة القياس</label>
+                            <select
+                                className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                value={form.unitOfMeasureId}
+                                onChange={e => setForm(f => ({ ...f, unitOfMeasureId: e.target.value }))}
+                            >
+                                <option value="">بدون وحدة</option>
+                                { (Object.entries(unitsByCategory) as [string, Unit[]][]).map(([category, catUnits]) => (
+                                    <optgroup key={category} label={category}>
+                                        {catUnits.map((u: Unit) => (
+                                            <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
+                                        ))}
+                                    </optgroup>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    <div className={cn(features?.unitVisibility === false ? "col-span-2" : "")}>
                         <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">{tCommon('name') || "اسم المنتج"}</label>
                         <input
                             className="glass-input w-full font-black text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-white/5 cursor-not-allowed"

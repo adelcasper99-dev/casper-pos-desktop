@@ -726,6 +726,7 @@ export default function PurchasesTab({
                 onQuickCreateAttribute={handleQuickCreateAttribute}
                 onQuickCreateUnit={handleQuickCreateUnit}
                 treasuries={treasuries}
+                features={typeof settings?.features === 'string' ? JSON.parse(settings.features) : settings?.features}
             />
 
             <BulkUploadDialog

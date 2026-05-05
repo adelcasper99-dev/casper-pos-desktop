@@ -23,6 +23,7 @@ export const productSchema = z.object({
     deviceType: z.string().optional().nullable(),
     bundleItems: z.array(bundleItemSchema).optional(),
     unitOfMeasureId: z.string().optional().nullable(),
+    description: z.string().optional().nullable(),
 });
 
 export const supplierSchema = z.object({
@@ -60,6 +61,7 @@ const purchaseItemSchema = z.object({
     imei: z.string().optional().nullable(),
     color: z.string().optional().nullable(),
     unitOfMeasureId: z.string().optional().nullable(),
+    description: z.string().optional().nullable(),
     conversionFactor: z.coerce.number().optional().default(1.0),
 });
 

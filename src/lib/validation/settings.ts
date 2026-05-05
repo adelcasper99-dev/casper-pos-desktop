@@ -31,4 +31,5 @@ export const settingsSchema = z.object({
             PAID_DELIVERED: z.boolean().default(true),
         }).optional().default({ NEW: true, READY: true, PAID_DELIVERED: true }),
     }).optional(),
+    unitVisibility: z.boolean().optional(),
 });

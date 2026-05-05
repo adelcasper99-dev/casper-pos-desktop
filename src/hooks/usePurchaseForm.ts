@@ -29,6 +29,7 @@ export interface InvoiceItem {
     deviceType?: string;
     unitOfMeasureId?: string;
     conversionFactor?: number | string;
+    description?: string;
 }
 
 interface UsePurchaseFormProps {
@@ -436,6 +437,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 deviceType: i.deviceType,
                 condition: i.condition,
                 imei: i.imei,
+                description: i.description,
                 unitOfMeasureId: i.unitOfMeasureId,
                 conversionFactor: Number(i.conversionFactor || 1)
             })),
