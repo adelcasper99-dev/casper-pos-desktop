@@ -603,10 +603,44 @@ export default function TicketDetailPage() {
                                         <span className="font-mono text-zinc-400 tabular-nums">{ticket.deviceImei || '-'}</span>
                                     </DataRow>
                                     <div className="py-4">
-                                        <span className="text-xs font-black text-slate-600 dark:text-zinc-600 block mb-2 px-1">وصف العطل</span>
-                                        <div className="p-5 bg-slate-100 dark:bg-white/[0.02] rounded-2xl border-2 border-slate-300 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-300 leading-relaxed font-bold shadow-inner">
-                                            "{ticket.issueDescription}"
+                                        <div className="flex items-center justify-between mb-2 px-1">
+                                            <span className="text-xs font-black text-slate-600 dark:text-zinc-600">وصف العطل</span>
+                                            {!['PAID_DELIVERED', 'CANCELLED', 'VOIDED'].includes(ticket.status) && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={() => {
+                                                        setIssueText(ticket.issueDescription);
+                                                        setEditingIssue(true);
+                                                    }}
+                                                    className="h-6 w-6 text-slate-400 hover:text-white"
+                                                >
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            )}
                                         </div>
+                                        {editingIssue ? (
+                                            <div className="space-y-2">
+                                                <Textarea 
+                                                    value={issueText}
+                                                    onChange={(e) => setIssueText(e.target.value)}
+                                                    className="bg-white dark:bg-black border-2 border-slate-300 dark:border-zinc-700 min-h-[100px] text-sm font-bold"
+                                                    placeholder="اكتب وصف العطل هنا..."
+                                                />
+                                                <div className="flex gap-2">
+                                                    <Button size="sm" onClick={handleSaveIssue} className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1">
+                                                        <Save className="w-4 h-4 ml-2" /> حفظ
+                                                    </Button>
+                                                    <Button size="sm" variant="outline" onClick={() => setEditingIssue(false)} className="flex-1 dark:bg-zinc-800 dark:border-zinc-700">
+                                                        إلغاء
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-5 bg-slate-100 dark:bg-white/[0.02] rounded-2xl border-2 border-slate-300 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-300 leading-relaxed font-bold shadow-inner">
+                                                "{ticket.issueDescription}"
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </section>
