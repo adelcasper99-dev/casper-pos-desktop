@@ -35,6 +35,10 @@ export interface Ticket {
     createdBy?: {
         name: string;
     } | null;
+    technician?: {
+        id: string;
+        name: string;
+    } | null;
     parts?: TicketPart[] | null;
 }
 

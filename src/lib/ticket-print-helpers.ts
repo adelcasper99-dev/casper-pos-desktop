@@ -2,6 +2,15 @@
  * Real Code128B barcode SVG generator.
  * Ported from ThermalReceiptTemplate — identical implementation used by POS.
  */
+export function formatDurationHours(minutes: number | null | undefined): string {
+  if (!minutes || minutes <= 0) return '...........';
+  if (minutes >= 60) {
+    const h = minutes / 60;
+    return Number.isInteger(h) ? `${h} ساعة` : `${h.toFixed(1)} ساعة`;
+  }
+  return `${minutes} دقيقة`;
+}
+
 export function generateCode128SVG(text: string): string {
   const CODE128B: Record<string, string> = {
     ' ': '11011001100', '!': '11001101100', '"': '11001100110', '#': '10010011000',
@@ -334,8 +343,8 @@ export function generateEngineerReceiptHTML(ticket: any, settings: any): string 
     </div>
     <div class="section" style="background:#f9f9f9; border:0.4mm solid #000; margin:2mm 0; border-radius:1mm; padding:0 2mm;">
       <div class="section-title" style="opacity:1; color:#000; border-bottom:0.2mm solid #000; padding:1.5mm 0 1mm 0;">قسم الفني / الاستخدام الداخلي</div>
-      <div class="entry-field"><span class="entry-label">التكلفة المبدئية:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900;">${ticket.initialQuote ? formatAmt(Number(ticket.initialQuote)) : '................'}</div></div>
-      <div class="entry-field"><span class="entry-label">وقت الإصلاح:</span><div class="entry-line"></div></div>
+      <div class="entry-field"><span class="entry-label">المهندس المسؤول:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900;">${ticket.technician?.name || '................'}</div></div>
+      <div class="entry-field"><span class="entry-label">الوقت المتوقع:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900;">${formatDurationHours(ticket.expectedDuration)}</div></div>
       <div class="entry-field"><span class="entry-label">قطع الغيار:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900; font-size:9px;">${ticket.parts && ticket.parts.length > 0 ? ticket.parts.map((p: any) => p.product?.name).filter(Boolean).join(' + ') : '................'}</div></div>
       <div class="entry-field"><span class="entry-label">التكلفة النهائية:</span><div class="entry-line" style="border:none; border-bottom:0.05mm dotted #000; font-weight:900;">${ticket.repairPrice ? formatAmt(Number(ticket.repairPrice)) : '................'}</div></div>
       <div class="entry-field"><span class="entry-label">ملاحظات إضافية:</span><div class="entry-line"></div></div>

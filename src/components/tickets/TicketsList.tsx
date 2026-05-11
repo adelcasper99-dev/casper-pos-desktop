@@ -36,6 +36,7 @@ import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
 import TicketPrintOptionsModal from './TicketPrintOptionsModal'
 import { toast } from "sonner"
+import { formatDurationHours } from "@/lib/ticket-print-helpers";
 
 export default function TicketsList() {
     const t = useTranslations('Tickets');
@@ -301,10 +302,7 @@ export default function TicketsList() {
                     bVal = b.repairPrice - (b.amountPaid || 0);
                 }
 
-                if (sortConfig.key === 'gap') {
-                    aVal = new Date(a.updatedAt).getTime();
-                    bVal = new Date(b.updatedAt).getTime();
-                } else if (sortConfig.key === 'customerSuccessRatio') {
+                if (sortConfig.key === 'customerSuccessRatio') {
                     aVal = Number(a.customerSuccessRatio);
                     bVal = Number(b.customerSuccessRatio);
                 }
@@ -320,10 +318,8 @@ export default function TicketsList() {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-cairo">
-                {/* Card 1: Success Ratio */}
                 <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {/* Circular progress chart */}
                     <div className="relative w-16 h-16 flex-shrink-0">
                         <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                             <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-zinc-100 dark:text-white/5" />
@@ -348,7 +344,6 @@ export default function TicketsList() {
                         </div>
                     </div>
                 </div>
-                {/* Card 3: Overdue */}
                 <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
@@ -531,7 +526,6 @@ export default function TicketsList() {
                         <table className="zebra-table w-full text-right text-sm text-zinc-900 dark:text-zinc-200 table-fixed" dir="rtl">
                             <colgroup>
                                 <col className="w-[150px]" /> {/* Status */}
-                                <col className="w-[80px]" />  {/* Gap */}
                                 <col className="w-[100px]" /> {/* Success */}
                                 <col className="w-[120px]" /> {/* Date */}
                                 <col className="w-[120px]" /> {/* Info */}
@@ -540,7 +534,7 @@ export default function TicketsList() {
                                 <col className="w-[180px]" /> {/* Customer */}
                                 <col className="w-[180px]" /> {/* Device */}
                                 <col className="w-[180px]" /> {/* Fault/Issue */}
-                                <col className="w-[100px]" /> {/* Time */}
+                                <col className="w-[140px]" /> {/* Time */}
                                 <col className="w-[50px]" />  {/* Actions */}
                             </colgroup>
                                 <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 uppercase font-black text-[11px] tracking-wider border-b border-zinc-200 dark:border-white/10">
@@ -551,12 +545,6 @@ export default function TicketsList() {
                                                 {t('table.status')}
                                             </div>
                                         </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('gap')}>
-                                             <div className="flex items-center gap-2">
-                                                 {getSortIcon('gap')}
-                                                 {t('table.gap')}
-                                             </div>
-                                         </th>
                                          <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerSuccessRatio')}>
                                              <div className="flex items-center gap-2">
                                                  {getSortIcon('customerSuccessRatio')}
@@ -645,25 +633,6 @@ export default function TicketsList() {
                                                 </div>
                                             </td>
 
-                                            {/* ⏱ Gap Column */}
-                                            <td className="px-4 py-4">
-                                                {(() => {
-                                                    const isLong = ticket.gap?.includes('d') || (ticket.gap?.includes('h') && parseInt(ticket.gap) > 8);
-                                                    return (
-                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black tabular-nums ${
-                                                            ticket.isOverdue 
-                                                                ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                                                                : isLong 
-                                                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-500'
-                                                                    : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-500'
-                                                        }`}>
-                                                            <Clock className="w-2.5 h-2.5" />
-                                                            {ticket.gap}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </td>
-
                                             {/* 🏆 Customer Success Ratio */}
                                             <td className="px-4 py-4">
                                                 {(() => {
@@ -749,13 +718,25 @@ export default function TicketsList() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
-                                                    <Clock className="w-3.5 h-3.5" />
-                                                    <span className="text-sm font-black">
-                                                        {urgency ? urgency.label : (ticket.expectedDuration ? `${ticket.expectedDuration} min` : '-')}
-                                                    </span>
-                                                </div>
-                                            </td>
+                                                 <div className="flex flex-col gap-1">
+                                                     {/* اسم المهندس المسؤول */}
+                                                     {ticket.technician?.name && (
+                                                         <div className="flex items-center gap-1">
+                                                             <UserIcon className="w-3 h-3 text-cyan-500 flex-shrink-0" />
+                                                             <span className="text-[10px] font-black text-cyan-600 dark:text-cyan-400 truncate max-w-[100px]">
+                                                                 {ticket.technician.name}
+                                                             </span>
+                                                         </div>
+                                                     )}
+                                                     {/* الوقت المتبقي / المتوقع */}
+                                                     <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
+                                                         <Clock className="w-3.5 h-3.5" />
+                                                         <span className="text-sm font-black">
+                                                             {urgency ? urgency.label : formatDurationHours(ticket.expectedDuration)}
+                                                         </span>
+                                                     </div>
+                                                 </div>
+                                             </td>
 
                                             <td className="px-6 py-4 whitespace-nowrap text-right">                                                <DropdownMenu>
                                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
