@@ -6,6 +6,54 @@ const net = require('net');
 const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const whatsappService = require('./whatsappService');
+const { Bonjour } = require('bonjour-service');
+const dgram = require('dgram');
+
+// ── LAN Discovery Helpers ───────────────────────────────────────────────────
+/** Returns the first non-internal IPv4 address on the machine. */
+function getLanIp() {
+    const nets = os.networkInterfaces();
+    for (const ifaces of Object.values(nets)) {
+        for (const iface of ifaces) {
+            if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+        }
+    }
+    return '127.0.0.1';
+}
+
+/** Checks if a TCP port is free on 0.0.0.0. */
+function isPortFree(port) {
+    return new Promise((resolve) => {
+        const s = net.createServer();
+        s.once('error', () => resolve(false));
+        s.once('listening', () => s.close(() => resolve(true)));
+        s.listen(port, '0.0.0.0');
+    });
+}
+
+/**
+ * Tries to claim the preferred port. Increments up to 5 times on collision.
+ * Persists the winner in casper-config.json so next launch reuses it.
+ */
+async function tryClaimPort(preferred = 3001) {
+    for (let p = preferred; p < preferred + 5; p++) {
+        if (await isPortFree(p)) {
+            // Persist so the next launch retries the same port first
+            try {
+                const configPath = path.join(app.getPath('userData'), 'casper-config.json');
+                const cfg = fs.existsSync(configPath)
+                    ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                    : {};
+                fs.writeFileSync(configPath, JSON.stringify({ ...cfg, appPort: p }, null, 2), 'utf8');
+            } catch (_) { /* non-fatal */ }
+            return p;
+        }
+    }
+    throw new Error('No available port in range 3001-3005. Is another Casper instance running?');
+}
+
+let bonjourInstance = null;
+let udpBeacon = null;
 
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
@@ -359,15 +407,7 @@ let splashWindow = null;
 let nextServer;
 let appPort = 3001;
 
-const findFreePort = () => {
-    return new Promise((resolve) => {
-        const server = net.createServer();
-        server.listen(0, '127.0.0.1', () => {
-            const port = server.address().port;
-            server.close(() => resolve(port));
-        });
-    });
-};
+// findFreePort replaced by tryClaimPort above — prefers port 3001 and persists the winner.
 
 const startServer = () => {
     return new Promise(async (resolve, reject) => {
@@ -375,7 +415,17 @@ const startServer = () => {
 
         if (app.isPackaged) {
             runMigrations(dbPath);
-            appPort = await findFreePort();
+
+            // Prefer the persisted port from config, then try 3001 as the canonical default.
+            const persistedPort = (() => {
+                try {
+                    const cfg = JSON.parse(fs.readFileSync(
+                        path.join(app.getPath('userData'), 'casper-config.json'), 'utf8'
+                    ));
+                    return cfg.appPort || 3001;
+                } catch (_) { return 3001; }
+            })();
+            appPort = await tryClaimPort(persistedPort);
 
             const cwd = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone');
             const serverPath = path.join(cwd, 'server.js');
@@ -384,7 +434,7 @@ const startServer = () => {
                 return reject(new Error(`Next.js server.js not found! Ensure '.next/standalone' is in asarUnpack.\nPath checked: ${serverPath}`));
             }
 
-            log(`Server: Starting on port ${appPort} inside ${cwd}...`);
+            log(`Server: Starting on port ${appPort} (LAN: 0.0.0.0) inside ${cwd}...`);
             const enginesPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@prisma', 'engines');
             const queryEnginePath = path.join(enginesPath, 'query_engine-windows.dll.node');
             const normalizedDbPath = dbPath.replace(/\\/g, '/');
@@ -395,7 +445,7 @@ const startServer = () => {
                     ...process.env,
                     ELECTRON_RUN_AS_NODE: '1',
                     PORT: String(appPort),
-                    HOST: '127.0.0.1',
+                    HOSTNAME: '0.0.0.0',  // Bind to all interfaces — enables LAN access for Sub PCs
                     DATABASE_URL: `file:${normalizedDbPath}`,
                     PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath
                 }
@@ -476,6 +526,68 @@ const createWindow = async () => {
         mainWindow.maximize();
         mainWindow.show();
 
+        // ── Start mDNS broadcast so Sub PCs can reach this as casper-pos.local ──
+        if (app.isPackaged) {
+            try {
+                bonjourInstance = new Bonjour();
+                bonjourInstance.publish({
+                    name: 'Casper POS Master',
+                    type: 'http',
+                    port: appPort,
+                    host: 'casper-pos.local',
+                    txt: { version: app.getVersion(), lan: getLanIp() }
+                });
+                log(`mDNS: Broadcasting as casper-pos.local:${appPort} (LAN IP: ${getLanIp()})`);
+            } catch (mdnsErr) {
+                log(`mDNS: Failed to start broadcast (non-fatal): ${mdnsErr.message}`);
+            }
+
+            // ── UDP Discovery Beacon for Casper Launcher on Sub PCs ──────────────────
+            // Broadcasts a compact JSON packet every 3 seconds so the Launcher finds
+            // the Master instantly regardless of mDNS availability.
+            // Also responds immediately to any 'ping' the Launcher sends on startup,
+            // eliminating the worst-case broadcast timing dead zone.
+            try {
+                const BEACON_PORT = 55432;
+                const beaconPayload = Buffer.from(JSON.stringify({
+                    app: 'casper-pos', v: 1, ip: getLanIp(), port: appPort
+                }));
+
+                udpBeacon = dgram.createSocket('udp4');
+                udpBeacon.on('error', (err) => log(`UDP Beacon error: ${err.message}`));
+
+                udpBeacon.on('message', (msg, rinfo) => {
+                    try {
+                        const req = JSON.parse(msg.toString());
+                        // Launcher sent a ping — respond directly with our info
+                        if (req.app === 'casper-launcher' && req.action === 'ping') {
+                            udpBeacon.send(beaconPayload, rinfo.port, rinfo.address, () => {});
+                            log(`UDP Beacon: Responded to ping from ${rinfo.address}:${rinfo.port}`);
+                        }
+                    } catch (_) { /* ignore malformed packets */ }
+                });
+
+                udpBeacon.bind(BEACON_PORT, () => {
+                    udpBeacon.setBroadcast(true);
+                    log(`UDP Beacon: Listening on port ${BEACON_PORT}, broadcasting every 3s`);
+
+                    // Immediate first broadcast
+                    udpBeacon.send(beaconPayload, BEACON_PORT, '255.255.255.255', () => {});
+
+                    // Repeat every 3 seconds (down from 10s — closes timing dead zone)
+                    const interval = setInterval(() => {
+                        if (udpBeacon) {
+                            udpBeacon.send(beaconPayload, BEACON_PORT, '255.255.255.255', () => {});
+                        } else {
+                            clearInterval(interval);
+                        }
+                    }, 3000);
+                });
+            } catch (udpErr) {
+                log(`UDP Beacon: Failed to start (non-fatal): ${udpErr.message}`);
+            }
+        }
+
         // Check for updates shortly after boot
         setTimeout(() => {
             if (app.isPackaged) {
@@ -496,6 +608,12 @@ app.on('window-all-closed', () => {
 });
 app.on('will-quit', () => {
     if (nextServer) nextServer.kill();
+    if (bonjourInstance) {
+        try { bonjourInstance.destroy(); } catch (_) { }
+    }
+    if (udpBeacon) {
+        try { udpBeacon.close(); udpBeacon = null; } catch (_) { }
+    }
 });
 
 // --- AUTO UPDATER EVENTS AND IPC ---
@@ -817,6 +935,19 @@ safeHandle('dialog:showBackupFolderDialog', async () => {
 
 safeHandle('app:get-config', () => {
     return loadConfig();
+});
+
+// ── Network Info for Sub PC Connection Dashboard ─────────────────────────────
+safeHandle('app:get-network-info', () => {
+    const lanIp = getLanIp();
+    const port = appPort;
+    return {
+        lanIp,
+        port,
+        lanUrl: `http://${lanIp}:${port}`,
+        localUrl: `http://casper-pos.local:${port}`,
+        isElectronMaster: app.isPackaged,
+    };
 });
 
 safeHandle('app:get-db-path', () => {

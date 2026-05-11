@@ -78,6 +78,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
         saveBackupConfig: (path) => ipcRenderer.invoke('app:save-backup-config', path),
+        /** Returns LAN IP, port, direct URL, and mDNS .local URL for the Connection Dashboard */
+        getNetworkInfo: () => ipcRenderer.invoke('app:get-network-info'),
     },
 
     /**
