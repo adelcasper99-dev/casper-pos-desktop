@@ -1,5 +1,5 @@
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -59,3 +59,11 @@ casper-hardware-bridge/dist/
 /.compound-engineering/
 /compound-engineering-plugin/
 /copy_skills.ps1
+
+# casper-launcher build artifacts
+casper-launcher/node_modules/
+casper-launcher/dist/
+casper-launcher/*.exe
+
+# VS Code workspace file (local only)
+*.code-workspace
