@@ -23,8 +23,8 @@ import { BulkUploadDialog } from "@/components/inventory/purchasing/BulkUploadDi
 import { generateA4PurchaseHTML } from "./purchasing/A4PurchaseTemplate";
 import { generateThermalPurchaseHTML } from "./purchasing/ThermalPurchaseTemplate";
 import { printService } from "@/lib/print-service";
-import { getStoreSettings } from "@/actions/settings";
 import { useTranslations } from "@/lib/i18n-mock";
+import { useSettings } from "@/contexts/SettingsContext";
 import { usePurchaseForm } from "@/hooks/usePurchaseForm";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 import { toast } from "sonner";
@@ -99,7 +99,7 @@ export default function PurchasesTab({
     const [unitsList, setUnitsList] = useState<any[]>(initialUnits);
 
     const [showBulkUpload, setShowBulkUpload] = useState(false);
-    const [settings, setSettings] = useState<any>(null);
+    const { settings } = useSettings();
     const [showBarcodePrint, setShowBarcodePrint] = useState(false);
     const [selectedTableInvoice, setSelectedTableInvoice] = useState<any>(null);
     const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
@@ -188,11 +188,6 @@ export default function PurchasesTab({
         return sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-cyan-400" /> : <ChevronDown className="w-3 h-3 text-cyan-400" />;
     };
 
-    useEffect(() => {
-        getStoreSettings().then(res => {
-            if (res.success) setSettings(res.data);
-        });
-    }, []);
 
     // Also sync props if they change (e.g. on full revalidation)
     useEffect(() => { setSuppliersList(suppliers); }, [suppliers]);

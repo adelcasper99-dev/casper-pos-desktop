@@ -8,10 +8,12 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useTranslations } from "@/lib/i18n-mock";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
     const [saving, setSaving] = useState(false);
+    const { refreshSettings } = useSettings();
     const t = useTranslations('StoreConfig');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +71,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
             const result = await updateStoreSettings(payload);
             if (result?.success) {
                 toast.success(t('success'));
+                await refreshSettings();
             } else {
                 toast.error(result?.error || t('error'));
             }

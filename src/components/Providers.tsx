@@ -11,7 +11,8 @@ export default function Providers({
     initialToken
 }: {
     children: React.ReactNode,
-    initialToken: string | null
+    initialToken: string | null,
+    initialSettings?: any
 }) {
     const [queryClient] = useState(() => new QueryClient({
         defaultOptions: {
@@ -33,7 +34,7 @@ export default function Providers({
     return (
         <QueryClientProvider client={queryClient}>
             <CSRFProvider initialToken={initialToken}>
-                <SettingsProvider>
+                <SettingsProvider initialSettings={initialSettings}>
                     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                         {children}
                     </ThemeProvider>

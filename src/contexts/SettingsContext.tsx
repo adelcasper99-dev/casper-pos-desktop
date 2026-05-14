@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { getStoreSettings } from '@/actions/settings';
 
@@ -10,6 +10,7 @@ interface SettingsContextType {
     settings: any;
     isLoading: boolean;
     formatPrice: (amount: number | string) => string;
+    refreshSettings: () => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextType>({
@@ -18,6 +19,7 @@ const SettingsContext = createContext<SettingsContextType>({
     settings: {},
     isLoading: true,
     formatPrice: (amount) => formatCurrency(amount, 'EGP'),
+    refreshSettings: async () => {},
 });
 
 export function SettingsProvider({
@@ -30,16 +32,23 @@ export function SettingsProvider({
     const [settings, setSettings] = useState(initialSettings || {});
     const [isLoading, setIsLoading] = useState(!initialSettings);
 
+    const refreshSettings = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const res = await getStoreSettings();
+            if (res?.success && res.data) {
+                setSettings(res.data);
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (!initialSettings) {
-            getStoreSettings().then(res => {
-                if (res?.success && res.data) {
-                    setSettings(res.data);
-                }
-                setIsLoading(false);
-            });
+            refreshSettings();
         }
-    }, [initialSettings]);
+    }, [initialSettings, refreshSettings]);
 
     const currency = settings.currency || 'EGP';
     const taxRate = Number(settings.taxRate) || 0;
@@ -54,7 +63,8 @@ export function SettingsProvider({
             taxRate,
             settings,
             isLoading,
-            formatPrice
+            formatPrice,
+            refreshSettings
         }}>
             {children}
         </SettingsContext.Provider>

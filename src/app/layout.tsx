@@ -41,7 +41,7 @@ export default async function RootLayout({
     return (
         <html lang="ar" dir="rtl" suppressHydrationWarning>
             <body className="antialiased">
-                <Providers initialToken={csrfToken}>
+                <Providers initialToken={csrfToken} initialSettings={settings}>
                     <TimeSyncWarning />
                     <NavigationHotkeys />
                     <LayoutWrapper user={user} settings={settings}>

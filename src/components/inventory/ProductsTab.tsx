@@ -21,6 +21,7 @@ import { useDebounce } from "use-debounce";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { useTranslations } from "@/lib/i18n-mock";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useSettings } from "@/contexts/SettingsContext";
 import { toast } from "sonner";
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import {
@@ -50,9 +51,10 @@ export default function ProductsTab({
     currency = "EGP",
     initialUnits = [],
     models = [],
-    attributes = [],
-    features = {}
+    attributes = []
 }: any) {
+    const { settings } = useSettings();
+    const features = typeof settings?.features === 'string' ? JSON.parse(settings.features || "{}") : (settings?.features || {});
     const updateDerivedName = (prod: any) => {
         const cat = categories.find((c: Category) => c.id === prod.categoryId);
         const mod = models.find((m: any) => m.id === prod.modelId);
