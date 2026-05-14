@@ -8,7 +8,8 @@ import { CSRFProvider } from "@/contexts/CSRFContext";
 
 export default function Providers({
     children,
-    initialToken
+    initialToken,
+    initialSettings
 }: {
     children: React.ReactNode,
     initialToken: string | null,
