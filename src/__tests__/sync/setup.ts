@@ -15,7 +15,12 @@ const dbPath = path.resolve(process.cwd(), 'prisma', `test-${suiteId}.db`);
 
 export async function resetTestDB() {
     // Faster truncation reset
-    const tables = ['SaleItem', 'Sale', 'Branch', 'Ticket', 'TicketNote', 'StockMovement', 'Stock', 'Warehouse', 'Customer', 'Sequence', 'RepairPayment'];
+    const tables = [
+        'SaleItem', 'Sale', 'Branch', 'Ticket', 'TicketNote', 
+        'StockMovement', 'Stock', 'Warehouse', 'Customer', 
+        'Sequence', 'RepairPayment', 'JournalLine', 'JournalEntry', 
+        'Treasury', 'Account', 'Product', 'Category'
+    ];
     
     // Disable FK checks and delete all
     await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF;');

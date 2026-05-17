@@ -11,11 +11,42 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
         
         // Setup minimal data (Branch, etc)
         await prisma.branch.create({
-            data: { id: 'branch-1', name: 'Main Branch', code: 'BR-1' }
+            data: { id: 'b3b07384-d113-4956-a5d2-085e78370b01', name: 'Main Branch', code: 'BR-1' }
         });
 
         await prisma.warehouse.create({
-            data: { id: 'WH-1', name: 'Main Warehouse', branchId: 'branch-1' }
+            data: { id: 'b3b07384-d113-4956-a5d2-085e78370f01', name: 'Main Warehouse', branchId: 'b3b07384-d113-4956-a5d2-085e78370b01' }
+        });
+
+        // Seed accounts needed for Double-Entry Bookkeeping
+        await prisma.account.create({
+            data: { id: 'acc-sales', code: '4000', name: 'Sales Revenue', type: 'REVENUE' }
+        });
+
+        await prisma.account.create({
+            data: { id: 'acc-cash', code: '1000', name: 'Main Cash', type: 'ASSET' }
+        });
+
+        // Seed treasury mapped to the branch
+        await prisma.treasury.create({
+            data: { id: 'treasury-1', branchId: 'b3b07384-d113-4956-a5d2-085e78370b01', name: 'Main Treasury', glCode: '1000', paymentMethod: 'CASH', balance: '0' }
+        });
+
+        // Seed category and product
+        await prisma.category.create({
+            data: { id: 'cat-1', name: 'Electronics' }
+        });
+
+        await prisma.product.create({
+            data: {
+                id: 'd3b07384-d113-4956-a5d2-085e78370123',
+                sku: 'PROD-100',
+                name: 'iPhone 15 Pro',
+                categoryId: 'cat-1',
+                costPrice: '1000',
+                sellPrice: '1200',
+                trackStock: false
+            }
         });
     });
 
@@ -30,9 +61,15 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
             customerName: 'Chaos User',
             totalAmount: 100,
             paymentMethod: 'CASH',
-            branchId: 'branch-1',
-            warehouseId: 'WH-1',
-            items: []
+            branchId: 'b3b07384-d113-4956-a5d2-085e78370b01',
+            warehouseId: 'b3b07384-d113-4956-a5d2-085e78370f01',
+            items: [
+                {
+                    productId: 'd3b07384-d113-4956-a5d2-085e78370123',
+                    quantity: 1,
+                    unitPrice: 100
+                }
+            ]
         };
 
         const executeRequest = () => {
@@ -79,10 +116,16 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
             customerName: 'Time Traveler',
             totalAmount: 200,
             paymentMethod: 'CASH',
-            branchId: 'branch-1',
-            warehouseId: 'WH-1',
+            branchId: 'b3b07384-d113-4956-a5d2-085e78370b01',
+            warehouseId: 'b3b07384-d113-4956-a5d2-085e78370f01',
             createdAt: backdatedTime.toISOString(),
-            items: []
+            items: [
+                {
+                    productId: 'd3b07384-d113-4956-a5d2-085e78370123',
+                    quantity: 1,
+                    unitPrice: 200
+                }
+            ]
         };
 
         const req = new NextRequest('http://localhost/api/pos/offline-sale', {
