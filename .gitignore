@@ -59,3 +59,12 @@ casper-hardware-bridge/dist/
 /.compound-engineering/
 /compound-engineering-plugin/
 /copy_skills.ps1
+
+# casper-launcher subproject ignores
+/casper-launcher/node_modules/
+/casper-launcher/dist/
+/casper-launcher/out/
+/casper-launcher/release/
+
+# workspace files
+*.code-workspace
