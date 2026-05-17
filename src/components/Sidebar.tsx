@@ -46,7 +46,8 @@ import StaffProfileBadge from "@/components/staff/StaffProfileBadge";
 import AppClock from "@/components/ui/AppClock";
 import { useOfflineQueueStatus } from "@/hooks/useOfflineQueueStatus";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { RefreshCw, Unplug, CloudOff, AlertCircle } from "lucide-react";
+import { RefreshCw, Unplug, CloudOff, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { useBridgeStatus } from "@/hooks/useBridgeStatus";
 
 import {
     DndContext,
@@ -84,6 +85,94 @@ const MENU_ITEMS = [
     { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSION_REGISTRY.TICKET.VIEW },
     { key: "returns", href: "/returns", icon: Undo2, permission: undefined },
 ];
+
+interface BridgeStatusBadgeProps {
+    isExpanded: boolean;
+    locale: string;
+    router: any;
+}
+
+function BridgeStatusBadge({ isExpanded, locale, router }: BridgeStatusBadgeProps) {
+    const { state, version, printerConfigured, recheck, isMounted } = useBridgeStatus();
+    const t = useTranslations('Bridge');
+
+    if (!isMounted) return null;
+
+    const isRtl = locale === 'ar';
+
+    let bgStyle = "";
+    let icon = null;
+    let label = "";
+    let tooltip = "";
+    let onClick = undefined;
+
+    switch (state) {
+        case 'checking':
+            bgStyle = "bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400";
+            icon = <RefreshCw className="w-5 h-5 animate-spin" />;
+            label = t('status.connecting', 'Checking...');
+            tooltip = isRtl ? "جاري التحقق من جسر الطباعة..." : "Checking bridge status...";
+            break;
+        case 'no_ip':
+            bgStyle = "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 cursor-pointer";
+            icon = <AlertCircle className="w-5 h-5 text-amber-500 animate-pulse" />;
+            label = t('status.no_ip', 'Setup Bridge');
+            tooltip = isRtl ? "لم يتم إعداد عنوان جسر الطباعة. اضغط للضبط." : "Bridge IP not configured. Click to configure.";
+            onClick = () => router.push('/settings');
+            break;
+        case 'offline':
+            bgStyle = "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/20 cursor-pointer";
+            icon = <WifiOff className="w-5 h-5 text-red-500" />;
+            label = t('status.offline', 'Bridge Offline');
+            tooltip = isRtl ? "جسر الطباعة غير متصل. اضغط لإعادة المحاولة." : "Bridge offline. Click to retry.";
+            onClick = () => {
+                recheck();
+            };
+            break;
+        case 'online':
+            if (!printerConfigured) {
+                bgStyle = "bg-orange-500/10 border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 cursor-pointer";
+                icon = <AlertCircle className="w-5 h-5 text-orange-500" />;
+                label = t('status.unconfigured', 'Setup Printers');
+                tooltip = isRtl ? "جسر الطباعة متصل ولكن لم يتم إعداد أي طابعة. اضغط للضبط." : "Bridge online but no printers configured. Click to configure.";
+                onClick = () => router.push('/settings');
+            } else {
+                bgStyle = "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400";
+                icon = <Wifi className="w-5 h-5 text-emerald-500" />;
+                label = t('status.active', 'Bridge Online');
+                tooltip = isRtl ? `جسر الطباعة متصل (${version})` : `Bridge online (${version})`;
+            }
+            break;
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={!onClick}
+            className={cn(
+                "relative flex items-center justify-center rounded-xl transition-all duration-300 group overflow-hidden border-2 w-full text-left",
+                bgStyle,
+                isExpanded ? "px-3 py-2.5 gap-3" : "h-10 p-0",
+                !onClick && "cursor-default"
+            )}
+            title={tooltip}
+        >
+            {icon}
+            
+            {isExpanded && (
+                <div className="flex flex-col items-start leading-none gap-1 min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-tighter">
+                        {isRtl ? "جسر الأجهزة" : "HARDWARE BRIDGE"}
+                    </span>
+                    <span className="text-[12px] font-black truncate max-w-full">
+                        {label}
+                    </span>
+                </div>
+            )}
+        </button>
+    );
+}
 
 function Sidebar({ user, settings }: { user: any, settings?: any }) {
     const t = useTranslations('Sidebar');
@@ -373,6 +462,11 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                         </button>
                     )}
                 </div>
+
+                {/* Hardware Bridge Connection Badge */}
+                {mounted && !window.electronAPI?.isElectron && (
+                    <BridgeStatusBadge isExpanded={isExpanded} locale={locale} router={router} />
+                )}
 
                 {/* Training Button */}
                 <button

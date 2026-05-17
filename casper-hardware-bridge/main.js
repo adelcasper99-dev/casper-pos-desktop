@@ -78,6 +78,15 @@ function getWorkerWindow() {
     return workerWindow;
 }
 
+expressApp.get('/api/status', (req, res) => {
+    const configured = !!(store?.get('receiptPrinter') || store?.get('thermalPrinter') || store?.get('barcodePrinter') || store?.get('a4Printer'));
+    res.json({
+        status: 'online',
+        version: app.getVersion(),
+        printerConfigured: configured
+    });
+});
+
 expressApp.post('/api/print', async (req, res) => {
     try {
         const { jobType, commands, html, printerSettings } = req.body;
