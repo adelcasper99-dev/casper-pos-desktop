@@ -17,6 +17,7 @@ We need to update the existing Maintenance Profit Report to include new financia
 - **Engineer Profit (إجمالي ربح المهندسين):** The total commissions paid out to engineers (`totalCommissions`).
 - **Center Profit (إجمالي ربح المركز):** The final net profit for the center (`totalNetProfit`).
 - **Top Selling & Profitable Parts/Services (الأكثر مبيعاً والأكثر ربحاً كقطع غيار أو خدمات):** Aggregation of `TicketPart` entries to identify the most frequently used/sold parts and those yielding the highest profit.
+- **Assigned Engineer Placement (موقع عمود المهندس):** Reposition the assigned engineer name (`technicianName`) column to be directly next to the malfunction/issue description (`issueDescription`) column in the details table (between "العطل" and "الحالة") to optimize quick scanning.
 
 ## Gaps & Risks Analysis
 > [!WARNING]
@@ -59,6 +60,9 @@ We need to update the existing Maintenance Profit Report to include new financia
 
 - **[NEW] `src/components/reports/MaintenanceTopParts.tsx`**
   - Create a new UI component displaying two columns: Top 5 Parts by Volume, Top 5 Parts by Profit.
+
+- **[MODIFY] `src/components/reports/MaintenanceProfitTable.tsx`**
+  - Reposition the "المهندس" (technicianName) table header and table cell from the 4th column to be directly next to "العطل" (issueDescription) column (between "العطل" and "الحالة").
 
 - **[MODIFY] `src/app/(routes)/dashboard/reports/maintenance-profit/page.tsx`**
   - Import and place `<MaintenanceTopParts topParts={reportData.topParts} />` between the KPIs and the main table.
