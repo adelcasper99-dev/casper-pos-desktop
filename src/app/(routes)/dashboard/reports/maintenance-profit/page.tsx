@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { getMaintenanceProfitReport, getTechnicians } from "@/actions/reports/maintenance";
 import { MaintenanceProfitKPIs } from "@/components/reports/MaintenanceProfitKPIs";
+import { MaintenanceTopParts } from "@/components/reports/MaintenanceTopParts";
 import { MaintenanceProfitTable } from "@/components/reports/MaintenanceProfitTable";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -204,6 +205,10 @@ export default function MaintenanceProfitPage() {
             ) : reportData ? (
                 <div className={isPending ? "opacity-50 transition-opacity" : ""}>
                     <MaintenanceProfitKPIs data={reportData.kpis} />
+                    
+                    {reportData.topParts && (
+                        <MaintenanceTopParts data={reportData.topParts} />
+                    )}
                     
                     <div className="flex flex-col gap-6">
                         <div className="flex items-center justify-between px-1">

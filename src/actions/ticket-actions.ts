@@ -18,6 +18,7 @@ import { getBranchFilter } from "@/lib/data-filters";
 import { TicketStatus } from "@/lib/constants";
 import { handleReturnedPartStock, decrementWarehouseStock, incrementWarehouseStock } from "@/lib/stock-helpers";
 import { serialize } from "@/lib/serialization";
+import { toDecimal } from "@/lib/decimal-utils";
 
 
 import { getFormattedTicketNumber } from "@/lib/id-generator";
@@ -195,9 +196,14 @@ export const getTickets = secureAction(async (filters?: {
     const totalSummary = await prisma.ticket.aggregate({
         where,
         _sum: {
-            amountPaid: true
+            amountPaid: true,
+            repairPrice: true
         }
     });
+
+    const sumPaid = toDecimal(totalSummary._sum.amountPaid || 0);
+    const sumRepairPrice = toDecimal(totalSummary._sum.repairPrice || 0);
+    const sumOutstanding = sumRepairPrice.minus(sumPaid);
 
     return {
         tickets: processedTickets,
@@ -205,7 +211,8 @@ export const getTickets = secureAction(async (filters?: {
             delivered: deliveredCount,
             returns: returnCount,
             ratio: ratio.toFixed(1),
-            totalPaid: Number(totalSummary._sum.amountPaid || 0),
+            totalPaid: sumPaid.toNumber(),
+            totalOutstanding: Math.max(0, sumOutstanding.toNumber()),
             overdueCount
         }
     };

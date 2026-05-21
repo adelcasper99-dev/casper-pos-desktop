@@ -302,7 +302,7 @@ export default function TicketDetailPage() {
         if (shouldPrint && ticket && !hasPrinted) {
             console.log('[AutoPrint] ✓ Triggering from print=true URL param');
             setHasPrinted(true);
-            setIsSilentPrint(true);
+            setIsSilentPrint(false); // 🛡️ FIX: Do not force silent print from URL. Let settings dictate auto-print.
             setShowPrintOptions(true);
             
             // Clean URL
@@ -316,18 +316,10 @@ export default function TicketDetailPage() {
             return;
         }
 
-        // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
-        const autoPrintEnabled = settings?.autoPrintTicket === true;
-        console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
-        
-        const alreadyPrinted = ticket?.id && sessionStorage.getItem(`ticket_autoprint_${ticket.id}`);
-
-        if (autoPrintEnabled && ticket && !hasPrinted && !alreadyPrinted) {
-            console.log('[AutoPrint] ✓ Triggering from settings');
-            setIsSilentPrint(true);
-            setShowPrintOptions(true);
-            setHasPrinted(true);
-        }
+        // 🛡️ FIX: Removed flawed fallback auto-print logic.
+        // It used to print tickets every time they were opened in a new session if autoPrintTicket was true.
+        // Now, auto-printing only occurs immediately after creation (via print=true URL param) 
+        // or explicitly via manual UI actions.
     }, [searchParams, ticket, loading, hasPrinted, settings, showPrintOptions]);
 
     async function loadData() {

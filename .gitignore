@@ -1,18 +1,19 @@
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnp/
 .pnp.js
 
 # testing
-/coverage
+coverage/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
-/dist
+build/
+dist/
+
 
 # misc
 .DS_Store
@@ -53,9 +54,13 @@ nul
 casper-hardware-bridge/node_modules/
 casper-hardware-bridge/dist/
 
+casper-launcher/node_modules/
+casper-launcher/dist/
+
 # Agent & Skill Library (Local only)
 /.gemini/
 /.agents/
 /.compound-engineering/
 /compound-engineering-plugin/
 /copy_skills.ps1
+

@@ -5,17 +5,57 @@ import { resetTestDB } from './setup';
 import { NextRequest } from 'next/server';
 
 describe('Sync Engine: Idempotency & Temporal Integrity', () => {
+    const branchId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const warehouseId = 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+    const productId = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33';
+    const categoryId = 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44';
     
     beforeEach(async () => {
         await resetTestDB();
         
-        // Setup minimal data (Branch, etc)
+        // Setup minimal data (Branch, Warehouse, Category, Product)
         await prisma.branch.create({
-            data: { id: 'branch-1', name: 'Main Branch', code: 'BR-1' }
+            data: { id: branchId, name: 'Main Branch', code: 'BR-1' }
         });
 
         await prisma.warehouse.create({
-            data: { id: 'WH-1', name: 'Main Warehouse', branchId: 'branch-1' }
+            data: { id: warehouseId, name: 'Main Warehouse', branchId }
+        });
+
+        await prisma.category.create({
+            data: { id: categoryId, name: 'General' }
+        });
+
+        await prisma.product.create({
+            data: {
+                id: productId,
+                sku: 'PROD-1',
+                name: 'Test Product',
+                categoryId,
+                costPrice: '10',
+                sellPrice: '20',
+                trackStock: false
+            }
+        });
+
+        // Seed GL Accounts and Treasury for sync routing
+        await prisma.account.create({
+            data: { id: 'acc-sales', code: '4000', name: 'Sales Revenue', type: 'REVENUE' }
+        });
+
+        await prisma.account.create({
+            data: { id: 'acc-cash', code: '1000', name: 'Cash on Hand', type: 'ASSET' }
+        });
+
+        await prisma.treasury.create({
+            data: {
+                id: 'treasury-1',
+                name: 'Main Treasury',
+                branchId,
+                paymentMethod: 'CASH',
+                glCode: '1000',
+                balance: '0'
+            }
         });
     });
 
@@ -30,9 +70,16 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
             customerName: 'Chaos User',
             totalAmount: 100,
             paymentMethod: 'CASH',
-            branchId: 'branch-1',
-            warehouseId: 'WH-1',
-            items: []
+            branchId,
+            warehouseId,
+            items: [
+                {
+                    productId,
+                    quantity: 1,
+                    unitPrice: 100,
+                    unitCost: 50
+                }
+            ]
         };
 
         const executeRequest = () => {
@@ -79,10 +126,17 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
             customerName: 'Time Traveler',
             totalAmount: 200,
             paymentMethod: 'CASH',
-            branchId: 'branch-1',
-            warehouseId: 'WH-1',
+            branchId,
+            warehouseId,
             createdAt: backdatedTime.toISOString(),
-            items: []
+            items: [
+                {
+                    productId,
+                    quantity: 1,
+                    unitPrice: 200,
+                    unitCost: 100
+                }
+            ]
         };
 
         const req = new NextRequest('http://localhost/api/pos/offline-sale', {

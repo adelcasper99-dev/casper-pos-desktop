@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "C:/Users/TheExpert/Downloads/compound-engineering-plugin-main/compound-engineering-plugin-main"
+		}
+	],
+	"settings": {
+		"prisma.pinToPrisma6": true,
+		"powershell.cwd": "casper-pos-desktop"
+	}
+}

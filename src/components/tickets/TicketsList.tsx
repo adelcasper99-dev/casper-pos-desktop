@@ -2,7 +2,7 @@ import { useState, useEffect, useTransition, useMemo } from 'react'
 import {
     Search, User as UserIcon, Plus, Edit2, Trash2, MoreHorizontal,
     Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download,
-    Printer, Settings as SettingsIcon, StickyNote, Zap, Activity
+    Printer, Settings as SettingsIcon, StickyNote, Zap, Activity, Coins
 } from "lucide-react"
 
 import { Switch } from "@/components/ui/switch"
@@ -84,6 +84,7 @@ export default function TicketsList() {
         returns: 0, 
         ratio: '0.0', 
         totalPaid: 0,
+        totalOutstanding: 0,
         overdueCount: 0
     });
 
@@ -345,6 +346,32 @@ export default function TicketsList() {
                         <div className="flex items-center gap-1 mt-0.5">
                             <div className="h-1 w-1 rounded-full bg-emerald-500" />
                             <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
+                        </div>
+                    </div>
+                </div>
+                {/* Card 2: Financial Summary */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-violet-500/10 border border-violet-500/20" />
+                        <Coins className="h-7 w-7 text-violet-500 relative z-10" />
+                    </div>
+                    <div className="flex flex-col gap-1 w-full font-cairo">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الملخص المالي</p>
+                        <div className="flex items-center gap-4 mt-0.5">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-400 font-bold">المدفوع</span>
+                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
+                                    {stats.totalPaid.toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
+                                </span>
+                            </div>
+                            <div className="h-8 w-px bg-zinc-200 dark:bg-white/10" />
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-400 font-bold">المستحق</span>
+                                <span className="text-lg font-black text-rose-600 dark:text-rose-400 tabular-nums leading-none">
+                                    {stats.totalOutstanding.toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
