@@ -733,6 +733,8 @@ export default function PurchasesTab({
                 onOpenChange={setShowBulkUpload}
                 onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['purchase-invoices'] })}
                 csrfToken={csrfToken}
+                suppliers={suppliersList}
+                warehouses={warehouses}
             />
 
             {selectedDetailsInvoice && (

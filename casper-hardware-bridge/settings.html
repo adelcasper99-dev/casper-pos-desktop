@@ -203,6 +203,17 @@
         
         .success { color: var(--success); }
         .error { color: var(--danger); }
+
+        @keyframes pulse {
+            0% { transform: scale(0.85); opacity: 0.5; }
+            50% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(0.85); opacity: 0.5; }
+        }
+        .pulse-icon {
+            animation: pulse 2s infinite ease-in-out;
+            color: var(--success);
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -259,6 +270,30 @@
             <div class="range-container">
                 <input type="range" id="marginLeft" min="0" max="100" value="0">
                 <span class="range-value" id="marginLeftVal">0</span>
+            </div>
+        </div>
+
+        <div class="form-group" style="padding-bottom: 12px;">
+            <label style="color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="pulse-icon"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+                Connected Web Clients
+            </label>
+            <div id="clientsContainer" style="margin-top: 12px; max-height: 120px; overflow-y: auto;">
+                <div style="font-size: 13px; color: var(--textSecondary); text-align: center; padding: 12px 0;" id="noClientsText">
+                    No active browser clients detected
+                </div>
+                <table id="clientsTable" style="width: 100%; border-collapse: collapse; font-size: 12px; display: none;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border); color: var(--textSecondary); text-align: left;">
+                            <th style="padding: 6px 4px; font-weight: 600;">IP Address</th>
+                            <th style="padding: 6px 4px; font-weight: 600;">Device/Browser</th>
+                            <th style="padding: 6px 4px; font-weight: 600; text-align: right;">Last Ping</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientsList">
+                        <!-- Dynamic list -->
+                    </tbody>
+                </table>
             </div>
         </div>
 

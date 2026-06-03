@@ -10,7 +10,7 @@ import { printService } from "@/lib/print-service"
 import { useRouter } from 'next/navigation'
 import { useDebouncedCallback } from 'use-debounce'
 import { CasperLoader } from "@/components/ui/CasperLoader"
-import { useTranslations } from '@/lib/i18n-mock'
+import { useTranslations, useLocale } from '@/lib/i18n-mock'
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ import {
 import { DateRange } from "react-day-picker"
 import { cn } from '@/lib/utils'
 import { getTickets as fetchTickets } from "@/actions/ticket-actions"
+import { getAllTechnicians } from "@/actions/engineer-actions"
 import { getEffectiveStoreSettings } from "@/actions/settings"
 import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
@@ -39,6 +40,7 @@ import { toast } from "sonner"
 
 export default function TicketsList() {
     const t = useTranslations('Tickets');
+    const locale = useLocale();
     const [tickets, setTickets] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -67,7 +69,11 @@ export default function TicketsList() {
     const [printTicket, setPrintTicket] = useState<any>(null)
     const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
     const [isSilentPrint, setIsSilentPrint] = useState(false)
-    const [enableSpeedPrint, setEnableSpeedPrint] = useState(true)
+    const [enableSpeedPrint, setEnableSpeedPrint] = useState(false)
+
+    // Engineer filter
+    const [technicians, setTechnicians] = useState<{ id: string; name: string }[]>([])
+    const [selectedTechId, setSelectedTechId] = useState<string>('all')
 
     // Helper: check if default printers are configured
     const hasThermalPrinter = () =>
@@ -85,7 +91,10 @@ export default function TicketsList() {
         ratio: '0.0', 
         totalPaid: 0,
         totalOutstanding: 0,
-        overdueCount: 0
+        overdueCount: 0,
+        totalReceived: 0,
+        rejectedCount: 0,
+        rejectedSum: 0
     });
 
     const stats = useMemo(() => serverStats, [serverStats]);
@@ -99,13 +108,25 @@ export default function TicketsList() {
 
     useEffect(() => {
         loadData()
-    }, [query, statusFilter, showStale, dateRange])
+    }, [query, statusFilter, showStale, dateRange, selectedTechId])
+
+    useEffect(() => {
+        async function loadTechnicians() {
+            const res = await getAllTechnicians()
+            if (res.success && (res as any).technicians) {
+                setTechnicians((res as any).technicians)
+            }
+        }
+        loadTechnicians()
+    }, [])
 
     useEffect(() => {
         const registry = printService.getRegistry();
-        if (registry) {
-            setEnableSpeedPrint(registry.enableSpeedPrint !== false);
+        if (registry && typeof registry.enableSpeedPrint === 'boolean') {
+            // Only apply saved value when explicitly stored; default stays false (opt-in)
+            setEnableSpeedPrint(registry.enableSpeedPrint);
         }
+        // If registry is null or enableSpeedPrint is unset → stay false (safe default)
     }, [])
 
     const handleSpeedPrintToggle = (val: boolean) => {
@@ -132,7 +153,8 @@ export default function TicketsList() {
             search: query,
             status: showStale ? 'all' : statusFilter,
             startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
-            endDate: dateRange?.to ? dateRange.to.toISOString() : undefined
+            endDate: dateRange?.to ? dateRange.to.toISOString() : undefined,
+            technicianId: selectedTechId !== 'all' ? selectedTechId : undefined,
         }
         if (showStale) {
             filters.minDaysOld = 30
@@ -323,10 +345,80 @@ export default function TicketsList() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-cairo">
-                {/* Card 1: Success Ratio */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-cairo">
+                {/* Card 1: Total Received */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-blue-500/10 border border-blue-500/20" />
+                        <Wrench className="h-7 w-7 text-blue-500 relative z-10" />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">إجمالي الاستلام</p>
+                        <p className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums leading-none">
+                            {stats.totalReceived || 0}
+                        </p>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold">جهازاً مستلماً في الفترة</span>
+                    </div>
+                </div>
+
+                {/* Card 2: Financial Summary */}
                 <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-emerald-500/10 border border-emerald-500/20" />
+                        <Coins className="h-7 w-7 text-emerald-500 relative z-10" />
+                    </div>
+                    <div className="flex flex-col gap-1 w-full">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الملخص المالي</p>
+                        <div className="flex items-center gap-4 mt-0.5">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-400 font-bold">المدفوع</span>
+                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
+                                    {(stats.totalPaid || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
+                                </span>
+                            </div>
+                            <div className="h-8 w-px bg-zinc-200 dark:bg-white/10" />
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-400 font-bold">المستحق</span>
+                                <span className="text-lg font-black text-rose-600 dark:text-rose-400 tabular-nums leading-none">
+                                    {(stats.totalOutstanding || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 3: Total Rejected */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-rose-500/10 border border-rose-500/20" />
+                        <AlertTriangle className="h-7 w-7 text-rose-500 relative z-10" />
+                    </div>
+                    <div className="flex flex-col gap-1 w-full">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">إجمالي المرفوض</p>
+                        <div className="flex items-center gap-4 mt-0.5">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-400 font-bold">الأجهزة</span>
+                                <span className="text-lg font-black text-rose-500 tabular-nums leading-none">
+                                    {stats.rejectedCount || 0} <span className="text-[10px] font-black text-zinc-500">أجهزة</span>
+                                </span>
+                            </div>
+                            <div className="h-8 w-px bg-zinc-200 dark:bg-white/10" />
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-400 font-bold">القيمة التقديرية</span>
+                                <span className="text-lg font-black text-zinc-900 dark:text-white tabular-nums leading-none">
+                                    {(stats.rejectedSum || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 4: Success Ratio & Overdue */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     {/* Circular progress chart */}
                     <div className="relative w-16 h-16 flex-shrink-0">
                         <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
@@ -345,50 +437,24 @@ export default function TicketsList() {
                     </div>
                     <div className="flex flex-col gap-0.5">
                         <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.successRatio')}</p>
-                        <p className="text-zinc-900 dark:text-white font-black text-sm">{stats.delivered} <span className="text-zinc-400 font-normal text-xs">{t('filters.delivered')}</span></p>
+                        <p className="text-zinc-900 dark:text-white font-black text-sm">
+                            {stats.delivered} <span className="text-zinc-400 font-normal text-xs">{t('filters.delivered')}</span>
+                        </p>
                         <div className="flex items-center gap-1 mt-0.5">
-                            <div className="h-1 w-1 rounded-full bg-emerald-500" />
-                            <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
+                            {stats.overdueCount > 0 ? (
+                                <>
+                                    <div className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                    <span className="text-[10px] text-rose-500 font-black">
+                                        {stats.overdueCount} متأخرة
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="h-1 w-1 rounded-full bg-emerald-500" />
+                                    <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
+                                </>
+                            )}
                         </div>
-                    </div>
-                </div>
-                {/* Card 2: Financial Summary */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-violet-500/10 border border-violet-500/20" />
-                        <Coins className="h-7 w-7 text-violet-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-1 w-full font-cairo">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الملخص المالي</p>
-                        <div className="flex items-center gap-4 mt-0.5">
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-400 font-bold">المدفوع</span>
-                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
-                                    {stats.totalPaid.toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
-                                </span>
-                            </div>
-                            <div className="h-8 w-px bg-zinc-200 dark:bg-white/10" />
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-400 font-bold">المستحق</span>
-                                <span className="text-lg font-black text-rose-600 dark:text-rose-400 tabular-nums leading-none">
-                                    {stats.totalOutstanding.toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {/* Card 3: Overdue */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-cyan-500/10 border border-cyan-500/20" />
-                        <Clock className="h-7 w-7 text-cyan-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الفجوة (Gap/SLO)</p>
-                        <p className="text-3xl font-black text-cyan-500 tabular-nums leading-none">{stats.overdueCount}</p>
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-black">تجاوزت الوقت المتوقع للإصلاح</span>
                     </div>
                 </div>
             </div>
@@ -508,6 +574,57 @@ export default function TicketsList() {
                             className="scale-[0.8] ms-1 data-[state=checked]:bg-indigo-500"
                         />
                     </div>
+                    {/* Engineer / Technician filter dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 font-black transition-all",
+                                    selectedTechId !== 'all'
+                                        ? "border-cyan-500/60 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
+                                        : "text-slate-900 dark:text-white"
+                                )}
+                            >
+                                <UserIcon className="w-4 h-4" />
+                                <span className="max-w-[120px] truncate">
+                                    {selectedTechId === 'all'
+                                        ? 'كل المهندسين'
+                                        : selectedTechId === 'unassigned'
+                                            ? 'غير معين'
+                                            : (technicians.find(t => t.id === selectedTechId)?.name ?? 'مهندس')}
+                                </span>
+                                <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-slate-500 dark:text-zinc-500">المهندس / الفني</DropdownMenuLabel>
+                            <DropdownMenuItem
+                                onClick={() => setSelectedTechId('all')}
+                                className={cn("font-black", selectedTechId === 'all' ? "bg-slate-100 dark:bg-white/10" : "")}
+                            >
+                                كل المهندسين
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => setSelectedTechId('unassigned')}
+                                className={cn("font-black text-orange-500", selectedTechId === 'unassigned' ? "bg-slate-100 dark:bg-white/10" : "")}
+                            >
+                                غير معين
+                            </DropdownMenuItem>
+                            {technicians.length > 0 && <DropdownMenuSeparator />}
+                            {technicians.map(tech => (
+                                <DropdownMenuItem
+                                    key={tech.id}
+                                    onClick={() => setSelectedTechId(tech.id)}
+                                    className={cn("font-black", selectedTechId === tech.id ? "bg-slate-100 dark:bg-white/10" : "")}
+                                >
+                                    {tech.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Status filter dropdown */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black">
@@ -729,7 +846,15 @@ export default function TicketsList() {
                                                 })()}
                                             </td>
                                             <td className="px-6 py-4 font-black text-slate-700 dark:text-zinc-400 text-xs tabular-nums">
-                                                {new Date(ticket.createdAt).toLocaleDateString()}
+                                                <div className="flex flex-col gap-0.5 min-w-[110px]">
+                                                    <span className="text-slate-900 dark:text-zinc-200 font-bold text-xs">
+                                                        {new Date(ticket.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                    <span className="text-[10px] text-zinc-500 dark:text-zinc-500 font-semibold flex items-center gap-1">
+                                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                                                        {new Date(ticket.createdAt).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col gap-1">

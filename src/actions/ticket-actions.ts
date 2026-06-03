@@ -60,9 +60,47 @@ export const getTickets = secureAction(async (filters?: {
     const currentUser = await getCurrentUser();
     const branchFilter = getBranchFilter(currentUser);
 
-    const where: Prisma.TicketWhereInput = {
+    const baseWhere: Prisma.TicketWhereInput = {
         deletedAt: null,
         ...branchFilter // 🔒 Branch-level isolation
+    };
+
+    if (filters?.technicianId && filters.technicianId !== 'unassigned') {
+        baseWhere.technicianId = filters.technicianId;
+    } else if (filters?.technicianId === 'unassigned') {
+        baseWhere.technicianId = null;
+    }
+
+    if (filters?.search) {
+        baseWhere.OR = [
+            { barcode: { contains: filters.search } },
+            { customerName: { contains: filters.search } },
+            { customerPhone: { contains: filters.search } },
+            { deviceModel: { contains: filters.search } },
+            { deviceImei: { contains: filters.search } },
+            { technician: { name: { contains: filters.search } } },
+        ];
+    }
+
+    if (filters?.branchId && filters.branchId !== 'ALL') {
+        if (!branchFilter.currentBranchId) { // Only allow override if no forced branch filter (e.g. Admin)
+            baseWhere.currentBranchId = filters.branchId;
+        }
+    }
+
+    if (filters?.startDate || filters?.endDate) {
+        baseWhere.createdAt = {};
+        if (filters.startDate) baseWhere.createdAt.gte = new Date(filters.startDate);
+        if (filters.endDate) {
+            const endDate = new Date(filters.endDate);
+            endDate.setHours(23, 59, 59, 999);
+            baseWhere.createdAt.lte = endDate;
+        }
+    }
+
+    // Now construct the status-specific where filter for fetching the actual ticket list
+    const where: Prisma.TicketWhereInput = {
+        ...baseWhere
     };
 
     if (filters?.status) {
@@ -73,38 +111,6 @@ export const getTickets = secureAction(async (filters?: {
             where.warrantyExpiryDate = { gte: new Date() };
         } else if (s !== 'all') {
             where.status = s.toUpperCase();
-        }
-    }
-
-    if (filters?.technicianId && filters.technicianId !== 'unassigned') {
-        where.technicianId = filters.technicianId;
-    } else if (filters?.technicianId === 'unassigned') {
-        where.technicianId = null;
-    }
-
-    if (filters?.search) {
-        where.OR = [
-            { barcode: { contains: filters.search } },
-            { customerName: { contains: filters.search } },
-            { customerPhone: { contains: filters.search } },
-            { deviceModel: { contains: filters.search } },
-            { deviceImei: { contains: filters.search } },
-        ];
-    }
-
-    if (filters?.branchId && filters.branchId !== 'ALL') {
-        if (!branchFilter.currentBranchId) { // Only allow override if no forced branch filter (e.g. Admin)
-            where.currentBranchId = filters.branchId;
-        }
-    }
-
-    if (filters?.startDate || filters?.endDate) {
-        where.createdAt = {};
-        if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
-        if (filters.endDate) {
-            const endDate = new Date(filters.endDate);
-            endDate.setHours(23, 59, 59, 999);
-            where.createdAt.lte = endDate;
         }
     }
 
@@ -124,9 +130,84 @@ export const getTickets = secureAction(async (filters?: {
         take: 200,
     });
 
-    const deliveredCount = tickets.filter(t => ['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP'].includes(t.status)).length;
-    const returnCount = tickets.filter(t => (t as any).returnCount > 0 || t.status === 'RETURNED_FOR_REFIX').length;
-    const ratio = (deliveredCount + returnCount) > 0 ? (deliveredCount / (deliveredCount + returnCount)) * 100 : 0;
+    // 🚀 High-performance parallel stats calculations based on baseWhere (unfiltered by status)
+    const [
+        totalReceived,
+        dbDeliveredCount,
+        dbReturnCount,
+        dbRejectedCount,
+        rejectedSummary,
+        baseSummary,
+        openTicketsForOverdue
+    ] = await Promise.all([
+        prisma.ticket.count({ where: baseWhere }),
+        prisma.ticket.count({
+            where: {
+                ...baseWhere,
+                status: { in: ['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP'] }
+            }
+        }),
+        prisma.ticket.count({
+            where: {
+                ...baseWhere,
+                OR: [
+                    { returnCount: { gt: 0 } },
+                    { status: 'RETURNED_FOR_REFIX' }
+                ]
+            }
+        }),
+        prisma.ticket.count({
+            where: {
+                ...baseWhere,
+                status: { in: ['REJECTED', 'CANCELLED'] }
+            }
+        }),
+        prisma.ticket.aggregate({
+            where: {
+                ...baseWhere,
+                status: { in: ['REJECTED', 'CANCELLED'] }
+            },
+            _sum: {
+                repairPrice: true
+            }
+        }),
+        prisma.ticket.aggregate({
+            where: baseWhere,
+            _sum: {
+                amountPaid: true,
+                repairPrice: true
+            }
+        }),
+        prisma.ticket.findMany({
+            where: {
+                ...baseWhere,
+                status: {
+                    notIn: ['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PICKED_UP', 'PAID_DELIVERED', 'REJECTED', 'CANCELLED']
+                },
+                expectedDuration: { not: null }
+            },
+            select: {
+                createdAt: true,
+                expectedDuration: true
+            }
+        })
+    ]);
+
+    const ratio = (dbDeliveredCount + dbReturnCount) > 0 
+        ? (dbDeliveredCount / (dbDeliveredCount + dbReturnCount)) * 100 
+        : 0;
+
+    const rejectedSum = toDecimal(rejectedSummary._sum.repairPrice || 0);
+    const sumPaid = toDecimal(baseSummary._sum.amountPaid || 0);
+    const sumRepairPrice = toDecimal(baseSummary._sum.repairPrice || 0);
+    const sumOutstanding = sumRepairPrice.minus(sumPaid);
+
+    const nowMs = Date.now();
+    const overdueCount = openTicketsForOverdue.filter(t => {
+        if (!t.expectedDuration) return false;
+        const dueTime = new Date(t.createdAt).getTime() + (t.expectedDuration * 60000);
+        return nowMs > dueTime;
+    }).length;
 
     // 🚀 Intelligence: Fetch success ratio for all customers in this batch in parallel
     const customerIds = Array.from(new Set(tickets.map(t => t.customerId).filter(Boolean))) as string[];
@@ -190,30 +271,18 @@ export const getTickets = secureAction(async (filters?: {
         };
     });
 
-
-    const overdueCount = processedTickets.filter(t => t.isOverdue).length;
-
-    const totalSummary = await prisma.ticket.aggregate({
-        where,
-        _sum: {
-            amountPaid: true,
-            repairPrice: true
-        }
-    });
-
-    const sumPaid = toDecimal(totalSummary._sum.amountPaid || 0);
-    const sumRepairPrice = toDecimal(totalSummary._sum.repairPrice || 0);
-    const sumOutstanding = sumRepairPrice.minus(sumPaid);
-
     return {
         tickets: processedTickets,
         stats: {
-            delivered: deliveredCount,
-            returns: returnCount,
+            delivered: dbDeliveredCount,
+            returns: dbReturnCount,
             ratio: ratio.toFixed(1),
             totalPaid: sumPaid.toNumber(),
             totalOutstanding: Math.max(0, sumOutstanding.toNumber()),
-            overdueCount
+            overdueCount,
+            totalReceived,
+            rejectedCount: dbRejectedCount,
+            rejectedSum: rejectedSum.toNumber()
         }
     };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
@@ -347,12 +416,26 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
-    // SHIFT GUARD: Ensure active shift exists
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error("No active shift. Please open a shift first.");
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (currentUser.branchId) {
+        // Fallback: find any open shift in the same branch (for managers/supervisors)
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: currentUser.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) {
+            currentShift = branchShift;
+        }
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(currentUser.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     if (!currentUser.branchId) {
         throw new Error("User must be assigned to a branch to create tickets");
@@ -382,7 +465,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
             const normalizedPhone = data.customerPhone.trim();
 
             const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
-            const phoneCheck = await checkGlobalPhoneUniqueness(normalizedPhone);
+            const phoneCheck = await checkGlobalPhoneUniqueness(normalizedPhone, undefined, undefined, tx);
 
             if (!phoneCheck.unique) {
                 if (phoneCheck.usedBy === 'USER') clientUserId = phoneCheck.entityId;
@@ -433,7 +516,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 currentBranchId: currentUser.branchId!,
                 initialQuote: new Decimal(data.repairPrice || 0),
                 repairPrice: new Decimal(data.repairPrice || 0),
-                shiftId: currentShift.id,
+                shiftId: currentShift?.id || null,
                 expectedDuration: data.expectedDuration || null,
                 idempotencyKey: idempotencyKey || null,
             }
@@ -449,11 +532,13 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
             }
         });
 
-        // Increment shift ticket count
-        await tx.shift.update({
-            where: { id: currentShift.id },
-            data: { totalTickets: { increment: 1 }, lastHeartbeat: new Date() }
-        });
+        // Increment shift ticket count (only if shift is active)
+        if (currentShift) {
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: { totalTickets: { increment: 1 }, lastHeartbeat: new Date() }
+            });
+        }
 
         return ticket;
     }, { timeout: 60000 });
@@ -462,7 +547,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     revalidateTag("dashboard");
 
     return { success: true, ticketId: result.id, barcode: result.barcode };
-}, { permission: PERMISSIONS.TICKET_EDIT });
+}, { permission: PERMISSIONS.TICKET_CREATE });
 
 // 🔄 SYNC TOOL: Create customers from existing tickets AND POS Sales
 export const syncCustomersFromActivity = secureAction(async () => {
@@ -1020,12 +1105,23 @@ export const refundTicket = secureAction(async (data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // SHIFT GUARD
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: user.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error("No active shift.");
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (user.branchId) {
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: user.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
         const ticket = await tx.ticket.findFirst({
@@ -1089,14 +1185,16 @@ export const refundTicket = secureAction(async (data: {
                 data: { balance: { decrement: new Decimal(amount) } }
             });
 
-            await tx.shift.update({
-                where: { id: currentShift.id },
-                data: {
-                    totalRefunds: { increment: new Decimal(amount) },
-                    totalAccountRefunds: { increment: new Decimal(amount) },
-                    lastHeartbeat: new Date()
-                }
-            });
+            if (currentShift) {
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: {
+                        totalRefunds: { increment: new Decimal(amount) },
+                        totalAccountRefunds: { increment: new Decimal(amount) },
+                        lastHeartbeat: new Date()
+                    }
+                });
+            }
         } else {
             const absAmount = new Decimal(amount);
             const shiftUpdate: any = {
@@ -1123,10 +1221,12 @@ export const refundTicket = secureAction(async (data: {
                     break;
             }
 
-            await tx.shift.update({
-                where: { id: currentShift.id },
-                data: shiftUpdate
-            });
+            if (currentShift) {
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: shiftUpdate
+                });
+            }
 
             const treasury = await tx.treasury.findFirst({
                 where: { branchId: user.branchId!, isDefault: true }
@@ -1139,7 +1239,7 @@ export const refundTicket = secureAction(async (data: {
                         amount: new Decimal(amount).negated(),
                         paymentMethod: refundMethod,
                         description: `Refund: Ticket #${ticket.barcode}`,
-                        shiftId: currentShift.id,
+                        shiftId: currentShift?.id || null,
                         treasuryId: treasury.id
                     }
                 });
@@ -1197,13 +1297,23 @@ export const softDeleteTicket = secureAction(async (data: {
 
     // 2. Shift Guard if money needs to be reversed
     const amountToRefund = Number(ticket.amountPaid) || 0;
-    let currentShift = null;
+    let currentShift: any = null;
     if (amountToRefund > 0) {
         const shiftResult = await getCurrentShiftInternal({ userId: user.id });
-        if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-            throw new Error("يجب فتح وردية أولاً للتراجع عن المبالغ المدفوعة في التذكرة.");
+        if (shiftResult.shift?.status === 'OPEN') {
+            currentShift = shiftResult.shift;
+        } else if (user.branchId) {
+            const branchShift = await prisma.shift.findFirst({
+                where: { status: 'OPEN', user: { branchId: user.branchId } },
+                orderBy: { openedAt: 'desc' }
+            });
+            if (branchShift) currentShift = branchShift;
         }
-        currentShift = shiftResult.shift;
+
+        const canBypassShift = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+        if (!currentShift && !canBypassShift) {
+            throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+        }
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -1224,7 +1334,7 @@ export const softDeleteTicket = secureAction(async (data: {
         }
 
         // --- Part 2: Financial Reversal (If money involved) ---
-        if (amountToRefund > 0 && currentShift) {
+        if (amountToRefund > 0) {
             const lastPayment = ticket.payments.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
             const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
@@ -1242,13 +1352,15 @@ export const softDeleteTicket = secureAction(async (data: {
 
             // 2. Shift Totals
             if (refundMethod !== 'ACCOUNT') {
-                await tx.shift.update({
-                    where: { id: currentShift.id },
-                    data: {
-                        totalRefunds: { increment: amountToRefund },
-                        totalCashRefunds: { increment: refundMethod === 'CASH' ? amountToRefund : 0 }
-                    }
-                });
+                if (currentShift) {
+                    await tx.shift.update({
+                        where: { id: currentShift.id },
+                        data: {
+                            totalRefunds: { increment: amountToRefund },
+                            totalCashRefunds: { increment: refundMethod === 'CASH' ? amountToRefund : 0 }
+                        }
+                    });
+                }
 
                 // 3. Treasury & Transaction
                 const defaultTreasury = await tx.treasury.findFirst({
@@ -1262,7 +1374,7 @@ export const softDeleteTicket = secureAction(async (data: {
                             amount: new Decimal(-amountToRefund),
                             paymentMethod: refundMethod,
                             description: `Delete Ticket #${ticket.barcode} - ${reason}`,
-                            shiftId: currentShift.id,
+                            shiftId: currentShift?.id || null,
                             treasuryId: defaultTreasury.id
                         }
                     });
@@ -2196,11 +2308,23 @@ export const processTicketPayment = secureAction(async (data: {
         throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
     }
 
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error('No active shift. Please open a shift first.');
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (currentUser.branchId) {
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: currentUser.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(currentUser.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? new Decimal(ticket.parentTicket.amountPaid || 0) : new Decimal(0);
     const previousPaid = new Decimal(ticket.amountPaid || 0);
@@ -2470,10 +2594,12 @@ export const processTicketPayment = secureAction(async (data: {
                     break;
             }
 
-            await tx.shift.update({
-                where: { id: currentShift.id },
-                data: shiftUpdate
-            });
+            if (currentShift) {
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: shiftUpdate
+                });
+            }
 
             const txType = isActuallyRefund ? 'REFUND' : 'TICKET';
             let defaultTreasuryId: string | null = null;
@@ -2490,7 +2616,7 @@ export const processTicketPayment = secureAction(async (data: {
                     amount: new Prisma.Decimal(effectiveAmount),
                     paymentMethod,
                     description: `Ticket #${ticket.barcode} (${isActuallyRefund ? 'Refund' : paymentType})`,
-                    shiftId: currentShift.id,
+                    shiftId: currentShift?.id || null,
                     treasuryId: defaultTreasuryId
                 }
             });
@@ -2869,11 +2995,23 @@ export const fullTicketReturn = secureAction(async (data: {
         throw new Error("This ticket has already been voided/returned.");
     }
 
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error('No active shift. Please open a shift first.');
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (currentUser.branchId) {
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: currentUser.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(currentUser.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
         // --- Part 1: Stock Reversal ---
@@ -3042,13 +3180,15 @@ export const fullTicketReturn = secureAction(async (data: {
             // 3. Update Shift Balances (Standardized to use totalRefunds)
             const absAmount = new Decimal(amountToRefund);
             if (refundMethod === 'ACCOUNT' || refundMethod === 'DEFERRED') {
-                await tx.shift.update({
-                    where: { id: currentShift.id },
-                    data: {
-                        totalRefunds: { increment: absAmount },
-                        totalAccountRefunds: { increment: absAmount }
-                    }
-                });
+                if (currentShift) {
+                    await tx.shift.update({
+                        where: { id: currentShift.id },
+                        data: {
+                            totalRefunds: { increment: absAmount },
+                            totalAccountRefunds: { increment: absAmount }
+                        }
+                    });
+                }
             } else {
                 const shiftUpdate: any = {
                     totalRefunds: { increment: absAmount }
@@ -3073,10 +3213,12 @@ export const fullTicketReturn = secureAction(async (data: {
                         break;
                 }
 
-                await tx.shift.update({
-                    where: { id: currentShift.id },
-                    data: shiftUpdate
-                });
+                if (currentShift) {
+                    await tx.shift.update({
+                        where: { id: currentShift.id },
+                        data: shiftUpdate
+                    });
+                }
 
                 let treasuryId: string | null = null;
                 if (currentUser.branchId) {
@@ -3092,7 +3234,7 @@ export const fullTicketReturn = secureAction(async (data: {
                         amount: new Decimal(-amountToRefund),
                         paymentMethod: refundMethod,
                         description: `Ticket #${ticket.barcode} - Full Return`,
-                        shiftId: currentShift.id,
+                        shiftId: currentShift?.id || null,
                         treasuryId
                     }
                 });
@@ -3204,12 +3346,23 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
 
     if (!user.branchId) throw new Error("User must be assigned to a branch.");
 
-    // SHIFT GUARD: active shift required
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: user.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً.");
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (user.branchId) {
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: user.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     // Fetch parent with its existing return children for barcode numbering
     const parent = await prisma.ticket.findUnique({
@@ -3306,7 +3459,7 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
                 amountPaid: new Decimal(0),
                 // Operational
                 currentBranchId: user.branchId!,
-                shiftId: currentShift.id,
+                shiftId: currentShift?.id || null,
             }
         });
 
@@ -3331,10 +3484,12 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
         });
 
         // Track in shift
-        await tx.shift.update({
-            where: { id: currentShift.id },
-            data: { totalTickets: { increment: 1 }, lastHeartbeat: new Date() }
-        });
+        if (currentShift) {
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: { totalTickets: { increment: 1 }, lastHeartbeat: new Date() }
+            });
+        }
 
         return childTicket;
     });
@@ -3359,11 +3514,23 @@ export const partialRefundTicket = secureAction(async (data: {
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error('No active shift.');
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (currentUser.branchId) {
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: currentUser.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(currentUser.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
         const ticket = await tx.ticket.findFirst({
@@ -3467,13 +3634,15 @@ export const partialRefundTicket = secureAction(async (data: {
 
             // 5. Shift & Treasury (if Cash)
             if (refundMethod === 'CASH') {
-                await tx.shift.update({
-                    where: { id: currentShift.id },
-                    data: {
-                        totalRefunds: { increment: totalRefundAmount },
-                        totalCashRefunds: { increment: totalRefundAmount }
-                    }
-                });
+                if (currentShift) {
+                    await tx.shift.update({
+                        where: { id: currentShift.id },
+                        data: {
+                            totalRefunds: { increment: totalRefundAmount },
+                            totalCashRefunds: { increment: totalRefundAmount }
+                        }
+                    });
+                }
 
                 let treasuryId: string | null = null;
                 if (currentUser.branchId) {
@@ -3496,7 +3665,7 @@ export const partialRefundTicket = secureAction(async (data: {
                         amount: totalRefundAmount.negated(),
                         paymentMethod: 'CASH',
                         description: `Partial Refund Ticket #${ticket.barcode}`,
-                        shiftId: currentShift.id,
+                        shiftId: currentShift?.id || null,
                         treasuryId
                     }
                 });
@@ -3536,11 +3705,23 @@ export const fullRefundTicket = secureAction(async (data: {
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error('No active shift.');
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (currentUser.branchId) {
+        const branchShift = await prisma.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: currentUser.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const canBypassShift = hasPermission(currentUser.permissions, PERMISSIONS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
         const ticket = await tx.ticket.findFirst({
@@ -3617,13 +3798,15 @@ export const fullRefundTicket = secureAction(async (data: {
 
         // 4. Treasury & Shift (if Cash)
         if (refundMethod === 'CASH') {
-            await tx.shift.update({
-                where: { id: currentShift.id },
-                data: {
-                    totalRefunds: { increment: totalRefundAmount },
-                    totalCashRefunds: { increment: totalRefundAmount }
-                }
-            });
+            if (currentShift) {
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: {
+                        totalRefunds: { increment: totalRefundAmount },
+                        totalCashRefunds: { increment: totalRefundAmount }
+                    }
+                });
+            }
 
             const treasury = await tx.treasury.findFirst({
                 where: { branchId: currentUser.branchId!, isDefault: true }
@@ -3641,7 +3824,7 @@ export const fullRefundTicket = secureAction(async (data: {
                         amount: totalRefundAmount.negated(),
                         paymentMethod: 'CASH',
                         description: `Full Refund Ticket #${ticket.barcode}`,
-                        shiftId: currentShift.id,
+                        shiftId: currentShift?.id || null,
                         treasuryId: treasury.id
                     }
                 });

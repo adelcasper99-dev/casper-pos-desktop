@@ -3,9 +3,10 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from '@/lib/i18n-mock';
-import { Upload, FileText, X, Check, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X, Check, AlertCircle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { importSpareParts } from '@/actions/spare-parts';
+import { generateInventoryTemplate } from '@/lib/export-templates';
 import GlassModal from '@/components/ui/GlassModal';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,13 @@ const extractBrand = (name: string): string => {
         if (lowerName.includes(key)) return value;
     }
     return 'Other';
+};
+
+const cleanNumericString = (val: string): string => {
+    if (!val) return '0';
+    // Keep only digits, minus sign, and decimal point
+    const cleaned = val.replace(/[^\d.-]/g, '');
+    return isNaN(Number(cleaned)) || cleaned === '' ? '0' : cleaned;
 };
 
 export function ImportCSVModal({ open, onOpenChange }: Props) {
@@ -127,12 +135,12 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
 
                     const productName = headerMap['productName'] !== undefined ? values[headerMap['productName']] || '' : '';
                     let brand = headerMap['brand'] !== undefined ? values[headerMap['brand']] || '' : '';
-                    const quantity = headerMap['quantity'] !== undefined ? values[headerMap['quantity']] || '0' : '0';
-                    const costPrice = headerMap['costPrice'] !== undefined ? values[headerMap['costPrice']] || '0' : '0';
-                    const sellPrice = headerMap['sellPrice'] !== undefined ? values[headerMap['sellPrice']] || '0' : '0';
-                    const price1 = headerMap['price1'] !== undefined ? values[headerMap['price1']] || '0' : '0';
-                    const price2 = headerMap['price2'] !== undefined ? values[headerMap['price2']] || '0' : '0';
-                    const price3 = headerMap['price3'] !== undefined ? values[headerMap['price3']] || '0' : '0';
+                    const quantity = headerMap['quantity'] !== undefined ? cleanNumericString(values[headerMap['quantity']]) : '0';
+                    const costPrice = headerMap['costPrice'] !== undefined ? cleanNumericString(values[headerMap['costPrice']]) : '0';
+                    const sellPrice = headerMap['sellPrice'] !== undefined ? cleanNumericString(values[headerMap['sellPrice']]) : '0';
+                    const price1 = headerMap['price1'] !== undefined ? cleanNumericString(values[headerMap['price1']]) : '0';
+                    const price2 = headerMap['price2'] !== undefined ? cleanNumericString(values[headerMap['price2']]) : '0';
+                    const price3 = headerMap['price3'] !== undefined ? cleanNumericString(values[headerMap['price3']]) : '0';
                     const sku = headerMap['sku'] !== undefined ? values[headerMap['sku']] || null : null;
 
                     if (!productName) {
@@ -246,6 +254,19 @@ export function ImportCSVModal({ open, onOpenChange }: Props) {
                                 onChange={handleFileChange}
                                 className="hidden"
                             />
+                            <div className="mt-4 border-t border-border/30 pt-4">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        generateInventoryTemplate();
+                                    }}
+                                    className="flex items-center justify-center gap-2 mx-auto text-sm text-cyan-400 hover:text-cyan-300 font-bold transition-colors"
+                                    title="تحميل ملف Excel جاهز للاستيراد"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    تحميل نموذج الاستيراد
+                                </button>
+                            </div>
                         </div>
                     )}
 

@@ -18,6 +18,116 @@ const expressApp = express();
 expressApp.use(cors({ origin: '*' })); // Permissive for local bridging
 expressApp.use(express.json());
 
+const activeClients = new Map();
+
+function updateActiveClient(req) {
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (ip === '::1' || ip === '::ffff:127.0.0.1') ip = '127.0.0.1';
+    
+    const { ping, userAgent, url } = req.body || {};
+    
+    const clientInfo = activeClients.get(ip) || {
+        ip,
+        userAgent: userAgent || req.headers['user-agent'] || 'Unknown Browser',
+        url: url || '',
+        connects: 0
+    };
+    
+    clientInfo.lastActive = Date.now();
+    clientInfo.connects += 1;
+    if (userAgent) clientInfo.userAgent = userAgent;
+    if (url) clientInfo.url = url;
+    
+    activeClients.set(ip, clientInfo);
+    
+    // Clean up stale clients (offline for more than 30 seconds)
+    const staleCutoff = Date.now() - 30000;
+    let sizeBefore = activeClients.size;
+    for (const [key, val] of activeClients.entries()) {
+        if (val.lastActive < staleCutoff) {
+            activeClients.delete(key);
+        }
+    }
+    
+    if (activeClients.size !== sizeBefore || clientInfo.connects === 1) {
+        updateTrayMenu();
+    }
+}
+
+let _printerCache = null;
+let _printerCacheAt = 0;
+const PRINTER_CACHE_TTL_MS = 30000;
+
+async function getOSPrinters() {
+    const now = Date.now();
+    if (_printerCache && (now - _printerCacheAt) < PRINTER_CACHE_TTL_MS) {
+        return _printerCache;
+    }
+    try {
+        const win = getWorkerWindow();
+        let printers = [];
+        if (win.webContents.getPrintersAsync) {
+            printers = await win.webContents.getPrintersAsync();
+        } else if (win.webContents.getPrinters) {
+            printers = win.webContents.getPrinters();
+        }
+        _printerCache = printers;
+        _printerCacheAt = now;
+        return printers;
+    } catch (err) {
+        console.error('[Bridge] Printer Discovery ERROR:', err);
+        return _printerCache || [];
+    }
+}
+
+function updateTrayMenu() {
+    if (!tray) return;
+    try {
+        const clientCount = activeClients.size;
+        const clientsLabel = clientCount === 0 
+            ? 'Status: Active (4040)' 
+            : `Status: Active (4040) - ${clientCount} Connected`;
+            
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'Casper Hardware Bridge', enabled: false },
+            { label: clientsLabel, enabled: false },
+            { type: 'separator' },
+            { label: 'Settings', click: () => createSettingsWindow() },
+            { label: 'Restart Service', click: () => { app.relaunch(); app.exit(); } },
+            { type: 'separator' },
+            { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
+        ]);
+        tray.setContextMenu(contextMenu);
+    } catch (err) {
+        console.error('Tray menu update error:', err);
+    }
+}
+
+// Client registration middleware
+expressApp.use((req, res, next) => {
+    updateActiveClient(req);
+    next();
+});
+
+// GET /api/status - client check for online status & printers list
+expressApp.get('/api/status', async (req, res) => {
+    try {
+        const printers = await getOSPrinters();
+        res.json({
+            online: true,
+            version: '1.0.0',
+            printers: printers
+        });
+    } catch (e) {
+        res.json({ online: true, version: '1.0.0', printers: [], error: e.message });
+    }
+});
+
+// POST /api/status - heartbeat endpoint returning client list
+expressApp.post('/api/status', (req, res) => {
+    res.json({ success: true, clients: Array.from(activeClients.values()) });
+});
+
 // Initialize electron-store asynchronously for ESM compatibility
 async function initStore() {
     try {
@@ -165,19 +275,10 @@ app.whenReady().then(async () => {
             const { nativeImage } = require('electron');
             tray = new Tray(nativeImage.createEmpty()); 
         }
-
-        const contextMenu = Menu.buildFromTemplate([
-            { label: 'Casper Hardware Bridge', enabled: false },
-            { label: 'Status: Active (4040)', enabled: false },
-            { type: 'separator' },
-            { label: 'Settings', click: () => createSettingsWindow() },
-            { label: 'Restart Service', click: () => { app.relaunch(); app.exit(); } },
-            { type: 'separator' },
-            { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
-        ]);
         
         tray.setToolTip('Casper Hardware Bridge');
-        tray.setContextMenu(contextMenu);
+        // Use the shared updateTrayMenu to render initial state (0 clients)
+        updateTrayMenu();
     } catch (err) {
         console.error('Tray Init Error:', err);
     }
@@ -195,24 +296,11 @@ app.whenReady().then(async () => {
     });
     
     ipcMain.handle('get-printers', async () => {
-        try {
-            const win = getWorkerWindow();
-            if (win.webContents.getPrintersAsync) {
-                const printers = await win.webContents.getPrintersAsync();
-                console.log(`[Bridge] Discovery Scan (Async): Found ${printers.length} printers`);
-                return printers;
-            }
-            if (win.webContents.getPrinters) {
-                const printers = win.webContents.getPrinters();
-                console.log(`[Bridge] Discovery Scan (Sync): Found ${printers.length} printers`);
-                return printers;
-            }
-            console.error('[Bridge] No printing discovery method found on webContents');
-            return [];
-        } catch (err) {
-            console.error('[Bridge] Printer Discovery ERROR:', err);
-            return [];
-        }
+        return await getOSPrinters();
+    });
+
+    ipcMain.handle('get-active-clients', () => {
+        return Array.from(activeClients.values());
     });
 
     ipcMain.handle('close-window', () => {

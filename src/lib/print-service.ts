@@ -68,7 +68,7 @@ const electronChannel = new ElectronPrintChannel();
 // ─────────────────────────────────────────────
 
 class HardwareBridgeClient {
-  private getBridgeUrl(): string {
+  public getBridgeUrl(): string {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(PRINTER_REGISTRY_KEY);
       if (stored) {
@@ -84,6 +84,12 @@ class HardwareBridgeClient {
             return ip;
           }
         } catch (e) {}
+      }
+
+      // Auto-detect: if we're on a non-localhost domain/IP, assume the bridge is co-located on port 4040
+      const hostname = window.location.hostname;
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        return `http://${hostname}:4040`;
       }
     }
     return 'http://localhost:4040';
@@ -111,6 +117,23 @@ class HardwareBridgeClient {
       return await res.json();
     } catch (e) {
       throw new Error('Bridge offline');
+    }
+  }
+
+  async ping(userAgent: string, url: string): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${this.getBridgeUrl()}/api/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ping: true, userAgent, url }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return res.ok;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -160,7 +183,25 @@ class PrintService {
   constructor() {
     if (typeof window !== 'undefined') {
       this.initRegistry();
+      this.startHeartbeat();
     }
+  }
+
+  private startHeartbeat() {
+    if (typeof window === 'undefined') return;
+    
+    const sendPing = async () => {
+      if (this.isElectron()) return;
+      try {
+        await hardwareBridge.ping(window.navigator.userAgent, window.location.href);
+      } catch (e) {
+        // Silently ignore ping errors
+      }
+    };
+
+    // Run ping immediately and then every 10 seconds
+    sendPing();
+    setInterval(sendPing, 10000);
   }
 
   private initRegistry() {

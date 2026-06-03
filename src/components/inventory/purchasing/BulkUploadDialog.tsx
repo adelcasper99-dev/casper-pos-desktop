@@ -2,23 +2,29 @@
 
 import { useState, ChangeEvent } from "react";
 import { Upload, Download, X, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { parseCSV, groupIntoInvoices, validateCSVData, checkDuplicateSKUs, type ParsedInvoice } from "@/lib/utils/csvParser";
+import { parseCSV, parseExcel, groupIntoInvoices, validateCSVData, checkDuplicateSKUs, type ParsedInvoice } from "@/lib/utils/csvParser";
 import { bulkImportPurchases } from "@/actions/inventory";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n-mock";
+import { generatePurchaseTemplate } from "@/lib/export-templates";
+import { Supplier, Warehouse } from "@/types/product";
 
 interface BulkUploadDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onUploadComplete: () => void;
     csrfToken?: string;
+    suppliers?: Supplier[];
+    warehouses?: Warehouse[];
 }
 
 export function BulkUploadDialog({
     open,
     onOpenChange,
     onUploadComplete,
-    csrfToken
+    csrfToken,
+    suppliers = [],
+    warehouses = []
 }: BulkUploadDialogProps) {
     const t = useTranslations('Purchasing.bulkImport');
 
@@ -37,8 +43,16 @@ export function BulkUploadDialog({
         setValidationErrors([]);
 
         try {
-            const text = await selectedFile.text();
-            const rows = parseCSV(text);
+            let rows: any[] = [];
+            
+            if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
+                const buffer = await selectedFile.arrayBuffer();
+                rows = parseExcel(buffer);
+            } else {
+                const text = await selectedFile.text();
+                rows = parseCSV(text);
+            }
+            
             const invoices = groupIntoInvoices(rows);
 
             // Validate
@@ -91,7 +105,10 @@ export function BulkUploadDialog({
     };
 
     const handleDownloadTemplate = () => {
-        window.open('/templates/purchase-invoice-template.csv', '_blank');
+        generatePurchaseTemplate(
+            suppliers.map(s => s.name),
+            warehouses.map(w => w.name)
+        );
     };
 
     const handleClose = () => {
@@ -151,7 +168,7 @@ export function BulkUploadDialog({
                                     </div>
                                     <input
                                         type="file"
-                                        accept=".csv"
+                                        accept=".csv,.xlsx,.xls"
                                         onChange={handleFileSelect}
                                         className="hidden"
                                     />

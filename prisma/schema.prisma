@@ -75,6 +75,8 @@ model User {
   addedTicketParts     TicketPart[]          @relation("PartAddedBy")
   role                 Role?                 @relation(fields: [roleId], references: [id])
   branch               Branch?               @relation(fields: [branchId], references: [id])
+
+  @@index([isFrozen])
 }
 
 model Role {

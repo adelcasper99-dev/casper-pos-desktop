@@ -1,6 +1,6 @@
 "use client";
 
-import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X, CheckCircle2 } from "lucide-react";
+import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X, CheckCircle2, Globe } from "lucide-react";
 import { useState, useRef } from "react";
 import { updateStoreSettings } from "@/actions/settings";
 import { cn } from "@/lib/utils";
@@ -12,8 +12,25 @@ import { useTranslations } from "@/lib/i18n-mock";
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
     const [saving, setSaving] = useState(false);
+    const [ipError, setIpError] = useState<string | null>(null);
     const t = useTranslations('StoreConfig');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const getFeatures = () => {
+        try {
+            return typeof form.features === 'string' 
+                ? JSON.parse(form.features || "{}") 
+                : (form.features || {});
+        } catch (e) {
+            return {};
+        }
+    };
+
+    const updateFeature = (key: string, value: any) => {
+        const features = getFeatures();
+        features[key] = value;
+        handleChange('features', JSON.stringify(features));
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -57,6 +74,18 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
     };
 
     const handleSave = async () => {
+        // Validate Static IP if manual IP configuration is enabled
+        const features = getFeatures();
+        if (features.manualIpEnabled) {
+            const ipPattern = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+            if (!features.staticIp || !ipPattern.test(features.staticIp.trim())) {
+                const errMsg = t('staticIpInvalid') || "عنوان IP غير صالح";
+                setIpError(errMsg);
+                toast.error(errMsg);
+                return;
+            }
+        }
+        setIpError(null);
         setSaving(true);
         try {
             const payload = {
@@ -404,6 +433,65 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                         onChange={e => handleChange('invoiceFooter', e.target.value)}
                                     />
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* LAN Network Settings */}
+                        <div className="space-y-8 pt-6 border-t border-border/20">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
+                                    <Globe className="w-5 h-5 text-cyan-400" />
+                                </div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('staticIpLabel')}</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
+                                    <div className="space-y-0.5 max-w-[70%]">
+                                        <Label className="text-xs font-black uppercase tracking-widest text-foreground">{t('staticIpLabel')}</Label>
+                                        <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{t('staticIpDesc')}</p>
+                                    </div>
+                                    <Switch
+                                        checked={getFeatures().manualIpEnabled || false}
+                                        onCheckedChange={(checked) => {
+                                            updateFeature('manualIpEnabled', checked);
+                                            if (!checked) {
+                                                updateFeature('staticIp', '');
+                                                setIpError(null);
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                {getFeatures().manualIpEnabled && (
+                                    <div className="space-y-2 group animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('staticIpInput')}</Label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                className={cn(
+                                                    "w-full bg-background/60 dark:bg-background/40 border rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all",
+                                                    ipError ? "border-rose-500 focus:border-rose-500" : "border-border/40 focus:border-primary"
+                                                )}
+                                                value={getFeatures().staticIp || ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    updateFeature('staticIp', val);
+                                                    const ipPattern = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+                                                    if (val && !ipPattern.test(val.trim())) {
+                                                        setIpError(t('staticIpInvalid') || "عنوان IP غير صالح");
+                                                    } else {
+                                                        setIpError(null);
+                                                    }
+                                                }}
+                                                placeholder={t('staticIpPlaceholder') || "192.168.1.6"}
+                                            />
+                                            {ipError && (
+                                                <span className="text-xs text-rose-500 font-bold block mt-1 ps-1">{ipError}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

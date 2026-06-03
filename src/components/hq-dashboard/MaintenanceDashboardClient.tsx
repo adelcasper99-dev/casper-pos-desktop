@@ -3,12 +3,21 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getHQMaintenanceStats } from "@/actions/hq-maintenance-actions";
+import dynamic from "next/dynamic";
 import { LiveStatusBoard } from "./LiveStatusBoard";
-import { AgingAnalysis } from "./AgingAnalysis";
 import { BranchPerformanceMatrix } from "./BranchPerformanceMatrix";
 import { TechnicianLeaderboard } from "./TechnicianLeaderboard";
-import { StatusDistributionChart } from "./StatusDistributionChart";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+
+const AgingAnalysis = dynamic(() => import("./AgingAnalysis").then(mod => mod.AgingAnalysis), {
+    ssr: false,
+    loading: () => <div className="lg:col-span-1 h-[320px] rounded-2xl border border-border/50 bg-zinc-950/20 backdrop-blur-sm p-6 animate-pulse" />
+});
+
+const StatusDistributionChart = dynamic(() => import("./StatusDistributionChart").then(mod => mod.StatusDistributionChart), {
+    ssr: false,
+    loading: () => <div className="lg:col-span-1 h-[320px] rounded-2xl border border-border/50 bg-zinc-950/20 backdrop-blur-sm p-6 animate-pulse" />
+});
 import {
     Select,
     SelectContent,
