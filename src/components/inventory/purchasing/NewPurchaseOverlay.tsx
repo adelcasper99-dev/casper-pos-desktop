@@ -10,12 +10,13 @@ import { useTranslations } from "@/lib/i18n-mock";
 import { formatCurrency } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
 import type { GridRow } from "./PurchaseDataGrid";
+import { PurchaseFormReturn } from "@/types/purchasing";
 
 interface NewPurchaseOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     // Form Hook Props
-    form: any;
+    form: PurchaseFormReturn;
     gridRows: GridRow[];
     onRowsChange: (rows: GridRow[]) => void;
     handleScan: (barcode: string) => void;

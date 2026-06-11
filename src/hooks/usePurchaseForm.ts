@@ -3,33 +3,8 @@ import { generateNextSku, createPurchase, updatePurchase } from "@/actions/inven
 import { useTranslations } from "@/lib/i18n-mock";
 import { toast } from "sonner";
 import { safeRandomUUID } from "@/lib/utils";
-
-// Define strict types for the hook
-export interface InvoiceItem {
-    id: string;
-    productId?: string;
-    isNew?: boolean;
-    name: string;
-    sku: string;
-    categoryId?: string;
-    modelId?: string;
-    modelName?: string;
-    isNewModel?: boolean;
-    attributeId?: string;
-    attributeName?: string;
-    isNewAttribute?: boolean;
-    quantity: number | string;
-    unitCost: number | string;
-    sellPrice?: number | string;
-    sellPrice2?: number | string;
-    sellPrice3?: number | string;
-    isDevice?: boolean;
-    condition?: string;
-    imei?: string;
-    deviceType?: string;
-    unitOfMeasureId?: string;
-    conversionFactor?: number | string;
-}
+import { CartItem as InvoiceItem, PurchaseFormReturn } from "@/types/purchasing";
+export type { InvoiceItem };
 
 interface UsePurchaseFormProps {
     products: any[]; // Replace with specific Product type
@@ -41,7 +16,7 @@ interface UsePurchaseFormProps {
     onSaveSuccess?: () => void;
 }
 
-export function usePurchaseForm({ products, isHQUser, userBranchId, branches, warehouses, csrfToken, onSaveSuccess }: UsePurchaseFormProps) {
+export function usePurchaseForm({ products, isHQUser, userBranchId, branches, warehouses, csrfToken, onSaveSuccess }: UsePurchaseFormProps): PurchaseFormReturn {
     const t = useTranslations('Purchasing');
 
     // UI State
@@ -138,7 +113,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     }, [totalAmount, paidAmount]);
 
     // --- Persistence Logic ---
-    const STORAGE_KEY = 'purchase_form_draft';
+    const STORAGE_KEY = 'purchase_form_draft_v2';
 
     // Load from storage on mount
     useEffect(() => {

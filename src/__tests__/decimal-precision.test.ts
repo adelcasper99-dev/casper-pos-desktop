@@ -322,4 +322,20 @@ describe('Financial Calculations', () => {
             expect(balance.abs().toNumber()).toBe(100.00);
         });
     });
+
+    describe('Purchasing Module Arithmetic (Mocked)', () => {
+        it('should calculate subtotal with decimal precision (0.1 * 3)', () => {
+            const quantity = new Decimal('3');
+            const unitCost = new Decimal('0.1');
+            const subtotal = quantity.multiply(unitCost);
+            expect(subtotal.toNumber()).toBeCloseTo(0.30, 10);
+        });
+
+        it('should calculate totalAmount with deliveryCharge (10.00 + 12.50)', () => {
+            const subtotal = new Decimal('10.00');
+            const deliveryCharge = new Decimal('12.50');
+            const totalAmount = subtotal.add(deliveryCharge);
+            expect(totalAmount.toNumber()).toBe(22.50);
+        });
+    });
 });

@@ -254,7 +254,7 @@ export default function SupplierHistoryTable({
         try {
             let res;
             if (transactionToVoid.type === 'INVOICE') {
-                res = await voidPurchase({ id: transactionToVoid.id, reason: "Manual void from history" });
+                res = await voidPurchase({ id: transactionToVoid.id, reason: "Manual void from history", csrfToken });
             } else {
                 res = await voidSupplierPayment({ paymentId: transactionToVoid.id });
             }

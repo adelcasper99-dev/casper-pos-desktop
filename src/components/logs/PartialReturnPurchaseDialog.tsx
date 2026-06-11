@@ -16,11 +16,12 @@ import {
 import { toast } from 'sonner';
 import { partialReturnPurchase } from '@/actions/purchase-actions';
 import { cn, formatCurrency } from '@/lib/utils';
+import { PurchaseInvoiceWithItems } from '@/types/purchasing';
 
 interface PartialReturnPurchaseDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    purchase: any;
+    purchase: PurchaseInvoiceWithItems | null;
     onReturnDone: (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => void;
     csrfToken?: string;
 }
