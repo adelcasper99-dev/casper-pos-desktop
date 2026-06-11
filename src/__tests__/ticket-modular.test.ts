@@ -91,6 +91,12 @@ vi.mock('next/cache', () => ({
     revalidateTag: vi.fn(),
 }));
 
+vi.mock('@/lib/ensure-main-branch', () => ({
+    ensureMainBranch: vi.fn().mockResolvedValue('main-branch-id'),
+    resetBranchCache: vi.fn(),
+    syncMainBranchDetails: vi.fn(),
+}));
+
 describe('Ticket Modular Actions', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -171,6 +177,38 @@ describe('Ticket Modular Actions', () => {
             expect(prisma.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
                     barcode: 'B1-T001'
+                })
+            }));
+        });
+
+        it('should fallback to main branch if user is Admin and has no branchId', async () => {
+            vi.mocked(getCurrentUser).mockResolvedValue({
+                id: 'super-admin',
+                username: 'a',
+                role: 'ADMIN',
+                permissions: ['*'],
+                branchId: null,
+                name: 'Super Admin'
+            } as any);
+
+            (prisma.$queryRaw as any).mockResolvedValue([{ value: 1 }]);
+            (prisma.customer.upsert as any).mockResolvedValue({ id: 'cust-1' });
+            (prisma.ticket.create as any).mockResolvedValue({ id: 't-1', barcode: 'MAIN-T001' });
+            (prisma.shift.findUnique as any).mockResolvedValue({ id: 'shift-1' });
+
+            const result = await createTicket({
+                customerName: 'John Doe',
+                customerPhone: '01234567890',
+                deviceBrand: 'Apple',
+                deviceModel: 'iPhone 13',
+                issueDescription: 'Broken Screen',
+                repairPrice: 100
+            });
+
+            expect(result.success).toBe(true);
+            expect(prisma.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({
+                    currentBranchId: 'main-branch-id'
                 })
             }));
         });

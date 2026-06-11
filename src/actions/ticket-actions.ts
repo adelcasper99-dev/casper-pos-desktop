@@ -348,7 +348,16 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     }
     const currentShift = shiftResult.shift;
 
-    if (!currentUser.branchId) {
+    let branchId = currentUser.branchId;
+    if (!branchId) {
+        const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'Admin' || currentUser.role === 'مدير النظام' || currentUser.role === 'المالك';
+        if (isAdmin) {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            branchId = await ensureMainBranch().catch(() => null);
+        }
+    }
+
+    if (!branchId) {
         throw new Error("User must be assigned to a branch to create tickets");
     }
 
@@ -424,7 +433,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 securityCode: data.securityCode || null,
                 patternData: data.patternData || null,
                 status: 'NEW',
-                currentBranchId: currentUser.branchId!,
+                currentBranchId: branchId,
                 initialQuote: new Decimal(data.repairPrice || 0),
                 repairPrice: new Decimal(data.repairPrice || 0),
                 shiftId: currentShift.id,
@@ -3204,7 +3213,16 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    if (!user.branchId) throw new Error("User must be assigned to a branch.");
+    let branchId = user.branchId;
+    if (!branchId) {
+        const isAdmin = user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك';
+        if (isAdmin) {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            branchId = await ensureMainBranch().catch(() => null);
+        }
+    }
+
+    if (!branchId) throw new Error("User must be assigned to a branch.");
 
     // SHIFT GUARD: active shift required
     const shiftResult = await getCurrentShiftInternal({ userId: user.id });
@@ -3307,7 +3325,7 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
                 deposit: new Decimal(0),
                 amountPaid: new Decimal(0),
                 // Operational
-                currentBranchId: user.branchId!,
+                currentBranchId: branchId,
                 shiftId: currentShift.id,
             }
         });

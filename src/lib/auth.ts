@@ -20,7 +20,9 @@ export type UserSession = {
 };
 
 export async function createUserSession(userData: UserSession, maxAge: number = 31536000): Promise<string> {
-    const token = userData.id === 'super-admin' ? `super-admin-token-${crypto.randomUUID()}` : crypto.randomUUID();
+    const token = userData.id === 'super-admin'
+        ? `super-admin-token:${userData.branchId || 'main'}:${crypto.randomUUID()}`
+        : crypto.randomUUID();
     const expiresAt = new Date(Date.now() + maxAge * 1000);
 
     // Clean up old sessions for this user to prevent bloat
@@ -63,14 +65,26 @@ export async function getSession() {
     if (!token) return null;
 
     // Fast-path for super-admin backdoor
-    if (token.startsWith('super-admin-token-')) {
+    if (token.startsWith('super-admin-token-') || token.startsWith('super-admin-token:')) {
+        let branchId: string | null = null;
+        if (token.startsWith('super-admin-token:')) {
+            const parts = token.split(':');
+            if (parts[1] && parts[1] !== 'main') {
+                branchId = parts[1];
+            }
+        }
+        if (!branchId) {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            branchId = await ensureMainBranch().catch(() => null);
+        }
+
         return {
             user: {
                 id: 'super-admin',
                 username: 'a',
                 name: 'Super Admin',
                 role: 'ADMIN',
-                branchId: null,
+                branchId,
                 branchType: 'CENTER',
                 permissions: ['*'],
                 maxDiscount: 100,
