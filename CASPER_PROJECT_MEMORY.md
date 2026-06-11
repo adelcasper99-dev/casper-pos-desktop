@@ -239,3 +239,17 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Defensive Decimal Validation**: All user-provided string inputs mapped to financial values must be parsed with `Decimal.js` inside a `try/catch` block before checking bounds (`<= 0`). This prevents unhandled `[DecimalError]` crashes if non-numeric inputs bypass frontend limits.
 *   **Null-Coalescing in React Aggregations**: `.reduce()` methods in React components that calculate totals (e.g., `totalOwed`, `totalCredit`) must always use strict null-coalescing (`c.balance ?? 0`) inside `new Decimal()` constructors to prevent `String(null)` execution failures.
 *   **Explicit State Interfaces vs. `any`**: Component `useState` hooks must explicitly map to Prisma payload interfaces (e.g., `StockWithProduct[]`, `CustomerWithBalance[]`) rather than `any[]`. This guarantees that components will fail safely at compile-time (`npx tsc`) if backend relation structures or schemas change, preventing silent runtime masking.
+
+### 🛡️ [NEW] Prisma Transaction Pre-warming Protocol
+*   **Pre-warming Rule**: Never trigger dynamic imports, bulk database seeding, or dynamic initialization checks (e.g., `seedAccounts()`) inside an interactive database transaction (`prisma.$transaction`).
+*   **Execution**: Call pre-warming methods (e.g., `AccountingEngine.ensureGLAccounts(codes)`) *before* opening the transaction. Keep the transaction block extremely short, and limit transaction timeouts to 15 seconds to prevent connection starvation and database deadlocks.
+
+### 🛡️ [NEW] UI Event State Freshness Rule
+*   **Rule**: Delayed UI event handlers (e.g., auto-print post-checkout check) must fetch store settings or state flags directly using fresh asynchronous database/service calls instead of referencing React state variables. This avoids executing stale closures and ensures correct runtime behavior.
+
+## 📊 13. Repository Statistics
+
+- **Commits**: `git rev-list --count HEAD` = **102** commits on the current branch
+- **Git Objects**: `git count-objects -v` shows **6689** objects (blobs + trees + commits + tags)
+- **Why the numbers differ**: The ~6900 figure seen in GitKraken or similar GUIs is the **total git object count**, not the commit count. Git objects include every version of every file (blobs), directory snapshots (trees), commits, and annotated tags. A single commit can create dozens of objects. The actual commit count is **102**.
+

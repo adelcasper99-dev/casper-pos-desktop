@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getNextTicketNumber } from '../actions/tickets/workflow';
 import { createTicket } from '../actions/tickets/mutations';
-import { processTicketPayment } from '../actions/tickets/financials';
+import { processTicketPayment } from '../actions/ticket-actions';
 import { prisma } from '../lib/prisma';
 import { getCurrentUser } from '../actions/auth';
 import { getCurrentShiftInternal } from '../actions/shift-management-actions';
@@ -18,6 +18,9 @@ vi.mock('../lib/prisma', () => ({
             findFirst: vi.fn(),
             create: vi.fn(),
             update: vi.fn(),
+        },
+        ticketCollaborator: {
+            findMany: vi.fn().mockResolvedValue([]),
         },
         branch: {
             findUnique: vi.fn(),
@@ -58,6 +61,7 @@ vi.mock('../actions/auth', () => ({
 
 vi.mock('../actions/shift-management-actions', () => ({
     getCurrentShiftInternal: vi.fn(),
+    updateShiftHeartbeat: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../lib/auth', () => ({
@@ -78,6 +82,7 @@ vi.mock('@/lib/accounting/transaction-factory', () => ({
         recordRefund: vi.fn(),
         recordMaintenancePayment: vi.fn(),
         recordSale: vi.fn(),
+        ensureGLAccounts: vi.fn(),
     },
 }));
 
@@ -173,12 +178,17 @@ describe('Ticket Modular Actions', () => {
 
     describe('processTicketPayment', () => {
         it('should use recordMaintenancePayment (Dynamic GL) and update treasury', async () => {
-            (prisma.ticket.findUnique as any).mockResolvedValue({ 
+            (prisma.ticket.findFirst as any).mockResolvedValue({ 
                 id: 't-1', 
                 barcode: 'B1-100',
                 repairPrice: new Decimal(100),
                 amountPaid: new Decimal(0),
-                currentBranchId: 'b1'
+                currentBranchId: 'b1',
+                status: 'DELIVERED', // adding status so wasPaidDelivered doesn't throw if accessed
+            });
+            (prisma.ticket.update as any).mockResolvedValue({
+                id: 't-1',
+                status: 'PAID_DELIVERED', // returning status
             });
             (prisma.repairPayment.create as any).mockResolvedValue({ id: 'p-1' });
             (prisma.treasury.findFirst as any).mockResolvedValue({ id: 'treas-1', balance: new Decimal(1000) });
@@ -186,8 +196,7 @@ describe('Ticket Modular Actions', () => {
             const result = await processTicketPayment({
                 ticketId: 't-1',
                 amount: 50,
-                paymentMethod: 'VISA',
-                treasuryId: 'treas-visa'
+                paymentMethod: 'VISA'
             });
 
             expect(result.success).toBe(true);
@@ -195,7 +204,7 @@ describe('Ticket Modular Actions', () => {
             // Verify dynamic GL logic via recordMaintenancePayment
             expect(AccountingEngine.recordMaintenancePayment).toHaveBeenCalledWith(expect.objectContaining({
                 method: 'VISA',
-                amount: 50
+                amount: new Decimal(50)
             }), expect.anything());
 
             // Verify Treasury impact

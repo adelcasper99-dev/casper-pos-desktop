@@ -11,6 +11,7 @@ import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
 import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-management-actions";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
+import { GL, PAYMENT_METHOD_GL_MAP } from "@/shared/constants/accounting-mappings";
 import { ticketSchema } from "@/lib/validation/tickets";
 import { logger } from "@/lib/logger";
 import { calculateNetProfit, calculateCommission, resolveCommission } from "@/lib/commission-validation";
@@ -2195,6 +2196,14 @@ export const processTicketPayment = secureAction(async (data: {
     }
     const currentShift = shiftResult.shift;
 
+    // 🛡️ PRE-WARM GL Accounts BEFORE entering the transaction to prevent deadlocks.
+    // AccountingEngine.recordMaintenancePayment uses GL.ASSETS.CASH/BANK/WALLET/RECEIVABLES + GL.REVENUE.SERVICE
+    const glCodesToWarm = [
+        PAYMENT_METHOD_GL_MAP[paymentMethod] ?? '',
+        GL.REVENUE.SERVICE,
+    ].filter(Boolean);
+    await AccountingEngine.ensureGLAccounts(glCodesToWarm);
+
     const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? new Decimal(ticket.parentTicket.amountPaid || 0) : new Decimal(0);
     const previousPaid = new Decimal(ticket.amountPaid || 0);
     const repairPrice = new Decimal(ticket.repairPrice || 0);
@@ -2529,7 +2538,7 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         return updatedTicket;
-    }, { timeout: 60000 });
+    }, { timeout: 15000 });
 
     await updateShiftHeartbeat(currentShift.id).catch(console.error);
 

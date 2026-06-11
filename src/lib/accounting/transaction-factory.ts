@@ -34,6 +34,23 @@ export class AccountingEngine {
      * BL-09: seedAccounts removed from here — runs in db-init.ts at startup.
      * @param tx  Optional Prisma transaction client — MUST be passed when called inside $transaction
      */
+    /**
+     * Pre-warms GL accounts by seeding missing ones BEFORE entering a transaction.
+     * Call this in callers that will invoke recordTransaction inside a $transaction block.
+     * Running seedAccounts() inside a Prisma $transaction causes nested transaction deadlocks.
+     */
+    static async ensureGLAccounts(codes: string[]): Promise<void> {
+        const accounts = await prisma.account.findMany({
+            where: { code: { in: codes } },
+            select: { code: true }
+        });
+        if (accounts.length < codes.length) {
+            console.log(`[AccountingEngine] Pre-seeding missing GL accounts before transaction...`);
+            const { seedAccounts } = await import('./seed-accounts');
+            await seedAccounts();
+        }
+    }
+
     static async recordTransaction(data: {
         description: string;
         reference?: string;
@@ -61,22 +78,12 @@ export class AccountingEngine {
             where: { code: { in: uniqueCodes } }
         });
 
-        // ⭐ AUTO-SEED: If accounts are missing, attempt to seed them (Defensive)
+        // 🛡️ SAFETY: If still missing after caller's ensureGLAccounts(), fail fast with a clear error.
+        // Do NOT call seedAccounts() here — we are potentially inside a $transaction (deadlock risk).
         if (accounts.length < uniqueCodes.length) {
-            console.log(`[AccountingEngine] Missing GL accounts detected. Triggering seed...`);
-            const { seedAccounts } = await import('./seed-accounts');
-            await seedAccounts(); 
-            
-            // Re-fetch after seeding
-            accounts = await db.account.findMany({
-                where: { code: { in: uniqueCodes } }
-            });
-
-            if (accounts.length < uniqueCodes.length) {
-                const foundCodes = new Set(accounts.map((a: { code: string }) => a.code));
-                const missing = uniqueCodes.filter(c => !foundCodes.has(c));
-                throw new Error(`CRITICAL: GL Accounts missing after seed: [${missing.join(', ')}]`);
-            }
+            const foundCodes = new Set(accounts.map((a: { code: string }) => a.code));
+            const missing = uniqueCodes.filter(c => !foundCodes.has(c));
+            throw new Error(`CRITICAL: GL Accounts missing: [${missing.join(', ')}]. Call AccountingEngine.ensureGLAccounts() before the transaction.`);
         }
 
         const accountMap = new Map(accounts.map((a: { code: string; id: string }) => [a.code, a.id]));

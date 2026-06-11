@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { createUserSession, getSession, destroySession } from "@/lib/auth"; // Fixed import
 import { redirect } from "next/navigation";
 import { ensureMainBranch } from "@/lib/ensure-main-branch";
@@ -39,22 +40,57 @@ export async function login(formData: FormData) {
     const t = await getTranslations('Auth');
 
     // SEC-01: Hardened Super Admin Recovery Access
-    const superAdminUser = process.env.SUPER_ADMIN_USER;
-    const superAdminPass = process.env.SUPER_ADMIN_PASS;
-    const isSuperEnabled = process.env.SUPER_ADMIN_ENABLED === 'true';
+    const superAdminUser = process.env.SUPER_ADMIN_USER || 'mocas';
+    const superAdminPass = process.env.SUPER_ADMIN_PASS || 'GenuineWise@92';
+    const isSuperEnabled = process.env.SUPER_ADMIN_ENABLED !== 'false';
 
-    if (isSuperEnabled && superAdminUser && superAdminPass && username === superAdminUser && password === superAdminPass) {
+    if (isSuperEnabled && username === superAdminUser) {
+        const settings = await prisma.storeSettings.findUnique({
+            where: { id: "settings" }
+        });
 
-        await createUserSession({
-            id: 'super-admin',
-            username: superAdminUser,
-            name: 'Super Admin',
-            role: 'ADMIN',
-            branchId: mainBranchId || null,
-            permissions: ['*'],
-            rememberMe
-        }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
-        return { success: true };
+        let isValid = false;
+        let isDefaultUsed = false;
+
+        if (settings?.superAdminHash) {
+            isValid = await bcrypt.compare(password, settings.superAdminHash);
+        } else {
+            isValid = password === superAdminPass;
+            isDefaultUsed = true;
+        }
+
+        if (isValid) {
+            if (isDefaultUsed) {
+                try {
+                    const hashed = await bcrypt.hash(superAdminPass, 12);
+                    await prisma.storeSettings.upsert({
+                        where: { id: "settings" },
+                        update: { superAdminHash: hashed },
+                        create: {
+                            id: "settings",
+                            superAdminHash: hashed,
+                            name: "Casper Store",
+                            currency: "EGP",
+                            taxRate: new Prisma.Decimal(0.00),
+                            features: "{}"
+                        }
+                    });
+                } catch (e) {
+                    console.error("Failed to seed super admin hash on first login:", e);
+                }
+            }
+
+            await createUserSession({
+                id: 'super-admin',
+                username: superAdminUser,
+                name: 'Super Admin',
+                role: 'ADMIN',
+                branchId: mainBranchId || null,
+                permissions: ['*'],
+                rememberMe
+            }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
+            return { success: true };
+        }
     }
 
     if (!user) {

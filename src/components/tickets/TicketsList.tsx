@@ -307,6 +307,9 @@ export default function TicketsList() {
                 } else if (sortConfig.key === 'customerSuccessRatio') {
                     aVal = Number(a.customerSuccessRatio);
                     bVal = Number(b.customerSuccessRatio);
+                } else if (sortConfig.key === 'technicianName') {
+                    aVal = a.technician?.name || '';
+                    bVal = b.technician?.name || '';
                 }
 
                 if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -540,6 +543,7 @@ export default function TicketsList() {
                                 <col className="w-[180px]" /> {/* Customer */}
                                 <col className="w-[180px]" /> {/* Device */}
                                 <col className="w-[180px]" /> {/* Fault/Issue */}
+                                <col className="w-[150px]" /> {/* Technician */}
                                 <col className="w-[100px]" /> {/* Time */}
                                 <col className="w-[50px]" />  {/* Actions */}
                             </colgroup>
@@ -592,6 +596,12 @@ export default function TicketsList() {
                                         <th className="px-6 py-4 text-start">
                                              <div className="flex items-center gap-2">
                                                  {t('table.risk')}
+                                             </div>
+                                         </th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('technicianName')}>
+                                             <div className="flex items-center gap-2">
+                                                 {getSortIcon('technicianName')}
+                                                 {t('table.technician')}
                                              </div>
                                          </th>
                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
@@ -747,6 +757,12 @@ export default function TicketsList() {
                                                 >
                                                     {ticket.issueDescription}
                                                 </div>
+                                            </td>
+                                            {/* 🛠 Technician Column */}
+                                            <td className="px-6 py-4">
+                                                <span className="text-slate-900 dark:text-zinc-200 font-black truncate block">
+                                                    {ticket.technician?.name || t('details.unassigned')}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>

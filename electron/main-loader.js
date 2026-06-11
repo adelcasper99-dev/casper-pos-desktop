@@ -19,23 +19,36 @@ try {
     require('bytenode');
     log('Bytenode loaded.');
 
-    // In development, prioritize main.js if it exists
     const jsPath = path.join(__dirname, 'main.js');
     const jscPath = path.join(__dirname, 'main.jsc');
 
-    if (process.env.NODE_ENV === 'development' && fs.existsSync(jsPath)) {
-        log('Loading main.js (development mode)...');
+    const jsExists = fs.existsSync(jsPath);
+    const jscExists = fs.existsSync(jscPath);
+
+    if (!jscExists && jsExists) {
+        log('Loading main.js (no .jsc bytecode found)...');
         require(jsPath);
         log('main.js loaded successfully.');
-    } else {
-        log(`Checking for main.jsc at: ${jscPath}`);
-        if (!fs.existsSync(jscPath)) {
-            log('ERROR: main.jsc NOT FOUND');
-            throw new Error(`main.jsc not found at ${jscPath}`);
-        }
-        log('Requiring main.jsc...');
+    } else if (!jsExists && jscExists) {
+        log('Loading main.jsc (no source .js found)...');
         require(jscPath);
-        log('main.jsc required successfully.');
+        log('main.jsc loaded successfully.');
+    } else if (jsExists && jscExists) {
+        const jsStat = fs.statSync(jsPath);
+        const jscStat = fs.statSync(jscPath);
+        if (jsStat.mtimeMs > jscStat.mtimeMs) {
+            log('main.js is newer than main.jsc — loading source (edit main.js, save, and restart for changes)');
+            require(jsPath);
+            log('main.js loaded successfully.');
+        } else {
+            log('main.jsc is newer than or equal to main.js — loading bytecode');
+            log('Tip: edit main.js and restart to load from source, or run npm run compile:bytecode to update bytecode');
+            require(jscPath);
+            log('main.jsc loaded successfully.');
+        }
+    } else {
+        log('ERROR: Neither main.js nor main.jsc found');
+        throw new Error(`No entry point found at ${__dirname}`);
     }
 
 } catch (err) {

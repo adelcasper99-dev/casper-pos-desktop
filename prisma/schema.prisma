@@ -39,6 +39,7 @@ model StoreSettings {
   labelTemplate         String?
   allowNegativeStock    Boolean @default(false)
   blindCloseEnabled     Boolean @default(true)
+  superAdminHash        String?
 }
 
 model User {

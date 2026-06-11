@@ -525,7 +525,7 @@ export default function SupplierHistoryTable({
                                                         <span className="text-[9px] text-emerald-500/70 uppercase">دائن لنا</span>
                                                     )}
                                                     {(tx.runningBalance || 0) > 0 && (
-                                                        <span className="text-[9px] text-rose-500/70 uppercase">مديونية</span>
+                                                        <span className={"text-[9px] text-rose-500/70 uppercase tracking-widest mt-0.5"}>له</span>
                                                     )}
                                                 </div>
                                             </td>
