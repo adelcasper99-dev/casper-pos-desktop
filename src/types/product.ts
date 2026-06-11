@@ -116,7 +116,7 @@ export interface PurchaseItem {
         stocks?: { warehouseId: string; quantity: number | Decimal }[];
     };
     quantity: number | Decimal;
-    unitCost: number | Decimal;
+    unitCost: number | Decimal | string;
     returnedQty: number | Decimal;
 }
 
@@ -125,9 +125,9 @@ export interface PurchaseInvoice {
     invoiceNumber: string | null;
     supplierId?: string;
     supplier?: { name: string; phone?: string | null; address?: string | null };
-    totalAmount: number;
-    paidAmount: number;
-    deliveryCharge: number;
+    totalAmount: number | string;
+    paidAmount: number | string;
+    deliveryCharge: number | string;
     status: string;
     purchaseDate: Date | string;
     paymentMethod?: string;

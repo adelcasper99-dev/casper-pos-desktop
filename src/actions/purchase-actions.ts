@@ -1,16 +1,19 @@
 "use server";
 
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { secureAction } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
 import { Decimal } from '@prisma/client/runtime/library';
-import { AccountingEngine } from '@/lib/accounting/transaction-factory';
+import { AccountingEngine, TransactionLineInput } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
 import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { calculateProratedRefundValue } from '@/utils/refund-calculations';
 import { GL } from '@/shared/constants/accounting-mappings';
 import { PurchaseInvoice } from '@/types/product';
+import { toDecimal } from '@/lib/decimal-utils';
 
 interface PurchaseFilters {
     startDate?: string;
@@ -22,11 +25,11 @@ interface PurchaseFilters {
 /**
  * Fetch purchase history
  */
-export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ success: boolean; purchases?: PurchaseInvoice[]; error?: string }> {
+export const getPurchasesHistory = secureAction(async (filters?: PurchaseFilters) => {
     try {
         const { startDate, endDate, supplierId, status } = filters || {};
 
-        const where: any = {};
+        const where: Prisma.PurchaseInvoiceWhereInput = {};
 
         if (startDate || endDate) {
             where.purchaseDate = {};
@@ -73,20 +76,20 @@ export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ 
             success: true,
             purchases: purchases.map(p => ({
                 ...p,
-                totalAmount: Number(p.totalAmount),
-                paidAmount: Number(p.paidAmount),
-                deliveryCharge: Number(p.deliveryCharge),
+                totalAmount: toDecimal(p.totalAmount).toFixed(2),
+                paidAmount: toDecimal(p.paidAmount).toFixed(2),
+                deliveryCharge: toDecimal(p.deliveryCharge).toFixed(2),
                 items: p.items.map(i => ({
                     ...i,
-                    unitCost: Number(i.unitCost)
+                    unitCost: toDecimal(i.unitCost).toFixed(2)
                 }))
-            }))
+            })) as PurchaseInvoice[]
         };
     } catch (error: unknown) {
         console.error('[getPurchasesHistory] Error:', error);
         return { success: false, purchases: [], error: error instanceof Error ? error.message : "Unknown error" };
     }
-}
+}, { permission: PERMISSIONS.PURCHASING_VIEW, requireCSRF: false });
 
 /**
  * Fetch a single purchase for editing
@@ -114,12 +117,12 @@ export const getPurchase = secureAction(async (id: string) => {
         success: true,
         data: {
             ...purchase,
-            totalAmount: Number(purchase.totalAmount),
-            paidAmount: Number(purchase.paidAmount),
-            deliveryCharge: Number(purchase.deliveryCharge),
+            totalAmount: toDecimal(purchase.totalAmount).toFixed(2),
+            paidAmount: toDecimal(purchase.paidAmount).toFixed(2),
+            deliveryCharge: toDecimal(purchase.deliveryCharge).toFixed(2),
             items: purchase.items.map(i => ({
                 ...i,
-                unitCost: Number(i.unitCost)
+                unitCost: toDecimal(i.unitCost).toFixed(2)
             }))
         }
     };
@@ -197,10 +200,10 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         );
 
         // ─── Create NEW Return Invoice document ───
-        const timestamp = new Date().getTime().toString().slice(-4);
+        const hexSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
         const returnInvoice = await tx.purchaseInvoice.create({
             data: {
-                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
+                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${hexSuffix}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
                 totalAmount: actualReturnAmount.negated(),
@@ -231,6 +234,14 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 where: { productId: item.productId, warehouseId: invoice.warehouseId },
                 data: { quantity: { decrement: item.quantity } }
             });
+
+            // Post-update stock underflow guard
+            const postUpdate = await tx.stock.findFirst({
+                where: { productId: item.productId, warehouseId: invoice.warehouseId }
+            });
+            if (postUpdate && Number(postUpdate.quantity) < 0) {
+                throw new Error('مخزون سالب — تعذّر إكمال الإرجاع، راجع الكميات الحالية');
+            }
 
             await tx.stockMovement.create({
                 data: {
@@ -297,9 +308,9 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         }
 
         // 6. Accounting Reversal
-        const accountingLines: any[] = [];
-        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: actualReturnAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: actualReturnAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        const accountingLines: TransactionLineInput[] = [];
+        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: actualReturnAmount, credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: actualReturnAmount, description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
@@ -325,7 +336,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         message: "Purchase voided successfully",
         data: result
     };
-}, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: false });
+}, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: true });
 
 export interface PartialPurchaseReturnResult {
     returnedAmount: string;
@@ -439,10 +450,10 @@ export const partialReturnPurchase = secureAction(async (data: {
         const cashReversal = returnTotal.minus(debtReduction);
 
         // 3. Create NEW Return Invoice
-        const timestamp = new Date().getTime().toString().slice(-4);
+        const hexSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
         const returnInvoice = await tx.purchaseInvoice.create({
             data: {
-                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
+                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${hexSuffix}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
                 totalAmount: returnTotal.negated(),
@@ -490,6 +501,14 @@ export const partialReturnPurchase = secureAction(async (data: {
                 data: { quantity: { decrement: p.returnQty } }
             });
 
+            // Post-update stock underflow guard
+            const postUpdate = await tx.stock.findFirst({
+                where: { productId: p.productId, warehouseId: invoice.warehouseId }
+            });
+            if (postUpdate && Number(postUpdate.quantity) < 0) {
+                throw new Error('مخزون سالب — تعذّر إكمال الإرجاع، راجع الكميات الحالية');
+            }
+
             await tx.stockMovement.create({
                 data: {
                     type: 'RETURN',
@@ -512,9 +531,9 @@ export const partialReturnPurchase = secureAction(async (data: {
         /* Skipping Treasury Adjustment to keep full amount in Supplier Balance (Credit) */
 
         // 7. Accounting Entry for the Return Invoice
-        const accountingLines: any[] = [];
-        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: returnTotal.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        const accountingLines: TransactionLineInput[] = [];
+        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: returnTotal, credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: returnTotal, description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Partial Return Invoice: ${returnInvoice.invoiceNumber}`,
