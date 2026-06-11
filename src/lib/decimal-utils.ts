@@ -6,7 +6,7 @@ import { Decimal } from 'decimal.js';
  * prototype methods during transit through Server Actions or JSON serialization.
  */
 export function toDecimal(val: any): Decimal {
-    if (val === null || val === undefined) return new Decimal(0);
+    if (val === null || val === undefined || val === '' || String(val).trim() === '') return new Decimal(0);
     
     // Proper Decimal instance
     if (val instanceof Decimal) return val;

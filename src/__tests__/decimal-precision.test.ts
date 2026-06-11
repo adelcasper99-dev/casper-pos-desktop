@@ -354,5 +354,10 @@ describe('Financial Calculations', () => {
             const subtotal = toDecimal(qty).times(toDecimal(price)).toDecimalPlaces(2);
             expect(subtotal.toNumber()).toBe(27.93);
         });
+
+        it('should handle empty strings and whitespace-only strings safely returning 0', () => {
+            expect(toDecimal('').toNumber()).toBe(0);
+            expect(toDecimal('   ').toNumber()).toBe(0);
+        });
     });
 });
