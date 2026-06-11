@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Search, Filter, Eye, Pencil,
     Trash2, Truck,
@@ -118,7 +118,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         return matchesSearch && matchesStatus && matchesDate;
     });
 
-    const computedTotals = {
+    const computedTotals = useMemo(() => ({
         actualTotal: filteredPurchases.reduce((acc, p) => {
             const isReturn = p.isReturn || p._isReturnEntry;
             if (['VOIDED', 'CANCELLED'].includes(p.status) && !isReturn) return acc;
@@ -129,13 +129,13 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             if (['VOIDED', 'CANCELLED'].includes(p.status) && !isReturn) return acc;
             return acc + (Number(p.totalAmount) - Number(p.paidAmount));
         }, 0)
-    };
+    }), [filteredPurchases]);
 
     useEffect(() => {
         if (onTotalsChange) {
             onTotalsChange(computedTotals);
         }
-    }, [computedTotals.actualTotal, computedTotals.remaining]);
+    }, [computedTotals, onTotalsChange]);
 
     const handleDirectPrint = async (inv: any) => {
         setLoadingInvoiceId(inv.id);
@@ -177,8 +177,6 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         setShowBarcodePrint(true);
     };
     const handleVoid = async (id: string, reason?: string) => {
-        if (!confirm("هل أنت متأكد من إلغاء هذه الفاتورة؟ سيتم سحب الكميات من المخزن وتعديل مديونية المورد.")) return;
-
         setLoading(id);
         try {
             const res = await voidPurchase({ id, reason: reason || undefined, csrfToken });
