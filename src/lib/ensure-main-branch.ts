@@ -37,14 +37,32 @@ const PAYMENT_TREASURIES = [
 ];
 
 export async function ensureMainBranch(): Promise<string> {
-    // ── Migration Check (MAIN-001 -> MAIN) ──
+    // ── Migration Check (Legacy branch-1 → MAIN) ──
     if (!migrationChecked) {
-        // ── Self-Healing: Fix users with orphaned branchId links ──
-        const allBranches = await prisma.branch.findMany({ select: { id: true } });
+        const allBranches = await prisma.branch.findMany({ select: { id: true, code: true, type: true } });
         const allBranchIds = allBranches.map(b => b.id);
-        const mainBranch = allBranches.find(b => b.id === 'branch-1' || b.id === 'MAIN') || await prisma.branch.findFirst({ where: { code: MAIN_BRANCH_CODE } });
-        
+
+        // Find the true MAIN branch (code=MAIN). Fall back to branch-1 or first branch.
+        const mainBranch =
+            await prisma.branch.findFirst({ where: { code: MAIN_BRANCH_CODE } }) ||
+            allBranches.find(b => b.id === 'branch-1') ||
+            allBranches[0];
+
         if (mainBranch) {
+            // Self-heal: ensure ALL branches acting as the single center are type CENTER.
+            // This covers the legacy seed "branch-1" whose default type was STORE.
+            const legacyBranches = allBranches.filter(
+                b => b.id === 'branch-1' && b.type !== 'CENTER'
+            );
+            for (const lb of legacyBranches) {
+                await prisma.branch.update({
+                    where: { id: lb.id },
+                    data: { type: 'CENTER' }
+                });
+                console.log(`[INIT] Self-healed legacy branch ${lb.id} type → CENTER`);
+            }
+
+            // Fix users with orphaned or null branchId
             await prisma.user.updateMany({
                 where: {
                     OR: [
@@ -55,9 +73,10 @@ export async function ensureMainBranch(): Promise<string> {
                 data: { branchId: mainBranch.id }
             });
         }
-        
+
         migrationChecked = true;
     }
+
 
 
 
