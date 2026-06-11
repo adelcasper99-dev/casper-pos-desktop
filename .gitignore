@@ -54,8 +54,11 @@ nul
 casper-hardware-bridge/node_modules/
 casper-hardware-bridge/dist/
 
+# casper-launcher subproject ignores
 casper-launcher/node_modules/
 casper-launcher/dist/
+casper-launcher/out/
+casper-launcher/release/
 
 # Agent & Skill Library (Local only)
 /.gemini/
