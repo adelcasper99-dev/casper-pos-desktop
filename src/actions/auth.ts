@@ -31,7 +31,7 @@ export async function login(formData: FormData) {
     const [user, mainBranchId] = await Promise.all([
         prisma.user.findUnique({
             where: { username },
-            include: { role: true }
+            include: { role: true, branch: { select: { type: true } } }
         }),
         ensureMainBranch()
     ]);
@@ -86,6 +86,7 @@ export async function login(formData: FormData) {
                 name: 'Super Admin',
                 role: 'ADMIN',
                 branchId: mainBranchId || null,
+                branchType: 'CENTER',
                 permissions: ['*'],
                 rememberMe
             }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
@@ -125,6 +126,7 @@ export async function login(formData: FormData) {
         name: user.name,
         role: user.roleStr,
         branchId: effectiveBranchId,
+        branchType: user.branch?.type ?? 'CENTER',
         permissions: permissions,
         rememberMe
     }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);

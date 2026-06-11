@@ -71,6 +71,7 @@ export async function getSession() {
                 name: 'Super Admin',
                 role: 'ADMIN',
                 branchId: null,
+                branchType: 'CENTER',
                 permissions: ['*'],
                 maxDiscount: 100,
                 maxDiscountAmount: 9999999
@@ -82,7 +83,7 @@ export async function getSession() {
     try {
         session = await prisma.session.findUnique({
             where: { token },
-            include: { user: { include: { role: true } } },
+            include: { user: { include: { role: true, branch: { select: { type: true } } } } },
         });
 
         if (!session) {
@@ -133,6 +134,7 @@ export async function getSession() {
             name: user.name,
             role: user.roleStr,
             branchId: user.branchId,
+            branchType: user.branch?.type ?? 'CENTER',
             permissions: permissions,
             isGlobalAdmin: (user as any).isGlobalAdmin || false,
             maxDiscount: (user.roleStr === 'ADMIN' || user.roleStr === 'مدير النظام' || user.roleStr === 'المالك') ? 100 : ((user as any).maxDiscount ? Number((user as any).maxDiscount) : 0),
