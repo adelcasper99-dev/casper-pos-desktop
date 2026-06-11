@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, KeyboardEvent, forwardRef } from "react";
+import { toDecimal } from "@/lib/decimal-utils";
 import { createPortal } from "react-dom";
 import { Trash2, History, Loader2, Sparkles, Tag, ChevronDown, Plus, Pencil } from "lucide-react";
 import { clsx } from "clsx";
@@ -124,7 +125,7 @@ function createEmptyRow(): GridRow {
 }
 
 function computeSubTotal(qty: number | string, price: number | string): number {
-    return Math.round(Number(qty) * Number(price) * 100) / 100;
+    return toDecimal(qty).times(toDecimal(price)).toDecimalPlaces(2).toNumber();
 }
 
 // Returns the next editable col, skipping categoryId for existing products
@@ -160,13 +161,15 @@ function prevEditableCol(current: EditableCol, isNew: boolean): EditableCol | nu
     return null;
 }
 
+// Module-level canvas cache to avoid recreating per call
+const _canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+
 /**
  * Excel-style Auto-fit: Measures text width using Canvas API for performance.
  */
 function getTextWidth(text: string, font: string = "bold 11px Cairo, sans-serif"): number {
-    if (typeof document === "undefined") return 0;
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+    if (!_canvas) return 0;
+    const context = _canvas.getContext("2d");
     if (!context) return 0;
     context.font = font;
     return context.measureText(text).width;

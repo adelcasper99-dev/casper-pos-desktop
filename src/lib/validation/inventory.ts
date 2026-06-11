@@ -50,7 +50,7 @@ const purchaseItemSchema = z.object({
     modelId: z.string().optional().nullable(),
     attributeId: z.string().optional().nullable(),
     quantity: z.coerce.number().min(0.001, "Quantity must be at least 0.001"),
-    unitCost: z.coerce.number().min(0),
+    unitCost: z.union([z.string(), z.number()]).transform(v => String(v)),
     sellPrice: z.coerce.number().optional(),
     sellPrice2: z.coerce.number().optional(),
     sellPrice3: z.coerce.number().optional(),

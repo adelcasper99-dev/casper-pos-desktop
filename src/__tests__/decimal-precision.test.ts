@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { toDecimal } from '../lib/decimal-utils';
 
 // Simulating Decimal.js behavior for testing
 class Decimal {
@@ -336,6 +337,22 @@ describe('Financial Calculations', () => {
             const deliveryCharge = new Decimal('12.50');
             const totalAmount = subtotal.add(deliveryCharge);
             expect(totalAmount.toNumber()).toBe(22.50);
+        });
+    });
+
+    describe('Purchasing Module Arithmetic (Real)', () => {
+        it('should calculate subtotal using toDecimal (0.1 * 3)', () => {
+            const quantity = toDecimal('3');
+            const unitCost = toDecimal('0.1');
+            const subtotal = quantity.times(unitCost);
+            expect(subtotal.toNumber()).toBe(0.30);
+        });
+
+        it('should calculate grid subtotal using toDecimal (7 * 3.99)', () => {
+            const qty = 7;
+            const price = 3.99;
+            const subtotal = toDecimal(qty).times(toDecimal(price)).toDecimalPlaces(2);
+            expect(subtotal.toNumber()).toBe(27.93);
         });
     });
 });

@@ -3,6 +3,8 @@ import { generateNextSku, createPurchase, updatePurchase } from "@/actions/inven
 import { useTranslations } from "@/lib/i18n-mock";
 import { toast } from "sonner";
 import { safeRandomUUID } from "@/lib/utils";
+import { Decimal } from 'decimal.js';
+import { toDecimal } from '@/lib/decimal-utils';
 import { CartItem as InvoiceItem, PurchaseFormReturn } from "@/types/purchasing";
 export type { InvoiceItem };
 
@@ -96,12 +98,11 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
     // Computed
     const subtotal = useMemo(() => {
-        return cart.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unitCost)), 0);
+        return cart.reduce((acc, item) => acc.plus(toDecimal(item.quantity).times(toDecimal(item.unitCost))), new Decimal(0)).toNumber();
     }, [cart]);
 
     const totalAmount = useMemo(() => {
-        const del = parseFloat(deliveryCharge) || 0;
-        return subtotal + del;
+        return toDecimal(subtotal).plus(toDecimal(deliveryCharge)).toNumber();
     }, [subtotal, deliveryCharge]);
 
     // Ensure paid amount does not exceed total amount when items/delivery change
@@ -266,9 +267,9 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             return;
         }
 
-        const cost = parseFloat(newItemCost);
-        const qty = newItemIsDevice ? 1 : parseFloat(newItemQty);
-        const price = parseFloat(newItemSellPrice);
+        const cost = toDecimal(newItemCost).toNumber();
+        const qty = newItemIsDevice ? 1 : toDecimal(newItemQty).toNumber();
+        const price = toDecimal(newItemSellPrice).toNumber();
 
         if (cost > price) {
             toast.error(t('validation.costError', { names: newItemName }));
@@ -288,8 +289,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             unitCost: cost,
             quantity: qty,
             sellPrice: price,
-            sellPrice2: parseFloat(newItemSellPrice2) || undefined,
-            sellPrice3: parseFloat(newItemSellPrice3) || undefined,
+            sellPrice2: newItemSellPrice2 ? toDecimal(newItemSellPrice2).toNumber() : undefined,
+            sellPrice3: newItemSellPrice3 ? toDecimal(newItemSellPrice3).toNumber() : undefined,
             isDevice: newItemIsDevice,
             deviceType: newItemDeviceType,
             condition: newItemIsDevice ? newItemCondition : undefined,
@@ -402,11 +403,11 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 categoryId: i.categoryId,
                 modelId: i.modelId,
                 attributeId: i.attributeId,
-                sellPrice: Number(i.sellPrice || 0),
-                sellPrice2: Number(i.sellPrice2 || 0),
-                sellPrice3: Number(i.sellPrice3 || 0),
+                sellPrice: toDecimal(i.sellPrice).toNumber(),
+                sellPrice2: toDecimal(i.sellPrice2).toNumber(),
+                sellPrice3: toDecimal(i.sellPrice3).toNumber(),
                 quantity: Number(i.quantity),
-                unitCost: Number(i.unitCost),
+                unitCost: toDecimal(i.unitCost).toFixed(4),
                 isDevice: i.isDevice,
                 deviceType: i.deviceType,
                 condition: i.condition,
@@ -414,8 +415,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 unitOfMeasureId: i.unitOfMeasureId,
                 conversionFactor: Number(i.conversionFactor || 1)
             })),
-            paidAmount: parseFloat(paidAmount) || 0,
-            deliveryCharge: parseFloat(deliveryCharge) || 0,
+            paidAmount: toDecimal(paidAmount).toNumber(),
+            deliveryCharge: toDecimal(deliveryCharge).toNumber(),
             paymentMethod,
             treasuryId: treasuryId || undefined,
             csrfToken: internalCsrfToken
