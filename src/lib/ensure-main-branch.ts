@@ -49,17 +49,25 @@ export async function ensureMainBranch(): Promise<string> {
             allBranches[0];
 
         if (mainBranch) {
-            // Self-heal: ensure ALL branches acting as the single center are type CENTER.
-            // This covers the legacy seed "branch-1" whose default type was STORE.
-            const legacyBranches = allBranches.filter(
-                b => b.id === 'branch-1' && b.type !== 'CENTER'
-            );
-            for (const lb of legacyBranches) {
+            // Self-heal: ensure the active main branch is type CENTER.
+            // Under single-branch mode, the main branch acts as the repair center.
+            if (mainBranch.type !== 'CENTER') {
                 await prisma.branch.update({
-                    where: { id: lb.id },
+                    where: { id: mainBranch.id },
                     data: { type: 'CENTER' }
                 });
-                console.log(`[INIT] Self-healed legacy branch ${lb.id} type → CENTER`);
+                console.log(`[INIT] Self-healed active branch ${mainBranch.id} (${mainBranch.code}) type → CENTER`);
+                mainBranch.type = 'CENTER';
+            }
+
+            // Also ensure the legacy "branch-1" is CENTER if it still exists separately
+            const legacyBranch1 = allBranches.find(b => b.id === 'branch-1');
+            if (legacyBranch1 && legacyBranch1.type !== 'CENTER') {
+                await prisma.branch.update({
+                    where: { id: 'branch-1' },
+                    data: { type: 'CENTER' }
+                });
+                console.log(`[INIT] Self-healed legacy branch-1 type → CENTER`);
             }
 
             // Fix users with orphaned or null branchId

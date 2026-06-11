@@ -18,7 +18,7 @@ async function main() {
             data: {
                 name: "Main Branch",
                 code: "MAIN-001",
-                type: "STORE"
+                type: "CENTER"
             }
         });
         await prisma.user.upsert({

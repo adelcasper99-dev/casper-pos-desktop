@@ -526,7 +526,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
                 let defaultBranch = await tx.branch.findFirst();
                 if (!defaultBranch) {
                     defaultBranch = await tx.branch.create({
-                        data: { name: "Main Store", code: "MAIN", type: "STORE" }
+                        data: { name: "Main Store", code: "MAIN", type: "CENTER" }
                     });
                 }
                 mainWarehouse = await tx.warehouse.create({
@@ -1793,7 +1793,7 @@ export const createWarehouse = secureAction(async (data: { name: string; address
                 data: {
                     name: "Main Branch",
                     code: "MAIN",
-                    type: "STORE",
+                    type: "CENTER",
                     phone: "",
                     address: "Main Location"
                 },
