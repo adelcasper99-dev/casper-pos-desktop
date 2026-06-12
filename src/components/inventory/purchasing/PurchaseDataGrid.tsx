@@ -778,6 +778,9 @@ function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, tr
                                     } else if (canQuickCreate) {
                                         onQuickCreate!(query.trim());
                                         setIsOpen(false);
+                                    } else if (query.trim().length > 0) {
+                                        onChange("", query.trim());
+                                        setIsOpen(false);
                                     }
                                 } else if (e.key === "Escape") {
                                     setIsOpen(false);
@@ -1389,12 +1392,16 @@ export function PurchaseDataGrid({
                          const hasHierarchyChange = 
                             updates.hasOwnProperty('categoryId') || 
                             updates.hasOwnProperty('modelId') || 
-                            updates.hasOwnProperty('attributeId');
+                            updates.hasOwnProperty('attributeId') ||
+                            updates.hasOwnProperty('attributeName');
 
                         if (hasHierarchyChange) {
                             const catName = categories.find(c => c.id === merged.categoryId)?.name || "";
                             const modName = models.find(m => m.id === merged.modelId)?.name || "";
-                            const attrName = attributes.find(a => a.id === merged.attributeId)?.name || "";
+                            const attrName =
+                                merged.attributeName ||
+                                attributes.find(a => a.id === merged.attributeId)?.name ||
+                                "";
                             
                             // Use " - " separator for cleaner hierarchical naming
                             merged.itemName = [catName, modName, attrName]
@@ -1928,9 +1935,9 @@ export function PurchaseDataGrid({
                                      onDelete={handleDeleteCategory}
                                      onChange={async (val) => {
                                          if (row.isNew && !row.itemCode) {
-                                             await handleAutoSku(rowIdx, { categoryId: val, modelId: "", attributeId: "" });
+                                             await handleAutoSku(rowIdx, { categoryId: val, modelId: "", attributeId: "", attributeName: undefined });
                                          } else {
-                                             updateRow(rowIdx, { categoryId: val, modelId: "", attributeId: "" });
+                                             updateRow(rowIdx, { categoryId: val, modelId: "", attributeId: "", attributeName: undefined });
                                          }
                                          setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                      }}
@@ -1958,13 +1965,13 @@ export function PurchaseDataGrid({
                                      onEdit={handleEditModel}
                                      onDelete={handleDeleteModel}
                                      onChange={(val) => {
-                                         updateRow(rowIdx, { modelId: val, attributeId: "" });
+                                         updateRow(rowIdx, { modelId: val, attributeId: "", attributeName: undefined });
                                          setTimeout(() => focusInput(rowIdx, "attributeId"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateModel) {
                                              onQuickCreateModel(name, row.categoryId, (newId) => {
-                                                 updateRow(rowIdx, { modelId: newId });
+                                                 updateRow(rowIdx, { modelId: newId, attributeId: "", attributeName: undefined });
                                                  setTimeout(() => focusInput(rowIdx, "attributeId"), 50);
                                              });
                                          }
@@ -1982,14 +1989,17 @@ export function PurchaseDataGrid({
                                      options={attributes}
                                      onEdit={handleEditAttribute}
                                      onDelete={handleDeleteAttribute}
-                                     onChange={(id) => {
-                                         updateRow(rowIdx, { attributeId: id });
+                                     onChange={(id, name) => {
+                                         updateRow(rowIdx, {
+                                             attributeId: id,
+                                             attributeName: name && !id ? name : undefined
+                                         });
                                          setTimeout(() => focusInput(rowIdx, "unit"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateAttribute) {
                                              onQuickCreateAttribute(name, (newId) => {
-                                                 updateRow(rowIdx, { attributeId: newId });
+                                                 updateRow(rowIdx, { attributeId: newId, attributeName: undefined });
                                                  setTimeout(() => focusInput(rowIdx, "unit"), 50);
                                              });
                                          }
@@ -2012,7 +2022,13 @@ export function PurchaseDataGrid({
                                      type="text"
                                      value={row.itemName}
                                      readOnly={row.isNew} // Enforce auto-naming for new items
-                                     placeholder={row.isNew ? "الاسم يتولد تلقائياً..." : "ابحث..."}
+                                     placeholder={row.isNew 
+                                          ? row.categoryId 
+                                              ? row.modelId 
+                                                  ? "اكتب الوصف/الصفة في الخانة السابقة..."
+                                                  : "اختر الموديل أولاً..."
+                                              : "اختر الفئة أولاً..."
+                                          : "ابحث..."}
                                      className={clsx(
                                          "font-black opacity-90",
                                          row.isNew ? "text-emerald-500" : row.itemName ? "text-zinc-900 dark:text-zinc-200" : ""
