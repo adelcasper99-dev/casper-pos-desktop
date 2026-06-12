@@ -36,9 +36,9 @@ interface NewPurchaseOverlayProps {
     treasuries: any[];
     csrfToken?: string;
     onQuickCreateSupplier?: (data: { name: string; phone?: string }) => void;
-    onQuickCreateCategory?: (name: string, callback: (id: string) => void) => void;
-    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string) => void) => void;
-    onQuickCreateAttribute?: (name: string, callback: (id: string) => void) => void;
+    onQuickCreateCategory?: (name: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateAttribute?: (name: string, callback: (id: string, name: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
 }
 
