@@ -69,6 +69,9 @@ export default async function InventoryPage() {
         sellPrice: p.sellPrice.toNumber(),
         sellPrice2: p.sellPrice2?.toNumber() || 0,
         sellPrice3: p.sellPrice3?.toNumber() || 0,
+        trackStock: p.trackStock,
+        isBundle: p.isBundle,
+        itemType: p.itemType,
         // Add missing fields for type compatibility
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),
