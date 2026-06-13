@@ -1,0 +1,75 @@
+﻿
+> casper-pos-desktop@1.0.0 prebuild
+> npm run validate:db
+
+
+> casper-pos-desktop@1.0.0 validate:db
+> node scripts/validate-database-files.js
+
+ظ╣ي╕ No files to validate
+
+> casper-pos-desktop@1.0.0 build
+> next build
+
+  ظû▓ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ظ£ô Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/29) ...
+   Generating static pages (7/29) 
+   Generating static pages (14/29) 
+   Generating static pages (21/29) 
+ ظ£ô Generating static pages (29/29)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                       Size     First Load JS
+ظ¤î ╞ْ /                                             184 B           120 kB
+ظ¤£ ╞ْ /_not-found                                   880 B          88.6 kB
+ظ¤£ ╞ْ /[locale]/maintenance/dashboard               126 kB          299 kB
+ظ¤£ ╞ْ /[locale]/maintenance/tickets                 23 kB           265 kB
+ظ¤£ ╞ْ /[locale]/maintenance/tickets/[id]            54.7 kB         270 kB
+ظ¤£ ╞ْ /[locale]/maintenance/tickets/engineers/[id]  10.5 kB         185 kB
+ظ¤£ ╞ْ /[locale]/maintenance/tickets/new             16.4 kB         172 kB
+ظ¤£ ╞ْ /[locale]/returns                             13.7 kB         158 kB
+ظ¤£ ظùï /api/cleanup-warehouse                        0 B                0 B
+ظ¤£ ظùï /api/debug                                    0 B                0 B
+ظ¤£ ظùï /api/health                                   0 B                0 B
+ظ¤£ ╞ْ /api/treasury/offline-transaction             0 B                0 B
+ظ¤£ ╞ْ /customers                                    8.84 kB         158 kB
+ظ¤£ ╞ْ /dashboard                                    6.05 kB         146 kB
+ظ¤£ ╞ْ /dashboard/reports/maintenance-profit         9.05 kB         172 kB
+ظ¤£ ╞ْ /hr                                           14.2 kB         180 kB
+ظ¤£ ╞ْ /hr/employees/[id]                            16.9 kB         230 kB
+ظ¤£ ╞ْ /inventory                                    22.2 kB         240 kB
+ظ¤£ ╞ْ /inventory/suppliers/[id]                     13 kB           312 kB
+ظ¤£ ╞ْ /login                                        258 B           120 kB
+ظ¤£ ╞ْ /logs                                         28.7 kB         385 kB
+ظ¤£ ╞ْ /pos                                          66.7 kB         271 kB
+ظ¤£ ╞ْ /purchasing                                   26.6 kB         252 kB
+ظ¤£ ╞ْ /reports                                      6.47 kB         168 kB
+ظ¤£ ╞ْ /reports/cash-flow                            6.54 kB         125 kB
+ظ¤£ ╞ْ /reports/inventory                            6.51 kB         285 kB
+ظ¤£ ╞ْ /reports/profit-loss                          4.29 kB         162 kB
+ظ¤£ ╞ْ /settings                                     24.9 kB         288 kB
+ظ¤£ ╞ْ /settings/users                               1.95 kB         179 kB
+ظ¤£ ╞ْ /setup                                        9 kB            120 kB
+ظ¤£ ╞ْ /spare-parts                                  148 kB          459 kB
+ظ¤£ ╞ْ /treasury                                     15.1 kB         205 kB
+ظ¤£ ╞ْ /treasury/categories                          4.04 kB         110 kB
+ظ¤£ ╞ْ /treasury/log                                 5.09 kB         306 kB
+ظ¤¤ ╞ْ /unauthorized                                 179 B          96.7 kB
++ First Load JS shared by all                     87.8 kB
+  ظ¤£ chunks/2117-77b91d05d0448c74.js               31.9 kB
+  ظ¤£ chunks/fd9d1056-d0fd928ec65c0cad.js           53.6 kB
+  ظ¤¤ other shared chunks (total)                   2.21 kB
+
+
+╞ْ Middleware                                      26.7 kB
+
+ظùï  (Static)   prerendered as static content
+╞ْ  (Dynamic)  server-rendered on demand
+

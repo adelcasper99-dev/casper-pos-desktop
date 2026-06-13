@@ -1232,6 +1232,17 @@ export function PurchaseDataGrid({
     const [resizingIdx, setResizingIdx] = useState<number | null>(null);
     const [isAutoFitting, setIsAutoFitting] = useState(false);
 
+    // Ref to track generated SKUs during the current session/interaction to prevent concurrency race conditions
+    const generatedSkusRef = useRef<Set<string>>(new Set());
+
+    // Clear generated SKUs cache when the grid has no item codes (reset/saved)
+    useEffect(() => {
+        const hasAnySku = rows.some(r => r.itemCode);
+        if (!hasAnySku) {
+            generatedSkusRef.current.clear();
+        }
+    }, [rows]);
+
     // ── CRUD State for Modern Prompts (window.prompt replacement) ───────────
     const [crudState, setCrudState] = useState<{
         isOpen: boolean;
@@ -1591,9 +1602,24 @@ export function PurchaseDataGrid({
             // But we also want to avoid redundant SKU generation if one exists.
             
             setSkuLoadingRow(rowIdx);
-            const existingSKUs = rows.filter(r => r.itemCode).map(r => r.itemCode);
+            
+            // Combine row SKUs with the in-progress generated SKUs to prevent concurrent duplicates
+            const existingSKUs = [
+                ...rows.filter(r => r.itemCode).map(r => r.itemCode),
+                ...Array.from(generatedSkusRef.current)
+            ];
+            
+            console.log("[handleAutoSku] Calling generateNextSku with existingSKUs:", existingSKUs);
             const res = await generateNextSku({ existingSKUs });
+            console.log("[handleAutoSku] generateNextSku response:", res);
             const autoSku = (res as any)?.sku ?? "";
+            
+            if (autoSku) {
+                generatedSkusRef.current.add(autoSku);
+            } else {
+                toast.error("Failed to generate SKU: " + JSON.stringify(res));
+            }
+            
             setSkuLoadingRow(null);
             
             updateRow(rowIdx, { ...initialUpdates, itemCode: autoSku });
@@ -1942,8 +1968,12 @@ export function PurchaseDataGrid({
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateCategory) {
-                                             onQuickCreateCategory(name, (newId, createdName) => {
-                                                  updateRow(rowIdx, { categoryId: newId, categoryName: createdName });
+                                             onQuickCreateCategory(name, async (newId, createdName) => {
+                                                 if (row.isNew && !row.itemCode) {
+                                                     await handleAutoSku(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                                 } else {
+                                                     updateRow(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                                 }
                                                  setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                              });
                                          }

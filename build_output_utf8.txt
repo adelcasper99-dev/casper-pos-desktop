@@ -1,0 +1,72 @@
+﻿
+> casper-pos-desktop@1.0.0 prebuild
+> npm run validate:db
+
+
+> casper-pos-desktop@1.0.0 validate:db
+> node scripts/validate-database-files.js
+
+ظ╣ي╕ No files to validate
+
+> casper-pos-desktop@1.0.0 build
+> next build
+
+  ظû▓ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ظ£ô Compiled successfully
+   Linting and checking validity of types ...
+node.exe : Failed to compile.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" 
+"C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecif 
+   ied: (Failed to compile.:String) []  
+  , RemoteException
+    + FullyQualifiedErrorId : NativeCom 
+   mandError
+ 
+
+./src/components/treasury/TreasuryDashbo
+ard.tsx:701:22
+Type error: Property 'dbCategories' is 
+missing in type '{ filters: 
+TreasuryLogFilters; onFilterChange: 
+(newFilters: TreasuryLogFilters) => 
+void; }' but required in type 
+'TreasuryFilterBarProps'.
+
+[0m [90m 699 |[39m[0m
+[0m [90m 700 |[39m                 
+[33m<[39m[33mdiv[39m 
+className[33m=[39m[32m"no-print 
+space-y-4 pt-4 border-t border-zinc-100 
+dark:border-white/5"[39m[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 701 
+|[39m                     
+[33m<[39m[33mTreasuryFilterBar[39m 
+filters[33m=[39m{filters} onFilterChan
+ge[33m=[39m{handleFilterChange} 
+[33m/[39m[33m>[39m[0m
+[0m [90m     |[39m                   
+   [31m[1m^[22m[39m[0m
+[0m [90m 702 |[39m[0m
+[0m [90m 703 |[39m                   
+  [33m<[39m[33mdiv[39m 
+className[33m=[39m[32m"flex 
+flex-wrap items-center gap-3 p-2 
+bg-zinc-50 dark:bg-white/[0.02] 
+rounded-2xl border border-zinc-100 
+dark:border-white/5 
+w-fit"[39m[33m>[39m[0m
+[0m [90m 704 |[39m                   
+      [33m<[39m[33mdiv[39m 
+className[33m=[39m[32m"p-2 bg-white 
+dark:bg-zinc-900 rounded-xl shadow-sm 
+border border-zinc-200 
+dark:border-white/5"[39m[33m>[39m[0m
+Next.js build worker exited with code: 
+1 and signal: null
