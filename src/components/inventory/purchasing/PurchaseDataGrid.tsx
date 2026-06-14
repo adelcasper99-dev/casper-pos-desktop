@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
+import { ProductOption } from "@/types/purchasing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,16 +50,7 @@ export interface GridRow {
     conversionFactor: number | string;
 }
 
-interface ProductOption {
-    id: string;
-    name: string;
-    sku: string;
-    costPrice: number | string;
-    sellPrice: number | string;
-    sellPrice2?: number | string;
-    sellPrice3?: number | string;
-    stock: number | string;
-}
+
 
 interface CategoryOption {
     id: string;
@@ -923,7 +915,6 @@ function ItemDropdown({ query, products, searchBy, onSelectExisting, onQuickCrea
     if (!query || query.length < 1 || !mounted) return null;
 
     const matches = products
-        .slice(0, 100) // Performance filter first
         .filter((p) => {
             const q = query.toLowerCase();
             return (
@@ -1281,6 +1272,11 @@ export function PurchaseDataGrid({
         localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
     }, []);
 
+    const latestWidthsRef = useRef(columnWidths);
+    useEffect(() => {
+        latestWidthsRef.current = columnWidths;
+    }, [columnWidths]);
+
     // ── Column Resizing Logic ───────────────────────────────────────────────
     const handleResizeStart = (e: React.MouseEvent, index: number) => {
         e.preventDefault();
@@ -1310,7 +1306,7 @@ export function PurchaseDataGrid({
 
         const handleMouseUp = () => {
             setResizingIdx(null);
-            saveWidths(columnWidths);
+            saveWidths(latestWidthsRef.current);
         };
 
         window.addEventListener('mousemove', handleMouseMove);
@@ -1319,7 +1315,7 @@ export function PurchaseDataGrid({
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [resizingIdx, columnWidths, saveWidths]);
+    }, [resizingIdx, saveWidths]);
 
     const autoFitColumn = (index: number) => {
         setIsAutoFitting(true);
@@ -1450,9 +1446,9 @@ export function PurchaseDataGrid({
                         sellPrice2: product.sellPrice2,
                         sellPrice3: product.sellPrice3,
                         isNew: false,
-                        categoryId: (product as any).categoryId || r.categoryId,
-                        modelId: (product as any).modelId || r.modelId,
-                        attributeId: (product as any).attributeId || r.attributeId,
+                        categoryId: product.categoryId || r.categoryId,
+                        modelId: product.modelId || r.modelId,
+                        attributeId: product.attributeId || r.attributeId,
                     };
                 })
             );
@@ -1460,6 +1456,70 @@ export function PurchaseDataGrid({
             setTimeout(() => focusInput(rowIdx, "quantity"), 0);
         },
         [rows, onRowsChange, focusInput]
+    );
+
+    // ── Keyboard navigation ──────────────────────────────────────────────────
+
+    // ── Quick-Create: new product on the fly ─────────────────────────────────
+
+    const handleAutoSku = useCallback(
+        async (rowIdx: number, initialUpdates?: Partial<GridRow>) => {
+            const row = rows[rowIdx];
+            
+            // If we have initialUpdates (like category change), we must apply them immediately
+            // But we also want to avoid redundant SKU generation if one exists.
+            
+            setSkuLoadingRow(rowIdx);
+            
+            // Combine row SKUs with the in-progress generated SKUs to prevent concurrent duplicates
+            const existingSKUs = [
+                ...rows.filter(r => r.itemCode).map(r => r.itemCode),
+                ...Array.from(generatedSkusRef.current)
+            ];
+            
+            console.log("[handleAutoSku] Calling generateNextSku with existingSKUs:", existingSKUs);
+            const res = await generateNextSku({ existingSKUs });
+            console.log("[handleAutoSku] generateNextSku response:", res);
+            const autoSku = (res as any)?.sku ?? "";
+            
+            if (autoSku) {
+                generatedSkusRef.current.add(autoSku);
+            } else {
+                toast.error("Failed to generate SKU: " + JSON.stringify(res));
+            }
+            
+            setSkuLoadingRow(null);
+            
+            updateRow(rowIdx, { ...initialUpdates, itemCode: autoSku });
+            return autoSku;
+        },
+        [rows, updateRow]
+    );
+
+    const handleQuickCreate = useCallback(
+        async (rowIdx: number, typedName: string) => {
+            setAutocompleteKey(null);
+            const autoSku = await handleAutoSku(rowIdx);
+
+            onRowsChange(
+                rows.map((r, i) => {
+                    if (i !== rowIdx) return r;
+                    return {
+                        ...r,
+                        productId: undefined,
+                        itemCode: autoSku,
+                        itemName: typedName,
+                        isNew: true,
+                        categoryId: "",
+                        sellPrice: r.unitPrice, // sensible default
+                    };
+                })
+            );
+
+            // Focus the category cell immediately
+            setTimeout(() => focusInput(rowIdx, "categoryId"), 0);
+        },
+        [rows, onRowsChange, focusInput, handleAutoSku]
     );
 
     // ── Keyboard navigation ──────────────────────────────────────────────────
@@ -1589,71 +1649,7 @@ export function PurchaseDataGrid({
                 return;
             }
         },
-        [rows, onRowsChange, focusInput, products, handleProductSelect]
-    );
-
-    // ── Quick-Create: new product on the fly ─────────────────────────────────
-
-    const handleAutoSku = useCallback(
-        async (rowIdx: number, initialUpdates?: Partial<GridRow>) => {
-            const row = rows[rowIdx];
-            
-            // If we have initialUpdates (like category change), we must apply them immediately
-            // But we also want to avoid redundant SKU generation if one exists.
-            
-            setSkuLoadingRow(rowIdx);
-            
-            // Combine row SKUs with the in-progress generated SKUs to prevent concurrent duplicates
-            const existingSKUs = [
-                ...rows.filter(r => r.itemCode).map(r => r.itemCode),
-                ...Array.from(generatedSkusRef.current)
-            ];
-            
-            console.log("[handleAutoSku] Calling generateNextSku with existingSKUs:", existingSKUs);
-            const res = await generateNextSku({ existingSKUs });
-            console.log("[handleAutoSku] generateNextSku response:", res);
-            const autoSku = (res as any)?.sku ?? "";
-            
-            if (autoSku) {
-                generatedSkusRef.current.add(autoSku);
-            } else {
-                toast.error("Failed to generate SKU: " + JSON.stringify(res));
-            }
-            
-            setSkuLoadingRow(null);
-            
-            updateRow(rowIdx, { ...initialUpdates, itemCode: autoSku });
-            return autoSku;
-        },
-        [rows, updateRow]
-    );
-
-    // ── Quick-Create: new product on the fly ─────────────────────────────────
-
-    const handleQuickCreate = useCallback(
-        async (rowIdx: number, typedName: string) => {
-            setAutocompleteKey(null);
-            const autoSku = await handleAutoSku(rowIdx);
-
-            onRowsChange(
-                rows.map((r, i) => {
-                    if (i !== rowIdx) return r;
-                    return {
-                        ...r,
-                        productId: undefined,
-                        itemCode: autoSku,
-                        itemName: typedName,
-                        isNew: true,
-                        categoryId: "",
-                        sellPrice: r.unitPrice, // sensible default
-                    };
-                })
-            );
-
-            // Focus the category cell immediately
-            setTimeout(() => focusInput(rowIdx, "categoryId"), 0);
-        },
-        [rows, onRowsChange, focusInput]
+        [rows, onRowsChange, focusInput, products, handleProductSelect, updateRow, handleQuickCreate]
     );
 
     const removeRow = useCallback(

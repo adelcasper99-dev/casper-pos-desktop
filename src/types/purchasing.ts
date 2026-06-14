@@ -7,9 +7,9 @@ export interface ProductOption {
     sellPrice2?: number | string;
     sellPrice3?: number | string;
     stock: number | string;
-    categoryId?: string;
-    modelId?: string;
-    attributeId?: string;
+    categoryId?: string | null;
+    modelId?: string | null;
+    attributeId?: string | null;
 }
 
 export interface BranchOption {
