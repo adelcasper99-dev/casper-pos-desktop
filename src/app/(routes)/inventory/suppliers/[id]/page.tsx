@@ -19,12 +19,22 @@ interface Transaction {
     status: string;
     isCredit: boolean;
     method?: string;
+    warehouseId?: string;
     items?: {
+        id: string;
         name: string;
         sku: string;
         category: string;
         quantity: number;
         unitCost: number;
+        returnedQty?: number;
+        product?: {
+            name: string;
+            stocks?: {
+                warehouseId: string;
+                quantity: number;
+            }[];
+        };
     }[];
     runningBalance?: number;
 }
@@ -73,7 +83,13 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                     include: {
                         product: {
                             include: {
-                                category: true
+                                category: true,
+                                stocks: {
+                                    select: {
+                                        warehouseId: true,
+                                        quantity: true
+                                    }
+                                }
                             }
                         }
                     }
@@ -97,12 +113,22 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             amount: inv.totalAmount.toNumber(),
             status: inv.status,
             isCredit: false, // Increases Debt
+            warehouseId: inv.warehouseId,
             items: inv.items.map(item => ({
+                id: item.id,
                 name: item.product.name,
                 sku: item.product.sku,
                 category: item.product.category.name,
                 quantity: item.quantity.toNumber(),
-                unitCost: item.unitCost.toNumber()
+                unitCost: item.unitCost.toNumber(),
+                returnedQty: item.returnedQty?.toNumber() || 0,
+                product: {
+                    name: item.product.name,
+                    stocks: item.product.stocks.map(s => ({
+                        warehouseId: s.warehouseId,
+                        quantity: s.quantity.toNumber()
+                    }))
+                }
             }))
         })),
         ...payments.map(pay => ({

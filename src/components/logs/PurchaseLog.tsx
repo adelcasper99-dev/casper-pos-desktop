@@ -38,7 +38,8 @@ import { voidPurchase } from '@/actions/purchase-actions';
 import { cn, formatCurrency } from '@/lib/utils';
 import { DateRange } from "react-day-picker"
 import { useTranslations } from '@/lib/i18n-mock';
-import PartialReturnPurchaseDialog from './PartialReturnPurchaseDialog';
+import PartialReturnPurchaseDialog, { DialogItem } from './PartialReturnPurchaseDialog';
+import { PurchaseInvoiceWithItems } from '@/types/purchasing';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { BarcodePrintDialog } from '@/components/inventory/BarcodePrintDialog';
 import { generateA4PurchaseHTML } from '@/components/inventory/purchasing/A4PurchaseTemplate';
@@ -58,7 +59,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const [dateFilter, setDateFilter] = useState<string>("all");
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [loading, setLoading] = useState<string | null>(null);
-    const [partialReturnPurchase, setPartialReturnPurchase] = useState<any>(null);
+    const [partialReturnPurchase, setPartialReturnPurchase] = useState<PurchaseInvoiceWithItems | null>(null);
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
     const [voidItem, setVoidItem] = useState<{ id: string } | null>(null);
     const [showBarcodePrint, setShowBarcodePrint] = useState(false);
@@ -198,7 +199,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         // This would normally use a library like xlsx
     };
 
-    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
+    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: DialogItem[], newTotal: number, updatedItems: DialogItem[]) => {
         setPurchases(prev => prev.map(p => {
             if (p.id !== purchaseId) return p;
             return {
@@ -504,7 +505,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             >
                                                 <Package className="w-4 h-4" />
                                             </Button>
-                                            {!['VOIDED', 'CANCELLED'].includes(inv.status) && !inv.isReturn && (
+                                            {!['VOIDED', 'CANCELLED', 'RETURNED'].includes(inv.status) && !inv.isReturn && (
                                                 <>
                                                     <Button
                                                         variant="ghost"

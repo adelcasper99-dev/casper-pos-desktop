@@ -2,13 +2,13 @@
 
 import {
     ArrowUpRight, ArrowDownLeft, FileText, DollarSign,
-    Calendar, Hash, X, Filter, Trash2, AlertCircle
+    Calendar, Hash, X, Filter, Trash2, AlertCircle, RotateCcw
 } from "lucide-react";
 import { voidPurchase } from "@/actions/purchase-actions";
 import { voidSupplierPayment } from "@/actions/inventory";
 import { toast } from "sonner";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
-import { useState, Fragment } from "react";
+import { useState, Fragment, useTransition, useEffect } from "react";
 import {
     startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
     startOfMonth, endOfMonth, isWithinInterval, format
@@ -19,12 +19,13 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { paySupplier } from "@/actions/inventory";
 import { getStoreSettings } from "@/actions/settings";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import GlassModal from "../ui/GlassModal";
 import { generateA4StatementHTML } from "./purchasing/A4StatementTemplate";
 import { printService } from "@/lib/print-service";
 import { Loader2, Banknote, CreditCard as CreditCardIcon, Building2, Check, Download, FileSpreadsheet, FileBarChart } from "lucide-react";
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
+import PartialReturnPurchaseDialog from "@/components/logs/PartialReturnPurchaseDialog";
+import { PurchaseInvoiceWithItems } from "@/types/purchasing";
 
 interface Transaction {
     id: string;
@@ -35,12 +36,22 @@ interface Transaction {
     status: string;
     isCredit: boolean; // true = reduces debt (Payment), false = increases debt (Invoice)
     method?: string;
+    warehouseId?: string;
     items?: {
+        id: string;
         name: string;
         sku: string;
         category: string;
         quantity: number;
         unitCost: number;
+        returnedQty?: number;
+        product?: {
+            name: string;
+            stocks?: {
+                warehouseId: string;
+                quantity: number;
+            }[];
+        };
     }[];
     runningBalance?: number;
 }
@@ -73,16 +84,18 @@ export default function SupplierHistoryTable({
     const [isVoiding, setIsVoiding] = useState(false);
     const [transactionToVoid, setTransactionToVoid] = useState<Transaction | null>(null);
     const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
     // Payment & Print States
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [amount, setAmount] = useState("");
     const [method, setMethod] = useState("CASH");
-    const [settings, setSettings] = useState<any>(null);
+    const [settings, setSettings] = useState<Awaited<ReturnType<typeof getStoreSettings>>['data'] | null>(null);
+    const [partialReturnTx, setPartialReturnTx] = useState<Transaction | null>(null);
 
     useEffect(() => {
-        getStoreSettings().then((res: any) => {
+        getStoreSettings().then((res) => {
             if (res.success) setSettings(res.data);
         });
     }, []);
@@ -531,23 +544,46 @@ export default function SupplierHistoryTable({
                                             </td>
 
                                             {/* ACTIONS */}
-                                            <td className="p-3 text-center">
-                                                <button
-                                                    disabled={['VOIDED', 'CANCELLED', 'RETURNED'].includes(tx.status)}
-                                                    onClick={() => {
-                                                        setTransactionToVoid(tx);
-                                                        setVoidDialogOpen(true);
-                                                    }}
-                                                    className={cn(
-                                                        "p-2 rounded-lg transition-all",
-                                                        ['VOIDED', 'CANCELLED', 'RETURNED'].includes(tx.status)
-                                                            ? "text-muted-foreground/30 cursor-not-allowed" 
-                                                            : "text-red-500 hover:bg-red-500/10 hover:shadow-lg hover:shadow-red-500/10"
+                                            <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex gap-1 justify-center items-center">
+                                                    {tx.type === 'INVOICE' && (
+                                                        <button
+                                                            disabled={isPending || ['VOIDED', 'CANCELLED', 'RETURNED', 'RETURN'].includes(tx.status)}
+                                                            onClick={() => {
+                                                                setPartialReturnTx(tx);
+                                                            }}
+                                                            className={cn(
+                                                                "p-2 rounded-lg transition-all",
+                                                                ['VOIDED', 'CANCELLED', 'RETURNED', 'RETURN'].includes(tx.status)
+                                                                    ? "text-muted-foreground/30 cursor-not-allowed" 
+                                                                    : "text-orange-500 hover:bg-orange-500/10 hover:shadow-lg hover:shadow-orange-500/10"
+                                                            )}
+                                                            title="مرتجع جزئي"
+                                                        >
+                                                            {isPending && partialReturnTx?.id === tx.id ? (
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                                <RotateCcw className="w-4 h-4" />
+                                                            )}
+                                                        </button>
                                                     )}
-                                                    title="إلغاء المعاملة"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                    <button
+                                                        disabled={isPending || ['VOIDED', 'CANCELLED', 'RETURNED', 'PARTIAL_RETURN', 'RETURN'].includes(tx.status)}
+                                                        onClick={() => {
+                                                            setTransactionToVoid(tx);
+                                                            setVoidDialogOpen(true);
+                                                        }}
+                                                        className={cn(
+                                                            "p-2 rounded-lg transition-all",
+                                                            ['VOIDED', 'CANCELLED', 'RETURNED', 'PARTIAL_RETURN', 'RETURN'].includes(tx.status)
+                                                                ? "text-muted-foreground/30 cursor-not-allowed" 
+                                                                : "text-red-500 hover:bg-red-500/10 hover:shadow-lg hover:shadow-red-500/10"
+                                                        )}
+                                                        title="إلغاء المعاملة"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     </Fragment>
@@ -571,6 +607,35 @@ export default function SupplierHistoryTable({
                 }
                 confirmText="تأكيد الإلغاء"
                 variant="danger"
+            />
+
+            {/* Partial Return Dialog */}
+            <PartialReturnPurchaseDialog
+                isOpen={!!partialReturnTx}
+                onClose={() => setPartialReturnTx(null)}
+                purchase={partialReturnTx ? {
+                    id: partialReturnTx.id,
+                    warehouseId: partialReturnTx.warehouseId || '',
+                    items: (partialReturnTx.items || []).map(item => ({
+                        id: item.id,
+                        quantity: item.quantity,
+                        unitCost: item.unitCost,
+                        returnedQty: item.returnedQty || 0,
+                        product: item.product ? {
+                            name: item.product.name,
+                            stocks: item.product.stocks?.map(s => ({
+                                warehouseId: s.warehouseId,
+                                quantity: s.quantity
+                            }))
+                        } : undefined
+                    }))
+                } : null}
+                onReturnDone={() => {
+                    startTransition(() => {
+                        router.refresh();
+                    });
+                }}
+                csrfToken={csrfToken}
             />
 
             {/* Payment Modal */}

@@ -17,12 +17,22 @@ import { toast } from 'sonner';
 import { partialReturnPurchase } from '@/actions/purchase-actions';
 import { cn, formatCurrency } from '@/lib/utils';
 import { PurchaseInvoiceWithItems } from '@/types/purchasing';
+import { Decimal } from 'decimal.js';
+
+export type DialogItem = PurchaseInvoiceWithItems['items'][number];
 
 interface PartialReturnPurchaseDialogProps {
     isOpen: boolean;
     onClose: () => void;
     purchase: PurchaseInvoiceWithItems | null;
-    onReturnDone: (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => void;
+    onReturnDone: (
+        purchaseId: string,
+        returnedAmount: number,
+        allReturned: boolean,
+        returnedItems: DialogItem[],
+        newTotal: number,
+        updatedItems: DialogItem[]
+    ) => void;
     csrfToken?: string;
 }
 
@@ -67,9 +77,9 @@ export default function PartialReturnPurchaseDialog({
     };
 
     const totalToReturn = Object.entries(selectedItems).reduce((acc, [itemId, qty]) => {
-        const item = items.find((i: any) => i.id === itemId);
-        return acc + (item ? Number(item.unitCost) * qty : 0);
-    }, 0);
+        const item = items.find((i: DialogItem) => i.id === itemId);
+        return acc.plus(item ? new Decimal(String(item.unitCost)).times(qty) : 0);
+    }, new Decimal(0));
 
     const handleReturn = async () => {
         const returnData = Object.entries(selectedItems).map(([itemId, quantity]) => ({
@@ -95,22 +105,28 @@ export default function PartialReturnPurchaseDialog({
                 toast.success(res.message || "تم تنفيذ الارتجاع بنجاح");
 
                 // Prepare updated items for the parent UI
-                const returnedDetails = returnData.map(r => ({
-                    ...items.find((i: any) => i.id === r.itemId),
-                    quantity: r.quantity
-                }));
+                const returnedDetails = returnData.map(r => {
+                    const found = items.find((i: DialogItem) => i.id === r.itemId);
+                    if (!found) {
+                        throw new Error(`Item not found: ${r.itemId}`);
+                    }
+                    return {
+                        ...found,
+                        quantity: r.quantity
+                    };
+                });
 
-                const updatedItems = items.map((i: any) => {
+                const updatedItems = items.map((i: DialogItem) => {
                     const r = returnData.find(ri => ri.itemId === i.id);
                     if (r) {
                         return { ...i, quantity: Number(i.quantity) - r.quantity };
                     }
                     return i;
-                }).filter((i: any) => i.quantity > 0);
+                }).filter((i: DialogItem) => i.quantity > 0);
 
                 onReturnDone(
                     purchase.id,
-                    Number(res.returnedAmount) || totalToReturn,
+                    Number(res.returnedAmount) || totalToReturn.toNumber(),
                     !!res.allReturned,
                     returnedDetails,
                     Number(res.newTotal) || 0,
@@ -120,8 +136,9 @@ export default function PartialReturnPurchaseDialog({
             } else {
                 toast.error(res.error || "فشل تنفيذ الارتجاع");
             }
-        } catch (error: any) {
-            toast.error(error.message || "خطأ في الخادم");
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || "خطأ في الخادم");
         } finally {
             setLoading(false);
         }
@@ -154,13 +171,13 @@ export default function PartialReturnPurchaseDialog({
                     </p>
                 </div>
                 <div className="flex-1 px-8 py-6 overflow-y-auto space-y-3 custom-scrollbar">
-                    {items.map((item: any) => {
+                    {items.map((item: DialogItem) => {
                         const alreadyReturned = item.returnedQty || 0;
                         const invoiceAvailable = item.quantity - alreadyReturned;
 
                         // Actual stock in the invoice's warehouse
                         const stockInWarehouse = (item.product?.stocks || []).find(
-                            (s: any) => s.warehouseId === purchase.warehouseId
+                            (s: { warehouseId: string; quantity: number | string }) => s.warehouseId === purchase.warehouseId
                         );
                         const actualStock = stockInWarehouse ? Number(stockInWarehouse.quantity) : 0;
 
@@ -252,7 +269,7 @@ export default function PartialReturnPurchaseDialog({
                         <div className="flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 opacity-60">سيتم خصم مالي بقيمة</span>
                             <span className="text-3xl font-black font-mono text-orange-600 dark:text-orange-400">
-                                {Number(totalToReturn).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                {totalToReturn.toNumber().toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                         </div>
 
@@ -268,7 +285,7 @@ export default function PartialReturnPurchaseDialog({
                             <Button
                                 className="h-12 px-8 bg-orange-500 text-black hover:bg-orange-400 shadow-lg shadow-orange-500/20 font-black rounded-2xl gap-2 transition-all active:scale-95"
                                 onClick={handleReturn}
-                                disabled={loading || totalToReturn <= 0}
+                                disabled={loading || totalToReturn.toNumber() <= 0}
                             >
                                 {loading ? (
                                     <div className="w-5 h-5 border-3 border-black/20 border-t-black rounded-full animate-spin" />
