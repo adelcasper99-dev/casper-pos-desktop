@@ -40,7 +40,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse } from "@/types/product";
+import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse, Unit, Attribute } from "@/types/product";
+import { Treasury } from "@/types/treasury";
 
 export default function PurchasesTab({
     suppliers,
@@ -66,10 +67,10 @@ export default function PurchasesTab({
     branches?: Branch[],
     isHQUser?: boolean,
     userBranchId?: string,
-    units?: any[],
-    attributes?: any[],
+    units?: Unit[],
+    attributes?: Attribute[],
     csrfToken?: string,
-    treasuries?: any[]
+    treasuries?: Treasury[]
 }) {
     const t = useTranslations('Purchasing');
     const tCommon = useTranslations('Common');
@@ -95,8 +96,8 @@ export default function PurchasesTab({
     const [suppliersList, setSuppliersList] = useState<Supplier[]>(suppliers);
     const [categoriesList, setCategoriesList] = useState<Category[]>(categories);
     const [modelsList, setModelsList] = useState<Model[]>(models || []);
-    const [attributesList, setAttributesList] = useState<any[]>(attributes || []);
-    const [unitsList, setUnitsList] = useState<any[]>(initialUnits);
+    const [attributesList, setAttributesList] = useState<Attribute[]>(attributes || []);
+    const [unitsList, setUnitsList] = useState<Unit[]>(initialUnits);
 
     const [showBulkUpload, setShowBulkUpload] = useState(false);
     const [settings, setSettings] = useState<any>(null);

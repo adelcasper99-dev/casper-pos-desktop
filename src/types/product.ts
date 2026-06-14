@@ -1,4 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal } from 'decimal.js';
 
 /**
  * Shared TypeScript type definitions for Product entities
@@ -145,4 +145,9 @@ export interface PurchaseInvoice {
 
 export interface ProductWithCategory extends Product {
     category: Category;
+}
+
+export interface Attribute {
+    id: string;
+    name: string;
 }

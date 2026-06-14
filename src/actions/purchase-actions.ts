@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { secureAction } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal } from 'decimal.js';
 import { AccountingEngine, TransactionLineInput } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';

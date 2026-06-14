@@ -7,6 +7,9 @@ export interface ProductOption {
     sellPrice2?: number | string;
     sellPrice3?: number | string;
     stock: number | string;
+    categoryId?: string;
+    modelId?: string;
+    attributeId?: string;
 }
 
 export interface BranchOption {
@@ -144,4 +147,17 @@ export interface PurchaseInvoiceWithItems {
             }>;
         };
     }>;
+}
+
+export interface UnitOption {
+    id: string;
+    name: string;
+    conversionFactor?: number;
+}
+
+export interface PriceHistoryEntry {
+    supplierName: string;
+    date: string;
+    unitCost: string;
+    invoiceNumber: string | null;
 }

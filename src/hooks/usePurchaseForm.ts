@@ -6,14 +6,15 @@ import { safeRandomUUID } from "@/lib/utils";
 import { Decimal } from 'decimal.js';
 import { toDecimal } from '@/lib/decimal-utils';
 import { CartItem as InvoiceItem, PurchaseFormReturn } from "@/types/purchasing";
+import { Product, Branch, Warehouse } from "@/types/product";
 export type { InvoiceItem };
 
 interface UsePurchaseFormProps {
-    products: any[]; // Replace with specific Product type
+    products: Product[];
     isHQUser: boolean;
     userBranchId?: string;
-    branches: any[];
-    warehouses: any[];
+    branches: Branch[];
+    warehouses: Warehouse[];
     csrfToken?: string;
     onSaveSuccess?: () => void;
 }

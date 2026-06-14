@@ -11,6 +11,8 @@ import { formatCurrency } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
 import type { GridRow } from "./PurchaseDataGrid";
 import { PurchaseFormReturn } from "@/types/purchasing";
+import { Product, Supplier, Category, Model, Warehouse, Branch, Attribute, Unit } from "@/types/product";
+import { Treasury } from "@/types/treasury";
 
 interface NewPurchaseOverlayProps {
     isOpen: boolean;
@@ -24,16 +26,16 @@ interface NewPurchaseOverlayProps {
     showNewItemPanel: boolean;
     setShowNewItemPanel: (show: boolean) => void;
     // Master Data
-    suppliers: any[];
-    products: any[];
-    categories: any[];
-    models: any[];
-    warehouses: any[];
-    branches: any[];
+    suppliers: Supplier[];
+    products: Product[];
+    categories: Category[];
+    models: Model[];
+    warehouses: Warehouse[];
+    branches: Branch[];
     isHQUser: boolean;
-    attributes: any[];
-    units: any[];
-    treasuries: any[];
+    attributes: Attribute[];
+    units: Unit[];
+    treasuries: Treasury[];
     csrfToken?: string;
     onQuickCreateSupplier?: (data: { name: string; phone?: string }) => void;
     onQuickCreateCategory?: (name: string, callback: (id: string, name: string) => void) => void;
