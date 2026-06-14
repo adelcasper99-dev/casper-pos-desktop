@@ -30,12 +30,11 @@ interface PurchaseHeaderProps {
     walkinNationalId: string;
     setWalkinNationalId: (val: string) => void;
     attachmentUrl?: string | null;
-    setAttachmentUrl: (val: string | null) => void;
+    setAttachmentUrl: (val: string | null, file?: File | null) => void;
     onQuickCreateSupplier?: (data: { name: string; phone?: string }) => void;
 }
 
 import { User, Phone, CreditCard, ImagePlus, X, Trash2, ShieldCheck, CheckCircle2, Plus, Loader2 } from "lucide-react";
-import { compressImage } from "@/lib/image-compressor";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -60,14 +59,14 @@ export function PurchaseHeader({
     const t = useTranslations('Purchasing');
     const { handleKeyDown, getNavProps } = useKeyboardNavigation();
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         try {
-            const compressed = await compressImage(file, 1000, 1000, 0.7);
-            setAttachmentUrl(compressed);
-            toast.success("تم ضغط الصورة وحفظها بنجاح");
+            const objectUrl = URL.createObjectURL(file);
+            setAttachmentUrl(objectUrl, file);
+            toast.success("تم إرفاق المستند بنجاح");
         } catch (error) {
             console.error(error);
             toast.error("فشل في معالجة الصورة");
@@ -112,7 +111,7 @@ export function PurchaseHeader({
                         {isWalkin ? (
                             <><CheckCircle2 className="w-3.5 h-3.5" /> تبديل لمورد مسجل</>
                         ) : (
-                            <><Plus className="w-3.5 h-3.5" /> تبديل لشراء من زبون</>
+                            <><Plus className="w-3.5 h-3.5" /> تبديل لشراء مباشر</>
                         )}
                     </button>
                 </div>

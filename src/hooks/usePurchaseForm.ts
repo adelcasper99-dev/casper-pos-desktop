@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { generateNextSku, createPurchase, updatePurchase } from "@/actions/inventory";
 import { useTranslations } from "@/lib/i18n-mock";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { Decimal } from 'decimal.js';
 import { toDecimal } from '@/lib/decimal-utils';
 import { CartItem as InvoiceItem, PurchaseFormReturn } from "@/types/purchasing";
 import { Product, Branch, Warehouse } from "@/types/product";
+import { compressImage } from "@/lib/image-compressor";
 export type { InvoiceItem };
 
 interface UsePurchaseFormProps {
@@ -110,7 +111,17 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     const [walkinName, setWalkinName] = useState("");
     const [walkinPhone, setWalkinPhone] = useState("");
     const [walkinNationalId, setWalkinNationalId] = useState("");
-    const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+    const [attachmentUrl, _setAttachmentUrl] = useState<string | null>(null);
+    const attachmentFileRef = useRef<File | null>(null);
+
+    const setAttachmentUrl = (url: string | null, file?: File | null) => {
+        _setAttachmentUrl(url);
+        if (file !== undefined) {
+            attachmentFileRef.current = file;
+        } else if (url === null) {
+            attachmentFileRef.current = null;
+        }
+    };
 
     // Cart
     const [cart, setCart] = useState<InvoiceItem[]>([]);
@@ -138,6 +149,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
     // Load from storage on mount
     useEffect(() => {
+        if (editingInvoiceId) return;
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             try {
@@ -156,7 +168,6 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 if (data.walkinName) setWalkinName(data.walkinName);
                 if (data.walkinPhone) setWalkinPhone(data.walkinPhone);
                 if (data.walkinNationalId) setWalkinNationalId(data.walkinNationalId);
-                if (data.attachmentUrl) setAttachmentUrl(data.attachmentUrl);
 
                 // Only open if we have significant data
                 if (data.selectedSupplierId || (data.cart && data.cart.length > 0)) {
@@ -166,7 +177,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 console.error("Failed to load draft", e);
             }
         }
-    }, []);
+    }, [editingInvoiceId]);
 
     // Save to storage on change
     useEffect(() => {
@@ -185,8 +196,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             isWalkin,
             walkinName,
             walkinPhone,
-            walkinNationalId,
-            attachmentUrl
+            walkinNationalId
         };
 
         // Debounce slightly or just save
@@ -204,7 +214,6 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         walkinName,
         walkinPhone,
         walkinNationalId,
-        attachmentUrl,
         editingInvoiceId
     ]);
 
@@ -409,6 +418,20 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
         setLoading(true);
 
+        let finalAttachmentUrl: string | undefined = undefined;
+        if (isWalkin) {
+            if (attachmentFileRef.current) {
+                try {
+                    finalAttachmentUrl = await compressImage(attachmentFileRef.current, 1000, 1000, 0.7);
+                } catch (err) {
+                    console.error("Failed to compress image:", err);
+                    toast.error("فشل في معالجة وضغط الصورة، سيتم الحفظ بدونها");
+                }
+            } else if (attachmentUrl && !attachmentUrl.startsWith("blob:")) {
+                finalAttachmentUrl = attachmentUrl;
+            }
+        }
+
         let result;
         const payload = {
             supplierId: isWalkin ? "WALKIN" : selectedSupplierId,
@@ -416,7 +439,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             walkinName: isWalkin ? walkinName : undefined,
             walkinPhone: isWalkin ? walkinPhone : undefined,
             walkinNationalId: isWalkin ? walkinNationalId : undefined,
-            attachmentUrl: (isWalkin && attachmentUrl) ? attachmentUrl : undefined,
+            attachmentUrl: finalAttachmentUrl,
             warehouseId: selectedWarehouseId || undefined,
             items: cart.map(i => ({
                 productId: i.productId,

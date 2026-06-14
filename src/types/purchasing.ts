@@ -115,7 +115,7 @@ export interface PurchaseFormReturn {
     walkinNationalId: string;
     setWalkinNationalId: (id: string) => void;
     attachmentUrl: string | null;
-    setAttachmentUrl: (url: string | null) => void;
+    setAttachmentUrl: (url: string | null, file?: File | null) => void;
 
     cart: CartItem[];
     setCart: (cart: CartItem[]) => void;

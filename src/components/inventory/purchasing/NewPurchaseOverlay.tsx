@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ShoppingCart, X, Check, Loader2 } from "lucide-react";
 import { PurchaseHeader } from "./PurchaseHeader";
@@ -99,10 +99,28 @@ export function NewPurchaseOverlay({
         treasuryId, setTreasuryId
     } = form;
 
-    if (!isOpen || !mounted) return null;
+    const handleSubmitRef = useRef(handleSubmit);
+    useEffect(() => {
+        handleSubmitRef.current = handleSubmit;
+    }, [handleSubmit]);
 
-    // Filtered data
-    const filteredWarehouses = warehouses;
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "F2") {
+                e.preventDefault();
+                handleSubmitRef.current();
+            }
+        };
+
+        window.addEventListener("keydown", handleGlobalKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleGlobalKeyDown);
+        };
+    }, [isOpen]);
+
+    if (!isOpen || !mounted) return null;
 
     const overlayContent = (
         <div 
@@ -160,7 +178,7 @@ export function NewPurchaseOverlay({
                                 onWarehouseChange={setSelectedWarehouseId}
                                 suppliers={suppliers}
                                 branches={branches}
-                                warehouses={filteredWarehouses}
+                                warehouses={warehouses}
                                 isHQUser={isHQUser}
                                 isWalkin={isWalkin}
                                 setIsWalkin={setIsWalkin}
@@ -201,8 +219,7 @@ export function NewPurchaseOverlay({
                                 {t('newItem')}
                             </span>
                             <div className="flex items-center gap-4">
-                                <span className="opacity-50">F2: {t('save')}</span>
-                                <span className="opacity-50">F4: {t('bulkCsv')}</span>
+                                <span className="text-zinc-400 font-black">F2: {t('save')}</span>
                                 <span className="opacity-50">ESC: {tCommon('close')}</span>
                             </div>
                         </div>

@@ -164,6 +164,22 @@ function getTextWidth(text: string, font: string = "bold 11px Cairo, sans-serif"
     return context.measureText(text).width;
 }
 
+/**
+ * Default widths for the 13 columns of the purchase data grid in order:
+ * 0: Row Index / Action (#) - 24px
+ * 1: Product SKU / Code (الكود) - 100px
+ * 2: Category (الفئة) - 110px
+ * 3: Model (الموديل) - 110px
+ * 4: Attribute / Specification (الوصف/الصفة) - 110px
+ * 5: Final Product Name (اسم المنتج النهائي) - 250px
+ * 6: Quantity (الكمية) - 60px
+ * 7: Cost Price (التكلفة) - 90px
+ * 8: Selling Price 1 (سعر 1) - 85px
+ * 9: Selling Price 2 (سعر 2) - 85px
+ * 10: Selling Price 3 (سعر 3) - 85px
+ * 11: Subtotal (الإجمالي) - 100px
+ * 12: Action / Delete Button - 32px
+ */
 const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 250, 60, 90, 85, 85, 85, 100, 32];
 const STORAGE_KEY = "casper-purchase-grid-widths-v1";
 
@@ -244,7 +260,7 @@ interface CategoryDropdownProps {
 function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: CategoryDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -288,7 +304,7 @@ function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, tri
             <button
                 type="button"
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => {
@@ -455,7 +471,7 @@ interface ModelDropdownProps {
 function ModelDropdown({ value, categoryId, options = [], categories = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: ModelDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -508,7 +524,7 @@ function ModelDropdown({ value, categoryId, options = [], categories = [], onCha
                 type="button"
                 disabled={!categoryId}
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); openMenu(); }}
@@ -667,7 +683,7 @@ interface AttributeDropdownProps {
 function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: AttributeDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -710,7 +726,7 @@ function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, tr
             <button
                 type="button"
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); openMenu(); }}
@@ -1003,7 +1019,7 @@ interface UnitDropdownProps {
 function UnitDropdown({ value, options = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: UnitDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -1047,7 +1063,7 @@ function UnitDropdown({ value, options = [], onChange, onEdit, onDelete, trigger
             <button
                 type="button"
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => {
@@ -1477,9 +1493,7 @@ export function PurchaseDataGrid({
                 ...Array.from(generatedSkusRef.current)
             ];
             
-            console.log("[handleAutoSku] Calling generateNextSku with existingSKUs:", existingSKUs);
             const res = await generateNextSku({ existingSKUs });
-            console.log("[handleAutoSku] generateNextSku response:", res);
             const autoSku = (res as any)?.sku ?? "";
             
             if (autoSku) {
