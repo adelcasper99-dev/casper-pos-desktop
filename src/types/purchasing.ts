@@ -156,8 +156,9 @@ export interface UnitOption {
 }
 
 export interface PriceHistoryEntry {
+    id: string;
     supplierName: string;
-    date: string;
-    unitCost: string;
+    date: Date | string;
+    unitCost: number | string;
     invoiceNumber: string | null;
 }

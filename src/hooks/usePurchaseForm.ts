@@ -108,9 +108,10 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
     // Ensure paid amount does not exceed total amount when items/delivery change
     useEffect(() => {
-        const pAmount = parseFloat(paidAmount);
-        if (!isNaN(pAmount) && pAmount > totalAmount) {
-            setPaidAmount(totalAmount.toString());
+        const pDec = toDecimal(paidAmount);
+        const tDec = toDecimal(totalAmount);
+        if (pDec.gt(tDec)) {
+            setPaidAmount(tDec.toString());
         }
     }, [totalAmount, paidAmount]);
 

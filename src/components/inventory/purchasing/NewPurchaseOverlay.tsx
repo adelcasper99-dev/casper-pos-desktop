@@ -13,6 +13,8 @@ import type { GridRow } from "./PurchaseDataGrid";
 import { PurchaseFormReturn } from "@/types/purchasing";
 import { Product, Supplier, Category, Model, Warehouse, Branch, Attribute, Unit } from "@/types/product";
 import { Treasury } from "@/types/treasury";
+import { toDecimal } from "@/lib/decimal-utils";
+import { Decimal } from "decimal.js";
 
 interface NewPurchaseOverlayProps {
     isOpen: boolean;
@@ -242,7 +244,7 @@ export function NewPurchaseOverlay({
                         {/* Remaining / Balance */}
                         <div className="flex flex-col border-s border-white/10 ps-6">
                             <span className="text-[8px] text-rose-500 uppercase font-black tracking-widest mb-1">المبلغ الآجل</span>
-                            <span className="text-sm font-bold text-rose-500 font-mono tabular-nums bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20">{formatCurrency(Math.max(0, totalAmount - parseFloat(paidAmount || '0')))}</span>
+                            <span className="text-sm font-bold text-rose-500 font-mono tabular-nums bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20">{formatCurrency(Decimal.max(0, toDecimal(totalAmount).minus(toDecimal(paidAmount))).toNumber())}</span>
                         </div>
 
                         {/* Treasury (Safe) Selector */}

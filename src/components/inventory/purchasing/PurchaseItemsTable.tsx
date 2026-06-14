@@ -6,39 +6,19 @@ import { clsx } from "clsx";
 import { useState } from "react";
 import { getProductPriceHistory } from "@/actions/inventory";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-interface InvoiceItem {
-    id: string; // Product ID
-    name: string;
-    sku: string;
-    productId?: string; // Actual ID in DB
-    quantity: number;
-    unitCost: number;
-    sellPrice?: number;
-    sellPrice2?: number;
-    sellPrice3?: number;
-    isNew?: boolean; // If true, create product on save
-    categoryId?: string; // Required if isNew
-    modelId?: string;
-    attributeId?: string;
-    isDevice?: boolean;
-    deviceType?: string;
-    condition?: string;
-    imei?: string;
-    unitOfMeasureId?: string;
-    conversionFactor?: number;
-}
+import { CartItem, PriceHistoryEntry } from "@/types/purchasing";
+import { toDecimal } from "@/lib/decimal-utils";
 
 interface PurchaseItemsTableProps {
-    items: InvoiceItem[];
+    items: CartItem[];
     onRemoveItem: (id: string) => void;
-    onUpdateItem: (id: string, updates: Partial<InvoiceItem>) => void;
+    onUpdateItem: (id: string, updates: Partial<CartItem>) => void;
     currencySymbol?: string;
 }
 
 function PriceHistoryPopover({ productId, name }: { productId: string, name: string }) {
     const t = useTranslations('Purchasing');
-    const [history, setHistory] = useState<any[] | null>(null);
+    const [history, setHistory] = useState<PriceHistoryEntry[] | null>(null);
     const [loading, setLoading] = useState(false);
 
     const handleOpen = async (open: boolean) => {
@@ -79,14 +59,14 @@ function PriceHistoryPopover({ productId, name }: { productId: string, name: str
                         </div>
                     ) : (
                         <div className="divide-y divide-border">
-                            {history.map((h) => (
-                                <div key={h.id} className="p-2 hover:bg-muted/30 transition-colors text-[11px] flex justify-between items-center">
+                            {history.map((h, idx) => (
+                                <div key={idx} className="p-2 hover:bg-muted/30 transition-colors text-[11px] flex justify-between items-center">
                                     <div className="flex flex-col gap-0.5">
                                         <div className="font-bold text-foreground">{h.supplierName}</div>
                                         <div className="text-[9px] text-muted-foreground">{new Date(h.date).toLocaleDateString()}</div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="font-bold font-mono text-cyan-500">{h.unitCost.toFixed(2)} EGP</div>
+                                        <div className="font-bold font-mono text-cyan-500">{toDecimal(h.unitCost).toFixed(2)} EGP</div>
                                         <div className="text-[9px] text-muted-foreground">{h.invoiceNumber}</div>
                                     </div>
                                 </div>
@@ -184,16 +164,16 @@ export function PurchaseItemsTable({
                                 </div>
                             </div>
                             <div className="col-span-2 text-right text-xs text-muted-foreground">
-                                <div className="font-mono">{item.sellPrice?.toFixed(2) || '-'}</div>
-                                {(item.sellPrice2 || item.sellPrice3) && (
+                                <div className="font-mono">{item.sellPrice !== undefined ? toDecimal(item.sellPrice).toFixed(2) : '-'}</div>
+                                {(item.sellPrice2 !== undefined || item.sellPrice3 !== undefined) && (
                                     <div className="opacity-60 text-[10px]">
-                                        {item.sellPrice2?.toFixed(2)} / {item.sellPrice3?.toFixed(2)}
+                                        {item.sellPrice2 !== undefined ? toDecimal(item.sellPrice2).toFixed(2) : '0.00'} / {item.sellPrice3 !== undefined ? toDecimal(item.sellPrice3).toFixed(2) : '0.00'}
                                     </div>
                                 )}
                             </div>
                             <div className="col-span-2 flex items-center justify-end gap-3">
                                 <div className="font-bold font-mono text-foreground">
-                                    {currencySymbol}{(item.quantity * item.unitCost).toFixed(2)}
+                                    {currencySymbol}{toDecimal(item.quantity).times(toDecimal(item.unitCost)).toFixed(2)}
                                 </div>
                                 <button
                                     onClick={() => onRemoveItem(item.id)}
