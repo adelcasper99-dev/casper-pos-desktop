@@ -387,7 +387,7 @@ export const partialReturnPurchase = secureAction(async (data: {
         const totalReturnedPaidSoFar = previousReturns.reduce((s, r) => s.plus(new Decimal(r.paidAmount.toString()).abs()), new Decimal(0));
 
         let returnTotal = new Decimal(0);
-        const processedItems: { productId: string; returnQty: number; unitCost: number; name: string }[] = [];
+        const processedItems: { productId: string; returnQty: number; unitCost: string; name: string }[] = [];
 
         for (const returnItem of returnItems) {
             const originalItem = invoice.items.find((i) => i.id === returnItem.itemId);
@@ -430,7 +430,7 @@ export const partialReturnPurchase = secureAction(async (data: {
             processedItems.push({
                 productId: originalItem.productId,
                 returnQty: returnItem.quantity,
-                unitCost: new Decimal(originalItem.unitCost).toNumber(),
+                unitCost: new Decimal(originalItem.unitCost).toString(),
                 name: originalItem.product.name
             });
 

@@ -326,17 +326,19 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 // Price Variance Check (Only for existing products)
                 if (updates.unitCost !== undefined && item.productId) {
                     const originalProduct = products.find(p => p.id === item.productId);
-                    if (originalProduct && originalProduct.costPrice > 0) {
-                        const oldPrice = originalProduct.costPrice;
-                        const newPrice = Number(updates.unitCost);
-                        const variance = ((newPrice - oldPrice) / oldPrice) * 100;
+                    if (originalProduct) {
+                        const oldPrice = toDecimal(originalProduct.costPrice);
+                        if (oldPrice.gt(0)) {
+                            const newPrice = toDecimal(updates.unitCost);
+                            const variance = newPrice.minus(oldPrice).div(oldPrice).times(100);
 
-                        if (variance > 5) {
-                            toast.warning(t('validation.priceVarianceWarning', {
-                                name: item.name,
-                                percentage: variance.toFixed(1),
-                                oldPrice: oldPrice.toFixed(2)
-                            }), { duration: 5000 });
+                            if (variance.gt(5)) {
+                                toast.warning(t('validation.priceVarianceWarning', {
+                                    name: item.name,
+                                    percentage: variance.toFixed(1),
+                                    oldPrice: oldPrice.toFixed(2)
+                                }), { duration: 5000 });
+                            }
                         }
                     }
                 }
