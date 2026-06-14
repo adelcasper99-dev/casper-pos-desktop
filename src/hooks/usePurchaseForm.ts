@@ -31,23 +31,41 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     // CSRF Management
     const [internalCsrfToken, setInternalCsrfToken] = useState(csrfToken || "");
     const [csrfLoading, setCsrfLoading] = useState(!csrfToken);
+    const [csrfError, setCsrfError] = useState(false);
 
     useEffect(() => {
         if (!internalCsrfToken) {
             setCsrfLoading(true);
+            setCsrfError(false);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 5000);
+
             // Try to fetch existing token first (GET)
-            fetch('/api/csrf/generate')
+            fetch('/api/csrf/generate', { signal: controller.signal })
                 .then(async (res) => {
                     if (res.ok) return res.json();
                     // If 404, try generating new one (POST)
-                    const gen = await fetch('/api/csrf/generate', { method: 'POST' });
+                    const gen = await fetch('/api/csrf/generate', { method: 'POST', signal: controller.signal });
                     return gen.json();
                 })
                 .then(data => {
-                    if (data.token) setInternalCsrfToken(data.token);
+                    if (data.token) {
+                        setInternalCsrfToken(data.token);
+                        setCsrfError(false);
+                    } else {
+                        setCsrfError(true);
+                    }
                 })
-                .catch(e => console.error("CSRF Fetch Error:", e))
-                .finally(() => setCsrfLoading(false));
+                .catch(e => {
+                    console.error("CSRF Fetch Error:", e);
+                    setCsrfError(true);
+                })
+                .finally(() => {
+                    clearTimeout(timeoutId);
+                    setCsrfLoading(false);
+                });
         }
     }, [internalCsrfToken]);
 
@@ -450,6 +468,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         isNewPurchaseOpen, setIsNewPurchaseOpen,
         loading, setLoading,
         csrfLoading, // CSRF token loading state
+        csrfError,
         errorResult, setErrorResult,
         editingInvoiceId, setEditingInvoiceId,
 

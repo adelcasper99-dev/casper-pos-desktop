@@ -82,7 +82,7 @@ export function NewPurchaseOverlay({
     }, []);
 
     const {
-        loading, errorResult,
+        loading, errorResult, csrfError,
         selectedSupplierId, setSelectedSupplierId,
         selectedBranchId, setSelectedBranchId,
         selectedWarehouseId, setSelectedWarehouseId,
@@ -135,6 +135,13 @@ export function NewPurchaseOverlay({
                     <div className="flex-none p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl flex items-center gap-3 text-xs">
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                         <span className="font-bold">{errorResult}</span>
+                    </div>
+                )}
+
+                {csrfError && (
+                    <div className="flex-none p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl flex items-center gap-3 text-xs">
+                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        <span className="font-bold">فشل تحميل رمز الأمان — يرجى إعادة تحميل الصفحة</span>
                     </div>
                 )}
 

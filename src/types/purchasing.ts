@@ -55,6 +55,7 @@ export interface PurchaseFormReturn {
     loading: boolean;
     setLoading: (loading: boolean) => void;
     csrfLoading: boolean;
+    csrfError: boolean;
     errorResult: string | null;
     setErrorResult: (error: string | null) => void;
     editingInvoiceId: string | null;
