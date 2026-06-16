@@ -134,14 +134,14 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             const isOnline = isElectron ? true : await printService.isServerOnline();
 
             // 🛡️ Show error if print service is offline (not just QZ)
-            if (!isOnline && (settings?.autoPrintTicket || silent)) {
+            if (!isOnline && silent) {
                 toast.error("الطابعة غير متصلة. يرجى تشغيل برنامج الطباعة.", {
                     id: "printer-offline-warning"
                 });
                 return;
             }
 
-            if ((settings?.autoPrintTicket || silent) && isOnline) {
+            if (silent && isOnline) {
                 const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);
 
                 if (!hasAutoPrintedSession) {
@@ -223,7 +223,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             }
         };
 
-        if (isOpen && (settings?.autoPrintTicket || silent)) {
+        if (isOpen && silent) {
             if (silent) {
                 // Only show "Starting" if we haven't checked the session guard yet
                 const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);

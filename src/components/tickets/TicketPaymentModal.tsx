@@ -28,8 +28,9 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { searchCustomers } from "@/actions/customer-actions";
 import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
 import { useDebounce } from "use-debounce";
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
+import { shouldAutoPrint } from "@/lib/print-guard";
 
 interface TicketPaymentModalProps {
     isOpen: boolean;
@@ -233,7 +234,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
             // Only auto-print when explicitly enabled to avoid unexpected behavior
             // 🛡️ FIX: Wait for settings to load and check loading state
-            if (!settingsLoading && settings && settings.autoPrintTicket === true) {
+            if (!settingsLoading && shouldAutoPrint(settings, 'ticket')) {
                 // We use a small delay to ensure the success state is rendered or the state is ready
                 setTimeout(() => {
                     handlePrint(true);
@@ -245,7 +246,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             } else if (settingsLoading) {
                 // 🛡️ Settings still loading - wait for them to load then auto-print
                 const checkSettingsAndPrint = () => {
-                    if (settings && settings.autoPrintTicket === true) {
+                    if (shouldAutoPrint(settings, 'ticket')) {
                         handlePrint(true);
                         setTimeout(() => onClose(), 1200);
                     } else {

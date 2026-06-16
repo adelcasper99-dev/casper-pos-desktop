@@ -105,6 +105,11 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Logic**: The `print-service.ts` resolves the `bridgeIpAddress` from the `PrinterRegistry`. If a user connects via an iPad, the POS directs the payload to `http://<Master_IP>:4040/api/print` resolving the localhost trap.
 *   **Handling Offline Services**: All fetch requests to the Bridge API use `AbortController` combined with `Promise.race()` to guarantee maximum timeout guardrails (e.g., 15s). Printing processes MUST NOT freeze the UI if a target printer node drops off the network.
 
+### 🛡️ [NEW] Central Print Guard Authorization (Auto-Print Control)
+*   **Rule**: Component-level direct checks on raw store settings like `settings?.autoPrintTicket === true` are strictly forbidden.
+*   **Protocol**: All printing entry points (e.g., Ticket Creation, Checkout, Payment, Page-Load triggers) MUST authorize auto-print actions via the central helper `shouldAutoPrint(settings, context)` in `src/lib/print-guard.ts`.
+*   **Rationale**: Centralizing this logic ensures consistent behavior, handles loading states safely without race conditions, and provides a unified interface for resolving setting hierarchy (e.g., globally disabled printing override).
+
 ---
 
 ## 🛡️ 8. System Hardening & Data Integrity Guardrails
@@ -217,7 +222,7 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ---
 
 *Created: April 2, 2026*
-*Last Update: May 5, 2026 (User Identity Linking, Phone Normalization, and Z-Index Hardening)*
+*Last Update: June 16, 2026 (Central Print Guard Authorization, Auto-Print Control)*
 
 ---
 
