@@ -120,14 +120,63 @@ const runMigrations = (dbPath) => {
         PRISMA_CLI_QUERY_ENGINE_TYPE: 'library'
     };
 
-    const runSql = (sql) => {
+    const runSqlBatch = () => {
+        let tmpPath;
         try {
-            execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
-                env, input: sql, windowsHide: true, encoding: 'utf-8'
+            const script = `
+                const { PrismaClient } = require('@prisma/client');
+                const prisma = new PrismaClient({
+                    datasources: { db: { url: process.env.DATABASE_URL } }
+                });
+                async function main() {
+                    const statements = ${JSON.stringify(prePatchStatements)};
+                    for (const sql of statements) {
+                        try {
+                            await prisma.$executeRawUnsafe(sql);
+                            console.log('OK: ' + sql.slice(0, 70));
+                        } catch(e) {
+                            console.log('SKIP: ' + sql.slice(0, 70));
+                        }
+                    }
+                }
+                main()
+                    .then(() => prisma.$disconnect())
+                    .then(() => process.exit(0))
+                    .catch(() => process.exit(1));
+            `;
+            tmpPath = require('path').join(require('os').tmpdir(), 'casper-patch-' + Date.now() + '.js');
+            require('fs').writeFileSync(tmpPath, script);
+            
+            const output = execSync('"' + process.execPath + '" "' + tmpPath + '"', {
+                env,
+                cwd: require('path').join(process.resourcesPath, 'app.asar.unpacked'),
+                windowsHide: true,
+                encoding: 'utf-8'
             });
+
+            if (output) {
+                output.split(/\r?\n/).forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed) {
+                        log('Migrations: Pre-patch ' + trimmed);
+                    }
+                });
+            }
             return true;
         } catch (e) {
+            log('Migrations: Pre-patch batch failed: ' + e.message);
+            if (e.stdout) {
+                log('Migrations: Pre-patch Output: ' + e.stdout.toString().trim());
+            }
             return false;
+        } finally {
+            if (tmpPath) {
+                try {
+                    require('fs').unlinkSync(tmpPath);
+                } catch (unlinkErr) {
+                    log('Migrations: Temp script cleanup warning: ' + unlinkErr.message);
+                }
+            }
         }
     };
 
@@ -280,10 +329,7 @@ const runMigrations = (dbPath) => {
     ];
 
     log('Migrations: Applying pre-patch SQL statements...');
-    for (const sql of prePatchStatements) {
-        const ok = runSql(sql + ';');
-        log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
-    }
+    runSqlBatch();
     log('Migrations: Pre-patch complete.');
     // ──────────────────────────────────────────────────────────────────────────
 
