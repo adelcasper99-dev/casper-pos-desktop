@@ -27,6 +27,7 @@ The changes are entirely contained within the `electron/main.js` script.
 - `[x]` Capture the `stdout` of the `execSync` command.
 - `[x]` Split the captured `stdout` by newline and pipe each non-empty line back to the main Electron thread's `log()` function, restoring the original granular line-by-line logging into `casper-boot.log`.
 - `[x]` Wrap the `fs.unlinkSync(tmpPath)` call in a `try/catch` block to gracefully ignore `EPERM` or `EBUSY` errors caused by temporary antivirus file locking.
+- `[x]` Ensure temp file cleanup always executes by moving `fs.unlinkSync(tmpPath)` into a `finally` block, and capture `e.stdout` in the `catch` block if `execSync` throws an error.
 
 ## Verification Plan
 
