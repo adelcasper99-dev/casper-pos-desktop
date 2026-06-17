@@ -20,7 +20,7 @@ export const saleSchema = z.object({
         name: z.string().optional(),
         phone: z.string().optional(),
         address: z.string().optional()
-    }).optional()
+    }).nullish()
 });
 
 export const paymentSchema = z.object({

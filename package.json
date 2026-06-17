@@ -20,6 +20,7 @@
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
         "test:sync": "vitest run src/__tests__/sync",
+        "test:bridge": "vitest run src/__tests__/hardware-bridge",
         "schema-check": "node scripts/check-schema-types.js"
     },
     "build": {
