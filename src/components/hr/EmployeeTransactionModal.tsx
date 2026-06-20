@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { 
     Dialog, 
     DialogContent, 
@@ -27,6 +27,7 @@ import {
     upsertEmployeeTransaction, 
     updateAttendanceEntry 
 } from '@/actions/employee-ledger'
+import { Decimal } from 'decimal.js'
 
 interface TransactionModalProps {
     isOpen: boolean
@@ -45,7 +46,6 @@ export default function EmployeeTransactionModal({
     mode = 'MANUAL',
     onSuccess
 }: TransactionModalProps) {
-    const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState({
         type: 'ADDITION',
@@ -82,14 +82,23 @@ export default function EmployeeTransactionModal({
             return
         }
 
+        let parsedAmount: number;
+        try {
+            parsedAmount = new Decimal(formData.amount).toNumber();
+            if (parsedAmount <= 0) throw new Error("Amount must be positive");
+        } catch {
+            toast.error("المبلغ غير صالح");
+            return;
+        }
+
         setLoading(true)
         try {
             let res;
             if (mode === 'ATTENDANCE') {
                 res = await updateAttendanceEntry({
                     id: transaction.id,
-                    bonus: formData.type === 'BONUS' ? parseFloat(formData.amount) : undefined,
-                    deduction: formData.type === 'DEDUCTION' ? parseFloat(formData.amount) : undefined,
+                    bonus: formData.type === 'BONUS' ? parsedAmount : undefined,
+                    deduction: formData.type === 'DEDUCTION' ? parsedAmount : undefined,
                     bonusNote: formData.type === 'BONUS' ? formData.description : undefined,
                     deductionNote: formData.type === 'DEDUCTION' ? formData.description : undefined,
                 }, userId, formData.reason)
@@ -98,7 +107,7 @@ export default function EmployeeTransactionModal({
                     id: transaction?.id,
                     userId,
                     type: formData.type as any,
-                    amount: parseFloat(formData.amount),
+                    amount: parsedAmount,
                     description: formData.description,
                     createdAt: new Date(formData.date)
                 }, formData.reason)

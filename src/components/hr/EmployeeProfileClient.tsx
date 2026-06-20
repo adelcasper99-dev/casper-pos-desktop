@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useTranslations, useLocale } from '@/lib/i18n-mock'
 import { Decimal } from 'decimal.js'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { 
     CreditCard, 
     Wrench, 
@@ -101,10 +103,32 @@ export default function EmployeeProfileClient({
     const [viewSale, setViewSale] = useState<any>(null)
     const [loadingSale, setLoadingSale] = useState(false)
     const [isRefreshing, setIsRefreshing] = useState(false)
+    const [ledgerSearch, setLedgerSearch] = useState("")
+    const [deletionReason, setDeletionReason] = useState("")
     const [pendingAction, setPendingAction] = useState<{ 
         type: 'DELETE_TX' | 'TOGGLE_FREEZE', 
         data?: any 
     } | null>(null)
+
+    const LEDGER_TYPE_LABELS: Record<string, string> = {
+        BONUS: 'مكافأة',
+        DEDUCTION: 'خصم',
+        PENALTY: 'جزاء',
+        ADDITION: 'إضافة',
+        MAINTENANCE_COMMISSION: 'عمولة صيانة',
+        SALARY_PAYMENT: 'سداد راتب',
+        PRESENT: 'حضور',
+        ABSENT: 'غياب',
+        LATE: 'تأخير'
+    };
+
+    const TICKET_STATUS_LABELS: Record<string, string> = {
+        PAID_DELIVERED: 'مدفوعة ومسلمة',
+        CANCELLED: 'ملغاة',
+        PENDING: 'قيد الانتظار',
+        IN_PROGRESS: 'جاري العمل',
+        READY: 'جاهز للتسليم',
+    };
 
     const refreshData = async () => {
         setIsRefreshing(true)
@@ -178,7 +202,7 @@ export default function EmployeeProfileClient({
             };
         }),
         // Manual & System Transactions
-        ...transactions.map(tx => {
+        ...transactions.map((tx, idx) => {
             const type = tx.type;
             const amount = Number(tx.amount || 0);
 
@@ -202,7 +226,7 @@ export default function EmployeeProfileClient({
             }
 
             return {
-                id: tx.id,
+                id: tx.id || `tx-${idx}`,
                 date: new Date(tx.createdAt).toLocaleDateString('en-CA'),
                 description: tx.description || "حركة مالية",
                 type: tx.type,
@@ -212,7 +236,13 @@ export default function EmployeeProfileClient({
                 referenceType: tx.referenceType
             };
         }),
-    ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    ].filter((entry: any) => {
+        if (!ledgerSearch) return true;
+        const searchLower = ledgerSearch.toLowerCase();
+        const typeLabel = LEDGER_TYPE_LABELS[entry.type] || entry.type;
+        return (entry.description && entry.description.toLowerCase().includes(searchLower)) ||
+               (typeLabel && typeLabel.toLowerCase().includes(searchLower));
+    }).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     const handleViewReference = async (id: string, type: string) => {
         if (type === 'TICKET') {
@@ -252,7 +282,7 @@ export default function EmployeeProfileClient({
     // Calculate projections for the current month
     // currentDay is always >= 1 (Date.getDate()), but we guard currentDay > 0 for safety
     const projectedNet = isCurrentMonth && currentDay > 0 
-        ? new Decimal(kpis.netAccrued).dividedBy(currentDay).mul(daysInMonth).toNumber() 
+        ? new Decimal(kpis.baseSalary).plus(kpis.totalBonuses).minus(kpis.totalDeductions).dividedBy(currentDay).mul(daysInMonth).toNumber() 
         : null;
 
     type KpiCard = {
@@ -560,7 +590,12 @@ export default function EmployeeProfileClient({
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white">{tl("title")}</h2>
                             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-white/5 rounded-xl">
                                 <Search className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                                <input placeholder={tl("search")} className="bg-transparent border-none text-xs focus:ring-0 text-slate-900 dark:text-white w-32 placeholder:text-slate-400" />
+                                <input 
+                                    placeholder={tl("search")} 
+                                    className="bg-transparent border-none text-xs focus:ring-0 text-slate-900 dark:text-white w-32 placeholder:text-slate-400" 
+                                    value={ledgerSearch}
+                                    onChange={(e) => setLedgerSearch(e.target.value)}
+                                />
                             </div>
                         </div>
                         <div className="overflow-x-auto min-h-[400px]">
@@ -635,6 +670,7 @@ export default function EmployeeProfileClient({
                                                                     type: 'DELETE_TX', 
                                                                     data: { id: entry.id, type: entry.type, status: entry.status } 
                                                                 })
+                                                                setDeletionReason("")
                                                                 setIsConfirmModalOpen(true)
                                                             }}
                                                             className="px-2 py-1 flex items-center gap-1 hover:bg-rose-500/10 rounded-lg text-rose-400 transition-colors"
@@ -708,7 +744,7 @@ export default function EmployeeProfileClient({
                                                     ticket.status === 'CANCELLED' ? "bg-rose-500/10 text-rose-400" :
                                                     "bg-cyan-500/10 text-cyan-400"
                                                 )}>
-                                                    {ticket.status}
+                                                    {TICKET_STATUS_LABELS[ticket.status] || ticket.status}
                                                 </Badge>
                                             </td>
                                             <td className="p-4 text-center font-black text-slate-800 dark:text-white tabular-nums">
@@ -724,7 +760,7 @@ export default function EmployeeProfileClient({
                                                 {Number(ticket.displayCommission || 0).toLocaleString()} EGP
                                             </td>
                                             <td className="p-4">
-                                                <button className="text-[10px] font-bold text-zinc-400 hover:text-white flex items-center gap-1 transition-colors">
+                                                <button onClick={() => router.push(`/${locale}/maintenance/tickets/${ticket.id}`)} className="text-[10px] font-bold text-zinc-400 hover:text-white flex items-center gap-1 transition-colors">
                                                     <Search className="w-3 h-3" /> فتح التذكرة
                                                 </button>
                                             </td>
@@ -854,6 +890,7 @@ export default function EmployeeProfileClient({
                 userId={userId}
                 suggestedAmount={kpis.netAccrued}
                 userName={user.name}
+                monthStr={monthStr}
             />
 
             <ConfirmationModal
@@ -861,14 +898,19 @@ export default function EmployeeProfileClient({
                 onClose={() => {
                     setIsConfirmModalOpen(false)
                     setPendingAction(null)
+                    setDeletionReason("")
                 }}
                 onConfirm={async () => {
                     if (!pendingAction) return
+                    if (pendingAction.type === 'DELETE_TX' && !deletionReason) {
+                        toast.error("يرجى إدخال سبب الحذف")
+                        return
+                    }
                     setConfirmLoading(true)
                     try {
                         if (pendingAction.type === 'DELETE_TX') {
                             const { id, type, status } = pendingAction.data
-                            const reason = 'Manual deletion via ledger'
+                            const reason = deletionReason
                             let res;
                             if (status === 'MANUAL') {
                                 res = await deleteEmployeeTransaction(id, userId, reason)
@@ -879,6 +921,7 @@ export default function EmployeeProfileClient({
                             if (res.success) {
                                 toast.success('تم حذف الحركة بنجاح')
                                 refreshData()
+                                setDeletionReason("")
                                 setIsConfirmModalOpen(false)
                             } else {
                                 toast.error(res.error)
@@ -907,7 +950,20 @@ export default function EmployeeProfileClient({
                 confirmText={pendingAction?.type === 'TOGGLE_FREEZE' ? (user.isFrozen ? 'إلغاء التجميد' : 'تجميد الحساب') : "حذف الحركة"}
                 cancelText="تراجع"
                 variant={pendingAction?.type === 'TOGGLE_FREEZE' ? (user.isFrozen ? 'info' : 'danger') : 'danger'}
-            />
+            >
+                {pendingAction?.type === 'DELETE_TX' && (
+                    <div className="space-y-2 mt-4">
+                        <Label htmlFor="deletionReason" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">سبب الحذف</Label>
+                        <Input
+                            id="deletionReason"
+                            value={deletionReason}
+                            onChange={(e) => setDeletionReason(e.target.value)}
+                            placeholder="سبب الحذف مطلوب للتوثيق..."
+                            className="bg-white/5 border-white/10 rounded-xl"
+                        />
+                    </div>
+                )}
+            </ConfirmationModal>
 
             {/* Invoice Detail Dialog */}
             <Dialog open={isSaleDetailOpen} onOpenChange={setIsSaleDetailOpen}>
