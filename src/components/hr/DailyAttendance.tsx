@@ -196,6 +196,16 @@ export default function DailyAttendance({
 
     return (
         <div className="space-y-4 animate-in fade-in duration-300">
+            {/* Popover Backdrop */}
+            {(lateEntryUserId || financialUserId) && (
+                <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => {
+                        setLateEntryUserId(null)
+                        setFinancialUserId(null)
+                    }}
+                />
+            )}
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-50 dark:bg-zinc-900/40 p-6 rounded-[2rem] border border-zinc-200 dark:border-white/10 shadow-sm font-cairo gap-6">
                 <div className="flex flex-col gap-1 items-center md:items-start text-center md:text-right">

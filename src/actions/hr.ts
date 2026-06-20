@@ -23,7 +23,7 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
 
     const users = await db.user.findMany({
         where: { deletedAt: null },
-        take: 200, // Safety limit for staff directory
+        take: 500, // Safety limit for staff directory
         include: {
             role: true,
             branch: true,
@@ -94,7 +94,7 @@ export async function getUsersForAttendancePage() {
         where: { deletedAt: null },
         include: { role: true },
         orderBy: { name: 'asc' },
-        take: 200 // Safety limit
+        take: 500 // Safety limit
     });
 
     return users.map((u: any) => ({
@@ -148,7 +148,7 @@ export async function updateEmployeeData(userId: string, data: {
             branchId: (data.branchId && data.branchId !== "") ? data.branchId : null,
             salary: typeof data.salary === 'number' && !isNaN(data.salary) ? data.salary : undefined,
             monthlyOffDays: typeof data.monthlyOffDays === 'number' && !isNaN(data.monthlyOffDays) ? data.monthlyOffDays : undefined,
-            hireDate: (data.hireDate && data.hireDate !== "") ? new Date(data.hireDate) : undefined,
+            hireDate: data.hireDate === null ? null : (data.hireDate && data.hireDate !== "") ? new Date(data.hireDate) : undefined,
         };
 
         // Remove undefined fields to avoid overriding with nothing if not provided

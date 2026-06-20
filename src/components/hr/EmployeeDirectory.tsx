@@ -131,6 +131,12 @@ export default function EmployeeDirectory({ csrfToken, filterDate }: { csrfToken
                 </div>
             </div>
 
+            {staff.length >= 500 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 p-4 rounded-2xl flex items-center gap-3 text-sm font-black uppercase tracking-widest shadow-inner">
+                    ⚠️ تم الوصول للحد الأقصى للعرض (500 موظف). يرجى البحث أو استخدام الفلاتر.
+                </div>
+            )}
+
             {loading ? (
                 <div className="space-y-2">
                     {[1, 2, 3, 4, 5].map(i => (
@@ -300,13 +306,6 @@ function TableRow({ member, t }: { member: StaffMember, t: any }) {
                         title="عرض الملف"
                     >
                         <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
-                    </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); /* Handle direct edit if needed */ }}
-                        className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all shadow-sm active:scale-95"
-                        title="تعديل سريع"
-                    >
-                        <Users className="w-5 h-5" />
                     </button>
                 </div>
             </td>

@@ -101,6 +101,12 @@ export default function AttendanceManager({ csrfToken, filterDate }: { csrfToken
                 </div>
             </div>
 
+            {users.length >= 500 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 p-4 rounded-2xl flex items-center gap-3 text-sm font-black uppercase tracking-widest shadow-inner">
+                    ⚠️ تم الوصول للحد الأقصى للعرض (500 موظف). يرجى البحث أو استخدام الفلاتر.
+                </div>
+            )}
+
             {/* Content area */}
             <div className="min-h-[400px]">
                 {loading ? (
