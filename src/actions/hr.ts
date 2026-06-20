@@ -137,7 +137,8 @@ export async function updateEmployeeData(userId: string, data: {
     }
 
     if (!data.hireDate) {
-        return { success: false, error: "تاريخ التعيين مطلوب" };
+        // Just log a warning or let it pass if it's not provided, but don't error out entirely
+        // if we are just updating other fields. We will omit it from updateData.
     }
 
     try {
@@ -147,7 +148,7 @@ export async function updateEmployeeData(userId: string, data: {
             branchId: (data.branchId && data.branchId !== "") ? data.branchId : null,
             salary: typeof data.salary === 'number' && !isNaN(data.salary) ? data.salary : undefined,
             monthlyOffDays: typeof data.monthlyOffDays === 'number' && !isNaN(data.monthlyOffDays) ? data.monthlyOffDays : undefined,
-            hireDate: data.hireDate ? new Date(data.hireDate) : undefined,
+            hireDate: (data.hireDate && data.hireDate !== "") ? new Date(data.hireDate) : undefined,
         };
 
         // Remove undefined fields to avoid overriding with nothing if not provided
@@ -401,6 +402,7 @@ export const payEmployeeSalary = secureAction(async (data: {
     paymentMethod: string;
     notes?: string;
     treasuryId?: string;
+    monthStr?: string;
 }) => {
     const session = await getSession();
     if (!session?.user) return { success: false, error: "Unauthorized" };
@@ -412,8 +414,8 @@ export const payEmployeeSalary = secureAction(async (data: {
         // H-01: Strict Financial Validation
         const { Decimal } = await import("decimal.js");
         const now = new Date();
-        const start = startOfMonth(now);
-        const end = endOfMonth(now);
+        const start = data.monthStr ? new Date(data.monthStr + '-01') : startOfMonth(now);
+        const end = data.monthStr ? endOfMonth(new Date(data.monthStr + '-01')) : endOfMonth(now);
 
         const targetUser = await db.user.findUnique({
             where: { id: data.userId },
@@ -441,8 +443,8 @@ export const payEmployeeSalary = secureAction(async (data: {
             };
         }
 
-        if (data.paymentMethod === 'CASH' && !data.treasuryId) {
-            return { success: false, error: "Treasury is required for cash payments" };
+        if (!data.treasuryId) {
+            return { success: false, error: "الخزينة أو الحساب المصرفي مطلوب لجميع طرق الدفع" };
         }
 
         const { logger } = await import('@/lib/logger');
@@ -489,7 +491,9 @@ export const payEmployeeSalary = secureAction(async (data: {
             if (data.treasuryId) {
                 const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
                 if (!treasury) throw new Error("Treasury not found");
-                if (Number(treasury.balance) < data.amount) {
+                
+                const balanceDec = new Decimal(treasury.balance.toString());
+                if (balanceDec.lt(amountDec)) {
                     const canGoNegative = hasPermission(session.user.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
                     if (!canGoNegative) {
                         throw new Error("Insufficient treasury balance");

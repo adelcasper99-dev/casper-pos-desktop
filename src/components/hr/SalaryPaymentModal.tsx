@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { 
     Dialog, 
     DialogContent, 
@@ -23,7 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { Loader2, DollarSign, Wallet } from 'lucide-react'
-import { payEmployeeSalary } from '@/actions/hr'
+import { payEmployeeSalary, getAllTreasuries } from '@/actions/hr'
 
 interface SalaryPaymentModalProps {
     isOpen: boolean
@@ -32,6 +31,7 @@ interface SalaryPaymentModalProps {
     suggestedAmount: number
     userName: string
     onSuccess?: () => void
+    monthStr?: string
 }
 
 export default function SalaryPaymentModal({
@@ -40,10 +40,11 @@ export default function SalaryPaymentModal({
     userId,
     suggestedAmount,
     userName,
-    onSuccess
+    onSuccess,
+    monthStr
 }: SalaryPaymentModalProps) {
-    const router = useRouter()
     const [loading, setLoading] = useState(false)
+    const [fetchingTreasuries, setFetchingTreasuries] = useState(false)
     const [treasuries, setTreasuries] = useState<any[]>([])
     const [formData, setFormData] = useState({
         amount: suggestedAmount.toString(),
@@ -55,22 +56,23 @@ export default function SalaryPaymentModal({
     useEffect(() => {
         if (isOpen) {
             setFormData(prev => ({ ...prev, amount: suggestedAmount.toString() }))
-            import('@/actions/hr').then(mod => {
-                mod.getAllTreasuries().then(res => {
-                    if (res.success && res.data) {
-                        setTreasuries(res.data)
-                        if (res.data.length > 0) {
-                            setFormData(prev => ({ ...prev, treasuryId: res.data[0].id }))
-                        }
+            setFetchingTreasuries(true)
+            getAllTreasuries().then(res => {
+                if (res.success && res.data) {
+                    setTreasuries(res.data)
+                    if (res.data.length > 0) {
+                        setFormData(prev => ({ ...prev, treasuryId: res.data[0].id }))
                     }
-                })
+                }
+            }).finally(() => {
+                setFetchingTreasuries(false)
             })
         }
     }, [isOpen, suggestedAmount])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!formData.amount || (formData.paymentMethod === 'CASH' && !formData.treasuryId)) {
+        if (!formData.amount || !formData.treasuryId) {
             toast.error("يرجى ملء البيانات المطلوبة")
             return
         }
@@ -82,7 +84,8 @@ export default function SalaryPaymentModal({
                 amount: parseFloat(formData.amount),
                 paymentMethod: formData.paymentMethod,
                 notes: formData.notes,
-                treasuryId: formData.paymentMethod === 'CASH' ? formData.treasuryId : undefined
+                treasuryId: formData.treasuryId,
+                monthStr
             })
 
             if (res.success) {
@@ -143,15 +146,19 @@ export default function SalaryPaymentModal({
                             </Select>
                         </div>
 
-                        {formData.paymentMethod === 'CASH' && (
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">الخزينة</Label>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                                {formData.paymentMethod === 'CASH' ? 'الخزينة' : 'الحساب / المصدر'}
+                            </Label>
+                            {fetchingTreasuries ? (
+                                <div className="h-10 bg-white/5 rounded-xl animate-pulse" />
+                            ) : (
                                 <Select 
                                     value={formData.treasuryId} 
                                     onValueChange={(v) => setFormData(prev => ({ ...prev, treasuryId: v }))}
                                 >
                                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl">
-                                        <SelectValue placeholder="اختر الخزينة" />
+                                        <SelectValue placeholder="اختر الحساب/الخزينة" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-zinc-900 border-white/10 text-white">
                                         {treasuries.map(t => (
@@ -159,8 +166,8 @@ export default function SalaryPaymentModal({
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -186,7 +193,7 @@ export default function SalaryPaymentModal({
                         <Button 
                             type="submit" 
                             className="bg-emerald-500 text-black hover:bg-emerald-400 font-bold rounded-xl px-8"
-                            disabled={loading}
+                            disabled={loading || fetchingTreasuries}
                         >
                             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             تأكيد السداد
