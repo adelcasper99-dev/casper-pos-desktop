@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { getMonthlyLogs } from '@/actions/attendance'
 import { getUsersForAttendancePage } from '@/actions/hr'
-import { ChevronLeft, ChevronRight, List, CalendarDays, User, Loader2 } from 'lucide-react'
+import { List, CalendarDays, Loader2 } from 'lucide-react'
 import { useTranslations } from '@/lib/i18n-mock'
 import { toast } from 'sonner'
 import clsx from 'clsx'
 import DailyAttendance from './DailyAttendance'
-import EmployeeAttendanceDetail from './EmployeeAttendanceDetail'
+
 import AttendanceGrid from './AttendanceGrid'
 
 type AttendanceUser = {

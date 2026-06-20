@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, ChevronLeft, LayoutGrid, List, CalendarDays, Users } from "lucide-react"
+import { Search, MapPin, RefreshCw, ChevronLeft, Users } from "lucide-react"
 import { getStaffDirectory } from "@/actions/hr"
 import { useTranslations } from "@/lib/i18n-mock"
 import clsx from "clsx"
 import { Decimal } from 'decimal.js'
-import Link from "next/link"
+
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 

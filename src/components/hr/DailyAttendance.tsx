@@ -1,4 +1,4 @@
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { upsertDailyLog } from '@/actions/attendance'
 import { Check, X, Clock, Coffee, DollarSign, Save } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -48,7 +48,7 @@ export default function DailyAttendance({
     csrfToken: string
 }) {
     const t = useTranslations("HR.attendance")
-    const [isPending, startTransition] = useTransition()
+
     const [logs, setLogs] = useState<Record<string, DailyLog>>(() => {
         const map: Record<string, DailyLog> = {}
         initialLogs.forEach(log => { if (log.userId) map[log.userId] = log })
