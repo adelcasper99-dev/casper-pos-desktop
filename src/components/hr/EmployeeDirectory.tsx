@@ -3,29 +3,49 @@ import { Search, MapPin, DollarSign, Clock, RefreshCw, ChevronRight, ChevronLeft
 import { getStaffDirectory } from "@/actions/hr"
 import { useTranslations } from "@/lib/i18n-mock"
 import clsx from "clsx"
+import { Decimal } from 'decimal.js'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 
-export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) {
+export interface StaffMember {
+    id: string;
+    name: string;
+    username: string;
+    role: string;
+    branch: string;
+    salary: number | string;
+    netDue: number | string;
+    status: string;
+    avatarSeed?: string;
+    kpis?: {
+        successRatio: number;
+        delayedTickets: number;
+    };
+}
+
+export default function EmployeeDirectory({ csrfToken, filterDate }: { csrfToken: string, filterDate: Date }) {
     const t = useTranslations("HR.directory")
-    const [staff, setStaff] = useState<any[]>([])
+    const [staff, setStaff] = useState<StaffMember[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
-    const [filterDate, setFilterDate] = useState(new Date())
     const [mounted, setMounted] = useState(false)
     const pollInterval = useRef<NodeJS.Timeout | null>(null)
-
-    const nextMonth = () => setFilterDate(new Date(filterDate.getFullYear(), filterDate.getMonth() + 1, 1))
-    const prevMonth = () => setFilterDate(new Date(filterDate.getFullYear(), filterDate.getMonth() - 1, 1))
+    const isFetchingRef = useRef(false)
+    const mountedRef = useRef(false)
 
     useEffect(() => {
         setMounted(true)
+        mountedRef.current = true
+        return () => { mountedRef.current = false }
     }, [])
 
     const loadStaff = useCallback(async (isSilent = false) => {
+        if (isFetchingRef.current) return
+        
+        isFetchingRef.current = true
         if (!isSilent) setLoading(true)
         else setRefreshing(true)
         
@@ -34,17 +54,22 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                 month: filterDate.getMonth(),
                 year: filterDate.getFullYear()
             })
-            if (res.success && res.data) {
-                setStaff(res.data)
-                setLastUpdated(new Date())
-            } else if (!res.success) {
-                console.error("[EmployeeDirectory] Failed to load staff:", (res as any).error);
+            if (mountedRef.current) {
+                if (res.success && res.data) {
+                    setStaff(res.data)
+                    setLastUpdated(new Date())
+                } else if (!res.success) {
+                    console.error("[EmployeeDirectory] Failed to load staff:", (res as any).error);
+                }
             }
         } catch (error) {
             console.error("[EmployeeDirectory] Error loading staff:", error);
         } finally {
-            setLoading(false)
-            setRefreshing(false)
+            if (mountedRef.current) {
+                setLoading(false)
+                setRefreshing(false)
+                setTimeout(() => { isFetchingRef.current = false }, 300)
+            }
         }
     }, [filterDate])
 
@@ -81,26 +106,6 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                 {refreshing && <RefreshCw className="w-3 h-3 animate-spin text-primary" />}
                             </p>
                         </div>
-                    </div>
-
-                    {/* Date Navigation */}
-                    <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-1.5 shadow-sm">
-                        <button 
-                            onClick={prevMonth}
-                            className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
-                        >
-                            <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
-                        </button>
-                        <div className="flex items-center gap-3 px-6 py-2 h-10 text-sm font-black min-w-[180px] justify-center text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 rounded-xl shadow-inner border border-zinc-100 dark:border-white/5 uppercase tracking-widest">
-                            <CalendarDays className="w-4 h-4 text-zinc-400" />
-                            {filterDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
-                        </div>
-                        <button 
-                            onClick={nextMonth}
-                            className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
-                        >
-                            <ChevronRight className="w-5 h-5 rtl:rotate-180" />
-                        </button>
                     </div>
                 </div>
 
@@ -168,12 +173,12 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
                                         <td className="px-6 py-6"></td>
                                         <td className="px-6 py-6">
                                             <div className="font-mono text-sm font-black tracking-tighter text-zinc-900 dark:text-white tabular-nums">
-                                                {filteredStaff.reduce((sum, s) => sum + Number(s.salary || 0), 0).toLocaleString()} EGP
+                                                {filteredStaff.reduce((sum, s) => new Decimal(sum).plus(new Decimal(s.salary || 0)).toNumber(), 0).toLocaleString()} EGP
                                             </div>
                                         </td>
                                         <td className="px-6 py-6">
                                             <div className="font-mono text-base font-black tracking-tighter text-emerald-600 dark:text-emerald-400 tabular-nums">
-                                                {filteredStaff.reduce((sum, s) => sum + Number(s.netDue), 0).toLocaleString()} EGP
+                                                {filteredStaff.reduce((sum, s) => new Decimal(sum).plus(new Decimal(s.netDue || 0)).toNumber(), 0).toLocaleString()} EGP
                                             </div>
                                         </td>
                                         <td className="px-6 py-6" colSpan={4}></td>
@@ -195,7 +200,7 @@ export default function EmployeeDirectory({ csrfToken }: { csrfToken: string }) 
     )
 }
 
-function TableRow({ member, t }: { member: any, t: any }) {
+function TableRow({ member, t }: { member: StaffMember, t: any }) {
     const isOnline = member.status === 'ONLINE'
     const router = useRouter()
 
@@ -242,9 +247,9 @@ function TableRow({ member, t }: { member: any, t: any }) {
             <td className="px-6 py-6">
                 <div className={clsx(
                     "font-mono text-base font-black tracking-tighter tabular-nums",
-                    member.netDue > 0 ? "text-emerald-600 dark:text-emerald-500" : member.netDue < 0 ? "text-rose-600 dark:text-rose-500" : "text-zinc-500"
+                    Number(member.netDue) > 0 ? "text-emerald-600 dark:text-emerald-500" : Number(member.netDue) < 0 ? "text-rose-600 dark:text-rose-500" : "text-zinc-500"
                 )}>
-                    {member.netDue > 0 ? "+" : ""}{Number(member.netDue).toLocaleString()} EGP
+                    {Number(member.netDue) > 0 ? "+" : ""}{Number(member.netDue).toLocaleString()} EGP
                 </div>
             </td>
             <td className="px-6 py-6">
@@ -253,21 +258,21 @@ function TableRow({ member, t }: { member: any, t: any }) {
                         <div 
                             className={clsx(
                                 "h-full transition-all duration-1000",
-                                member.kpis?.successRatio >= 90 ? "bg-emerald-500" : member.kpis?.successRatio >= 70 ? "bg-amber-500" : "bg-rose-500"
+                                (member.kpis?.successRatio || 0) >= 90 ? "bg-emerald-500" : (member.kpis?.successRatio || 0) >= 70 ? "bg-amber-500" : "bg-rose-500"
                             )}
-                            style={{ width: `${member.kpis?.successRatio}%` }}
+                            style={{ width: `${member.kpis?.successRatio || 0}%` }}
                         />
                     </div>
                     <span className={clsx(
                         "text-[10px] font-black font-mono tracking-tighter",
-                        member.kpis?.successRatio >= 90 ? "text-emerald-600 dark:text-emerald-500" : member.kpis?.successRatio >= 70 ? "text-amber-600 dark:text-amber-500" : "text-rose-600 dark:text-rose-500"
+                        (member.kpis?.successRatio || 0) >= 90 ? "text-emerald-600 dark:text-emerald-500" : (member.kpis?.successRatio || 0) >= 70 ? "text-amber-600 dark:text-amber-500" : "text-rose-600 dark:text-rose-500"
                     )}>
-                        {member.kpis?.successRatio}%
+                        {member.kpis?.successRatio || 0}%
                     </span>
                 </div>
             </td>
             <td className="px-6 py-6">
-                {member.kpis?.delayedTickets > 0 ? (
+                {(member.kpis?.delayedTickets || 0) > 0 ? (
                     <div className="px-3 py-1 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase tracking-widest border border-rose-500/20 shadow-sm flex items-center gap-2 w-fit">
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                         {member.kpis?.delayedTickets} خطر

@@ -79,7 +79,10 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
                     </button>
                     <div className="w-px h-4 bg-zinc-200 dark:bg-white/10 mx-1 hidden sm:block" />
                     <button 
-                        onClick={() => setCurrentDate(new Date())}
+                        onClick={() => {
+                            setCurrentDate(new Date());
+                            setActiveTab('directory');
+                        }}
                         className="mr-1 px-5 h-10 text-[11px] uppercase font-black tracking-widest bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
                     >
                         اليوم
@@ -168,8 +171,8 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
 
             {/* Content area */}
             <div className="mt-8">
-                {activeTab === 'directory' && <EmployeeDirectory csrfToken={csrfToken} />}
-                {activeTab === 'attendance' && <AttendanceManager csrfToken={csrfToken} />}
+                {activeTab === 'directory' && <EmployeeDirectory csrfToken={csrfToken} filterDate={currentDate} />}
+                {activeTab === 'attendance' && <AttendanceManager csrfToken={csrfToken} filterDate={currentDate} />}
             </div>
         </div>
     )
