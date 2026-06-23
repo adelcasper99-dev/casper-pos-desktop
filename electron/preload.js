@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
         saveBackupConfig: (path) => ipcRenderer.invoke('app:save-backup-config', path),
         saveNodeConfig: (config) => ipcRenderer.invoke('app:save-node-config', config),
+        checkLegacyDb: () => ipcRenderer.invoke('app:check-legacy-db'),
         migrateToPostgres: () => ipcRenderer.invoke('app:migrate-to-postgres'),
         onMigrationProgress: (callback) => {
             const handler = (_event, progress) => callback(progress);
