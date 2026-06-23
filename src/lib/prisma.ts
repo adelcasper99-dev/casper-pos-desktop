@@ -7,9 +7,18 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 // Uses dynamic require so Next.js never statically bundles 'fs' into the client chunk.
 function getDynamicDbUrl() {
     if (typeof window !== 'undefined') {
-        // Running in the browser bundle — no filesystem access available.
+        // Running in the browser bundle
         return process.env.DATABASE_URL;
     }
+
+    // If we're booted by Electron, main.js passes NODE_ROLE and MASTER_IP
+    if (process.env.NODE_ROLE) {
+        if (process.env.NODE_ROLE === 'SUB_NODE' && process.env.MASTER_IP) {
+            return `postgresql://postgres:postgres@${process.env.MASTER_IP}:5432/casper_pos`;
+        }
+        return 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
+    }
+
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const fs = require('fs') as typeof import('fs');
@@ -20,14 +29,12 @@ function getDynamicDbUrl() {
         if (fs.existsSync(configPath)) {
             const rawConfig = fs.readFileSync(configPath, 'utf8');
             try {
-                const config = JSON.parse(rawConfig) as { dbPath?: string };
-                if (config.dbPath) {
-                    // HARDENING: Ensure the custom database directory exists before SQLite access
-                    if (!fs.existsSync(config.dbPath)) {
-                        fs.mkdirSync(config.dbPath, { recursive: true });
-                    }
-                    const normalizedDbPath = path.join(config.dbPath, 'local.db').replace(/\\/g, '/');
-                    return `file:${normalizedDbPath}`;
+                const config = JSON.parse(rawConfig) as { nodeRole?: string, masterIp?: string };
+                if (config.nodeRole === 'SUB_NODE' && config.masterIp) {
+                    return `postgresql://postgres:postgres@${config.masterIp}:5432/casper_pos`;
+                }
+                if (config.nodeRole === 'MASTER') {
+                    return 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
                 }
             } catch (jsonError) {
                 console.warn('Malformed casper-config.json:', jsonError);
@@ -36,7 +43,8 @@ function getDynamicDbUrl() {
     } catch (error) {
         console.warn('Could not read casper-config.json for dynamic DB path, falling back to process.env:', error);
     }
-    const fallbackUrl = process.env.DATABASE_URL;
+    
+    const fallbackUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
     if (process.env.NODE_ENV === 'development') {
         console.log(`[PRISMA DEBUG] DB URL resolved to: ${fallbackUrl}`);
     }
