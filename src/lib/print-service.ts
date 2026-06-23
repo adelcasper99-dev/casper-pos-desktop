@@ -101,9 +101,9 @@ class HardwareBridgeClient {
 
   async isAvailable(): Promise<boolean> {
     try {
+      const bridgeUrl = await this.getBridgeUrl();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const bridgeUrl = await this.getBridgeUrl();
       const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
       clearTimeout(timeoutId);
       return res.ok;
@@ -114,9 +114,9 @@ class HardwareBridgeClient {
 
   async getStatus() {
     try {
+      const bridgeUrl = await this.getBridgeUrl();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const bridgeUrl = await this.getBridgeUrl();
       const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error('Bridge responding but with error');
@@ -127,11 +127,11 @@ class HardwareBridgeClient {
   }
 
   async printDocument(html: string, jobType: 'receipt' | 'barcode' | 'a4', printerName?: string) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
       const res = await fetch(`${bridgeUrl}/api/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
