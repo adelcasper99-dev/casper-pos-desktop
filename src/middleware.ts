@@ -78,6 +78,12 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
+    // Node Role Enforcement: Redirect to /setup if node is not configured
+    const nodeRole = process.env.NODE_ROLE;
+    if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/setup') {
+        return NextResponse.redirect(new URL('/setup', request.url));
+    }
+
     // If session exists and trying to access the root path, send to dashboard
     if (sessionToken && path === '/') {
         return NextResponse.redirect(new URL('/dashboard', request.url));

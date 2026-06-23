@@ -389,6 +389,10 @@ const startServer = () => {
             const queryEnginePath = path.join(enginesPath, 'query_engine-windows.dll.node');
             const normalizedDbPath = dbPath.replace(/\\/g, '/');
 
+            const config = loadConfig();
+            const nodeRole = config.nodeRole || 'UNCONFIGURED';
+            const masterIp = config.masterIp || '127.0.0.1';
+
             nextServer = spawn(process.execPath, [serverPath], {
                 cwd,
                 env: {
@@ -397,7 +401,9 @@ const startServer = () => {
                     PORT: String(appPort),
                     HOST: '127.0.0.1',
                     DATABASE_URL: `file:${normalizedDbPath}`,
-                    PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath
+                    PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath,
+                    NODE_ROLE: nodeRole,
+                    MASTER_IP: masterIp
                 }
             });
 
@@ -872,6 +878,18 @@ safeHandle('app:migrate-to-postgres', async (event) => {
     } catch (err) {
         log(`Migration Failed: ${err.message}`);
         return { success: false, error: err.message };
+    }
+});
+
+safeHandle('app:check-legacy-db', async () => {
+    try {
+        const dbPath = getDatabasePath();
+        if (fs.existsSync(dbPath)) {
+            return { exists: true, path: dbPath };
+        }
+        return { exists: false };
+    } catch (err) {
+        return { exists: false, error: err.message };
     }
 });
 
