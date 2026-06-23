@@ -31,7 +31,7 @@ async function resetForSetup(options: ResetOptions = {}): Promise<void> {
     const { resetBranchCache } = await import('@/lib/ensure-main-branch');
     resetBranchCache();
 
-    await prisma.$executeRawUnsafe('PRAGMA foreign_keys=OFF;');
+    await prisma.$executeRawUnsafe(`SET session_replication_role = 'replica';`);
     try {
         // ALWAYS WIPE (Sensitive/Session Data)
         await prisma.session.deleteMany({});
@@ -104,7 +104,7 @@ async function resetForSetup(options: ResetOptions = {}): Promise<void> {
         }
 
     } finally {
-        await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
+        await prisma.$executeRawUnsafe(`SET session_replication_role = 'origin';`);
     }
 }
 

@@ -87,6 +87,7 @@ export async function getSession() {
 
         if (!session) {
             console.warn(`[AUTH DEBUG] Session token found in cookie but not in DB. This usually happens after a DB push/reset.`);
+            try { cookies().delete("session"); } catch (e) {}
             return null;
         }
 

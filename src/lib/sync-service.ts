@@ -552,12 +552,20 @@ export class SyncService {
 
     // 🎨 VISUAL CLARITY: Get queue status for UI
     static async getQueueStatus() {
-        const [salesCount, ticketsCount, treasuryCount, inventoryCount, returnsCount] = await Promise.all([
+        const [
+            salesCount, ticketsCount, treasuryCount, inventoryCount, returnsCount,
+            salesErr, ticketsErr, treasuryErr, inventoryErr, returnsErr
+        ] = await Promise.all([
             offlineDB.sales.where('synced').equals(0).count(),
             offlineDB.tickets.where('synced').equals(0).count(),
             (offlineDB.treasuryTransactions?.where('synced').equals(0).count() ?? Promise.resolve(0)),
             (offlineDB.inventoryMovements?.where('synced').equals(0).count() ?? Promise.resolve(0)),
-            (offlineDB.returns?.where('synced').equals(0).count() ?? Promise.resolve(0))
+            (offlineDB.returns?.where('synced').equals(0).count() ?? Promise.resolve(0)),
+            offlineDB.sales.where('syncStatus').equals('ERROR').count(),
+            offlineDB.tickets.where('syncStatus').equals('ERROR').count(),
+            (offlineDB.treasuryTransactions?.where('syncStatus').equals('ERROR').count() ?? Promise.resolve(0)),
+            (offlineDB.inventoryMovements?.where('syncStatus').equals('ERROR').count() ?? Promise.resolve(0)),
+            (offlineDB.returns?.where('syncStatus').equals('ERROR').count() ?? Promise.resolve(0))
         ]);
 
         return {
@@ -566,7 +574,8 @@ export class SyncService {
             treasuryCount,
             inventoryCount,
             returnsCount,
-            total: salesCount + ticketsCount + treasuryCount + inventoryCount + returnsCount
+            total: salesCount + ticketsCount + treasuryCount + inventoryCount + returnsCount,
+            errorCount: salesErr + ticketsErr + treasuryErr + inventoryErr + returnsErr
         };
     }
 

@@ -19,7 +19,7 @@ export default function LayoutContent({
     settings: any;
 }) {
     const pathname = usePathname();
-    const isLoginPage = pathname === "/";
+    const isStandalonePage = pathname === "/" || pathname === "/login" || pathname === "/setup" || pathname === "/network-setup";
 
     // Show splash screen on Electron startup (client-side only, won't SSR)
     const [showSplash, setShowSplash] = useState(false);
@@ -29,7 +29,7 @@ export default function LayoutContent({
         }
     }, []);
 
-    if (isLoginPage) {
+    if (isStandalonePage) {
         return (
             <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
                 {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}

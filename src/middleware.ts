@@ -56,7 +56,7 @@ export function middleware(request: NextRequest) {
     }
 
     // Define public routes that don't require session auth
-    const publicRoutes = ['/login', '/setup'];
+    const publicRoutes = ['/login', '/setup', '/network-setup'];
     const publicApiPrefixes = ['/assets', '/_next'];
     
     // Explicit public API whitelist (Hardened: only allow known-safe endpoints with their own auth)
@@ -78,10 +78,11 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    // Node Role Enforcement: Redirect to /setup if node is not configured
-    const nodeRole = process.env.NODE_ROLE;
-    if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/setup') {
-        return NextResponse.redirect(new URL('/setup', request.url));
+    // Node Role Enforcement: Redirect to /network-setup if node is not configured
+    const isPublicAsset = publicApiPrefixes.some(pref => path.startsWith(pref));
+    const nodeRole = process.env.NODE_ROLE || request.cookies.get('nodeRole')?.value;
+    if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset) {
+        return NextResponse.redirect(new URL('/network-setup', request.url));
     }
 
     // If session exists and trying to access the root path, send to dashboard

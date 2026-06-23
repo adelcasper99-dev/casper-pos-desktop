@@ -46,6 +46,9 @@ export default function SetupWizard() {
         }
 
         try {
+            // Set cookie so middleware knows setup is complete (useful for dev mode)
+            document.cookie = `nodeRole=${role}; path=/; max-age=31536000`;
+            
             const api = (window as any).electronAPI;
             await api.config.saveNodeConfig({
                 nodeRole: role,
@@ -78,10 +81,10 @@ export default function SetupWizard() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden" dir="rtl">
+        <div className="h-full w-full bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-y-auto" dir="rtl">
             {/* Background Effects */}
-            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[120px]" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/10 blur-[120px]" />
+            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none" />
 
             <div className="z-10 mb-8 flex flex-col items-center">
                 <CasperLogo className="mb-4" />
@@ -89,7 +92,7 @@ export default function SetupWizard() {
                 <p className="text-slate-400 mt-2">خطوات بسيطة لربط الفروع والأجهزة الخاصة بك</p>
             </div>
 
-            <Card className="w-full max-w-2xl border-slate-800 bg-slate-900/50 backdrop-blur-xl shadow-2xl text-white">
+            <Card className="w-full max-w-2xl border-slate-800 bg-slate-900/50 backdrop-blur-xl shadow-2xl text-white relative z-10">
                 <CardHeader>
                     <CardTitle className="text-2xl text-center">
                         {step === 1 && "تحديد دور الجهاز"}
