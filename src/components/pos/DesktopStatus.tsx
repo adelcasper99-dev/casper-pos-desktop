@@ -43,6 +43,7 @@ export const DesktopStatus: React.FC = () => {
 
     // Network Guide State
     const [isNetworkGuideOpen, setIsNetworkGuideOpen] = useState(false);
+    const [nodeRole, setNodeRole] = useState<string>('MASTER');
 
     const checkPrinterStatus = async () => {
         try {
@@ -102,6 +103,18 @@ export const DesktopStatus: React.FC = () => {
         };
         checkSyncStatus();
         const syncInterval = setInterval(checkSyncStatus, 15000);
+
+        // Fetch Node Role
+        const fetchNodeRole = async () => {
+            const api = (window as any).electronAPI;
+            if (api?.config?.getConfig) {
+                try {
+                    const config = await api.config.getConfig();
+                    if (config?.nodeRole) setNodeRole(config.nodeRole);
+                } catch(e) {}
+            }
+        };
+        fetchNodeRole();
 
         return () => {
             window.removeEventListener('online', handleOnline);
@@ -246,20 +259,24 @@ export const DesktopStatus: React.FC = () => {
             </div>
 
             {/* Sync Status */}
-            <div
-                className={clsx(
-                    "flex items-center gap-1.5 px-1 shrink-0 transition-colors",
-                    isSyncing ? "text-cyan-400" : "text-muted-foreground"
-                )}
-                title={lastSync ? `Last Catalog Update: ${lastSync.toLocaleTimeString()}` : "Catalog not synced"}
-            >
-                <ArrowDownCircle className={clsx("w-3 h-3", isSyncing && "animate-bounce")} />
-                <span className="font-bold text-[10px] uppercase">
-                    {isSyncing ? "Syncing..." : lastSync ? "Catalog OK" : "No Sync"}
-                </span>
-            </div>
+            {nodeRole !== 'SUB_NODE' && (
+                <>
+                    <div
+                        className={clsx(
+                            "flex items-center gap-1.5 px-1 shrink-0 transition-colors",
+                            isSyncing ? "text-cyan-400" : "text-muted-foreground"
+                        )}
+                        title={lastSync ? `Last Catalog Update: ${lastSync.toLocaleTimeString()}` : "Catalog not synced"}
+                    >
+                        <ArrowDownCircle className={clsx("w-3 h-3", isSyncing && "animate-bounce")} />
+                        <span className="font-bold text-[10px] uppercase">
+                            {isSyncing ? "Syncing..." : lastSync ? "Catalog OK" : "No Sync"}
+                        </span>
+                    </div>
 
-            <div className="w-px h-3 bg-border" />
+                    <div className="w-px h-3 bg-border" />
+                </>
+            )}
 
             {/* Database Info */}
             <div
@@ -277,16 +294,18 @@ export const DesktopStatus: React.FC = () => {
 
             {/* Maintenance Actions */}
             <div className="flex items-center gap-0.5">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 hover:bg-white/10"
-                    onClick={handleManualSync}
-                    disabled={isSyncing}
-                    title="Force Catalog Sync"
-                >
-                    <RotateCw className={clsx("w-3 h-3 text-emerald-400", isSyncing && "animate-spin")} />
-                </Button>
+                {nodeRole !== 'SUB_NODE' && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 hover:bg-white/10"
+                        onClick={handleManualSync}
+                        disabled={isSyncing}
+                        title="Force Catalog Sync"
+                    >
+                        <RotateCw className={clsx("w-3 h-3 text-emerald-400", isSyncing && "animate-spin")} />
+                    </Button>
+                )}
 
                 <Button
                     variant="ghost"
