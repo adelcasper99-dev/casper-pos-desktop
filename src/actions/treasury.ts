@@ -470,9 +470,12 @@ export async function createTreasury(data: {
   paymentMethod?: string;
 }) {
   try {
+    const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+    const mainBranchId = await ensureMainBranch();
+
     if (data.isDefault) {
       await prisma.treasury.updateMany({
-        where: { branchId: data.branchId, isDefault: true },
+        where: { branchId: mainBranchId, isDefault: true },
         data: { isDefault: false },
       });
     }
@@ -480,7 +483,7 @@ export async function createTreasury(data: {
     const treasury = await prisma.treasury.create({
       data: {
         name: data.name,
-        branchId: data.branchId,
+        branchId: mainBranchId,
         isDefault: data.isDefault || false,
         paymentMethod: data.paymentMethod || "CASH",
       },

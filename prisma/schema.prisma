@@ -153,23 +153,23 @@ model Warehouse {
 }
 
 model Customer {
-  id               String                @id @default(uuid())
-  name             String
-  phone            String                @unique
-  email            String?
-  address          String?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  balance          Decimal               @default(0.00)
-  walletBalance    Decimal               @default(0.00)
-  totalPurchaseValue Decimal             @default(0.00)
-  creditLimit      Decimal?
-  linkedEmployeeId String?               @unique
-  linkedEmployee   User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
-  transactions     CustomerTransaction[]
-  sales            Sale[]
-  tickets          Ticket[]
-  receivesNotifications Boolean @default(true)
+  id                    String                @id @default(uuid())
+  name                  String
+  phone                 String                @unique
+  email                 String?
+  address               String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  balance               Decimal               @default(0.00)
+  walletBalance         Decimal               @default(0.00)
+  totalPurchaseValue    Decimal               @default(0.00)
+  creditLimit           Decimal?
+  linkedEmployeeId      String?               @unique
+  linkedEmployee        User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
+  transactions          CustomerTransaction[]
+  sales                 Sale[]
+  tickets               Ticket[]
+  receivesNotifications Boolean               @default(true)
 }
 
 model CustomerTransaction {
@@ -294,12 +294,12 @@ model Category {
 }
 
 model Model {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   name       String
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   products   Product[]
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@unique([name, categoryId])
 }
@@ -312,14 +312,14 @@ model Attribute {
 }
 
 model UnitOfMeasure {
-  id               String     @id @default(uuid())
+  id               String         @id @default(uuid())
   name             String
-  code             String     @unique
+  code             String         @unique
   category         String
   abbreviation     String?
-  conversionFactor Decimal    @default(1.00)
-  isActive         Boolean    @default(true)
-  createdAt        DateTime   @default(now())
+  conversionFactor Decimal        @default(1.00)
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
   products         Product[]
   purchaseItems    PurchaseItem[]
 
@@ -353,8 +353,8 @@ model Product {
   version           Int                @default(1)
   archived          Boolean            @default(false)
   unitOfMeasureId   String?
-  unitOfMeasure     UnitOfMeasure?    @relation(fields: [unitOfMeasureId], references: [id])
-  componentOf       BundleItem[]      @relation("ComponentProduct")
+  unitOfMeasure     UnitOfMeasure?     @relation(fields: [unitOfMeasureId], references: [id])
+  componentOf       BundleItem[]       @relation("ComponentProduct")
   bundleItems       BundleItem[]       @relation("BundleProduct")
   category          Category           @relation(fields: [categoryId], references: [id])
   model             Model?             @relation(fields: [modelId], references: [id])
@@ -440,7 +440,7 @@ model StockRequestItem {
   id             String       @id @default(uuid())
   stockRequestId String
   productId      String
-  quantity       Decimal    @default(0.00)
+  quantity       Decimal      @default(0.00)
   stockRequest   StockRequest @relation(fields: [stockRequestId], references: [id], onDelete: Cascade)
   product        Product      @relation(fields: [productId], references: [id])
 
@@ -468,25 +468,25 @@ model StockWastage {
 }
 
 model PurchaseInvoice {
-  id             String         @id @default(uuid())
+  id             String   @id @default(uuid())
   invoiceNumber  String?
   supplierId     String
   warehouseId    String
-  totalAmount    Decimal        @default(0.00)
-  paidAmount     Decimal        @default(0.00)
-  status         String         @default("PENDING")
-  paymentMethod  String         @default("CASH")
-  purchaseDate   DateTime       @default(now())
-  createdAt      DateTime       @default(now())
-  deliveryCharge Decimal        @default(0.00)
-  
+  totalAmount    Decimal  @default(0.00)
+  paidAmount     Decimal  @default(0.00)
+  status         String   @default("PENDING")
+  paymentMethod  String   @default("CASH")
+  purchaseDate   DateTime @default(now())
+  createdAt      DateTime @default(now())
+  deliveryCharge Decimal  @default(0.00)
+
   // Walk-in direct purchases
-  isWalkin        Boolean       @default(false)
-  walkinName      String?
-  walkinPhone     String?
+  isWalkin         Boolean @default(false)
+  walkinName       String?
+  walkinPhone      String?
   walkinNationalId String?
-  attachmentUrl   String?       // Base64 compressed image of Receipt/ID
-  
+  attachmentUrl    String? // Base64 compressed image of Receipt/ID
+
   voidReason     String?
   branchId       String?
   voidedAt       DateTime?
@@ -504,8 +504,8 @@ model PurchaseItem {
   id                String          @id @default(uuid())
   purchaseInvoiceId String
   productId         String
-  quantity          Decimal    @default(0.00)
-  returnedQty       Decimal    @default(0.00)
+  quantity          Decimal         @default(0.00)
+  returnedQty       Decimal         @default(0.00)
   unitCost          Decimal
   imei              String?
   condition         String?
@@ -579,8 +579,8 @@ model SaleItem {
   id          String  @id @default(uuid())
   saleId      String
   productId   String
-  quantity    Decimal    @default(0.00)
-  refundedQty Decimal    @default(0.00)
+  quantity    Decimal @default(0.00)
+  refundedQty Decimal @default(0.00)
   unitPrice   Decimal
   unitCost    Decimal @default(0.00)
   imei        String?
@@ -680,30 +680,30 @@ model Treasury {
 }
 
 model Transaction {
-  id                   String    @id @default(uuid())
+  id                   String        @id @default(uuid())
   type                 String
   amount               Decimal
   description          String?
-  paymentMethod        String    @default("CASH")
-  createdAt            DateTime  @default(now())
+  paymentMethod        String        @default("CASH")
+  createdAt            DateTime      @default(now())
   deletedAt            DateTime?
   deletedBy            String?
   deletedReason        String?
-  isTransfer           Boolean   @default(false)
+  isTransfer           Boolean       @default(false)
   relatedTransactionId String?
   shiftId              String?
   treasuryId           String?
   expenseId            String?
   referenceId          String?
   referenceType        String?
-  isReversed           Boolean   @default(false)
-  isTimeSuspicious     Boolean   @default(false)
+  isReversed           Boolean       @default(false)
+  isTimeSuspicious     Boolean       @default(false)
   categoryId           String?
-  idempotencyKey       String?   @unique
+  idempotencyKey       String?       @unique
   category             CashCategory? @relation(fields: [categoryId], references: [id])
-  expense              Expense?  @relation(fields: [expenseId], references: [id])
-  shift                Shift?    @relation(fields: [shiftId], references: [id])
-  treasury             Treasury? @relation(fields: [treasuryId], references: [id])
+  expense              Expense?      @relation(fields: [expenseId], references: [id])
+  shift                Shift?        @relation(fields: [shiftId], references: [id])
+  treasury             Treasury?     @relation(fields: [treasuryId], references: [id])
   journalEntry         JournalEntry?
 
   @@index([treasuryId, createdAt])
@@ -1094,14 +1094,14 @@ model SparePart {
 }
 
 model CashCategory {
-  id        String        @id @default(uuid())
-  name      String        @unique
-  type      String        // 'IN' or 'OUT'
-  isSystem  Boolean       @default(false)
-  glCode    String?
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id           String        @id @default(uuid())
+  name         String        @unique
+  type         String // 'IN' or 'OUT'
+  isSystem     Boolean       @default(false)
+  glCode       String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   transactions Transaction[]
 }
 
@@ -1118,4 +1118,42 @@ model CommissionRule {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   technicians Technician[]
+}
+
+// ------------------------------------------------------------------
+// ACCOUNTING: PARTNERS (EQUITY & DRAWINGS)
+// ------------------------------------------------------------------
+
+model Partner {
+  id          String  @id @default(uuid())
+  name        String
+  phone       String?
+  profitShare Decimal // Percentage (e.g., 60.0 for 60%)
+
+  // GL Links
+  capitalGlCode String @unique // Auto-generated (e.g., "3001")
+  currentGlCode String @unique // Auto-generated (e.g., "3201" for drawings/current)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions PartnerTransaction[]
+}
+
+model PartnerTransaction {
+  id        String  @id @default(uuid())
+  partnerId String
+  partner   Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  type        String // "DEPOSIT", "DRAWING", "DISTRIBUTION"
+  amount      Decimal
+  description String?
+
+  // Used to prevent double-distribution for the same period
+  periodFrom DateTime?
+  periodTo   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([periodFrom, periodTo])
 }

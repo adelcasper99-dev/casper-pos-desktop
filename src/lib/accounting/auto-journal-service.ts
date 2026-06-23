@@ -34,6 +34,24 @@ export class AutoJournalService {
   }
 
   /**
+   * Helper: Get multiple Account IDs from GL codes in a single batch query
+   */
+  private static async getAccountIds(tx: any, glCodes: string[]): Promise<Map<string, string>> {
+    const uniqueCodes = Array.from(new Set(glCodes));
+    const accounts = await tx.account.findMany({
+      where: { code: { in: uniqueCodes } }
+    });
+    
+    if (accounts.length < uniqueCodes.length) {
+      const foundCodes = new Set(accounts.map((a: any) => a.code));
+      const missing = uniqueCodes.filter(c => !foundCodes.has(c));
+      throw new Error(`GL Accounts ${missing.join(', ')} not found. Run accounting seed.`);
+    }
+    
+    return new Map(accounts.map((a: any) => [a.code, a.id]));
+  }
+
+  /**
    * Create journal entry for Customer Payment (AR Reduction)
    * Odoo style: Debit Cash/Bank, Credit AR (1100)
    * 
@@ -56,6 +74,8 @@ export class AutoJournalService {
     const glCode = PAYMENT_METHOD_GL_MAP[params.method] ?? GL.ASSETS.CASH;
     const amount = new Decimal(params.amount.toString());
     
+    const accountMap = await this.getAccountIds(tx, [glCode, GL.ASSETS.RECEIVABLES]);
+    
     const journalEntry = await tx.journalEntry.create({
       data: {
         description: params.description || `Customer Payment: ${params.reference || params.customerTransactionId.slice(0, 8)}`,
@@ -65,13 +85,13 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, glCode), 
+              accountId: accountMap.get(glCode)!, 
               debit: amount, 
               credit: 0, 
               description: 'Cash/Bank Received' 
             },
             { 
-              accountId: await this.getAccountId(tx, GL.ASSETS.RECEIVABLES), 
+              accountId: accountMap.get(GL.ASSETS.RECEIVABLES)!, 
               debit: 0, 
               credit: amount, 
               description: 'AR Reduced' 
@@ -111,6 +131,16 @@ export class AutoJournalService {
     const techComm = new Decimal(params.techCommissionAmount.toString());
     const centerProfit = new Decimal(params.centerLaborProfit.toString());
 
+    const accountMap = await this.getAccountIds(tx, [
+      GL.REVENUE.SERVICE,
+      GL.REVENUE.SALES,
+      GL.LIABILITIES.ACCRUED_SALARIES
+    ]);
+
+    const serviceId = accountMap.get(GL.REVENUE.SERVICE)!;
+    const salesId = accountMap.get(GL.REVENUE.SALES)!;
+    const accruedSalariesId = accountMap.get(GL.LIABILITIES.ACCRUED_SALARIES)!;
+
     const journalEntry = await tx.journalEntry.create({
       data: {
         description: `Maintenance Distribution: Ticket #${params.barcode}`,
@@ -119,25 +149,25 @@ export class AutoJournalService {
         lines: {
           create: [
             { 
-              accountId: await this.getAccountId(tx, GL.REVENUE.SERVICE), // Service Revenue (WIP)
+              accountId: serviceId, 
               debit: amount, 
               credit: 0, 
               description: 'Service Revenue Reclassification' 
             },
             { 
-              accountId: await this.getAccountId(tx, GL.REVENUE.SALES), // Sales Revenue
+              accountId: salesId, 
               debit: 0, 
               credit: techBilling, 
               description: 'Parts Revenue Dist' 
             },
             { 
-              accountId: await this.getAccountId(tx, GL.LIABILITIES.ACCRUED_SALARIES), // Accrued Salaries (Liability)
+              accountId: accruedSalariesId, 
               debit: 0, 
               credit: techComm, 
               description: 'Technician Commission Accrued' 
             },
             { 
-              accountId: await this.getAccountId(tx, GL.REVENUE.SALES), // Sales Revenue
+              accountId: salesId, 
               debit: 0, 
               credit: centerProfit, 
               description: 'Center Labor Profit realized' 

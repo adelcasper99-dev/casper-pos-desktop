@@ -1,16 +1,19 @@
 "use server";
 
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { secureAction } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
-import { Decimal } from '@prisma/client/runtime/library';
-import { AccountingEngine } from '@/lib/accounting/transaction-factory';
+import { Decimal } from 'decimal.js';
+import { AccountingEngine, TransactionLineInput } from '@/lib/accounting/transaction-factory';
 import { getCurrentUser } from './auth';
 import { getCurrentShiftInternal } from './shift-management-actions';
 import { PERMISSIONS, hasPermission } from '@/lib/permissions';
 import { calculateProratedRefundValue } from '@/utils/refund-calculations';
 import { GL } from '@/shared/constants/accounting-mappings';
 import { PurchaseInvoice } from '@/types/product';
+import { toDecimal } from '@/lib/decimal-utils';
 
 interface PurchaseFilters {
     startDate?: string;
@@ -22,11 +25,11 @@ interface PurchaseFilters {
 /**
  * Fetch purchase history
  */
-export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ success: boolean; purchases?: PurchaseInvoice[]; error?: string }> {
+export const getPurchasesHistory = secureAction(async (filters?: PurchaseFilters) => {
     try {
         const { startDate, endDate, supplierId, status } = filters || {};
 
-        const where: any = {};
+        const where: Prisma.PurchaseInvoiceWhereInput = {};
 
         if (startDate || endDate) {
             where.purchaseDate = {};
@@ -73,20 +76,20 @@ export async function getPurchasesHistory(filters?: PurchaseFilters): Promise<{ 
             success: true,
             purchases: purchases.map(p => ({
                 ...p,
-                totalAmount: Number(p.totalAmount),
-                paidAmount: Number(p.paidAmount),
-                deliveryCharge: Number(p.deliveryCharge),
+                totalAmount: toDecimal(p.totalAmount).toFixed(2),
+                paidAmount: toDecimal(p.paidAmount).toFixed(2),
+                deliveryCharge: toDecimal(p.deliveryCharge).toFixed(2),
                 items: p.items.map(i => ({
                     ...i,
-                    unitCost: Number(i.unitCost)
+                    unitCost: toDecimal(i.unitCost).toFixed(2)
                 }))
-            }))
+            })) as PurchaseInvoice[]
         };
     } catch (error: unknown) {
         console.error('[getPurchasesHistory] Error:', error);
         return { success: false, purchases: [], error: error instanceof Error ? error.message : "Unknown error" };
     }
-}
+}, { permission: PERMISSIONS.PURCHASING_VIEW, requireCSRF: false });
 
 /**
  * Fetch a single purchase for editing
@@ -114,12 +117,12 @@ export const getPurchase = secureAction(async (id: string) => {
         success: true,
         data: {
             ...purchase,
-            totalAmount: Number(purchase.totalAmount),
-            paidAmount: Number(purchase.paidAmount),
-            deliveryCharge: Number(purchase.deliveryCharge),
+            totalAmount: toDecimal(purchase.totalAmount).toFixed(2),
+            paidAmount: toDecimal(purchase.paidAmount).toFixed(2),
+            deliveryCharge: toDecimal(purchase.deliveryCharge).toFixed(2),
             items: purchase.items.map(i => ({
                 ...i,
-                unitCost: Number(i.unitCost)
+                unitCost: toDecimal(i.unitCost).toFixed(2)
             }))
         }
     };
@@ -168,22 +171,22 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         // 🔒 Pre-compute items to return, capped by actual warehouse stock
         const returnableItems: { productId: string; quantity: number; unitCost: string }[] = [];
         for (const i of invoice.items) {
-            const alreadyReturnedQty = previousReturns.reduce((sum, ret) => {
+            const alreadyReturnedQtyDec = previousReturns.reduce((sum, ret) => {
                 const matched = ret.items?.find((ii) => ii.productId === i.productId);
-                return sum + Number(matched?.quantity || 0);
-            }, 0);
-            const invoiceRemaining = Math.max(0, Number(i.quantity) - alreadyReturnedQty);
-            if (invoiceRemaining <= 0) continue;
+                return sum.plus(new Decimal(matched?.quantity?.toString() || 0));
+            }, new Decimal(0));
+            const invoiceRemaining = Decimal.max(0, new Decimal(i.quantity.toString()).minus(alreadyReturnedQtyDec));
+            if (invoiceRemaining.lte(0)) continue;
 
             // Cap by actual stock in warehouse
             const stockRecord = await tx.stock.findFirst({
                 where: { productId: i.productId, warehouseId: invoice.warehouseId }
             });
-            const actualStock = stockRecord ? Number(stockRecord.quantity) : 0;
-            const qtyToReturn = Math.min(invoiceRemaining, actualStock);
-            if (qtyToReturn <= 0) continue;
+            const actualStockDec = stockRecord ? new Decimal(stockRecord.quantity.toString()) : new Decimal(0);
+            const qtyToReturn = Decimal.min(invoiceRemaining, actualStockDec);
+            if (qtyToReturn.lte(0)) continue;
 
-            returnableItems.push({ productId: i.productId, quantity: qtyToReturn, unitCost: i.unitCost.toString() });
+            returnableItems.push({ productId: i.productId, quantity: qtyToReturn.toNumber(), unitCost: i.unitCost.toString() });
         }
 
         if (returnableItems.length === 0) {
@@ -197,10 +200,10 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         );
 
         // ─── Create NEW Return Invoice document ───
-        const timestamp = new Date().getTime().toString().slice(-4);
+        const hexSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
         const returnInvoice = await tx.purchaseInvoice.create({
             data: {
-                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
+                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${hexSuffix}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
                 totalAmount: actualReturnAmount.negated(),
@@ -231,6 +234,14 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
                 where: { productId: item.productId, warehouseId: invoice.warehouseId },
                 data: { quantity: { decrement: item.quantity } }
             });
+
+            // Post-update stock underflow guard
+            const postUpdate = await tx.stock.findFirst({
+                where: { productId: item.productId, warehouseId: invoice.warehouseId }
+            });
+            if (postUpdate && new Decimal(postUpdate.quantity.toString()).lt(0)) {
+                throw new Error('مخزون سالب — تعذّر إكمال الإرجاع، راجع الكميات الحالية');
+            }
 
             await tx.stockMovement.create({
                 data: {
@@ -297,9 +308,9 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         }
 
         // 6. Accounting Reversal
-        const accountingLines: any[] = [];
-        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: actualReturnAmount.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: actualReturnAmount.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        const accountingLines: TransactionLineInput[] = [];
+        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: actualReturnAmount, credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: actualReturnAmount, description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
@@ -325,7 +336,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         message: "Purchase voided successfully",
         data: result
     };
-}, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: false });
+}, { permission: PERMISSIONS.INVENTORY_MANAGE, requireCSRF: true });
 
 export interface PartialPurchaseReturnResult {
     returnedAmount: string;
@@ -376,19 +387,19 @@ export const partialReturnPurchase = secureAction(async (data: {
         const totalReturnedPaidSoFar = previousReturns.reduce((s, r) => s.plus(new Decimal(r.paidAmount.toString()).abs()), new Decimal(0));
 
         let returnTotal = new Decimal(0);
-        const processedItems: { productId: string; returnQty: number; unitCost: number; name: string }[] = [];
+        const processedItems: { productId: string; returnQty: number; unitCost: string; name: string }[] = [];
 
         for (const returnItem of returnItems) {
             const originalItem = invoice.items.find((i) => i.id === returnItem.itemId);
             if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
 
             // Check how many have been returned in PREVIOUS separate return documents
-            const alreadyReturned = previousReturns.reduce((sum: number, ret) => {
+            const alreadyReturnedDec = previousReturns.reduce((sum, ret) => {
                 const matchedItem = ret.items.find((i) => i.productId === originalItem.productId);
-                return sum + Number(matchedItem?.quantity || 0);
-            }, 0);
+                return sum.plus(new Decimal(matchedItem?.quantity?.toString() || 0));
+            }, new Decimal(0));
 
-            const availableFromInvoice = Number(originalItem.quantity) - alreadyReturned;
+            const availableFromInvoiceDec = new Decimal(originalItem.quantity.toString()).minus(alreadyReturnedDec);
 
             // 🔒 Check actual stock in warehouse — sold items cannot be returned to supplier
             const stockRecord = await tx.stock.findFirst({
@@ -397,8 +408,10 @@ export const partialReturnPurchase = secureAction(async (data: {
                     warehouseId: invoice.warehouseId
                 }
             });
-            const currentStock = stockRecord ? Number(stockRecord.quantity) : 0;
-            const availableQty = Math.min(availableFromInvoice, currentStock);
+            const currentStockDec = stockRecord ? new Decimal(stockRecord.quantity.toString()) : new Decimal(0);
+            const availableQty = Decimal.min(availableFromInvoiceDec, currentStockDec).toNumber();
+            const currentStock = currentStockDec.toNumber();
+            const availableFromInvoice = availableFromInvoiceDec.toNumber();
 
             if (returnItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
             if (returnItem.quantity > availableQty) {
@@ -419,7 +432,7 @@ export const partialReturnPurchase = secureAction(async (data: {
             processedItems.push({
                 productId: originalItem.productId,
                 returnQty: returnItem.quantity,
-                unitCost: new Decimal(originalItem.unitCost).toNumber(),
+                unitCost: new Decimal(originalItem.unitCost).toString(),
                 name: originalItem.product.name
             });
 
@@ -439,10 +452,10 @@ export const partialReturnPurchase = secureAction(async (data: {
         const cashReversal = returnTotal.minus(debtReduction);
 
         // 3. Create NEW Return Invoice
-        const timestamp = new Date().getTime().toString().slice(-4);
+        const hexSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
         const returnInvoice = await tx.purchaseInvoice.create({
             data: {
-                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${timestamp}`,
+                invoiceNumber: `RTN-${invoice.invoiceNumber || invoice.id.split('-')[0]}-${hexSuffix}`,
                 supplierId: invoice.supplierId,
                 warehouseId: invoice.warehouseId,
                 totalAmount: returnTotal.negated(),
@@ -464,16 +477,17 @@ export const partialReturnPurchase = secureAction(async (data: {
 
         // 4. Update Original Invoice Status (but keep totals)
         const allItemsOriginal = invoice.items;
-        const totalPurchasedQty = allItemsOriginal.reduce((s: number, i) => s + Number(i.quantity), 0);
+        const totalPurchasedQtyDec = allItemsOriginal.reduce((s, i) => s.plus(new Decimal(i.quantity.toString())), new Decimal(0));
         
         // Sum all returned quantities for ALL items in ALL related return invoices
-        const totalReturnedQtySoFar = previousReturns.reduce((s: number, r) => s + r.items.reduce((ss: number, ii) => ss + Number(ii.quantity), 0), 0) + 
-                                     processedItems.reduce((s: number, p) => s + p.returnQty, 0);
+        const previousReturnsQtyDec = previousReturns.reduce((s, r) => s.plus(r.items.reduce((ss, ii) => ss.plus(new Decimal(ii.quantity.toString())), new Decimal(0))), new Decimal(0));
+        const currentReturnsQtyDec = processedItems.reduce((s, p) => s.plus(new Decimal(p.returnQty.toString())), new Decimal(0));
+        const totalReturnedQtySoFarDec = previousReturnsQtyDec.plus(currentReturnsQtyDec);
 
         await tx.purchaseInvoice.update({
             where: { id: purchaseId },
             data: {
-                status: totalReturnedQtySoFar >= totalPurchasedQty ? 'RETURNED' : 'PARTIAL_RETURN',
+                status: totalReturnedQtySoFarDec.gte(totalPurchasedQtyDec) ? 'RETURNED' : 'PARTIAL_RETURN',
                 voidReason: reason || 'مرتجع جزئي'
             }
         });
@@ -489,6 +503,14 @@ export const partialReturnPurchase = secureAction(async (data: {
                 where: { productId: p.productId, warehouseId: invoice.warehouseId },
                 data: { quantity: { decrement: p.returnQty } }
             });
+
+            // Post-update stock underflow guard
+            const postUpdate = await tx.stock.findFirst({
+                where: { productId: p.productId, warehouseId: invoice.warehouseId }
+            });
+            if (postUpdate && new Decimal(postUpdate.quantity.toString()).lt(0)) {
+                throw new Error('مخزون سالب — تعذّر إكمال الإرجاع، راجع الكميات الحالية');
+            }
 
             await tx.stockMovement.create({
                 data: {
@@ -512,9 +534,9 @@ export const partialReturnPurchase = secureAction(async (data: {
         /* Skipping Treasury Adjustment to keep full amount in Supplier Balance (Credit) */
 
         // 7. Accounting Entry for the Return Invoice
-        const accountingLines: any[] = [];
-        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: returnTotal.toNumber(), credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: returnTotal.toNumber(), description: 'Inventory Asset Reversed (Purchase Return)' });
+        const accountingLines: TransactionLineInput[] = [];
+        accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: returnTotal, credit: 0, description: 'AP Reduced (Purchase Return)' });
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: returnTotal, description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Partial Return Invoice: ${returnInvoice.invoiceNumber}`,
@@ -548,8 +570,8 @@ export const partialReturnPurchase = secureAction(async (data: {
             itemCount: processedItems.length,
             invoiceNumber: returnInvoice.invoiceNumber,
             supplierId: invoice.supplierId,
-            totalReturnedQtySoFar,
-            totalPurchasedQty,
+            totalReturnedQtySoFar: totalReturnedQtySoFarDec.toNumber(),
+            totalPurchasedQty: totalPurchasedQtyDec.toNumber(),
             newTotal: invoice.totalAmount.toString() // Keeping original total for reference or tracking
         };
     });

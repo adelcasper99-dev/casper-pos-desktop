@@ -26,6 +26,7 @@ import { getPresets, addPreset, deletePreset } from "@/actions/preset-actions";
 import { getDevicePresets, upsertDevice } from "@/actions/device-actions";
 import { Edit, Trash2, PlusCircle } from "lucide-react";
 import GlassModal from "@/components/ui/GlassModal";
+import { shouldAutoPrint } from "@/lib/print-guard";
 
 export default function NewTicketPage() {
     const t = useTranslations('Tickets.details');
@@ -290,7 +291,11 @@ export default function NewTicketPage() {
                 if (ticketId) {
                     localStorage.removeItem(STORAGE_KEY); // Clear draft on success
                     // Use replace to avoid history stack issues
-                    router.replace(`/${locale}/maintenance/tickets/${ticketId}?print=true`);
+                    if (shouldAutoPrint(settings, 'ticket')) {
+                        router.replace(`/${locale}/maintenance/tickets/${ticketId}?print=true`);
+                    } else {
+                        router.replace(`/${locale}/maintenance/tickets/${ticketId}`);
+                    }
                 } else {
                     localStorage.removeItem(STORAGE_KEY); // Clear draft on success
                     router.push(`/${locale}/maintenance/tickets`);

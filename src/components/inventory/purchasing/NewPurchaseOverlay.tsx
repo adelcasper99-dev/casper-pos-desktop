@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ShoppingCart, X, Check, Loader2 } from "lucide-react";
 import { PurchaseHeader } from "./PurchaseHeader";
@@ -10,12 +10,17 @@ import { useTranslations } from "@/lib/i18n-mock";
 import { formatCurrency } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
 import type { GridRow } from "./PurchaseDataGrid";
+import { PurchaseFormReturn } from "@/types/purchasing";
+import { Product, Supplier, Category, Model, Warehouse, Branch, Attribute, Unit } from "@/types/product";
+import { Treasury } from "@/types/treasury";
+import { toDecimal } from "@/lib/decimal-utils";
+import { Decimal } from "decimal.js";
 
 interface NewPurchaseOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     // Form Hook Props
-    form: any;
+    form: PurchaseFormReturn;
     gridRows: GridRow[];
     onRowsChange: (rows: GridRow[]) => void;
     handleScan: (barcode: string) => void;
@@ -23,21 +28,21 @@ interface NewPurchaseOverlayProps {
     showNewItemPanel: boolean;
     setShowNewItemPanel: (show: boolean) => void;
     // Master Data
-    suppliers: any[];
-    products: any[];
-    categories: any[];
-    models: any[];
-    warehouses: any[];
-    branches: any[];
+    suppliers: Supplier[];
+    products: Product[];
+    categories: Category[];
+    models: Model[];
+    warehouses: Warehouse[];
+    branches: Branch[];
     isHQUser: boolean;
-    attributes: any[];
-    units: any[];
-    treasuries: any[];
+    attributes: Attribute[];
+    units: Unit[];
+    treasuries: Treasury[];
     csrfToken?: string;
     onQuickCreateSupplier?: (data: { name: string; phone?: string }) => void;
-    onQuickCreateCategory?: (name: string, callback: (id: string) => void) => void;
-    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string) => void) => void;
-    onQuickCreateAttribute?: (name: string, callback: (id: string) => void) => void;
+    onQuickCreateCategory?: (name: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateAttribute?: (name: string, callback: (id: string, name: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
 }
 
@@ -77,7 +82,7 @@ export function NewPurchaseOverlay({
     }, []);
 
     const {
-        loading, errorResult,
+        loading, errorResult, csrfError,
         selectedSupplierId, setSelectedSupplierId,
         selectedBranchId, setSelectedBranchId,
         selectedWarehouseId, setSelectedWarehouseId,
@@ -94,10 +99,28 @@ export function NewPurchaseOverlay({
         treasuryId, setTreasuryId
     } = form;
 
-    if (!isOpen || !mounted) return null;
+    const handleSubmitRef = useRef(handleSubmit);
+    useEffect(() => {
+        handleSubmitRef.current = handleSubmit;
+    }, [handleSubmit]);
 
-    // Filtered data
-    const filteredWarehouses = warehouses;
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "F2") {
+                e.preventDefault();
+                handleSubmitRef.current();
+            }
+        };
+
+        window.addEventListener("keydown", handleGlobalKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleGlobalKeyDown);
+        };
+    }, [isOpen]);
+
+    if (!isOpen || !mounted) return null;
 
     const overlayContent = (
         <div 
@@ -133,6 +156,13 @@ export function NewPurchaseOverlay({
                     </div>
                 )}
 
+                {csrfError && (
+                    <div className="flex-none p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl flex items-center gap-3 text-xs">
+                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        <span className="font-bold">فشل تحميل رمز الأمان — يرجى إعادة تحميل الصفحة</span>
+                    </div>
+                )}
+
                 {/* THE GREY BOX (Expansion Engine) */}
                 <div className="flex-1 flex flex-col min-h-0 bg-zinc-50 dark:bg-zinc-900/40 rounded-3xl border border-white/5 shadow-2xl">
                     <div className="flex-1 flex flex-col min-h-0 w-full p-4">
@@ -148,7 +178,7 @@ export function NewPurchaseOverlay({
                                 onWarehouseChange={setSelectedWarehouseId}
                                 suppliers={suppliers}
                                 branches={branches}
-                                warehouses={filteredWarehouses}
+                                warehouses={warehouses}
                                 isHQUser={isHQUser}
                                 isWalkin={isWalkin}
                                 setIsWalkin={setIsWalkin}
@@ -189,8 +219,7 @@ export function NewPurchaseOverlay({
                                 {t('newItem')}
                             </span>
                             <div className="flex items-center gap-4">
-                                <span className="opacity-50">F2: {t('save')}</span>
-                                <span className="opacity-50">F4: {t('bulkCsv')}</span>
+                                <span className="text-zinc-400 font-black">F2: {t('save')}</span>
                                 <span className="opacity-50">ESC: {tCommon('close')}</span>
                             </div>
                         </div>
@@ -239,7 +268,7 @@ export function NewPurchaseOverlay({
                         {/* Remaining / Balance */}
                         <div className="flex flex-col border-s border-white/10 ps-6">
                             <span className="text-[8px] text-rose-500 uppercase font-black tracking-widest mb-1">المبلغ الآجل</span>
-                            <span className="text-sm font-bold text-rose-500 font-mono tabular-nums bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20">{formatCurrency(Math.max(0, totalAmount - parseFloat(paidAmount || '0')))}</span>
+                            <span className="text-sm font-bold text-rose-500 font-mono tabular-nums bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20">{formatCurrency(Decimal.max(0, toDecimal(totalAmount).minus(toDecimal(paidAmount))).toNumber())}</span>
                         </div>
 
                         {/* Treasury (Safe) Selector */}

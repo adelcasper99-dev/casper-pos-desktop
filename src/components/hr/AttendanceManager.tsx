@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { getMonthlyLogs } from '@/actions/attendance'
 import { getUsersForAttendancePage } from '@/actions/hr'
-import { ChevronLeft, ChevronRight, List, CalendarDays, User, Loader2 } from 'lucide-react'
+import { List, CalendarDays, Loader2 } from 'lucide-react'
 import { useTranslations } from '@/lib/i18n-mock'
 import { toast } from 'sonner'
 import clsx from 'clsx'
 import DailyAttendance from './DailyAttendance'
-import EmployeeAttendanceDetail from './EmployeeAttendanceDetail'
+
 import AttendanceGrid from './AttendanceGrid'
 
 type AttendanceUser = {
@@ -21,17 +21,16 @@ type AttendanceUser = {
 
 type View = 'DAILY' | 'MONTHLY'
 
-export default function AttendanceManager({ csrfToken }: { csrfToken: string }) {
+export default function AttendanceManager({ csrfToken, filterDate }: { csrfToken: string, filterDate: Date }) {
     const t = useTranslations("HR.attendance")
     const [view, setView] = useState<View>('DAILY')
-    const [currentDate, setCurrentDate] = useState(new Date())
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+    const [selectedDate, setSelectedDate] = useState(filterDate.toISOString().split('T')[0])
     const [selectedUserId, setSelectedUserId] = useState('')
     const [users, setUsers] = useState<AttendanceUser[]>([])
     const [logs, setLogs] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
-    const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+    const monthStr = `${filterDate.getFullYear()}-${String(filterDate.getMonth() + 1).padStart(2, '0')}`
 
     const loadData = async () => {
         setLoading(true)
@@ -51,9 +50,6 @@ export default function AttendanceManager({ csrfToken }: { csrfToken: string }) 
     }
 
     useEffect(() => { loadData() }, [monthStr])
-
-    const prevMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
-    const nextMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
 
     // Filter logs for the selected date (DAILY view)
     const dailyLogs = logs.filter(l => {
@@ -89,25 +85,7 @@ export default function AttendanceManager({ csrfToken }: { csrfToken: string }) 
 
                 {/* Controls */}
                 <div className="flex items-center gap-4 flex-wrap w-full md:w-auto">
-                    {/* Month Nav (all views) */}
-                    <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-1.5 shadow-sm">
-                        <button 
-                            onClick={prevMonth} 
-                            className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
-                        >
-                            <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
-                        </button>
-                        <div className="flex items-center gap-3 px-6 py-2 h-10 text-sm font-black min-w-[180px] justify-center text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 rounded-xl shadow-inner border border-zinc-100 dark:border-white/5 uppercase tracking-widest">
-                            <CalendarDays className="w-4 h-4 text-zinc-400" />
-                            {currentDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
-                        </div>
-                        <button 
-                            onClick={nextMonth} 
-                            className="p-2.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-all text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white active:scale-95"
-                        >
-                            <ChevronRight className="w-5 h-5 rtl:rotate-180" />
-                        </button>
-                    </div>
+
 
                     {/* Daily: date picker */}
                     {view === 'DAILY' && (
@@ -123,6 +101,12 @@ export default function AttendanceManager({ csrfToken }: { csrfToken: string }) 
                 </div>
             </div>
 
+            {users.length >= 500 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 p-4 rounded-2xl flex items-center gap-3 text-sm font-black uppercase tracking-widest shadow-inner">
+                    ⚠️ تم الوصول للحد الأقصى للعرض (500 موظف). يرجى البحث أو استخدام الفلاتر.
+                </div>
+            )}
+
             {/* Content area */}
             <div className="min-h-[400px]">
                 {loading ? (
@@ -137,17 +121,22 @@ export default function AttendanceManager({ csrfToken }: { csrfToken: string }) 
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {view === 'DAILY' && (
                             <DailyAttendance
+                                key={`daily-${selectedDate}`}
                                 users={users}
                                 dateStr={selectedDate}
                                 initialLogs={dailyLogs}
                                 csrfToken={csrfToken}
+                                refreshData={loadData}
                             />
                         )}
                         {view === 'MONTHLY' && (
                             <AttendanceGrid
+                                key={`monthly-${monthStr}`}
                                 users={users}
                                 monthStr={monthStr}
                                 initialLogs={logs}
+                                csrfToken={csrfToken}
+                                refreshData={loadData}
                             />
                         )}
                     </div>

@@ -1,4 +1,4 @@
-import { useState, useTransition } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { upsertDailyLog } from '@/actions/attendance'
 import { Check, X, Clock, Coffee, DollarSign, Save } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -41,14 +41,16 @@ export default function DailyAttendance({
     dateStr,
     initialLogs,
     csrfToken,
+    refreshData,
 }: {
     users: User[]
     dateStr: string
     initialLogs: DailyLog[]
     csrfToken: string
+    refreshData?: () => void
 }) {
     const t = useTranslations("HR.attendance")
-    const [isPending, startTransition] = useTransition()
+
     const [logs, setLogs] = useState<Record<string, DailyLog>>(() => {
         const map: Record<string, DailyLog> = {}
         initialLogs.forEach(log => { if (log.userId) map[log.userId] = log })
@@ -67,11 +69,28 @@ export default function DailyAttendance({
         shift: 'DAY' 
     })
 
-    async function handleStatusChange(userId: string, newStatus: string, additionalData?: Record<string, unknown>) {
-        setLoadingId(userId)
-        setLateEntryUserId(null)
-        setFinancialUserId(null)
+    const previousStates = useRef<Record<string, DailyLog | undefined>>({})
+    const pendingTimeouts = useRef<Record<string, NodeJS.Timeout>>({})
 
+    // Cleanup timeouts on unmount
+    useEffect(() => {
+        return () => {
+            Object.values(pendingTimeouts.current).forEach(clearTimeout)
+        }
+    }, [])
+
+    const handleStatusChange = (userId: string, newStatus: string, additionalData?: Record<string, unknown>) => {
+        // Save prev state if not already pending
+        if (!pendingTimeouts.current[userId]) {
+            previousStates.current[userId] = logs[userId] ? { ...logs[userId] } : undefined
+        }
+
+        // Clear existing timeout
+        if (pendingTimeouts.current[userId]) {
+            clearTimeout(pendingTimeouts.current[userId])
+        }
+
+        // Optimistic update
         setLogs(prev => ({
             ...prev,
             [userId]: {
@@ -88,9 +107,57 @@ export default function DailyAttendance({
             },
         }))
 
-        const res = await upsertDailyLog({ userId, dateStr, data: { status: newStatus, ...additionalData }, csrfToken })
-        if (!res.success) toast.error('Failed to save attendance')
-        setLoadingId(null)
+        setLateEntryUserId(null)
+        setFinancialUserId(null)
+
+        // Show undo toast
+        toast.success(`تم التحديث: ${t(newStatus.toLowerCase()) || newStatus}`, {
+            duration: 5000,
+            action: {
+                label: 'تراجع',
+                onClick: () => {
+                    if (pendingTimeouts.current[userId]) {
+                        clearTimeout(pendingTimeouts.current[userId])
+                        delete pendingTimeouts.current[userId]
+                    }
+                    setLogs(prev => {
+                        const newLogs = { ...prev }
+                        if (previousStates.current[userId]) {
+                            newLogs[userId] = previousStates.current[userId]!
+                        } else {
+                            delete newLogs[userId]
+                        }
+                        return newLogs
+                    })
+                    toast('تم التراجع عن الإجراء')
+                }
+            }
+        })
+
+        // Execute after 5s
+        pendingTimeouts.current[userId] = setTimeout(async () => {
+            setLoadingId(userId)
+            const res = await upsertDailyLog({ userId, dateStr, data: { status: newStatus, ...additionalData }, csrfToken })
+            if (!res.success) {
+                toast.error('Failed to save attendance')
+                // Revert on failure
+                setLogs(prev => {
+                    const newLogs = { ...prev }
+                    if (previousStates.current[userId]) {
+                        newLogs[userId] = previousStates.current[userId]!
+                    } else {
+                        delete newLogs[userId]
+                    }
+                    return newLogs
+                })
+            }
+            setLoadingId(null)
+            delete pendingTimeouts.current[userId]
+            delete previousStates.current[userId]
+            if (res.success && refreshData) {
+                refreshData()
+            }
+        }, 1000)
     }
 
     const openFinancials = (userId: string, currentLog?: DailyLog) => {
@@ -134,6 +201,16 @@ export default function DailyAttendance({
 
     return (
         <div className="space-y-4 animate-in fade-in duration-300">
+            {/* Popover Backdrop */}
+            {(lateEntryUserId || financialUserId) && (
+                <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => {
+                        setLateEntryUserId(null)
+                        setFinancialUserId(null)
+                    }}
+                />
+            )}
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-50 dark:bg-zinc-900/40 p-6 rounded-[2rem] border border-zinc-200 dark:border-white/10 shadow-sm font-cairo gap-6">
                 <div className="flex flex-col gap-1 items-center md:items-start text-center md:text-right">

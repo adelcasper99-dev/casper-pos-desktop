@@ -47,7 +47,6 @@ const TYPE_LABELS: Record<string, string> = {
     TRANSFER_IN: "تحويل وارد", TRANSFER_OUT: "تحويل صادر",
     CUSTOMER_PAYMENT: "دفعة عميل", IN: "وارد",
 };
-
 // ─── Create Treasury Modal ────────────────────────────────────────────────────
 function CreateTreasuryModal({
     isOpen,
@@ -75,9 +74,11 @@ function CreateTreasuryModal({
         try {
             const res = await createTreasury({ name, branchId, isDefault, paymentMethod });
             if (res.success) {
+                toast.success(t('treasuryCreated') || "تم إنشاء الخزنة بنجاح");
                 setName(""); setIsDefault(false);
                 onSuccess(); onClose();
             } else {
+                toast.error(res.error || "فشل إنشاء الخزنة");
                 setError(res.error || "فشل إنشاء الخزنة");
             }
         } finally {
@@ -765,7 +766,11 @@ export default function TreasuryDashboard({
                         <button onClick={() => setIsCreateTreasuryOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground border border-zinc-200 dark:border-white/10 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
                             <PlusCircle className="w-4 h-4" /> {"إضافة خزنة جديدة"}
                         </button>
-                        <button onClick={() => setIsWalletModalOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
+                        <button 
+                            onClick={() => setIsWalletModalOpen(true)} 
+                            disabled={!data.treasuries?.some((t: any) => ['WALLET', 'VODAFONE_CASH', 'INSTAPAY'].includes(t.paymentMethod ?? '')) || !data.treasuries?.some((t: any) => t.paymentMethod === 'CASH')}
+                            title={!data.treasuries?.some((t: any) => ['WALLET', 'VODAFONE_CASH', 'INSTAPAY'].includes(t.paymentMethod ?? '')) || !data.treasuries?.some((t: any) => t.paymentMethod === 'CASH') ? "يجب إضافة محفظة إلكترونية وخزنة نقدية أولاً" : undefined}
+                            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed">
                             <Smartphone className="w-4 h-4" /> {"عملية محفظة"}
                         </button>
                         <button onClick={() => setIsTransferOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">

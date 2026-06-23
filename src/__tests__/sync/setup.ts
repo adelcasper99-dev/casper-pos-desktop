@@ -6,8 +6,16 @@ import path from 'path';
 import { execSync } from 'child_process';
 import 'fake-indexeddb/auto';
 
+import { http, passthrough } from 'msw';
+
 // ── MSW SETUP ──────────────────────────────────────────────────────────────
-export const server = setupServer();
+export const server = setupServer(
+    http.get('http://localhost:4040/*', () => passthrough()),
+    http.post('http://localhost:4040/*', () => passthrough()),
+    http.get('http://127.0.0.1:4040/*', () => passthrough()),
+    http.post('http://127.0.0.1:4040/*', () => passthrough()),
+    http.get('http://10.255.255.255:4040/*', () => passthrough())
+);
 
 // Generate a unique ID for this test worker's database to prevent locking collisions
 const suiteId = Math.random().toString(36).substring(7);

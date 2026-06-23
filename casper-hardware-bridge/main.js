@@ -73,10 +73,30 @@ function createSettingsWindow() {
 // Global hidden window for silent A4 printing
 let workerWindow = null;
 function getWorkerWindow() {
-    if (workerWindow) return workerWindow;
+    if (workerWindow && !workerWindow.isDestroyed()) return workerWindow;
     workerWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true } });
     return workerWindow;
 }
+
+expressApp.get('/api/status', async (req, res) => {
+    try {
+        const win = getWorkerWindow();
+        let printers = [];
+        if (win.webContents.getPrintersAsync) {
+            printers = await win.webContents.getPrintersAsync();
+        } else if (win.webContents.getPrinters) {
+            printers = win.webContents.getPrinters();
+        }
+        res.json({
+            online: true,
+            version: '1.0.0',
+            printers: printers
+        });
+    } catch (err) {
+        console.error('[Bridge] Status endpoint error:', err);
+        res.status(500).json({ error: 'Failed to retrieve status' });
+    }
+});
 
 expressApp.post('/api/print', async (req, res) => {
     try {

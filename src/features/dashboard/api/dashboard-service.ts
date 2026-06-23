@@ -17,9 +17,9 @@ export async function getFinancialDashboardMetrics(
         // 1. CUMULATIVE METRICS (All Time up to endDate)
         // ------------------------------------------------------------------
 
-        // Total Assets: Accounts 1000, 1010, 1020, 1100, 1200, 1300
-        // Formula: Debit - Credit
-        const assetAccounts = ['1000', '1010', '1020', '1100', '1200', '1300'];
+        // Total Assets: Accounts 1000-1350 range
+        // 1310 (Accumulated Depreciation) is a contra-asset — its credit balance reduces total assets
+        const assetAccounts = ['1000', '1010', '1020', '1100', '1200', '1300', '1310', '1350'];
         const assetLines = await prisma.journalLine.aggregate({
             _sum: {
                 debit: true,
@@ -36,29 +36,24 @@ export async function getFinancialDashboardMetrics(
         });
         const totalAssets = Number(assetLines._sum.debit || 0) - Number(assetLines._sum.credit || 0);
 
-        // Current Capital: Accounts 3000, 3100 (Credit - Debit), Account 3200 (Debit - Credit)
-        // Formula: Capital - Drawings
-        const capitalAccounts = ['3000', '3100'];
-        const drawingAccounts = ['3200'];
+        // Current Capital (Equity): dynamically fetches ALL equity accounts
+        // This automatically includes partner capital accounts (3001, 3002...) without hardcoding.
+        // Drawings accounts (credit-normal equity w/ debit balance) are included — their net effect reduces equity.
+        const allEquityAccounts = await prisma.account.findMany({
+            where: { type: 'EQUITY' },
+            select: { code: true }
+        });
+        const equityCodes = allEquityAccounts.map((a: { code: string }) => a.code);
 
-        const capitalLines = await prisma.journalLine.aggregate({
+        const equityLines = await prisma.journalLine.aggregate({
             _sum: { credit: true, debit: true },
             where: {
-                account: { code: { in: capitalAccounts } },
+                account: { code: { in: equityCodes } },
                 journalEntry: { date: { lte: effectiveEndDate } }
             }
         });
-        const drawingLines = await prisma.journalLine.aggregate({
-            _sum: { debit: true, credit: true },
-            where: {
-                account: { code: { in: drawingAccounts } },
-                journalEntry: { date: { lte: effectiveEndDate } }
-            }
-        });
-
-        const grossCapital = Number(capitalLines._sum.credit || 0) - Number(capitalLines._sum.debit || 0);
-        const drawings = Number(drawingLines._sum.debit || 0) - Number(drawingLines._sum.credit || 0);
-        const currentCapital = grossCapital - drawings;
+        // Equity = Credit - Debit (credit-normal accounts)
+        const currentCapital = Number(equityLines._sum.credit || 0) - Number(equityLines._sum.debit || 0);
 
 
         // 2. PERIOD METRICS (Filtered by startDate and endDate)

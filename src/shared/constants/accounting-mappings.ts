@@ -59,7 +59,9 @@ export const GL = {
         RECEIVABLES: '1100', // Customer Accounts
         INVENTORY: '1200',
         VAT_INPUT: '1210',
-        TECH_CUSTODY: '1300', // Engineer AR
+        FIXED_ASSETS: '1300',         // Equipment & Furniture (Opening Balance + CapEx)
+        ACCUM_DEPRECIATION: '1310',   // Accumulated Depreciation (contra-asset)
+        TECH_CUSTODY: '1350',         // Engineer Custody / AR — separated from Fixed Assets
     },
     LIABILITIES: {
         PAYABLES: '2000', // Supplier Accounts

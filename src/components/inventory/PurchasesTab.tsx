@@ -40,7 +40,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse } from "@/types/product";
+import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse, Unit, Attribute } from "@/types/product";
+import { Treasury } from "@/types/treasury";
 
 export default function PurchasesTab({
     suppliers,
@@ -66,10 +67,10 @@ export default function PurchasesTab({
     branches?: Branch[],
     isHQUser?: boolean,
     userBranchId?: string,
-    units?: any[],
-    attributes?: any[],
+    units?: Unit[],
+    attributes?: Attribute[],
     csrfToken?: string,
-    treasuries?: any[]
+    treasuries?: Treasury[]
 }) {
     const t = useTranslations('Purchasing');
     const tCommon = useTranslations('Common');
@@ -95,8 +96,8 @@ export default function PurchasesTab({
     const [suppliersList, setSuppliersList] = useState<Supplier[]>(suppliers);
     const [categoriesList, setCategoriesList] = useState<Category[]>(categories);
     const [modelsList, setModelsList] = useState<Model[]>(models || []);
-    const [attributesList, setAttributesList] = useState<any[]>(attributes || []);
-    const [unitsList, setUnitsList] = useState<any[]>(initialUnits);
+    const [attributesList, setAttributesList] = useState<Attribute[]>(attributes || []);
+    const [unitsList, setUnitsList] = useState<Unit[]>(initialUnits);
 
     const [showBulkUpload, setShowBulkUpload] = useState(false);
     const [settings, setSettings] = useState<any>(null);
@@ -365,7 +366,7 @@ export default function PurchasesTab({
         }
     };
 
-    const handleQuickCreateCategory = async (name: string, callback: (id: string) => void) => {
+    const handleQuickCreateCategory = async (name: string, callback: (id: string, name: string) => void) => {
         const { createCategory } = await import("@/actions/inventory");
         const res = await createCategory({ 
             name, 
@@ -377,7 +378,7 @@ export default function PurchasesTab({
         if (res.success && res.category) {
             const newCat = res.category as any;
             setCategoriesList(prev => [newCat, ...prev]);
-            callback(newCat.id);
+            callback(newCat.id, newCat.name);
             toast.success("تم إضافة الفئة");
         } else {
             toast.error(res.error || "فشل إضافة الفئة");
@@ -404,7 +405,7 @@ export default function PurchasesTab({
             toast.error(res.error || "فشل إضافة الوحدة");
         }
     };
-    const handleQuickCreateModel = async (name: string, categoryId: string, callback: (id: string) => void) => {
+    const handleQuickCreateModel = async (name: string, categoryId: string, callback: (id: string, name: string) => void) => {
         const { createModel } = await import("@/actions/inventory");
         const res = await createModel({ 
             name, 
@@ -415,7 +416,7 @@ export default function PurchasesTab({
         if (res.success && res.model) {
             const newMod = res.model as any;
             setModelsList(prev => [newMod, ...prev]);
-            callback(newMod.id);
+            callback(newMod.id, newMod.name);
             toast.success("تم إضافة الموديل");
         } else {
             const err = (res as any).error || "فشل إضافة الموديل";
@@ -423,7 +424,7 @@ export default function PurchasesTab({
         }
     };
 
-    const handleQuickCreateAttribute = async (name: string, callback: (id: string) => void) => {
+    const handleQuickCreateAttribute = async (name: string, callback: (id: string, name: string) => void) => {
         const { createAttribute } = await import("@/actions/inventory");
         const res = await createAttribute({ 
             name, 
@@ -433,7 +434,7 @@ export default function PurchasesTab({
         if (res.success && res.attribute) {
             const newAttr = res.attribute as any;
             setAttributesList(prev => [newAttr, ...prev]);
-            callback(newAttr.id);
+            callback(newAttr.id, newAttr.name);
             toast.success("تم إضافة الصفة");
         } else {
             const err = (res as any).error || "فشل إضافة الصفة";

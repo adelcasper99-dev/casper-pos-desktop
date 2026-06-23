@@ -70,7 +70,10 @@ export default async function PurchasingPage() {
         sellPrice3: p.sellPrice3?.toNumber() || 0,
         unitOfMeasureId: p.unitOfMeasureId,
         modelId: p.modelId,
-        attributeId: p.attributeId
+        attributeId: p.attributeId,
+        trackStock: p.trackStock,
+        isBundle: p.isBundle,
+        itemType: p.itemType
     }));
 
     // 4. Invoices

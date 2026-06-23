@@ -14,8 +14,9 @@ export const DEFAULT_ACCOUNTS = [
     { code: '1020', name: 'Cash in Treasury / Wallet', type: ACCOUNT_TYPES.ASSET, isSystem: true },
     { code: '1100', name: 'Accounts Receivable', type: ACCOUNT_TYPES.ASSET, isSystem: true },
     { code: '1200', name: 'Inventory Asset', type: ACCOUNT_TYPES.ASSET, isSystem: true },
-    { code: '1300', name: 'Fixed Assets', type: ACCOUNT_TYPES.ASSET, isSystem: true },
-    { code: '1310', name: 'Accumulated Depreciation', type: ACCOUNT_TYPES.ASSET, isSystem: true }, // Contra-asset, but still Asset type
+    { code: '1300', name: 'Fixed Assets (Equip. & Furniture)',  type: ACCOUNT_TYPES.ASSET, isSystem: true },
+    { code: '1310', name: 'Accumulated Depreciation',           type: ACCOUNT_TYPES.ASSET, isSystem: true }, // Contra-asset
+    { code: '1350', name: 'Engineer Tech Custody / AR',         type: ACCOUNT_TYPES.ASSET, isSystem: true }, // Separated from Fixed Assets
 
     // Liabilities (2000-2999)
     { code: '2000', name: 'Accounts Payable', type: ACCOUNT_TYPES.LIABILITY, isSystem: true },
@@ -24,9 +25,13 @@ export const DEFAULT_ACCOUNTS = [
     { code: '2200', name: 'Accrued Salaries & Wages', type: ACCOUNT_TYPES.LIABILITY, isSystem: true },
 
     // Equity (3000-3999)
-    { code: '3000', name: 'Owner\'s Equity / Capital', type: ACCOUNT_TYPES.EQUITY, isSystem: true },
-    { code: '3100', name: 'Retained Earnings', type: ACCOUNT_TYPES.EQUITY, isSystem: true },
-    { code: '3200', name: 'Owner\'s Drawings', type: ACCOUNT_TYPES.EQUITY, isSystem: true },
+    { code: '3000', name: 'Owner\'s Equity / Capital',                  type: ACCOUNT_TYPES.EQUITY, isSystem: true },
+    // ⚠️  3100 kept as legacy alias — canonical code is 3300 (matches GL.EQUITY.RETAINED_EARNINGS)
+    { code: '3100', name: 'Retained Earnings (Legacy Alias)',            type: ACCOUNT_TYPES.EQUITY, isSystem: false },
+    { code: '3200', name: 'Owner\'s Drawings',                          type: ACCOUNT_TYPES.EQUITY, isSystem: true },
+    // ✅ 3300 = canonical Retained Earnings used by AccountingEngine.distributeProfit
+    { code: '3300', name: 'Retained Earnings / Accumulated Profit',      type: ACCOUNT_TYPES.EQUITY, isSystem: true },
+    { code: '3999', name: 'Opening Balance Equity',                      type: ACCOUNT_TYPES.EQUITY, isSystem: true },
 
     // Revenue (4000-4999)
     { code: '4000', name: 'Sales Revenue',    type: ACCOUNT_TYPES.REVENUE, isSystem: true },

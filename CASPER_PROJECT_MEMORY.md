@@ -65,6 +65,7 @@ This document serves as the "Source of Truth" for critical architectural decisio
     -   Persist to offline DB (IndexedDB / SQLite) first if offline.
     -   Both Desktop SQLite `Transaction/Sale/JournalEntry` and Cloud PostgreSQL models MUST have an `idempotencyKey String? @unique` constraint.
     -   Server actions (e.g., `addTreasuryTransaction`) and server routes must catch duplicates via `idempotencyKey` and return `{existing: true}` instead of a 500 error or double-billing.
+    -   **Ledger Mapping Guard**: When the `AccountingEngine` writes double-entry entries, the transaction `idempotencyKey` MUST be explicitly mapped in the `JournalEntry` Prisma create payload within `transaction-factory.ts` to ensure database-level uniqueness cascades down to the ledger.
 
 ### Universal Sync Worker & Dead Letter Queue (DLQ)
 *   **Worker Routine**: The `SyncWorker` must delegate to `SyncService.syncAll()` to ensure ALL offline stores (Sales, Tickets, Treasury, Inventory, Returns) are processed, not just a subset.
@@ -104,6 +105,11 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Rule**: Network printing components MUST bypass `localhost` if a master target IP is configured.
 *   **Logic**: The `print-service.ts` resolves the `bridgeIpAddress` from the `PrinterRegistry`. If a user connects via an iPad, the POS directs the payload to `http://<Master_IP>:4040/api/print` resolving the localhost trap.
 *   **Handling Offline Services**: All fetch requests to the Bridge API use `AbortController` combined with `Promise.race()` to guarantee maximum timeout guardrails (e.g., 15s). Printing processes MUST NOT freeze the UI if a target printer node drops off the network.
+
+### 🛡️ [NEW] Central Print Guard Authorization (Auto-Print Control)
+*   **Rule**: Component-level direct checks on raw store settings like `settings?.autoPrintTicket === true` are strictly forbidden.
+*   **Protocol**: All printing entry points (e.g., Ticket Creation, Checkout, Payment, Page-Load triggers) MUST authorize auto-print actions via the central helper `shouldAutoPrint(settings, context)` in `src/lib/print-guard.ts`.
+*   **Rationale**: Centralizing this logic ensures consistent behavior, handles loading states safely without race conditions, and provides a unified interface for resolving setting hierarchy (e.g., globally disabled printing override).
 
 ---
 
@@ -217,7 +223,7 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ---
 
 *Created: April 2, 2026*
-*Last Update: May 5, 2026 (User Identity Linking, Phone Normalization, and Z-Index Hardening)*
+*Last Update: June 22, 2026 (Partners, Equity & Balance Sheet Architecture, Accounting Fixes)*
 
 ---
 
@@ -239,3 +245,27 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Defensive Decimal Validation**: All user-provided string inputs mapped to financial values must be parsed with `Decimal.js` inside a `try/catch` block before checking bounds (`<= 0`). This prevents unhandled `[DecimalError]` crashes if non-numeric inputs bypass frontend limits.
 *   **Null-Coalescing in React Aggregations**: `.reduce()` methods in React components that calculate totals (e.g., `totalOwed`, `totalCredit`) must always use strict null-coalescing (`c.balance ?? 0`) inside `new Decimal()` constructors to prevent `String(null)` execution failures.
 *   **Explicit State Interfaces vs. `any`**: Component `useState` hooks must explicitly map to Prisma payload interfaces (e.g., `StockWithProduct[]`, `CustomerWithBalance[]`) rather than `any[]`. This guarantees that components will fail safely at compile-time (`npx tsc`) if backend relation structures or schemas change, preventing silent runtime masking.
+
+---
+
+## 💰 13. Partners, Equity & Balance Sheet Architecture
+
+### 🛡️ [NEW] Server Action Isolation (Module Boundaries)
+*   **Protocol**: High-level financial reporting and database aggregations (e.g., Balance Sheets, Profit Distributions) MUST run entirely in Next.js Server Actions or dedicated server-side modules.
+*   **Constraint**: Never import or invoke Prisma query clients or server files in Client Components. Doing so exposes Prisma runtime internals to webpack, causing build failures like:
+    `Module not found: Can't resolve 'async_hooks'`
+*   **Implementation**: All data fetching and P&L aggregations must be encapsulated in Server Actions (`balance-sheet-action.ts`, `partners.ts`), and components must load reports asynchronously via transitions or hooks.
+
+### 💰 [NEW] Partners & Equity Accounting
+*   **Double-Entry Capital Rules**: All movements in equity accounts (Partner Capital & Current Accounts) must follow double-entry debit/credit rules:
+    -   **Capital Deposit (DEPOSIT)**: `DEBIT` Cash/Bank (`1000`/`1010`), `CREDIT` Partner Capital Account (`300x` range).
+    -   **Partner Drawings (DRAWING)**: `DEBIT` Partner Current Account (`320x` range), `CREDIT` Cash/Bank (`1000`/`1010`).
+    -   **Profit Distribution (DISTRIBUTION)**: `DEBIT` Retained Earnings P&L Account (`3300`), `CREDIT` Partner Current Account (`320x` range).
+*   **Proportion Guardrail**: Profit distribution must strictly enforce `sharePercent` sum equality: the sum of active partner share percentages MUST equal exactly `100.00%` (`Decimal.js` precision).
+*   **Idempotency & Overlap Prevention**: Partner profit distributions require a composite index `@@index([periodFrom, periodTo])` in the database to optimize overlap verification queries. To avoid duplicate payouts, distributions generate an `idempotencyKey` using the date range of the distribution period.
+*   **[NEW] GL Account Range Guards**: Dynamic GL code generation for new partners must strictly enforce range limits (e.g., `3001` to `3099`). The system must validate availability and throw a descriptive error when the range is exhausted, preventing out-of-bounds chart of accounts pollution.
+*   **[NEW] Session Integrity for Transactions**: Actions processing partner transactions MUST extract and propagate the `branchId` from the active user session (`getSession()`) into the underlying financial records (e.g., `JournalEntry`), ensuring transactions are properly attributed to the active branch and preventing orphaned records.
+
+### 🛡️ [NEW] Permission Mapping & Migration Consistency
+*   **Standard Role Seeding**: When adding new permissions (e.g., `PARTNERS_VIEW`, `PARTNERS_MANAGE`, `PARTNERS_TRANSACTIONS`), they must be added to default seed configurations in `src/actions/roles.ts`.
+*   **Database Backfill**: Adding default roles in code only affects *new* installations. For existing databases, a migration/patch script (e.g., `scripts/patch-partner-permissions.ts`) must be created and executed to query and append the new permission keys to active users/roles.

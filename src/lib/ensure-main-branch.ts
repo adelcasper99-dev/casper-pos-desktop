@@ -31,9 +31,6 @@ export function resetBranchCache(): void {
 // can be added manually by the user from the Treasury settings page.
 const PAYMENT_TREASURIES = [
     { id: 'treasury-cash-main', name: 'الخزنة النقدية', paymentMethod: 'CASH', isDefault: true },
-    { id: 'treasury-wallet-main', name: 'محفظة إلكترونية', paymentMethod: 'WALLET', isDefault: false },
-    { id: 'treasury-instapay-main', name: 'إنستا باي', paymentMethod: 'INSTAPAY', isDefault: false },
-    { id: 'treasury-card-main', name: 'فيزا / بطاقة', paymentMethod: 'CARD', isDefault: false },
 ];
 
 export async function ensureMainBranch(): Promise<string> {
@@ -77,16 +74,18 @@ export async function ensureMainBranch(): Promise<string> {
         address: settings?.address || null
     };
 
-    // Try to find the existing main branch
+    // Try to find the existing main branch and check if it has the default treasury
     const branch = await prisma.branch.findUnique({
-        where: { code: MAIN_BRANCH_CODE }
+        where: { code: MAIN_BRANCH_CODE },
+        include: { treasuries: { where: { isDefault: true, deletedAt: null } } }
     });
 
-    // If branch exists and all info matches, skip heavy initialization
+    // If branch exists, all info matches, and it has at least one default treasury, skip heavy initialization
     if (branch &&
         branch.name === storeInfo.name &&
         branch.phone === storeInfo.phone &&
-        branch.address === storeInfo.address) {
+        branch.address === storeInfo.address &&
+        branch.treasuries.length > 0) {
         cachedMainBranchId = branch.id;
         return branch.id;
     }

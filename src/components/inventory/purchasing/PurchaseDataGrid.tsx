@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, KeyboardEvent, forwardRef } from "react";
+import { toDecimal } from "@/lib/decimal-utils";
 import { createPortal } from "react-dom";
 import { Trash2, History, Loader2, Sparkles, Tag, ChevronDown, Plus, Pencil } from "lucide-react";
 import { clsx } from "clsx";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
+import { ProductOption } from "@/types/purchasing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,7 @@ export interface GridRow {
     itemCode: string;
     itemName: string;
     categoryId: string;
+    categoryName?: string;
     modelId?: string;
     modelName?: string;
     attributeId?: string;
@@ -47,16 +50,7 @@ export interface GridRow {
     conversionFactor: number | string;
 }
 
-interface ProductOption {
-    id: string;
-    name: string;
-    sku: string;
-    costPrice: number | string;
-    sellPrice: number | string;
-    sellPrice2?: number | string;
-    sellPrice3?: number | string;
-    stock: number | string;
-}
+
 
 interface CategoryOption {
     id: string;
@@ -89,9 +83,9 @@ interface PurchaseDataGridProps {
     rows: GridRow[];
     onRowsChange: (rows: GridRow[]) => void;
     currencySymbol?: string;
-    onQuickCreateCategory?: (name: string, callback: (id: string) => void) => void;
-    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string) => void) => void;
-    onQuickCreateAttribute?: (name: string, callback: (id: string) => void) => void;
+    onQuickCreateCategory?: (name: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateAttribute?: (name: string, callback: (id: string, name: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
     csrfToken?: string;
 }
@@ -99,7 +93,7 @@ interface PurchaseDataGridProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // "categoryId" is skipped in Tab for existing rows — handled in handleKeyDown
-const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "itemName", "unit", "conversionFactor", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
+const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
 type EditableCol = (typeof ALL_EDITABLE_COLS)[number];
 
 const CELL_CLS = "border-e border-slate-200 dark:border-white/10 last:border-e-0 truncate px-3 py-2 transition-colors";
@@ -124,7 +118,7 @@ function createEmptyRow(): GridRow {
 }
 
 function computeSubTotal(qty: number | string, price: number | string): number {
-    return Math.round(Number(qty) * Number(price) * 100) / 100;
+    return toDecimal(qty).times(toDecimal(price)).toDecimalPlaces(2).toNumber();
 }
 
 // Returns the next editable col, skipping categoryId for existing products
@@ -137,8 +131,6 @@ function nextEditableCol(current: EditableCol, isNew: boolean): EditableCol | nu
         if (col === "categoryId" && !isNew) { idx++; continue; }
         // Skip auto-generated itemName for new items to speed up flow
         if (col === "itemName" && isNew) { idx++; continue; }
-        // Skip conversionFactor for new items (defaults to 1) for rapid entry
-        if (col === "conversionFactor" && isNew) { idx++; continue; }
         return col;
     }
     return null;
@@ -153,26 +145,42 @@ function prevEditableCol(current: EditableCol, isNew: boolean): EditableCol | nu
         if (col === "categoryId" && !isNew) { idx--; continue; }
         // Skip auto-generated itemName for new items
         if (col === "itemName" && isNew) { idx--; continue; }
-        // Skip conversionFactor for new items
-        if (col === "conversionFactor" && isNew) { idx--; continue; }
         return col;
     }
     return null;
 }
 
+// Module-level canvas cache to avoid recreating per call
+const _canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+
 /**
  * Excel-style Auto-fit: Measures text width using Canvas API for performance.
  */
 function getTextWidth(text: string, font: string = "bold 11px Cairo, sans-serif"): number {
-    if (typeof document === "undefined") return 0;
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+    if (!_canvas) return 0;
+    const context = _canvas.getContext("2d");
     if (!context) return 0;
     context.font = font;
     return context.measureText(text).width;
 }
 
-const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 250, 60, 60, 60, 90, 85, 85, 85, 100, 32];
+/**
+ * Default widths for the 13 columns of the purchase data grid in order:
+ * 0: Row Index / Action (#) - 24px
+ * 1: Product SKU / Code (الكود) - 100px
+ * 2: Category (الفئة) - 110px
+ * 3: Model (الموديل) - 110px
+ * 4: Attribute / Specification (الوصف/الصفة) - 110px
+ * 5: Final Product Name (اسم المنتج النهائي) - 250px
+ * 6: Quantity (الكمية) - 60px
+ * 7: Cost Price (التكلفة) - 90px
+ * 8: Selling Price 1 (سعر 1) - 85px
+ * 9: Selling Price 2 (سعر 2) - 85px
+ * 10: Selling Price 3 (سعر 3) - 85px
+ * 11: Subtotal (الإجمالي) - 100px
+ * 12: Action / Delete Button - 32px
+ */
+const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 250, 60, 90, 85, 85, 85, 100, 32];
 const STORAGE_KEY = "casper-purchase-grid-widths-v1";
 
 // ─── Price History Popover ─────────────────────────────────────────────────────
@@ -252,7 +260,7 @@ interface CategoryDropdownProps {
 function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: CategoryDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -296,7 +304,7 @@ function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, tri
             <button
                 type="button"
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => {
@@ -463,7 +471,7 @@ interface ModelDropdownProps {
 function ModelDropdown({ value, categoryId, options = [], categories = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: ModelDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -516,7 +524,7 @@ function ModelDropdown({ value, categoryId, options = [], categories = [], onCha
                 type="button"
                 disabled={!categoryId}
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); openMenu(); }}
@@ -675,7 +683,7 @@ interface AttributeDropdownProps {
 function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: AttributeDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -718,7 +726,7 @@ function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, tr
             <button
                 type="button"
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); openMenu(); }}
@@ -774,6 +782,9 @@ function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, tr
                                         setIsOpen(false);
                                     } else if (canQuickCreate) {
                                         onQuickCreate!(query.trim());
+                                        setIsOpen(false);
+                                    } else if (query.trim().length > 0) {
+                                        onChange("", query.trim());
                                         setIsOpen(false);
                                     }
                                 } else if (e.key === "Escape") {
@@ -920,7 +931,6 @@ function ItemDropdown({ query, products, searchBy, onSelectExisting, onQuickCrea
     if (!query || query.length < 1 || !mounted) return null;
 
     const matches = products
-        .slice(0, 100) // Performance filter first
         .filter((p) => {
             const q = query.toLowerCase();
             return (
@@ -1009,7 +1019,7 @@ interface UnitDropdownProps {
 function UnitDropdown({ value, options = [], onChange, onEdit, onDelete, triggerRef, onKeyDown, onFocus, onQuickCreate }: UnitDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-    const localRef = useRef<HTMLButtonElement>(null);
+    const localRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -1053,7 +1063,7 @@ function UnitDropdown({ value, options = [], onChange, onEdit, onDelete, trigger
             <button
                 type="button"
                 ref={(el) => {
-                    (localRef as any).current = el;
+                    localRef.current = el;
                     if (triggerRef) triggerRef(el);
                 }}
                 onClick={(e) => {
@@ -1229,6 +1239,17 @@ export function PurchaseDataGrid({
     const [resizingIdx, setResizingIdx] = useState<number | null>(null);
     const [isAutoFitting, setIsAutoFitting] = useState(false);
 
+    // Ref to track generated SKUs during the current session/interaction to prevent concurrency race conditions
+    const generatedSkusRef = useRef<Set<string>>(new Set());
+
+    // Clear generated SKUs cache when the grid has no item codes (reset/saved)
+    useEffect(() => {
+        const hasAnySku = rows.some(r => r.itemCode);
+        if (!hasAnySku) {
+            generatedSkusRef.current.clear();
+        }
+    }, [rows]);
+
     // ── CRUD State for Modern Prompts (window.prompt replacement) ───────────
     const [crudState, setCrudState] = useState<{
         isOpen: boolean;
@@ -1267,6 +1288,11 @@ export function PurchaseDataGrid({
         localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
     }, []);
 
+    const latestWidthsRef = useRef(columnWidths);
+    useEffect(() => {
+        latestWidthsRef.current = columnWidths;
+    }, [columnWidths]);
+
     // ── Column Resizing Logic ───────────────────────────────────────────────
     const handleResizeStart = (e: React.MouseEvent, index: number) => {
         e.preventDefault();
@@ -1296,7 +1322,7 @@ export function PurchaseDataGrid({
 
         const handleMouseUp = () => {
             setResizingIdx(null);
-            saveWidths(columnWidths);
+            saveWidths(latestWidthsRef.current);
         };
 
         window.addEventListener('mousemove', handleMouseMove);
@@ -1305,7 +1331,7 @@ export function PurchaseDataGrid({
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [resizingIdx, columnWidths, saveWidths]);
+    }, [resizingIdx, saveWidths]);
 
     const autoFitColumn = (index: number) => {
         setIsAutoFitting(true);
@@ -1316,17 +1342,15 @@ export function PurchaseDataGrid({
             3: "modelId",
             4: "attributeId",
             5: "itemName",
-            6: "unit",
-            7: "conversionFactor",
-            8: "quantity",
-            9: "unitPrice",
-            10: "sellPrice",
-            11: "sellPrice2",
-            12: "sellPrice3",
-            13: "subTotal"
+            6: "quantity",
+            7: "unitPrice",
+            8: "sellPrice",
+            9: "sellPrice2",
+            10: "sellPrice3",
+            11: "subTotal"
         };
 
-        const headerLabels = ["#", "الكود", "اسم الصنف", "الفئة", "الوحدة", "الكمية", "التكلفة", "الإجمالي", "Action"];
+        const headerLabels = ["#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""];
         const headerWidth = getTextWidth(headerLabels[index]) + 24; // text + padding
 
         let maxContentWidth = headerWidth;
@@ -1386,12 +1410,22 @@ export function PurchaseDataGrid({
                          const hasHierarchyChange = 
                             updates.hasOwnProperty('categoryId') || 
                             updates.hasOwnProperty('modelId') || 
-                            updates.hasOwnProperty('attributeId');
+                            updates.hasOwnProperty('attributeId') ||
+                            updates.hasOwnProperty('attributeName');
 
                         if (hasHierarchyChange) {
-                            const catName = categories.find(c => c.id === merged.categoryId)?.name || "";
-                            const modName = models.find(m => m.id === merged.modelId)?.name || "";
-                            const attrName = attributes.find(a => a.id === merged.attributeId)?.name || "";
+                            const catName =
+                                merged.categoryName ||
+                                categories.find(c => c.id === merged.categoryId)?.name ||
+                                "";
+                            const modName =
+                                merged.modelName ||
+                                models.find(m => m.id === merged.modelId)?.name ||
+                                "";
+                            const attrName =
+                                merged.attributeName ||
+                                attributes.find(a => a.id === merged.attributeId)?.name ||
+                                "";
                             
                             // Use " - " separator for cleaner hierarchical naming
                             merged.itemName = [catName, modName, attrName]
@@ -1428,9 +1462,9 @@ export function PurchaseDataGrid({
                         sellPrice2: product.sellPrice2,
                         sellPrice3: product.sellPrice3,
                         isNew: false,
-                        categoryId: (product as any).categoryId || r.categoryId,
-                        modelId: (product as any).modelId || r.modelId,
-                        attributeId: (product as any).attributeId || r.attributeId,
+                        categoryId: product.categoryId || r.categoryId,
+                        modelId: product.modelId || r.modelId,
+                        attributeId: product.attributeId || r.attributeId,
                     };
                 })
             );
@@ -1438,6 +1472,68 @@ export function PurchaseDataGrid({
             setTimeout(() => focusInput(rowIdx, "quantity"), 0);
         },
         [rows, onRowsChange, focusInput]
+    );
+
+    // ── Keyboard navigation ──────────────────────────────────────────────────
+
+    // ── Quick-Create: new product on the fly ─────────────────────────────────
+
+    const handleAutoSku = useCallback(
+        async (rowIdx: number, initialUpdates?: Partial<GridRow>) => {
+            const row = rows[rowIdx];
+            
+            // If we have initialUpdates (like category change), we must apply them immediately
+            // But we also want to avoid redundant SKU generation if one exists.
+            
+            setSkuLoadingRow(rowIdx);
+            
+            // Combine row SKUs with the in-progress generated SKUs to prevent concurrent duplicates
+            const existingSKUs = [
+                ...rows.filter(r => r.itemCode).map(r => r.itemCode),
+                ...Array.from(generatedSkusRef.current)
+            ];
+            
+            const res = await generateNextSku({ existingSKUs });
+            const autoSku = (res as any)?.sku ?? "";
+            
+            if (autoSku) {
+                generatedSkusRef.current.add(autoSku);
+            } else {
+                toast.error("Failed to generate SKU: " + JSON.stringify(res));
+            }
+            
+            setSkuLoadingRow(null);
+            
+            updateRow(rowIdx, { ...initialUpdates, itemCode: autoSku });
+            return autoSku;
+        },
+        [rows, updateRow]
+    );
+
+    const handleQuickCreate = useCallback(
+        async (rowIdx: number, typedName: string) => {
+            setAutocompleteKey(null);
+            const autoSku = await handleAutoSku(rowIdx);
+
+            onRowsChange(
+                rows.map((r, i) => {
+                    if (i !== rowIdx) return r;
+                    return {
+                        ...r,
+                        productId: undefined,
+                        itemCode: autoSku,
+                        itemName: typedName,
+                        isNew: true,
+                        categoryId: "",
+                        sellPrice: r.unitPrice, // sensible default
+                    };
+                })
+            );
+
+            // Focus the category cell immediately
+            setTimeout(() => focusInput(rowIdx, "categoryId"), 0);
+        },
+        [rows, onRowsChange, focusInput, handleAutoSku]
     );
 
     // ── Keyboard navigation ──────────────────────────────────────────────────
@@ -1510,7 +1606,7 @@ export function PurchaseDataGrid({
             // Global '+' shortcut
             if (e.key === "+") {
                 // Ignore if in numeric fields
-                const numericCols: EditableCol[] = ["quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3", "conversionFactor"];
+                const numericCols: EditableCol[] = ["quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"];
                 if (numericCols.includes(col)) return;
 
                 e.preventDefault();
@@ -1522,8 +1618,6 @@ export function PurchaseDataGrid({
                     onQuickCreateModel("", row.categoryId, (id) => updateRow(rowIdx, { modelId: id }));
                 } else if (col === "attributeId" && onQuickCreateAttribute) {
                     onQuickCreateAttribute("", (id) => updateRow(rowIdx, { attributeId: id }));
-                } else if (col === "unit" && onQuickCreateUnit) {
-                    onQuickCreateUnit("", (id, name) => updateRow(rowIdx, { unit: name, unitOfMeasureId: id, conversionFactor: 1 }));
                 } else if (col === "itemName") {
                     handleQuickCreate(rowIdx, "");
                 } else if (col === "itemCode") {
@@ -1569,56 +1663,7 @@ export function PurchaseDataGrid({
                 return;
             }
         },
-        [rows, onRowsChange, focusInput, products, handleProductSelect]
-    );
-
-    // ── Quick-Create: new product on the fly ─────────────────────────────────
-
-    const handleAutoSku = useCallback(
-        async (rowIdx: number, initialUpdates?: Partial<GridRow>) => {
-            const row = rows[rowIdx];
-            
-            // If we have initialUpdates (like category change), we must apply them immediately
-            // But we also want to avoid redundant SKU generation if one exists.
-            
-            setSkuLoadingRow(rowIdx);
-            const existingSKUs = rows.filter(r => r.itemCode).map(r => r.itemCode);
-            const res = await generateNextSku({ existingSKUs });
-            const autoSku = (res as any)?.sku ?? "";
-            setSkuLoadingRow(null);
-            
-            updateRow(rowIdx, { ...initialUpdates, itemCode: autoSku });
-            return autoSku;
-        },
-        [rows, updateRow]
-    );
-
-    // ── Quick-Create: new product on the fly ─────────────────────────────────
-
-    const handleQuickCreate = useCallback(
-        async (rowIdx: number, typedName: string) => {
-            setAutocompleteKey(null);
-            const autoSku = await handleAutoSku(rowIdx);
-
-            onRowsChange(
-                rows.map((r, i) => {
-                    if (i !== rowIdx) return r;
-                    return {
-                        ...r,
-                        productId: undefined,
-                        itemCode: autoSku,
-                        itemName: typedName,
-                        isNew: true,
-                        categoryId: "",
-                        sellPrice: r.unitPrice, // sensible default
-                    };
-                })
-            );
-
-            // Focus the category cell immediately
-            setTimeout(() => focusInput(rowIdx, "categoryId"), 0);
-        },
-        [rows, onRowsChange, focusInput]
+        [rows, onRowsChange, focusInput, products, handleProductSelect, updateRow, handleQuickCreate]
     );
 
     const removeRow = useCallback(
@@ -1822,7 +1867,7 @@ export function PurchaseDataGrid({
                 style={{ gridTemplateColumns: gridTemplate }}
             >
                 {[
-                    "#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الوحدة", "العبوة", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
+                    "#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
                 ].map((label, i) => (
                     <div 
                         key={i} 
@@ -1925,16 +1970,20 @@ export function PurchaseDataGrid({
                                      onDelete={handleDeleteCategory}
                                      onChange={async (val) => {
                                          if (row.isNew && !row.itemCode) {
-                                             await handleAutoSku(rowIdx, { categoryId: val, modelId: "", attributeId: "" });
+                                             await handleAutoSku(rowIdx, { categoryId: val, categoryName: undefined, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
                                          } else {
-                                             updateRow(rowIdx, { categoryId: val, modelId: "", attributeId: "" });
+                                             updateRow(rowIdx, { categoryId: val, categoryName: undefined, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
                                          }
                                          setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateCategory) {
-                                             onQuickCreateCategory(name, (newId) => {
-                                                 updateRow(rowIdx, { categoryId: newId });
+                                             onQuickCreateCategory(name, async (newId, createdName) => {
+                                                 if (row.isNew && !row.itemCode) {
+                                                     await handleAutoSku(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                                 } else {
+                                                     updateRow(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                                 }
                                                  setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                              });
                                          }
@@ -1955,13 +2004,13 @@ export function PurchaseDataGrid({
                                      onEdit={handleEditModel}
                                      onDelete={handleDeleteModel}
                                      onChange={(val) => {
-                                         updateRow(rowIdx, { modelId: val, attributeId: "" });
+                                         updateRow(rowIdx, { modelId: val, modelName: undefined, attributeId: "", attributeName: undefined });
                                          setTimeout(() => focusInput(rowIdx, "attributeId"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateModel) {
-                                             onQuickCreateModel(name, row.categoryId, (newId) => {
-                                                 updateRow(rowIdx, { modelId: newId });
+                                             onQuickCreateModel(name, row.categoryId, (newId, createdName) => {
+                                                  updateRow(rowIdx, { modelId: newId, modelName: createdName, attributeId: "", attributeName: undefined });
                                                  setTimeout(() => focusInput(rowIdx, "attributeId"), 50);
                                              });
                                          }
@@ -1979,15 +2028,18 @@ export function PurchaseDataGrid({
                                      options={attributes}
                                      onEdit={handleEditAttribute}
                                      onDelete={handleDeleteAttribute}
-                                     onChange={(id) => {
-                                         updateRow(rowIdx, { attributeId: id });
-                                         setTimeout(() => focusInput(rowIdx, "unit"), 50);
+                                     onChange={(id, name) => {
+                                         updateRow(rowIdx, {
+                                             attributeId: id,
+                                             attributeName: name && !id ? name : undefined
+                                         });
+                                         setTimeout(() => focusInput(rowIdx, "quantity"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateAttribute) {
-                                             onQuickCreateAttribute(name, (newId) => {
-                                                 updateRow(rowIdx, { attributeId: newId });
-                                                 setTimeout(() => focusInput(rowIdx, "unit"), 50);
+                                             onQuickCreateAttribute(name, (newId, createdName) => {
+                                                  updateRow(rowIdx, { attributeId: newId, attributeName: createdName });
+                                                 setTimeout(() => focusInput(rowIdx, "quantity"), 50);
                                              });
                                          }
                                      }}
@@ -2009,7 +2061,13 @@ export function PurchaseDataGrid({
                                      type="text"
                                      value={row.itemName}
                                      readOnly={row.isNew} // Enforce auto-naming for new items
-                                     placeholder={row.isNew ? "الاسم يتولد تلقائياً..." : "ابحث..."}
+                                     placeholder={row.isNew 
+                                          ? row.categoryId 
+                                              ? row.modelId 
+                                                  ? "اكتب الوصف/الصفة في الخانة السابقة..."
+                                                  : "اختر الموديل أولاً..."
+                                              : "اختر الفئة أولاً..."
+                                          : "ابحث..."}
                                      className={clsx(
                                          "font-black opacity-90",
                                          row.isNew ? "text-emerald-500" : row.itemName ? "text-zinc-900 dark:text-zinc-200" : ""
@@ -2040,42 +2098,7 @@ export function PurchaseDataGrid({
                                  )}
                              </div>
 
-                            <div className={clsx(CELL_CLS, "relative flex items-center")}>
-                                <UnitDropdown
-                                    triggerRef={getInputRef(rowIdx, "unit") as any}
-                                    value={row.unit}
-                                    options={units}
-                                    onChange={(name, id, factor) => { updateRow(rowIdx, { unit: name, unitOfMeasureId: id, conversionFactor: factor || 1 }); setTimeout(() => focusInput(rowIdx, "quantity"), 0); }}
-                                    onQuickCreate={(name) => {
-                                        if (onQuickCreateUnit) {
-                                            onQuickCreateUnit(name, (id, unitName) => {
-                                                updateRow(rowIdx, { unit: unitName, unitOfMeasureId: id, conversionFactor: 1 });
-                                            });
-                                        }
-                                    }}
-                                    onFocus={() => setFocusCell([rowIdx, "unit"])}
-                                    onKeyDown={(e) => handleKeyDown(e, rowIdx, "unit")}
-                                />
-                            </div>
-
-                            {/* ── Package Factor (العبوة) ───────────────────────── */}
-                            <div className={clsx(CELL_CLS, "flex items-center")}>
-                                <CellInput
-                                    ref={getInputRef(rowIdx, "conversionFactor") as any}
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    disabled={row.unit === "قطعة"}
-                                    value={row.conversionFactor}
-                                    className={clsx(
-                                        "font-black font-mono text-center",
-                                        row.unit === "قطعة" ? "opacity-30 cursor-not-allowed" : "text-blue-500"
-                                    )}
-                                    onChange={(e) => updateRow(rowIdx, { conversionFactor: parseFloat(e.target.value) || 1 })}
-                                    onFocus={(e) => { setFocusCell([rowIdx, "conversionFactor"]); e.target.select(); }}
-                                    onKeyDown={(e) => handleKeyDown(e, rowIdx, "conversionFactor")}
-                                />
-                            </div>
+                            {/* Unit and conversionFactor hidden temporarily */}
 
                              {/* ── Quantity ─────────────────────────────────── */}
                              <div className={clsx(CELL_CLS, "flex flex-col items-center justify-center py-0.5")}>

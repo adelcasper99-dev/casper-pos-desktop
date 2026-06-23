@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Search, Filter, Eye, Pencil,
     Trash2, Truck,
@@ -38,7 +38,8 @@ import { voidPurchase } from '@/actions/purchase-actions';
 import { cn, formatCurrency } from '@/lib/utils';
 import { DateRange } from "react-day-picker"
 import { useTranslations } from '@/lib/i18n-mock';
-import PartialReturnPurchaseDialog from './PartialReturnPurchaseDialog';
+import PartialReturnPurchaseDialog, { DialogItem } from './PartialReturnPurchaseDialog';
+import { PurchaseInvoiceWithItems } from '@/types/purchasing';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { BarcodePrintDialog } from '@/components/inventory/BarcodePrintDialog';
 import { generateA4PurchaseHTML } from '@/components/inventory/purchasing/A4PurchaseTemplate';
@@ -58,7 +59,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const [dateFilter, setDateFilter] = useState<string>("all");
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [loading, setLoading] = useState<string | null>(null);
-    const [partialReturnPurchase, setPartialReturnPurchase] = useState<any>(null);
+    const [partialReturnPurchase, setPartialReturnPurchase] = useState<PurchaseInvoiceWithItems | null>(null);
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
     const [voidItem, setVoidItem] = useState<{ id: string } | null>(null);
     const [showBarcodePrint, setShowBarcodePrint] = useState(false);
@@ -118,7 +119,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         return matchesSearch && matchesStatus && matchesDate;
     });
 
-    const computedTotals = {
+    const computedTotals = useMemo(() => ({
         actualTotal: filteredPurchases.reduce((acc, p) => {
             const isReturn = p.isReturn || p._isReturnEntry;
             if (['VOIDED', 'CANCELLED'].includes(p.status) && !isReturn) return acc;
@@ -129,13 +130,13 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             if (['VOIDED', 'CANCELLED'].includes(p.status) && !isReturn) return acc;
             return acc + (Number(p.totalAmount) - Number(p.paidAmount));
         }, 0)
-    };
+    }), [filteredPurchases]);
 
     useEffect(() => {
         if (onTotalsChange) {
             onTotalsChange(computedTotals);
         }
-    }, [computedTotals.actualTotal, computedTotals.remaining]);
+    }, [computedTotals, onTotalsChange]);
 
     const handleDirectPrint = async (inv: any) => {
         setLoadingInvoiceId(inv.id);
@@ -177,8 +178,6 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         setShowBarcodePrint(true);
     };
     const handleVoid = async (id: string, reason?: string) => {
-        if (!confirm("هل أنت متأكد من إلغاء هذه الفاتورة؟ سيتم سحب الكميات من المخزن وتعديل مديونية المورد.")) return;
-
         setLoading(id);
         try {
             const res = await voidPurchase({ id, reason: reason || undefined, csrfToken });
@@ -200,7 +199,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         // This would normally use a library like xlsx
     };
 
-    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
+    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: DialogItem[], newTotal: number, updatedItems: DialogItem[]) => {
         setPurchases(prev => prev.map(p => {
             if (p.id !== purchaseId) return p;
             return {
@@ -506,7 +505,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                             >
                                                 <Package className="w-4 h-4" />
                                             </Button>
-                                            {!['VOIDED', 'CANCELLED'].includes(inv.status) && !inv.isReturn && (
+                                            {!['VOIDED', 'CANCELLED', 'RETURNED'].includes(inv.status) && !inv.isReturn && (
                                                 <>
                                                     <Button
                                                         variant="ghost"

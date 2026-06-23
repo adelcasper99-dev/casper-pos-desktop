@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { shouldAutoPrint } from "@/lib/print-guard";
 
 import {
     getTicketDetails,
@@ -302,7 +303,7 @@ export default function TicketDetailPage() {
         if (shouldPrint && ticket && !hasPrinted) {
             console.log('[AutoPrint] ✓ Triggering from print=true URL param');
             setHasPrinted(true);
-            setIsSilentPrint(true);
+            setIsSilentPrint(shouldAutoPrint(settings, 'ticket'));
             setShowPrintOptions(true);
             
             // Clean URL
@@ -317,7 +318,7 @@ export default function TicketDetailPage() {
         }
 
         // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
-        const autoPrintEnabled = settings?.autoPrintTicket === true;
+        const autoPrintEnabled = shouldAutoPrint(settings, 'ticket');
         console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
         
         const alreadyPrinted = ticket?.id && sessionStorage.getItem(`ticket_autoprint_${ticket.id}`);

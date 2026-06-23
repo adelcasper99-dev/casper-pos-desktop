@@ -1952,34 +1952,37 @@ export const generateNextSku = secureAction(async (options?: {
     length?: number;
     existingSKUs?: string[]; // Client-side cart SKUs to avoid duplicates
 }) => {
+    console.log("[generateNextSku] Called with options:", options);
     // Default configuration: SKU-000001 format
-    const prefix = options?.prefix || 'C';
-    const length = options?.length || 2;
+    const prefix = options?.prefix ?? 'C';
+    const length = options?.length ?? 2;
 
-    // Efficient query: only fetch SKUs matching our prefix pattern
-    // This is MUCH faster than fetching all products
+    // Fetch all SKUs matching our prefix pattern (removed take:100 limit for correct estimation)
     const products = await prisma.product.findMany({
         where: {
             sku: {
                 startsWith: prefix
             }
         },
-        select: { sku: true },
-        orderBy: { createdAt: 'desc' },
-        take: 100 // Safety limit - only need recent ones
+        select: { sku: true }
     });
 
-    // Combine database SKUs with cart SKUs for comprehensive checking
-    const allSKUs = [
-        ...products.map(p => p.sku),
-        ...(options?.existingSKUs || [])
-    ];
+    // Combine database SKUs with cart SKUs for comprehensive checking using a Set for O(1) lookups
+    const allSKUsSet = new Set<string>();
+    for (const p of products) {
+        if (p.sku) allSKUsSet.add(p.sku);
+    }
+    if (options?.existingSKUs) {
+        for (const sku of options.existingSKUs) {
+            if (sku) allSKUsSet.add(sku);
+        }
+    }
 
     // Extract numeric portions from formatted SKUs and find maximum
     // Handles formats like: "SKU-001", "SKU_042", "SKU-0123", etc.
     let maxNum = 0;
     const pattern = new RegExp(`^${prefix}[-_]?(\\d+)$`, 'i');
-
+    const allSKUs = Array.from(allSKUsSet);
     for (const sku of allSKUs) {
         const match = sku.match(pattern);
         if (match) {
@@ -1991,26 +1994,31 @@ export const generateNextSku = secureAction(async (options?: {
     }
 
     // Generate next SKU with professional zero-padding
-    const nextNum = maxNum + 1;
-    const paddedNum = nextNum.toString().padStart(length, '0');
-    const newSku = `${prefix}-${paddedNum}`;
+    let nextNum = maxNum + 1;
+    let paddedNum = nextNum.toString().padStart(length, '0');
+    let newSku = prefix ? `${prefix}-${paddedNum}` : paddedNum;
 
-    // Safety check: verify the generated SKU is actually unique
-    // This prevents race conditions in concurrent environments
-    const existing = await prisma.product.findUnique({
+    // Hardened check against in-memory Set to avoid collision
+    while (allSKUsSet.has(newSku)) {
+        nextNum++;
+        paddedNum = nextNum.toString().padStart(length, '0');
+        newSku = prefix ? `${prefix}-${paddedNum}` : paddedNum;
+    }
+
+    // Double-check against DB to guarantee uniqueness under concurrency without timestamp fallback
+    let existing = await prisma.product.findUnique({
         where: { sku: newSku }
     });
 
-    if (existing) {
-        // Collision detected - use timestamp as fallback for uniqueness
-        const timestamp = Date.now().toString().slice(-4);
-        return {
-            success: true,
-            sku: `${prefix}-${paddedNum}-${timestamp}`,
-            warning: 'Used timestamp fallback due to collision'
-        };
+    while (existing) {
+        nextNum++;
+        paddedNum = nextNum.toString().padStart(length, '0');
+        newSku = prefix ? `${prefix}-${paddedNum}` : paddedNum;
+        existing = await prisma.product.findUnique({
+            where: { sku: newSku }
+        });
     }
-
+    console.log("[generateNextSku] Returning SKU:", newSku);
     return { success: true, sku: newSku };
 }, { requireCSRF: false }); // No permission required - safe read-only operation
 
