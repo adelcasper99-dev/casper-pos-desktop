@@ -1,0 +1,39 @@
+name: Deploy Casper Cloud ERP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Contabo
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_USERNAME }}
+          password: ${{ secrets.CONTABO_PASSWORD }}
+          port: 22
+          script: |
+            # Ensure PM2 is installed
+            if ! command -v pm2 &> /dev/null
+            then
+                sudo npm install -g pm2
+            fi
+            
+            cd /var/www/casper-pos-desktop
+            
+            # Fetch latest code
+            git reset --hard
+            git pull origin main
+            
+            # Install dependencies and build Next.js (Cloud ERP)
+            npm install
+            npx prisma generate
+            npm run build
+            
+            # Restart or start the PM2 process
+            pm2 restart casper-cloud || pm2 start npm --name "casper-cloud" -- start
