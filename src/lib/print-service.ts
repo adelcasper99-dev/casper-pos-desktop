@@ -68,8 +68,18 @@ const electronChannel = new ElectronPrintChannel();
 // ─────────────────────────────────────────────
 
 class HardwareBridgeClient {
-  private getBridgeUrl(): string {
+  private async getBridgeUrl(): Promise<string> {
     if (typeof window !== 'undefined') {
+      const api = (window as any).electronAPI;
+      if (api?.config?.getConfig) {
+          try {
+              const config = await api.config.getConfig();
+              if (config?.nodeRole === 'SUB_NODE' && config?.masterIp) {
+                  return `http://${config.masterIp}:4040`;
+              }
+          } catch(e) {}
+      }
+
       const stored = localStorage.getItem(PRINTER_REGISTRY_KEY);
       if (stored) {
         try {
@@ -93,7 +103,8 @@ class HardwareBridgeClient {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${this.getBridgeUrl()}/api/status`, { signal: controller.signal });
+      const bridgeUrl = await this.getBridgeUrl();
+      const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
       clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
@@ -105,7 +116,8 @@ class HardwareBridgeClient {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${this.getBridgeUrl()}/api/status`, { signal: controller.signal });
+      const bridgeUrl = await this.getBridgeUrl();
+      const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error('Bridge responding but with error');
       return await res.json();
@@ -119,7 +131,8 @@ class HardwareBridgeClient {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     
     try {
-      const res = await fetch(`${this.getBridgeUrl()}/api/print`, {
+      const bridgeUrl = await this.getBridgeUrl();
+      const res = await fetch(`${bridgeUrl}/api/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html, jobType, printer: printerName }),

@@ -182,8 +182,8 @@ app.whenReady().then(async () => {
         console.error('Tray Init Error:', err);
     }
 
-    expressApp.listen(4040, () => {
-        console.log('API Router Active: http://localhost:4040');
+    expressApp.listen(4040, '0.0.0.0', () => {
+        console.log('API Router Active: http://0.0.0.0:4040');
     }).on('error', (err) => {
         if (err.code === 'EADDRINUSE') app.quit();
     });
