@@ -127,10 +127,11 @@ class HardwareBridgeClient {
   }
 
   async printDocument(html: string, jobType: 'receipt' | 'barcode' | 'a4', printerName?: string) {
+    let timeoutId: NodeJS.Timeout | undefined;
     try {
       const bridgeUrl = await this.getBridgeUrl();
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      timeoutId = setTimeout(() => controller.abort(), 15000);
       
       const res = await fetch(`${bridgeUrl}/api/print`, {
         method: 'POST',
