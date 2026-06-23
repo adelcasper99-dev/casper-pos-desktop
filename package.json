@@ -27,9 +27,8 @@
         "productName": "Casper POS",
         "copyright": "Copyright © 2026 Casper POS",
         "publish": {
-            "provider": "github",
-            "owner": "adelcasper99-dev",
-            "repo": "casper-pos-desktop"
+            "provider": "generic",
+            "url": "https://updates.casper-erp.com/desktop/"
         },
         "asar": true,
         "asarUnpack": [
