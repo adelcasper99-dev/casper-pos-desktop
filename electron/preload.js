@@ -78,6 +78,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
         saveBackupConfig: (path) => ipcRenderer.invoke('app:save-backup-config', path),
+        saveNodeConfig: (config) => ipcRenderer.invoke('app:save-node-config', config),
+        migrateToPostgres: () => ipcRenderer.invoke('app:migrate-to-postgres'),
+        onMigrationProgress: (callback) => {
+            const handler = (_event, progress) => callback(progress);
+            ipcRenderer.on('migration:progress', handler);
+            return () => ipcRenderer.removeListener('migration:progress', handler);
+        }
     },
 
     /**

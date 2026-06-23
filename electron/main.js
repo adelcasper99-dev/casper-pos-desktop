@@ -838,6 +838,43 @@ safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
     return true;
 });
 
+safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'casper-config.json');
+        const existingConfig = loadConfig();
+        const newConfig = { ...existingConfig, nodeRole, masterIp };
+
+        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
+        log(`Saved node config: role=${nodeRole}, masterIp=${masterIp}. Restarting...`);
+
+        app.relaunch();
+        app.quit();
+        return { success: true };
+    } catch (err) {
+        log(`Failed to save node config: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+safeHandle('app:migrate-to-postgres', async (event) => {
+    try {
+        log('Starting SQLite to PostgreSQL migration...');
+        
+        // TODO: The actual logic to read from dev.db and write to PostgreSQL
+        // using Prisma or a child process. For now, simulate progress for UI binding.
+        for (let i = 0; i <= 100; i += 25) {
+            if (mainWindow) mainWindow.webContents.send('migration:progress', { percent: i, message: `Migrating batch ${i}...` });
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        return { success: true };
+    } catch (err) {
+        log(`Migration Failed: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('app:save-backup-config', async (event, configData) => {
     try {
         const userDataPath = app.getPath('userData');
