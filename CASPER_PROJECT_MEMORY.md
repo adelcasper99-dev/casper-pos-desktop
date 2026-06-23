@@ -263,6 +263,8 @@ This document serves as the "Source of Truth" for critical architectural decisio
     -   **Profit Distribution (DISTRIBUTION)**: `DEBIT` Retained Earnings P&L Account (`3300`), `CREDIT` Partner Current Account (`320x` range).
 *   **Proportion Guardrail**: Profit distribution must strictly enforce `sharePercent` sum equality: the sum of active partner share percentages MUST equal exactly `100.00%` (`Decimal.js` precision).
 *   **Idempotency & Overlap Prevention**: Partner profit distributions require a composite index `@@index([periodFrom, periodTo])` in the database to optimize overlap verification queries. To avoid duplicate payouts, distributions generate an `idempotencyKey` using the date range of the distribution period.
+*   **[NEW] GL Account Range Guards**: Dynamic GL code generation for new partners must strictly enforce range limits (e.g., `3001` to `3099`). The system must validate availability and throw a descriptive error when the range is exhausted, preventing out-of-bounds chart of accounts pollution.
+*   **[NEW] Session Integrity for Transactions**: Actions processing partner transactions MUST extract and propagate the `branchId` from the active user session (`getSession()`) into the underlying financial records (e.g., `JournalEntry`), ensuring transactions are properly attributed to the active branch and preventing orphaned records.
 
 ### 🛡️ [NEW] Permission Mapping & Migration Consistency
 *   **Standard Role Seeding**: When adding new permissions (e.g., `PARTNERS_VIEW`, `PARTNERS_MANAGE`, `PARTNERS_TRANSACTIONS`), they must be added to default seed configurations in `src/actions/roles.ts`.

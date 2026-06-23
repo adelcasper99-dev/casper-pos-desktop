@@ -211,8 +211,29 @@ class PrintService {
 
   setDefaultPrinter(name: string) { this.defaultPrinterName = name; }
 
-  getDefaultPrinter(): string {
+  getLabelPrinter(): string {
     return this.registry?.labelPrinter || '';
+  }
+
+  async detectLocalIp(): Promise<string | null> {
+    const delays = [500, 1000, 2000];
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch('/api/network/ip', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.ip && data.ip !== '127.0.0.1') return data.ip;
+        if (attempt === delays.length - 1) return data.ip || null;
+      } catch {
+        if (attempt < delays.length - 1) {
+          await new Promise(r => setTimeout(r, delays[attempt]));
+        }
+      }
+    }
+    return null;
   }
 
   async isServerOnline(): Promise<boolean> {

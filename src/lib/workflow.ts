@@ -85,11 +85,9 @@ export function canTransition(
     currentStatus: string,
     userPermissions: string[],
     ticketDetails?: any, // For logic guards (parts count etc)
-    currentBranchType: string = "STORE", // Default to weakest role for security
+    currentBranchType: string = "CENTER", // Single-branch mode: always CENTER
     userRole?: string
 ): { allowed: boolean; reason?: string; actionLabel?: string; target: string }[] {
-
-    console.log("🛡️ [canTransition] Check:", { currentBranchType, userRole });
 
     // Find all possible next steps from current status
     const possibleMoves = TICKET_TRANSITIONS.filter(t => t.from.includes(currentStatus));

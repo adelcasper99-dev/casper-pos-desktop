@@ -63,20 +63,12 @@ export class AccountingEngine {
 
         // ⭐ AUTO-SEED: If accounts are missing, attempt to seed them (Defensive)
         if (accounts.length < uniqueCodes.length) {
-            console.log(`[AccountingEngine] Missing GL accounts detected. Triggering seed...`);
-            const { seedAccounts } = await import('./seed-accounts');
-            await seedAccounts(); 
-            
-            // Re-fetch after seeding
-            accounts = await db.account.findMany({
-                where: { code: { in: uniqueCodes } }
-            });
-
-            if (accounts.length < uniqueCodes.length) {
-                const foundCodes = new Set(accounts.map((a: { code: string }) => a.code));
-                const missing = uniqueCodes.filter(c => !foundCodes.has(c));
-                throw new Error(`CRITICAL: GL Accounts missing after seed: [${missing.join(', ')}]`);
-            }
+            const foundCodes = new Set(accounts.map((a: { code: string }) => a.code));
+            const missing = uniqueCodes.filter(c => !foundCodes.has(c));
+            throw new Error(
+                `CRITICAL: GL Accounts not seeded: [${missing.join(', ')}]. ` +
+                `Ensure db-init.ts ran seedAccounts() at startup.`
+            );
         }
 
         const accountMap = new Map(accounts.map((a: { code: string; id: string }) => [a.code, a.id]));

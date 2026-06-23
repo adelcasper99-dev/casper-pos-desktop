@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Printer, RefreshCw, Save, CheckCircle, AlertCircle, ShieldCheck, Download, Loader2, Zap, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -31,12 +31,29 @@ export default function PrinterSettings() {
     const [enableA4, setEnableA4] = useState<boolean>(true);
     const [enableSpeedPrint, setEnableSpeedPrint] = useState<boolean>(true);
     const [defaultCopies, setDefaultCopies] = useState<number>(1);
+    const [detecting, setDetecting] = useState(false);
+    const [detectError, setDetectError] = useState(false);
+    const detectInitRef = useRef(false);
 
     useEffect(() => {
         loadSettings();
         checkQZConnection();
         checkCertStatus();
     }, []);
+
+    // Auto-detect IP on mount when no bridge IP is configured
+    useEffect(() => {
+        if (detectInitRef.current) return;
+        if (bridgeIpAddress !== '') return;
+        detectInitRef.current = true;
+        setDetecting(true);
+        printService.detectLocalIp().then(ip => {
+            if (ip && bridgeIpAddress === '') {
+                setBridgeIpAddress(ip);
+                toast.info('Local IP detected: ' + ip);
+            }
+        }).finally(() => setDetecting(false));
+    }, [bridgeIpAddress]);
 
     const loadSettings = () => {
         const registry = printService.getRegistry();
@@ -114,6 +131,27 @@ export default function PrinterSettings() {
     const handleDownloadScript = () => {
         window.open('/qz-setup/install-qz-cert.bat', '_blank');
         toast.info('Script downloaded! Right-click → Run as Administrator');
+    };
+
+    const handleDetectIp = async () => {
+        setDetecting(true);
+        setDetectError(false);
+        try {
+            const ip = await printService.detectLocalIp();
+            if (ip) {
+                setBridgeIpAddress(ip);
+                setDetectError(false);
+                toast.success('Detected IP: ' + ip);
+            } else {
+                setDetectError(true);
+                toast.error('Could not detect local IP. Make sure the Bridge is running.');
+            }
+        } catch {
+            setDetectError(true);
+            toast.error('IP detection failed');
+        } finally {
+            setDetecting(false);
+        }
     };
 
     const handleSave = () => {
@@ -258,13 +296,32 @@ export default function PrinterSettings() {
                                 <Label className="text-xs font-black uppercase tracking-widest text-foreground ml-1 flex items-center gap-2">
                                     <Zap className="w-3 h-3 text-cyan-500" /> Hardware Bridge IP Address (Network Node)
                                 </Label>
-                                <input
-                                    type="text"
-                                    value={bridgeIpAddress}
-                                    onChange={(e) => setBridgeIpAddress(e.target.value)}
-                                    placeholder="e.g. 192.168.1.15"
-                                    className="w-full glass-card bg-background/60 border-border/40 text-foreground font-bold text-sm h-14 rounded-2xl px-6 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
-                                />
+                                <div className="flex gap-3 items-start">
+                                    <input
+                                        type="text"
+                                        value={bridgeIpAddress}
+                                        onChange={(e) => setBridgeIpAddress(e.target.value)}
+                                        placeholder="e.g. 192.168.1.15"
+                                        className="flex-1 glass-card bg-background/60 border-border/40 text-foreground font-bold text-sm h-14 rounded-2xl px-6 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={handleDetectIp}
+                                        disabled={detecting}
+                                        className="h-14 w-14 rounded-2xl border-border/40 shrink-0"
+                                        title="Detect local IP address"
+                                    >
+                                        <RefreshCw className={cn("w-5 h-5", detecting && "animate-spin")} />
+                                    </Button>
+                                </div>
+                                {detectError && (
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-400/90 leading-tight flex items-center gap-1.5">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />
+                                        Auto-detection failed — enter the Bridge PC's IP manually.
+                                    </p>
+                                )}
                                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">
                                     Required for Web browsers & mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.
                                 </p>

@@ -3176,7 +3176,7 @@ export const fullTicketReturn = secureAction(async (data: {
         }
 
         return { success: true };
-    }, { timeout: 60000 });
+    }, { timeout: 90000 });
 
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
     revalidatePath(`/maintenance/tickets/${ticketId}`);
@@ -3509,7 +3509,7 @@ export const partialRefundTicket = secureAction(async (data: {
         }
 
         return { success: true, refundedAmount: totalRefundAmount.toNumber() };
-    }, { timeout: 60000 });
+    }, { timeout: 90000 });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
@@ -3654,7 +3654,7 @@ export const fullRefundTicket = secureAction(async (data: {
         }, tx);
 
         return { success: true };
-    }, { timeout: 60000 });
+    }, { timeout: 90000 });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
