@@ -45,7 +45,7 @@ export class AccountingEngine {
         expenseId?: string;
         ticketId?: string;
         transactionId?: string;
-        stockMovementId?: string;
+        idempotencyKey?: string;
     }, tx?: any) {
         const db = tx || prisma;
 
@@ -93,7 +93,7 @@ export class AccountingEngine {
                 expenseId: data.expenseId,
                 ticketId: data.ticketId,
                 transactionId: data.transactionId,
-                stockMovementId: data.stockMovementId,
+                idempotencyKey: data.idempotencyKey,
                 lines: {
                     create: data.lines.map(line => ({
                         accountId: accountMap.get(line.accountCode)!,

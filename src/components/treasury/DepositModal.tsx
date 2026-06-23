@@ -18,6 +18,7 @@ interface Treasury {
     name: string;
     balance: number;
     isDefault: boolean;
+    paymentMethod?: string | null;
 }
 
 interface DepositModalProps {
@@ -106,22 +107,28 @@ export function DepositModal({ isOpen, onClose, treasuries, onSubmit, categories
                 <div className="space-y-2">
                     <label className="text-[10px] text-zinc-500 dark:text-zinc-400 font-black tracking-[0.2em] px-1 block">طريقة الدفع</label>
                     <div className="grid grid-cols-2 gap-3">
-                        {METHODS.map(m => (
-                            <button
-                                key={m.key}
-                                type="button"
-                                onClick={() => setPaymentMethod(m.key)}
+                        {METHODS.map(m => {
+                            const isLinked = treasuries.some(t => t.paymentMethod === m.key);
+                            return (
+                                <button
+                                    key={m.key}
+                                    type="button"
+                                    onClick={() => setPaymentMethod(m.key)}
+                                    disabled={!isLinked}
+                                    title={!isLinked ? "الخزنة غير متاحة" : undefined}
                                 className={cn(
                                     "h-14 rounded-2xl text-xs font-black uppercase tracking-widest border-2 transition-all flex items-center justify-center gap-3 active:scale-95 shadow-sm",
                                     paymentMethod === m.key
                                         ? "bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white shadow-lg shadow-black/20"
-                                        : "bg-white dark:bg-white/[0.02] text-zinc-400 border-zinc-100 dark:border-white/5 hover:border-zinc-200 dark:hover:border-white/10"
+                                        : !isLinked
+                                            ? "bg-zinc-100 dark:bg-white/[0.01] text-zinc-300 dark:text-zinc-700 border-zinc-100 dark:border-white/5 cursor-not-allowed grayscale opacity-50"
+                                            : "bg-white dark:bg-white/[0.02] text-zinc-400 border-zinc-100 dark:border-white/5 hover:border-zinc-200 dark:hover:border-white/10"
                                 )}
                             >
                                 <m.icon className={cn("w-5 h-5", paymentMethod === m.key ? "text-white dark:text-black" : "text-zinc-300 dark:text-zinc-600")} />
                                 {m.label}
                             </button>
-                        ))}
+                        )})}
                     </div>
                 </div>
 

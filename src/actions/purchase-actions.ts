@@ -171,22 +171,22 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         // 🔒 Pre-compute items to return, capped by actual warehouse stock
         const returnableItems: { productId: string; quantity: number; unitCost: string }[] = [];
         for (const i of invoice.items) {
-            const alreadyReturnedQty = previousReturns.reduce((sum, ret) => {
+            const alreadyReturnedQtyDec = previousReturns.reduce((sum, ret) => {
                 const matched = ret.items?.find((ii) => ii.productId === i.productId);
-                return sum + Number(matched?.quantity || 0);
-            }, 0);
-            const invoiceRemaining = Math.max(0, Number(i.quantity) - alreadyReturnedQty);
-            if (invoiceRemaining <= 0) continue;
+                return sum.plus(new Decimal(matched?.quantity?.toString() || 0));
+            }, new Decimal(0));
+            const invoiceRemaining = Decimal.max(0, new Decimal(i.quantity.toString()).minus(alreadyReturnedQtyDec));
+            if (invoiceRemaining.lte(0)) continue;
 
             // Cap by actual stock in warehouse
             const stockRecord = await tx.stock.findFirst({
                 where: { productId: i.productId, warehouseId: invoice.warehouseId }
             });
-            const actualStock = stockRecord ? Number(stockRecord.quantity) : 0;
-            const qtyToReturn = Math.min(invoiceRemaining, actualStock);
-            if (qtyToReturn <= 0) continue;
+            const actualStockDec = stockRecord ? new Decimal(stockRecord.quantity.toString()) : new Decimal(0);
+            const qtyToReturn = Decimal.min(invoiceRemaining, actualStockDec);
+            if (qtyToReturn.lte(0)) continue;
 
-            returnableItems.push({ productId: i.productId, quantity: qtyToReturn, unitCost: i.unitCost.toString() });
+            returnableItems.push({ productId: i.productId, quantity: qtyToReturn.toNumber(), unitCost: i.unitCost.toString() });
         }
 
         if (returnableItems.length === 0) {
@@ -239,7 +239,7 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
             const postUpdate = await tx.stock.findFirst({
                 where: { productId: item.productId, warehouseId: invoice.warehouseId }
             });
-            if (postUpdate && Number(postUpdate.quantity) < 0) {
+            if (postUpdate && new Decimal(postUpdate.quantity.toString()).lt(0)) {
                 throw new Error('مخزون سالب — تعذّر إكمال الإرجاع، راجع الكميات الحالية');
             }
 
@@ -394,12 +394,12 @@ export const partialReturnPurchase = secureAction(async (data: {
             if (!originalItem) throw new Error(`الصنف غير موجود في الفاتورة`);
 
             // Check how many have been returned in PREVIOUS separate return documents
-            const alreadyReturned = previousReturns.reduce((sum: number, ret) => {
+            const alreadyReturnedDec = previousReturns.reduce((sum, ret) => {
                 const matchedItem = ret.items.find((i) => i.productId === originalItem.productId);
-                return sum + Number(matchedItem?.quantity || 0);
-            }, 0);
+                return sum.plus(new Decimal(matchedItem?.quantity?.toString() || 0));
+            }, new Decimal(0));
 
-            const availableFromInvoice = Number(originalItem.quantity) - alreadyReturned;
+            const availableFromInvoiceDec = new Decimal(originalItem.quantity.toString()).minus(alreadyReturnedDec);
 
             // 🔒 Check actual stock in warehouse — sold items cannot be returned to supplier
             const stockRecord = await tx.stock.findFirst({
@@ -408,8 +408,10 @@ export const partialReturnPurchase = secureAction(async (data: {
                     warehouseId: invoice.warehouseId
                 }
             });
-            const currentStock = stockRecord ? Number(stockRecord.quantity) : 0;
-            const availableQty = Math.min(availableFromInvoice, currentStock);
+            const currentStockDec = stockRecord ? new Decimal(stockRecord.quantity.toString()) : new Decimal(0);
+            const availableQty = Decimal.min(availableFromInvoiceDec, currentStockDec).toNumber();
+            const currentStock = currentStockDec.toNumber();
+            const availableFromInvoice = availableFromInvoiceDec.toNumber();
 
             if (returnItem.quantity <= 0) throw new Error(`الكمية يجب أن تكون أكبر من صفر`);
             if (returnItem.quantity > availableQty) {
@@ -475,16 +477,17 @@ export const partialReturnPurchase = secureAction(async (data: {
 
         // 4. Update Original Invoice Status (but keep totals)
         const allItemsOriginal = invoice.items;
-        const totalPurchasedQty = allItemsOriginal.reduce((s: number, i) => s + Number(i.quantity), 0);
+        const totalPurchasedQtyDec = allItemsOriginal.reduce((s, i) => s.plus(new Decimal(i.quantity.toString())), new Decimal(0));
         
         // Sum all returned quantities for ALL items in ALL related return invoices
-        const totalReturnedQtySoFar = previousReturns.reduce((s: number, r) => s + r.items.reduce((ss: number, ii) => ss + Number(ii.quantity), 0), 0) + 
-                                     processedItems.reduce((s: number, p) => s + p.returnQty, 0);
+        const previousReturnsQtyDec = previousReturns.reduce((s, r) => s.plus(r.items.reduce((ss, ii) => ss.plus(new Decimal(ii.quantity.toString())), new Decimal(0))), new Decimal(0));
+        const currentReturnsQtyDec = processedItems.reduce((s, p) => s.plus(new Decimal(p.returnQty.toString())), new Decimal(0));
+        const totalReturnedQtySoFarDec = previousReturnsQtyDec.plus(currentReturnsQtyDec);
 
         await tx.purchaseInvoice.update({
             where: { id: purchaseId },
             data: {
-                status: totalReturnedQtySoFar >= totalPurchasedQty ? 'RETURNED' : 'PARTIAL_RETURN',
+                status: totalReturnedQtySoFarDec.gte(totalPurchasedQtyDec) ? 'RETURNED' : 'PARTIAL_RETURN',
                 voidReason: reason || 'مرتجع جزئي'
             }
         });
@@ -505,7 +508,7 @@ export const partialReturnPurchase = secureAction(async (data: {
             const postUpdate = await tx.stock.findFirst({
                 where: { productId: p.productId, warehouseId: invoice.warehouseId }
             });
-            if (postUpdate && Number(postUpdate.quantity) < 0) {
+            if (postUpdate && new Decimal(postUpdate.quantity.toString()).lt(0)) {
                 throw new Error('مخزون سالب — تعذّر إكمال الإرجاع، راجع الكميات الحالية');
             }
 
@@ -567,8 +570,8 @@ export const partialReturnPurchase = secureAction(async (data: {
             itemCount: processedItems.length,
             invoiceNumber: returnInvoice.invoiceNumber,
             supplierId: invoice.supplierId,
-            totalReturnedQtySoFar,
-            totalPurchasedQty,
+            totalReturnedQtySoFar: totalReturnedQtySoFarDec.toNumber(),
+            totalPurchasedQty: totalPurchasedQtyDec.toNumber(),
             newTotal: invoice.totalAmount.toString() // Keeping original total for reference or tracking
         };
     });

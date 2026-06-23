@@ -65,6 +65,7 @@ This document serves as the "Source of Truth" for critical architectural decisio
     -   Persist to offline DB (IndexedDB / SQLite) first if offline.
     -   Both Desktop SQLite `Transaction/Sale/JournalEntry` and Cloud PostgreSQL models MUST have an `idempotencyKey String? @unique` constraint.
     -   Server actions (e.g., `addTreasuryTransaction`) and server routes must catch duplicates via `idempotencyKey` and return `{existing: true}` instead of a 500 error or double-billing.
+    -   **Ledger Mapping Guard**: When the `AccountingEngine` writes double-entry entries, the transaction `idempotencyKey` MUST be explicitly mapped in the `JournalEntry` Prisma create payload within `transaction-factory.ts` to ensure database-level uniqueness cascades down to the ledger.
 
 ### Universal Sync Worker & Dead Letter Queue (DLQ)
 *   **Worker Routine**: The `SyncWorker` must delegate to `SyncService.syncAll()` to ensure ALL offline stores (Sales, Tickets, Treasury, Inventory, Returns) are processed, not just a subset.
@@ -222,7 +223,7 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ---
 
 *Created: April 2, 2026*
-*Last Update: June 16, 2026 (Central Print Guard Authorization, Auto-Print Control)*
+*Last Update: June 22, 2026 (Partners, Equity & Balance Sheet Architecture, Accounting Fixes)*
 
 ---
 
@@ -244,3 +245,25 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Defensive Decimal Validation**: All user-provided string inputs mapped to financial values must be parsed with `Decimal.js` inside a `try/catch` block before checking bounds (`<= 0`). This prevents unhandled `[DecimalError]` crashes if non-numeric inputs bypass frontend limits.
 *   **Null-Coalescing in React Aggregations**: `.reduce()` methods in React components that calculate totals (e.g., `totalOwed`, `totalCredit`) must always use strict null-coalescing (`c.balance ?? 0`) inside `new Decimal()` constructors to prevent `String(null)` execution failures.
 *   **Explicit State Interfaces vs. `any`**: Component `useState` hooks must explicitly map to Prisma payload interfaces (e.g., `StockWithProduct[]`, `CustomerWithBalance[]`) rather than `any[]`. This guarantees that components will fail safely at compile-time (`npx tsc`) if backend relation structures or schemas change, preventing silent runtime masking.
+
+---
+
+## 💰 13. Partners, Equity & Balance Sheet Architecture
+
+### 🛡️ [NEW] Server Action Isolation (Module Boundaries)
+*   **Protocol**: High-level financial reporting and database aggregations (e.g., Balance Sheets, Profit Distributions) MUST run entirely in Next.js Server Actions or dedicated server-side modules.
+*   **Constraint**: Never import or invoke Prisma query clients or server files in Client Components. Doing so exposes Prisma runtime internals to webpack, causing build failures like:
+    `Module not found: Can't resolve 'async_hooks'`
+*   **Implementation**: All data fetching and P&L aggregations must be encapsulated in Server Actions (`balance-sheet-action.ts`, `partners.ts`), and components must load reports asynchronously via transitions or hooks.
+
+### 💰 [NEW] Partners & Equity Accounting
+*   **Double-Entry Capital Rules**: All movements in equity accounts (Partner Capital & Current Accounts) must follow double-entry debit/credit rules:
+    -   **Capital Deposit (DEPOSIT)**: `DEBIT` Cash/Bank (`1000`/`1010`), `CREDIT` Partner Capital Account (`300x` range).
+    -   **Partner Drawings (DRAWING)**: `DEBIT` Partner Current Account (`320x` range), `CREDIT` Cash/Bank (`1000`/`1010`).
+    -   **Profit Distribution (DISTRIBUTION)**: `DEBIT` Retained Earnings P&L Account (`3300`), `CREDIT` Partner Current Account (`320x` range).
+*   **Proportion Guardrail**: Profit distribution must strictly enforce `sharePercent` sum equality: the sum of active partner share percentages MUST equal exactly `100.00%` (`Decimal.js` precision).
+*   **Idempotency & Overlap Prevention**: Partner profit distributions require a composite index `@@index([periodFrom, periodTo])` in the database to optimize overlap verification queries. To avoid duplicate payouts, distributions generate an `idempotencyKey` using the date range of the distribution period.
+
+### 🛡️ [NEW] Permission Mapping & Migration Consistency
+*   **Standard Role Seeding**: When adding new permissions (e.g., `PARTNERS_VIEW`, `PARTNERS_MANAGE`, `PARTNERS_TRANSACTIONS`), they must be added to default seed configurations in `src/actions/roles.ts`.
+*   **Database Backfill**: Adding default roles in code only affects *new* installations. For existing databases, a migration/patch script (e.g., `scripts/patch-partner-permissions.ts`) must be created and executed to query and append the new permission keys to active users/roles.

@@ -41,11 +41,13 @@ export default function DailyAttendance({
     dateStr,
     initialLogs,
     csrfToken,
+    refreshData,
 }: {
     users: User[]
     dateStr: string
     initialLogs: DailyLog[]
     csrfToken: string
+    refreshData?: () => void
 }) {
     const t = useTranslations("HR.attendance")
 
@@ -152,7 +154,10 @@ export default function DailyAttendance({
             setLoadingId(null)
             delete pendingTimeouts.current[userId]
             delete previousStates.current[userId]
-        }, 5000)
+            if (res.success && refreshData) {
+                refreshData()
+            }
+        }, 1000)
     }
 
     const openFinancials = (userId: string, currentLog?: DailyLog) => {

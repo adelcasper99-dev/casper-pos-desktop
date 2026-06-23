@@ -121,17 +121,22 @@ export default function AttendanceManager({ csrfToken, filterDate }: { csrfToken
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {view === 'DAILY' && (
                             <DailyAttendance
+                                key={`daily-${selectedDate}`}
                                 users={users}
                                 dateStr={selectedDate}
                                 initialLogs={dailyLogs}
                                 csrfToken={csrfToken}
+                                refreshData={loadData}
                             />
                         )}
                         {view === 'MONTHLY' && (
                             <AttendanceGrid
+                                key={`monthly-${monthStr}`}
                                 users={users}
                                 monthStr={monthStr}
                                 initialLogs={logs}
+                                csrfToken={csrfToken}
+                                refreshData={loadData}
                             />
                         )}
                     </div>

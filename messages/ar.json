@@ -106,7 +106,9 @@
         "maintenance_dashboard": "لوحة صيانة HQ",
         "maintenance": "تذاكر الصيانة",
         "spareParts": "قطع الغيار",
-        "returns": "المرتجعات"
+        "returns": "المرتجعات",
+        "accounting_partners": "حسابات الشركاء",
+        "accounting_balance_sheet": "الميزانية العمومية"
     },
     "Auth": {
         "title": "دخول الموظفين",

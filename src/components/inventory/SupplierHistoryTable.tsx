@@ -101,14 +101,14 @@ export default function SupplierHistoryTable({
     }, []);
 
     async function handlePayment() {
-        if (!amount || isNaN(parseFloat(amount))) {
+        if (!amount || isNaN(Number(amount))) {
             toast.error("مبلغ غير صحيح");
             return;
         }
 
         setLoading(true);
         try {
-            const res = await paySupplier({ supplierId, amount: parseFloat(amount), method, csrfToken });
+            const res = await paySupplier({ supplierId, amount, method, csrfToken });
             if (res?.success) {
                 toast.success("تم تسجيل الدفعة بنجاح");
                 setIsPaymentModalOpen(false);

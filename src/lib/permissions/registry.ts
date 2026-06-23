@@ -107,6 +107,18 @@ export const PERMISSION_REGISTRY = {
     RECONCILE: 'ACCOUNTING_RECONCILE',
   },
 
+  /** Partners Capital & Profit Distribution */
+  PARTNERS: {
+    /** View partners list and their account balances */
+    VIEW: 'PARTNERS_VIEW',
+    /** Add, edit, and remove partners and their share percentages */
+    MANAGE: 'PARTNERS_MANAGE',
+    /** Record capital injections and personal drawings */
+    TRANSACTIONS: 'PARTNERS_TRANSACTIONS',
+    /** Execute profit/loss distribution journal entries */
+    DISTRIBUTE: 'PARTNERS_DISTRIBUTE',
+  },
+
   /** Treasury & Cash Management */
   TREASURY: {
     /** View treasury transactions */
@@ -345,6 +357,12 @@ function flattenRegistry() {
     ACCOUNTING_MANAGE: PERMISSION_REGISTRY.ACCOUNTING.MANAGE,
     ACCOUNTING_RECONCILE: PERMISSION_REGISTRY.ACCOUNTING.RECONCILE,
 
+    // PARTNERS
+    PARTNERS_VIEW: PERMISSION_REGISTRY.PARTNERS.VIEW,
+    PARTNERS_MANAGE: PERMISSION_REGISTRY.PARTNERS.MANAGE,
+    PARTNERS_TRANSACTIONS: PERMISSION_REGISTRY.PARTNERS.TRANSACTIONS,
+    PARTNERS_DISTRIBUTE: PERMISSION_REGISTRY.PARTNERS.DISTRIBUTE,
+
     // TREASURY
     TREASURY_VIEW: PERMISSION_REGISTRY.TREASURY.VIEW,
     TREASURY_MANAGE: PERMISSION_REGISTRY.TREASURY.MANAGE,
@@ -475,6 +493,10 @@ const PERMISSION_LABELS_AR: Record<string, string> = {
   ACCOUNTING_VIEW: 'عرض القيود والتقارير المحاسبية',
   ACCOUNTING_MANAGE: 'إدارة القيود والدليل المحاسبي',
   ACCOUNTING_RECONCILE: 'إجراء التسويات البنكية والنقدية',
+  PARTNERS_VIEW: 'عرض حسابات الشركاء ورأس المال',
+  PARTNERS_MANAGE: 'إدارة الشركاء ونسب الأرباح',
+  PARTNERS_TRANSACTIONS: 'تسجيل إيداعات ومسحوبات الشركاء',
+  PARTNERS_DISTRIBUTE: 'توزيع الأرباح والخسائر على الشركاء',
   TREASURY_VIEW: 'عرض حركات الخزينة',
   TREASURY_MANAGE: 'إضافة وتعديل حركات الخزينة',
   TREASURY_DELETE: 'حذف حركات الخزينة',

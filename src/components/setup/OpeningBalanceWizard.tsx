@@ -40,11 +40,14 @@ export default function OpeningBalanceWizard() {
         inventory: "0",
         receivables: "0",
         payables: "0",
+        fixedAssets: "0",
+        vehicles: "0",
+        depreciation: "0",
         equity: "0" // Auto-calculated to balance
     });
 
     // Auto-calculate equity to balance the accounting equation: Assets = Liabilities + Equity
-    // Assets: Cash + Bank + Inventory + Receivables
+    // Assets: Cash + Bank + Inventory + Receivables + FixedAssets + Vehicles - Depreciation
     // Liabilities: Payables
     // Equity = Assets - Liabilities
     useEffect(() => {
@@ -52,7 +55,10 @@ export default function OpeningBalanceWizard() {
             const assets = new Decimal(balances.cash || 0)
                 .plus(balances.bank || 0)
                 .plus(balances.inventory || 0)
-                .plus(balances.receivables || 0);
+                .plus(balances.receivables || 0)
+                .plus(balances.fixedAssets || 0)
+                .plus(balances.vehicles || 0)
+                .minus(balances.depreciation || 0);
 
             const liabilities = new Decimal(balances.payables || 0);
             const calculatedEquity = assets.minus(liabilities);
@@ -64,7 +70,7 @@ export default function OpeningBalanceWizard() {
         } catch (e) {
             // Ignore invalid num inputs gracefully
         }
-    }, [balances.cash, balances.bank, balances.inventory, balances.receivables, balances.payables]);
+    }, [balances.cash, balances.bank, balances.inventory, balances.receivables, balances.payables, balances.fixedAssets, balances.vehicles, balances.depreciation]);
 
     const handleSubmit = async () => {
         setLoading(true);
@@ -75,6 +81,9 @@ export default function OpeningBalanceWizard() {
                 inventory: parseFloat(balances.inventory || "0"),
                 receivables: parseFloat(balances.receivables || "0"),
                 payables: parseFloat(balances.payables || "0"),
+                fixedAssets: parseFloat(balances.fixedAssets || "0"),
+                vehicles: parseFloat(balances.vehicles || "0"),
+                depreciation: parseFloat(balances.depreciation || "0"),
                 equity: parseFloat(balances.equity || "0")
             };
 
@@ -208,6 +217,46 @@ export default function OpeningBalanceWizard() {
                                 className="glass-input font-mono text-lg"
                                 value={balances.receivables}
                                 onChange={e => setBalances(prev => ({ ...prev, receivables: e.target.value }))}
+                            />
+                        </div>
+
+                        <h3 className="text-lg font-bold border-b pb-2 text-cyan-500 flex items-center gap-2 mt-6">
+                            الأصول الثابتة
+                        </h3>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+                                معدات وآلات وأثاث
+                            </Label>
+                            <Input
+                                type="number" step="0.01"
+                                className="glass-input font-mono text-lg"
+                                value={balances.fixedAssets}
+                                onChange={e => setBalances(prev => ({ ...prev, fixedAssets: e.target.value }))}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1">
+                                سيارات ووسائل نقل
+                            </Label>
+                            <Input
+                                type="number" step="0.01"
+                                className="glass-input font-mono text-lg"
+                                value={balances.vehicles}
+                                onChange={e => setBalances(prev => ({ ...prev, vehicles: e.target.value }))}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-muted-foreground flex items-center gap-1 text-red-400">
+                                إهلاك متراكم (يخصم من الأصول)
+                            </Label>
+                            <Input
+                                type="number" step="0.01"
+                                className="glass-input font-mono text-lg text-red-400"
+                                value={balances.depreciation}
+                                onChange={e => setBalances(prev => ({ ...prev, depreciation: e.target.value }))}
                             />
                         </div>
                     </div>

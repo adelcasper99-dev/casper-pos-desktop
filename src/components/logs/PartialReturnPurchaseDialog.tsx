@@ -119,10 +119,10 @@ export default function PartialReturnPurchaseDialog({
                 const updatedItems = items.map((i: DialogItem) => {
                     const r = returnData.find(ri => ri.itemId === i.id);
                     if (r) {
-                        return { ...i, quantity: Number(i.quantity) - r.quantity };
+                        return { ...i, quantity: new Decimal(i.quantity).minus(r.quantity).toNumber() };
                     }
                     return i;
-                }).filter((i: DialogItem) => i.quantity > 0);
+                }).filter((i: DialogItem) => Number(i.quantity) > 0);
 
                 onReturnDone(
                     purchase.id,
@@ -179,11 +179,12 @@ export default function PartialReturnPurchaseDialog({
                         const stockInWarehouse = (item.product?.stocks || []).find(
                             (s: { warehouseId: string; quantity: number | string }) => s.warehouseId === purchase.warehouseId
                         );
-                        const actualStock = stockInWarehouse ? Number(stockInWarehouse.quantity) : 0;
+                        const actualStockDec = new Decimal(stockInWarehouse?.quantity || 0);
+                        const invoiceAvailableDec = new Decimal(invoiceAvailable || 0);
 
                         // The real max returnable = min(invoice remaining, actual stock)
-                        const availableQty = Math.min(Number(invoiceAvailable), Number(actualStock));
-                        const soldQty = Math.max(0, Number(invoiceAvailable) - Number(actualStock));
+                        const availableQty = Decimal.min(invoiceAvailableDec, actualStockDec).toNumber();
+                        const soldQty = Decimal.max(0, invoiceAvailableDec.minus(actualStockDec)).toNumber();
                         const isSelected = selectedItems[item.id] > 0;
 
                         if (invoiceAvailable <= 0) return null;

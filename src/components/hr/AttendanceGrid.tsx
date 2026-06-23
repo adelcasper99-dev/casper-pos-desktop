@@ -28,10 +28,14 @@ export default function AttendanceGrid({
     users,
     monthStr,
     initialLogs,
+    csrfToken,
+    refreshData,
 }: {
     users: AttendanceUser[]
     monthStr: string
     initialLogs: any[]
+    csrfToken: string
+    refreshData?: () => void
 }) {
     const t = useTranslations("HR.attendance")
     const days = getDaysInMonth(monthStr)
@@ -54,7 +58,12 @@ export default function AttendanceGrid({
         const next = cycle[current] ?? 'PRESENT'
 
         setLogs(prev => ({ ...prev, [key]: { ...prev[key], status: next } }))
-        await upsertDailyLog({ userId, dateStr, data: { status: next } })
+        const res = await upsertDailyLog({ userId, dateStr, data: { status: next }, csrfToken })
+        if (!res.success) {
+            setLogs(prev => ({ ...prev, [key]: { ...prev[key], status: current } }))
+        } else if (refreshData) {
+            refreshData()
+        }
     }
 
     const totalProjectedCost = useMemo(() => {
