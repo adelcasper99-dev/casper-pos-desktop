@@ -2,39 +2,88 @@ import { SyncService } from './sync-service';
 import { LocalPersistenceService } from './local-persistence';
 import { triggerCustomerReindex } from '@/actions/customer-actions';
 import { logger } from './logger';
+import { CloudConfigManager, CloudConfig } from '@/utils/cloudConfigManager';
 
 export class SyncWorker {
     private static isRunning = false;
-    private static isSyncing = false; // 🆕 Mutual exclusion lock
+    private static isSyncing = false; // Mutual exclusion lock
+    private static universalSyncInterval: NodeJS.Timeout | null = null;
+    private static mirrorInterval: NodeJS.Timeout | null = null;
+    private static indexerInterval: NodeJS.Timeout | null = null;
+    private static configUnsubscribe: (() => void) | null = null;
+    private static currentConfig: CloudConfig | null = null;
 
-    static start(intervalMs = 30000) {
+    static async start(intervalMs = 30000) {
         if (this.isRunning) return;
         this.isRunning = true;
 
+        this.currentConfig = await CloudConfigManager.getCloudConfig();
+
+        if (!this.configUnsubscribe) {
+            this.configUnsubscribe = CloudConfigManager.onConfigUpdated(async (newConfig) => {
+                logger.info('[SyncWorker] Cloud config updated. Initiating graceful restart...');
+                await this.gracefulRestart(newConfig, intervalMs);
+            });
+        }
+
+        this.startTimers(intervalMs);
+    }
+
+    private static startTimers(intervalMs: number) {
         logger.info('[SyncWorker] Started — universal sync mode (Sales, Tickets, Treasury, Inventory, Returns).');
 
-        // Universal sync interval (30s) — all 5 offline stores
-        setInterval(async () => {
+        // Universal sync interval
+        this.universalSyncInterval = setInterval(async () => {
             if (typeof navigator !== 'undefined' && !navigator.onLine) {
                 logger.info('[SyncWorker] Device is offline. Skipping sync cycle.');
+                return;
+            }
+            if (!this.currentConfig?.enabled) {
+                logger.info('[SyncWorker] Cloud sync is disabled in config. Skipping cycle.');
                 return;
             }
             await this.runUniversalSync();
         }, intervalMs);
 
         // Mirroring interval (5m) as per Constitution Pillar I
-        setInterval(async () => {
+        this.mirrorInterval = setInterval(async () => {
             logger.info('[SyncWorker] Triggering periodic filesystem mirroring...');
             await LocalPersistenceService.mirrorToSQLite();
             await LocalPersistenceService.backupToFilesystem();
         }, 5 * 60 * 1000);
 
-        // 🆕 Self-Healing Indexer (15m) — Reconciles Customer LTV/Balances
-        setInterval(async () => {
+        // Self-Healing Indexer (15m) — Reconciles Customer LTV/Balances
+        this.indexerInterval = setInterval(async () => {
             if (typeof navigator !== 'undefined' && !navigator.onLine) return; // don't try if offline
             logger.info('[SyncWorker] Triggering periodic customer re-indexing sweeper...');
             await triggerCustomerReindex().catch(e => logger.error('[SyncWorker] Error triggering reindex', e));
         }, 15 * 60 * 1000);
+    }
+
+    private static async gracefulRestart(newConfig: CloudConfig, intervalMs: number) {
+        this.currentConfig = newConfig;
+
+        // Clear existing timers
+        if (this.universalSyncInterval) clearInterval(this.universalSyncInterval);
+        if (this.mirrorInterval) clearInterval(this.mirrorInterval);
+        if (this.indexerInterval) clearInterval(this.indexerInterval);
+
+        // Wait if currently syncing
+        const maxWaitMs = 15000;
+        const waitInterval = 500;
+        let waited = 0;
+        while (this.isSyncing && waited < maxWaitMs) {
+            await new Promise(res => setTimeout(res, waitInterval));
+            waited += waitInterval;
+        }
+
+        if (this.isSyncing) {
+            logger.warn('[SyncWorker] Timed out waiting for sync to finish during config change.');
+            // We proceed to start timers anyway, `isSyncing` logic in runUniversalSync will handle conflicts safely
+        }
+
+        logger.info('[SyncWorker] Restarting timers with new configuration...');
+        this.startTimers(intervalMs);
     }
 
     static async runUniversalSync() {
@@ -65,7 +114,7 @@ export class SyncWorker {
             logger.error('[SyncWorker] Error in universal sync cycle', error);
             return { success: false, failures: [error] };
         } finally {
-            this.isSyncing = false; // 🆕 Release lock
+            this.isSyncing = false; // Release lock
         }
     }
 }

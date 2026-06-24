@@ -26,26 +26,32 @@ export async function initDatabase(): Promise<void> {
     globalForDbInit.dbInitialized = true;
 
     try {
-        // ── WAL mode (returns 'wal' string, so use $queryRaw to avoid 'Execute returned results' error) ────
-        await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;');
+        const isPostgres = process.env.DATABASE_URL?.startsWith('postgres');
 
-        // ── Foreign key enforcement (doesn't return data) ────────────────
-        await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
+        if (!isPostgres) {
+            // ── WAL mode (returns 'wal' string, so use $queryRaw to avoid 'Execute returned results' error) ────
+            await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;');
 
-        // ── Synchronous: NORMAL (doesn't return data) ─
-        await prisma.$executeRawUnsafe('PRAGMA synchronous=NORMAL;');
+            // ── Foreign key enforcement (doesn't return data) ────────────────
+            await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
 
-        // ── Database Health Check ────────────────────────────────────────
-        logger.info('[DB] Running health check...');
-        const integrityCheck = await prisma.$queryRawUnsafe('PRAGMA integrity_check;');
-        if (Array.isArray(integrityCheck) && integrityCheck[0]?.integrity_check !== 'ok') {
-            logger.error('[DB] Integrity check failed', integrityCheck);
-            // In a real desktop app, we might trigger a recovery or alert here
+            // ── Synchronous: NORMAL (doesn't return data) ─
+            await prisma.$executeRawUnsafe('PRAGMA synchronous=NORMAL;');
+
+            // ── Database Health Check ────────────────────────────────────────
+            logger.info('[DB] Running health check...');
+            const integrityCheck = await prisma.$queryRawUnsafe('PRAGMA integrity_check;');
+            if (Array.isArray(integrityCheck) && integrityCheck[0]?.integrity_check !== 'ok') {
+                logger.error('[DB] Integrity check failed', integrityCheck);
+                // In a real desktop app, we might trigger a recovery or alert here
+            } else {
+                logger.info('[DB] Integrity check passed.');
+            }
+
+            logger.info('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
         } else {
-            logger.info('[DB] Integrity check passed.');
+            logger.info('[DB] PostgreSQL detected, skipping SQLite PRAGMA initialization.');
         }
-
-        logger.info('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
 
         // ── Seed / Sync Chart of Accounts (BL-09 fix: ensures system accounts exist on every startup)
         logger.info('[DB] Ensuring system accounts exist...');

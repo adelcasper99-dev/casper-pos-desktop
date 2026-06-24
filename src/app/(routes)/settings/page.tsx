@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getTranslations } from "@/lib/i18n-mock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle } from "lucide-react";
+import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle, Cloud } from "lucide-react";
 import StoreConfig from "@/components/settings/StoreConfig";
 import MessagingSettings from "@/components/settings/MessagingSettings";
 import PrinterSettings from "@/components/settings/PrinterSettings";
@@ -13,6 +13,7 @@ import TablesManagement from "@/components/settings/TablesManagement";
 import OpeningBalanceWizard from "@/components/setup/OpeningBalanceWizard";
 import WarehouseSettings from "@/components/settings/WarehouseSettings";
 import SyncManagement from "@/components/settings/SyncManagement";
+import CloudSettings from "@/components/settings/CloudSettings";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -183,12 +184,20 @@ export default async function SettingsPage() {
                     )}
 
                     {isAdmin && (
-                        <TabsTrigger 
-                            value="sync" 
-                            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
-                        >
-                            <RefreshCw className="w-4 h-4 opacity-70" /> Sync Management
-                        </TabsTrigger>
+                        <>
+                            <TabsTrigger 
+                                value="cloud" 
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <Cloud className="w-4 h-4 opacity-70" /> Cloud Sync Config
+                            </TabsTrigger>
+                            <TabsTrigger 
+                                value="sync" 
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <RefreshCw className="w-4 h-4 opacity-70" /> Sync Logs
+                            </TabsTrigger>
+                        </>
                     )}
                 </TabsList>
 
@@ -314,9 +323,14 @@ export default async function SettingsPage() {
                     )}
 
                     {isAdmin && (
-                        <TabsContent value="sync" className="outline-none focus-visible:ring-0">
-                            <SyncManagement />
-                        </TabsContent>
+                        <>
+                            <TabsContent value="cloud" className="outline-none focus-visible:ring-0">
+                                <CloudSettings />
+                            </TabsContent>
+                            <TabsContent value="sync" className="outline-none focus-visible:ring-0">
+                                <SyncManagement />
+                            </TabsContent>
+                        </>
                     )}
                 </div>
             </Tabs>

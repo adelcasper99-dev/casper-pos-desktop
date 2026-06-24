@@ -75,6 +75,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         showOpenDialog: () => ipcRenderer.invoke('dialog:showOpenDialog'),
         selectBackupFolder: () => ipcRenderer.invoke('dialog:showBackupFolderDialog'),
         getConfig: () => ipcRenderer.invoke('app:get-config'),
+        getCloudConfig: () => ipcRenderer.invoke('app:get-cloud-config'),
+        saveCloudConfig: (data) => ipcRenderer.invoke('app:save-cloud-config', data),
+        onCloudConfigUpdated: (callback) => {
+            const handler = (_event, config) => callback(config);
+            ipcRenderer.on('app:cloud-config-updated', handler);
+            return () => ipcRenderer.removeListener('app:cloud-config-updated', handler);
+        },
         getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
         saveBackupConfig: (path) => ipcRenderer.invoke('app:save-backup-config', path),

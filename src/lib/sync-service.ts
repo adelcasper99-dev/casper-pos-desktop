@@ -2,10 +2,21 @@ import { offlineDB } from './offline-db';
 import { logger } from './logger';
 import { db } from './offline-db';
 import Decimal from 'decimal.js';
+import { CloudConfigManager } from '@/utils/cloudConfigManager';
 
 const SYNC_BATCH_SIZE = 50;
 
 export class SyncService {
+    // 🛡️ HELPER: Get cloud context dynamically
+    private static async getCloudContext() {
+        const config = await CloudConfigManager.getCloudConfig();
+        return {
+            enabled: config.enabled,
+            cloudUrl: config.cloudUrl || '',
+            secret: config.syncSecret || '',
+            branchId: config.branchId || ''
+        };
+    }
     // 🛡️ RELIABILITY: Retry logic with exponential backoff
     private static async retryWithBackoff<T>(
         operation: () => Promise<T>,
@@ -34,16 +45,15 @@ export class SyncService {
 
     // ⚡ SPEED: Sync all pending data
     static async syncAll() {
-        const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
-        const syncSecret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
+        const ctx = await this.getCloudContext();
         
         // 🛡️ GUARD: Validation
-        if (!cloudUrl) {
-            logger.error('[Sync:All] NEXT_PUBLIC_CLOUD_URL is missing. Sync aborted.');
-            return { success: false, error: 'No Cloud URL' };
+        if (!ctx.enabled || !ctx.cloudUrl) {
+            logger.error('[Sync:All] Cloud sync is disabled or Cloud URL is missing. Sync aborted.');
+            return { success: false, error: 'Cloud Sync Disabled' };
         }
-        if (!syncSecret) {
-            logger.error('[Sync:All] NEXT_PUBLIC_SYNC_SECRET is missing. Sync aborted.');
+        if (!ctx.secret) {
+            logger.error('[Sync:All] Sync Secret is missing. Sync aborted.');
             return { success: false, error: 'No Sync Secret' };
         }
 
@@ -108,20 +118,17 @@ export class SyncService {
     // 📥 NEW: Pull delta master data from cloud
     static async pullMasterData() {
         try {
+            const ctx = await this.getCloudContext();
+            if (!ctx.enabled || !ctx.cloudUrl) return { success: false, error: 'Cloud URL not configured' };
+
             const metadata = await offlineDB.syncMetadata.get('lastPullTimestamp');
             const lastPull = metadata ? metadata.lastSyncTime.toISOString() : new Date(0).toISOString();
 
-            // Use the same secret for pulling as pushing
-            const secret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
-            const cloudUrl = process.env.NEXT_PUBLIC_CLOUD_URL || '';
-
-            if (!cloudUrl) return { success: false, error: 'Cloud URL not configured' };
-
-            const response = await fetch(`${cloudUrl}/api/sync/pull?since=${lastPull}`, {
+            const response = await fetch(`${ctx.cloudUrl}/api/sync/pull?since=${lastPull}&branchId=${ctx.branchId}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-sync-secret': secret
+                    'x-sync-secret': ctx.secret
                 }
             });
 
@@ -205,6 +212,9 @@ export class SyncService {
 
     // 🛡️ RELIABILITY: Sync sales with conflict detection
     static async syncSales() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
+
         const allUnsynced = await offlineDB.sales
             .where('synced').equals(0)
             .and(sale => (sale.syncRetries || 0) < 5)
@@ -225,14 +235,14 @@ export class SyncService {
         for (const sale of unsyncedSales) {
             try {
                 await this.retryWithBackoff(async () => {
-                    const response = await fetch('/api/pos/offline-sale', {
+                    const response = await fetch(`${ctx.cloudUrl}/api/pos/offline-sale`, {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                            'x-sync-secret': ctx.secret
                         },
                         // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
-                        body: JSON.stringify({ ...sale, idempotencyKey: sale.idempotencyKey ?? sale.id })
+                        body: JSON.stringify({ ...sale, idempotencyKey: sale.idempotencyKey ?? sale.id, branchId: ctx.branchId })
                     });
 
                     if (!response.ok) {
@@ -279,6 +289,9 @@ export class SyncService {
 
     // 🛡️ RELIABILITY: Sync tickets with error handling
     static async syncTickets() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
+
         const allUnsynced = await offlineDB.tickets
             .where('synced').equals(0)
             .and(ticket => (ticket.syncRetries || 0) < 5)
@@ -299,14 +312,14 @@ export class SyncService {
         for (const ticket of unsyncedTickets) {
             try {
                 await this.retryWithBackoff(async () => {
-                    const response = await fetch('/api/tickets/offline-ticket', {
+                    const response = await fetch(`${ctx.cloudUrl}/api/tickets/offline-ticket`, {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                            'x-sync-secret': ctx.secret
                         },
                         // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
-                        body: JSON.stringify({ ...ticket, idempotencyKey: ticket.idempotencyKey ?? ticket.id })
+                        body: JSON.stringify({ ...ticket, idempotencyKey: ticket.idempotencyKey ?? ticket.id, branchId: ctx.branchId })
                     });
 
                     if (!response.ok) {
@@ -353,6 +366,9 @@ export class SyncService {
 
     // 🛡️ RELIABILITY: Sync treasury transactions with idempotency
     static async syncTreasuryTransactions() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0, deadLettered: 0 };
+
         const unsyncedTxs = await (offlineDB.treasuryTransactions?.where('synced').equals(0)
             .and(tx => (tx.syncRetries || 0) < 5)
             .toArray() ?? Promise.resolve([]));
@@ -370,12 +386,16 @@ export class SyncService {
         for (const tx of unsyncedTxs) {
             try {
                 await this.retryWithBackoff(async () => {
-                    const response = await fetch('/api/treasury/offline-transaction', {
+                    const response = await fetch(`${ctx.cloudUrl}/api/treasury/offline-transaction`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-sync-secret': ctx.secret
+                        },
                         body: JSON.stringify({
                             ...tx,
-                            idempotencyKey: tx.idempotencyKey
+                            idempotencyKey: tx.idempotencyKey,
+                            branchId: ctx.branchId
                         })
                     });
 
@@ -421,6 +441,9 @@ export class SyncService {
 
     // NEW: Sync inventory movements
     static async syncInventoryMovements() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
+
         const unsynced = await (offlineDB.inventoryMovements?.where('synced').equals(0)
             .and(m => (m.syncRetries || 0) < 5)
             .toArray() ?? Promise.resolve([]));
@@ -437,12 +460,16 @@ export class SyncService {
         for (const m of unsynced) {
             try {
                 await this.retryWithBackoff(async () => {
-                    const response = await fetch('/api/inventory/offline-movement', {
+                    const response = await fetch(`${ctx.cloudUrl}/api/inventory/offline-movement`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-sync-secret': ctx.secret
+                        },
                         body: JSON.stringify({
                             ...m,
-                            idempotencyKey: m.idempotencyKey
+                            idempotencyKey: m.idempotencyKey,
+                            branchId: ctx.branchId
                         })
                     });
 
@@ -485,6 +512,9 @@ export class SyncService {
 
     // NEW: Sync returns
     static async syncReturns() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
+
         const unsynced = await (offlineDB.returns?.where('synced').equals(0)
             .and(r => (r.syncRetries || 0) < 5)
             .toArray() ?? Promise.resolve([]));
@@ -501,15 +531,16 @@ export class SyncService {
         for (const r of unsynced) {
             try {
                 await this.retryWithBackoff(async () => {
-                    const response = await fetch('/api/sales/offline-return', {
+                    const response = await fetch(`${ctx.cloudUrl}/api/sales/offline-return`, {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': process.env.NEXT_PUBLIC_SYNC_SECRET || ''
+                            'x-sync-secret': ctx.secret
                         },
                         body: JSON.stringify({
                             ...r,
-                            idempotencyKey: r.idempotencyKey
+                            idempotencyKey: r.idempotencyKey,
+                            branchId: ctx.branchId
                         })
                     });
 

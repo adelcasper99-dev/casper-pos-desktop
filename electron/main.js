@@ -885,6 +885,38 @@ safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
     }
 });
 
+safeHandle('app:get-cloud-config', () => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'cloud-config.json');
+        if (fs.existsSync(configPath)) {
+            return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        }
+        return { enabled: false, cloudUrl: '', branchId: '', syncSecret: '' };
+    } catch (err) {
+        log(`Failed to read cloud-config: ${err.message}`);
+        return { enabled: false, cloudUrl: '', branchId: '', syncSecret: '' };
+    }
+});
+
+safeHandle('app:save-cloud-config', async (event, configData) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'cloud-config.json');
+        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
+        log(`Saved cloud config: enabled=${configData.enabled}`);
+        
+        // Notify any open windows that cloud config changed, triggering SyncWorker restart
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('app:cloud-config-updated', configData);
+        }
+        return { success: true };
+    } catch (err) {
+        log(`Failed to save cloud config: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
 safeHandle('app:migrate-to-postgres', async (event) => {
     try {
         log('Starting SQLite to PostgreSQL migration...');
