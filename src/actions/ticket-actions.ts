@@ -2255,7 +2255,7 @@ export const processTicketPayment = secureAction(async (data: {
                 });
             }
 
-            if (!isSalaryD-eduction) {
+            if (!isSalaryDeduction) {
                 if (!customerId) throw new Error('Customer is required for account payments');
                 let customer = await tx.customer.findUnique({ where: { id: customerId } });
                 if (!customer) throw new Error('Customer not found');
