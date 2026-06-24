@@ -7,6 +7,7 @@
         "dev:next": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && next dev -H 0.0.0.0 -p 3001",
         "dev:electron": "cross-env NODE_ENV=development electron .",
         "build": "next build",
+        "start": "next start -H 0.0.0.0 -p 3000",
         "electron:build": "npm run build && node scripts/prepare-standalone.js",
         "dist:assets": "node scripts/generate-build-assets.js",
         "compile:bytecode": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/compile-bytecode.js",
