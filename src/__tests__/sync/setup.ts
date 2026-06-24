@@ -17,44 +17,35 @@ export const server = setupServer(
     http.get('http://10.255.255.255:4040/*', () => passthrough())
 );
 
-// Generate a unique ID for this test worker's database to prevent locking collisions
-const suiteId = Math.random().toString(36).substring(7);
-const dbPath = path.resolve(process.cwd(), 'prisma', `test-${suiteId}.db`);
+// Use a dedicated local test database for Vitest
+const TEST_DB_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos_test';
 
 export async function resetTestDB() {
-    // Faster truncation reset
+    // PostgreSQL truncation reset
     const tables = ['SaleItem', 'Sale', 'Branch', 'Ticket', 'TicketNote', 'StockMovement', 'Stock', 'Warehouse', 'Customer', 'Sequence', 'RepairPayment'];
     
-    // Disable FK checks and delete all
-    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF;');
-    for (const table of tables) {
-        try {
-            await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
-        } catch (e) {}
+    try {
+        await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${tables.join('", "')}" CASCADE;`);
+    } catch (e) {
+        console.error('Failed to truncate tables:', e);
     }
-    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
 }
 
 beforeAll(async () => {
     server.listen({ onUnhandledRequest: 'warn' });
-    process.env.DATABASE_URL = `file:${dbPath}`;
+    process.env.DATABASE_URL = TEST_DB_URL;
     
     // Initial schema push
     execSync(`npx prisma db push --skip-generate --accept-data-loss --force-reset`, {
-        env: { ...process.env, DATABASE_URL: `file:${dbPath}` },
+        env: { ...process.env, DATABASE_URL: TEST_DB_URL },
         stdio: 'inherit'
     });
 });
 
 afterAll(async () => {
     server.close();
-    // Cleanup the unique test DB
     try {
         await prisma.$disconnect();
-        if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
-        if (fs.existsSync(`${dbPath}-journal` )) fs.unlinkSync(`${dbPath}-journal`);
-        if (fs.existsSync(`${dbPath}-wal` )) fs.unlinkSync(`${dbPath}-wal`);
-        if (fs.existsSync(`${dbPath}-shm` )) fs.unlinkSync(`${dbPath}-shm`);
     } catch (e) {}
 });
 
