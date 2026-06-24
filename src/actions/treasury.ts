@@ -116,7 +116,7 @@ export async function getTreasuryData(filters?: {
 // ─── Add Transaction ──────────────────────────────────────────────────────────
 export async function addTreasuryTransaction(
   type: string,
-  amount: number,
+  amount: number | string,
   description: string,
   paymentMethod: string,
   treasuryId?: string,
@@ -286,8 +286,8 @@ export async function addTreasuryTransaction(
           branchId: targetBranchId,
           transactionId: dbTx.id, // 🆕 Link JE to Transaction
           lines: [
-            { accountCode: glCode, debit: decimalAmount.toNumber(), credit: 0, description },
-            { accountCode: debitAccount, debit: 0, credit: decimalAmount.toNumber(), description: `${paymentMethod} Withdrawal` }
+            { accountCode: glCode, debit: decimalAmount, credit: 0, description },
+            { accountCode: debitAccount, debit: 0, credit: decimalAmount, description: `${paymentMethod} Withdrawal` }
           ]
         }, tx);
       } else if (isPositive) {
@@ -299,8 +299,8 @@ export async function addTreasuryTransaction(
           branchId: targetBranchId,
           transactionId: dbTx.id, // 🆕 Link JE to Transaction
           lines: [
-            { accountCode: debitAccount, debit: decimalAmount.toNumber(), credit: 0, description: `${paymentMethod} Deposit` },
-            { accountCode: creditAccount!, debit: 0, credit: decimalAmount.toNumber(), description: categoryLabel }
+            { accountCode: debitAccount, debit: decimalAmount, credit: 0, description: `${paymentMethod} Deposit` },
+            { accountCode: creditAccount!, debit: 0, credit: decimalAmount, description: categoryLabel }
           ]
         }, tx);
       }
@@ -574,7 +574,7 @@ export async function getBranchTreasuriesForDropdown(branchId?: string | null) {
 export async function transferBetweenTreasuries(data: {
   fromTreasuryId: string;
   toTreasuryId: string;
-  amount: number;
+  amount: number | string;
   description?: string;
   paymentMethod?: string;
 }) {
@@ -582,7 +582,7 @@ export async function transferBetweenTreasuries(data: {
     if (data.fromTreasuryId === data.toTreasuryId) {
       return { success: false, error: "لا يمكن التحويل من وإلى نفس الخزنة" };
     }
-    if (data.amount <= 0) {
+    if (new Decimal(data.amount).lte(0)) {
       return { success: false, error: "يجب أن يكون المبلغ أكبر من صفر" };
     }
 
@@ -693,8 +693,8 @@ export async function transferBetweenTreasuries(data: {
           branchId: fromBranchId,
           transactionId: sourceTx.id, // 🆕 Link JE to the source movement
           lines: [
-              { accountCode: toGlCode,   debit: amountDec.toNumber(), credit: 0,                   description: `Received by ${toTreasury.name} (Ref: ${destTx.id.slice(0, 8)})` },
-              { accountCode: fromGlCode, debit: 0,                   credit: amountDec.toNumber(), description: `Sent from ${fromTreasury.name}` }
+              { accountCode: toGlCode,   debit: amountDec, credit: 0,                   description: `Received by ${toTreasury.name} (Ref: ${destTx.id.slice(0, 8)})` },
+              { accountCode: fromGlCode, debit: 0,                   credit: amountDec, description: `Sent from ${fromTreasury.name}` }
           ]
       }, tx);
     });

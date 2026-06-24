@@ -7,6 +7,7 @@ import CashCounter from "./CashCounter";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import Decimal from "decimal.js";
 
 interface ShiftManagerProps {
     currentShift?: any;
@@ -40,9 +41,15 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     const isBlindClose = settings?.blindCloseEnabled !== false; // Default to true if not loaded yet
 
     const handleOpenShift = async () => {
-        const cashValue = startCash === "" ? 0 : parseFloat(startCash);
+        let cashValue = 0;
+        try {
+            cashValue = startCash === "" ? 0 : new Decimal(startCash).toNumber();
+        } catch {
+            toast.error("Please enter valid starting cash amount");
+            return;
+        }
 
-        if (isNaN(cashValue) || cashValue < 0) {
+        if (cashValue < 0) {
             toast.error("Please enter valid starting cash amount");
             return;
         }
@@ -71,7 +78,15 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     };
 
     const handleCloseShift = async () => {
-        if (!actualCash || parseFloat(actualCash) < 0) {
+        let parsedActualCash = 0;
+        try {
+            parsedActualCash = new Decimal(actualCash).toNumber();
+        } catch {
+            toast.error("Please enter valid actual cash amount");
+            return;
+        }
+
+        if (!actualCash || parsedActualCash < 0) {
             toast.error("Please enter valid actual cash amount");
             return;
         }
@@ -85,7 +100,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
         try {
             const result = await closeShift({
                 shiftId: currentShift.id,
-                actualCash: parseFloat(actualCash),
+                actualCash: parsedActualCash,
                 cashBreakdown,
                 notes: notes || undefined
             });
@@ -219,10 +234,10 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                         <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Expected Cash</p>
                                         <p className="text-lg font-bold text-green-400">
                                             ${(
-                                                Number(currentShift.startCash) +
-                                                Number(currentShift.totalCashSales || 0) -
-                                                Number(currentShift.totalExpenses || 0)
-                                            ).toFixed(2)}
+                                                new Decimal(currentShift.startCash || 0)
+                                                    .plus(currentShift.totalCashSales || 0)
+                                                    .minus(currentShift.totalExpenses || 0)
+                                            ).toNumber().toFixed(2)}
                                         </p>
                                     </div>
                                 )}
@@ -235,16 +250,16 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                     <span className="text-sm font-medium">Expected Cash</span>
                                     <span className="text-2xl font-bold">
                                         ${(
-                                            Number(currentShift.startCash) +
-                                            Number(currentShift.totalCashSales || 0) -
-                                            Number(currentShift.totalExpenses || 0)
-                                        ).toFixed(2)}
+                                            new Decimal(currentShift.startCash || 0)
+                                                .plus(currentShift.totalCashSales || 0)
+                                                .minus(currentShift.totalExpenses || 0)
+                                        ).toNumber().toFixed(2)}
                                     </span>
                                 </div>
                                 <div className="text-xs text-gray-400">
-                                    Start: ${Number(currentShift.startCash).toFixed(2)} +
-                                    Sales: ${Number(currentShift.totalCashSales || 0).toFixed(2)} -
-                                    Expenses: ${Number(currentShift.totalExpenses || 0).toFixed(2)}
+                                    Start: ${new Decimal(currentShift.startCash || 0).toNumber().toFixed(2)} +
+                                    Sales: ${new Decimal(currentShift.totalCashSales || 0).toNumber().toFixed(2)} -
+                                    Expenses: ${new Decimal(currentShift.totalExpenses || 0).toNumber().toFixed(2)}
                                 </div>
                             </div>
                         )}

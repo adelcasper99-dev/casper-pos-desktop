@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { processWalletTransaction } from "@/actions/wallet-actions";
 import { generateIdempotencyKey } from "@/lib/offline-transaction-helper";
+import Decimal from "decimal.js";
 
 const QUICK_AMOUNTS = [50, 100, 200, 500, 1000];
 
@@ -61,8 +62,8 @@ export function WalletTransactionModal({ isOpen, onClose, treasuries }: WalletTr
                 operationType,
                 digitalTreasuryId,
                 physicalTreasuryId,
-                baseAmount: parseFloat(baseAmount),
-                commission: parseFloat(commission || "0"),
+                baseAmount,
+                commission: commission || "0",
                 notes,
                 idempotencyKey
             });
@@ -84,9 +85,9 @@ export function WalletTransactionModal({ isOpen, onClose, treasuries }: WalletTr
     };
 
     const calculatedTotal = useMemo(() => {
-        const base = parseFloat(baseAmount) || 0;
-        const comm = parseFloat(commission) || 0;
-        return operationType === 'DEPOSIT' ? base + comm : base - comm;
+        const base = new Decimal(baseAmount || 0);
+        const comm = new Decimal(commission || 0);
+        return operationType === 'DEPOSIT' ? base.plus(comm).toNumber() : base.minus(comm).toNumber();
     }, [baseAmount, commission, operationType]);
 
     return (
@@ -217,8 +218,8 @@ export function WalletTransactionModal({ isOpen, onClose, treasuries }: WalletTr
                         <p className="text-xs font-black uppercase tracking-widest opacity-60">التوجيهات المالية:</p>
                         <p className="text-sm font-bold leading-relaxed">
                             {operationType === 'DEPOSIT' 
-                                ? `استلم من العميل مبلغ (${calculatedTotal.toLocaleString()} ج.م) وضعها في [${physicalSafe?.name || 'الخزنة'}]. سنقوم بإرسال (${parseFloat(baseAmount || "0").toLocaleString()} ج.م) من محفظتك الرقمية.`
-                                : `سيقوم العميل بإرسال (${parseFloat(baseAmount || "0").toLocaleString()} ج.م) لمحفظتك الرقمية. سلم العميل من [${physicalSafe?.name || 'الخزنة'}] مبلغ (${calculatedTotal.toLocaleString()} ج.م) فقط.`
+                                ? `استلم من العميل مبلغ (${calculatedTotal.toLocaleString()} ج.م) وضعها في [${physicalSafe?.name || 'الخزنة'}]. سنقوم بإرسال (${new Decimal(baseAmount || 0).toNumber().toLocaleString()} ج.م) من محفظتك الرقمية.`
+                                : `سيقوم العميل بإرسال (${new Decimal(baseAmount || 0).toNumber().toLocaleString()} ج.م) لمحفظتك الرقمية. سلم العميل من [${physicalSafe?.name || 'الخزنة'}] مبلغ (${calculatedTotal.toLocaleString()} ج.م) فقط.`
                             }
                         </p>
                     </div>

@@ -12,6 +12,7 @@ import { printZReport } from "@/lib/print-zreport";
 import { toast } from "sonner";
 import GlassModal from "../ui/GlassModal";
 import CashInOutModal from "./CashInOutModal";
+import Decimal from "decimal.js";
 
 interface ShiftStatusIndicatorProps {
     shift?: any;
@@ -52,9 +53,15 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const isBlindClose = settings?.blindCloseEnabled !== false;
 
     const handleOpenShift = async () => {
-        const cashValue = startCash === "" ? 0 : parseFloat(startCash);
+        let cashValue = 0;
+        try {
+            cashValue = startCash === "" ? 0 : new Decimal(startCash).toNumber();
+        } catch {
+            toast.error("Please enter valid starting cash amount");
+            return;
+        }
 
-        if (isNaN(cashValue) || cashValue < 0) {
+        if (cashValue < 0) {
             toast.error("Please enter valid starting cash amount");
             return;
         }
@@ -83,7 +90,15 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     };
 
     const handleCloseShift = async () => {
-        if (!actualCash || parseFloat(actualCash) < 0) {
+        let parsedActualCash = 0;
+        try {
+            parsedActualCash = new Decimal(actualCash).toNumber();
+        } catch {
+            toast.error("Please enter valid actual cash amount");
+            return;
+        }
+
+        if (!actualCash || parsedActualCash < 0) {
             toast.error("Please enter valid actual cash amount");
             return;
         }
@@ -97,7 +112,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
         try {
             const result = await closeShift({
                 shiftId: shift.id,
-                actualCash: parseFloat(actualCash),
+                actualCash: parsedActualCash,
                 cashBreakdown,
                 notes: notes || undefined,
                 csrfToken
@@ -246,17 +261,22 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const mins = duration % 60;
 
     const expectedCashValue = (
-        Number(shift.startCash) +
-        Number(shift.totalCashSales || 0) -
-        Number(shift.totalExpenses || 0) -
-        Number(shift.totalCashRefunds || 0)
-    );
-    const actualCashNum = actualCash !== "" ? Number(actualCash) : 0;
+        new Decimal(shift.startCash || 0)
+            .plus(shift.totalCashSales || 0)
+            .minus(shift.totalExpenses || 0)
+            .minus(shift.totalCashRefunds || 0)
+    ).toNumber();
+
+    let actualCashNum = 0;
+    try {
+        actualCashNum = actualCash !== "" ? new Decimal(actualCash).toNumber() : 0;
+    } catch {}
+    
     const varianceValue = actualCashNum - expectedCashValue;
 
-    const totalCashRefunds = Number(shift.totalCashRefunds || 0);
-    const totalAccountRefunds = Number(shift.totalAccountRefunds || 0);
-    const totalAccountSales = Number(shift.totalAccountSales || 0);
+    const totalCashRefunds = new Decimal(shift.totalCashRefunds || 0).toNumber();
+    const totalAccountRefunds = new Decimal(shift.totalAccountRefunds || 0).toNumber();
+    const totalAccountSales = new Decimal(shift.totalAccountSales || 0).toNumber();
 
     return (
         <>
@@ -277,19 +297,19 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                     {/* Opening Cash */}
                     <div className="flex flex-col items-center px-6">
                         <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">افتتاحي</span>
-                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${Number(shift.startCash || 0).toFixed(2)}</span>
+                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${new Decimal(shift.startCash || 0).toNumber().toFixed(2)}</span>
                     </div>
 
                     {/* Cash Sales */}
                     <div className="flex flex-col items-center px-6">
                         <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">كاش</span>
-                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${Number(shift.totalCashSales || 0).toFixed(2)}</span>
+                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${new Decimal(shift.totalCashSales || 0).toNumber().toFixed(2)}</span>
                     </div>
 
                     {/* Visa/Network */}
                     <div className="flex flex-col items-center px-6">
                         <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">فيزا/شبكة</span>
-                        <span className="text-sm font-semibold dark:font-black text-slate-600 dark:text-zinc-300 tabular-nums">${Number(shift.totalCardSales || 0).toFixed(2)}</span>
+                        <span className="text-sm font-semibold dark:font-black text-slate-600 dark:text-zinc-300 tabular-nums">${new Decimal(shift.totalCardSales || 0).toNumber().toFixed(2)}</span>
                     </div>
 
                     {/* Credit/Ajel */}
