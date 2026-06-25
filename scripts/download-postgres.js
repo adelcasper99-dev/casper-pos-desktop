@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const POSTGRES_URL = "https://get.enterprisedb.com/postgresql/postgresql-16.4-1-windows-x64.exe"; 
 const EXPECTED_HASH = "f4bf0ac4b33471f18aad7d1d9cc52613003f3a3a612aae167366bf7f7840b2bc";
 
+
 const DEST_DIR = path.join(__dirname, '..', 'build');
 const DEST_FILE = path.join(DEST_DIR, 'postgresql-setup.exe');
 
