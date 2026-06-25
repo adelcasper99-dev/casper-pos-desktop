@@ -1,10 +1,13 @@
 const fs = require('fs');
 const https = require('https');
 const path = require('path');
+const crypto = require('crypto');
 
 // Direct download link for EnterpriseDB PostgreSQL 16 Windows x64 Installer
 // Using the direct get.enterprisedb.com URL instead of getfile.jsp which expires.
 const POSTGRES_URL = "https://get.enterprisedb.com/postgresql/postgresql-16.4-1-windows-x64.exe"; 
+const EXPECTED_HASH = "f4bf0ac4b33471f18aad7d1d9cc52613003f3a3a612aae167366bf7f7840b2bc";
+
 const DEST_DIR = path.join(__dirname, '..', 'build');
 const DEST_FILE = path.join(DEST_DIR, 'postgresql-setup.exe');
 
@@ -12,8 +15,26 @@ if (!fs.existsSync(DEST_DIR)) {
     fs.mkdirSync(DEST_DIR, { recursive: true });
 }
 
+function verifyChecksum(filePath, expectedHash) {
+    console.log(`[Setup] Verifying SHA-256 Checksum...`);
+    const fileBuffer = fs.readFileSync(filePath);
+    const hashSum = crypto.createHash('sha256');
+    hashSum.update(fileBuffer);
+    const hex = hashSum.digest('hex').toLowerCase();
+
+    if (hex !== expectedHash.toLowerCase()) {
+        console.error(`[Setup] SECURITY ERROR: Checksum mismatch!`);
+        console.error(`[Setup] Expected: ${expectedHash}`);
+        console.error(`[Setup] Actual:   ${hex}`);
+        fs.unlinkSync(filePath);
+        process.exit(1);
+    }
+    console.log(`[Setup] Checksum verified successfully.`);
+}
+
 if (fs.existsSync(DEST_FILE)) {
-    console.log(`[Setup] PostgreSQL installer already exists at ${DEST_FILE}. Skipping download.`);
+    console.log(`[Setup] PostgreSQL installer already exists at ${DEST_FILE}.`);
+    verifyChecksum(DEST_FILE, EXPECTED_HASH);
     process.exit(0);
 }
 
@@ -42,6 +63,7 @@ function download(url) {
             file.on('finish', () => {
                 file.close();
                 console.log(`\n[Setup] Successfully downloaded PostgreSQL installer to ${DEST_FILE}`);
+                verifyChecksum(DEST_FILE, EXPECTED_HASH);
             });
         } else {
             console.error(`\n[Setup] Failed to download. Status Code: ${response.statusCode}`);

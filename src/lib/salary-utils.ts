@@ -1,4 +1,5 @@
 import { Decimal } from 'decimal.js';
+import { resolveCommission } from './commission-validation';
 
 /**
  * Shared utility for HR and Finance to calculate net employee pay.
@@ -123,26 +124,15 @@ export async function calculateNetDue(
         }
     });
 
-    // 4. Technician Specific (Commissions & KPIs)
     if (u.technician) {
         const tickets = u.technician.tickets || [];
+        
+        // 4a. Performance KPIs (All DELIVERED tickets)
         tickets.forEach((t: any) => {
             if (hireDate && new Date(t.createdAt) < hireDate) return;
 
-            if (t.status === 'PAID_DELIVERED') {
+            if (t.status === 'PAID_DELIVERED' || t.status === 'DELIVERED') {
                 completedTickets++;
-                
-                // Calculate commission if not already in ledger
-                let comm = new Decimal(t.commissionAmount || 0);
-                if (comm.isZero() && u.technician?.commissionRate) {
-                    const techBilling = new Decimal(t.techBillingPrice || t.partsCost || 0);
-                    const repairPrice = new Decimal(t.repairPrice || 0);
-                    const netProfit = repairPrice.minus(techBilling);
-                    if (netProfit.gt(0)) {
-                        comm = netProfit.times(u.technician.commissionRate).dividedBy(100).toDecimalPlaces(2);
-                    }
-                }
-                maintenanceCommissions = maintenanceCommissions.plus(comm);
             }
 
             if (t.isWarrantyReturn || (t.returnCount && t.returnCount > 0)) {
@@ -159,28 +149,36 @@ export async function calculateNetDue(
             }
         });
 
-        // ✅ Per-ticket commission deduplication — check by referenceId to avoid
-        // the bug where posting ANY commission blocks ALL virtual commissions
+        // 4b. Financial Commissions (Only 'paid' tickets)
         tickets.forEach((t: any) => {
-            if (t.status !== 'PAID_DELIVERED') return;
+            if (t.status !== 'PAID_DELIVERED' && t.status !== 'DELIVERED') return;
+            if (t.paymentStatus?.toLowerCase() !== 'paid') return; // Strict exclusion for Credit
             if (hireDate && new Date(t.createdAt) < hireDate) return;
 
             const isCommPosted = transactions.some(
                 tx => tx.type === 'MAINTENANCE_COMMISSION' && tx.referenceId === t.id
             );
-            if (!isCommPosted) {
-                let comm = new Decimal(t.commissionAmount?.toString() || 0);
-                if (comm.isZero() && u.technician?.commissionRate) {
-                    const techBilling = new Decimal(t.techBillingPrice?.toString() || t.partsCost?.toString() || 0);
-                    const repairPrice = new Decimal(t.repairPrice?.toString() || 0);
-                    const netProfit = repairPrice.minus(techBilling);
-                    if (netProfit.gt(0)) {
-                        comm = netProfit.times(new Decimal(u.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
-                    }
+            
+            let comm = new Decimal(t.commissionAmount?.toString() || 0);
+            
+            // Virtual calculation if not calculated or not posted
+            if (comm.isZero()) {
+                const techBilling = new Decimal(t.techBillingPrice?.toString() || t.partsCost?.toString() || 0);
+                const repairPrice = new Decimal(t.repairPrice?.toString() || 0);
+                const netProfit = repairPrice.minus(techBilling);
+                
+                if (netProfit.gt(0) && u.technician) {
+                    const resolved = resolveCommission(u.technician, netProfit);
+                    comm = resolved.commissionAmount;
                 }
-                if (comm.gt(0)) {
-                    totalBonuses = totalBonuses.plus(comm);
-                }
+            }
+            
+            // For the KPI
+            maintenanceCommissions = maintenanceCommissions.plus(comm);
+            
+            // For the Ledger (if not posted yet)
+            if (!isCommPosted && comm.gt(0)) {
+                totalBonuses = totalBonuses.plus(comm);
             }
         });
 

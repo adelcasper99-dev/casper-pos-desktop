@@ -7,7 +7,7 @@ import { Decimal } from 'decimal.js'
 import { Ticket } from '@prisma/client'
 import { unstable_noStore as noStore } from 'next/cache';
 import { calculateNetDue } from '@/lib/salary-utils';
-import { getTicketFinalPrice } from '@/lib/commission-validation';
+import { getTicketFinalPrice, resolveCommission } from '@/lib/commission-validation';
 
 export async function getEmployeeProfileData(userId: string, monthStr: string) {
     const session = await getSession()
@@ -23,7 +23,11 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
         const user = await prisma.user.findUnique({
             where: { id: userId },
             include: {
-                technician: true,
+                technician: {
+                    include: {
+                        commissionRule: true
+                    }
+                },
                 branch: true,
                 role: true,
             }
@@ -47,10 +51,6 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
 
         // Fetch Tickets (if technician)
         let tickets: Ticket[] = []
-        let maintenanceCommissions = new Decimal(0)
-        let totalCompleted = 0
-        let totalReturns = 0
-        let totalDelayed = 0
 
         if (user.technician) {
             tickets = await prisma.ticket.findMany({
@@ -64,34 +64,6 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                     }
                 },
                 orderBy: { createdAt: 'desc' }
-            })
-
-            // Calculate Metrics from tickets
-            tickets.forEach(t => {
-                // Technically already filtered by query, but double check
-                if (user.hireDate && t.createdAt < new Date(user.hireDate)) return;
-
-                if (t.status === 'PAID_DELIVERED') {
-                    totalCompleted++
-                    let comm = new Decimal(t.commissionAmount?.toString() || 0);
-                        if (comm.isZero() && user.technician?.commissionRate) {
-                        const transferVal = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
-                        const netProfit = new Decimal(t.repairPrice?.toString() || 0).minus(transferVal);
-                        if (netProfit.gt(0)) {
-                            comm = netProfit.times(new Decimal(user.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
-                        }
-                    }
-                    maintenanceCommissions = maintenanceCommissions.plus(comm)
-                }
-                if (t.isWarrantyReturn || t.returnCount > 0) totalReturns++
-                
-                // Workflow Gaps: Tickets taking longer than expected duration
-                // Includes active tickets that are already late
-                if (t.startedAt && t.expectedDuration) {
-                    const endTime = t.completedAt || new Date()
-                    const durationInMinutes = (endTime.getTime() - t.startedAt.getTime()) / (1000 * 60)
-                    if (durationInMinutes > t.expectedDuration * 60) totalDelayed++
-                }
             })
         }
 
@@ -148,16 +120,17 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
         const virtualEntries: any[] = [];
         if (user.technician) {
             tickets.forEach(t => {
-                if (t.status === 'PAID_DELIVERED') {
+                if ((t.status === 'PAID_DELIVERED' || t.status === 'DELIVERED') && t.paymentStatus?.toLowerCase() === 'paid') {
                     const hasComm = transactions.some(tx => tx.referenceId === t.id && tx.type === 'MAINTENANCE_COMMISSION');
                     if (!hasComm) {
                         let comm = new Decimal(t.commissionAmount?.toString() || 0);
-                        if (comm.isZero() && user.technician?.commissionRate) {
+                        if (comm.isZero()) {
                             const techBilling = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
                             const repairPrice = new Decimal(t.repairPrice?.toString() || 0);
                             const netProfit = repairPrice.minus(techBilling);
-                            if (netProfit.gt(0)) {
-                                comm = netProfit.times(new Decimal(user.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
+                            if (netProfit.gt(0) && user.technician) {
+                                const resolved = resolveCommission(user.technician, netProfit);
+                                comm = resolved.commissionAmount;
                             }
                         }
                         if (comm.gt(0)) {
@@ -221,14 +194,16 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                 tickets: JSON.parse(JSON.stringify(tickets.map(t => {
                     const clawbackVal = new Decimal(t.commissionClawback || 0);
                     const isLoss = t.status === 'RETURNED' || t.status === 'VOIDED' || t.isWarrantyReturn || clawbackVal.greaterThan(0);
-                    const isEligible = t.status === 'PAID_DELIVERED';
+                    const isEligible = t.status === 'PAID_DELIVERED' || t.status === 'DELIVERED';
+                    const isPendingCredit = t.paymentStatus?.toLowerCase() !== 'paid';
                     
                     let commission = new Decimal(t.commissionAmount?.toString() || 0).abs();
-                    if (commission.isZero() && user.technician?.commissionRate) {
+                    if (commission.isZero()) {
                         const currentTransferVal = new Decimal((t as any).techBillingPrice?.toString() || t.partsCost?.toString() || 0);
                         const netProfit = new Decimal(t.repairPrice?.toString() || 0).minus(currentTransferVal);
-                        if (netProfit.gt(0)) {
-                            commission = netProfit.times(new Decimal(user.technician.commissionRate.toString())).dividedBy(100).toDecimalPlaces(2);
+                        if (netProfit.gt(0) && user.technician) {
+                            const resolved = resolveCommission(user.technician, netProfit);
+                            commission = resolved.commissionAmount;
                         }
                     }
 
@@ -242,7 +217,8 @@ export async function getEmployeeProfileData(userId: string, monthStr: string) {
                         ...t,
                         totalAmount: finalPrice.toNumber(),
                         laborAmount: laborAmount,
-                        displayCommission: commission.toNumber()
+                        displayCommission: commission.toNumber(),
+                        isPendingCredit: isPendingCredit
                     }
                 }))),
                 transactions: JSON.parse(JSON.stringify([...transactions, ...virtualEntries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))),

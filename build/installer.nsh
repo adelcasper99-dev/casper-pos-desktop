@@ -13,7 +13,7 @@
   nsExec::ExecToLog 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -Command "Add-MpPreference -ExclusionPath ''C:\Program Files\PostgreSQL'' -ErrorAction SilentlyContinue"'
 
   DetailPrint "Configuring Windows Firewall for Port 5432..."
-  nsExec::ExecToLog 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -Command "New-NetFirewallRule -DisplayName ''Casper POS Master DB'' -Direction Inbound -Protocol TCP -LocalPort 5432 -Action Allow -Profile Any -ErrorAction SilentlyContinue"'
+  nsExec::ExecToLog 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -Command "New-NetFirewallRule -DisplayName ''Casper POS Master DB'' -Direction Inbound -Protocol TCP -LocalPort 5432 -Action Allow -Profile Private -ErrorAction SilentlyContinue"'
 
   IfFileExists "C:\Program Files\PostgreSQL\16\bin\createdb.exe" postgres_installed postgres_not_installed
 
@@ -27,7 +27,8 @@ postgres_installed:
 
 init_db:
   DetailPrint "Initializing Casper POS Database..."
-  Sleep 5000
+  DetailPrint "Waiting for PostgreSQL Service to start..."
+  nsExec::ExecToLog 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -Command "$timeout = 60; $timer = 0; while(!(Test-NetConnection -ComputerName localhost -Port 5432 -InformationLevel Quiet) -and $timer -lt $timeout) { Start-Sleep -Seconds 1; $timer++ }"'
   System::Call 'Kernel32::SetEnvironmentVariable(t "PGPASSWORD", t "postgres")'
   nsExec::ExecToLog '"C:\Program Files\PostgreSQL\16\bin\createdb.exe" -U postgres -p 5432 casper_pos'
 !macroend

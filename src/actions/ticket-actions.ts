@@ -2315,7 +2315,17 @@ export const processTicketPayment = secureAction(async (data: {
 
         // --- Profit Distribution Calculation & Snapshotted Fields ---
         // Triggered only when transitioning to PAID_DELIVERED
-        let distributionData = {};
+        let distributionData: Partial<{
+            finalCustomerPrice: Decimal;
+            techBillingPrice: Decimal;
+            partCostPrice: Decimal;
+            laborPoolAmount: Decimal;
+            techCommissionAmount: Decimal;
+            centerLaborProfit: Decimal;
+            centerPartProfit: Decimal;
+            commissionAmount: Decimal;
+            netProfit: Decimal;
+        }> = {};
         if (paymentStatus === 'paid' && paymentType === 'PAYMENT') {
             const activeParts = await tx.ticketPart.findMany({
                 where: { ticketId: ticket.id, status: 'ACTIVE' }
@@ -2327,8 +2337,19 @@ export const processTicketPayment = secureAction(async (data: {
             const laborPoolAmount = finalCustomerPrice.minus(techBillingPrice);
             
             // Re-calculate commission based on the new labor pool
-            const commissionRateDec = new Decimal(ticket.commissionRate || 0);
-            const techCommissionAmount = laborPoolAmount.mul(commissionRateDec.div(100));
+            let techCommissionAmount = new Decimal(0);
+            let technician = null;
+            if (ticket.technicianId) {
+                technician = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    include: { commissionRule: true }
+                });
+                if (technician) {
+                    const resolved = resolveCommission(technician, laborPoolAmount);
+                    techCommissionAmount = resolved.commissionAmount;
+                }
+            }
+
             const centerLaborProfit = laborPoolAmount.minus(techCommissionAmount);
             const centerPartProfit = techBillingPrice.minus(partCostPrice);
 
@@ -2379,17 +2400,43 @@ export const processTicketPayment = secureAction(async (data: {
         });
 
         // --- Part 4: Engineer Commission Recording ---
-        // Only trigger if status changes to PAID_DELIVERED in this transaction
+        // Only trigger if status changes to PAID_DELIVERED, or paymentStatus reaches 'paid' while DELIVERED
         const wasPaidDelivered = ticket.status === 'PAID_DELIVERED';
         const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
 
         if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
-            // 1. Record Main Technician Commission (Note: Handled via recordTicketDistribution GL entries)
-            /* 
-            if (ticket.technicianId && Number(ticket.commissionAmount) > 0) {
-                // ... (legacy logic)
+            // 1. Record Main Technician Commission using Centralized Rule (FIXED/PERCENTAGE)
+            if (ticket.technicianId) {
+                const technician = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    include: { commissionRule: true }
+                });
+
+                if (technician) {
+                    const existingComm = await tx.employeeTransaction.findFirst({
+                        where: {
+                            referenceId: ticket.id,
+                            type: 'MAINTENANCE_COMMISSION'
+                        }
+                    });
+
+                    if (!existingComm) {
+                        const resolved = resolveCommission(technician, distributionData.laborPoolAmount || new Decimal(0));
+                        if (resolved.commissionAmount.gt(0)) {
+                            await tx.employeeTransaction.create({
+                                data: {
+                                    userId: technician.userId,
+                                    type: 'MAINTENANCE_COMMISSION',
+                                    amount: resolved.commissionAmount.toNumber(),
+                                    description: `عمولة صيانة: ${ticket.barcode} (سداد الفاتورة)`,
+                                    referenceId: ticket.id,
+                                    referenceType: 'TICKET'
+                                }
+                            });
+                        }
+                    }
+                }
             }
-            */
 
             // 2. Record Collaborators Commissions
             const collaborators = await tx.ticketCollaborator.findMany({
