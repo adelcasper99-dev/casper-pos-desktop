@@ -745,6 +745,7 @@ model Technician {
   commissionRate        Decimal                @default(0.00)
   commissionRuleId      String?
   lossRate              Decimal                @default(70.00)
+  lossSharePercentage   Float                  @default(0)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   warehouseId           String?
@@ -778,88 +779,91 @@ model DevicePreset {
 }
 
 model Ticket {
-  id                   String               @id @default(uuid())
-  barcode              String               @unique
-  customerName         String
-  customerPhone        String
-  customerEmail        String?
-  customerId           String?
-  deviceBrand          String
-  deviceModel          String
-  deviceImei           String?
-  deviceColor          String?
-  securityCode         String?
-  patternData          String?
-  issueDescription     String
-  conditionNotes       String?
-  warrantyExpiry       DateTime?
-  status               String               @default("NEW")
-  currentBranchId      String
-  movementId           String?
-  technicianId         String?
-  completedById        String?
-  initialQuote         Decimal              @default(0.00)
-  repairPrice          Decimal              @default(0.00)
-  partsCost            Decimal              @default(0.00)
-  deposit              Decimal              @default(0.00)
-  commissionRate       Decimal              @default(0.00)
-  commissionAmount     Decimal              @default(0.00)
-  netProfit            Decimal              @default(0.00)
-  paymentStatus        String               @default("unpaid")
-  paymentMethod        String?
-  amountPaid           Decimal              @default(0.00)
-  finalCustomerPrice   Decimal              @default(0.00)
-  techBillingPrice     Decimal              @default(0.00)
-  partCostPrice        Decimal              @default(0.00)
-  laborPoolAmount      Decimal              @default(0.00)
-  techCommissionAmount Decimal              @default(0.00)
-  centerLaborProfit    Decimal              @default(0.00)
-  centerPartProfit     Decimal              @default(0.00)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  deletedAt            DateTime?
-  version              Int                  @default(1)
-  completedAt          DateTime?
-  deliveredAt          DateTime?
-  commissionClawback   Decimal              @default(0.00)
-  lastReturnedAt       DateTime?
-  originalTechId       String?
-  returnCount          Int                  @default(0)
-  returnReason         String?
-  rejectionReason      String? // Reason when ticket is rejected
-  rejectedAt           DateTime? // When the ticket was rejected
-  rejectedBy           String? // User ID who rejected the ticket
-  lossResponsibility   String? // NEW: TECH | CENTER | SPLIT
-  excessLossAmount     Decimal              @default(0.00) // NEW: Amount of loss beyond initial profit
-  shiftId              String?
-  warrantyExpiryDate   DateTime?
-  expectedDuration     Int?
-  startedAt            DateTime?
-  clientUserId         String?
-  clientSupplierId     String?
-  previousStatus       String?
-  parentTicketId       String?
-  isWarrantyReturn     Boolean              @default(false)
-  slaDeadlineAt        DateTime?
-  slaBreachedAt        DateTime?
-  idempotencyKey       String?              @unique
-  feedback             Feedback?
-  journalEntries       JournalEntry[]
-  logs                 NotificationLog[]
-  payments             RepairPayment[]
-  clientSupplier       Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
-  clientUser           User?                @relation("ClientUser", fields: [clientUserId], references: [id])
-  technician           Technician?          @relation(fields: [technicianId], references: [id])
-  shift                Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
-  movement             DeviceMovement?      @relation(fields: [movementId], references: [id])
-  customer             Customer?            @relation(fields: [customerId], references: [id])
-  currentBranch        Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
-  parentTicket         Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
-  returnTickets        Ticket[]             @relation("TicketReturns")
-  completedBy          Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
-  collaborators        TicketCollaborator[]
-  notes                TicketNote[]
-  parts                TicketPart[]
+  id                      String               @id @default(uuid())
+  barcode                 String               @unique
+  customerName            String
+  customerPhone           String
+  customerEmail           String?
+  customerId              String?
+  deviceBrand             String
+  deviceModel             String
+  deviceImei              String?
+  deviceColor             String?
+  securityCode            String?
+  patternData             String?
+  issueDescription        String
+  conditionNotes          String?
+  warrantyExpiry          DateTime?
+  status                  String               @default("NEW")
+  currentBranchId         String
+  movementId              String?
+  technicianId            String?
+  completedById           String?
+  initialQuote            Decimal              @default(0.00)
+  repairPrice             Decimal              @default(0.00)
+  partsCost               Decimal              @default(0.00)
+  deposit                 Decimal              @default(0.00)
+  commissionRate          Decimal              @default(0.00)
+  commissionAmount        Decimal              @default(0.00)
+  netProfit               Decimal              @default(0.00)
+  paymentStatus           String               @default("unpaid")
+  paymentMethod           String?
+  amountPaid              Decimal              @default(0.00)
+  finalCustomerPrice      Decimal              @default(0.00)
+  techBillingPrice        Decimal              @default(0.00)
+  partCostPrice           Decimal              @default(0.00)
+  laborPoolAmount         Decimal              @default(0.00)
+  techCommissionAmount    Decimal              @default(0.00)
+  centerLaborProfit       Decimal              @default(0.00)
+  centerPartProfit        Decimal              @default(0.00)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  version                 Int                  @default(1)
+  completedAt             DateTime?
+  deliveredAt             DateTime?
+  commissionClawback      Decimal              @default(0.00)
+  lastReturnedAt          DateTime?
+  originalTechId          String?
+  returnCount             Int                  @default(0)
+  returnReason            String?
+  rejectionReason         String? // Reason when ticket is rejected
+  rejectedAt              DateTime? // When the ticket was rejected
+  rejectedBy              String? // User ID who rejected the ticket
+  lossResponsibility      String? // NEW: TECH | CENTER | SPLIT
+  excessLossAmount        Decimal              @default(0.00) // NEW: Amount of loss beyond initial profit
+  shiftId                 String?
+  warrantyExpiryDate      DateTime?
+  expectedDuration        Int?
+  startedAt               DateTime?
+  clientUserId            String?
+  clientSupplierId        String?
+  previousStatus          String?
+  parentTicketId          String?
+  isWarrantyReturn        Boolean              @default(false)
+  slaDeadlineAt           DateTime?
+  slaBreachedAt           DateTime?
+  idempotencyKey          String?              @unique
+  isTechCommissionSettled Boolean              @default(false)
+  techCommissionSettledAt DateTime?
+  isPenaltyWaived         Boolean              @default(false)
+  feedback                Feedback?
+  journalEntries          JournalEntry[]
+  logs                    NotificationLog[]
+  payments                RepairPayment[]
+  clientSupplier          Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
+  clientUser              User?                @relation("ClientUser", fields: [clientUserId], references: [id])
+  technician              Technician?          @relation(fields: [technicianId], references: [id])
+  shift                   Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
+  movement                DeviceMovement?      @relation(fields: [movementId], references: [id])
+  customer                Customer?            @relation(fields: [customerId], references: [id])
+  currentBranch           Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  parentTicket            Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
+  returnTickets           Ticket[]             @relation("TicketReturns")
+  completedBy             Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
+  collaborators           TicketCollaborator[]
+  notes                   TicketNote[]
+  parts                   TicketPart[]
 
   @@index([barcode])
   @@index([status, createdAt])

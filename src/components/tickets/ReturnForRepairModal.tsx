@@ -21,8 +21,6 @@ interface ReturnForRepairModalProps {
     onSuccess?: () => void;
 }
 
-type ClawbackOption = 'NONE' | 'PARTIAL' | 'FULL';
-
 const RETURN_REASONS = [
     { value: 'same_issue', label: 'نفس المشكلة لم تُحل', labelEn: 'Same issue not fixed', icon: AlertTriangle },
     { value: 'new_issue', label: 'مشكلة جديدة ظهرت', labelEn: 'New issue appeared', icon: RefreshCw },
@@ -46,7 +44,7 @@ export default function ReturnForRepairModal({
 
     const [selectedReason, setSelectedReason] = useState('');
     const [customReason, setCustomReason] = useState('');
-    const [clawbackOption, setClawbackOption] = useState<ClawbackOption>('NONE');
+    const [isPenaltyWaived, setIsPenaltyWaived] = useState(false);
 
     // Calculate warranty status
     const warrantyDays = 30; // TODO: Get from config
@@ -71,7 +69,7 @@ export default function ReturnForRepairModal({
             const res = await markForReRepair({
                 ticketId: ticket.id,
                 returnReason: selectedReason === 'other' ? customReason : selectedReason,
-                clawbackOption,
+                isPenaltyWaived,
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -84,7 +82,7 @@ export default function ReturnForRepairModal({
                         setSuccess(false);
                         setSelectedReason('');
                         setCustomReason('');
-                        setClawbackOption('NONE');
+                        setIsPenaltyWaived(false);
                     }, 500);
                 }, 1500);
             } else {
@@ -100,7 +98,7 @@ export default function ReturnForRepairModal({
     const resetAndClose = () => {
         setSelectedReason('');
         setCustomReason('');
-        setClawbackOption('NONE');
+        setIsPenaltyWaived(false);
         setSuccess(false);
         setError(null);
         onClose();
@@ -201,52 +199,27 @@ export default function ReturnForRepairModal({
                         </div>
                     )}
 
-                    {/* Commission Clawback Options */}
+                    {/* Penalty Waiver Checkbox */}
                     {originalCommission > 0 && (
                         <div className="pt-2 border-t border-white/10">
-                            <div className="flex justify-between items-end mb-3">
-                                <label className="text-sm font-bold text-white flex items-center gap-2">
-                                    <DollarSign className="w-4 h-4 text-orange-400" />
-                                    خصم العمولة - Commission Clawback
-                                </label>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setClawbackOption('NONE')}
-                                    className={`p-3 rounded-xl border-2 text-center transition-all ${clawbackOption === 'NONE'
-                                        ? 'bg-green-600 border-green-400 text-white shadow-lg shadow-green-900/40 scale-[1.02]'
-                                        : 'bg-white/5 border-white/10 text-zinc-300 opacity-60 hover:opacity-100 hover:text-white'
-                                        }`}
-                                >
-                                    <span className="text-lg font-black block">بدون</span>
-                                    <span className="text-[10px] font-bold uppercase">No Clawback</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setClawbackOption('PARTIAL')}
-                                    className={`p-3 rounded-xl border-2 text-center transition-all ${clawbackOption === 'PARTIAL'
-                                        ? 'bg-yellow-600 border-yellow-400 text-white shadow-lg shadow-yellow-900/40 scale-[1.02]'
-                                        : 'bg-white/5 border-white/10 text-zinc-300 opacity-60 hover:opacity-100 hover:text-white'
-                                        }`}
-                                >
-                                    <span className="text-lg font-black block">50%</span>
-                                    <span className="text-[10px] font-bold uppercase">{formatCurrency(originalCommission * 0.5)}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setClawbackOption('FULL')}
-                                    className={`p-3 rounded-xl border-2 text-center transition-all ${clawbackOption === 'FULL'
-                                        ? 'bg-red-600 border-red-400 text-white shadow-lg shadow-red-900/40 scale-[1.02]'
-                                        : 'bg-white/5 border-white/10 text-zinc-300 opacity-60 hover:opacity-100 hover:text-white'
-                                        }`}
-                                >
-                                    <span className="text-lg font-black block">كامل</span>
-                                    <span className="text-[10px] font-bold uppercase">{formatCurrency(originalCommission)}</span>
-                                </button>
-                            </div>
+                            <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isPenaltyWaived}
+                                    onChange={(e) => setIsPenaltyWaived(e.target.checked)}
+                                    className="w-5 h-5 rounded border-white/20 bg-black/50 text-orange-500 focus:ring-orange-500 focus:ring-offset-0"
+                                />
+                                <div>
+                                    <div className="text-white font-bold text-sm flex items-center gap-2">
+                                        🛡️ إعفاء المهندس من غرامة الضمان (عيب مورد)
+                                    </div>
+                                    <div className="text-zinc-400 text-xs mt-1">
+                                        Waive Technician Penalty (Supplier Defect)
+                                    </div>
+                                </div>
+                            </label>
                             <p className="mt-3 text-[11px] text-zinc-500 bg-white/5 p-2 rounded italic text-center border border-white/5">
-                                * This action will reopen the ticket and create a commission deduction record for the technician.
+                                * سيتم تحميل خسارة القطع الجديدة على المركز بالكامل وإعفاء المهندس الأصلي.
                             </p>
                         </div>
                     )}

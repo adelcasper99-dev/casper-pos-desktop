@@ -68,7 +68,7 @@ export function ReturnInitiationModal({ isOpen, onClose, ticketId, barcode, part
             const res = await markForReRepair({
                 ticketId,
                 returnReason: reason,
-                clawbackOption: responsibility === 'TECH' ? 'FULL' : responsibility === 'SPLIT' ? 'PARTIAL' : 'NONE',
+                isPenaltyWaived: responsibility === 'CENTER', 
                 csrfToken: csrfToken ?? undefined
             })
 

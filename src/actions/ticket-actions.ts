@@ -1372,10 +1372,10 @@ export const softDeleteTicket = secureAction(async (data: {
 export const markForReRepair = secureAction(async (data: {
     ticketId: string;
     returnReason: string;
-    clawbackOption?: string;
+    isPenaltyWaived?: boolean;
     csrfToken?: string;
 }) => {
-    const { ticketId, returnReason, clawbackOption = 'NONE' } = data;
+    const { ticketId, returnReason, isPenaltyWaived = false } = data;
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
@@ -1394,13 +1394,6 @@ export const markForReRepair = secureAction(async (data: {
     const originalTechId = ticket.completedById || ticket.technicianId;
     const originalCommission = Number(ticket.commissionAmount) || 0;
 
-    let clawbackAmount = 0;
-    if (clawbackOption === 'FULL' && originalCommission > 0) {
-        clawbackAmount = originalCommission;
-    } else if (clawbackOption === 'PARTIAL' && originalCommission > 0) {
-        clawbackAmount = originalCommission * 0.5; // Default 50%
-    }
-
     const result = await prisma.$transaction(async (tx) => {
         const updatedTicket = await tx.ticket.update({
             where: { id: ticketId },
@@ -1410,7 +1403,7 @@ export const markForReRepair = secureAction(async (data: {
                 lastReturnedAt: new Date(),
                 returnReason,
                 originalTechId: originalTechId,
-                commissionClawback: { increment: clawbackAmount }
+                isPenaltyWaived: isPenaltyWaived
             }
         });
 
@@ -1427,32 +1420,32 @@ export const markForReRepair = secureAction(async (data: {
             });
         }
 
-        // 💰 [NEW] Record Actual Employee Transaction for the Clawback (Debit)
-        if (clawbackAmount > 0 && originalTechId) {
-            // 🛡️ Resolve Technician -> User ID (Required for EmployeeTransaction P2003)
+        // 💰 [NEW] ALWAYS apply a FULL temporary reversal of the existing commission 
+        // to the original technician, UNLESS the penalty was explicitly waived.
+        if (originalCommission > 0 && originalTechId && !isPenaltyWaived) {
             const techProfile = await tx.technician.findUnique({
                 where: { id: originalTechId },
                 select: { userId: true }
             });
 
             if (techProfile?.userId) {
-                // 🛡️ [IDEMPOTENCY]: Avoid duplicate clawbacks for the same ticket rework
-                const existingClawback = await tx.employeeTransaction.findFirst({
+                // 🛡️ [IDEMPOTENCY]: Avoid duplicate reversals for the same ticket rework
+                const existingReversal = await tx.employeeTransaction.findFirst({
                     where: { 
                         userId: techProfile.userId,
                         referenceId: ticket.id,
-                        type: 'MAINTENANCE_COMMISSION',
-                        amount: { lt: 0 } // Negative means it's a clawback
+                        type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                        amount: { lt: 0 } 
                     }
                 });
 
-                if (!existingClawback) {
+                if (!existingReversal) {
                     await tx.employeeTransaction.create({
                         data: {
                             userId: techProfile.userId,
-                            type: 'MAINTENANCE_COMMISSION',
-                            amount: -clawbackAmount, // Negative amount for debit
-                            description: `Clawback: Warranty Rework for Ticket #${ticket.barcode}`,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: -originalCommission, // Negative amount for debit
+                            description: `Reversal: Warranty Rework for Ticket #${ticket.barcode}`,
                             referenceId: ticket.id,
                             referenceType: 'TICKET_REWORK',
                             branchId: ticket.currentBranchId || undefined
@@ -1463,19 +1456,18 @@ export const markForReRepair = secureAction(async (data: {
         }
 
 
-        if (clawbackAmount > 0 && originalTechId) {
+        if (originalCommission > 0 && originalTechId) {
             await tx.auditLog.create({
                 data: {
-                    entityType: 'COMMISSION_CLAWBACK',
+                    entityType: 'COMMISSION_REVERSAL',
                     entityId: ticketId,
-                    action: clawbackOption === 'FULL' ? 'FULL_CLAWBACK' : 'PARTIAL_CLAWBACK',
+                    action: isPenaltyWaived ? 'WAIVED_REVERSAL' : 'FULL_REVERSAL',
                     previousData: JSON.stringify({
                         technicianId: originalTechId,
                         originalCommission,
-                        clawbackAmount,
                         returnReason
                     }),
-                    reason: `Commission clawback of ${clawbackAmount.toFixed(2)} for warranty return`,
+                    reason: `Commission reversal of ${originalCommission.toFixed(2)} for warranty return`,
                     user: user?.name || 'System'
                 }
             });
@@ -1484,7 +1476,7 @@ export const markForReRepair = secureAction(async (data: {
         await tx.ticketNote.create({
             data: {
                 ticketId,
-                text: `🔄 Returned for re-repair. Reason: ${returnReason}. ${clawbackAmount > 0 ? `Commission clawback: $${clawbackAmount.toFixed(2)}` : ''}`,
+                text: `🔄 Returned for re-repair. Reason: ${returnReason}. ${originalCommission > 0 ? `Commission reversed: $${originalCommission.toFixed(2)}` : ''}`,
                 author: user.name || user.username || "System",
                 isInternal: true
             }
@@ -2405,34 +2397,122 @@ export const processTicketPayment = secureAction(async (data: {
         const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
 
         if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
-            // 1. Record Main Technician Commission using Centralized Rule (FIXED/PERCENTAGE)
+            // 1. Delta-Based Commission/Loss Engine for Reworks & Normal Tickets
             if (ticket.technicianId) {
-                const technician = await tx.technician.findUnique({
-                    where: { id: ticket.technicianId },
-                    include: { commissionRule: true }
-                });
+                const currentTechId = ticket.technicianId;
+                const originalTechId = ticket.originalTechId || ticket.technicianId;
+                const netProfit = distributionData.laborPoolAmount || new Decimal(0);
 
-                if (technician) {
-                    const existingComm = await tx.employeeTransaction.findFirst({
-                        where: {
-                            referenceId: ticket.id,
-                            type: 'MAINTENANCE_COMMISSION'
-                        }
+                // --- Normal Ticket (First Time) ---
+                if (originalTechId === currentTechId && !ticket.originalTechId) {
+                    const technician = await tx.technician.findUnique({
+                        where: { id: currentTechId },
+                        include: { commissionRule: true }
                     });
 
-                    if (!existingComm) {
-                        const resolved = resolveCommission(technician, distributionData.laborPoolAmount || new Decimal(0));
-                        if (resolved.commissionAmount.gt(0)) {
-                            await tx.employeeTransaction.create({
-                                data: {
-                                    userId: technician.userId,
-                                    type: 'MAINTENANCE_COMMISSION',
-                                    amount: resolved.commissionAmount.toNumber(),
-                                    description: `عمولة صيانة: ${ticket.barcode} (سداد الفاتورة)`,
+                    if (technician) {
+                        const existingComm = await tx.employeeTransaction.findFirst({
+                            where: {
+                                referenceId: ticket.id,
+                                type: 'MAINTENANCE_COMMISSION'
+                            }
+                        });
+
+                        if (!existingComm) {
+                            const resolved = resolveCommission(technician, netProfit);
+                            if (resolved.commissionAmount.gt(0)) {
+                                await tx.employeeTransaction.create({
+                                    data: {
+                                        userId: technician.userId,
+                                        type: 'MAINTENANCE_COMMISSION',
+                                        amount: resolved.commissionAmount.toNumber(),
+                                        description: `عمولة صيانة: ${ticket.barcode} (سداد الفاتورة)`,
+                                        referenceId: ticket.id,
+                                        referenceType: 'TICKET'
+                                    }
+                                });
+                            }
+                        }
+                    }
+                } 
+                // --- Rework Ticket Logic ---
+                else {
+                    const isPenaltyWaived = ticket.isPenaltyWaived;
+
+                    // A. Handle Current Tech (New Profits)
+                    // If there is profit left, grant it to the current technician.
+                    // IMPORTANT: To prevent double-dipping, if the current technician is the same as the original technician,
+                    // and their penalty was waived (meaning they kept their original commission), DO NOT grant them a second commission on the same profit pool.
+                    const isSameTech = currentTechId === originalTechId;
+                    const canGrantNewCommission = !isSameTech || (isSameTech && !isPenaltyWaived);
+
+                    if (netProfit.gt(0) && canGrantNewCommission) {
+                        const currentTech = await tx.technician.findUnique({
+                            where: { id: currentTechId },
+                            include: { commissionRule: true }
+                        });
+                        
+                        if (currentTech && currentTech.userId) {
+                            const existingComm = await tx.employeeTransaction.findFirst({
+                                where: {
                                     referenceId: ticket.id,
-                                    referenceType: 'TICKET'
+                                    type: 'MAINTENANCE_COMMISSION',
+                                    userId: currentTech.userId,
+                                    createdAt: { gt: ticket.lastReturnedAt || ticket.createdAt }
                                 }
                             });
+
+                            if (!existingComm) {
+                                const resolved = resolveCommission(currentTech, netProfit);
+                                if (resolved.commissionAmount.gt(0)) {
+                                    await tx.employeeTransaction.create({
+                                        data: {
+                                            userId: currentTech.userId,
+                                            type: 'MAINTENANCE_COMMISSION',
+                                            amount: resolved.commissionAmount.toNumber(),
+                                            description: `عمولة إعادة صيانة: ${ticket.barcode}`,
+                                            referenceId: ticket.id,
+                                            referenceType: 'TICKET_REWORK'
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // B. Handle Original Tech (Loss)
+                    // If there is a net loss, and penalty is NOT waived, deduct from original tech.
+                    if (netProfit.lt(0) && !isPenaltyWaived) {
+                        const originalTech = await tx.technician.findUnique({
+                            where: { id: originalTechId }
+                        });
+                        
+                        if (originalTech && originalTech.userId) {
+                            const expectedLoss = netProfit.abs().mul(new Decimal(originalTech.lossSharePercentage || 0).div(100));
+                            
+                            if (expectedLoss.gt(0)) {
+                                const existingLoss = await tx.employeeTransaction.findFirst({
+                                    where: {
+                                        referenceId: ticket.id,
+                                        type: 'LOSS_DEDUCTION',
+                                        userId: originalTech.userId,
+                                        createdAt: { gt: ticket.lastReturnedAt || ticket.createdAt }
+                                    }
+                                });
+
+                                if (!existingLoss) {
+                                    await tx.employeeTransaction.create({
+                                        data: {
+                                            userId: originalTech.userId,
+                                            type: 'LOSS_DEDUCTION',
+                                            amount: -expectedLoss.toNumber(), // Negative amount for debit
+                                            description: `خصم خسارة إعادة صيانة (عيب فني): ${ticket.barcode}`,
+                                            referenceId: ticket.id,
+                                            referenceType: 'TICKET_REWORK'
+                                        }
+                                    });
+                                }
+                            }
                         }
                     }
                 }
@@ -2456,7 +2536,7 @@ export const processTicketPayment = secureAction(async (data: {
                         data: {
                             userId: collab.technician.userId,
                             type: 'MAINTENANCE_COMMISSION',
-                            amount: collabCommissionDec,
+                            amount: collabCommissionDec.toNumber(),
                             description: `عمولة تعاون (مساعد) تذكرة #${ticket.barcode}`,
                             referenceId: ticket.id,
                             referenceType: 'TICKET'

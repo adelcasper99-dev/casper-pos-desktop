@@ -24,5 +24,5 @@ export default async function HRPage() {
 
     const csrfToken = await getCSRFToken() || ""
 
-    return <HRClient csrfToken={csrfToken} />
+    return <HRClient csrfToken={csrfToken} currentUserId={session.user.id} branchId={session.user.branchId || ""} />
 }
