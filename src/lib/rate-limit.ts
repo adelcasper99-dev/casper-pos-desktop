@@ -1,69 +1,22 @@
-/**
- * Casper POS Rate Limiting Utility
- * Prevents brute-force and accidental rapid submissions in server actions.
- * NOTE: This is in-memory and scales per-instance.
- */
+﻿const store = new Map<string, { count: number; resetAt: number }>();
 
-type RateLimitEntry = {
-    count: number;
-    resetAt: number;
-};
-
-const cache = new Map<string, RateLimitEntry>();
-
-export interface RateLimitOptions {
-    keyPrefix: string;
-    limit: number;
-    windowSeconds: number;
-}
-
-/**
- * Checks if an identifier has exceeded its rate limit.
- * Returns { success: boolean, remaining: number, resetAt: number }
- */
-export async function rateLimit(identifier: string, options: RateLimitOptions) {
-    const now = Date.now();
-    const key = `${options.keyPrefix}:${identifier}`;
-    const windowMs = options.windowSeconds * 1000;
-    
-    // Cleanup old entries periodically (every 1000 calls)
-    if (cache.size > 1000) {
-        // Fix for downlevel iteration error: Convert to array for iteration
-        Array.from(cache.entries()).forEach(([k, v]) => {
-            if (v.resetAt < now) cache.delete(k);
-        });
+export async function rateLimit(
+  action: string,
+  entityId: string,
+  opts: { windowMs: number; max: number }
+): Promise<void> {
+  const key = `${action}:${entityId}`;
+  const now = Date.now();
+  const entry = store.get(key);
+  
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= opts.max) {
+      throw new Error(
+        `RATE_LIMITED: ${action} for ${entityId}. Retry after ${Math.ceil((entry.resetAt - now) / 1000)}s`
+      );
     }
-
-    let entry = cache.get(key);
-
-    if (!entry || entry.resetAt < now) {
-        entry = {
-            count: 1,
-            resetAt: now + windowMs
-        };
-        cache.set(key, entry);
-        return { 
-            success: true, 
-            limit: options.limit, 
-            remaining: options.limit - 1, 
-            reset: entry.resetAt 
-        };
-    }
-
-    if (entry.count >= options.limit) {
-        return { 
-            success: false, 
-            limit: options.limit, 
-            remaining: 0, 
-            reset: entry.resetAt 
-        };
-    }
-
-    entry.count += 1;
-    return { 
-        success: true, 
-        limit: options.limit, 
-        remaining: options.limit - entry.count, 
-        reset: entry.resetAt 
-    };
+    entry.count++;
+  } else {
+    store.set(key, { count: 1, resetAt: now + opts.windowMs });
+  }
 }

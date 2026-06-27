@@ -131,6 +131,14 @@ export class AutoJournalService {
     const techComm = new Decimal(params.techCommissionAmount.toString());
     const centerProfit = new Decimal(params.centerLaborProfit.toString());
 
+    const creditSum = techBilling.plus(techComm).plus(centerProfit);
+    if (!creditSum.equals(amount)) {
+      throw new Error(
+        `[JE-BALANCE] Ticket ${params.barcode}: debit=${amount.toFixed(4)}, ` +
+        `credits=${creditSum.toFixed(4)}, diff=${amount.minus(creditSum).toFixed(4)}`
+      );
+    }
+
     const accountMap = await this.getAccountIds(tx, [
       GL.REVENUE.SERVICE,
       GL.REVENUE.SALES,
