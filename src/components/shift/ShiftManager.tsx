@@ -24,6 +24,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     const [startCash, setStartCash] = useState("");
     const [actualCash, setActualCash] = useState("");
     const [cashBreakdown, setCashBreakdown] = useState<Record<string, number>>({});
+    const [cardTerminalSettlement, setCardTerminalSettlement] = useState("");
     const [notes, setNotes] = useState("");
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
     const [settings, setSettings] = useState<any>(null);
@@ -96,12 +97,31 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
             return;
         }
 
+        if (isBlindClose && cardTerminalSettlement === "") {
+            toast.error("Please enter the total card terminal settlement");
+            return;
+        }
+
+        let parsedCard: number | undefined;
+        try {
+            parsedCard = cardTerminalSettlement ? new Decimal(cardTerminalSettlement).toNumber() : undefined;
+        } catch {
+            toast.error("Please enter a valid card terminal settlement");
+            return;
+        }
+
+        if (isBlindClose && parsedCard !== undefined && parsedCard < 0) {
+            toast.error("Card settlement cannot be negative");
+            return;
+        }
+
         setIsLoading(true);
         try {
             const result = await closeShift({
                 shiftId: currentShift.id,
                 actualCash: parsedActualCash,
                 cashBreakdown,
+                cardTerminalSettlement: parsedCard,
                 notes: notes || undefined
             });
 
@@ -109,6 +129,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                 toast.success(result.message || "Shift closed successfully!");
                 setShowCloseModal(false);
                 setActualCash("");
+                setCardTerminalSettlement("");
                 setNotes("");
                 router.refresh();
             } else {
@@ -283,14 +304,34 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                     type="number"
                                     step="0.01"
                                     min="0"
+                                    readOnly={isBlindClose}
                                     value={actualCash}
                                     onChange={(e) => setActualCash(e.target.value)}
-                                    className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                    className={`w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent ${isBlindClose ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     placeholder="0.00"
-                                    autoFocus
                                 />
                             </div>
                         </div>
+
+                        {isBlindClose && (
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2 text-gray-300">
+                                    Total Card Terminal Settlement
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={cardTerminalSettlement}
+                                        onChange={(e) => setCardTerminalSettlement(e.target.value)}
+                                        className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="mb-6">
                             <label className="block text-sm font-medium mb-2 text-gray-300">
@@ -317,6 +358,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                 onClick={() => {
                                     setShowCloseModal(false);
                                     setActualCash("");
+                                    setCardTerminalSettlement("");
                                     setNotes("");
                                 }}
                                 disabled={isLoading}

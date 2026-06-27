@@ -636,6 +636,9 @@ model Shift {
   totalTicketRevenueInstapay Decimal           @default(0.00)
   totalTicketRevenueWallet   Decimal           @default(0.00)
   cashBreakdown              String?
+  cashDenominationsBreakdown Json?
+  cardTerminalSettlement     Decimal           @default(0.00)
+  transitStatus              String            @default("NONE")
   expenses                   Expense[]         @relation("ShiftExpenses")
   sales                      Sale[]            @relation("ShiftSales")
   user                       User              @relation("ShiftOwner", fields: [userId], references: [id])

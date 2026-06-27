@@ -34,6 +34,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const [startCash, setStartCash] = useState("");
     const [actualCash, setActualCash] = useState("");
     const [cashBreakdown, setCashBreakdown] = useState<Record<string, number>>({});
+    const [cardTerminalSettlement, setCardTerminalSettlement] = useState("");
     const [notes, setNotes] = useState("");
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
     const [isMounted, setIsMounted] = useState(false);
@@ -108,12 +109,32 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
             return;
         }
 
+        if (isBlindClose && cardTerminalSettlement === "") {
+            toast.error("Please enter the total card terminal settlement");
+            return;
+        }
+
+        let parsedCard: number | undefined;
+        try {
+            parsedCard = cardTerminalSettlement ? new Decimal(cardTerminalSettlement).toNumber() : undefined;
+        } catch {
+            toast.error("Please enter a valid card terminal settlement");
+            return;
+        }
+
+        if (isBlindClose && parsedCard !== undefined && parsedCard < 0) {
+            toast.error("Card settlement cannot be negative");
+            return;
+        }
+
         setIsLoading(true);
         try {
+
             const result = await closeShift({
                 shiftId: shift.id,
                 actualCash: parsedActualCash,
                 cashBreakdown,
+                cardTerminalSettlement: parsedCard,
                 notes: notes || undefined,
                 csrfToken
             });
@@ -121,6 +142,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
             if (result.success) {
                 setShowCloseModal(false);
                 setActualCash("");
+                setCardTerminalSettlement("");
                 setNotes("");
 
                 // Auto Print Z-Report
@@ -350,6 +372,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 onClose={() => {
                     setShowCloseModal(false);
                     setActualCash("");
+                    setCardTerminalSettlement("");
                     setNotes("");
                 }} 
                 title={t('closeModalTitle') || "إغلاق الوردية"}
@@ -385,13 +408,37 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 type="number"
                                 step="0.01"
                                 min="0"
+                                readOnly={isBlindClose}
                                 value={actualCash}
                                 onChange={(e) => setActualCash(e.target.value)}
-                                className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-4 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white transition-all focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none"
+                                className={clsx(
+                                    "w-full rounded-xl py-4 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white transition-all outline-none border",
+                                    isBlindClose ? "bg-slate-100 dark:bg-black/60 border-transparent text-slate-600 cursor-not-allowed" : "bg-white dark:bg-black/40 border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20"
+                                )}
                                 placeholder="0.00"
                             />
                         </div>
                     </div>
+
+                    {isBlindClose && (
+                        <div className="bg-slate-50 dark:bg-black/20 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-inner space-y-3">
+                            <label className="block text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest text-center">
+                                TOTAL CARD TERMINAL SETTLEMENT (إجمالي تسوية بطاقات الدفع)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-600 font-black text-lg">$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={cardTerminalSettlement}
+                                    onChange={(e) => setCardTerminalSettlement(e.target.value)}
+                                    className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-4 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white transition-all focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {!isBlindClose && (
                         <div className="bg-slate-50/50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-2xl p-5 space-y-3">

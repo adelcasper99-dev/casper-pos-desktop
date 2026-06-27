@@ -193,6 +193,7 @@ export const closeShift = secureAction(async (data: {
     actualCash: number;
     notes?: string;
     cashBreakdown?: Record<string, number>;
+    cardTerminalSettlement?: number;
     safeDropAmount?: number;
     safeDropTreasuryId?: string;
     csrfToken?: string; // For CSRF validation
@@ -271,6 +272,16 @@ export const closeShift = secureAction(async (data: {
 
     const actualCashDecimal = toDecimal(data.actualCash);
     const cashVariance = actualCashDecimal.minus(expectedCash);
+
+    // Card Settlement:
+    const expectedCard = totalCardSales;
+    const submittedCard = data.cardTerminalSettlement !== undefined ? toDecimal(data.cardTerminalSettlement) : expectedCard;
+    const cardVariance = submittedCard.minus(expectedCard);
+
+    // Auto-calculate safe drop for blind close if not provided (Actual Cash - Float)
+    const floatAmount = toDecimal(shift.startCash);
+    const computedSafeDrop = data.safeDropAmount ?? actualCashDecimal.minus(floatAmount).toNumber();
+    const finalSafeDropAmount = Math.max(0, computedSafeDrop);
 
     // ✅ FIX #2: VERIFY COUNTS (Don't recalculate!)
     const actualSalesCount = shift.sales.length;
@@ -360,6 +371,8 @@ export const closeShift = secureAction(async (data: {
         totalWalletSales,
         totalInstapay,
         totalAccountSales,
+        cardTerminalSettlement: submittedCard,
+        transitStatus: finalSafeDropAmount > 0 ? "PENDING" : "NONE",
         totalCashRefunds: totalCashRefundsAccumulated,
         totalAccountRefunds: totalAccountRefundsAccumulated,
         totalSplitPayments: splitPaymentCount,
@@ -367,6 +380,7 @@ export const closeShift = secureAction(async (data: {
         totalSales: finalSalesCount,      // ✅ Verified
         totalTickets: finalTicketsCount,  // ✅ Verified
         hasAdjustments: hasDiscrepancy,   // ✅ Flag if corrected
+        cashDenominationsBreakdown: data.cashBreakdown ? data.cashBreakdown : undefined,
         cashBreakdown: data.cashBreakdown ? JSON.stringify(data.cashBreakdown) : undefined,
         notes: hasDiscrepancy
             ? `${data.notes || ''}\n\n[AUTO-CORRECTED]: ${discrepancyNotes.join('\n')}`
@@ -380,21 +394,22 @@ export const closeShift = secureAction(async (data: {
 
     // Handle Safe Drop (Treasury Transfer) AND Accounting Entries
     await prisma.$transaction(async (tx) => {
-        if (data.safeDropAmount && data.safeDropAmount > 0 && data.safeDropTreasuryId) {
+        const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
+        const branchId = shiftOwner?.branchId;
+
+        if (finalSafeDropAmount > 0 && data.safeDropTreasuryId) {
             await tx.transaction.create({
                 data: {
-                    type: 'SAFE_DROP',
-                    amount: toDecimal(data.safeDropAmount || 0),
+                    type: 'TRANSIT_DROP',
+                    amount: toDecimal(finalSafeDropAmount),
                     paymentMethod: 'CASH',
-                    description: `Safe Drop from Shift #${shift.id}`,
-                    treasuryId: data.safeDropTreasuryId
+                    description: `Safe Drop from Shift #${shift.id} (In Transit)`,
+                    treasuryId: data.safeDropTreasuryId,
+                    shiftId: shift.id
                 }
             });
 
-            await tx.treasury.update({
-                where: { id: data.safeDropTreasuryId },
-                data: { balance: { increment: data.safeDropAmount } }
-            });
+            // Transit Drops DO NOT increment the Treasury yet. The Manager Confirm action will increment it.
 
             // 🆕 Dynamic Treasury GL Mapping (B39)
             let safeDropDestCode = '1020';
@@ -404,24 +419,21 @@ export const closeShift = secureAction(async (data: {
             });
             if (destTreasury?.glCode) safeDropDestCode = destTreasury.glCode;
 
-            // Resolve branchId from shift owner (Shift doesn't have indirect relation to Branch in this schema)
-            const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
-            const branchId = shiftOwner?.branchId;
-
             const shiftTreasury = await tx.treasury.findFirst({
                 where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
             });
             const cashAccountCode = shiftTreasury?.glCode || PAYMENT_METHOD_GL_MAP.CASH;
 
             // ── Phase 4: Z-Report Safe Drop Journal Entry ──
+            const transitAccountCode = '1015'; // Cash In Transit GL Code
             await AccountingEngine.recordTransaction({
-                description: `Z-Report Safe Drop - Shift #${shift.id.slice(0, 8)}`,
+                description: `Z-Report Safe Drop (In Transit) - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
                 date: new Date(),
                 branchId: branchId || undefined,
                 lines: [
-                    { accountCode: safeDropDestCode, debit: data.safeDropAmount, credit: 0, description: "Safe Drop - To Treasury" },
-                    { accountCode: cashAccountCode, debit: 0, credit: data.safeDropAmount, description: "Safe Drop - From Cash Drawer" }
+                    { accountCode: transitAccountCode, debit: finalSafeDropAmount, credit: 0, description: "Cash In Transit" },
+                    { accountCode: cashAccountCode, debit: 0, credit: finalSafeDropAmount, description: "Safe Drop - From Cash Drawer" }
                 ]
             }, tx);
         }
@@ -454,9 +466,6 @@ export const closeShift = secureAction(async (data: {
                 });
             }
 
-            const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
-            const branchId = shiftOwner?.branchId;
-
             const shiftTreasury = await tx.treasury.findFirst({
                 where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
             });
@@ -475,6 +484,26 @@ export const closeShift = secureAction(async (data: {
                     // Overage: Cash In (DR) / Contra-Expense or Income (CR)
                     { accountCode: cashAccountCode, debit: varianceAmt, credit: 0, description: "Cash Register Adjustment" },
                     { accountCode: '4500', debit: 0, credit: varianceAmt, description: "Cash Overage (Gain)" }
+                ]
+            }, tx);
+        }
+
+        // ── Phase 4: Z-Report Card Variance (Over/Short) ──
+        if (!cardVariance.isZero()) {
+            const varAmt = Math.abs(cardVariance.toNumber());
+            const isShortage = cardVariance.isNegative();
+
+            await AccountingEngine.recordTransaction({
+                description: `Z-Report Card Variance - Shift #${shift.id.slice(0, 8)}`,
+                reference: shift.id,
+                date: new Date(),
+                branchId: branchId || undefined,
+                lines: isShortage ? [
+                    { accountCode: '5500', debit: varAmt, credit: 0, description: "Card Shortage (Loss)" },
+                    { accountCode: '1030', debit: 0, credit: varAmt, description: "Card Settlement Adjustment" }
+                ] : [
+                    { accountCode: '1030', debit: varAmt, credit: 0, description: "Card Settlement Adjustment" },
+                    { accountCode: '4500', debit: 0, credit: varAmt, description: "Card Overage (Gain)" }
                 ]
             }, tx);
         }
