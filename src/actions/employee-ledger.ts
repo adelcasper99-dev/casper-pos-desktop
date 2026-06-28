@@ -98,9 +98,10 @@ export async function deleteEmployeeTransaction(id: string, userId: string, reas
             // 1. Reverse Financial Impacts (Treasury & Accounting)
             await FinancialReversalService.fullReversal(
                 tx,
-                id,
-                existing.type, // e.g., 'SALARY_PAYMENT'
-                reason || "Manual ledger deletion"
+                existing.id,
+                'EMPLOYEE_PAYMENT',
+                reason || "Manual ledger deletion",
+                "employeeTransactionId"
             );
 
             // 2. Delete the record

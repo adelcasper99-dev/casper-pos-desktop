@@ -21,6 +21,7 @@ export function validateCommissionData(ticket: {
   partsCost: Decimal | number | string;
   commissionRate: Decimal | number | string;
   commissionAmount: Decimal | number | string;
+  commissionRule?: { type: string; value: Decimal | number | string } | null;
 }): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
@@ -45,7 +46,16 @@ export function validateCommissionData(ticket: {
 
   // Validate commission amount is reasonable
   const netProfit = repairPrice.minus(partsCost);
-  const expectedCommission = calculateCommission(netProfit, commissionRate);
+  
+  let expectedCommission = new Decimal(0);
+  if (ticket.commissionRule && ticket.commissionRule.type === 'FIXED') {
+    expectedCommission = new Decimal(ticket.commissionRule.value.toString());
+  } else if (ticket.commissionRule && ticket.commissionRule.type === 'PERCENTAGE') {
+    expectedCommission = calculateCommission(netProfit, ticket.commissionRule.value);
+  } else {
+    expectedCommission = calculateCommission(netProfit, commissionRate);
+  }
+
   const difference = commissionAmount.minus(expectedCommission).abs();
 
   // Allow very small rounding differences (0.0001) for safety

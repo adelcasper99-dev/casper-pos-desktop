@@ -745,12 +745,16 @@ export const updateTicketStatus = secureAction(async (data: {
 
         // B19 Fix: Record Maintenance COGS (Parts Cost) in GL when COMPLETED
         if (status === 'COMPLETED' && existingTicket.status !== 'COMPLETED') {
-            const finalPartsCost = partsCost ?? existingTicket.partsCost ?? new Decimal(0);
-            if (new Decimal(finalPartsCost).gt(0)) {
+            const inventoryParts = await tx.ticketPart.findMany({
+                where: { ticketId: ticket.id, status: 'ACTIVE', productId: { not: null } }
+            });
+            const inventoryPartsCost = inventoryParts.reduce((sum, p) => sum.plus(new Decimal(p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+            
+            if (inventoryPartsCost.gt(0)) {
                 await AccountingEngine.recordMaintenanceCOGS({
                     ticketId: ticket.id,
                     barcode: ticket.barcode,
-                    partsCost: finalPartsCost,
+                    partsCost: inventoryPartsCost,
                     branchId: user.branchId ?? undefined
                 }, tx);
             }
@@ -1144,7 +1148,7 @@ export const refundTicket = secureAction(async (data: {
             }
         }
 
-        await AccountingEngine.recordRefund({
+        const je = await AccountingEngine.recordRefund({
             amount,
             method: refundMethod,
             description: `Refund: Ticket #${ticket.barcode}`,
@@ -1153,6 +1157,13 @@ export const refundTicket = secureAction(async (data: {
             cogsReversal: 0, // No COGS reversal on simple refund
             branchId: user.branchId ?? undefined
         }, tx);
+
+        if (je) {
+            await tx.repairPayment.update({
+                where: { id: payment.id },
+                data: { journalEntryId: je.id }
+            });
+        }
 
         return payment;
     }, { timeout: 60000 });
@@ -1222,7 +1233,7 @@ export const softDeleteTicket = secureAction(async (data: {
             const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
             // 1. RepairPayment (Audit)
-            await tx.repairPayment.create({
+            const payment = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: 'REFUND',
@@ -1285,7 +1296,7 @@ export const softDeleteTicket = secureAction(async (data: {
             }
 
             // 5. Accounting
-            await AccountingEngine.recordRefund({
+            const je = await AccountingEngine.recordRefund({
                 amount: amountToRefund,
                 method: refundMethod,
                 description: `Delete Ticket: #${ticket.barcode}`,
@@ -1294,6 +1305,13 @@ export const softDeleteTicket = secureAction(async (data: {
                 cogsReversal: totalPartsCostReversal,
                 branchId: user.branchId ?? undefined
             }, tx);
+
+            if (je) {
+                await tx.repairPayment.update({
+                    where: { id: payment.id },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         // --- Part 3: Relationship Cleanup ---
@@ -1329,7 +1347,7 @@ export const softDeleteTicket = secureAction(async (data: {
 
         // 6. Comprehensive Accounting Reversal (T-02)
         const { FinancialReversalService } = await import('@/lib/financial-reversal-service');
-        await FinancialReversalService.reverseAccountingEntries(tx, ticketId, `مسح التذكرة: ${reason}`);
+        await FinancialReversalService.reverseAccountingEntries(tx, ticketId, `مسح التذكرة: ${reason}`, "ticketId");
 
         // --- Part 5: Final Audit Log ---
         await tx.auditLog.create({
@@ -2269,8 +2287,9 @@ export const processTicketPayment = secureAction(async (data: {
             }
         }
 
+        let paymentRecordId: string | null = null;
         if (!effectiveAmount.isZero()) {
-            await tx.repairPayment.create({
+            const paymentRecord = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: effectiveAmount.lt(0) ? 'REFUND' : paymentType,
@@ -2280,6 +2299,7 @@ export const processTicketPayment = secureAction(async (data: {
                     recordedBy: currentUser.name || currentUser.username || 'System'
                 }
             });
+            paymentRecordId = paymentRecord.id;
         }
 
         const effectiveCustomerId = actualCustomerId || (paymentMethod === 'ACCOUNT' ? customerId : null);
@@ -2488,7 +2508,11 @@ export const processTicketPayment = secureAction(async (data: {
                         });
                         
                         if (originalTech && originalTech.userId) {
-                            const expectedLoss = netProfit.abs().mul(new Decimal(originalTech.lossSharePercentage || 0).div(100));
+                            let lossShare = originalTech.lossSharePercentage || new Decimal(0);
+                            if (lossShare.isNaN() || !lossShare.isFinite()) {
+                                lossShare = new Decimal(0);
+                            }
+                            const expectedLoss = netProfit.abs().mul(lossShare.div(100));
                             
                             if (expectedLoss.gt(0)) {
                                 const existingLoss = await tx.employeeTransaction.findFirst({
@@ -2624,8 +2648,9 @@ export const processTicketPayment = secureAction(async (data: {
             }
 
             // Unified Accounting Integration (Fix B17 & B18)
+            let je: any = null;
             if (isActuallyRefund) {
-                await AccountingEngine.recordRefund({
+                je = await AccountingEngine.recordRefund({
                     amount: effectiveAmount.abs().toNumber(),
                     method: paymentMethod,
                     description: `Ticket #${ticket.barcode} Refund`,
@@ -2634,7 +2659,7 @@ export const processTicketPayment = secureAction(async (data: {
                     branchId: currentUser.branchId ?? undefined
                 }, tx);
             } else {
-                await AccountingEngine.recordMaintenancePayment({
+                je = await AccountingEngine.recordMaintenancePayment({
                     amount: effectiveAmount,
                     method: paymentMethod,
                     description: `Ticket #${ticket.barcode} ${paymentType}`,
@@ -2643,9 +2668,15 @@ export const processTicketPayment = secureAction(async (data: {
                     branchId: currentUser.branchId ?? undefined
                 }, tx);
             }
+            if (je && paymentRecordId) {
+                await tx.repairPayment.update({
+                    where: { id: paymentRecordId },
+                    data: { journalEntryId: je.id }
+                });
+            }
         } else if (paymentMethod === 'ACCOUNT' && !effectiveAmount.isZero()) {
             // B18 Fix: Record deferred revenue in GL
-            await AccountingEngine.recordMaintenancePayment({
+            const je = await AccountingEngine.recordMaintenancePayment({
                 amount: effectiveAmount,
                 method: paymentMethod,
                 description: `Ticket #${ticket.barcode} Account Deferred`,
@@ -2653,6 +2684,12 @@ export const processTicketPayment = secureAction(async (data: {
                 ticketId: ticket.id,
                 branchId: currentUser.branchId ?? undefined
             }, tx);
+            if (je && paymentRecordId) {
+                await tx.repairPayment.update({
+                    where: { id: paymentRecordId },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         return updatedTicket;
@@ -3029,7 +3066,7 @@ export const fullTicketReturn = secureAction(async (data: {
             const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
             // 1. Create Refund record in RepairPayment
-            await tx.repairPayment.create({
+            const payment = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: 'REFUND',
@@ -3234,7 +3271,7 @@ export const fullTicketReturn = secureAction(async (data: {
             }
 
             // 5. Unified Double-Entry Accounting
-            await AccountingEngine.recordRefund({
+            const je = await AccountingEngine.recordRefund({
                 amount: amountToRefund,
                 method: refundMethod,
                 description: `Full Return: Ticket #${ticket.barcode}`,
@@ -3244,6 +3281,13 @@ export const fullTicketReturn = secureAction(async (data: {
                 spoilageAmount: totalDamagedPartsCost.toNumber(),
                 branchId: currentUser.branchId ?? undefined
             }, tx);
+
+            if (je) {
+                await tx.repairPayment.update({
+                    where: { id: payment.id },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         // --- Part 3: Ticket Status Update ---
@@ -3539,8 +3583,9 @@ export const partialRefundTicket = secureAction(async (data: {
         }
 
         // 3. Create Refund Payment Record
+        let payment: any = null;
         if (totalRefundAmount.gt(0)) {
-            await tx.repairPayment.create({
+            payment = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: 'REFUND',
@@ -3624,7 +3669,7 @@ export const partialRefundTicket = secureAction(async (data: {
             }
 
             // 6. Accounting
-            await AccountingEngine.recordRefund({
+            const je = await AccountingEngine.recordRefund({
                 amount: totalRefundAmount.toNumber(),
                 method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
                 description: `Partial Refund: Ticket #${ticket.barcode}`,
@@ -3634,6 +3679,13 @@ export const partialRefundTicket = secureAction(async (data: {
                 spoilageAmount: totalSpoilageAmount.toNumber(),
                 branchId: currentUser.branchId ?? undefined
             }, tx);
+
+            if (je && payment) {
+                await tx.repairPayment.update({
+                    where: { id: payment.id },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         return { success: true, refundedAmount: totalRefundAmount.toNumber() };
@@ -3709,7 +3761,7 @@ export const fullRefundTicket = secureAction(async (data: {
         }
 
         // 2. Create Refund Record
-        await tx.repairPayment.create({
+        const payment = await tx.repairPayment.create({
             data: {
                 ticketId: ticket.id,
                 type: 'REFUND',
@@ -3770,7 +3822,7 @@ export const fullRefundTicket = secureAction(async (data: {
         }
 
         // 5. Accounting Log
-        await AccountingEngine.recordRefund({
+        const je = await AccountingEngine.recordRefund({
             amount: totalRefundAmount.toNumber(),
             method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
             description: `Full Refund: Ticket #${ticket.barcode}`,
@@ -3780,6 +3832,13 @@ export const fullRefundTicket = secureAction(async (data: {
             spoilageAmount: totalSpoilageAmount.toNumber(),
             branchId: currentUser.branchId ?? undefined
         }, tx);
+
+        if (je) {
+            await tx.repairPayment.update({
+                where: { id: payment.id },
+                data: { journalEntryId: je.id }
+            });
+        }
 
         return { success: true };
     }, { timeout: 90000 });

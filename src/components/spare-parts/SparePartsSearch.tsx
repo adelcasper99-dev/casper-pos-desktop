@@ -54,12 +54,12 @@ interface SparePart {
     id: string;
     productName: string;
     brand: string;
-    quantity: string;
-    costPrice: string;
-    sellPrice: string;
-    price1?: string;
-    price2?: string;
-    price3?: string;
+    quantity: any;
+    costPrice: any;
+    sellPrice: any;
+    price1?: any;
+    price2?: any;
+    price3?: any;
 }
 
 interface Props {
@@ -257,12 +257,12 @@ export function SparePartsSearch({
                     'الرقم المرجعي': p.id,
                     'اسم الصنف': p.productName,
                     'الماركة': p.brand,
-                    'الكمية': p.quantity,
-                    'سعر التكلفة': p.costPrice,
-                    'سعر البيع': p.sellPrice,
-                    'سعر فرعي 1': p.price1 || '0',
-                    'سعر فرعي 2': p.price2 || '0',
-                    'سعر فرعي 3': p.price3 || '0'
+                    'الكمية': p.quantity?.toString() || '0',
+                    'سعر التكلفة': p.costPrice?.toString() || '0',
+                    'سعر البيع': p.sellPrice?.toString() || '0',
+                    'سعر فرعي 1': p.price1?.toString() || '0',
+                    'سعر فرعي 2': p.price2?.toString() || '0',
+                    'سعر فرعي 3': p.price3?.toString() || '0'
                 }));
                 exportToExcel(data, `spare_parts_${new Date().toISOString().split('T')[0]}.xlsx`);
             } else {

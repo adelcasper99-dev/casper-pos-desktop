@@ -446,12 +446,12 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
       
       // B26: If HQ Transfer, reverse the sibling transaction as well
       if (['INTER_HQ_IN', 'INTER_HQ_OUT'].includes(existing.type)) {
-          await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason);
+          await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason, "transactionId");
           if (existing.relatedTransactionId) {
-              await FinancialReversalService.reverseAccountingEntries(tx, existing.relatedTransactionId, reason);
+              await FinancialReversalService.reverseAccountingEntries(tx, existing.relatedTransactionId, reason, "transactionId");
           }
       } else {
-          await FinancialReversalService.reverseAccountingEntries(tx, id, reason);
+          await FinancialReversalService.reverseAccountingEntries(tx, id, reason, "transactionId");
       }
     });
 

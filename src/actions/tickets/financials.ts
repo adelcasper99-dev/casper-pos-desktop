@@ -75,7 +75,7 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         // 3. Accounting logic (Dynamic GL Mapping)
-        await AccountingEngine.recordMaintenancePayment({
+        const je = await AccountingEngine.recordMaintenancePayment({
             amount: data.amount,
             method: data.paymentMethod,
             description: `Payment for Ticket #${ticket.barcode}`,
@@ -83,6 +83,13 @@ export const processTicketPayment = secureAction(async (data: {
             ticketId: ticket.id,
             branchId: currentUser.branchId ?? undefined
         }, tx);
+
+        if (je) {
+            await tx.repairPayment.update({
+                where: { id: payment.id },
+                data: { journalEntryId: je.id }
+            });
+        }
 
         return payment;
     }, { timeout: 20000 });

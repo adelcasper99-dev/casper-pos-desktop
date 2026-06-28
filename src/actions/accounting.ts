@@ -322,7 +322,7 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
 
         // 2. Find and reverse the associated journal entries (GL)
         const { FinancialReversalService } = await import('@/lib/financial-reversal-service');
-        await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason || 'Parent expense deleted');
+        await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason || 'Parent expense deleted', "expenseId");
 
         // 3. Reverse associated treasury transactions linked via expenseId
         const linkedTransactions = await tx.transaction.findMany({

@@ -261,6 +261,7 @@ model JournalEntry {
   transactionId         String?              @unique
   transaction           Transaction?         @relation(fields: [transactionId], references: [id])
   lines                 JournalLine[]
+  repairPayments        RepairPayment[]
 
   @@index([date])
   @@index([branchId])
@@ -748,7 +749,7 @@ model Technician {
   commissionRate        Decimal                @default(0.00)
   commissionRuleId      String?
   lossRate              Decimal                @default(70.00)
-  lossSharePercentage   Float                  @default(0)
+  lossSharePercentage   Decimal                @default(0.00)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   warehouseId           String?
@@ -757,7 +758,6 @@ model Technician {
   user                  User                   @relation(fields: [userId], references: [id])
   warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
   commissionRule        CommissionRule?        @relation(fields: [commissionRuleId], references: [id])
-  TechnicianPerformance TechnicianPerformance?
   tickets               Ticket[]
   completedTickets      Ticket[]               @relation("CompletedBy")
   collaborations        TicketCollaborator[]
@@ -937,25 +937,17 @@ model TicketNote {
 }
 
 model RepairPayment {
-  id         String   @id @default(uuid())
-  ticketId   String
-  amount     Decimal
-  method     String
-  reference  String?
-  recordedBy String?
-  recordedAt DateTime @default(now())
-  type       String   @default("PAYMENT")
-  ticket     Ticket   @relation(fields: [ticketId], references: [id])
-}
-
-model TechnicianPerformance {
-  id                String     @id @default(uuid())
-  technicianId      String     @unique
-  repairCount       Int        @default(0)
-  avgRepairTime     Float      @default(0.0)
-  satisfactionScore Decimal    @default(0.0)
-  updatedAt         DateTime   @updatedAt
-  technician        Technician @relation(fields: [technicianId], references: [id])
+  id             String        @id @default(uuid())
+  ticketId       String
+  amount         Decimal
+  method         String
+  reference      String?
+  recordedBy     String?
+  recordedAt     DateTime      @default(now())
+  type           String        @default("PAYMENT")
+  journalEntryId String?
+  ticket         Ticket        @relation(fields: [ticketId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 }
 
 model Feedback {
@@ -1085,14 +1077,14 @@ model SparePart {
   category    String
   productName String
   brand       String
-  quantity    String
+  quantity    Decimal  @default(0.00)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  costPrice   String   @default("0")
-  sellPrice   String   @default("0")
-  price1      String   @default("0")
-  price2      String   @default("0")
-  price3      String   @default("0")
+  costPrice   Decimal  @default(0.00)
+  sellPrice   Decimal  @default(0.00)
+  price1      Decimal  @default(0.00)
+  price2      Decimal  @default(0.00)
+  price3      Decimal  @default(0.00)
 
   @@index([sku])
   @@index([brand])

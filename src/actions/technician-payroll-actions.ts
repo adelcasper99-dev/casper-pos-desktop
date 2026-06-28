@@ -160,6 +160,18 @@ export async function settleTechnicianPayroll({
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
+        // 1. Rate Limit to prevent race conditions
+        const { rateLimit } = await import('@/lib/rate-limit');
+        const rateCheck = await rateLimit(technicianId, {
+            keyPrefix: 'settle_tech',
+            limit: 1,
+            windowSeconds: 10
+        });
+
+        if (!rateCheck.success) {
+            throw new Error("عفواً، جاري معالجة طلب سابق. يرجى الانتظار.");
+        }
+
         // Constraint 3: Idempotency Key
         const idempotencyKey = `TECH_SETTLE_${technicianId}_${start.toISOString()}_${end.toISOString()}`;
 

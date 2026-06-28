@@ -72,7 +72,7 @@ export async function resetDatabase() {
             await tx.notificationLog.deleteMany();
             await tx.feedback.deleteMany();
             await tx.ticket.deleteMany();
-            await tx.technicianPerformance.deleteMany();
+            await tx.technician.deleteMany();
             await tx.deviceMovement.deleteMany();
 
 

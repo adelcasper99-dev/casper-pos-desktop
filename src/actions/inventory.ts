@@ -1492,7 +1492,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
 
         // H. Record Purchasing Accounting (Phase 2.2)
         const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
-        await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase updated");
+        await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase updated", "purchaseId");
 
         await AccountingEngine.recordPurchase(
             id,
@@ -1531,7 +1531,7 @@ export const deletePurchase = secureAction(async (data: { id: string; csrfToken?
         await tx.supplier.update({ where: { id: old.supplierId }, data: { balance: { decrement: netDec } } });
         
         const { FinancialReversalService } = await import("@/lib/financial-reversal-service");
-        await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase voided");
+        await FinancialReversalService.reverseAccountingEntries(tx, id, "Purchase voided", "purchaseId");
         
         await tx.purchaseInvoice.update({ where: { id }, data: { status: 'CANCELLED' } });
     });
