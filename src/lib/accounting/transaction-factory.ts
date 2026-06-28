@@ -21,7 +21,7 @@ export type TransactionLineInput = {
 /** Payment shape used by recordSale — maps method → GL account */
 export type SalePaymentInput = {
     method: string; // CASH | VISA | CARD | VODAFONE_CASH | INSTAPAY | DEFERRED | ACCOUNT
-    amount: number;
+    amount: number | string | Decimal;
 };
 
 // Moved to @/shared/constants/accounting-mappings for centralization
@@ -74,28 +74,95 @@ export class AccountingEngine {
         const accountMap = new Map(accounts.map((a: { code: string; id: string }) => [a.code, a.id]));
 
         // ── Create Journal Entry ────────────────────────────────────────────
-        return await db.journalEntry.create({
-            data: {
-                description: data.description,
-                reference: data.reference,
-                date: data.date || new Date(),
-                branchId: data.branchId,
-                saleId: data.saleId,
-                purchaseId: data.purchaseId,
-                expenseId: data.expenseId,
-                ticketId: data.ticketId,
-                transactionId: data.transactionId,
-                idempotencyKey: data.idempotencyKey,
-                lines: {
-                    create: data.lines.map(line => ({
-                        accountId: accountMap.get(line.accountCode)!,
-                        debit: line.debit,
-                        credit: line.credit,
-                        description: line.description
-                    }))
+        try {
+            return await db.journalEntry.create({
+                data: {
+                    description: data.description,
+                    reference: data.reference,
+                    date: data.date || new Date(),
+                    branchId: data.branchId,
+                    saleId: data.saleId,
+                    purchaseId: data.purchaseId,
+                    expenseId: data.expenseId,
+                    ticketId: data.ticketId,
+                    transactionId: data.transactionId,
+                    idempotencyKey: data.idempotencyKey,
+                    lines: {
+                        create: data.lines.map(line => ({
+                            accountId: accountMap.get(line.accountCode)!,
+                            debit: line.debit,
+                            credit: line.credit,
+                            description: line.description
+                        }))
+                    }
                 }
+            });
+        } catch (error: any) {
+            if (error.code === 'P2002' && data.idempotencyKey) {
+                console.warn(`[AccountingEngine] Idempotency collision for key: ${data.idempotencyKey}. Returning existing journal.`);
+                const existing = await db.journalEntry.findUnique({
+                    where: { idempotencyKey: data.idempotencyKey },
+                    include: { lines: true }
+                });
+                if (existing) return existing;
             }
+            throw error;
+        }
+    }
+
+    /**
+     * Unit 6a: Reverses a journal entry by swapping debits and credits.
+     * @param originalId ID of the original JournalEntry to reverse
+     * @param idempotencyKey Key to prevent duplicate reversals
+     * @param tx Optional Prisma transaction
+     */
+    static async reverseJournalEntry(originalId: string, idempotencyKey: string, tx?: any) {
+        const db = tx || prisma;
+
+        const original = await db.journalEntry.findUnique({
+            where: { id: originalId },
+            include: { lines: true }
         });
+
+        if (!original) throw new Error(`JournalEntry not found: ${originalId}`);
+
+        // Validate the reversed entry is balanced
+        const reversedLines = original.lines.map((line: any) => ({
+            accountId: line.accountId,
+            debit: line.credit, // swap
+            credit: line.debit, // swap
+            description: `REVERSAL: ${line.description}`
+        }));
+
+        try {
+            return await db.journalEntry.create({
+                data: {
+                    description: `REVERSAL: ${original.description}`,
+                    reference: originalId,
+                    date: new Date(),
+                    branchId: original.branchId,
+                    saleId: original.saleId,
+                    purchaseId: original.purchaseId,
+                    expenseId: original.expenseId,
+                    ticketId: original.ticketId,
+                    transactionId: original.transactionId,
+                    idempotencyKey,
+                    lines: {
+                        create: reversedLines
+                    }
+                }
+            });
+        } catch (error: any) {
+            if (error.code === 'P2002' && idempotencyKey) {
+                console.warn(`[AccountingEngine] Idempotency collision for reversal key: ${idempotencyKey}. Returning existing journal.`);
+                const existing = await db.journalEntry.findUnique({
+                    where: { idempotencyKey },
+                    include: { lines: true }
+                });
+                if (existing) return existing;
+            }
+            throw error;
+        }
     }
 
     static async recordSale(

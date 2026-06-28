@@ -4,7 +4,8 @@
  * Creates CustomerTransaction + Automatic Journal Entry
  * Follows Odoo best practices: every financial move creates accounting entries
  */
-import { AutoJournalService } from './auto-journal-service';
+import { AccountingEngine } from './transaction-factory';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
 export type CustomerTransactionType = 
   | 'PAYMENT'    // Customer paid (reduces AR)
@@ -67,51 +68,57 @@ export async function createCustomerTransactionWithJournal(
     switch (type) {
       case 'PAYMENT':
       case 'RECEIPT':
-        await AutoJournalService.recordCustomerPayment(tx, {
-          customerTransactionId: transaction.id,
-          customerId,
-          amount,
-          method: 'CASH', // Default method; can be passed as parameter
-          reference,
-          description,
-          branchId
-        });
+        {
+          const method = 'CASH';
+          const glCode = PAYMENT_METHOD_GL_MAP[method] ?? GL.ASSETS.CASH;
+          await AccountingEngine.recordTransaction({
+            description: description || `Customer Payment: ${reference || transaction.id.slice(0, 8)}`,
+            reference: reference,
+            branchId,
+            idempotencyKey: `CUST_PAY_${transaction.id}`,
+            lines: [
+              { accountCode: glCode, debit: amount, credit: 0, description: "Cash/Bank Received" },
+              { accountCode: GL.ASSETS.RECEIVABLES, debit: 0, credit: amount, description: "AR Reduced" }
+            ]
+          }, tx);
+        }
         break;
 
       case 'CREDIT':
-        await AutoJournalService.recordCustomerCredit(tx, {
-          customerTransactionId: transaction.id,
-          customerId,
-          amount,
-          reference,
-          description,
-          branchId
-        });
-        break;
-
       case 'DEBIT':
-        // Similar to CREDIT but for contra entries
-        await AutoJournalService.recordCustomerCredit(tx, {
-          customerTransactionId: transaction.id,
-          customerId,
-          amount,
-          reference,
-          description,
-          branchId
-        });
+        {
+          const isStoreCredit = description?.toLowerCase().includes("store credit");
+          const creditAccountCode = isStoreCredit ? GL.LIABILITIES.STORE_CREDIT : GL.REVENUE.SALES;
+          const creditAccountName = isStoreCredit ? "Store Credit Liability" : "Sales Revenue";
+
+          await AccountingEngine.recordTransaction({
+            description: description || `Customer Credit: ${reference || transaction.id.slice(0, 8)}`,
+            reference: reference,
+            branchId,
+            idempotencyKey: `CUST_CREDIT_${transaction.id}`,
+            lines: [
+              { accountCode: GL.ASSETS.RECEIVABLES, debit: amount, credit: 0, description: "Customer AR" },
+              { accountCode: creditAccountCode, debit: 0, credit: amount, description: creditAccountName }
+            ]
+          }, tx);
+        }
         break;
 
       case 'REFUND':
-        // Refund: Debit AR, Credit Cash
-        await AutoJournalService.recordCustomerPayment(tx, {
-          customerTransactionId: transaction.id,
-          customerId,
-          amount,
-          method: 'CASH',
-          reference,
-          description: `Refund: ${description}`,
-          branchId
-        });
+        {
+          const method = 'CASH';
+          const glCode = PAYMENT_METHOD_GL_MAP[method] ?? GL.ASSETS.CASH;
+          await AccountingEngine.recordTransaction({
+            description: `Refund: ${description}`,
+            reference: reference,
+            branchId,
+            idempotencyKey: `CUST_PAY_${transaction.id}`,
+            lines: [
+              { accountCode: glCode, debit: amount, credit: 0, description: "Cash/Bank Received" },
+              { accountCode: GL.ASSETS.RECEIVABLES, debit: 0, credit: amount, description: "AR Reduced" }
+            ]
+          }, tx);
+        }
         break;
     }
   }

@@ -95,6 +95,8 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     };
 
     const handleCloseShift = async () => {
+        if (isLoading) return; // Prevent double submission
+        
         let parsedActualCash = 0;
         try {
             // ponytail: closeShift.actualCash should accept string to avoid Decimal->float conversion loss
@@ -169,8 +171,8 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
             } else if (result.code === "DISCREPANCY_DETECTED") {
                 setDiscrepancyMessage(result.message || "");
                 setDiscrepancyDetails({
-                    cashVariance: result.cashVariance,
-                    cardVariance: result.cardVariance,
+                    cashVariance: result.cashVariance || "0",
+                    cardVariance: result.cardVariance || "0",
                     expectedCash: result.expectedCash,
                     expectedCard: result.expectedCard,
                     notes: result.notes || []
@@ -416,16 +418,24 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 <span>{discrepancyMessage}</span>
                             </div>
                             <div className="space-y-2 text-sm text-red-800 dark:text-red-200">
-                                {new Decimal(discrepancyDetails.cashVariance).abs().gt(0) && (
+                                {discrepancyDetails.expectedCash !== undefined ? (
+                                    <>
+                                        {new Decimal(discrepancyDetails.cashVariance).abs().gt(0) && (
+                                            <div className="flex justify-between items-center bg-white/50 dark:bg-black/20 p-2 rounded-lg">
+                                                <span>فارق النقد (Cash): المتوقع ${discrepancyDetails.expectedCash}</span>
+                                                <span className="font-bold font-mono dir-ltr">{new Decimal(discrepancyDetails.cashVariance).gt(0) ? '+' : ''}{discrepancyDetails.cashVariance}</span>
+                                            </div>
+                                        )}
+                                        {new Decimal(discrepancyDetails.cardVariance).abs().gt(0) && (
+                                            <div className="flex justify-between items-center bg-white/50 dark:bg-black/20 p-2 rounded-lg">
+                                                <span>فارق البطاقة (Card): المتوقع ${discrepancyDetails.expectedCard}</span>
+                                                <span className="font-bold font-mono dir-ltr">{new Decimal(discrepancyDetails.cardVariance).gt(0) ? '+' : ''}{discrepancyDetails.cardVariance}</span>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
                                     <div className="flex justify-between items-center bg-white/50 dark:bg-black/20 p-2 rounded-lg">
-                                        <span>فارق النقد (Cash): المتوقع ${discrepancyDetails.expectedCash}</span>
-                                        <span className="font-bold font-mono dir-ltr">{new Decimal(discrepancyDetails.cashVariance).gt(0) ? '+' : ''}{discrepancyDetails.cashVariance}</span>
-                                    </div>
-                                )}
-                                {new Decimal(discrepancyDetails.cardVariance).abs().gt(0) && (
-                                    <div className="flex justify-between items-center bg-white/50 dark:bg-black/20 p-2 rounded-lg">
-                                        <span>فارق البطاقة (Card): المتوقع ${discrepancyDetails.expectedCard}</span>
-                                        <span className="font-bold font-mono dir-ltr">{new Decimal(discrepancyDetails.cardVariance).gt(0) ? '+' : ''}{discrepancyDetails.cardVariance}</span>
+                                        <span>اتجاه الفارق: غير معلوم (مخفي للسرية)</span>
                                     </div>
                                 )}
                             </div>

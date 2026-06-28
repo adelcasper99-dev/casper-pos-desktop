@@ -67,4 +67,30 @@ export const prisma =
         },
     });
 
+// Unit 7: SQLite-compatible guard to prevent StockMovement with both warehouses null
+prisma.$use(async (params, next) => {
+    if (params.model === 'StockMovement' && ['create', 'createMany', 'update', 'updateMany'].includes(params.action)) {
+        const checkData = (data: any) => {
+            if (data && 'fromWarehouseId' in data && 'toWarehouseId' in data) {
+                if (data.fromWarehouseId === null && data.toWarehouseId === null) {
+                    throw new Error("P2010: StockMovement must have either fromWarehouseId or toWarehouseId (both cannot be null)");
+                }
+            }
+        };
+
+        if (params.action === 'create' || params.action === 'update') {
+            checkData(params.args.data);
+        } else if (params.action === 'createMany') {
+            if (Array.isArray(params.args.data)) {
+                params.args.data.forEach(checkData);
+            } else {
+                checkData(params.args.data);
+            }
+        } else if (params.action === 'updateMany') {
+            checkData(params.args.data);
+        }
+    }
+    return next(params);
+});
+
 globalForPrisma.prisma = prisma;

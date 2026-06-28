@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { AutoJournalService } from "@/lib/accounting/auto-journal-service";
+import { GL } from "@/shared/constants/accounting-mappings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -1259,6 +1259,10 @@ export const softDeleteTicket = secureAction(async (data: {
                     where: { branchId: user.branchId!, isDefault: true }
                 });
 
+                if (!defaultTreasury && user.branchId) {
+                    throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل إتمام الاسترجاع.");
+                }
+
                 if (defaultTreasury) {
                     await tx.transaction.create({
                         data: {
@@ -1367,11 +1371,11 @@ export const softDeleteTicket = secureAction(async (data: {
         });
 
         if (lastEntry) {
-            await AutoJournalService.reverseJournalEntry(tx, {
-                originalEntryId: lastEntry.id,
-                reason: `Ticket Voided (${reason})`,
-                branchId: ticket.currentBranchId || undefined
-            });
+            await AccountingEngine.reverseJournalEntry(
+                lastEntry.id,
+                `REVERSAL_${lastEntry.id}`,
+                tx
+            );
         }
 
         return deletedTicket;
@@ -1431,11 +1435,11 @@ export const markForReRepair = secureAction(async (data: {
         });
 
         if (lastEntry) {
-            await AutoJournalService.reverseJournalEntry(tx, {
-                originalEntryId: lastEntry.id,
-                reason: `Warranty Rework (${returnReason})`,
-                branchId: ticket.currentBranchId || undefined
-            });
+            await AccountingEngine.reverseJournalEntry(
+                lastEntry.id,
+                `REVERSAL_${lastEntry.id}`,
+                tx
+            );
         }
 
         // 💰 [NEW] ALWAYS apply a FULL temporary reversal of the existing commission 
@@ -1909,12 +1913,16 @@ export const refundTicketPart = secureAction(async (data: {
 
                 // 2. Financial Ledger: Record FULL Wastage Expense to credit 1200 Inventory for the destroyed physical asset
                 if (partCost.gt(0)) {
-                    await AutoJournalService.recordWastageLoss(tx, {
-                        amount: partCost,
+                    await AccountingEngine.recordTransaction({
                         description: `إثبات هالك كلي للقطعة (تحمل المهندس ${lossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
                         branchId: part.ticket.currentBranchId,
-                        reference: part.ticket.id
-                    });
+                        reference: part.ticket.id,
+                        idempotencyKey: `WASTE_${part.ticket.id}_${partCost.toString()}`,
+                        lines: [
+                            { accountCode: GL.EXPENSES.SPOILAGE, debit: partCost, credit: 0, description: "Wastage Loss" },
+                            { accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: partCost, description: "Inventory Reduced" }
+                        ]
+                    }, tx);
                 }
             }
         }
@@ -2026,12 +2034,16 @@ export const removeTicketPart = secureAction(async (data: {
 
                 // 2. Financial Ledger: Record FULL Wastage Expense to credit 1200 Inventory for the destroyed physical asset
                 if (partCost.gt(0)) {
-                    await AutoJournalService.recordWastageLoss(tx, {
-                        amount: partCost,
+                    await AccountingEngine.recordTransaction({
                         description: `إثبات هالك كلي للقطعة (تحمل المهندس ${effectiveLossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
                         branchId: part.ticket.currentBranchId,
-                        reference: part.ticket.id
-                    });
+                        reference: part.ticket.id,
+                        idempotencyKey: `WASTE_${part.ticket.id}_${partCost.toString()}_${Date.now()}`, // adding Date.now() to prevent conflict since ticket part removal can happen multiple times
+                        lines: [
+                            { accountCode: GL.EXPENSES.SPOILAGE, debit: partCost, credit: 0, description: "Wastage Loss" },
+                            { accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: partCost, description: "Inventory Reduced" }
+                        ]
+                    }, tx);
                 }
             }
         }
@@ -2379,15 +2391,18 @@ export const processTicketPayment = secureAction(async (data: {
             };
 
             // --- New: Record Balanced Journal Entry ---
-            await AutoJournalService.recordTicketDistribution(tx, {
-                ticketId: ticket.id,
-                barcode: ticket.barcode,
-                amount: finalCustomerPrice,
-                techBillingPrice,
-                techCommissionAmount,
-                centerLaborProfit,
-                branchId: currentUser?.branchId ?? undefined
-            });
+            await AccountingEngine.recordTransaction({
+                description: `Maintenance Distribution: Ticket #${ticket.barcode}`,
+                reference: ticket.id,
+                branchId: currentUser?.branchId ?? undefined,
+                idempotencyKey: `TICKET_DIST_${ticket.id}`,
+                lines: [
+                    { accountCode: GL.REVENUE.SERVICE, debit: finalCustomerPrice, credit: 0, description: "Service Revenue Reclassification" },
+                    { accountCode: GL.REVENUE.SALES, debit: 0, credit: techBillingPrice, description: "Parts Revenue Dist" },
+                    { accountCode: GL.LIABILITIES.ACCRUED_SALARIES, debit: 0, credit: techCommissionAmount, description: "Technician Commission Accrued" },
+                    { accountCode: GL.REVENUE.SALES, debit: 0, credit: centerLaborProfit, description: "Center Labor Profit realized" }
+                ]
+            }, tx);
         }
 
         const updatedTicket = await tx.ticket.update({
@@ -2417,6 +2432,10 @@ export const processTicketPayment = secureAction(async (data: {
         const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
 
         if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
+            if (!ticket.id) {
+                throw new Error("Commission record requires a non-null referenceId (ticket.id).");
+            }
+            
             // 1. Delta-Based Commission/Loss Engine for Reworks & Normal Tickets
             if (ticket.technicianId) {
                 const currentTechId = ticket.technicianId;
@@ -2551,9 +2570,17 @@ export const processTicketPayment = secureAction(async (data: {
             for (const collab of collaborators) {
                 const repairPriceDec = new Decimal(ticket.repairPrice || 0);
                 const partsCostDec = new Decimal(ticket.partsCost || 0);
-                const netProfitDec = repairPriceDec.minus(partsCostDec);
+                
+                const laborPoolAmount = distributionData.laborPoolAmount || new Decimal(0);
+                
+                console.warn('[COMMISSION_BASE_MIGRATION]', { 
+                    ticketId: ticket.id, 
+                    oldBase: repairPriceDec.minus(partsCostDec).toNumber(), 
+                    newBase: laborPoolAmount.toNumber() 
+                });
+
                 const collabRateDec = new Decimal(collab.commissionRate || 0);
-                const collabCommissionDec = netProfitDec.mul(collabRateDec.div(100));
+                const collabCommissionDec = laborPoolAmount.mul(collabRateDec.div(100));
 
                 if (collabCommissionDec.gt(0)) {
                     await tx.employeeTransaction.create({
@@ -2626,6 +2653,10 @@ export const processTicketPayment = secureAction(async (data: {
                     where: { branchId: currentUser.branchId, isDefault: true }
                 });
                 if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
+            }
+
+            if (currentUser.branchId && !defaultTreasuryId) {
+                throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل استقبال المدفوعات.");
             }
 
             await tx.transaction.create({
@@ -3107,11 +3138,11 @@ export const fullTicketReturn = secureAction(async (data: {
             });
 
             if (lastEntry) {
-                await AutoJournalService.reverseJournalEntry(tx, {
-                    originalEntryId: lastEntry.id,
-                    reason: `Full Return Refund (${reason})`,
-                    branchId: ticket.currentBranchId || undefined
-                });
+                await AccountingEngine.reverseJournalEntry(
+                    lastEntry.id,
+                    `REVERSAL_${lastEntry.id}`,
+                    tx
+                );
             }
 
             // 💰 [NEW] Profit-First Loss Absorption (Clawback)
@@ -3242,6 +3273,10 @@ export const fullTicketReturn = secureAction(async (data: {
                         where: { branchId: currentUser.branchId, isDefault: true }
                     });
                     treasuryId = defaultTreasury?.id || null;
+                }
+
+                if (refundMethod !== 'ACCOUNT' && refundMethod !== 'DEFERRED' && currentUser.branchId && !treasuryId) {
+                    throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل إتمام الاسترجاع.");
                 }
 
                 await tx.transaction.create({

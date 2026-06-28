@@ -4,7 +4,8 @@
  * Creates EmployeeTransaction + Automatic Journal Entry
  * Follows Odoo best practices: every payroll transaction creates accounting entries
  */
-import { AutoJournalService } from './auto-journal-service';
+import { AccountingEngine } from './transaction-factory';
+import { GL } from '@/shared/constants/accounting-mappings';
 
 export type EmployeeTransactionType = 
   | 'SALARY'     // Salary payment
@@ -69,15 +70,17 @@ export async function createEmployeeTransactionWithJournal(
     
     if (isExpense) {
       // Payment: Debit Expense, Credit Cash
-      await AutoJournalService.recordEmployeePayment(tx, {
-        employeeTransactionId: transaction.id,
-        employeeId: userId,
-        amount,
-        type,
+      const expenseCode = type === "PENALTY" ? GL.EXPENSES.OPERATION_EXPENSES : GL.EXPENSES.SALARIES;
+      await AccountingEngine.recordTransaction({
+        description: description || `Employee ${type}: ${referenceId || transaction.id.slice(0, 8)}`,
         reference: referenceId || transaction.id,
-        description,
-        branchId
-      });
+        branchId,
+        idempotencyKey: `EMP_PAY_${transaction.id}`,
+        lines: [
+          { accountCode: expenseCode, debit: amount, credit: 0, description: "Employee Expense" },
+          { accountCode: GL.ASSETS.CASH, debit: 0, credit: amount, description: "Cash Paid" }
+        ]
+      }, tx);
     } else {
       // Deduction/Penalty: Debit Employee Receivable, Credit (reduce expense)
       // For now, we'll skip journal for deductions as they're handled differently

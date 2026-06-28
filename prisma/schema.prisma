@@ -393,6 +393,9 @@ model Stock {
 }
 
 model StockMovement {
+  // Note: PostgreSQL has a raw DB constraint "chk_stock_movement_warehouse_non_null"
+  // ensuring that fromWarehouseId and toWarehouseId cannot both be null.
+  // SQLite compatibility is enforced via Prisma middleware in src/lib/prisma.ts.
   id              String     @id @default(uuid())
   type            String
   productId       String
@@ -1011,6 +1014,7 @@ model EmployeeTransaction {
 
   @@index([userId])
   @@index([branchId])
+  @@unique([userId, referenceId, type], name: "unique_employee_tx_per_entity")
 }
 
 model AuditLog {

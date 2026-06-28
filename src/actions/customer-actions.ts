@@ -559,6 +559,10 @@ export const recordCustomerPayment = secureAction(async (data: {
             if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
         }
 
+        if (currentUser.branchId && !defaultTreasuryId) {
+            throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل استقبال المدفوعات.");
+        }
+
         await tx.transaction.create({
             data: {
                 type: 'CUSTOMER_PAYMENT',

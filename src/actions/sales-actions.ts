@@ -253,6 +253,10 @@ export const refundSale = secureAction(async (data: {
                     isDefault: true
                 }
             }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+
+            if (!treasury && currentUser.branchId) {
+                throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل إتمام الاسترجاع.");
+            }
         }
 
         // ─── Create NEW Return Sale Record ───
@@ -801,6 +805,10 @@ export const partialRefundSale = secureAction(async (data: {
                 treasury = await tx.treasury.findFirst({
                     where: { branchId: currentUser.branchId || undefined, paymentMethod: sale.paymentMethod || 'CASH', isDefault: true }
                 }) || await tx.treasury.findFirst({ where: { isDefault: true } });
+
+                if (!treasury && currentUser.branchId) {
+                    throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل إتمام الاسترجاع.");
+                }
             }
         }
 

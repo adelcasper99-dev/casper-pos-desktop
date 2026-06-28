@@ -26,7 +26,7 @@ import { toDecimal, toNumber } from "@/lib/decimal-utils";
 
 export type CloseShiftResult = 
     | { success: true; shift: any; message?: string }
-    | { success: false; code: "DISCREPANCY_DETECTED"; expectedCash: string; expectedCard: string; cashVariance: string; cardVariance: string; message: string; notes: string[] }
+    | { success: false; code: "DISCREPANCY_DETECTED"; expectedCash?: string; expectedCard?: string; cashVariance?: string; cardVariance?: string; message: string; notes: string[] }
     | { success: false; code?: never; message: string; error?: string };
 
 
@@ -233,6 +233,11 @@ export const closeShift = secureAction(async (data: {
         throw new Error(t('shiftCloseError', { status: shift.status }));
     }
 
+    const config = await prisma.storeSettings.findUnique({
+        where: { id: "settings" }
+    });
+    const blindCloseEnabled = config?.blindCloseEnabled ?? true;
+
 
     // ✅ CRITICAL FIX: Use ACCUMULATED values (tracked in real-time)
     // DO NOT recalculate from shift.sales.payments - causes data loss!
@@ -331,44 +336,16 @@ export const closeShift = secureAction(async (data: {
         return serialize({
             success: false,
             code: "DISCREPANCY_DETECTED",
-            expectedCash: expectedCash.toFixed(2),
-            expectedCard: expectedCard.toFixed(2),
-            cashVariance: cashVariance.toFixed(2),
-            cardVariance: cardVariance.toFixed(2),
+            expectedCash: blindCloseEnabled ? undefined : expectedCash.toFixed(2),
+            expectedCard: blindCloseEnabled ? undefined : expectedCard.toFixed(2),
+            cashVariance: blindCloseEnabled ? undefined : cashVariance.toFixed(2),
+            cardVariance: blindCloseEnabled ? undefined : cardVariance.toFixed(2),
             notes: discrepancyNotes,
             message: "عفواً، يوجد اختلاف بين المبالغ الفعلية (أو عدد العمليات) والمتوقعة. يرجى مراجعة الإغلاق أو تأكيد الإغلاق مع العجز/الزيادة."
         });
     }
 
     // TODO(SH-02): Re-enable ticket count validation after ticket-shift linkage is stabilized
-
-    // ✅ FIX #3: CREATE AUDIT LOG FOR DISCREPANCIES
-    if (hasDiscrepancy) {
-        await prisma.auditLog.create({
-            data: {
-                entityType: "SHIFT",
-                entityId: shift.id,
-                action: "COUNT_DISCREPANCY",
-                previousData: JSON.stringify({
-                    recorded: { sales: shift.totalSales, tickets: shift.totalTickets },
-                    actual: { sales: actualSalesCount, tickets: actualTicketsCount },
-                    expectedCash: expectedCash.toFixed(2),
-                    expectedCard: expectedCard.toFixed(2)
-                }),
-                newData: JSON.stringify({
-                    action: "AUTO_CORRECTED",
-                    correctedTo: { sales: actualSalesCount, tickets: actualTicketsCount },
-                    cashVariance: cashVariance.toFixed(2),
-                    cardVariance: cardVariance.toFixed(2),
-                    expectedCash: expectedCash.toFixed(2),
-                    expectedCard: expectedCard.toFixed(2),
-                    accepted: data.acceptDiscrepancy ?? false
-                }),
-                reason: discrepancyNotes.join('; '),
-                user: shift.cashierName || 'SYSTEM'
-            }
-        });
-    }
 
     // Use verified counts (with auto-correction if needed)
     const finalSalesCount = hasDiscrepancy ? actualSalesCount : shift.totalSales;
@@ -405,10 +382,52 @@ export const closeShift = secureAction(async (data: {
             : data.notes || shift.notes
     };
 
-    const closedShift = await prisma.shift.update({
-        where: { id: data.shiftId },
+    const shiftUpdateResult = await prisma.shift.updateMany({
+        where: { id: data.shiftId, status: "OPEN" },
         data: shiftUpdateData
     });
+
+    if (shiftUpdateResult.count === 0) {
+        const existingShift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
+        return serialize({
+            success: true, // Idempotent success
+            shift: existingShift,
+            variance: 0,
+            hasDiscrepancy: false,
+            discrepancyNotes: [],
+            message: "Shift was already closed."
+        });
+    }
+
+    const closedShift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
+
+    // ✅ FIX #3: CREATE AUDIT LOG FOR DISCREPANCIES
+    if (hasDiscrepancy) {
+        await prisma.auditLog.create({
+            data: {
+                entityType: "SHIFT",
+                entityId: shift.id,
+                action: "COUNT_DISCREPANCY",
+                previousData: JSON.stringify({
+                    recorded: { sales: shift.totalSales, tickets: shift.totalTickets },
+                    actual: { sales: actualSalesCount, tickets: actualTicketsCount },
+                    expectedCash: expectedCash.toFixed(2),
+                    expectedCard: expectedCard.toFixed(2)
+                }),
+                newData: JSON.stringify({
+                    action: "AUTO_CORRECTED",
+                    correctedTo: { sales: actualSalesCount, tickets: actualTicketsCount },
+                    cashVariance: cashVariance.toFixed(2),
+                    cardVariance: cardVariance.toFixed(2),
+                    expectedCash: expectedCash.toFixed(2),
+                    expectedCard: expectedCard.toFixed(2),
+                    accepted: data.acceptDiscrepancy ?? false
+                }),
+                reason: discrepancyNotes.join('; '),
+                user: shift.cashierName || 'SYSTEM'
+            }
+        });
+    }
 
     // Handle Safe Drop (Treasury Transfer) AND Accounting Entries
     await prisma.$transaction(async (tx) => {
@@ -447,6 +466,7 @@ export const closeShift = secureAction(async (data: {
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Safe Drop (In Transit) - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
+                idempotencyKey: `SAFE_DROP_${shift.id}`,
                 date: new Date(),
                 branchId: branchId || undefined,
                 lines: [
@@ -458,7 +478,7 @@ export const closeShift = secureAction(async (data: {
 
         // ── Phase 4: Z-Report Cash Variance (Over/Short) ──
         if (!cashVariance.isZero()) {
-            const varianceAmt = Math.abs(cashVariance.toNumber());
+            const varianceAmt = cashVariance.abs();
             const isShortage = cashVariance.isNegative(); // If negative, we have less cash than expected
 
             // 🆕 Get system CashCategory for overage/shortage
@@ -492,6 +512,7 @@ export const closeShift = secureAction(async (data: {
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Cash Variance - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
+                idempotencyKey: `CASH_VAR_${shift.id}`,
                 date: new Date(),
                 branchId: branchId || undefined,
                 lines: isShortage ? [
@@ -508,12 +529,13 @@ export const closeShift = secureAction(async (data: {
 
         // ── Phase 4: Z-Report Card Variance (Over/Short) ──
         if (!cardVariance.isZero()) {
-            const varAmt = Math.abs(cardVariance.toNumber());
+            const varAmt = cardVariance.abs();
             const isShortage = cardVariance.isNegative();
 
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Card Variance - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
+                idempotencyKey: `CARD_VAR_${shift.id}`,
                 date: new Date(),
                 branchId: branchId || undefined,
                 lines: isShortage ? [
