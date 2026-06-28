@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { Decimal } from "decimal.js";
 
 /**
@@ -14,7 +14,7 @@ export class FinancialReversalService {
      * @param reason Reason for reversal
      */
     static async reverseTreasuryImpacts(
-        tx: any, 
+        tx: Prisma.TransactionClient, 
         referenceId: string, 
         referenceType: string, 
         reason: string
@@ -88,13 +88,21 @@ export class FinancialReversalService {
      * Voids journal entries linked to a specific reference.
      */
     static async reverseAccountingEntries(
-        tx: any,
+        tx: Prisma.TransactionClient,
         referenceId: string,
-        reason: string
+        reason: string,
+        scopeKey?: 'transactionId' | 'purchaseId' | 'ticketId' | 'expenseId' | 'employeeTransactionId' | 'saleId' | 'customerTransactionId' | 'supplierPaymentId' | 'reference'
     ) {
-        // Find journal entries where reference field in DB matches referenceId
+        const whereClause: Prisma.JournalEntryWhereInput = {};
+        if (scopeKey && scopeKey !== 'reference') {
+            whereClause[scopeKey] = referenceId;
+        } else {
+            whereClause.reference = referenceId;
+        }
+
+        // Find journal entries where scope field in DB matches referenceId
         const entries = await tx.journalEntry.findMany({
-            where: { reference: referenceId },
+            where: whereClause,
             include: { lines: true }
         });
 
@@ -106,6 +114,13 @@ export class FinancialReversalService {
                         description: `VOID: ${entry.description} — ${reason}`,
                         reference: `VOID-${entry.reference || entry.id.slice(0, 8)}`,
                         branchId: entry.branchId,
+                        ticketId: entry.ticketId ?? undefined,
+                        saleId: entry.saleId ?? undefined,
+                        purchaseId: entry.purchaseId ?? undefined,
+                        expenseId: entry.expenseId ?? undefined,
+                        employeeTransactionId: entry.employeeTransactionId ?? undefined,
+                        customerTransactionId: entry.customerTransactionId ?? undefined,
+                        supplierPaymentId: entry.supplierPaymentId ?? undefined,
                         date: new Date(),
                         lines: {
                             create: entry.lines.map((l: any) => ({
@@ -136,12 +151,13 @@ export class FinancialReversalService {
      * Unified entry point for full reversal
      */
     static async fullReversal(
-        tx: any,
+        tx: Prisma.TransactionClient,
         referenceId: string,
         referenceType: string,
-        reason: string
+        reason: string,
+        scopeKey?: 'transactionId' | 'purchaseId' | 'ticketId' | 'expenseId' | 'employeeTransactionId' | 'saleId' | 'customerTransactionId' | 'supplierPaymentId' | 'reference'
     ) {
         await this.reverseTreasuryImpacts(tx, referenceId, referenceType, reason);
-        await this.reverseAccountingEntries(tx, referenceId, reason);
+        await this.reverseAccountingEntries(tx, referenceId, reason, scopeKey);
     }
 }

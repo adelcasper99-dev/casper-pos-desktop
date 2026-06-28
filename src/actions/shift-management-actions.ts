@@ -24,6 +24,12 @@ import { toDecimal, toNumber } from "@/lib/decimal-utils";
 // HELPER FUNCTIONS
 // ============================================================================
 
+export type CloseShiftResult = 
+    | { success: true; shift: any; message?: string }
+    | { success: false; code: "DISCREPANCY_DETECTED"; expectedCash: string; expectedCard: string; cashVariance: string; cardVariance: string; message: string; notes: string[] }
+    | { success: false; code?: never; message: string; error?: string };
+
+
 /**
  * Get current timezone based on branch settings
  * Default to Africa/Cairo (Egypt) if branch timezone not set
@@ -304,32 +310,37 @@ export const closeShift = secureAction(async (data: {
         });
     }
 
+    const VARIANCE_TOLERANCE_EGP = new Decimal('0.00'); // TODO(Finance): Confirm acceptable variance with owner
+
+    // Check cash variance
+    if (cashVariance.abs().gt(VARIANCE_TOLERANCE_EGP)) {
+        hasDiscrepancy = true;
+        discrepancyNotes.push(`Cash variance: Expected=${expectedCash}, Actual=${actualCashDecimal}, Diff=${cashVariance}`);
+        console.error('[CRITICAL] Cash variance detected', { shiftId: shift.id, expected: expectedCash.toNumber(), actual: actualCashDecimal.toNumber() });
+    }
+
+    // Check card variance
+    if (cardVariance.abs().gt(VARIANCE_TOLERANCE_EGP)) {
+        hasDiscrepancy = true;
+        discrepancyNotes.push(`Card variance: Expected=${expectedCard}, Actual=${submittedCard}, Diff=${cardVariance}`);
+        console.error('[CRITICAL] Card variance detected', { shiftId: shift.id, expected: expectedCard.toNumber(), actual: submittedCard.toNumber() });
+    }
+
     // SH-01: Block finalization if discrepancy detected without explicit acceptance
     if (hasDiscrepancy && !data.acceptDiscrepancy) {
         return serialize({
             success: false,
             code: "DISCREPANCY_DETECTED",
-            expected: shift.totalSales,
-            actual: actualSalesCount,
-            message: "عفواً، تم اكتشاف اختلاف في عدد المبيعات المسجل مقارنة بالفعلي. يرجى مراجعة العمليات أو تأكيد الإغلاق من قبل المدير."
+            expectedCash: expectedCash.toFixed(2),
+            expectedCard: expectedCard.toFixed(2),
+            cashVariance: cashVariance.toFixed(2),
+            cardVariance: cardVariance.toFixed(2),
+            notes: discrepancyNotes,
+            message: "عفواً، يوجد اختلاف بين المبالغ الفعلية (أو عدد العمليات) والمتوقعة. يرجى مراجعة الإغلاق أو تأكيد الإغلاق مع العجز/الزيادة."
         });
     }
 
-    /* // REMOVED TICKET CHECK
-    // Check tickets count
-    if (shift.totalTickets !== actualTicketsCount) {
-        hasDiscrepancy = true;
-        const diff = actualTicketsCount - shift.totalTickets;
-        discrepancyNotes.push(
-            `Ticket count mismatch: Recorded=${shift.totalTickets}, Actual=${actualTicketsCount}, Diff=${diff}`
-        );
-        console.error('[CRITICAL] Ticket count discrepancy detected', {
-            shiftId: shift.id,
-            recorded: shift.totalTickets,
-            actual: actualTicketsCount
-        });
-    }
-    */
+    // TODO(SH-02): Re-enable ticket count validation after ticket-shift linkage is stabilized
 
     // ✅ FIX #3: CREATE AUDIT LOG FOR DISCREPANCIES
     if (hasDiscrepancy) {
@@ -340,11 +351,18 @@ export const closeShift = secureAction(async (data: {
                 action: "COUNT_DISCREPANCY",
                 previousData: JSON.stringify({
                     recorded: { sales: shift.totalSales, tickets: shift.totalTickets },
-                    actual: { sales: actualSalesCount, tickets: actualTicketsCount }
+                    actual: { sales: actualSalesCount, tickets: actualTicketsCount },
+                    expectedCash: expectedCash.toFixed(2),
+                    expectedCard: expectedCard.toFixed(2)
                 }),
                 newData: JSON.stringify({
                     action: "AUTO_CORRECTED",
-                    correctedTo: { sales: actualSalesCount, tickets: actualTicketsCount }
+                    correctedTo: { sales: actualSalesCount, tickets: actualTicketsCount },
+                    cashVariance: cashVariance.toFixed(2),
+                    cardVariance: cardVariance.toFixed(2),
+                    expectedCash: expectedCash.toFixed(2),
+                    expectedCard: expectedCard.toFixed(2),
+                    accepted: data.acceptDiscrepancy ?? false
                 }),
                 reason: discrepancyNotes.join('; '),
                 user: shift.cashierName || 'SYSTEM'

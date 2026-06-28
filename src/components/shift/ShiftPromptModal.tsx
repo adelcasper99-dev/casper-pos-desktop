@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Decimal from "decimal.js";
 
 const SESSION_KEY = "shift_prompt_dismissed";
 
@@ -49,7 +50,13 @@ export default function ShiftPromptModal({
     }, [onClose]);
 
     const handleOpenShift = async () => {
-        const cashValue = startCash === "" ? 0 : parseFloat(startCash);
+        let cashValue = 0;
+        try {
+            // ponytail: openShift.startCash should accept string to avoid Decimal->float conversion loss
+            cashValue = startCash === "" ? 0 : new Decimal(startCash).toNumber();
+        } catch {
+            cashValue = NaN;
+        }
         if (isNaN(cashValue) || cashValue < 0) {
             toast.error("أدخل رصيد بداية صحيح");
             return;

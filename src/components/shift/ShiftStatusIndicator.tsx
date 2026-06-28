@@ -39,6 +39,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
     const [isMounted, setIsMounted] = useState(false);
     const [settings, setSettings] = useState<any>(null);
+    const [acceptDiscrepancy, setAcceptDiscrepancy] = useState(false);
+    const [discrepancyMessage, setDiscrepancyMessage] = useState("");
+    const [discrepancyDetails, setDiscrepancyDetails] = useState<{ cashVariance: string; cardVariance: string; expectedCash: string; expectedCard: string; notes: string[] } | null>(null);
 
     useEffect(() => {
         setIsMounted(true);
@@ -56,6 +59,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const handleOpenShift = async () => {
         let cashValue = 0;
         try {
+            // ponytail: openShift.startCash should accept string to avoid Decimal->float conversion loss
             cashValue = startCash === "" ? 0 : new Decimal(startCash).toNumber();
         } catch {
             toast.error("Please enter valid starting cash amount");
@@ -93,6 +97,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
     const handleCloseShift = async () => {
         let parsedActualCash = 0;
         try {
+            // ponytail: closeShift.actualCash should accept string to avoid Decimal->float conversion loss
             parsedActualCash = new Decimal(actualCash).toNumber();
         } catch {
             toast.error("Please enter valid actual cash amount");
@@ -136,7 +141,8 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 cashBreakdown,
                 cardTerminalSettlement: parsedCard,
                 notes: notes || undefined,
-                csrfToken
+                csrfToken,
+                acceptDiscrepancy
             });
 
             if (result.success) {
@@ -144,6 +150,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 setActualCash("");
                 setCardTerminalSettlement("");
                 setNotes("");
+                setAcceptDiscrepancy(false);
+                setDiscrepancyMessage("");
+                setDiscrepancyDetails(null);
 
                 // Auto Print Z-Report
                 if (result.shift) {
@@ -157,6 +166,16 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                 }
 
                 router.refresh();
+            } else if (result.code === "DISCREPANCY_DETECTED") {
+                setDiscrepancyMessage(result.message || "");
+                setDiscrepancyDetails({
+                    cashVariance: result.cashVariance,
+                    cardVariance: result.cardVariance,
+                    expectedCash: result.expectedCash,
+                    expectedCard: result.expectedCard,
+                    notes: result.notes || []
+                });
+                toast.warning(result.message);
             } else {
                 toast.error(result.message || result.error || "Failed to close shift");
             }
@@ -374,6 +393,9 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                     setActualCash("");
                     setCardTerminalSettlement("");
                     setNotes("");
+                    setAcceptDiscrepancy(false);
+                    setDiscrepancyMessage("");
+                    setDiscrepancyDetails(null);
                 }} 
                 title={t('closeModalTitle') || "إغلاق الوردية"}
             >
@@ -387,10 +409,41 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                         <p className="text-sm text-red-100/70 flex-1">{t('closeModalSubtitle') || "مراجعة العهدة وإغلاق اليومية"}</p>
                     </div>
 
+                    {discrepancyDetails && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 rounded-2xl p-5 space-y-4">
+                            <div className="flex items-center gap-3 text-red-600 dark:text-red-400 font-bold mb-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                <span>{discrepancyMessage}</span>
+                            </div>
+                            <div className="space-y-2 text-sm text-red-800 dark:text-red-200">
+                                {new Decimal(discrepancyDetails.cashVariance).abs().gt(0) && (
+                                    <div className="flex justify-between items-center bg-white/50 dark:bg-black/20 p-2 rounded-lg">
+                                        <span>فارق النقد (Cash): المتوقع ${discrepancyDetails.expectedCash}</span>
+                                        <span className="font-bold font-mono dir-ltr">{new Decimal(discrepancyDetails.cashVariance).gt(0) ? '+' : ''}{discrepancyDetails.cashVariance}</span>
+                                    </div>
+                                )}
+                                {new Decimal(discrepancyDetails.cardVariance).abs().gt(0) && (
+                                    <div className="flex justify-between items-center bg-white/50 dark:bg-black/20 p-2 rounded-lg">
+                                        <span>فارق البطاقة (Card): المتوقع ${discrepancyDetails.expectedCard}</span>
+                                        <span className="font-bold font-mono dir-ltr">{new Decimal(discrepancyDetails.cardVariance).gt(0) ? '+' : ''}{discrepancyDetails.cardVariance}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <label className="flex items-start gap-3 mt-4 p-3 bg-white/60 dark:bg-black/40 rounded-xl cursor-pointer hover:bg-white dark:hover:bg-black/60 transition-colors border border-red-200 dark:border-red-500/30">
+                                <input type="checkbox" className="mt-1 w-5 h-5 accent-red-600 rounded" checked={acceptDiscrepancy} onChange={(e) => setAcceptDiscrepancy(e.target.checked)} />
+                                <span className="text-sm font-bold text-red-900 dark:text-red-100">أقر بوجود عجز/زيادة وأوافق على إغلاق الوردية (I acknowledge the discrepancy)</span>
+                            </label>
+                        </div>
+                    )}
+
                     <CashCounter 
                         onChange={(total, breakdown) => {
                             setActualCash(total.toString());
                             setCashBreakdown(breakdown);
+                            if (discrepancyDetails) {
+                                setDiscrepancyDetails(null);
+                                setAcceptDiscrepancy(false);
+                            }
                         }}
                         onEnterAtEnd={() => {
                             const notesEl = document.getElementById('shift-notes-input');
@@ -410,7 +463,13 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                 min="0"
                                 readOnly={isBlindClose}
                                 value={actualCash}
-                                onChange={(e) => setActualCash(e.target.value)}
+                                onChange={(e) => {
+                                    setActualCash(e.target.value);
+                                    if (discrepancyDetails) {
+                                        setDiscrepancyDetails(null);
+                                        setAcceptDiscrepancy(false);
+                                    }
+                                }}
                                 className={clsx(
                                     "w-full rounded-xl py-4 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white transition-all outline-none border",
                                     isBlindClose ? "bg-slate-100 dark:bg-black/60 border-transparent text-slate-600 cursor-not-allowed" : "bg-white dark:bg-black/40 border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20"
@@ -432,7 +491,13 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                     step="0.01"
                                     min="0"
                                     value={cardTerminalSettlement}
-                                    onChange={(e) => setCardTerminalSettlement(e.target.value)}
+                                    onChange={(e) => {
+                                        setCardTerminalSettlement(e.target.value);
+                                        if (discrepancyDetails) {
+                                            setDiscrepancyDetails(null);
+                                            setAcceptDiscrepancy(false);
+                                        }
+                                    }}
                                     className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-4 pl-10 text-3xl font-black text-center text-slate-900 dark:text-white transition-all focus:ring-2 focus:ring-pink-400/20 dark:focus:ring-cyan-500/20 outline-none"
                                     placeholder="0.00"
                                 />
@@ -452,7 +517,7 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
                                     "text-xs font-black uppercase tracking-widest",
                                     varianceValue < 0 ? "text-red-500" : varianceValue > 0 ? "text-emerald-500" : "text-slate-400 dark:text-zinc-500"
                                 )}>
-                                    {varianceValue < 0 ? "عجز (Shortage):" : varianceValue > 0 ? "زيادة (Explus):" : "متطابق (Matched)"}
+                                    {varianceValue < 0 ? "عجز (Shortage):" : varianceValue > 0 ? "زيادة (Surplus):" : "متطابق (Matched)"}
                                 </span>
                                 <div className={clsx(
                                     "text-2xl font-black font-mono",
@@ -481,10 +546,15 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
                     <button
                         onClick={handleCloseShift}
-                        disabled={isLoading}
+                        disabled={isLoading || (!!discrepancyDetails && !acceptDiscrepancy)}
                         className="w-full py-5 bg-red-600 hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(220,38,38,0.3)] hover:shadow-[0_0_40px_rgba(220,38,38,0.5)] active:scale-[0.98] disabled:opacity-50"
                     >
-                        {isLoading ? tVal('required') : "إنهاء الوردية (CLOSE SHIFT)"}
+                        {isLoading ? tVal('required') : (discrepancyDetails && acceptDiscrepancy ? (
+                            <div className="flex flex-col items-center justify-center leading-none">
+                                <span dir="rtl">تأكيد الإغلاق رغم الفارق</span>
+                                <span dir="ltr" className="text-xs opacity-70 mt-1">(Confirm Close with Variance)</span>
+                            </div>
+                        ) : "إنهاء الوردية (CLOSE SHIFT)")}
                     </button>
                 </div>
             </GlassModal>

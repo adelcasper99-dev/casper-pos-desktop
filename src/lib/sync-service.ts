@@ -56,6 +56,12 @@ export class SyncService {
             logger.error('[Sync:All] Sync Secret is missing. Sync aborted.');
             return { success: false, error: 'No Sync Secret' };
         }
+        
+        // 🛡️ GUARD: DB State Gating
+        if (!offlineDB.isOpen) {
+            logger.warn('[Sync:All] IndexedDB is not open. Sync aborted to prevent state corruption.');
+            return { success: false, error: 'Database Closed' };
+        }
 
         // 📥 PHASE 1: Pull Master Data Delta
         const now = Date.now();
@@ -85,25 +91,24 @@ export class SyncService {
             { name: 'Returns', sync: () => this.syncReturns() }
         ];
 
-        const results = await Promise.allSettled(modules.map(m => m.sync()));
-
         let totalFailed = 0;
         let anyCriticalError = false;
+        const failures: string[] = [];
 
-        results.forEach((r, i) => {
-            const moduleName = modules[i].name;
-            if (r.status === 'rejected') {
-                logger.error(`[Sync:Push] ${moduleName} REJECTED critically`, r.reason);
-                anyCriticalError = true;
-            } else {
-                const res = r.value as any;
-                const failed = res.failed || 0;
+        for (const module of modules) {
+            try {
+                const res = await module.sync();
+                const failed = (res as any).failed || 0;
                 if (failed > 0) {
-                    logger.warn(`[Sync:Push] ${moduleName} finished with ${failed} item failures.`);
+                    logger.warn(`[Sync:Push] ${module.name} finished with ${failed} item failures.`);
                     totalFailed += failed;
                 }
+            } catch (error) {
+                logger.error(`[Sync:Push] ${module.name} REJECTED critically`, error);
+                anyCriticalError = true;
+                failures.push(module.name);
             }
-        });
+        }
 
         if (totalFailed > 0 || anyCriticalError) {
             logger.error(`[Sync:Push] Sync cycle failed. Critical:${anyCriticalError} ItemFailures:${totalFailed}`);
@@ -111,7 +116,7 @@ export class SyncService {
 
         return {
             success: !anyCriticalError && totalFailed === 0,
-            failures: results.filter(r => r.status === 'rejected')
+            failures
         };
     }
 
@@ -491,6 +496,7 @@ export class SyncService {
             } catch (error: any) {
                 const newRetries = (m.syncRetries || 0) + 1;
                 if (newRetries >= 5) {
+                    logger.error(`⚠️ Dead-lettering inventory movement ${m.id} after 5 failures`, error);
                     await offlineDB.inventoryMovements.update(m.id, {
                         syncRetries: newRetries,
                         syncError: 'DEAD_LETTER: Requires manual intervention',
@@ -562,6 +568,7 @@ export class SyncService {
             } catch (error: any) {
                 const newRetries = (r.syncRetries || 0) + 1;
                 if (newRetries >= 5) {
+                    logger.error(`⚠️ Dead-lettering return ${r.id} after 5 failures`, error);
                     await offlineDB.returns.update(r.id, {
                         syncRetries: newRetries,
                         syncError: 'DEAD_LETTER: Requires manual intervention',
