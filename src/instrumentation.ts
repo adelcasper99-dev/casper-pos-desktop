@@ -14,6 +14,11 @@ export async function register() {
             console.log('[INSTRUMENTATION] Bootstrapping Casper POS Database...');
             await initDatabase();
             console.log('[INSTRUMENTATION] Database preparation complete.');
+            
+            // Initialize Background Sync & Mirroring exclusively on the server side
+            const { SyncWorker } = await import('@/lib/sync-worker');
+            SyncWorker.start(30000);
+            console.log('[INSTRUMENTATION] Background SyncWorker started.');
         } catch (error) {
             console.error('[INSTRUMENTATION ERROR] Failed to initialize database:', error);
         }

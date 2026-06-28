@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaTransactionClient } from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 
 /**
@@ -14,7 +15,7 @@ export class FinancialReversalService {
      * @param reason Reason for reversal
      */
     static async reverseTreasuryImpacts(
-        tx: Prisma.TransactionClient, 
+        tx: PrismaTransactionClient, 
         referenceId: string, 
         referenceType: string, 
         reason: string
@@ -88,7 +89,7 @@ export class FinancialReversalService {
      * Voids journal entries linked to a specific reference.
      */
     static async reverseAccountingEntries(
-        tx: Prisma.TransactionClient,
+        tx: PrismaTransactionClient,
         referenceId: string,
         reason: string,
         scopeKey?: 'transactionId' | 'purchaseId' | 'ticketId' | 'expenseId' | 'employeeTransactionId' | 'saleId' | 'customerTransactionId' | 'supplierPaymentId' | 'reference'
@@ -151,7 +152,7 @@ export class FinancialReversalService {
      * Unified entry point for full reversal
      */
     static async fullReversal(
-        tx: Prisma.TransactionClient,
+        tx: PrismaTransactionClient,
         referenceId: string,
         referenceType: string,
         reason: string,

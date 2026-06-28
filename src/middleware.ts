@@ -71,7 +71,8 @@ export function middleware(request: NextRequest) {
 
     const isPublic = publicRoutes.includes(path) || 
                      publicApiPrefixes.some(pref => path.startsWith(pref)) ||
-                     publicApiWhitelist.includes(path);
+                     publicApiWhitelist.includes(path) ||
+                     path.startsWith('/c/');
 
     // If no session and trying to access a protected route
     if (!sessionToken && !isPublic) {

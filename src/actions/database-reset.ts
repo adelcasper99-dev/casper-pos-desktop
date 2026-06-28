@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, PrismaTransactionClient } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
@@ -24,7 +24,7 @@ export async function resetDatabase() {
         }
 
         // Safety measure: We'll use a massive transaction to ensure either everything resets or nothing does.
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await prisma.$transaction(async (tx: PrismaTransactionClient) => {
             // 1. Delete all transactional records in reverse order of dependencies
 
             // Accounting/Finance records

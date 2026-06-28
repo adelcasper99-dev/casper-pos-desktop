@@ -165,6 +165,8 @@ model Customer {
   totalPurchaseValue    Decimal               @default(0.00)
   creditLimit           Decimal?
   linkedEmployeeId      String?               @unique
+  portalToken           String?               @unique
+  portalTokenExpiresAt  DateTime?
   linkedEmployee        User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
   transactions          CustomerTransaction[]
   sales                 Sale[]

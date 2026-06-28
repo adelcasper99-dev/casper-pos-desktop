@@ -7,8 +7,9 @@ import {
     ArrowUpRight, ArrowDownLeft, Settings,
     ShoppingBag, Wallet, Info, ChevronUp, ChevronDown, ArrowUpDown,
     MoreVertical, Edit2, AlertTriangle, TrendingUp, Clock, Activity, Loader2,
-    MapPin, Mail, Wrench, Check, X
+    MapPin, Mail, Wrench, Check, X, Share2, Copy, ExternalLink, QrCode
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -84,6 +85,9 @@ export default function CustomerAccountsTab() {
     const [showLimitModal, setShowLimitModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showPortalModal, setShowPortalModal] = useState(false);
+    const [portalLink, setPortalLink] = useState<string | null>(null);
+    const [isGeneratingPortal, setIsGeneratingPortal] = useState(false);
 
     // Form States
     const [paymentData, setPaymentData] = useState<{ amount: string, method: 'CASH' | 'VISA' | 'WALLET' | 'INSTAPAY', reference: string }>({ amount: '', method: 'CASH', reference: '' });
@@ -157,7 +161,7 @@ export default function CustomerAccountsTab() {
         setLoading(true);
         try {
             const result = await getCustomerDetails(customer.id);
-            if (result.success && result.id) {
+            if (result.success !== false) {
                 setCustomerDetails(result);
             } else if (result.error) {
                 toast.error(result.error);
@@ -251,6 +255,32 @@ export default function CustomerAccountsTab() {
                 toast.error('Failed to update customer');
             }
         });
+    };
+
+    const generatePortalLink = async () => {
+        if (!selectedCustomer) return;
+        setIsGeneratingPortal(true);
+        try {
+            const res = await fetch(`/api/customers/${selectedCustomer.id}/portal-link`);
+            const data = await res.json();
+            if (data.success) {
+                let link = `${window.location.origin}${data.path}`;
+                if ((window as any).ipcRenderer) {
+                    const status = await (window as any).ipcRenderer.invoke('tunnel:status');
+                    if (status.active && status.url) {
+                        link = `${status.url}${data.path}`;
+                    }
+                }
+                setPortalLink(link);
+                setShowPortalModal(true);
+            } else {
+                toast.error(data.error);
+            }
+        } catch (e) {
+            toast.error('Failed to generate portal link');
+        } finally {
+            setIsGeneratingPortal(false);
+        }
     };
 
     // Calculate Totals
@@ -691,6 +721,18 @@ export default function CustomerAccountsTab() {
                                             </span>
                                         )}
                                     </div>
+                                    <div className="mt-4">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="h-8 gap-2 bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 font-bold"
+                                            onClick={generatePortalLink}
+                                            disabled={isGeneratingPortal}
+                                        >
+                                            {isGeneratingPortal ? <CasperLoader width={16} /> : <Share2 className="w-3.5 h-3.5" />}
+                                            بوابة العميل
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                             <div className="text-left bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-sm min-w-[180px]">
@@ -1019,3 +1061,5 @@ export default function CustomerAccountsTab() {
         </div>
     );
 }
+
+

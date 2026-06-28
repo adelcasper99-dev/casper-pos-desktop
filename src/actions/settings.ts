@@ -11,10 +11,10 @@ import { ensureMainBranch, syncMainBranchDetails } from "@/lib/ensure-main-branc
 import { getSession } from "@/lib/auth";
 
 /**
- * Get store settings - PUBLIC endpoint (no auth required but protected by CSRF)
- * Used by client components for read-only access to store configuration
+ * Get store settings - PUBLIC endpoint (no auth required)
+ * Used by client components and RootLayout for read-only access to store configuration
  */
-export const getStoreSettings = secureAction(async () => {
+export async function getStoreSettings() {
     try {
         let settings = await prisma.storeSettings.findUnique({
             where: { id: "settings" }
@@ -51,10 +51,10 @@ export const getStoreSettings = secureAction(async () => {
             }
         };
     } catch (error: any) {
-        console.error("Error fetching store settings:", error);
-        return { success: false, error: error.message };
+        console.error("getStoreSettings error:", error);
+        return { success: false, data: {} };
     }
-}, { requireCSRF: false });
+}
 
 export const getEffectiveStoreSettings = secureAction(async () => {
     try {
