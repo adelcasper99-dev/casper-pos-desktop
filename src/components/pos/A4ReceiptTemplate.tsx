@@ -277,7 +277,7 @@ export const generateA4ReceiptHTML = ({ saleData, settings }: TemplateProps): st
                         <div class="notes-box">
                             <strong>كشف حساب مختصر للعميل:</strong><br/>
                             الرصيد المتبقي: <span style="color: ${Number(customerBalance) > 0 ? '#b91c1c' : '#15803d'}; font-weight: bold;">
-                                ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(Number(customerBalance))}
+                                ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(-Number(customerBalance))}
                             </span>
                         </div>
                     ` : ''}

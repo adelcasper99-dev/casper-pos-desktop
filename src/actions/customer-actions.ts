@@ -415,7 +415,12 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
             },
             tickets: {
                 orderBy: { createdAt: 'desc' },
-                take: 50
+                take: 50,
+                include: {
+                    parts: {
+                        select: { name: true }
+                    }
+                }
             }
         }
     });
@@ -470,16 +475,20 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
                 unitPrice: Number(i.unitPrice)
             }))
         })),
-        tickets: customer.tickets.map(t => ({
-            id: t.id,
-            barcode: t.barcode,
-            device: `${t.deviceBrand} ${t.deviceModel}`,
-            status: t.status,
-            repairPrice: Number(t.repairPrice),
-            deposit: Number(t.deposit),
-            due: Number(t.repairPrice) - Number(t.deposit),
-            createdAt: t.createdAt
-        }))
+        tickets: customer.tickets.map(t => {
+            const partsName = t.parts && t.parts.length > 0 ? t.parts.map((p: any) => p.name).filter(Boolean).join(' + ') : '';
+            return {
+                id: t.id,
+                barcode: t.barcode,
+                device: `${t.deviceBrand} ${t.deviceModel}`,
+                issueDescription: partsName || t.issueDescription,
+                status: t.status,
+                repairPrice: Number(t.repairPrice),
+                deposit: Number(t.deposit),
+                due: Number(t.repairPrice) - Number(t.deposit),
+                createdAt: t.createdAt
+            };
+        })
     };
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
 
@@ -790,7 +799,7 @@ export const getOrGeneratePortalToken = secureAction(async (customerId: string, 
     
     revalidatePath(`/customers/${customerId}`);
     return { success: true, token: newToken };
-});
+}, { requireCSRF: false });
 
 /**
  * Verify portal PIN (last 4 digits of phone)

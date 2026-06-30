@@ -27,8 +27,8 @@ export default function CustomerDashboardClient({ customer }: { customer: any })
                 <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-3xl w-full p-6 text-center shadow-2xl relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-500/10 rounded-full blur-xl" />
                     <p className="text-sm text-slate-400 mb-2">رصيد الحساب الحالي</p>
-                    <h2 className={`text-4xl font-black tracking-tight ${balanceColor}`}>
-                        {Math.abs(balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-base font-normal opacity-70">ج.م</span>
+                    <h2 className={`text-4xl flex items-center justify-center gap-1 font-black tracking-tight ${balanceColor}`}>
+                        <span dir="ltr">{(-balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> <span className="text-base font-normal opacity-70">ج.م</span>
                     </h2>
                     {balance > 0 && <p className="text-xs text-red-400/80 mt-2">مديونية مستحقة</p>}
                     {balance < 0 && <p className="text-xs text-green-400/80 mt-2">رصيد دائن لك</p>}
@@ -81,12 +81,12 @@ export default function CustomerDashboardClient({ customer }: { customer: any })
                                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
                                             t.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                                             t.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                            t.status === 'DELIVERED' ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' :
+                                            (t.status === 'DELIVERED' || t.status === 'PAID_DELIVERED') ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' :
                                             'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
                                         }`}>
                                             {t.status === 'COMPLETED' ? 'جاهز للاستلام' : 
                                              t.status === 'IN_PROGRESS' ? 'قيد الإصلاح' :
-                                             t.status === 'DELIVERED' ? 'تم التسليم' :
+                                             (t.status === 'DELIVERED' || t.status === 'PAID_DELIVERED') ? 'تم التسليم' :
                                              t.status === 'CANCELLED' ? 'ملغي' : 'في الانتظار'}
                                         </span>
                                     </div>
@@ -141,8 +141,8 @@ export default function CustomerDashboardClient({ customer }: { customer: any })
                                         <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
                                             <div className="flex justify-between items-start mb-2">
                                                 <h4 className="text-sm font-medium text-slate-200">{tx.description}</h4>
-                                                <div className={`font-bold ${tx.type === 'CREDIT' ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {tx.type === 'CREDIT' ? '-' : '+'}{Number(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                <div className={`font-bold flex items-center gap-1 ${tx.type === 'CREDIT' ? 'text-green-400' : 'text-red-400'}`}>
+                                                    <span dir="ltr">{tx.type === 'CREDIT' ? '+' : '-'}{Number(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                                 </div>
                                             </div>
                                             <p className="text-xs text-slate-500">

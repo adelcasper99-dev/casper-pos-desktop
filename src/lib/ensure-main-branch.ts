@@ -149,6 +149,24 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
         });
     }
 
+    // Always ensure a default MAINTENANCE warehouse exists
+    const existingMaintWarehouse = await prisma.warehouse.findFirst({
+        where: { branchId: branch.id, isMaintenanceDefault: true, deletedAt: null }
+    });
+
+    if (!existingMaintWarehouse) {
+        // If no maintenance warehouse is set, fallback to the standard default warehouse
+        const defaultWh = await prisma.warehouse.findFirst({
+            where: { branchId: branch.id, isDefault: true, deletedAt: null }
+        });
+        if (defaultWh) {
+            await prisma.warehouse.update({
+                where: { id: defaultWh.id },
+                data: { isMaintenanceDefault: true }
+            });
+        }
+    }
+
     // 🚨 ANTI-DUPLICATION LOCK: Clean up any existing accidental duplicates first
     // V-09: We now search by Name OR ID and merge them strictly.
     const allTreasuries = await prisma.treasury.findMany({

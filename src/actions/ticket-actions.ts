@@ -1284,7 +1284,7 @@ export const softDeleteTicket = secureAction(async (data: {
                 // 4. Customer Balance (Account Payment)
                 await tx.customer.update({
                     where: { id: ticket.customerId },
-                    data: { balance: { increment: amountToRefund } }
+                    data: { balance: { decrement: amountToRefund } }
                 });
 
                 await tx.customerTransaction.create({
@@ -2285,9 +2285,9 @@ export const processTicketPayment = secureAction(async (data: {
                 actualCustomerId = customer.id;
                 await tx.customer.update({
                     where: { id: customer.id },
-                    // Collecting money (effectiveAmount > 0) DECREASES balance.
-                    // Refunding money (effectiveAmount < 0) INCREASES balance.
-                    data: { balance: { decrement: effectiveAmount } }
+                    // Charging to account (effectiveAmount > 0) INCREASES debt balance.
+                    // Refunding to account (effectiveAmount < 0) DECREASES debt balance.
+                    data: { balance: { increment: effectiveAmount } }
                 });
 
                 if (!ticket.customerId) {
@@ -2317,11 +2317,11 @@ export const processTicketPayment = secureAction(async (data: {
         const effectiveCustomerId = actualCustomerId || (paymentMethod === 'ACCOUNT' ? customerId : null);
         if (effectiveCustomerId && !effectiveAmount.isZero() && !isSalaryDeduction) {
             const isDeferred = paymentMethod === 'ACCOUNT';
-            let description = `Ticket #${ticket.barcode}`;
-            if (paymentType === 'DEPOSIT') description += ' - Deposit';
-            else if (isActuallyRefund) description += ' - Refund';
-            else if (isDeferred) description += ' - Deferred';
-            else description += ` - ${paymentMethod} Payment`;
+            let description = `فاتورة #${ticket.barcode}`;
+            if (paymentType === 'DEPOSIT') description += ' - عربون';
+            else if (isActuallyRefund) description += ' - مرتجع';
+            else if (isDeferred) description += ' - آجل';
+            else description += ` - دفع ${paymentMethod}`;
 
             await tx.customerTransaction.create({
                 data: {
@@ -3883,5 +3883,79 @@ export const fullRefundTicket = secureAction(async (data: {
     return result;
 }, { permission: PERMISSIONS.TICKET_EDIT });
 
+export const overrideProfitDistribution = secureAction(async (data: {
+    ticketId: string;
+    newTechCommissionAmount: number;
+    csrfToken?: string;
+}) => {
+    const currentUser = await getCurrentUser();
+    if (!currentUser || !['ADMIN', 'مدير النظام', 'المالك'].includes(currentUser.role)) {
+        return { success: false, error: "Unauthorized. Admin/Manager required." };
+    }
 
+    const { ticketId, newTechCommissionAmount } = data;
 
+    const result = await prisma.$transaction(async (tx) => {
+        const ticket = await tx.ticket.findUnique({
+            where: { id: ticketId }
+        });
+
+        if (!ticket) throw new Error("Ticket not found");
+        if (ticket.status !== 'PAID_DELIVERED') {
+            throw new Error("Cannot override distribution. Ticket is not PAID_DELIVERED.");
+        }
+
+        const laborPoolAmount = new Decimal(ticket.laborPoolAmount?.toString() || 0);
+        const centerPartProfit = new Decimal(ticket.centerPartProfit?.toString() || 0);
+        const newCommission = new Decimal(newTechCommissionAmount);
+        
+        // Calculate new center labor profit
+        const newCenterLaborProfit = laborPoolAmount.minus(newCommission);
+        const newNetProfit = newCenterLaborProfit.plus(centerPartProfit);
+
+        // Accounting Logic
+        const originalIdempotencyKey = `TICKET_DIST_${ticketId}`;
+        const existingEntry = await tx.journalEntry.findFirst({
+            where: { idempotencyKey: originalIdempotencyKey }
+        });
+
+        if (existingEntry) {
+            await AccountingEngine.reverseJournalEntry(existingEntry.id, `REV_${originalIdempotencyKey}_${Date.now()}`, tx);
+        }
+
+        // Only repost if the original entry was reversed successfully or we didn't find one but still need to post?
+        // Let's always repost to fix the ledger with the new values.
+        const finalCustomerPrice = new Decimal(ticket.finalCustomerPrice?.toString() || 0);
+        const techBillingPrice = new Decimal(ticket.techBillingPrice?.toString() || 0);
+
+        await AccountingEngine.recordTransaction({
+            description: `Maintenance Distribution Override: Ticket #${ticket.barcode}`,
+            reference: ticket.id,
+            branchId: ticket.currentBranchId ?? undefined,
+            idempotencyKey: `TICKET_DIST_OVERRIDE_${ticket.id}_${Date.now()}`,
+            lines: [
+                { accountCode: GL.REVENUE.SERVICE, debit: finalCustomerPrice, credit: 0, description: "Service Revenue Reclassification" },
+                { accountCode: GL.REVENUE.SALES, debit: 0, credit: techBillingPrice, description: "Parts Revenue Dist" },
+                { accountCode: GL.LIABILITIES.ACCRUED_SALARIES, debit: 0, credit: newCommission, description: "Technician Commission Accrued (Override)" },
+                { accountCode: GL.REVENUE.SALES, debit: 0, credit: newCenterLaborProfit, description: "Center Labor Profit realized (Override)" }
+            ]
+        }, tx);
+
+        // Update Ticket
+        const updatedTicket = await tx.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                techCommissionAmount: newCommission,
+                centerLaborProfit: newCenterLaborProfit,
+                commissionAmount: newCommission, // Legacy field
+                netProfit: newNetProfit
+            }
+        });
+
+        return updatedTicket;
+    }, { timeout: 90000 });
+
+    revalidatePath(`/maintenance/tickets/${ticketId}`);
+    revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
+    return { success: true, data: result };
+}, { permission: PERMISSIONS.TICKET_EDIT });

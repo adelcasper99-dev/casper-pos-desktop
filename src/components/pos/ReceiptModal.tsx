@@ -260,7 +260,7 @@ export default function ReceiptModal({ isOpen, onClose, saleData, settings: sett
                                     )}
                                     {saleData.customerBalance !== undefined && saleData.customerBalance !== null && (
                                         <div style={{ fontSize: '11px', fontWeight: 'bold', color: Number(saleData.customerBalance) > 0 ? '#b91c1c' : '#15803d' }}>
-                                            {t('balance') || "الرصيد"}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.currency || 'EGP' }).format(Number(saleData.customerBalance))}
+                                            {t('balance') || "الرصيد"}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.currency || 'EGP' }).format(-Number(saleData.customerBalance))}
                                         </div>
                                     )}
                                 </div>
