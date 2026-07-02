@@ -359,8 +359,8 @@ model Product {
   unitOfMeasure     UnitOfMeasure?     @relation(fields: [unitOfMeasureId], references: [id])
   componentOf       BundleItem[]       @relation("ComponentProduct")
   bundleItems       BundleItem[]       @relation("BundleProduct")
-  category          Category           @relation(fields: [categoryId], references: [id])
-  model             Model?             @relation(fields: [modelId], references: [id])
+  category          Category           @relation(fields: [categoryId], references: [id], onUpdate: Cascade)
+  model             Model?             @relation(fields: [modelId], references: [id], onUpdate: Cascade)
   attribute         Attribute?         @relation(fields: [attributeId], references: [id])
   purchaseItems     PurchaseItem[]
   saleItems         SaleItem[]
@@ -1162,3 +1162,15 @@ model PartnerTransaction {
 
   @@index([periodFrom, periodTo])
 }
+
+model MasterDataTombstone {
+  id         String   @id @default(uuid())
+  entityType String
+  fromId     String
+  toId       String
+  createdAt  DateTime @default(now())
+
+  @@index([fromId])
+  @@index([entityType, fromId])
+}
+

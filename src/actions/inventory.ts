@@ -19,6 +19,7 @@ import { AppError, ErrorCodes } from "@/lib/errors";
 import { getCurrentUser } from "./auth";
 import { getTranslations } from "@/lib/i18n-mock";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { normalizeMasterDataName } from "@/shared/utils/string";
 
 // --- Suppliers ---
 
@@ -828,7 +829,7 @@ export const createCategory = secureAction(async (data: z.infer<typeof categoryS
     const validated = categorySchema.parse(categoryData);
     const category = await prisma.category.create({
         data: {
-            name: validated.name,
+            name: normalizeMasterDataName(validated.name),
             color: validated.color || "#06b6d4",
             parentId: validated.parentId || null
         }
@@ -843,7 +844,7 @@ export const createCategory = secureAction(async (data: z.infer<typeof categoryS
 export const createModel = secureAction(async (data: { name: string; categoryId: string; csrfToken?: string }) => {
     const model = await prisma.model.create({
         data: {
-            name: data.name,
+            name: normalizeMasterDataName(data.name),
             categoryId: data.categoryId
         },
         include: { category: true }
@@ -937,6 +938,9 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     const deliveryChargeDec = new Decimal(header.deliveryCharge || 0);
     const totalAmountDec = subtotal.plus(deliveryChargeDec);
     const paidAmountDec = new Decimal(header.paidAmount || 0);
+    
+    // NEW: Calculate Landed Cost Overhead Ratio
+    const overheadRatio = subtotal.gt(0) ? deliveryChargeDec.div(subtotal) : new Decimal(0);
 
     let status = "PENDING";
     if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
@@ -1177,9 +1181,12 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             const factor = new Decimal(String(item.conversionFactor || 1));
             const qty = new Decimal(String(item.quantity)).times(factor);
 
+            // Apply Landed Cost Allocation for Moving Average
+            const landedCost = new Decimal(String(item.unitCost)).times(overheadRatio.plus(1)).toNumber();
+
             if (existing) {
                 existing.totalQuantity = existing.totalQuantity.plus(qty);
-                existing.latestUnitCost = item.unitCost; // Last line wins for pricing
+                existing.latestUnitCost = landedCost; // Last line wins for pricing
                 if (item.sellPrice) existing.latestSellPrice = item.sellPrice;
                 if (item.sellPrice2) existing.latestSellPrice2 = item.sellPrice2;
                 if (item.sellPrice3) existing.latestSellPrice3 = item.sellPrice3;
@@ -1187,7 +1194,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 aggregatedMap.set(item.productId, {
                     productId: item.productId,
                     totalQuantity: qty,
-                    latestUnitCost: item.unitCost,
+                    latestUnitCost: landedCost,
                     latestSellPrice: item.sellPrice,
                     latestSellPrice2: item.sellPrice2,
                     latestSellPrice3: item.sellPrice3,
@@ -1375,6 +1382,9 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
         const deliveryChargeDec = new Decimal(header.deliveryCharge || 0);
         const totalAmountDec = subtotal.plus(deliveryChargeDec);
         const paidAmountDec = new Decimal(header.paidAmount || 0);
+        
+        // Calculate Landed Cost Overhead Ratio
+        const overheadRatio = subtotal.gt(0) ? deliveryChargeDec.div(subtotal) : new Decimal(0);
         let status = "PENDING";
         if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
         else if (paidAmountDec.gt(0)) status = "PARTIAL";
@@ -1472,15 +1482,16 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
 
         const sortedItems = [...processedItems].sort((a, b) => a.productId.localeCompare(b.productId));
         await Promise.all([
-            ...sortedItems.map(item =>
-                tx.product.update({
+            ...sortedItems.map(item => {
+                const landedCost = new Decimal(String(item.unitCost)).times(overheadRatio.plus(1));
+                return tx.product.update({
                     where: { id: item.productId },
                     data: { 
                         stock: { increment: new Decimal(String(item.quantity)).times(item.conversionFactor || 1).toNumber() }, 
-                        costPrice: new Decimal(String(item.unitCost)).div(item.conversionFactor || 1) 
+                        costPrice: landedCost.div(item.conversionFactor || 1).toNumber()
                     }
-                })
-            ),
+                });
+            }),
             ...sortedItems.map(item =>
                 tx.stock.upsert({
                     where: { productId_warehouseId: { productId: item.productId, warehouseId: warehouseId! } },
