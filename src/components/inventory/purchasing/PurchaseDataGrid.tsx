@@ -404,13 +404,6 @@ function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, tri
                                 {onEdit && onDelete && (
                                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                                         <button 
-                                            className="p-1 hover:bg-black/10 rounded transition-colors"
-                                            onClick={(e) => { e.stopPropagation(); onEdit(opt.id, opt.name); }}
-                                        >
-                                            <Pencil className="w-3 h-3 opacity-50 hover:opacity-100" />
-                                        </button>
-                                        <button 
-                                            className="p-1 hover:bg-black/10 rounded transition-colors"
                                             onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }}
                                         >
                                             <Trash2 className="w-3 h-3 opacity-50 hover:text-rose-500 hover:opacity-100" />
@@ -617,14 +610,26 @@ function ModelDropdown({ value, categoryId, options = [], categories = [], onCha
                                 {onEdit && onDelete && (
                                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                                         <button 
+                                            type="button"
                                             className="p-1 hover:bg-black/10 rounded transition-colors"
-                                            onClick={(e) => { e.stopPropagation(); onEdit(opt.id, opt.name); }}
+                                            onClick={(e) => { 
+                                                e.preventDefault(); 
+                                                e.stopPropagation(); 
+                                                setIsOpen(false); 
+                                                setTimeout(() => onEdit(opt.id, opt.name), 50); 
+                                            }}
                                         >
                                             <Pencil className="w-3 h-3 opacity-50 hover:opacity-100" />
                                         </button>
                                         <button 
+                                            type="button"
                                             className="p-1 hover:bg-black/10 rounded transition-colors"
-                                            onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }}
+                                            onClick={(e) => { 
+                                                e.preventDefault(); 
+                                                e.stopPropagation(); 
+                                                setIsOpen(false); 
+                                                setTimeout(() => onDelete(opt.id), 50); 
+                                            }}
                                         >
                                             <Trash2 className="w-3 h-3 opacity-50 hover:text-rose-500 hover:opacity-100" />
                                         </button>
@@ -819,14 +824,26 @@ function AttributeDropdown({ value, options = [], onChange, onEdit, onDelete, tr
                                 {onEdit && onDelete && (
                                     <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                                         <button 
+                                            type="button"
                                             className="p-1 hover:bg-black/10 rounded transition-colors"
-                                            onClick={(e) => { e.stopPropagation(); onEdit(opt.id, opt.name); }}
+                                            onClick={(e) => { 
+                                                e.preventDefault(); 
+                                                e.stopPropagation(); 
+                                                setIsOpen(false); 
+                                                setTimeout(() => onEdit(opt.id, opt.name), 50); 
+                                            }}
                                         >
                                             <Pencil className="w-3 h-3 opacity-50 hover:opacity-100" />
                                         </button>
                                         <button 
+                                            type="button"
                                             className="p-1 hover:bg-black/10 rounded transition-colors"
-                                            onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }}
+                                            onClick={(e) => { 
+                                                e.preventDefault(); 
+                                                e.stopPropagation(); 
+                                                setIsOpen(false); 
+                                                setTimeout(() => onDelete(opt.id), 50); 
+                                            }}
                                         >
                                             <Trash2 className="w-3 h-3 opacity-50 hover:text-rose-500 hover:opacity-100" />
                                         </button>
@@ -2270,6 +2287,7 @@ export function PurchaseDataGrid({
 
             {/* ── Dynamic Confirmation Modal (window.prompt/confirm Replacement) ── */}
             <ConfirmationModal
+                className="!z-[999999]"
                 isOpen={crudState.isOpen}
                 onClose={() => setCrudState(prev => ({ ...prev, isOpen: false }))}
                 onConfirm={handleCrudConfirm}

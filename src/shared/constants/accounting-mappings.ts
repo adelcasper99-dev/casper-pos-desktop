@@ -86,6 +86,7 @@ export const GL = {
         COGS: '5000',
         SALARIES: '5100',
         OPERATION_EXPENSES: '5200',
+        SHIPPING_LOSS: '5340',
         SPOILAGE: '5600',
     }
 } as const;

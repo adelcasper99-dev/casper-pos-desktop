@@ -8,6 +8,7 @@ const SYNC_BATCH_SIZE = 50;
 
 export class SyncService {
     // 🛡️ HELPER: Get cloud context dynamically
+    // 🛡️ HELPER: Get cloud context dynamically
     private static async getCloudContext() {
         const config = await CloudConfigManager.getCloudConfig();
         return {
@@ -16,6 +17,37 @@ export class SyncService {
             secret: config.syncSecret || '',
             branchId: config.branchId || ''
         };
+    }
+
+    // 🆕 RELIABILITY: Sync Master Data (Models/Categories) to resolve offline collisions
+    static async syncMasterData() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
+
+        try {
+            const response = await fetch('/api/local/sync-master-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cloudUrl: ctx.cloudUrl,
+                    secret: ctx.secret
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Master Data sync failed: ${error}`);
+            }
+
+            const data = await response.json();
+            if (data.pulled > 0) {
+                logger.info(`✅ Master Data sync: processed ${data.pulled} ID overrides`);
+            }
+            return { synced: data.pulled || 0, failed: 0 };
+        } catch (error: any) {
+            logger.error(`⚠️ Master Data sync error: ${error.message}`);
+            return { synced: 0, failed: 1 };
+        }
     }
     // 🛡️ RELIABILITY: Retry logic with exponential backoff
     private static async retryWithBackoff<T>(
@@ -84,6 +116,7 @@ export class SyncService {
 
         // 📤 PHASE 2: Push Local Changes
         const modules = [
+            { name: 'MasterData', sync: () => this.syncMasterData() },
             { name: 'Sales', sync: () => this.syncSales() },
             { name: 'Tickets', sync: () => this.syncTickets() },
             { name: 'Treasury', sync: () => this.syncTreasuryTransactions() },

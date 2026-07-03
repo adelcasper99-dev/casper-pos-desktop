@@ -76,7 +76,7 @@ function checkRateLimit(userId: string): { allowed: boolean; remaining: number; 
 export const repairAccounting = secureAction(async () => {
     await seedAccounts();
     return { success: true, message: "Accounting accounts synchronized" };
-}, { permission: 'ACCOUNTING_MANAGE' });
+}, { permission: 'ACCOUNTING_MANAGE', requireCSRF: false });
 
 
 const FALLBACK_EXPENSE_GL = '5200';

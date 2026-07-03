@@ -3915,12 +3915,35 @@ export const overrideProfitDistribution = secureAction(async (data: {
 
         // Accounting Logic
         const originalIdempotencyKey = `TICKET_DIST_${ticketId}`;
-        const existingEntry = await tx.journalEntry.findFirst({
+        const existingOriginal = await tx.journalEntry.findFirst({
             where: { idempotencyKey: originalIdempotencyKey }
         });
 
-        if (existingEntry) {
-            await AccountingEngine.reverseJournalEntry(existingEntry.id, `REV_${originalIdempotencyKey}_${Date.now()}`, tx);
+        if (existingOriginal) {
+            // Check if already reversed
+            const alreadyReversed = await tx.journalEntry.findFirst({
+                where: { reference: existingOriginal.id, description: { startsWith: 'REVERSAL:' } }
+            });
+            if (!alreadyReversed) {
+                await AccountingEngine.reverseJournalEntry(existingOriginal.id, `REV_${originalIdempotencyKey}_${Date.now()}`, tx);
+            }
+        }
+
+        // 🐛 FIX: Must also reverse any prior overrides to prevent compounding balances
+        const priorOverrides = await tx.journalEntry.findMany({
+            where: { 
+                reference: ticketId,
+                idempotencyKey: { startsWith: `TICKET_DIST_OVERRIDE_${ticketId}_` }
+            }
+        });
+
+        for (const override of priorOverrides) {
+            const alreadyReversed = await tx.journalEntry.findFirst({
+                where: { reference: override.id, description: { startsWith: 'REVERSAL:' } }
+            });
+            if (!alreadyReversed) {
+                await AccountingEngine.reverseJournalEntry(override.id, `REV_${override.idempotencyKey}_${Date.now()}`, tx);
+            }
         }
 
         // Only repost if the original entry was reversed successfully or we didn't find one but still need to post?

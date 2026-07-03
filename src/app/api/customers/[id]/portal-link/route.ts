@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getOrGeneratePortalToken } from '@/actions/customer-actions';
 import { getCurrentUser } from '@/actions/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request, { params }: { params: { id: string } }) {
     try {
         // Must be authenticated to generate a link for a customer
