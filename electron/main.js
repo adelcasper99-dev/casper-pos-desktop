@@ -6,6 +6,7 @@ const net = require('net');
 const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const whatsappService = require('./whatsappService');
+const schemas = require('./ipc-schemas');
 
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
@@ -16,8 +17,24 @@ const log = (msg) => {
 /**
  * Hardened IPC Error Handlers
  */
-const safeHandle = (channel, handler) => {
+const safeHandle = (channel, handler, schema = null) => {
     ipcMain.handle(channel, async (event, ...args) => {
+        // 1. Sender-frame check (non-negotiable safety guard)
+        if (event.senderFrame !== event.sender.mainFrame) {
+            log(`IPC Rejected [${channel}] — Non-main-frame sender`);
+            return { success: false, error: 'Unauthorized sender frame' };
+        }
+
+        // 2. Schema validation
+        if (schema) {
+            try {
+                schema.parse(args);
+            } catch (validationError) {
+                log(`IPC Validation Failure [${channel}]: ${validationError.message}`);
+                return { success: false, error: `Invalid payload parameters: ${validationError.message}` };
+            }
+        }
+
         try {
             const result = await handler(event, ...args);
             // If the result is already in {success, data} format, return it directly
@@ -556,7 +573,7 @@ safeHandle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
 safeHandle('shell:open-external', async (event, url) => {
     await shell.openExternal(url);
-});
+}, schemas.OpenExternalSchema);
 
 // --- WhatsApp Native Engine ---
 const initWhatsApp = async () => {
@@ -583,7 +600,7 @@ safeHandle('whatsapp:initialize', async () => {
     return await initWhatsApp();
 });
 
-safeHandle('whatsapp:send-message', (_, to, body) => whatsappService.sendMessage(to, body));
+safeHandle('whatsapp:send-message', (_, to, body) => whatsappService.sendMessage(to, body), schemas.SendMessageSchema);
 safeHandle('whatsapp:get-status', () => ({ status: whatsappService.getStatus() }));
 safeHandle('whatsapp:logout', async () => { 
     const result = await whatsappService.logout();
@@ -794,15 +811,33 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
     }
 });
 
-ipcMain.handle('print:standard', handleStandardPrint);
+safeHandle('print:standard', handleStandardPrint, schemas.PrintStandardSchema);
 safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
-});
+}, schemas.PrintThermalSchema);
 // Legacy support
-ipcMain.handle('print:silent', handleStandardPrint);
+safeHandle('print:silent', handleStandardPrint, schemas.PrintStandardSchema);
 safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
-});
+}, schemas.PrintThermalSchema);
+
+safeHandle('hardware:kick-drawer', async (event, printerName) => {
+    try {
+        const res = await fetch('http://localhost:4040/api/drawer/kick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ printerName })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Bridge drawer kick failed');
+        }
+        return { success: true };
+    } catch (e) {
+        log(`Drawer Kick Error: ${e.message}`);
+        return { success: false, error: e.message };
+    }
+}, schemas.KickDrawerSchema);
 
 // --- NEW CONFIG AND SETUP IPC HANDLERS ---
 const loadConfig = () => {
@@ -864,7 +899,7 @@ safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
     app.relaunch();
     app.quit();
     return true;
-});
+}, schemas.SaveConfigAndRestartSchema);
 
 safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
     try {
@@ -883,7 +918,7 @@ safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
         log(`Failed to save node config: ${err.message}`);
         return { success: false, error: err.message };
     }
-});
+}, schemas.SaveNodeConfigSchema);
 
 safeHandle('app:get-cloud-config', () => {
     try {
@@ -915,7 +950,7 @@ safeHandle('app:save-cloud-config', async (event, configData) => {
         log(`Failed to save cloud config: ${err.message}`);
         return { success: false, error: err.message };
     }
-});
+}, schemas.SaveCloudConfigSchema);
 
 safeHandle('app:migrate-to-postgres', async (event) => {
     try {

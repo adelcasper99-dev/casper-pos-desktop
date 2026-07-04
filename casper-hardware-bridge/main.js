@@ -155,13 +155,33 @@ expressApp.post('/api/print', async (req, res) => {
         }
         
         printer.cut();
-        if (jobType !== 'barcode') printer.openCashDrawer();
 
         await printer.execute();
         res.json({ success: true });
 
     } catch (e) {
         console.error('Print error:', e);
+        res.status(500).json({ error: e.message || 'Execution Error' });
+    }
+});
+
+expressApp.post('/api/drawer/kick', async (req, res) => {
+    try {
+        const { printerName } = req.body;
+        const pInterface = printerName || store.get('receiptPrinter') || 'printer:auto';
+        const pType = store.get('printerType') || PrinterTypes.EPSON;
+        
+        let printer = new ThermalPrinter({
+            type: pType,
+            interface: pInterface.startsWith('printer:') || pInterface.startsWith('tcp:') ? pInterface : `printer:${pInterface}`,
+            options: { timeout: 2000 }
+        });
+
+        printer.openCashDrawer();
+        await printer.execute();
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Drawer kick error:', e);
         res.status(500).json({ error: e.message || 'Execution Error' });
     }
 });

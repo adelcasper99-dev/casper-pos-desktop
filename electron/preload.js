@@ -42,6 +42,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
 
     /**
+     * Kick the cash drawer independently of a print job.
+     */
+    kickDrawer: (printerName) =>
+        ipcRenderer.invoke('hardware:kick-drawer', printerName),
+
+    /**
      * Custom window controls (used by TitleBar component).
      * Replaces native OS title bar buttons in the frameless window.
      */

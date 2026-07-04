@@ -1,10 +1,4 @@
-/**
- * Central Print Guard
- * 
- * Provides a single source of truth for authorization to auto-print.
- * Centralizing this logic prevents recurring bugs where different components
- * use different checks or fail to respect global settings.
- */
+import { PrintSettingsSchema, type PrintSettings } from '../types/ipc-schemas';
 
 export type PrintContext = 'ticket' | 'invoice' | 'receipt' | 'report';
 
@@ -16,15 +10,22 @@ export type PrintContext = 'ticket' | 'invoice' | 'receipt' | 'report';
  * @param context The type of document being printed (default: 'ticket')
  * @returns boolean indicating if auto-print is allowed
  */
-export const shouldAutoPrint = (settings: any | null | undefined, context: PrintContext = 'ticket'): boolean => {
+export const shouldAutoPrint = (settings: PrintSettings | null | undefined, context: PrintContext = 'ticket'): boolean => {
   if (!settings) {
     return false;
   }
 
+  const parsed = PrintSettingsSchema.safeParse(settings);
+  if (!parsed.success) {
+    console.warn('[print-guard] Malformed settings object - defaulting to no auto-print', parsed.error);
+    return false;
+  }
+
+  const validatedSettings = parsed.data;
+
   switch (context) {
     case 'ticket':
-      // Ensure it explicitly strictly equals true
-      return settings.autoPrintTicket === true;
+      return validatedSettings.autoPrintTicket === true;
       
     // Add additional contexts here as needed
     // case 'invoice':

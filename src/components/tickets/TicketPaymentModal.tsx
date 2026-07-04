@@ -336,18 +336,35 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
             const htmlContent = generatePaidTicketReceiptHTML(finalTicketForPrint, currentSettings, translations);
 
-            // 🛡️ [FIX] Use HIGH PRECISION printThermal for the customer copy
-            if (targetPrinter) {
-                 await printService.printThermal(htmlContent, targetPrinter, paperWidthMm);
-            } else {
-                await printService.printHTML(htmlContent, undefined, {
-                    paperWidthMm,
-                    strictlySilent: isAutoPrint
-                });
+            // 🛡️ [DECOUPLED HARDENING] Print and kick cash drawer independently
+            const printPromise = targetPrinter
+                ? printService.printThermal(htmlContent, targetPrinter, paperWidthMm)
+                : printService.printHTML(htmlContent, undefined, { paperWidthMm, strictlySilent: isAutoPrint }).then(() => true);
+
+            const drawerPromise = printService.kickCashDrawer(targetPrinter || undefined);
+
+            const [printRes, drawerRes] = await Promise.allSettled([printPromise, drawerPromise]);
+
+            let printSuccess = false;
+            if (printRes.status === 'fulfilled') {
+                printSuccess = typeof printRes.value === 'boolean' ? printRes.value : true;
             }
 
-            if (!isAutoPrint) toast.success("Print job sent successfully");
+            let drawerSuccess = false;
+            if (drawerRes.status === 'fulfilled') {
+                drawerSuccess = drawerRes.value.success === true;
+            }
 
+            if (printSuccess) {
+                if (!isAutoPrint) toast.success("Print job sent successfully");
+            } else {
+                toast.error("Failed to print receipt (check paper/connection)");
+            }
+
+            if (!drawerSuccess) {
+                const errorDetail = drawerRes.status === 'rejected' ? drawerRes.reason?.message : drawerRes.value?.error;
+                console.warn("Drawer kick failed:", errorDetail);
+            }
         } catch (error) {
             console.error("Print Error:", error);
             toast.error("Failed to print receipt");

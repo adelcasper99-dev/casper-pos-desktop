@@ -9,6 +9,7 @@ declare global {
       printThermal: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
       print: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
       printThermalReceipt: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
+      kickDrawer: (printerName?: string) => Promise<{ success: boolean; error?: string }>;
       saveToPDF: (html: string, filename?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
       
       /** Shell API for external links */

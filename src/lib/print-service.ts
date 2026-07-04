@@ -423,6 +423,38 @@ class PrintService {
     return typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
   }
 
+  async kickCashDrawer(printerName?: string): Promise<{ success: boolean; error?: string }> {
+    if (this.isElectron()) {
+      try {
+        if (window.electronAPI?.kickDrawer) {
+          const res = await window.electronAPI.kickDrawer(printerName);
+          if (res?.success) return { success: true };
+          return { success: false, error: res?.error || 'Electron native drawer kick failed' };
+        }
+      } catch (err: any) {
+        console.warn('[PrintService] Electron native drawer kick failed, falling back to Bridge...', err);
+      }
+    }
+
+    try {
+      const bridgeUrl = await (hardwareBridge as any).getBridgeUrl();
+      const res = await fetch(`${bridgeUrl}/api/drawer/kick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printerName }),
+        signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) {
+        return { success: true };
+      }
+      const err = await res.json();
+      return { success: false, error: err.error || 'Bridge drawer kick failed' };
+    } catch (e: any) {
+      console.warn('[PrintService] Bridge drawer kick failed', e);
+      return { success: false, error: e.message || 'Bridge offline' };
+    }
+  }
+
   /**
    * Silent HTML print.
    * Priority: Electron IPC → Casper Agent → QZ Tray
