@@ -152,6 +152,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     /**
+     * SQLite-backed Print Queue API
+     */
+    printQueue: {
+        enqueue: (job) => ipcRenderer.invoke('print:enqueue', job),
+        getStatus: () => ipcRenderer.invoke('print:queue-status'),
+        onStatusChange: (cb) => {
+            const handler = (_event, status) => cb(status);
+            ipcRenderer.on('print:queue-changed', handler);
+            return () => ipcRenderer.removeListener('print:queue-changed', handler);
+        }
+    },
+
+    /**
      * Native WhatsApp Automation API
      */
     whatsapp: {

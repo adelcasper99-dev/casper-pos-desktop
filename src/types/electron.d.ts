@@ -61,6 +61,13 @@ declare global {
         installUpdate: () => Promise<void>;
       };
 
+      /** SQLite-backed Print Queue API */
+      printQueue?: {
+        enqueue: (job: { id: string; jobType: 'receipt' | 'a4' | 'barcode' | 'label'; html: string; printer?: string | null; paperWidth?: number | null }) => Promise<{ success: boolean; id?: string; error?: string }>;
+        getStatus: () => Promise<{ success: boolean; data: { pending: number; processing: number; failed: number }; error?: string }>;
+        onStatusChange: (cb: (status: { pending: number; processing: number; failed: number }) => void) => () => void;
+      };
+
       /** Native WhatsApp Automation API */
       whatsapp?: {
         sendMessage: (to: string, body: string) => Promise<{ success: boolean; error?: string }>;

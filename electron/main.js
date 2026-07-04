@@ -7,6 +7,7 @@ const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const whatsappService = require('./whatsappService');
 const schemas = require('./ipc-schemas');
+const PrintQueue = require('./print-queue');
 
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
@@ -394,6 +395,69 @@ let mainWindow = null;
 let splashWindow = null;
 let nextServer;
 let appPort = 3001;
+
+let printQueue = null;
+let queueWorkerInterval = null;
+let isProcessingQueue = false;
+
+const startQueueWorker = () => {
+    if (queueWorkerInterval) return;
+    
+    try {
+        printQueue.recoverPending();
+    } catch (err) {
+        log(`Failed to recover pending queue jobs: ${err.message}`);
+    }
+
+    queueWorkerInterval = setInterval(async () => {
+        if (isProcessingQueue) return;
+        isProcessingQueue = true;
+
+        try {
+            const job = printQueue.dequeueNext();
+            if (job) {
+                printQueue.markProcessing(job.id);
+                log(`Processing queued print job: id=${job.id}, type=${job.job_type}, printer=${job.printer}`);
+
+                let result;
+                if (job.job_type === 'receipt' || job.job_type === 'barcode') {
+                    result = await handleThermalPrint(null, job.html, job.printer, job.paper_width || 80);
+                } else {
+                    result = await handleStandardPrint(null, job.html, job.printer, {});
+                }
+
+                if (result && result.success) {
+                    printQueue.markDone(job.id);
+                    log(`Queued print job succeeded: id=${job.id}`);
+                } else {
+                    const errorMsg = result ? result.error : 'Unknown print failure';
+                    printQueue.markFailed(job.id, errorMsg);
+                    log(`Queued print job failed: id=${job.id}, error=${errorMsg}`);
+                }
+
+                notifyQueueStatusChanged();
+            }
+        } catch (err) {
+            log(`Print Queue Worker error: ${err.message}`);
+        } finally {
+            isProcessingQueue = false;
+        }
+    }, 2000);
+};
+
+const stopQueueWorker = () => {
+    if (queueWorkerInterval) {
+        clearInterval(queueWorkerInterval);
+        queueWorkerInterval = null;
+    }
+};
+
+const notifyQueueStatusChanged = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        const status = printQueue.getQueueStatus();
+        mainWindow.webContents.send('print:queue-changed', status);
+    }
+};
 
 const findFreePort = () => {
     return new Promise((resolve) => {
@@ -839,6 +903,27 @@ safeHandle('hardware:kick-drawer', async (event, printerName) => {
     }
 }, schemas.KickDrawerSchema);
 
+safeHandle('print:enqueue', async (event, job) => {
+    try {
+        const id = printQueue.enqueue(
+            job.id,
+            job.jobType,
+            job.html,
+            job.printer || null,
+            job.paperWidth || null
+        );
+        notifyQueueStatusChanged();
+        return { success: true, id };
+    } catch (e) {
+        log(`Failed to enqueue job: ${e.message}`);
+        return { success: false, error: e.message };
+    }
+}, schemas.PrintEnqueueSchema);
+
+safeHandle('print:queue-status', () => {
+    return printQueue.getQueueStatus();
+});
+
 // --- NEW CONFIG AND SETUP IPC HANDLERS ---
 const loadConfig = () => {
     const userDataPath = app.getPath('userData');
@@ -1253,10 +1338,14 @@ ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
 });
 
 app.on('before-quit', () => {
+    stopQueueWorker();
     whatsappService.destroyClient();
 });
 
 app.whenReady().then(async () => {
+    const userDataPath = app.getPath('userData');
+    printQueue = new PrintQueue(userDataPath, log);
+    startQueueWorker();
     await initWhatsApp();
     createWindow();
 });

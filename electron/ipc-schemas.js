@@ -45,6 +45,16 @@ const SendMessageSchema = z.tuple([
     z.string()
 ]);
 
+const PrintEnqueueSchema = z.tuple([
+    z.object({
+        id: z.string(),
+        jobType: z.string(),
+        html: z.string().max(200000),
+        printer: z.string().optional().nullable(),
+        paperWidth: z.number().int().min(40).max(300).optional().nullable()
+    })
+]);
+
 module.exports = {
     PrintStandardSchema,
     PrintThermalSchema,
@@ -53,5 +63,6 @@ module.exports = {
     SaveNodeConfigSchema,
     SaveConfigAndRestartSchema,
     OpenExternalSchema,
-    SendMessageSchema
+    SendMessageSchema,
+    PrintEnqueueSchema
 };
