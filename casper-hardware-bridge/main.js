@@ -18,6 +18,46 @@ const expressApp = express();
 expressApp.use(cors({ origin: '*' })); // Permissive for local bridging
 expressApp.use(express.json());
 
+const securityMiddleware = (req, res, next) => {
+    const clientIp = req.ip || req.connection.remoteAddress || '';
+    const isLocalhost = 
+        clientIp === '127.0.0.1' || 
+        clientIp === '::1' || 
+        clientIp === '::ffff:127.0.0.1' || 
+        clientIp.includes('localhost');
+
+    if (isLocalhost) {
+        return next();
+    }
+
+    const token = req.headers['x-casper-token'];
+    const configuredToken = store?.get('securityToken');
+
+    if (configuredToken && token === configuredToken) {
+        return next();
+    }
+
+    console.warn(`[Security Alert] Blocked unauthorized remote bridge access from IP: ${clientIp}`);
+    return res.status(403).json({ error: 'Unauthorized remote bridge access' });
+};
+
+expressApp.use(securityMiddleware);
+
+expressApp.get('/api/security/token', (req, res) => {
+    const clientIp = req.ip || req.connection.remoteAddress || '';
+    const isLocalhost = 
+        clientIp === '127.0.0.1' || 
+        clientIp === '::1' || 
+        clientIp === '::ffff:127.0.0.1' || 
+        clientIp.includes('localhost');
+
+    if (!isLocalhost) {
+        return res.status(403).json({ error: 'Token is only accessible via localhost' });
+    }
+
+    return res.json({ token: store?.get('securityToken') });
+});
+
 // Initialize electron-store asynchronously for ESM compatibility
 async function initStore() {
     try {
@@ -30,6 +70,7 @@ async function initStore() {
                 a4Printer: 'auto',
                 marginTop: 0,
                 marginLeft: 0,
+                securityToken: require('crypto').randomBytes(32).toString('hex'),
             }
         });
     } catch (e) {

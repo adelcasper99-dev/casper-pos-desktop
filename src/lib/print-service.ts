@@ -68,6 +68,37 @@ const electronChannel = new ElectronPrintChannel();
 // ─────────────────────────────────────────────
 
 class HardwareBridgeClient {
+  private cachedToken: string | null = null;
+
+  async getSecurityToken(): Promise<string | null> {
+    if (this.cachedToken) return this.cachedToken;
+
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(PRINTER_REGISTRY_KEY);
+      if (stored) {
+        try {
+          const registry = JSON.parse(stored) as PrinterRegistry;
+          if (registry.bridgeSecurityToken) {
+            this.cachedToken = registry.bridgeSecurityToken;
+            return this.cachedToken;
+          }
+        } catch (e) {}
+      }
+    }
+
+    try {
+      const res = await fetch('http://localhost:4040/api/security/token', {
+        signal: AbortSignal.timeout(2000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.cachedToken = data.token || null;
+        return this.cachedToken;
+      }
+    } catch (e) {}
+    return null;
+  }
+
   private async getBridgeUrl(): Promise<string> {
     if (typeof window !== 'undefined') {
       const api = (window as any).electronAPI;
@@ -102,9 +133,16 @@ class HardwareBridgeClient {
   async isAvailable(): Promise<boolean> {
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const token = await this.getSecurityToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['x-casper-token'] = token;
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
+      const res = await fetch(`${bridgeUrl}/api/status`, { 
+        headers,
+        signal: controller.signal 
+      });
       clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
@@ -115,9 +153,16 @@ class HardwareBridgeClient {
   async getStatus() {
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const token = await this.getSecurityToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['x-casper-token'] = token;
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
+      const res = await fetch(`${bridgeUrl}/api/status`, { 
+        headers,
+        signal: controller.signal 
+      });
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error('Bridge responding but with error');
       return await res.json();
@@ -130,12 +175,16 @@ class HardwareBridgeClient {
     let timeoutId: NodeJS.Timeout | undefined;
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const token = await this.getSecurityToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['x-casper-token'] = token;
+
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), 15000);
       
       const res = await fetch(`${bridgeUrl}/api/print`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ html, jobType, printer: printerName }),
         signal: controller.signal
       });
@@ -438,9 +487,13 @@ class PrintService {
 
     try {
       const bridgeUrl = await (hardwareBridge as any).getBridgeUrl();
+      const token = await (hardwareBridge as any).getSecurityToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['x-casper-token'] = token;
+
       const res = await fetch(`${bridgeUrl}/api/drawer/kick`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ printerName }),
         signal: AbortSignal.timeout(3000)
       });

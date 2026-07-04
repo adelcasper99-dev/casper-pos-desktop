@@ -7,6 +7,7 @@ export interface PrinterRegistry {
 
     /** Network IP for Casper Hardware Bridge (e.g., 192.168.1.15) */
     bridgeIpAddress?: string;
+    bridgeSecurityToken?: string;
 
     /** Assigned printer for receipts (A4 or Thermal - legacy fallback) */
     receiptPrinter?: string;
