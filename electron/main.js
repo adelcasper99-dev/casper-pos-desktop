@@ -787,12 +787,18 @@ const handleThermalPrint = async (event, html, printerName, paperWidthMm, margin
 
         const { top = 0, bottom = 0, left = 0, right = 0 } = margins || {};
 
+        // Convert millimeters to pixels (1mm ≈ 3.78px at 96 DPI)
+        const topPx = Math.round(top * 3.78);
+        const bottomPx = Math.round(bottom * 3.78);
+        const leftPx = Math.round(left * 3.78);
+        const rightPx = Math.round(right * 3.78);
+
         const printOptions = {
             silent: true,
             deviceName: (printerName && printerName !== 'none' && printerName !== 'undefined') ? printerName : '',
             printBackground: true,
             color: false, // Thermal is B&W
-            margins: { marginType: 'custom', top, bottom, left, right }, // Apply custom margins
+            margins: { marginType: 'custom', top: topPx, bottom: bottomPx, left: leftPx, right: rightPx }, // Apply custom margins in pixels
             pageSize: {
                 width: Math.round((paperWidthMm || 80) * 1000),
                 height: 1000000 // Very tall height for continuous thermal roll - prevents page splitting
