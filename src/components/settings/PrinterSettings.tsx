@@ -580,6 +580,31 @@ export default function PrinterSettings() {
                                     </div>
                                 ))}
                             </div>
+                            {/* Visual thermal margin preview */}
+                            <div className="flex items-center justify-center py-4">
+                                <div className="relative border-2 border-violet-500/30 bg-background/60 flex items-center justify-center shadow-inner" style={{ width: '120px', height: '160px' }}>
+                                    {/* Paper strip aesthetic */}
+                                    <div className="absolute top-[-4px] left-0 right-0 h-1 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjQiPjxwb2x5Z29uIHBvaW50cz0iMCwwIDQsNCA4LDAiIGZpbGw9IiNlNWU3ZWIiLz48L3N2Zz4=')] opacity-50" />
+                                    <div
+                                        className="absolute inset-0 border-2 border-dashed border-violet-400/50"
+                                        style={{
+                                            top: `${(thermalMarginTopMm / 30) * 100}%`,
+                                            right: `${(thermalMarginRightMm / 30) * 100}%`,
+                                            bottom: `${(thermalMarginBottomMm / 30) * 100}%`,
+                                            left: `${(thermalMarginLeftMm / 30) * 100}%`,
+                                        }}
+                                    />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 z-10 text-center leading-tight">
+                                        Receipt<br/>Content
+                                    </span>
+                                </div>
+                                <div className="ml-4 space-y-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                                    <div>T: {thermalMarginTopMm}mm</div>
+                                    <div>R: {thermalMarginRightMm}mm</div>
+                                    <div>B: {thermalMarginBottomMm}mm</div>
+                                    <div>L: {thermalMarginLeftMm}mm</div>
+                                </div>
+                            </div>
                         </div>
                     )}
 

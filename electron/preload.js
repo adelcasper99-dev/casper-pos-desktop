@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /**
      * Thermal silent print (Roll / Receipt)
      */
-    printThermal: (html, printerName, paperWidthMm) =>
-        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
+    printThermal: (html, printerName, paperWidthMm, margins) =>
+        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm, margins),
 
     saveToPDF: (html, filename) =>
         ipcRenderer.invoke('print:to-pdf', html, filename),

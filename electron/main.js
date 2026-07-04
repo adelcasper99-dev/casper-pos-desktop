@@ -756,7 +756,7 @@ const handleStandardPrint = async (event, html, printerName, options) => {
 /**
  * Dedicated Handler for Thermal (Roll/Receipt) Printing
  */
-const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
+const handleThermalPrint = async (event, html, printerName, paperWidthMm, margins = {}) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
     const widthPx = Math.round((paperWidthMm || 80) * 3.78);
@@ -785,12 +785,14 @@ const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
 
         log(`Print [Thermal] Requested: HTML Length [${html?.length}], Printer [${printerName}], Width [${paperWidthMm}mm]`);
 
+        const { top = 0, bottom = 0, left = 0, right = 0 } = margins || {};
+
         const printOptions = {
             silent: true,
             deviceName: (printerName && printerName !== 'none' && printerName !== 'undefined') ? printerName : '',
             printBackground: true,
             color: false, // Thermal is B&W
-            margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }, // No margins for thermal
+            margins: { marginType: 'custom', top, bottom, left, right }, // Apply custom margins
             pageSize: {
                 width: Math.round((paperWidthMm || 80) * 1000),
                 height: 1000000 // Very tall height for continuous thermal roll - prevents page splitting
@@ -876,13 +878,13 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
 });
 
 safeHandle('print:standard', handleStandardPrint, schemas.PrintStandardSchema);
-safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
-    return await handleThermalPrint(event, html, printerName, paperWidthMm);
+safeHandle('print:thermal', async (event, html, printerName, paperWidthMm, margins) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm, margins);
 }, schemas.PrintThermalSchema);
 // Legacy support
 safeHandle('print:silent', handleStandardPrint, schemas.PrintStandardSchema);
-safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
-    return await handleThermalPrint(event, html, printerName, paperWidthMm);
+safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm, margins) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm, margins);
 }, schemas.PrintThermalSchema);
 
 safeHandle('hardware:kick-drawer', async (event, printerName) => {

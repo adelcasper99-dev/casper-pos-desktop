@@ -9,7 +9,13 @@ const PrintStandardSchema = z.tuple([
 const PrintThermalSchema = z.tuple([
     z.string().max(200000, 'HTML payload too large (max 200KB)'),
     z.string().min(1, 'Printer name is required'),
-    z.number().int().min(40).max(300)
+    z.number().int().min(40).max(300),
+    z.object({
+        top: z.number().min(0).max(30).default(0),
+        right: z.number().min(0).max(30).default(0),
+        bottom: z.number().min(0).max(30).default(0),
+        left: z.number().min(0).max(30).default(0)
+    }).optional()
 ]);
 
 const KickDrawerSchema = z.tuple([

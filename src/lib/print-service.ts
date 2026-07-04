@@ -56,8 +56,8 @@ class ElectronPrintChannel {
     return await window.electronAPI!.printStandard(html, printerName, options ?? {});
   }
 
-  async printThermal(html: string, printerName: string, paperWidthMm: number): Promise<{ success: boolean; error?: string }> {
-    return await window.electronAPI!.printThermal(html, printerName, paperWidthMm);
+  async printThermal(html: string, printerName: string, paperWidthMm: number, margins?: { top?: number, right?: number, bottom?: number, left?: number }): Promise<{ success: boolean; error?: string }> {
+    return await window.electronAPI!.printThermal(html, printerName, paperWidthMm, margins);
   }
 }
 
@@ -461,7 +461,12 @@ class PrintService {
     const marginLeft = this.registry?.thermalMarginLeftMm ?? 0;
     if (this.isElectron()) {
       try {
-        const result = await electronChannel.printThermal(html, printerName, width);
+        const result = await electronChannel.printThermal(html, printerName, width, {
+          top: marginTop,
+          right: marginRight,
+          bottom: marginBottom,
+          left: marginLeft
+        });
         if (result?.success) {
           logger.info(`✓ [Electron-Thermal] Printed to "${printerName}" @ ${width}mm`);
           return true;
