@@ -38,7 +38,9 @@ export default function PrinterSettings() {
     // ── Calibration State ──────────────────────────────────────────────────────
     const [thermalPaperWidthMm, setThermalPaperWidthMm] = useState<number>(80);
     const [thermalMarginTopMm, setThermalMarginTopMm] = useState<number>(0);
+    const [thermalMarginRightMm, setThermalMarginRightMm] = useState<number>(0);
     const [thermalMarginBottomMm, setThermalMarginBottomMm] = useState<number>(0);
+    const [thermalMarginLeftMm, setThermalMarginLeftMm] = useState<number>(0);
     const [a4MarginTopMm, setA4MarginTopMm] = useState<number>(10);
     const [a4MarginRightMm, setA4MarginRightMm] = useState<number>(10);
     const [a4MarginBottomMm, setA4MarginBottomMm] = useState<number>(10);
@@ -79,7 +81,9 @@ export default function PrinterSettings() {
             // Calibration
             if (registry.thermalPaperWidthMm) setThermalPaperWidthMm(registry.thermalPaperWidthMm);
             if (registry.thermalMarginTopMm !== undefined) setThermalMarginTopMm(registry.thermalMarginTopMm);
+            if (registry.thermalMarginRightMm !== undefined) setThermalMarginRightMm(registry.thermalMarginRightMm);
             if (registry.thermalMarginBottomMm !== undefined) setThermalMarginBottomMm(registry.thermalMarginBottomMm);
+            if (registry.thermalMarginLeftMm !== undefined) setThermalMarginLeftMm(registry.thermalMarginLeftMm);
             if (registry.a4MarginTopMm !== undefined) setA4MarginTopMm(registry.a4MarginTopMm);
             if (registry.a4MarginRightMm !== undefined) setA4MarginRightMm(registry.a4MarginRightMm);
             if (registry.a4MarginBottomMm !== undefined) setA4MarginBottomMm(registry.a4MarginBottomMm);
@@ -176,7 +180,7 @@ export default function PrinterSettings() {
             bridgeIpAddress, thermalPrinter, a4Printer, receiptFormat, labelPrinter,
             enableThermal, enableA4, enableSpeedPrint, defaultCopies,
             // Calibration
-            thermalPaperWidthMm, thermalMarginTopMm, thermalMarginBottomMm,
+            thermalPaperWidthMm, thermalMarginTopMm, thermalMarginRightMm, thermalMarginBottomMm, thermalMarginLeftMm,
             a4MarginTopMm, a4MarginRightMm, a4MarginBottomMm, a4MarginLeftMm,
         });
         localStorage.setItem('casper_default_print_copies', defaultCopies.toString());
@@ -554,7 +558,9 @@ export default function PrinterSettings() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {([
                                     { label: 'Top Margin', value: thermalMarginTopMm, set: setThermalMarginTopMm },
+                                    { label: 'Right Margin', value: thermalMarginRightMm, set: setThermalMarginRightMm },
                                     { label: 'Bottom Margin', value: thermalMarginBottomMm, set: setThermalMarginBottomMm },
+                                    { label: 'Left Margin', value: thermalMarginLeftMm, set: setThermalMarginLeftMm },
                                 ] as { label: string; value: number; set: (v: number) => void }[]).map(({ label, value, set }) => (
                                     <div key={label} className="space-y-3">
                                         <div className="flex items-center justify-between">

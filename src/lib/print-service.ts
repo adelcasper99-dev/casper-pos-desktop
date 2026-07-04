@@ -456,7 +456,9 @@ class PrintService {
     const registryWidth = this.registry?.thermalPaperWidthMm;
     const width = paperWidthMm ?? registryWidth ?? 80;
     const marginTop = this.registry?.thermalMarginTopMm ?? 0;
+    const marginRight = this.registry?.thermalMarginRightMm ?? 0;
     const marginBottom = this.registry?.thermalMarginBottomMm ?? 0;
+    const marginLeft = this.registry?.thermalMarginLeftMm ?? 0;
     if (this.isElectron()) {
       try {
         const result = await electronChannel.printThermal(html, printerName, width);
@@ -474,7 +476,9 @@ class PrintService {
     return await this.printSilentHTML(html, printerName, {
       paperWidthMm: width,
       marginTopMm: marginTop,
+      marginRightMm: marginRight,
       marginBottomMm: marginBottom,
+      marginLeftMm: marginLeft,
     });
   }
 

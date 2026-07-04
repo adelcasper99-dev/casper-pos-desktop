@@ -51,8 +51,12 @@ export interface PrinterRegistry {
     thermalPaperWidthMm?: number;
     /** Extra top margin for thermal receipts in mm. Default 0. */
     thermalMarginTopMm?: number;
+    /** Extra right margin for thermal receipts in mm. Default 0. */
+    thermalMarginRightMm?: number;
     /** Extra bottom margin for thermal receipts in mm. Default 0. */
     thermalMarginBottomMm?: number;
+    /** Extra left margin for thermal receipts in mm. Default 0. */
+    thermalMarginLeftMm?: number;
 
     /** A4 page margin — top in mm. Default 10. */
     a4MarginTopMm?: number;
