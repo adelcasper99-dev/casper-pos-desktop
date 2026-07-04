@@ -45,6 +45,23 @@ export interface PrinterRegistry {
 
     /** Timestamp of last configuration update */
     updatedAt: number;
+
+    // ── Print Calibration ─────────────────────────────────────────────────────
+    /** Thermal paper width in mm: 58 | 72 | 80 | 104. Default 80. */
+    thermalPaperWidthMm?: number;
+    /** Extra top margin for thermal receipts in mm. Default 0. */
+    thermalMarginTopMm?: number;
+    /** Extra bottom margin for thermal receipts in mm. Default 0. */
+    thermalMarginBottomMm?: number;
+
+    /** A4 page margin — top in mm. Default 10. */
+    a4MarginTopMm?: number;
+    /** A4 page margin — right in mm. Default 10. */
+    a4MarginRightMm?: number;
+    /** A4 page margin — bottom in mm. Default 10. */
+    a4MarginBottomMm?: number;
+    /** A4 page margin — left in mm. Default 10. */
+    a4MarginLeftMm?: number;
 }
 
 /**

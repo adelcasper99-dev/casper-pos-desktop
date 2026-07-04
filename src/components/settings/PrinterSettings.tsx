@@ -35,6 +35,15 @@ export default function PrinterSettings() {
     const [detectError, setDetectError] = useState(false);
     const detectInitRef = useRef(false);
 
+    // ── Calibration State ──────────────────────────────────────────────────────
+    const [thermalPaperWidthMm, setThermalPaperWidthMm] = useState<number>(80);
+    const [thermalMarginTopMm, setThermalMarginTopMm] = useState<number>(0);
+    const [thermalMarginBottomMm, setThermalMarginBottomMm] = useState<number>(0);
+    const [a4MarginTopMm, setA4MarginTopMm] = useState<number>(10);
+    const [a4MarginRightMm, setA4MarginRightMm] = useState<number>(10);
+    const [a4MarginBottomMm, setA4MarginBottomMm] = useState<number>(10);
+    const [a4MarginLeftMm, setA4MarginLeftMm] = useState<number>(10);
+
     useEffect(() => {
         loadSettings();
         checkQZConnection();
@@ -63,10 +72,18 @@ export default function PrinterSettings() {
             if (registry.a4Printer) setA4Printer(registry.a4Printer);
             if (registry.receiptFormat) setReceiptFormat(registry.receiptFormat);
             if (registry.labelPrinter) setLabelPrinter(registry.labelPrinter);
-            setEnableThermal(registry.enableThermal !== false);
-            setEnableA4(registry.enableA4 !== false);
+            if (registry.enableThermal !== undefined) setEnableThermal(registry.enableThermal);
+            if (registry.enableA4 !== undefined) setEnableA4(registry.enableA4);
             setEnableSpeedPrint(registry.enableSpeedPrint !== false);
             if (registry.defaultCopies) setDefaultCopies(registry.defaultCopies);
+            // Calibration
+            if (registry.thermalPaperWidthMm) setThermalPaperWidthMm(registry.thermalPaperWidthMm);
+            if (registry.thermalMarginTopMm !== undefined) setThermalMarginTopMm(registry.thermalMarginTopMm);
+            if (registry.thermalMarginBottomMm !== undefined) setThermalMarginBottomMm(registry.thermalMarginBottomMm);
+            if (registry.a4MarginTopMm !== undefined) setA4MarginTopMm(registry.a4MarginTopMm);
+            if (registry.a4MarginRightMm !== undefined) setA4MarginRightMm(registry.a4MarginRightMm);
+            if (registry.a4MarginBottomMm !== undefined) setA4MarginBottomMm(registry.a4MarginBottomMm);
+            if (registry.a4MarginLeftMm !== undefined) setA4MarginLeftMm(registry.a4MarginLeftMm);
         } else {
             const savedThermal = localStorage.getItem('thermal_printer');
             const savedA4 = localStorage.getItem('a4_printer');
@@ -157,10 +174,13 @@ export default function PrinterSettings() {
     const handleSave = () => {
         printService.updateRegistry({
             bridgeIpAddress, thermalPrinter, a4Printer, receiptFormat, labelPrinter,
-            enableThermal, enableA4, enableSpeedPrint, defaultCopies
+            enableThermal, enableA4, enableSpeedPrint, defaultCopies,
+            // Calibration
+            thermalPaperWidthMm, thermalMarginTopMm, thermalMarginBottomMm,
+            a4MarginTopMm, a4MarginRightMm, a4MarginBottomMm, a4MarginLeftMm,
         });
         localStorage.setItem('casper_default_print_copies', defaultCopies.toString());
-        toast.success("Printer preferences saved to this device registry");
+        toast.success('Printer preferences saved to this device registry');
     };
 
     const handleTestReceipt = async () => {
@@ -480,6 +500,147 @@ export default function PrinterSettings() {
                             className="bg-primary hover:bg-primary/90 px-10 h-14 rounded-2xl text-white font-black uppercase tracking-widest gap-3 shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                         >
                             <Save className="w-5 h-5" /> Commit Preferences
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Print Calibration ───────────────────────────────────────────── */}
+            <div className="glass-card bg-card/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl space-y-8 relative overflow-hidden group/calib">
+                <div className="absolute top-0 left-0 w-48 h-48 bg-violet-500/10 blur-3xl opacity-0 group-hover/calib:opacity-100 transition-opacity" />
+                <div className="space-y-2 relative z-10">
+                    <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <Settings2 className="w-6 h-6 text-violet-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.5)]" />
+                        Print Calibration
+                    </h3>
+                    <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Fine-tune paper dimensions and margins — no code changes required</p>
+                </div>
+
+                <div className="space-y-8 relative z-10">
+                    {/* Thermal Calibration */}
+                    {enableThermal && (
+                        <div className="space-y-6 p-6 rounded-3xl border border-border/20 bg-background/40">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-violet-400 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+                                Thermal Roll Calibration
+                            </div>
+
+                            {/* Paper Width */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Paper Width</Label>
+                                    <span className="text-sm font-black text-violet-400 font-mono tabular-nums">{thermalPaperWidthMm} mm</span>
+                                </div>
+                                <div className="flex gap-2 flex-wrap">
+                                    {[58, 72, 80, 104].map(w => (
+                                        <button
+                                            key={w}
+                                            onClick={() => setThermalPaperWidthMm(w)}
+                                            className={cn(
+                                                'px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest border transition-all duration-200',
+                                                thermalPaperWidthMm === w
+                                                    ? 'bg-violet-500 border-violet-500 text-white shadow-lg shadow-violet-500/30'
+                                                    : 'bg-background/60 border-border/40 text-muted-foreground hover:border-violet-500/50 hover:text-violet-400'
+                                            )}
+                                        >
+                                            {w}mm
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Match the physical roll width of your thermal printer</p>
+                            </div>
+
+                            {/* Thermal Margins */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {([
+                                    { label: 'Top Margin', value: thermalMarginTopMm, set: setThermalMarginTopMm },
+                                    { label: 'Bottom Margin', value: thermalMarginBottomMm, set: setThermalMarginBottomMm },
+                                ] as { label: string; value: number; set: (v: number) => void }[]).map(({ label, value, set }) => (
+                                    <div key={label} className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">{label}</Label>
+                                            <span className="text-sm font-black text-violet-400 font-mono tabular-nums w-12 text-right">{value} mm</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0} max={20} step={1}
+                                            value={value}
+                                            onChange={e => set(Number(e.target.value))}
+                                            className="w-full h-2 rounded-full appearance-none bg-border/40 accent-violet-500 cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
+                                            <span>0mm</span><span>20mm</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* A4 Calibration */}
+                    {enableA4 && (
+                        <div className="space-y-6 p-6 rounded-3xl border border-border/20 bg-background/40">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                                A4 Page Margin Calibration
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {([
+                                    { label: 'Top', value: a4MarginTopMm, set: setA4MarginTopMm },
+                                    { label: 'Right', value: a4MarginRightMm, set: setA4MarginRightMm },
+                                    { label: 'Bottom', value: a4MarginBottomMm, set: setA4MarginBottomMm },
+                                    { label: 'Left', value: a4MarginLeftMm, set: setA4MarginLeftMm },
+                                ] as { label: string; value: number; set: (v: number) => void }[]).map(({ label, value, set }) => (
+                                    <div key={label} className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">{label} Margin</Label>
+                                            <span className="text-sm font-black text-sky-400 font-mono tabular-nums w-12 text-right">{value} mm</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0} max={30} step={1}
+                                            value={value}
+                                            onChange={e => set(Number(e.target.value))}
+                                            className="w-full h-2 rounded-full appearance-none bg-border/40 accent-sky-500 cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
+                                            <span>0mm</span><span>30mm</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Visual margin preview */}
+                            <div className="flex items-center justify-center py-4">
+                                <div className="relative w-32 h-44 border-2 border-sky-500/30 rounded-lg bg-background/60 flex items-center justify-center shadow-inner">
+                                    <div
+                                        className="absolute inset-0 border-2 border-dashed border-sky-400/40 rounded"
+                                        style={{
+                                            top: `${(a4MarginTopMm / 30) * 100}%`,
+                                            right: `${(a4MarginRightMm / 30) * 100}%`,
+                                            bottom: `${(a4MarginBottomMm / 30) * 100}%`,
+                                            left: `${(a4MarginLeftMm / 30) * 100}%`,
+                                        }}
+                                    />
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/40 z-10">Content Area</span>
+                                </div>
+                                <div className="ml-4 space-y-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                                    <div>T: {a4MarginTopMm}mm</div>
+                                    <div>R: {a4MarginRightMm}mm</div>
+                                    <div>B: {a4MarginBottomMm}mm</div>
+                                    <div>L: {a4MarginLeftMm}mm</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end pt-2">
+                        <Button
+                            onClick={handleSave}
+                            className="bg-violet-600 hover:bg-violet-500 px-10 h-12 rounded-2xl text-white font-black uppercase tracking-widest gap-3 shadow-lg shadow-violet-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        >
+                            <Save className="w-4 h-4" /> Save Calibration
                         </Button>
                     </div>
                 </div>

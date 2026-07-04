@@ -449,13 +449,19 @@ class PrintService {
   /**
    * Optimized thermal printing.
    * Directly uses the high-speed thermal channel in Electron if available.
+   * Falls back to generic silent print with registry-calibrated width.
    */
-  async printThermal(html: string, printerName: string, paperWidthMm: number = 80): Promise<boolean> {
+  async printThermal(html: string, printerName: string, paperWidthMm?: number): Promise<boolean> {
+    // Registry calibration overrides caller if not explicitly provided
+    const registryWidth = this.registry?.thermalPaperWidthMm;
+    const width = paperWidthMm ?? registryWidth ?? 80;
+    const marginTop = this.registry?.thermalMarginTopMm ?? 0;
+    const marginBottom = this.registry?.thermalMarginBottomMm ?? 0;
     if (this.isElectron()) {
       try {
-        const result = await electronChannel.printThermal(html, printerName, paperWidthMm);
+        const result = await electronChannel.printThermal(html, printerName, width);
         if (result?.success) {
-          logger.info(`✓ [Electron-Thermal] Printed to "${printerName}"`);
+          logger.info(`✓ [Electron-Thermal] Printed to "${printerName}" @ ${width}mm`);
           return true;
         } else {
           console.warn('[PrintService] Electron thermal reported failure:', result?.error);
@@ -465,7 +471,11 @@ class PrintService {
       }
     }
     // Fallback to generic silent print
-    return await this.printSilentHTML(html, printerName, { paperWidthMm });
+    return await this.printSilentHTML(html, printerName, {
+      paperWidthMm: width,
+      marginTopMm: marginTop,
+      marginBottomMm: marginBottom,
+    });
   }
 
   isElectron(): boolean {
@@ -513,7 +523,17 @@ class PrintService {
    * Priority: Electron IPC → Casper Agent → QZ Tray
    * Returns true if a silent print succeeded.
    */
-  async printSilentHTML(html: string, printerName: string, options?: { paperWidthMm?: number }): Promise<boolean> {
+  async printSilentHTML(
+    html: string,
+    printerName: string,
+    options?: {
+      paperWidthMm?: number;
+      marginTopMm?: number;
+      marginBottomMm?: number;
+      marginLeftMm?: number;
+      marginRightMm?: number;
+    }
+  ): Promise<boolean> {
     // 1. Electron (best path — zero dependencies, truly silent)
     if (electronChannel.isAvailable()) {
       try {
