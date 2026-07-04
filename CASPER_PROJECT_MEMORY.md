@@ -269,3 +269,43 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ### 🛡️ [NEW] Permission Mapping & Migration Consistency
 *   **Standard Role Seeding**: When adding new permissions (e.g., `PARTNERS_VIEW`, `PARTNERS_MANAGE`, `PARTNERS_TRANSACTIONS`), they must be added to default seed configurations in `src/actions/roles.ts`.
 *   **Database Backfill**: Adding default roles in code only affects *new* installations. For existing databases, a migration/patch script (e.g., `scripts/patch-partner-permissions.ts`) must be created and executed to query and append the new permission keys to active users/roles.
+
+---
+
+## 🖨️ 14. Print System Hardening & Hardware Fault Tolerance
+
+### 🛡️ [NEW] Strict IPC Boundary Validation (Zod Guarding)
+*   **Rule**: Every IPC channel payload entering the Electron main process from the renderer MUST be Zod-validated.
+*   **Implementation**: Use `safeHandle(channel, handler, schema)` in `electron/main.js`. If a client sends malformed arguments, the wrapper catches it early and returns a structured `{ success: false, error: ... }` object, preventing main-process crashes or prototype injection attempts.
+
+### 🛡️ [NEW] Cash Drawer Decoupling (Fault Isolation)
+*   **Rule**: The physical cash drawer kick must operate independently of the receipt printing pipeline.
+*   **Implementation**: 
+    -   Exposed independent `hardware:kick-drawer` IPC and `/api/drawer/kick` HTTP endpoints.
+    -   UI checkout flows invoke receipt printing and cash drawer kicking concurrently using `Promise.allSettled`.
+    -   **Result**: Hardware failures (e.g., printer out of paper, paper jams, offline bridge) do NOT abort the transaction completion, block the database write, or crash the UI.
+
+### 🛡️ [NEW] Persistent SQLite Print Queue & Crash Recovery
+*   **Rule**: High-priority POS print jobs (receipts, orders, barcodes) must survive application crashes, system restarts, and printer connection drops.
+*   **Implementation**:
+    -   Jobs are logged into a local SQLite database (`print-queue.db` running in WAL mode) at `userData/print-queue/` before hardware dispatch.
+    -   **Backoff & Jitter**: Failed print attempts trigger an exponential retry backoff (`2000 * 2^attempt` milliseconds) with $\pm 10\%$ random jitter, preventing print service request storms.
+    -   **Crash Recovery**: On boot (`app.whenReady`), the system auto-recovers any stuck `PROCESSING` jobs from a previous session back to `PENDING` for clean re-execution.
+
+### 🛡️ [NEW] Shift-Aware Native Updates
+*   **Rule**: Silent/automatic application updates must NEVER interrupt cashiers during active retail shifts.
+*   **Implementation**:
+    -   On `update-downloaded`, the auto-updater queries the local DB (via Prisma) to check if any user shift is currently `OPEN`.
+    -   If an active shift exists, the update is deferred. A non-blocking warning banner is shown in the UI (`UpdateBanner.tsx`), allowing cashiers to trigger the installation manually at their convenience, or forcing it on next application boot.
+
+### 🛡️ [NEW] Encrypted Node Configuration (`safeStorage`)
+*   **Rule**: Bridge URLs, printer IPs, and node endpoints stored locally on the terminal must be protected from extraction.
+*   **Implementation**:
+    -   Use `electron.safeStorage` to encrypt configuration keys on the filesystem.
+    -   Renderer processes query config via the main process (`app:get-config`), ensuring raw IPs and settings are decrypted only in memory when the API layer dispatches requests.
+
+### 🛡️ [NEW] Database Provider Lock
+*   **Rule**: The main Next.js/Prisma schema MUST be pinned to `provider = "postgresql"` in staging/production to protect exact Decimal field math and ensure proper connection pooling.
+*   **Implementation**:
+    -   A git pre-commit hook (`.git/hooks/pre-commit`) blocks commits containing a provider change in `prisma/schema.prisma`. Any deviation from `"postgresql"` (e.g., testing locally with `sqlite`) prevents commit execution with an error diagnostic.
+
