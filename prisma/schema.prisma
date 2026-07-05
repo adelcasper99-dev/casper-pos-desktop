@@ -39,6 +39,9 @@ model StoreSettings {
   labelTemplate         String?
   allowNegativeStock    Boolean @default(false)
   blindCloseEnabled     Boolean @default(true)
+  licenseJwt            String?
+  lastServerNow         Float?
+  localUptimeTicks      Float?
 }
 
 model User {
@@ -1156,4 +1159,15 @@ model PartnerTransaction {
   createdAt DateTime @default(now())
 
   @@index([periodFrom, periodTo])
+}
+
+model Tenant {
+  id             String   @id @default(uuid())
+  planType       String   @default("trial") // trial, basic, premium
+  status         String   @default("active") // active, expired, suspended
+  trialEndsAt    DateTime
+  machineId      String?
+  activationCode String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

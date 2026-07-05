@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 
 import { getFormattedTicketNumber } from '@/lib/id-generator';
+import { verifyServerLicense } from '@/lib/license/server-verify';
 
 /**
  * Sequential barcode generation with atomic protection
@@ -25,6 +26,12 @@ export async function POST(request: NextRequest) {
     const clientSecret = request.headers.get('x-sync-secret');
     if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
         return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
+    }
+
+    const licenseJwt = request.headers.get('x-license-jwt');
+    const licenseCheck = verifyServerLicense(licenseJwt);
+    if (!licenseCheck.valid && licenseCheck.response) {
+        return licenseCheck.response;
     }
 
     let body: any = null;

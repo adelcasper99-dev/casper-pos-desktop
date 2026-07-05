@@ -4,6 +4,7 @@ import { Decimal } from 'decimal.js';
 import { decrementWarehouseStock } from '@/lib/stock-helpers';
 import { logger } from '@/lib/logger';
 import { OfflineSaleSchema, type OfflineSaleInput } from '@/lib/validations/sync-schemas';
+import { verifyServerLicense } from '@/lib/license/server-verify';
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -11,6 +12,13 @@ export async function POST(request: NextRequest) {
     if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
         return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
     }
+
+    const licenseJwt = request.headers.get('x-license-jwt');
+    const licenseCheck = verifyServerLicense(licenseJwt);
+    if (!licenseCheck.valid && licenseCheck.response) {
+        return licenseCheck.response;
+    }
+
 
     let body: OfflineSaleInput | null = null;
     try {

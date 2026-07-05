@@ -10,11 +10,13 @@ export class SyncService {
     // 🛡️ HELPER: Get cloud context dynamically
     private static async getCloudContext() {
         const config = await CloudConfigManager.getCloudConfig();
+        const settings = await offlineDB.storeSettings.get('settings');
         return {
             enabled: config.enabled,
             cloudUrl: config.cloudUrl || '',
             secret: config.syncSecret || '',
-            branchId: config.branchId || ''
+            branchId: config.branchId || '',
+            licenseJwt: settings?.licenseJwt || ''
         };
     }
     // 🛡️ RELIABILITY: Retry logic with exponential backoff
@@ -128,7 +130,8 @@ export class SyncService {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-sync-secret': ctx.secret
+                    'x-sync-secret': ctx.secret,
+                    'x-license-jwt': ctx.licenseJwt
                 }
             });
 
@@ -239,7 +242,8 @@ export class SyncService {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret
+                            'x-sync-secret': ctx.secret,
+                            'x-license-jwt': ctx.licenseJwt
                         },
                         // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
                         body: JSON.stringify({ ...sale, idempotencyKey: sale.idempotencyKey ?? sale.id, branchId: ctx.branchId })
@@ -316,7 +320,8 @@ export class SyncService {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret
+                            'x-sync-secret': ctx.secret,
+                            'x-license-jwt': ctx.licenseJwt
                         },
                         // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
                         body: JSON.stringify({ ...ticket, idempotencyKey: ticket.idempotencyKey ?? ticket.id, branchId: ctx.branchId })
@@ -390,7 +395,8 @@ export class SyncService {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret
+                            'x-sync-secret': ctx.secret,
+                            'x-license-jwt': ctx.licenseJwt
                         },
                         body: JSON.stringify({
                             ...tx,
@@ -464,7 +470,8 @@ export class SyncService {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret
+                            'x-sync-secret': ctx.secret,
+                            'x-license-jwt': ctx.licenseJwt
                         },
                         body: JSON.stringify({
                             ...m,
@@ -535,7 +542,8 @@ export class SyncService {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret
+                            'x-sync-secret': ctx.secret,
+                            'x-license-jwt': ctx.licenseJwt
                         },
                         body: JSON.stringify({
                             ...r,

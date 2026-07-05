@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { POST as syncSale } from '@/app/api/pos/offline-sale/route';
-import { resetTestDB } from './setup';
+import { resetTestDB, syncHeaders } from './setup';
 import { NextRequest } from 'next/server';
 import { seedAccounts } from '@/lib/accounting/seed-accounts';
 
@@ -76,6 +76,7 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
         const executeRequest = () => {
             const req = new NextRequest('http://localhost/api/pos/offline-sale', {
                 method: 'POST',
+                headers: syncHeaders,
                 body: JSON.stringify(payload)
             });
             return syncSale(req);
@@ -132,6 +133,7 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
 
         const req = new NextRequest('http://localhost/api/pos/offline-sale', {
             method: 'POST',
+            headers: syncHeaders,
             body: JSON.stringify(payload)
         });
 

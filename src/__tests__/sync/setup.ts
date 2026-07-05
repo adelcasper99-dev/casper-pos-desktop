@@ -1,3 +1,7 @@
+const baseDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/casper_pos';
+const testDbUrl = baseDbUrl.endsWith('_test') ? baseDbUrl : `${baseDbUrl}_test`;
+process.env.DATABASE_URL = testDbUrl;
+
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { prisma } from '@/lib/prisma';
@@ -5,8 +9,33 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import 'fake-indexeddb/auto';
+import { generateKeyPairSync } from 'crypto';
+import jwt from 'jsonwebtoken';
 
 import { http, passthrough } from 'msw';
+
+// Generate key pair for testing (RS256 requires min 2048 bits in newer Node/OpenSSL)
+const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' }
+});
+
+process.env.LICENSE_PUBLIC_KEY = publicKey;
+
+// Sign a valid JWT for testing
+export const testLicenseJwt = jwt.sign({
+    tenant_id: 'test-tenant',
+    status: 'active',
+    trial_ends_at: new Date('2029-12-31').toISOString(),
+    server_now: new Date().toISOString(),
+    machine_id: 'test-machine'
+}, privateKey, { algorithm: 'RS256' });
+
+export const syncHeaders = {
+    'Content-Type': 'application/json',
+    'x-license-jwt': testLicenseJwt
+};
 
 // ── MSW SETUP ──────────────────────────────────────────────────────────────
 export const server = setupServer(
@@ -17,44 +46,29 @@ export const server = setupServer(
     http.get('http://10.255.255.255:4040/*', () => passthrough())
 );
 
-// Generate a unique ID for this test worker's database to prevent locking collisions
-const suiteId = Math.random().toString(36).substring(7);
-const dbPath = path.resolve(process.cwd(), 'prisma', `test-${suiteId}.db`);
-
 export async function resetTestDB() {
     // Faster truncation reset
     const tables = ['SaleItem', 'Sale', 'Branch', 'Ticket', 'TicketNote', 'StockMovement', 'Stock', 'Warehouse', 'Customer', 'Sequence', 'RepairPayment'];
     
-    // Disable FK checks and delete all
-    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF;');
-    for (const table of tables) {
-        try {
-            await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
-        } catch (e) {}
-    }
-    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
+    // For PostgreSQL: use TRUNCATE with CASCADE to handle foreign key dependencies cleanly
+    const truncateQuery = `TRUNCATE TABLE ${tables.map(t => `"${t}"`).join(', ')} CASCADE;`;
+    await prisma.$executeRawUnsafe(truncateQuery);
 }
 
 beforeAll(async () => {
     server.listen({ onUnhandledRequest: 'warn' });
-    process.env.DATABASE_URL = `file:${dbPath}`;
     
     // Initial schema push
     execSync(`npx prisma db push --skip-generate --accept-data-loss --force-reset`, {
-        env: { ...process.env, DATABASE_URL: `file:${dbPath}` },
+        env: { ...process.env, DATABASE_URL: testDbUrl },
         stdio: 'inherit'
     });
 });
 
 afterAll(async () => {
     server.close();
-    // Cleanup the unique test DB
     try {
         await prisma.$disconnect();
-        if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
-        if (fs.existsSync(`${dbPath}-journal` )) fs.unlinkSync(`${dbPath}-journal`);
-        if (fs.existsSync(`${dbPath}-wal` )) fs.unlinkSync(`${dbPath}-wal`);
-        if (fs.existsSync(`${dbPath}-shm` )) fs.unlinkSync(`${dbPath}-shm`);
     } catch (e) {}
 });
 
