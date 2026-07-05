@@ -8,6 +8,7 @@
         "dev:electron": "cross-env NODE_ENV=development electron .",
         "build": "next build",
         "start": "next start -H 0.0.0.0 -p 3000",
+        "license:bootstrap": "node scripts/bootstrap-license.js",
         "electron:build": "node scripts/build-license.js && npm run build && node scripts/prepare-standalone.js",
         "dist:assets": "node scripts/generate-build-assets.js",
         "compile:bytecode": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/compile-bytecode.js",
@@ -28,7 +29,7 @@
     "build": {
         "appId": "com.caspererp.app",
         "productName": "Casper POS",
-        "copyright": "Copyright © 2026 Casper POS",
+        "copyright": "Copyright آ© 2026 Casper POS",
         "publish": {
             "provider": "generic",
             "url": "https://updates.casper-erp.com/desktop/"
@@ -176,3 +177,4 @@
         "seed": "tsx prisma/seed.ts"
     }
 }
+

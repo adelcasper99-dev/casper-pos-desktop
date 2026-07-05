@@ -1,4 +1,4 @@
-import { offlineDB } from '@/lib/offline-db';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 export class TrueTime {
@@ -25,15 +25,20 @@ export class TrueTime {
             logger.warn('[TrueTime] Offline or WorldTimeAPI failed, falling back to DB time.');
         }
 
-        // Fallback to database
-        const settings = await offlineDB.storeSettings.get('settings');
+        // Fallback to database (Prisma)
+        const settings = await prisma.storeSettings.findUnique({
+            where: { id: 'settings' }
+        });
         if (settings && settings.lastServerNow) {
             this.memoryServerNow = settings.lastServerNow;
             this.memoryLocalTicks = performance.now();
             
             // Re-sync local ticks in DB for this session
-            await offlineDB.storeSettings.update('settings', {
-                localUptimeTicks: this.memoryLocalTicks
+            await prisma.storeSettings.update({
+                where: { id: 'settings' },
+                data: {
+                    localUptimeTicks: this.memoryLocalTicks
+                }
             });
             logger.info(`[TrueTime] Initialized from local DB: ${this.memoryServerNow ? new Date(this.memoryServerNow).toISOString() : 'Unknown'}`);
         } else {
@@ -49,23 +54,28 @@ export class TrueTime {
         this.memoryServerNow = serverNowMs;
         this.memoryLocalTicks = currentTicks;
 
-        let settings = await offlineDB.storeSettings.get('settings');
+        let settings = await prisma.storeSettings.findUnique({
+            where: { id: 'settings' }
+        });
         if (!settings) {
-            settings = { 
-                id: 'settings', 
-                name: 'Casper Store', 
-                blindCloseEnabled: true,
-                taxRate: 0,
-                currency: 'USD',
-                receiptFooter: '',
-                updatedAt: new Date().toISOString()
-            };
-            await offlineDB.storeSettings.put(settings);
+            await prisma.storeSettings.create({
+                data: {
+                    id: 'settings',
+                    name: 'Casper Store',
+                    blindCloseEnabled: true,
+                    taxRate: 0,
+                    currency: 'USD',
+                    receiptFooter: ''
+                }
+            });
         }
 
-        await offlineDB.storeSettings.update('settings', {
-            lastServerNow: serverNowMs,
-            localUptimeTicks: currentTicks
+        await prisma.storeSettings.update({
+            where: { id: 'settings' },
+            data: {
+                lastServerNow: serverNowMs,
+                localUptimeTicks: currentTicks
+            }
         });
     }
 
@@ -80,7 +90,9 @@ export class TrueTime {
         }
 
         // Fallback to DB if memory was cleared
-        const settings = await offlineDB.storeSettings.get('settings');
+        const settings = await prisma.storeSettings.findUnique({
+            where: { id: 'settings' }
+        });
         if (settings && settings.lastServerNow && settings.localUptimeTicks !== undefined && settings.localUptimeTicks !== null) {
             const elapsed = Math.max(0, performance.now() - settings.localUptimeTicks);
             return settings.lastServerNow + elapsed;

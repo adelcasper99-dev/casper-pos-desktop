@@ -5,17 +5,17 @@ import { TrueTime } from '../lib/license/true-time';
 import { Hardware } from '../lib/license/hardware';
 import { AsarIntegrity } from '../lib/license/asar-integrity';
 import { LicenseVerifier } from '../lib/license/verify';
-import { offlineDB } from '@/lib/offline-db';
+import { prisma } from '@/lib/prisma';
 import os from 'os';
 import { exec } from 'child_process';
 
-// Mock DB
-vi.mock('@/lib/offline-db', () => ({
-    offlineDB: {
+// Mock Prisma client
+vi.mock('@/lib/prisma', () => ({
+    prisma: {
         storeSettings: {
-            get: vi.fn(),
+            findUnique: vi.fn(),
             update: vi.fn(),
-            put: vi.fn()
+            create: vi.fn()
         }
     }
 }));
@@ -90,8 +90,11 @@ describe('Casper POS License & TrueTime Tests', () => {
             const now = await TrueTime.getNow();
             
             expect(now).toBeGreaterThanOrEqual(mockTime);
-            expect(offlineDB.storeSettings.update).toHaveBeenCalledWith('settings', expect.objectContaining({
-                lastServerNow: mockTime
+            expect(prisma.storeSettings.update).toHaveBeenCalledWith(expect.objectContaining({
+                where: { id: 'settings' },
+                data: expect.objectContaining({
+                    lastServerNow: mockTime
+                })
             }));
         });
 
@@ -99,16 +102,21 @@ describe('Casper POS License & TrueTime Tests', () => {
             const mockTime = new Date('2026-06-25T10:00:00Z').getTime();
             global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
             
-            vi.mocked(offlineDB.storeSettings.get).mockResolvedValue({
+            vi.mocked(prisma.storeSettings.findUnique).mockResolvedValue({
                 id: 'settings',
                 name: 'Casper Store',
                 taxRate: 0,
                 currency: 'USD',
                 receiptFooter: '',
-                updatedAt: new Date().toISOString(),
+                updatedAt: new Date(),
                 lastServerNow: mockTime,
-                localUptimeTicks: performance.now()
-            });
+                localUptimeTicks: performance.now(),
+                paperSize: '80mm',
+                features: '{}',
+                allowNegativeStock: false,
+                blindCloseEnabled: true,
+                licenseJwt: null
+            } as any);
 
             await TrueTime.initialize();
             const now = await TrueTime.getNow();
@@ -117,7 +125,7 @@ describe('Casper POS License & TrueTime Tests', () => {
 
         it('throws error when offline and uninitialized', async () => {
             global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-            vi.mocked(offlineDB.storeSettings.get).mockResolvedValue(null);
+            vi.mocked(prisma.storeSettings.findUnique).mockResolvedValue(null);
 
             await TrueTime.initialize();
             await expect(TrueTime.getNow()).rejects.toThrow('Secure time baseline is missing');
@@ -135,15 +143,21 @@ describe('Casper POS License & TrueTime Tests', () => {
             };
             const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
 
-            vi.mocked(offlineDB.storeSettings.get).mockResolvedValue({
+            vi.mocked(prisma.storeSettings.findUnique).mockResolvedValue({
                 id: 'settings',
                 name: 'Casper Store',
                 taxRate: 0,
                 currency: 'USD',
                 receiptFooter: '',
-                updatedAt: new Date().toISOString(),
-                licenseJwt: token
-            });
+                updatedAt: new Date(),
+                licenseJwt: token,
+                lastServerNow: null,
+                localUptimeTicks: null,
+                paperSize: '80mm',
+                features: '{}',
+                allowNegativeStock: false,
+                blindCloseEnabled: true
+            } as any);
 
             // Mock TrueTime to return valid mock time
             vi.spyOn(TrueTime, 'getNow').mockResolvedValue(new Date('2026-07-01T12:00:00Z').getTime());
@@ -163,15 +177,21 @@ describe('Casper POS License & TrueTime Tests', () => {
             };
             const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
 
-            vi.mocked(offlineDB.storeSettings.get).mockResolvedValue({
+            vi.mocked(prisma.storeSettings.findUnique).mockResolvedValue({
                 id: 'settings',
                 name: 'Casper Store',
                 taxRate: 0,
                 currency: 'USD',
                 receiptFooter: '',
-                updatedAt: new Date().toISOString(),
-                licenseJwt: token
-            });
+                updatedAt: new Date(),
+                licenseJwt: token,
+                lastServerNow: null,
+                localUptimeTicks: null,
+                paperSize: '80mm',
+                features: '{}',
+                allowNegativeStock: false,
+                blindCloseEnabled: true
+            } as any);
 
             vi.spyOn(TrueTime, 'getNow').mockResolvedValue(new Date('2026-07-01T12:00:00Z').getTime());
 
@@ -190,15 +210,21 @@ describe('Casper POS License & TrueTime Tests', () => {
             };
             const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
 
-            vi.mocked(offlineDB.storeSettings.get).mockResolvedValue({
+            vi.mocked(prisma.storeSettings.findUnique).mockResolvedValue({
                 id: 'settings',
                 name: 'Casper Store',
                 taxRate: 0,
                 currency: 'USD',
                 receiptFooter: '',
-                updatedAt: new Date().toISOString(),
-                licenseJwt: token
-            });
+                updatedAt: new Date(),
+                licenseJwt: token,
+                lastServerNow: null,
+                localUptimeTicks: null,
+                paperSize: '80mm',
+                features: '{}',
+                allowNegativeStock: false,
+                blindCloseEnabled: true
+            } as any);
 
             const result = await LicenseVerifier.verify();
             expect(result.status).toBe('HARDWARE_INVALIDATED');
@@ -217,15 +243,21 @@ describe('Casper POS License & TrueTime Tests', () => {
             const differentKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
             const tamperedToken = jwt.sign(payload, differentKey, { algorithm: 'RS256' });
 
-            vi.mocked(offlineDB.storeSettings.get).mockResolvedValue({
+            vi.mocked(prisma.storeSettings.findUnique).mockResolvedValue({
                 id: 'settings',
                 name: 'Casper Store',
                 taxRate: 0,
                 currency: 'USD',
                 receiptFooter: '',
-                updatedAt: new Date().toISOString(),
-                licenseJwt: tamperedToken
-            });
+                updatedAt: new Date(),
+                licenseJwt: tamperedToken,
+                lastServerNow: null,
+                localUptimeTicks: null,
+                paperSize: '80mm',
+                features: '{}',
+                allowNegativeStock: false,
+                blindCloseEnabled: true
+            } as any);
 
             const result = await LicenseVerifier.verify();
             expect(result.status).toBe('TAMPERED');

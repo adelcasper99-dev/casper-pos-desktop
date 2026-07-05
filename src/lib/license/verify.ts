@@ -1,7 +1,7 @@
 import { TrueTime } from './true-time';
 import { Hardware } from './hardware';
 import { AsarIntegrity } from './asar-integrity';
-import { offlineDB } from '@/lib/offline-db';
+import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 
 export type LicenseStatus = 
@@ -42,8 +42,11 @@ export class LicenseVerifier {
             };
         }
 
-        // 2. Fetch License JWT
-        const settings = await offlineDB.storeSettings.get('settings');
+        // 2. Fetch License JWT from Server Database (Prisma)
+        // Since LicenseVerifier runs server-side during SSR, it must query the SQLite/Postgres DB.
+        const settings = await prisma.storeSettings.findUnique({
+            where: { id: 'settings' }
+        });
         const token = settings?.licenseJwt;
 
         if (!token) {
