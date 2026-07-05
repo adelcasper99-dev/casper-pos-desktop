@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,7 @@ export default function OnboardingGateway() {
     // Listen for Ctrl+Shift+A for Staff Override Modal
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.shiftKey && e.key === "A") {
+            if (e.ctrlKey && e.shiftKey && (e.code === "KeyA" || e.key === "A" || e.key === "a" || e.key === "ش")) {
                 e.preventDefault();
                 setShowStaffOverride(true);
             }

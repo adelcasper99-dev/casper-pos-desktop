@@ -7,6 +7,7 @@ import { WifiOff, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import StaffOverrideModal from '@/components/onboarding/StaffOverrideModal';
 
 export default function ActivateForm() {
     const router = useRouter();
@@ -41,6 +42,20 @@ export default function ActivateForm() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
+    }, []);
+
+    // ── V-09: Staff Override Shortcut (Ctrl+Shift+A) ────────────────────────
+    const [showStaffOverride, setShowStaffOverride] = useState(false);
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.shiftKey && (e.code === "KeyA" || e.key === "A" || e.key === "a" || e.key === "ش")) {
+                e.preventDefault();
+                setShowStaffOverride(true);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
     const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,6 +134,8 @@ export default function ActivateForm() {
                     {loading ? 'Activating...' : 'Activate Now'}
                 </Button>
             </form>
+
+            <StaffOverrideModal isOpen={showStaffOverride} onClose={() => setShowStaffOverride(false)} />
         </div>
     );
 }

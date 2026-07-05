@@ -23,7 +23,7 @@ export default function LayoutContent({
     licenseStatus?: any;
 }) {
     const pathname = usePathname();
-    const isStandalonePage = pathname === "/" || pathname === "/login" || pathname === "/setup" || pathname === "/network-setup";
+    const isStandalonePage = pathname === "/" || pathname === "/login" || pathname === "/setup" || pathname === "/network-setup" || pathname === "/onboarding" || pathname === "/activate";
 
     // Show splash screen on Electron startup (client-side only, won't SSR)
     const [showSplash, setShowSplash] = useState(false);
@@ -36,7 +36,7 @@ export default function LayoutContent({
     const router = useRouter();
     useEffect(() => {
         // Allow cloud URL config pages through — user may need them to complete activation
-        const activationAllowlist = ['/activate', '/login', '/setup', '/network-setup'];
+        const activationAllowlist = ['/activate', '/login', '/setup', '/network-setup', '/onboarding'];
         if (licenseStatus?.status === 'MISSING' && !activationAllowlist.includes(pathname)) {
             router.push('/activate');
         }
