@@ -1,12 +1,22 @@
 'use server';
 
-import { Hardware } from '@/lib/license/hardware';
 import { offlineDB } from '@/lib/offline-db';
 import { CloudConfigManager } from '@/utils/cloudConfigManager';
 
-export async function activateLicense(activationCode: string) {
+/**
+ * Server action: performs cloud activation.
+ * 
+ * IMPORTANT: machineId MUST be fetched on the client via Electron IPC
+ * (window.electronAPI.license.getMachineId) before calling this action.
+ * Calling Hardware.getMachineId() server-side would return the *server's*
+ * hardware UUID, not the client machine's — breaking the hardware binding.
+ */
+export async function activateLicense(activationCode: string, machineId: string) {
     try {
-        const machineId = await Hardware.getMachineId();
+        if (!machineId) {
+            return { success: false, error: 'Could not determine machine ID. Is this running in Electron?' };
+        }
+
         const config = await CloudConfigManager.getCloudConfig();
 
         if (!config.cloudUrl) {
@@ -27,7 +37,7 @@ export async function activateLicense(activationCode: string) {
         const data = await res.json();
         
         if (data.token) {
-            // Save token to local DB
+            // Save token to local IndexedDB
             let settings = await offlineDB.storeSettings.get('settings');
             if (!settings) {
                 settings = { 

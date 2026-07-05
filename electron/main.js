@@ -1350,6 +1350,40 @@ app.on('before-quit', () => {
     whatsappService.destroyClient();
 });
 
+// ── License: Hardware Machine ID ─────────────────────────────────────────────
+// Fetched via IPC so it runs in the main process (Node.js context), not inside
+// a Next.js server action where exec() would return the *server* machine UUID.
+ipcMain.handle('hardware:get-machine-id', async () => {
+    return new Promise((resolve, reject) => {
+        const platform = process.platform;
+        if (platform === 'win32') {
+            require('child_process').exec('wmic csproduct get uuid', (err, stdout) => {
+                if (err) return reject(new Error('Failed to fetch hardware UUID on Windows'));
+                const uuid = stdout.split('\n')[1]?.trim();
+                if (!uuid) return reject(new Error('Empty UUID on Windows'));
+                resolve(uuid);
+            });
+        } else if (platform === 'darwin') {
+            require('child_process').exec(
+                "ioreg -d2 -c IOPlatformExpertDevice | awk -F\\\" '/IOPlatformUUID/{print $(NF-1)}'",
+                (err, stdout) => {
+                    if (err) return reject(new Error('Failed to fetch hardware UUID on Mac'));
+                    const uuid = stdout.trim();
+                    if (!uuid) return reject(new Error('Empty UUID on Mac'));
+                    resolve(uuid);
+                }
+            );
+        } else {
+            require('child_process').exec('cat /var/lib/dbus/machine-id || cat /etc/machine-id', (err, stdout) => {
+                if (err) return reject(new Error('Failed to fetch hardware UUID on Linux'));
+                const uuid = stdout.trim();
+                if (!uuid) return reject(new Error('Empty UUID on Linux'));
+                resolve(uuid);
+            });
+        }
+    });
+});
+
 app.whenReady().then(async () => {
     const userDataPath = app.getPath('userData');
     printQueue = new PrintQueue(userDataPath, log);

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import pathModule from 'path';
 import crypto from 'crypto';
+import { logger } from '@/lib/logger';
 
 export class AsarIntegrity {
     /**
@@ -17,7 +18,7 @@ export class AsarIntegrity {
 
         const expectedHash = process.env.VITE_ASAR_HASH;
         if (!expectedHash) {
-            console.error('[ASAR_INTEGRITY] Expected ASAR hash not found in environment');
+            logger.error('[ASAR_INTEGRITY] Expected ASAR hash not found in environment');
             return false;
         }
 
@@ -26,7 +27,7 @@ export class AsarIntegrity {
         // In some setups, we might just look up the tree
         const resourcesPath = (process as any).resourcesPath;
         if (!resourcesPath) {
-            console.error('[ASAR_INTEGRITY] Resources path not found');
+            logger.error('[ASAR_INTEGRITY] Resources path not found');
             return false;
         }
 
@@ -34,7 +35,7 @@ export class AsarIntegrity {
         
         try {
             if (!fs.existsSync(asarPath)) {
-                console.error(`[ASAR_INTEGRITY] app.asar not found at ${asarPath}`);
+                logger.error(`[ASAR_INTEGRITY] app.asar not found at ${asarPath}`);
                 return false;
             }
 
@@ -49,7 +50,7 @@ export class AsarIntegrity {
                 stream.on('end', () => {
                     const actualHash = hash.digest('hex');
                     if (actualHash !== expectedHash) {
-                        console.error(`[ASAR_INTEGRITY] Hash mismatch! Expected: ${expectedHash}, Actual: ${actualHash}`);
+                        logger.error(`[ASAR_INTEGRITY] Hash mismatch! Expected: ${expectedHash}, Actual: ${actualHash}`);
                         resolve(false);
                     } else {
                         resolve(true);
@@ -57,12 +58,12 @@ export class AsarIntegrity {
                 });
 
                 stream.on('error', (err) => {
-                    console.error('[ASAR_INTEGRITY] Error reading ASAR file:', err);
+                    logger.error('[ASAR_INTEGRITY] Error reading ASAR file:', err);
                     resolve(false);
                 });
             });
         } catch (error) {
-            console.error('[ASAR_INTEGRITY] Integrity check failed:', error);
+            logger.error('[ASAR_INTEGRITY] Integrity check failed:', error);
             return false;
         }
     }

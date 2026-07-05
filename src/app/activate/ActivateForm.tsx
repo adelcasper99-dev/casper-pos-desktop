@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { activateLicense } from './actions';
-import { WifiOff, ShieldCheck, Loader2 } from 'lucide-react';
+import { WifiOff, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,6 +15,11 @@ export default function ActivateForm() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // 🛡️ P1-10: Fetch machine ID from Electron main process (not server action)
+    // so the UUID is always the client's hardware, not the cloud server's.
+    const [machineId, setMachineId] = useState<string | null>(null);
+    const [machineIdError, setMachineIdError] = useState<string | null>(null);
+
     useEffect(() => {
         setIsOnline(navigator.onLine);
         const handleOnline = () => setIsOnline(true);
@@ -22,6 +27,15 @@ export default function ActivateForm() {
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
+
+        // Fetch hardware ID as early as possible via Electron IPC bridge
+        if (window.electronAPI?.license?.getMachineId) {
+            window.electronAPI.license.getMachineId()
+                .then((id) => setMachineId(id))
+                .catch(() => setMachineIdError('Failed to read hardware ID. Please ensure you are running the desktop app.'));
+        } else {
+            setMachineIdError('Hardware ID unavailable — activation requires the Electron desktop app.');
+        }
 
         return () => {
             window.removeEventListener('online', handleOnline);
@@ -31,8 +45,8 @@ export default function ActivateForm() {
 
     const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        // Auto-dash format: CASPER-XXXXXX
-        if (val.length > 6 && !val.includes('-')) {
+        // Auto-format: CASPER-XXXXXX (only insert dash at position 6 if not already present)
+        if (val.length >= 7 && val[6] !== '-' && !val.substring(0, 6).includes('-')) {
             val = val.substring(0, 6) + '-' + val.substring(6);
         }
         setCode(val);
@@ -40,12 +54,12 @@ export default function ActivateForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!code) return;
+        if (!code || !machineId) return;
 
         setLoading(true);
         setError(null);
 
-        const result = await activateLicense(code);
+        const result = await activateLicense(code, machineId);
         
         if (result.success) {
             router.push('/');
@@ -54,6 +68,8 @@ export default function ActivateForm() {
             setLoading(false);
         }
     };
+
+    const canSubmit = !!code && !!machineId && !loading && isOnline;
 
     return (
         <div className="flex flex-col gap-6 w-full max-w-md mx-auto p-6 bg-card rounded-xl border shadow-lg mt-20">
@@ -71,6 +87,14 @@ export default function ActivateForm() {
                 </Alert>
             )}
 
+            {machineIdError && (
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Hardware ID Error</AlertTitle>
+                    <AlertDescription>{machineIdError}</AlertDescription>
+                </Alert>
+            )}
+
             {error && (
                 <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -85,12 +109,12 @@ export default function ActivateForm() {
                         onChange={handleCodeChange} 
                         placeholder="CASPER-XXXXXX"
                         maxLength={13}
-                        disabled={loading || !isOnline}
+                        disabled={loading || !isOnline || !!machineIdError}
                         className="text-center font-mono text-lg tracking-widest uppercase"
                     />
                 </div>
 
-                <Button type="submit" disabled={!code || loading || !isOnline} className="w-full">
+                <Button type="submit" disabled={!canSubmit} className="w-full">
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     {loading ? 'Activating...' : 'Activate Now'}
                 </Button>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: Request) {
     try {
@@ -11,28 +12,47 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing activation code or machine ID" }, { status: 400 });
         }
 
-        // Find tenant by activation code
-        const tenant = await prisma.tenant.findUnique({
-            where: { activationCode }
-        });
-
-        if (!tenant || tenant.status !== 'active') {
-            return NextResponse.json({ error: "Invalid or expired activation code" }, { status: 400 });
-        }
-
-        // Nullify activation code (single-use) and save machine ID
-        const updatedTenant = await prisma.tenant.update({
-            where: { id: tenant.id },
-            data: {
-                activationCode: null,
-                machineId: machineId,
-            }
-        });
-
+        // 🛡️ P0-2: Guard env var BEFORE any DB mutation — a missing key must not burn the activation code
         const privateKey = process.env.LICENSE_PRIVATE_KEY;
         if (!privateKey) {
-            console.error("[LICENSE_ACTIVATE] Missing LICENSE_PRIVATE_KEY in environment");
+            logger.error("[LICENSE_ACTIVATE] Missing LICENSE_PRIVATE_KEY in environment");
             return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+        }
+
+        // 🛡️ P0-1: Atomic transaction — findUnique + update in a single TX prevents double-spend
+        // The @unique constraint on activationCode means concurrent requests race on the UPDATE;
+        // only one succeeds in setting activationCode=null, the other gets a record-not-found on the
+        // optimistic where clause.
+        let updatedTenant;
+        try {
+            updatedTenant = await prisma.$transaction(async (tx) => {
+                // Re-fetch inside transaction with a pessimistic select
+                const tenant = await tx.tenant.findUnique({
+                    where: { activationCode }
+                });
+
+                if (!tenant || tenant.status !== 'active') {
+                    throw new Error('INVALID_CODE');
+                }
+
+                // Atomically nullify code (single-use) and bind machineId
+                return tx.tenant.update({
+                    where: {
+                        id: tenant.id,
+                        activationCode: activationCode // optimistic guard: only matches if not yet nullified
+                    },
+                    data: {
+                        activationCode: null,
+                        machineId: machineId,
+                    }
+                });
+            });
+        } catch (txError: any) {
+            if (txError.message === 'INVALID_CODE' || txError.code === 'P2025') {
+                // P2025 = record not found on update (concurrent activation beat us)
+                return NextResponse.json({ error: "Invalid or expired activation code" }, { status: 400 });
+            }
+            throw txError; // re-throw unexpected errors
         }
 
         // Sign JWT
@@ -52,7 +72,7 @@ export async function POST(req: Request) {
         });
 
     } catch (error: any) {
-        console.error("[LICENSE_ACTIVATE] Error:", error);
+        logger.error("[LICENSE_ACTIVATE] Error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

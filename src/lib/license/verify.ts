@@ -9,7 +9,19 @@ export type LicenseStatus =
     | 'EXPIRED'
     | 'HARDWARE_INVALIDATED'
     | 'TAMPERED'
-    | 'MISSING';
+    | 'MISSING'
+    | 'ERROR'; // Server-side catch-all for verification exceptions
+
+/** Shape of the RS256 JWT payload signed by the cloud backend */
+interface LicensePayload {
+    tenant_id: string;
+    status: string;
+    trial_ends_at: string;
+    server_now: string;
+    machine_id: string;
+    iat?: number;
+    exp?: number;
+}
 
 export interface LicenseCheckResult {
     status: LicenseStatus;
@@ -52,9 +64,9 @@ export class LicenseVerifier {
             };
         }
 
-        let decoded: any;
+        let decoded: LicensePayload;
         try {
-            decoded = jwt.verify(token, publicKey.replace(/\\n/g, '\n'), { algorithms: ['RS256'] });
+            decoded = jwt.verify(token, publicKey.replace(/\\n/g, '\n'), { algorithms: ['RS256'] }) as LicensePayload;
         } catch (error) {
             return {
                 status: 'TAMPERED',

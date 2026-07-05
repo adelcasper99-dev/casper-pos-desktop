@@ -1163,6 +1163,7 @@ model PartnerTransaction {
 
 model Tenant {
   id             String   @id @default(uuid())
+  clientName     String?  // Admin-provided client name for identification
   planType       String   @default("trial") // trial, basic, premium
   status         String   @default("active") // active, expired, suspended
   trialEndsAt    DateTime

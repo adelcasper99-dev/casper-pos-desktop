@@ -12,7 +12,7 @@ export class TrueTime {
     static async initialize(): Promise<void> {
         try {
             // Attempt to fetch real time from a public NTP-like JSON API
-            const res = await fetch('http://worldtimeapi.org/api/timezone/Etc/UTC', { signal: AbortSignal.timeout(3000) });
+            const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: AbortSignal.timeout(3000) });
             if (res.ok) {
                 const data = await res.json();
                 const realTimeMs = new Date(data.utc_datetime).getTime();

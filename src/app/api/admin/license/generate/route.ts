@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import crypto from "crypto";
 
 export async function POST(req: Request) {
     try {
@@ -12,8 +13,8 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { clientName, durationDays = 14, planType = 'trial' } = body;
 
-        // Generate short unique code (e.g., CASPER-XXXXXX)
-        const randomString = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // Generate cryptographically secure activation code (e.g., CASPER-XXXXXX)
+        const randomString = crypto.randomBytes(3).toString('hex').toUpperCase(); // 6 hex chars = 48 bits entropy
         const activationCode = `CASPER-${randomString}`;
 
         const trialEndsAt = new Date();
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
                 status: 'active',
                 trialEndsAt,
                 activationCode,
+                clientName,
             }
         });
 

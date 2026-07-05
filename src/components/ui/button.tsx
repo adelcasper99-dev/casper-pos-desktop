@@ -45,14 +45,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant, size, asChild = false, type, disabled, ...props }, ref) => {
         const Comp = asChild ? Slot : "button"
         
-        let { isReadOnly } = { isReadOnly: false };
-        try {
-            // eslint-disable-next-line react-hooks/rules-of-hooks
-            const context = useLicense();
-            isReadOnly = context.isReadOnly;
-        } catch (e) {
-            // Context might not be available
-        }
+        // useLicense() is always safe to call — LicenseContext has a default value of { isReadOnly: false }
+        // so this works both inside and outside the LicenseProvider tree.
+        const { isReadOnly } = useLicense();
 
         const shouldDisable = disabled || (isReadOnly && type === 'submit');
 

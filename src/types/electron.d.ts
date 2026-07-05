@@ -77,6 +77,12 @@ declare global {
         onQRUpdate: (cb: (qr: string) => void) => () => void;
         onStatusChange: (cb: (status: WhatsAppStatus) => void) => () => void;
       };
+
+      /** License / Hardware binding API */
+      license?: {
+        /** Returns the hardware machine UUID (Motherboard UUID) for license binding */
+        getMachineId: () => Promise<string>;
+      };
     };
   }
 
