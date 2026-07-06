@@ -40,7 +40,19 @@ model StoreSettings {
   allowNegativeStock    Boolean @default(false)
   googleDriveBackupPath String?
   blindCloseEnabled     Boolean @default(true)
+  licenseJwt            String?
+  lastServerNow         Float?
+  localUptimeTicks      Float?
+  trialStartDate        DateTime?
 }
+
+model StaffOverrideLog {
+  id        String   @id @default(uuid())
+  jti       String   @unique
+  usedAt    DateTime @default(now())
+  machineId String?
+}
+
 
 model User {
   id                   String                @id @default(uuid())
@@ -1165,4 +1177,16 @@ model RateLimit {
   resetAt   DateTime
   
   @@index([resetAt])
+}
+
+model Tenant {
+  id             String   @id @default(uuid())
+  clientName     String?  // Admin-provided client name for identification
+  planType       String   @default("trial") // trial, basic, premium
+  status         String   @default("active") // active, expired, suspended
+  trialEndsAt    DateTime
+  machineId      String?
+  activationCode String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

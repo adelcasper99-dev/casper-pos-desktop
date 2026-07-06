@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyServerLicense } from '@/lib/license/server-verify';
 
 export async function POST(request: NextRequest) {
     try {
+        const clientSecret = request.headers.get('x-sync-secret');
+        if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
+            return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
+        }
+
+        const licenseJwt = request.headers.get('x-license-jwt');
+        const licenseCheck = verifyServerLicense(licenseJwt);
+        if (!licenseCheck.valid && licenseCheck.response) {
+            return licenseCheck.response;
+        }
+
         const body = await request.json();
         const {
             id,

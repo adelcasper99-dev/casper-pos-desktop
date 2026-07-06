@@ -56,7 +56,7 @@ export function middleware(request: NextRequest) {
     }
 
     // Define public routes that don't require session auth
-    const publicRoutes = ['/login', '/setup', '/network-setup'];
+    const publicRoutes = ['/login', '/setup', '/network-setup', '/onboarding', '/onboarding/create-admin'];
     const publicApiPrefixes = ['/assets', '/_next'];
     
     // Explicit public API whitelist (Hardened: only allow known-safe endpoints with their own auth)
@@ -66,7 +66,9 @@ export function middleware(request: NextRequest) {
         '/api/auth/session',            // Next-auth session endpoint
         '/api/auth/signin',
         '/api/auth/callback',
-        '/api/auth/logout'
+        '/api/auth/logout',
+        '/api/license/trial',
+        '/api/license/staff-verify'
     ];
 
     const isPublic = publicRoutes.includes(path) || 

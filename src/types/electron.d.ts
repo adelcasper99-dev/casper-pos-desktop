@@ -6,9 +6,10 @@ declare global {
       isElectron: true;
       getPrinters: () => Promise<{ success: boolean; data: { name: string; isDefault: boolean; status: number }[]; error?: string }>;
       printStandard: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
-      printThermal: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
+      printThermal: (html: string, printerName: string, paperWidthMm: number, margins?: { top?: number, right?: number, bottom?: number, left?: number }) => Promise<{ success: boolean; error?: string }>;
       print: (html: string, printerName: string, options?: any) => Promise<{ success: boolean; error?: string }>;
-      printThermalReceipt: (html: string, printerName: string, paperWidthMm: number) => Promise<{ success: boolean; error?: string }>;
+      printThermalReceipt: (html: string, printerName: string, paperWidthMm: number, margins?: { top?: number, right?: number, bottom?: number, left?: number }) => Promise<{ success: boolean; error?: string }>;
+      kickDrawer: (printerName?: string) => Promise<{ success: boolean; error?: string }>;
       saveToPDF: (html: string, filename?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
       
       /** Shell API for external links */
@@ -60,6 +61,13 @@ declare global {
         installUpdate: () => Promise<void>;
       };
 
+      /** SQLite-backed Print Queue API */
+      printQueue?: {
+        enqueue: (job: { id: string; jobType: 'receipt' | 'a4' | 'barcode' | 'label'; html: string; printer?: string | null; paperWidth?: number | null }) => Promise<{ success: boolean; id?: string; error?: string }>;
+        getStatus: () => Promise<{ success: boolean; data: { pending: number; processing: number; failed: number }; error?: string }>;
+        onStatusChange: (cb: (status: { pending: number; processing: number; failed: number }) => void) => () => void;
+      };
+
       /** Native WhatsApp Automation API */
       whatsapp?: {
         sendMessage: (to: string, body: string) => Promise<{ success: boolean; error?: string }>;
@@ -68,6 +76,12 @@ declare global {
         initialize: () => Promise<{ success: boolean; error?: string }>;
         onQRUpdate: (cb: (qr: string) => void) => () => void;
         onStatusChange: (cb: (status: WhatsAppStatus) => void) => () => void;
+      };
+
+      /** License / Hardware binding API */
+      license?: {
+        /** Returns the hardware machine UUID (Motherboard UUID) for license binding */
+        getMachineId: () => Promise<string>;
       };
     };
   }

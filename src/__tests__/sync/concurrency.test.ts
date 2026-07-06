@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { POST as syncTicket } from '@/app/api/tickets/offline-ticket/route';
-import { resetTestDB } from './setup';
+import { resetTestDB, syncHeaders } from './setup';
 import { NextRequest } from 'next/server';
 import { SyncWorker } from '@/lib/sync-worker';
 import { SyncService } from '@/lib/sync-service';
@@ -47,6 +47,7 @@ describe('Sync Engine: Concurrency & Stability', () => {
         const executeRequest = (p: any) => {
             const req = new NextRequest('http://localhost/api/tickets/offline-ticket', {
                 method: 'POST',
+                headers: syncHeaders,
                 body: JSON.stringify(p)
             });
             return syncTicket(req);
