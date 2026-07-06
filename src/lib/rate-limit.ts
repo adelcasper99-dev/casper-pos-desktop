@@ -1,15 +1,9 @@
 /**
  * Casper POS Rate Limiting Utility
  * Prevents brute-force and accidental rapid submissions in server actions.
- * NOTE: This is in-memory and scales per-instance.
+ * Backed by Prisma Database to prevent loss across restarts.
  */
-
-type RateLimitEntry = {
-    count: number;
-    resetAt: number;
-};
-
-const cache = new Map<string, RateLimitEntry>();
+import { prisma } from "./prisma";
 
 export interface RateLimitOptions {
     keyPrefix: string;
@@ -19,51 +13,84 @@ export interface RateLimitOptions {
 
 /**
  * Checks if an identifier has exceeded its rate limit.
+ * Uses a probabilistic 5% cleanup job to prevent DB locks (Thundering Herd) during heavy load.
  * Returns { success: boolean, remaining: number, resetAt: number }
  */
 export async function rateLimit(identifier: string, options: RateLimitOptions) {
-    const now = Date.now();
+    const now = new Date();
     const key = `${options.keyPrefix}:${identifier}`;
     const windowMs = options.windowSeconds * 1000;
     
-    // Cleanup old entries periodically (every 1000 calls)
-    if (cache.size > 1000) {
-        // Fix for downlevel iteration error: Convert to array for iteration
-        Array.from(cache.entries()).forEach(([k, v]) => {
-            if (v.resetAt < now) cache.delete(k);
-        });
+    // Probabilistic Cleanup (5% chance on each call to purge expired limits globally)
+    if (Math.random() < 0.05) {
+        // Run async in background without awaiting, avoiding blocking the main execution path.
+        prisma.rateLimit.deleteMany({
+            where: {
+                resetAt: {
+                    lt: now
+                }
+            }
+        }).catch(err => console.error("[RateLimit Cleanup] Error:", err));
     }
 
-    let entry = cache.get(key);
+    try {
+        const entry = await prisma.rateLimit.findUnique({
+            where: { key }
+        });
 
-    if (!entry || entry.resetAt < now) {
-        entry = {
-            count: 1,
-            resetAt: now + windowMs
-        };
-        cache.set(key, entry);
+        // Does not exist or is expired
+        if (!entry || entry.resetAt < now) {
+            const resetTime = new Date(now.getTime() + windowMs);
+            await prisma.rateLimit.upsert({
+                where: { key },
+                create: {
+                    key,
+                    count: 1,
+                    resetAt: resetTime
+                },
+                update: {
+                    count: 1,
+                    resetAt: resetTime
+                }
+            });
+            return { 
+                success: true, 
+                limit: options.limit, 
+                remaining: options.limit - 1, 
+                reset: resetTime.getTime() 
+            };
+        }
+
+        // Limit reached
+        if (entry.count >= options.limit) {
+            return { 
+                success: false, 
+                limit: options.limit, 
+                remaining: 0, 
+                reset: entry.resetAt.getTime() 
+            };
+        }
+
+        // Increment
+        await prisma.rateLimit.update({
+            where: { key },
+            data: { count: entry.count + 1 }
+        });
+
         return { 
             success: true, 
             limit: options.limit, 
-            remaining: options.limit - 1, 
-            reset: entry.resetAt 
+            remaining: options.limit - (entry.count + 1), 
+            reset: entry.resetAt.getTime() 
+        };
+    } catch (error) {
+        // Fallback: If DB is unreachable, fail open to prevent total system lockout
+        console.error("[RateLimit] Database error, bypassing:", error);
+        return {
+            success: true,
+            limit: options.limit,
+            remaining: 1,
+            reset: now.getTime() + windowMs
         };
     }
-
-    if (entry.count >= options.limit) {
-        return { 
-            success: false, 
-            limit: options.limit, 
-            remaining: 0, 
-            reset: entry.resetAt 
-        };
-    }
-
-    entry.count += 1;
-    return { 
-        success: true, 
-        limit: options.limit, 
-        remaining: options.limit - entry.count, 
-        reset: entry.resetAt 
-    };
 }

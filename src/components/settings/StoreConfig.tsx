@@ -503,11 +503,11 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                 <div className="pt-10 flex justify-end">
                     <button
                         onClick={handleSave}
-                        disabled={saving}
+                        disabled={isSaving}
                         className="group relative inline-flex items-center justify-center gap-3 bg-primary px-10 py-4 rounded-2xl text-white font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] disabled:opacity-50"
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                        {saving ? (
+                        {isSaving ? (
                             <span className="flex items-center gap-2 animate-pulse">
                                <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                                {t('saving')}

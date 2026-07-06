@@ -181,7 +181,7 @@ export const getDefaultWarehouses = secureAction(async () => {
 export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?: string }) => {
     try {
         await prisma.supplier.delete({ where: { id: data.id } });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
             throw error;
         }
@@ -774,7 +774,7 @@ export async function getBundleComponents(bundleProductId: string) {
                     : Infinity,
             }))
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[getBundleComponents] Error:', error);
         return { success: false, components: [] };
     }
@@ -907,7 +907,7 @@ export const deleteCategory = secureAction(async (data: { id: string; csrfToken?
     const { id } = data;
     try {
         await prisma.category.delete({ where: { id } });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
             throw error;
         }
@@ -1935,7 +1935,7 @@ export const deleteWarehouse = secureAction(async (data: { id: string; csrfToken
             await tx.warehouse.delete({
                 where: { id }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
                 throw error;
             }
@@ -2617,16 +2617,16 @@ export const bulkImportPurchases = secureAction(async (data: {
 
             results.successful++;
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             results.failed++;
             results.errors.push({
                 invoice: invoice.invoiceNumber || 'Unknown',
-                error: error.message
+                error: (error instanceof Error ? error.message : String(error))
             });
-            if (!results.gaps.some(g => g.message === error.message)) {
+            if (!results.gaps.some(g => g.message === (error instanceof Error ? error.message : String(error)))) {
                 results.gaps.push({
                     type: 'SYSTEM',
-                    message: error.message,
+                    message: (error instanceof Error ? error.message : String(error)),
                     item: invoice.invoiceNumber
                 });
             }
@@ -2733,7 +2733,7 @@ export const deleteModel = secureAction(async (data: { id: string, csrfToken?: s
         await prisma.model.delete({
             where: { id: data.id }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
             throw new Error("لا يمكن حذف الموديل لأنه مرتبط بمنتجات حالية.");
         }
@@ -2757,7 +2757,7 @@ export const deleteAttribute = secureAction(async (data: { id: string, csrfToken
         await prisma.attribute.delete({
             where: { id: data.id }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
             throw new Error("لا يمكن حذف هذه الصفة لأنها مرتبطة بمنتجات حالية.");
         }
@@ -2783,7 +2783,7 @@ export const deleteUnitOfMeasure = secureAction(async (data: { id: string, csrfT
         await prisma.unitOfMeasure.delete({
             where: { id: data.id }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
             throw new Error("لا يمكن حذف هذه الوحدة لأنها مرتبطة بمنتجات أو فواتير حالية.");
         }

@@ -11,7 +11,7 @@ test.describe('Offline Checkout Hardening', () => {
       // Mock or perform login here if needed
       // Currently, we just want to establish the test structure
       // for the offline fallback mechanism.
-      test.skip('Requires authenticated state for POS tests', 'Setup auth state first');
+      test.skip(true, 'Setup auth state first');
       return;
     }
 

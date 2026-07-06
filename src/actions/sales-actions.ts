@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { secureAction } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -43,7 +44,7 @@ interface SalesHistoryFilters {
  */
 export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
     success: boolean;
-    sales?: any[];
+    sales?: (Omit<Prisma.SaleGetPayload<{ include: { customer: { select: { name: true } }, items: { include: { product: { select: { name: true, sku: true } } } }, user: { select: { name: true, username: true } } } }>, 'totalAmount' | 'taxAmount' | 'subTotal' | 'items'> & { invoiceNumber: string, totalAmount: number, taxAmount: number, subTotal: number, items: (Omit<Prisma.SaleItemGetPayload<{ include: { product: { select: { name: true, sku: true } } } }>, 'unitPrice' | 'unitCost'> & { unitPrice: number, unitCost: number })[] })[];
     error?: string;
     total?: number;
     page?: number;
@@ -52,7 +53,7 @@ export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
     try {
         const { startDate, endDate, customerId, paymentMethod, status } = filters || {};
 
-        const where: any = {};
+        const where: Prisma.SaleWhereInput = {};
 
         if (startDate || endDate) {
             where.createdAt = {};
@@ -93,7 +94,7 @@ export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
             pageSize,
             sales: sales.map(s => ({
                 ...s,
-                invoiceNumber: `${(s as any).isReturn ? 'RTN-S' : 'S'}-${s.id.split('-')[0].toUpperCase()}`,
+                invoiceNumber: `${s.isReturn ? 'RTN-S' : 'S'}-${s.id.split('-')[0].toUpperCase()}`,
                 totalAmount: Number(s.totalAmount),
                 taxAmount: Number(s.taxAmount),
                 subTotal: Number(s.subTotal),
@@ -104,9 +105,10 @@ export async function getSalesHistory(filters?: SalesHistoryFilters): Promise<{
                 }))
             }))
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "Unknown error occurred";
         console.error('[getSalesHistory] Error:', error);
-        return { success: false, sales: [], error: error.message };
+        return { success: false, sales: [], error: errorMessage };
     }
 }
 
@@ -148,9 +150,10 @@ export async function getSaleById(saleId: string) {
                 }))
             }
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "Unknown error occurred";
         console.error('[getSaleById] Error:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: errorMessage };
     }
 }
 

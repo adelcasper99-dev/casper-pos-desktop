@@ -1158,3 +1158,11 @@ model PartnerTransaction {
 
   @@index([periodFrom, periodTo])
 }
+
+model RateLimit {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  
+  @@index([resetAt])
+}
