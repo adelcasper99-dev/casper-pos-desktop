@@ -33,29 +33,33 @@ const DEFAULT_CASH_CATEGORIES = [
 export async function seedCashCategories() {
     console.log('Seeding default cash categories...');
 
-    for (const cat of DEFAULT_CASH_CATEGORIES) {
-        try {
-            const exists = await prisma.cashCategory.findFirst({
-                where: { name: cat.name }
-            });
+    try {
+        // 1. Fetch all existing cash categories in a single query
+        const existingCategories = await prisma.cashCategory.findMany({
+            select: { name: true }
+        });
+        const existingSet = new Set(existingCategories.map(c => c.name));
 
-            if (!exists) {
-                await prisma.cashCategory.create({
-                    data: {
-                        name: cat.name,
-                        type: cat.type,
-                        isSystem: cat.isSystem,
-                        glCode: cat.glCode,
-                        isActive: true
-                    }
-                });
-                console.log(`[SEED] Created CashCategory: ${cat.name} (${cat.type})`);
-            } else {
-                console.log(`[SEED] CashCategory "${cat.name}" already exists`);
-            }
-        } catch (error) {
-            console.error(`[SEED ERROR] Failed for category ${cat.name}:`, error);
+        // 2. Filter out what already exists
+        const toCreate = DEFAULT_CASH_CATEGORIES.filter(cat => !existingSet.has(cat.name));
+
+        // 3. Perform a single bulk insert with race-condition guard
+        if (toCreate.length > 0) {
+            await prisma.cashCategory.createMany({
+                data: toCreate.map(cat => ({
+                    name: cat.name,
+                    type: cat.type,
+                    isSystem: cat.isSystem,
+                    glCode: cat.glCode,
+                    isActive: true
+                }))
+            });
+            console.log(`[SEED] Bulk created ${toCreate.length} missing cash categories.`);
+        } else {
+            console.log('[SEED] All cash categories already seeded.');
         }
+    } catch (error) {
+        console.error('[SEED ERROR] Failed to seed cash categories:', error);
     }
     console.log('[SEED] Finished cash categories check.');
 }

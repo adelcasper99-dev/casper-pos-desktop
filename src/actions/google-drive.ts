@@ -1,23 +1,37 @@
 "use server";
 
 import { existsSync } from "fs";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Check if Google Drive folder is accessible
  */
-export async function testGoogleDrive() {
-  const possiblePaths = [
-    'G:\\My Drive',
-    'H:\\My Drive',
-    'C:\\Users\\' + process.env.USERNAME + '\\Google Drive'
-  ];
-
+export async function testGoogleDrive(testPath?: string) {
   let foundPath = null;
-  // Check common paths
-  for (const path of possiblePaths) {
-    if (existsSync(path)) {
-      foundPath = path;
-      break;
+
+  if (testPath) {
+    if (existsSync(testPath)) {
+      foundPath = testPath;
+    }
+  } else {
+    // Check DB for custom path
+    const settings = await prisma.storeSettings.findFirst();
+    if (settings?.googleDriveBackupPath && existsSync(settings.googleDriveBackupPath)) {
+      foundPath = settings.googleDriveBackupPath;
+    } else {
+      // Fallback
+      const possiblePaths = [
+        'G:\\My Drive',
+        'H:\\My Drive',
+        'C:\\Users\\' + process.env.USERNAME + '\\Google Drive'
+      ];
+      
+      for (const path of possiblePaths) {
+        if (existsSync(path)) {
+          foundPath = path;
+          break;
+        }
+      }
     }
   }
 
@@ -30,7 +44,7 @@ export async function testGoogleDrive() {
     backupFolderExists: backupFolderSync,
     message: foundPath
       ? `Connected to ${foundPath}`
-      : "Google Drive Desktop not found"
+      : "Google Drive Desktop not found or path is invalid"
   };
 }
 

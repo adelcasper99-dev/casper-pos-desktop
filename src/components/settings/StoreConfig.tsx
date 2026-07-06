@@ -1,17 +1,23 @@
 "use client";
 
-import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X, CheckCircle2 } from "lucide-react";
+import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X, CheckCircle2, HardDrive, Loader2 } from "lucide-react";
 import { useState, useRef } from "react";
 import { updateStoreSettings } from "@/actions/settings";
+import { testGoogleDrive } from "@/actions/google-drive";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { useTranslations } from "@/lib/i18n-mock";
+import { LocalPersistenceService } from "@/lib/local-persistence";
 
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
-    const [saving, setSaving] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isTestingDrive, setIsTestingDrive] = useState(false);
+    const [isSyncingDrive, setIsSyncingDrive] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
     const t = useTranslations('StoreConfig');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,7 +63,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
     };
 
     const handleSave = async () => {
-        setSaving(true);
+        setIsSaving(true);
         try {
             const payload = {
                 ...form,
@@ -75,7 +81,49 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
         } catch (error) {
             toast.error(t('error'));
         } finally {
-            setSaving(false);
+            setIsSaving(false);
+        }
+    };
+
+    const handleTestDrive = async () => {
+        setIsTestingDrive(true);
+        try {
+            const result = await testGoogleDrive(form.googleDriveBackupPath || undefined);
+            if (result.success) {
+                toast.success(result.message);
+            } else {
+                toast.error(result.message);
+            }
+        } catch (error) {
+            toast.error("Error testing Google Drive path");
+        } finally {
+            setIsTestingDrive(false);
+        }
+    };
+
+    const handleSyncDrive = async () => {
+        // Automatically save the path first before syncing
+        await handleSave();
+        
+        // Also save to Electron's local config so the desktop app knows where to backup
+        if (typeof window !== 'undefined' && window.electronAPI?.config) {
+            await window.electronAPI.config.saveBackupConfig({
+                backupPath: form.googleDriveBackupPath || undefined
+            });
+        }
+        
+        setIsSyncingDrive(true);
+        try {
+            const result = await LocalPersistenceService.backupToFilesystem(true);
+            if (result && result.success) {
+                toast.success("Successfully synced to Google Drive");
+            } else {
+                toast.error(result?.error || "Failed to sync to Google Drive");
+            }
+        } catch (error) {
+            toast.error("Error syncing to Google Drive");
+        } finally {
+            setIsSyncingDrive(false);
         }
     };
 
@@ -238,6 +286,48 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                                 placeholder="City, Street..."
                                             />
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Google Drive Backup */}
+                        <div className="space-y-8 pt-6 border-t border-border/20">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
+                                    <HardDrive className="w-5 h-5 text-cyan-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-widest">Google Drive Backup</h3>
+                                    <p className="text-xs text-muted-foreground font-medium">Configure path for offline backups</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-6 p-6 rounded-[2rem] bg-cyan-500/5 border border-cyan-500/10 animate-in fade-in slide-in-from-top-4">
+                                <div className="space-y-2 group">
+                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">Local Drive Path</Label>
+                                    <div className="flex gap-3">
+                                        <input
+                                            className="flex-1 bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-cyan-500/50 shadow-sm"
+                                            value={form.googleDriveBackupPath || ""}
+                                            onChange={e => handleChange('googleDriveBackupPath', e.target.value)}
+                                            placeholder="e.g. G:\My Drive"
+                                        />
+                                        <Button 
+                                            variant="secondary" 
+                                            onClick={handleTestDrive} 
+                                            disabled={isTestingDrive || isSyncingDrive}
+                                            className="rounded-2xl"
+                                        >
+                                            {isTestingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : "Test Path"}
+                                        </Button>
+                                        <Button 
+                                            variant="default" 
+                                            onClick={handleSyncDrive} 
+                                            disabled={isTestingDrive || isSyncingDrive}
+                                            className="rounded-2xl bg-cyan-600 hover:bg-cyan-700 text-white"
+                                        >
+                                            {isSyncingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK to Sync"}
+                                        </Button>
                                     </div>
                                 </div>
                             </div>

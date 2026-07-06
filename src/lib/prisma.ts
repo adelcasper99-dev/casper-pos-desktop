@@ -11,6 +11,10 @@ function getDynamicDbUrl() {
         return process.env.DATABASE_URL;
     }
 
+    if (process.env.NODE_ENV === 'test') {
+        return process.env.DATABASE_URL;
+    }
+
     // If we're booted by Electron, main.js passes NODE_ROLE and MASTER_IP
     if (process.env.NODE_ROLE) {
         if (process.env.NODE_ROLE === 'SUB_NODE' && process.env.MASTER_IP) {

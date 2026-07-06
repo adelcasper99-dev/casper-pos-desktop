@@ -17,9 +17,11 @@ export const server = setupServer(
     http.get('http://10.255.255.255:4040/*', () => passthrough())
 );
 
-// Generate a unique ID for this test worker's database to prevent locking collisions
-const suiteId = Math.random().toString(36).substring(7);
-const dbPath = path.resolve(process.cwd(), 'prisma', `test-${suiteId}.db`);
+const dbPath = path.resolve(
+    process.cwd(),
+    'prisma',
+    process.env.DATABASE_URL!.replace('file:', '').split('/').pop()!
+);
 
 export async function resetTestDB() {
     // Faster truncation reset
@@ -35,19 +37,44 @@ export async function resetTestDB() {
     await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
 }
 
+let originalSchema = '';
+
 beforeAll(async () => {
     server.listen({ onUnhandledRequest: 'warn' });
-    process.env.DATABASE_URL = `file:${dbPath}`;
     
-    // Initial schema push
-    execSync(`npx prisma db push --skip-generate --accept-data-loss --force-reset`, {
-        env: { ...process.env, DATABASE_URL: `file:${dbPath}` },
-        stdio: 'inherit'
-    });
+    const schemaPath = path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+    
+    if (fs.existsSync(schemaPath)) {
+        originalSchema = fs.readFileSync(schemaPath, 'utf8');
+        // Temporarily rewrite provider = "postgresql" to provider = "sqlite"
+        const patchedSchema = originalSchema.replace(
+            /provider\s*=\s*"postgresql"/g,
+            'provider = "sqlite"'
+        );
+        fs.writeFileSync(schemaPath, patchedSchema, 'utf8');
+    }
+    
+    try {
+        // Initial schema push
+        execSync(`npx prisma db push --skip-generate --accept-data-loss --force-reset`, {
+            env: { ...process.env, DATABASE_URL: `file:${dbPath}` },
+            stdio: 'inherit'
+        });
+    } catch (error) {
+        console.error('Error during prisma db push:', error);
+        throw error;
+    }
 });
 
 afterAll(async () => {
     server.close();
+    
+    // Restore original schema.prisma
+    if (originalSchema) {
+        const schemaPath = path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+        fs.writeFileSync(schemaPath, originalSchema, 'utf8');
+    }
+
     // Cleanup the unique test DB
     try {
         await prisma.$disconnect();

@@ -38,6 +38,7 @@ model StoreSettings {
   locationRadius        Int     @default(500)
   labelTemplate         String?
   allowNegativeStock    Boolean @default(false)
+  googleDriveBackupPath String?
   blindCloseEnabled     Boolean @default(true)
 }
 

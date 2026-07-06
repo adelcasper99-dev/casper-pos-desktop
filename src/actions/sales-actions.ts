@@ -23,6 +23,8 @@ import {
     createCustomerTransactionJournal,
     createSupplierPaymentJournal 
 } from '@/lib/accounting/inline-journal-helpers';
+import { refundSaleSchema, partialRefundSaleSchema } from '@/lib/validation/sales';
+import { z } from 'zod';
 import { CustomerIndexingService } from '@/lib/customer-indexing-service';
 import { logger } from '@/lib/logger';
 
@@ -157,16 +159,9 @@ export async function getSaleById(saleId: string) {
 /**
  * Refund a sale (Ported Logic)
  */
-export const refundSale = secureAction(async (data: {
-    saleId: string;
-    reason?: string;
-    refundMethod?: 'CASH' | 'STORE_CREDIT';
-    isDamaged?: boolean;
-    treasuryId?: string;
-    idempotencyKey?: string;
-    csrfToken?: string;
-}) => {
-    const { saleId, reason, refundMethod = 'CASH', isDamaged = false, treasuryId, idempotencyKey } = data;
+export const refundSale = secureAction(async (rawData: z.infer<typeof refundSaleSchema>) => {
+    const data = refundSaleSchema.parse(rawData);
+    const { saleId, reason, refundMethod, isDamaged, treasuryId, idempotencyKey } = data;
     const currentUser = await getCurrentUser();
 
     if (!currentUser) {
@@ -652,15 +647,9 @@ export const refundSale = secureAction(async (data: {
 /**
  * Partial Refund — refund specific items from a sale
  */
-export const partialRefundSale = secureAction(async (data: {
-    saleId: string;
-    items: { itemId: string; quantity: number; isDamaged?: boolean }[];
-    reason?: string;
-    refundMethod?: 'CASH' | 'STORE_CREDIT';
-    treasuryId?: string;
-    csrfToken?: string;
-}) => {
-    const { saleId, items: refundItems, reason, refundMethod = 'CASH', treasuryId } = data;
+export const partialRefundSale = secureAction(async (rawData: z.infer<typeof partialRefundSaleSchema>) => {
+    const data = partialRefundSaleSchema.parse(rawData);
+    const { saleId, items: refundItems, reason, refundMethod, treasuryId } = data;
 
     const { getTranslations } = await import('@/lib/i18n-mock');
     const t = await getTranslations('POS');
