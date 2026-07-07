@@ -17,10 +17,7 @@ function getDynamicDbUrl() {
 
     // If we're booted by Electron, main.js passes NODE_ROLE and MASTER_IP
     if (process.env.NODE_ROLE) {
-        if (process.env.NODE_ROLE === 'SUB_NODE' && process.env.MASTER_IP) {
-            return `postgresql://postgres:postgres@${process.env.MASTER_IP}:5432/casper_pos`;
-        }
-        return 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
+        return process.env.DATABASE_URL || 'file:./local.db';
     }
 
     try {
@@ -34,11 +31,8 @@ function getDynamicDbUrl() {
             const rawConfig = fs.readFileSync(configPath, 'utf8');
             try {
                 const config = JSON.parse(rawConfig) as { nodeRole?: string, masterIp?: string };
-                if (config.nodeRole === 'SUB_NODE' && config.masterIp) {
-                    return `postgresql://postgres:postgres@${config.masterIp}:5432/casper_pos`;
-                }
-                if (config.nodeRole === 'MASTER') {
-                    return 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
+                if (config.nodeRole) {
+                    return process.env.DATABASE_URL || 'file:./local.db';
                 }
             } catch (jsonError) {
                 console.warn('Malformed casper-config.json:', jsonError);
@@ -48,10 +42,8 @@ function getDynamicDbUrl() {
         console.warn('Could not read casper-config.json for dynamic DB path, falling back to process.env:', error);
     }
     
-    const fallbackUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`[PRISMA DEBUG] DB URL resolved to: ${fallbackUrl}`);
-    }
+    const fallbackUrl = process.env.DATABASE_URL || 'file:./local.db';
+    console.log(`[PRISMA DEBUG] PrismaClient getDynamicDbUrl returned: ${fallbackUrl}`);
     return fallbackUrl;
 }
 

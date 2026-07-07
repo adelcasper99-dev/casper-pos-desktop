@@ -1,6 +1,6 @@
-const baseDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/casper_pos';
-const testDbUrl = baseDbUrl.endsWith('_test') ? baseDbUrl : `${baseDbUrl}_test`;
-process.env.DATABASE_URL = testDbUrl;
+const testDbUrl = process.env.DATABASE_URL!;
+
+console.log(`\n[TEST SETUP] Running db push for test database: ${testDbUrl}`);
 
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
@@ -46,11 +46,8 @@ export const server = setupServer(
     http.get('http://10.255.255.255:4040/*', () => passthrough())
 );
 
-const dbPath = path.resolve(
-    process.cwd(),
-    'prisma',
-    process.env.DATABASE_URL!.replace('file:', '').split('/').pop()!
-);
+// Extract absolute path for cleanup
+const dbAbsPath = process.env.DATABASE_URL!.replace('file:', '');
 
 export async function resetTestDB() {
     // Faster truncation reset
@@ -70,27 +67,15 @@ export async function resetTestDB() {
     await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
 }
 
-let originalSchema = '';
-
 beforeAll(async () => {
     server.listen({ onUnhandledRequest: 'warn' });
     
     const schemaPath = path.resolve(process.cwd(), 'prisma', 'schema.prisma');
     
-    if (fs.existsSync(schemaPath)) {
-        originalSchema = fs.readFileSync(schemaPath, 'utf8');
-        // Temporarily rewrite provider = "postgresql" to provider = "sqlite"
-        const patchedSchema = originalSchema.replace(
-            /provider\s*=\s*"postgresql"/g,
-            'provider = "sqlite"'
-        );
-        fs.writeFileSync(schemaPath, patchedSchema, 'utf8');
-    }
-    
     try {
-        // Initial schema push
-        execSync(`npx prisma db push --skip-generate --accept-data-loss --force-reset`, {
-            env: { ...process.env, DATABASE_URL: `file:${dbPath}` },
+        // Initial schema push (skip-generate because globalSetup already generated the sqlite client)
+        execSync(`npx prisma db push --schema=prisma/schema.test.prisma --skip-generate --accept-data-loss --force-reset`, {
+            env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
             stdio: 'inherit'
         });
     } catch (error) {
@@ -102,19 +87,15 @@ beforeAll(async () => {
 afterAll(async () => {
     server.close();
     
-    // Restore original schema.prisma
-    if (originalSchema) {
-        const schemaPath = path.resolve(process.cwd(), 'prisma', 'schema.prisma');
-        fs.writeFileSync(schemaPath, originalSchema, 'utf8');
-    }
+    // Restore original schema.prisma and generation is handled by globalSetup
 
     // Cleanup the unique test DB
     try {
         await prisma.$disconnect();
-        if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
-        if (fs.existsSync(`${dbPath}-journal` )) fs.unlinkSync(`${dbPath}-journal`);
-        if (fs.existsSync(`${dbPath}-wal` )) fs.unlinkSync(`${dbPath}-wal`);
-        if (fs.existsSync(`${dbPath}-shm` )) fs.unlinkSync(`${dbPath}-shm`);
+        if (fs.existsSync(dbAbsPath)) fs.unlinkSync(dbAbsPath);
+        if (fs.existsSync(`${dbAbsPath}-journal` )) fs.unlinkSync(`${dbAbsPath}-journal`);
+        if (fs.existsSync(`${dbAbsPath}-wal` )) fs.unlinkSync(`${dbAbsPath}-wal`);
+        if (fs.existsSync(`${dbAbsPath}-shm` )) fs.unlinkSync(`${dbAbsPath}-shm`);
     } catch (e) {}
 });
 

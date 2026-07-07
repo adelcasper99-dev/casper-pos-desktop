@@ -87,8 +87,8 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/network-setup', request.url));
     }
 
-    // If session exists and trying to access the root path, send to dashboard
-    if (sessionToken && path === '/') {
+    // If session exists and trying to access the root path or login page, send to dashboard
+    if (sessionToken && (path === '/' || path === '/login')) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 

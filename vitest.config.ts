@@ -5,6 +5,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
+        globalSetup: './vitest-global-setup.ts',
         setupFiles: ['./src/__tests__/sync/env-setup.ts', './src/__tests__/sync/setup.ts'],
         fileParallelism: false,
         hookTimeout: 60000, 
