@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 import { decrementWarehouseStock } from '@/lib/stock-helpers';
 import { logger } from '@/lib/logger';
 import { OfflineSaleSchema, type OfflineSaleInput } from '@/lib/validations/sync-schemas';
 import { verifyServerLicense } from '@/lib/license/server-verify';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
+
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -19,10 +21,16 @@ export async function POST(request: NextRequest) {
         return licenseCheck.response;
     }
 
+    const tenantId = licenseCheck.tenantId;
+    if (!tenantId) {
+        return NextResponse.json({ success: false, error: 'Invalid tenant context in license' }, { status: 400 });
+    }
 
-    let body: OfflineSaleInput | null = null;
-    try {
-        const rawBody = await request.json();
+    return await runWithTenant(tenantId, async () => {
+        let body: OfflineSaleInput | null = null;
+        try {
+            const rawBody = await request.json();
+
         const parseResult = OfflineSaleSchema.safeParse(rawBody);
         
         if (!parseResult.success) {
@@ -34,6 +42,9 @@ export async function POST(request: NextRequest) {
         }
 
         body = parseResult.data;
+        if (body.tenantId && body.tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Tenant mismatch. Unauthorized data write.' }, { status: 403 });
+        }
         const {
             id,
             idempotencyKey,
@@ -79,7 +90,7 @@ export async function POST(request: NextRequest) {
         const dSubtotal = subTotal ? new Decimal(subTotal) : dTotal.minus(dTax).plus(dDiscount);
 
         // ── Atomic Sale Creation & Ledger ──────────────────────────────────────
-        const sale = await prisma.$transaction(async (tx) => {
+        const sale = await secureTransaction(async (tx) => {
             const newSale = await tx.sale.create({
                 data: {
                     ...(id ? { id } : {}),
@@ -235,4 +246,5 @@ export async function POST(request: NextRequest) {
         console.error('[offline-sale] failed:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+    });
 }

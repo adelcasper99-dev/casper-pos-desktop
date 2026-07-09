@@ -1,39 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, secureTransaction } from '@/lib/prisma';
+import { verifyServerLicense } from '@/lib/license/server-verify';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const {
-            type,
-            amount,
-            description,
-            paymentMethod,
-            treasuryId,
-            shiftId,
-            categoryId,
-            idempotencyKey,
-            isTimeSuspicious,
-            createdAt // 🆕 Extract original timestamp
-        } = body;
-
-        if (idempotencyKey) {
-            const existing = await prisma.transaction.findUnique({
-                where: { idempotencyKey }
-            });
-
-            if (existing) {
-                return NextResponse.json({
-                    success: true,
-                    existing: true,
-                    id: existing.id,
-                    message: 'Transaction already processed'
-                });
-            }
+        const clientSecret = request.headers.get('x-sync-secret');
+        if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
+            return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
         }
 
-        const transaction = await prisma.transaction.create({
-            data: {
+        const licenseJwt = request.headers.get('x-license-jwt');
+        const licenseCheck = verifyServerLicense(licenseJwt);
+        if (!licenseCheck.valid && licenseCheck.response) {
+            return licenseCheck.response;
+        }
+
+        const tenantId = licenseCheck.tenantId;
+        if (!tenantId) {
+            return NextResponse.json({ success: false, error: 'Invalid tenant context in license' }, { status: 400 });
+        }
+
+        return await runWithTenant(tenantId, async () => {
+            const body = await request.json();
+            if (body.tenantId && body.tenantId !== tenantId) {
+                return NextResponse.json({ success: false, error: 'Tenant mismatch. Unauthorized data write.' }, { status: 403 });
+            }
+
+            const {
                 type,
                 amount,
                 description,
@@ -42,27 +36,61 @@ export async function POST(request: NextRequest) {
                 shiftId,
                 categoryId,
                 idempotencyKey,
-                isTimeSuspicious: isTimeSuspicious || false,
-                createdAt: createdAt ? new Date(createdAt) : undefined // 🆕 Use original time
-            }
-        });
+                isTimeSuspicious,
+                createdAt
+            } = body;
 
-        if (treasuryId) {
-            const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(type);
-            await prisma.treasury.update({
-                where: { id: treasuryId },
-                data: {
-                    balance: isPositive
-                        ? { increment: amount }
-                        : { decrement: amount }
+            if (idempotencyKey) {
+                const existing = await prisma.transaction.findUnique({
+                    where: { idempotencyKey }
+                });
+
+                if (existing) {
+                    return NextResponse.json({
+                        success: true,
+                        existing: true,
+                        id: existing.id,
+                        message: 'Transaction already processed'
+                    });
                 }
-            });
-        }
+            }
 
-        return NextResponse.json({
-            success: true,
-            id: transaction.id,
-            existing: false
+            const transaction = await secureTransaction(async (tx) => {
+                const newTransaction = await tx.transaction.create({
+                    data: {
+                        type,
+                        amount,
+                        description,
+                        paymentMethod,
+                        treasuryId,
+                        shiftId,
+                        categoryId,
+                        idempotencyKey,
+                        isTimeSuspicious: isTimeSuspicious || false,
+                        createdAt: createdAt ? new Date(createdAt) : undefined
+                    }
+                });
+
+                if (treasuryId) {
+                    const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(type);
+                    await tx.treasury.update({
+                        where: { id: treasuryId },
+                        data: {
+                            balance: isPositive
+                                ? { increment: amount }
+                                : { decrement: amount }
+                        }
+                    });
+                }
+                
+                return newTransaction;
+            });
+
+            return NextResponse.json({
+                success: true,
+                id: transaction.id,
+                existing: false
+            });
         });
     } catch (error: any) {
         console.error('Offline treasury transaction failed', error);

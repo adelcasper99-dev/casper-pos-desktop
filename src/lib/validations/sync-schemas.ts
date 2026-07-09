@@ -13,6 +13,7 @@ const PAYMENT_METHOD = z.enum([
 
 export const OfflineSaleSchema = z.object({
     id: z.string().uuid().optional(),
+    tenantId: z.string().optional(),
     idempotencyKey: z.string().optional(),
     customerName: z.string().nullable().optional(),
     customerPhone: z.string().nullable().optional(),
@@ -47,11 +48,13 @@ export const OfflineSaleSchema = z.object({
     })).min(1, { message: 'A sale must contain at least one item' }),
 });
 
+
 /**
  * 🛡️ Offline Return Sync Schema
  */
 export const OfflineReturnSchema = z.object({
     id: z.string().uuid().optional(),
+    tenantId: z.string().optional(),
     idempotencyKey: z.string().optional(),
     originalSaleId: z.string().uuid(),
     // F-6: SPLIT is valid (return of a split-payment sale)
@@ -75,6 +78,7 @@ export const OfflineReturnSchema = z.object({
         z.number().int().positive(),
     ]).optional().transform(v => v !== undefined ? new Date(v).toISOString() : undefined),
 });
+
 
 export type OfflineSaleInput = z.infer<typeof OfflineSaleSchema>;
 export type OfflineReturnInput = z.infer<typeof OfflineReturnSchema>;

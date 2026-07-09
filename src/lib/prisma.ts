@@ -47,7 +47,9 @@ function getDynamicDbUrl() {
     return fallbackUrl;
 }
 
-export const prisma =
+import { prismaTenantExtension, getTenantId } from './prisma-tenant-extension';
+
+const basePrisma =
     globalForPrisma.prisma ||
     new PrismaClient({
         log: ['error', 'warn'],
@@ -63,4 +65,39 @@ export const prisma =
         },
     });
 
-globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = basePrisma;
+}
+
+export const prisma = basePrisma.$extends(prismaTenantExtension);
+
+export const isPostgres = 
+    process.env.DATABASE_URL?.startsWith('postgres') || 
+    process.env.DATABASE_URL?.startsWith('postgresql');
+
+/**
+ * Execute a transaction setting the PostgreSQL RLS context first.
+ */
+export async function secureTransaction<T>(
+    fn: (tx: Omit<typeof prisma, '$transaction' | '$extends'>) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+): Promise<T> {
+    const tenantId = getTenantId();
+    return await prisma.$transaction(async (tx) => {
+        if (isPostgres && tenantId) {
+            // @ts-ignore
+            await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        }
+        return await fn(tx);
+    }, options);
+}
+
+/**
+ * Execute a raw query setting the PostgreSQL RLS context first.
+ */
+export async function secureRawQuery<T>(
+    fn: (tx: Omit<typeof prisma, '$transaction' | '$extends'>) => Promise<T>
+): Promise<T> {
+    return await secureTransaction(fn);
+}
+

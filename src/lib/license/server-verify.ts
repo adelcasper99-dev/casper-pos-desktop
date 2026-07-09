@@ -41,5 +41,6 @@ export function verifyServerLicense(licenseJwt: string | null) {
         return { valid: false, response: NextResponse.json({ success: false, error: 'License trial period expired' }, { status: 403 }) };
     }
 
-    return { valid: true };
+    return { valid: true, tenantId: decoded.tenant_id };
 }
+

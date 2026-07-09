@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 import { OfflineReturnSchema, type OfflineReturnInput } from '@/lib/validations/sync-schemas';
 import { verifyServerLicense } from '@/lib/license/server-verify';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -17,21 +18,30 @@ export async function POST(request: NextRequest) {
         return licenseCheck.response;
     }
 
-    let body: OfflineReturnInput | null = null;
-    try {
-        const rawBody = await request.json();
-        const parseResult = OfflineReturnSchema.safeParse(rawBody);
+    const tenantId = licenseCheck.tenantId;
+    if (!tenantId) {
+        return NextResponse.json({ success: false, error: 'Invalid tenant context in license' }, { status: 400 });
+    }
 
-        if (!parseResult.success) {
-            return NextResponse.json({ 
-                success: false, 
-                error: 'Validation failed', 
-                details: parseResult.error.format() 
-            }, { status: 400 });
-        }
+    return await runWithTenant(tenantId, async () => {
+        let body: OfflineReturnInput | null = null;
+        try {
+            const rawBody = await request.json();
+            const parseResult = OfflineReturnSchema.safeParse(rawBody);
 
-        body = parseResult.data;
-        const {
+            if (!parseResult.success) {
+                return NextResponse.json({ 
+                    success: false, 
+                    error: 'Validation failed', 
+                    details: parseResult.error.format() 
+                }, { status: 400 });
+            }
+
+            body = parseResult.data;
+            if (body.tenantId && body.tenantId !== tenantId) {
+                return NextResponse.json({ success: false, error: 'Tenant mismatch. Unauthorized data write.' }, { status: 403 });
+            }
+            const {
             id,
             idempotencyKey,
             originalSaleId,
@@ -77,7 +87,7 @@ export async function POST(request: NextRequest) {
         // Coerce null → undefined: Prisma StringFilter rejects null in where clauses
         const resolvedBranchId = (branchId ?? originalSale.branchId) ?? undefined;
 
-        const returnSale = await prisma.$transaction(async (tx) => {
+        const returnSale = await secureTransaction(async (tx) => {
             // 1. Create the return sale record
             const refundSale = await tx.sale.create({
                 data: {
@@ -191,4 +201,5 @@ export async function POST(request: NextRequest) {
         console.error('[offline-return] failed:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+    });
 }

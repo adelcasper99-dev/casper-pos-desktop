@@ -309,3 +309,18 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Implementation**:
     -   A git pre-commit hook (`.git/hooks/pre-commit`) blocks commits containing a provider change in `prisma/schema.prisma`. Any deviation from `"postgresql"` (e.g., testing locally with `sqlite`) prevents commit execution with an error diagnostic.
 
+---
+
+## 🔒 15. Multi-Tenant Isolation Architecture & Data Boundaries
+
+### 🏢 [NEW] Row-Level Security (RLS) via Middleware & Context
+*   **Rule**: The Casper system operates as a multi-tenant environment. A user from Tenant A MUST NEVER be able to read, mutate, or intercept data belonging to Tenant B.
+*   **Implementation**:
+    -   **Context Injection (`Prisma Client Extension`)**: We utilize a custom Prisma extension (`prisma-tenant-extension.ts`) that intercepts all database operations (`findFirst`, `findMany`, `create`, `update`, etc.).
+    -   **Execution Scope**: Endpoints handling isolated data must wrap operations inside `runWithTenant(tenantId, async () => { ... })`. This context is managed using Node's `AsyncLocalStorage` to ensure it flows flawlessly through deeply nested logic and background workers without explicit prop drilling.
+    -   **PostgreSQL Enforcement (`secureTransaction`)**: When using PostgreSQL, `secureTransaction` executes `SELECT set_config('app.current_tenant_id', $1, true)` before running queries inside the `$transaction`. This secures against PgBouncer session variable leakage and guarantees robust separation.
+    
+### 🛸 [NEW] Offline Sync Payload Validation
+*   **Rule**: Sync payloads (e.g., `offline-sale`, `offline-ticket`) originated from desktop terminals must be rejected if the payload's `tenantId` does not match the `tenantId` encoded in the `x-license-jwt`.
+*   **Safety Net**: Even if a malicious actor alters the payload, `secureTransaction` and `runWithTenant` enforce operations solely on the `tenantId` derived cryptographically from the signed server license (`verifyServerLicense`).
+*   **Idempotency & Isolation**: Offline Sync mechanisms maintain atomic transactions where both sequences (like offline ticket numbering) and idempotency locks are bound strictly to the `tenantId` context.
