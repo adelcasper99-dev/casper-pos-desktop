@@ -26,6 +26,7 @@ const nextConfig = {
                 path: false,
                 os: false,
                 child_process: false,
+                async_hooks: false,
             };
         }
         return config;

@@ -1,14 +1,23 @@
 import { Prisma } from '@prisma/client';
-import { AsyncLocalStorage } from 'async_hooks';
+import type { AsyncLocalStorage } from 'async_hooks';
 
 export type TenantContext = {
     tenantId: string;
 };
 
 // AsyncLocalStorage to maintain the current tenant context during request lifecycle
-export const tenantStorage = new AsyncLocalStorage<TenantContext>();
+// Safe instantiation for environments where async_hooks is mocked/unavailable (e.g. Next.js Client Components)
+let asyncHooks: any = {};
+try {
+    asyncHooks = require('async_hooks');
+} catch (e) {}
+
+export const tenantStorage = (asyncHooks.AsyncLocalStorage 
+    ? new asyncHooks.AsyncLocalStorage() 
+    : null) as unknown as AsyncLocalStorage<TenantContext>;
 
 export function getTenantId(): string | undefined {
+    if (!tenantStorage) return undefined;
     const storeTenant = tenantStorage.getStore()?.tenantId;
     if (storeTenant) return storeTenant;
 
@@ -25,6 +34,7 @@ export function getTenantId(): string | undefined {
 }
 
 export function runWithTenant<T>(tenantId: string, callback: () => Promise<T>): Promise<T> {
+    if (!tenantStorage) return callback();
     return tenantStorage.run({ tenantId }, callback);
 }
 
@@ -99,9 +109,9 @@ export const prismaTenantExtension = Prisma.defineExtension((client) => {
                     if (TENANT_AWARE_MODELS.includes(model)) {
                         // 1. Inject tenantId filter for query/update/delete operations that have a 'where' clause
                         if ([
-                            'findMany',
                             'findFirst',
                             'findFirstOrThrow',
+                            'findMany',
                             'count',
                             'aggregate',
                             'groupBy',
@@ -112,7 +122,7 @@ export const prismaTenantExtension = Prisma.defineExtension((client) => {
                             'findUnique',
                             'findUniqueOrThrow'
                         ].includes(operation)) {
-                            args.where = args.where || {};
+                            (args as any).where = (args as any).where || {};
 
                             // Special handling: Prisma findUnique only accepts unique fields. 
                             // Convert it to findFirst to allow injecting custom non-unique filters (tenantId).
@@ -122,38 +132,38 @@ export const prismaTenantExtension = Prisma.defineExtension((client) => {
                                 return client[model][newOperation]({
                                     ...args,
                                     where: {
-                                        ...args.where,
+                                        ...(args as any).where,
                                         tenantId: tenantId
                                     }
                                 });
                             }
 
-                            args.where.tenantId = tenantId;
+                            (args as any).where.tenantId = tenantId;
                         }
 
                         // 2. Inject tenantId for write/create operations
                         if (operation === 'create') {
-                            args.data = args.data || {};
-                            args.data.tenantId = tenantId;
+                            (args as any).data = (args as any).data || {};
+                            (args as any).data.tenantId = tenantId;
                         }
 
                         if (operation === 'createMany') {
-                            if (Array.isArray(args.data)) {
-                                args.data = args.data.map((item: any) => ({
+                            if (Array.isArray((args as any).data)) {
+                                (args as any).data = (args as any).data.map((item: any) => ({
                                     ...item,
                                     tenantId: tenantId
                                 }));
                             } else {
-                                args.data = args.data || {};
-                                args.data.tenantId = tenantId;
+                                (args as any).data = (args as any).data || {};
+                                (args as any).data.tenantId = tenantId;
                             }
                         }
 
                         if (operation === 'upsert') {
-                            args.create = args.create || {};
-                            args.create.tenantId = tenantId;
-                            args.update = args.update || {};
-                            args.update.tenantId = tenantId;
+                            (args as any).create = (args as any).create || {};
+                            (args as any).create.tenantId = tenantId;
+                            (args as any).update = (args as any).update || {};
+                            (args as any).update.tenantId = tenantId;
                         }
                     }
 

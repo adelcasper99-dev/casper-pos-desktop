@@ -24,7 +24,7 @@ export async function resetDatabase() {
         }
 
         // Safety measure: We'll use a massive transaction to ensure either everything resets or nothing does.
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await prisma.$transaction(async (tx: any) => {
             // 1. Delete all transactional records in reverse order of dependencies
 
             // Accounting/Finance records

@@ -88,7 +88,7 @@ export async function secureTransaction<T>(
             // @ts-ignore
             await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
         }
-        return await fn(tx);
+        return await fn(tx as any);
     }, options);
 }
 
