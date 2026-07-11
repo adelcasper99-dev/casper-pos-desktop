@@ -105,10 +105,8 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/network-setup', request.url));
     }
 
-    // If session exists and trying to access the root path or login page, send to dashboard
-    if (sessionToken && (path === '/' || path === '/login')) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
+    // If session exists, we DO NOT redirect here to avoid infinite loops if the session is invalid in DB.
+    // The redirect logic has been moved to the respective route handlers (/login/layout.tsx and /page.tsx).
 
     // If no session and trying to access root, send to login
     if (!sessionToken && path === '/') {

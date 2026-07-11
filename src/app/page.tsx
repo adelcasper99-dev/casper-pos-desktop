@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LoginForm from "./LoginForm";
+import { getSession } from "@/lib/auth";
 
 export default async function LoginPageServer() {
+    const session = await getSession();
+    if (session) {
+        redirect("/dashboard");
+    }
     // 1. Check license / trial
     const settings = await prisma.storeSettings.findUnique({
         where: { id: "settings" }

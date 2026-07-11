@@ -136,6 +136,7 @@
         "react-is": "^19.2.4",
         "react-virtuoso": "^4.18.1",
         "recharts": "^3.7.0",
+        "server-only": "^0.0.1",
         "sonner": "^2.0.7",
         "stream-browserify": "^3.0.0",
         "tailwind-merge": "^3.5.0",
@@ -178,4 +179,3 @@
         "seed": "tsx prisma/seed.ts"
     }
 }
-

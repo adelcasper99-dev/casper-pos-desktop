@@ -3,6 +3,7 @@ import path from 'path';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
+
 // Utility to read dynamic database path from Electron's config if it exists.
 // Uses dynamic require so Next.js never statically bundles 'fs' into the client chunk.
 function getDynamicDbUrl() {
@@ -49,27 +50,35 @@ function getDynamicDbUrl() {
 
 import { prismaTenantExtension, getTenantId } from './prisma-tenant-extension';
 
-const basePrisma =
-    globalForPrisma.prisma ||
-    new PrismaClient({
-        log: ['error', 'warn'],
-        datasources: {
-            db: {
-                url: getDynamicDbUrl(),
-            },
-        },
-        // @ts-ignore - Transaction configuration for interactive transactions
-        transactionOptions: {
-            maxWait: 5000, // 5s to wait for a connection
-            timeout: 60000, // 60s for the transaction to complete
-        },
-    });
+// Browser guard: @prisma/client is stubbed via next.config.js webpack resolve.alias,
+// so PrismaClient is `undefined` in the browser. Guard all instantiation here as a
+// second defensive layer so the module is safe to evaluate even if the alias ever misses.
+const isBrowser = typeof window !== 'undefined';
 
-if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = basePrisma;
+const basePrisma = isBrowser
+    ? null
+    : (globalForPrisma.prisma ||
+        new PrismaClient({
+            log: ['error', 'warn'],
+            datasources: {
+                db: {
+                    url: getDynamicDbUrl(),
+                },
+            },
+            // @ts-ignore - Transaction configuration for interactive transactions
+            transactionOptions: {
+                maxWait: 5000,  // 5s to wait for a connection
+                timeout: 60000, // 60s for the transaction to complete
+            },
+        }));
+
+if (!isBrowser && process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = basePrisma as PrismaClient;
 }
 
-export const prisma = basePrisma.$extends(prismaTenantExtension);
+export const prisma = isBrowser
+    ? (null as any)
+    : basePrisma!.$extends(prismaTenantExtension);
 
 export const isPostgres = 
     process.env.DATABASE_URL?.startsWith('postgres') || 
