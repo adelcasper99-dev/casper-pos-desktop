@@ -134,12 +134,10 @@ export const transferCustodyToTech = secureAction(async (data: {
     await prisma.$transaction(async (tx) => {
         for (const item of items) {
             // 1. Check source stock
-            const srcStock = await tx.stock.findUnique({
+            const srcStock = await tx.stock.findFirst({
                 where: {
-                    productId_warehouseId: {
-                        productId: item.productId,
-                        warehouseId: sourceWarehouseId
-                    }
+                    productId: item.productId,
+                    warehouseId: sourceWarehouseId
                 }
             });
 
@@ -156,20 +154,27 @@ export const transferCustodyToTech = secureAction(async (data: {
             });
 
             // 3. Add to technician's warehouse
-            await tx.stock.upsert({
+            const existingDestStock = await tx.stock.findFirst({
                 where: {
-                    productId_warehouseId: {
-                        productId: item.productId,
-                        warehouseId: destWarehouseId
-                    }
-                },
-                update: { quantity: { increment: item.quantity } },
-                create: {
                     productId: item.productId,
-                    warehouseId: destWarehouseId,
-                    quantity: item.quantity
+                    warehouseId: destWarehouseId
                 }
             });
+
+            if (existingDestStock) {
+                await tx.stock.update({
+                    where: { id: existingDestStock.id },
+                    data: { quantity: { increment: item.quantity } }
+                });
+            } else {
+                await tx.stock.create({
+                    data: {
+                        productId: item.productId,
+                        warehouseId: destWarehouseId,
+                        quantity: item.quantity
+                    }
+                });
+            }
 
             const priceLabel = item.priceTier ? ` (Valued at ${item.priceTier})` : '';
 
@@ -233,9 +238,10 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
     // 3. Execute Transfer Transaction
     await prisma.$transaction(async (tx) => {
         // Check source stock
-        const srcStock = await tx.stock.findUnique({
+        const srcStock = await tx.stock.findFirst({
             where: {
-                productId_warehouseId: { productId, warehouseId: sourceWarehouseId }
+                productId, 
+                warehouseId: sourceWarehouseId 
             }
         });
 
@@ -250,17 +256,27 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
         });
 
         // Add to technician's warehouse
-        await tx.stock.upsert({
+        const existingDestStock = await tx.stock.findFirst({
             where: {
-                productId_warehouseId: { productId, warehouseId: destWarehouseId }
-            },
-            update: { quantity: { increment: quantity } },
-            create: {
                 productId,
-                warehouseId: destWarehouseId,
-                quantity
+                warehouseId: destWarehouseId
             }
         });
+
+        if (existingDestStock) {
+            await tx.stock.update({
+                where: { id: existingDestStock.id },
+                data: { quantity: { increment: quantity } }
+            });
+        } else {
+            await tx.stock.create({
+                data: {
+                    productId,
+                    warehouseId: destWarehouseId,
+                    quantity
+                }
+            });
+        }
 
         // Record stock movement
         await tx.stockMovement.create({

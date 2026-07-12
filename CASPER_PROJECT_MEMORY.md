@@ -304,10 +304,11 @@ This document serves as the "Source of Truth" for critical architectural decisio
     -   Use `electron.safeStorage` to encrypt configuration keys on the filesystem.
     -   Renderer processes query config via the main process (`app:get-config`), ensuring raw IPs and settings are decrypted only in memory when the API layer dispatches requests.
 
-### 🛡️ [NEW] Database Provider Lock
+### 🛡️ [NEW] Database Provider Lock (Prisma Provider Drift)
 *   **Rule**: The main Next.js/Prisma schema MUST be pinned to `provider = "postgresql"` in staging/production to protect exact Decimal field math and ensure proper connection pooling.
 *   **Implementation**:
-    -   A git pre-commit hook (`.git/hooks/pre-commit`) blocks commits containing a provider change in `prisma/schema.prisma`. Any deviation from `"postgresql"` (e.g., testing locally with `sqlite`) prevents commit execution with an error diagnostic.
+    -   A git pre-commit hook (`.git/hooks/pre-commit`) blocks commits containing a provider change in `prisma/schema.prisma`. Any deviation from `"postgresql"` (e.g., testing locally with `sqlite`) prevents commit execution with an error diagnostic (`PRISMA PROVIDER DRIFT DETECTED`).
+    -   **Fix**: Always change `provider = "sqlite"` back to `provider = "postgresql"` before committing.
 
 ---
 

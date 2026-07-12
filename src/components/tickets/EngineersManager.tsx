@@ -337,6 +337,7 @@ export default function EngineersManager() {
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/50 font-black">%</span>
                             </div>
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold leading-tight">نسبة مصنعية المهندس لصيانة الأجهزة</p>
                         </div>
                         <div className="space-y-2">
                             <Label className="text-slate-900 dark:text-white font-black">{t('form.lossRate')}</Label>
@@ -351,6 +352,7 @@ export default function EngineersManager() {
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/50 font-black">%</span>
                             </div>
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold leading-tight">نسبة خسارة المهندس عند تلف قطع الغيار</p>
                         </div>
                     </div>
 
