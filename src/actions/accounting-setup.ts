@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { GL } from "@/shared/constants/accounting-mappings";
 import Decimal from "decimal.js";
 
+import { Prisma } from "@prisma/client";
+
 export async function setOpeningBalances(data: {
     cash: number;
     bank: number;
@@ -27,8 +29,8 @@ export async function setOpeningBalances(data: {
             return { success: false, error: "تم إعداد الأرصدة الافتتاحية من قبل. لا يمكن تكرار القيد الافتتاحي." };
         }
 
-        await prisma.$transaction(async (tx) => {
-            const lines = [];
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const lines: Array<{ accountCode: string; debit: number; credit: number; description: string }> = [];
 
             // Fetch default treasury for branch context tagging
             const defaultTreasury = await tx.treasury.findFirst({ where: { isDefault: true, deletedAt: null } });

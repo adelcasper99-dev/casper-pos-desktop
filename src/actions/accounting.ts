@@ -172,7 +172,7 @@ export const createExpense = secureAction(async (data: z.infer<typeof CreateExpe
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
     const currentShift = shiftResult.shift;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // 1. Create the expense record
         const expense = await tx.expense.create({
             data: {

@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
             // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
             // 1. Snapshot product metadata for bundle detection
             const pIds = items.map((i: any) => i.productId).filter(Boolean);
-            const productMetas = await tx.product.findMany({
+            const productMetas: any[] = await tx.product.findMany({
                 where: { id: { in: pIds } },
                 select: { id: true, isBundle: true, trackStock: true }
             });

@@ -15,6 +15,7 @@ import WarehouseSettings from "@/components/settings/WarehouseSettings";
 import SyncManagement from "@/components/settings/SyncManagement";
 import CloudSettings from "@/components/settings/CloudSettings";
 import LicenseManagement from "@/components/settings/LicenseManagement";
+import BranchManager from "@/components/settings/BranchManager";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -48,7 +49,7 @@ export default async function SettingsPage() {
         getUsersForPage().catch(() => []),
         getRoles(),
         prisma.branch.findMany({
-            select: { id: true, name: true },
+            select: { id: true, name: true, code: true, type: true, address: true, phone: true, createdAt: true, updatedAt: true, deletedAt: true, _count: { select: { warehouses: { where: { deletedAt: null } }, users: true } } },
             where: { deletedAt: null }
         }),
         prisma.warehouse.findMany({
@@ -145,6 +146,15 @@ export default async function SettingsPage() {
                             className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:border-blue-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
                         >
                             <Database className="w-4 h-4 opacity-70" /> المستودعات
+                        </TabsTrigger>
+                    )}
+
+                    {isAdmin && (
+                        <TabsTrigger 
+                            value="branches" 
+                            className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-600 dark:data-[state=active]:text-orange-400 data-[state=active]:border-orange-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <Store className="w-4 h-4 opacity-70" /> الفروع
                         </TabsTrigger>
                     )}
 
@@ -307,6 +317,12 @@ export default async function SettingsPage() {
                                 warehouses={warehouses as any} 
                                 currentBranchId={validSessionBranchId}
                             />
+                        </TabsContent>
+                    )}
+
+                    {isAdmin && (
+                        <TabsContent value="branches" className="outline-none focus-visible:ring-0">
+                            <BranchManager branches={branches as any} />
                         </TabsContent>
                     )}
 

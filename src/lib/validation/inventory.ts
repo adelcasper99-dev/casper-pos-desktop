@@ -61,6 +61,7 @@ const purchaseItemSchema = z.object({
     color: z.string().optional().nullable(),
     unitOfMeasureId: z.string().optional().nullable(),
     conversionFactor: z.coerce.number().optional().default(1.0),
+    minQty: z.coerce.number().optional(),
 });
 
 export const purchaseSchema = z.object({
@@ -84,6 +85,7 @@ export const warehouseSchema = z.object({
     name: z.string().min(1, "Warehouse Name is required"),
     address: z.string().optional(),
     branchId: z.string().optional(),
+    isMaintenanceDefault: z.boolean().optional(),
 });
 
 export const unitOfMeasureSchema = z.object({

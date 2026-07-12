@@ -41,6 +41,7 @@ export interface GridRow {
     sellPrice?: number | string;
     sellPrice2?: number | string;
     sellPrice3?: number | string;
+    minQty?: number | string;
     isNew: boolean;
     isDevice?: boolean;
     deviceType?: string;
@@ -93,7 +94,7 @@ interface PurchaseDataGridProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // "categoryId" is skipped in Tab for existing rows — handled in handleKeyDown
-const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
+const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3", "minQty"] as const;
 type EditableCol = (typeof ALL_EDITABLE_COLS)[number];
 
 const CELL_CLS = "border-e border-slate-200 dark:border-white/10 last:border-e-0 truncate px-3 py-2 transition-colors";
@@ -177,10 +178,11 @@ function getTextWidth(text: string, font: string = "bold 11px Cairo, sans-serif"
  * 8: Selling Price 1 (سعر 1) - 85px
  * 9: Selling Price 2 (سعر 2) - 85px
  * 10: Selling Price 3 (سعر 3) - 85px
- * 11: Subtotal (الإجمالي) - 100px
- * 12: Action / Delete Button - 32px
+ * 11: Min Qty (الحد الأدنى) - 85px
+ * 12: Subtotal (الإجمالي) - 100px
+ * 13: Action / Delete Button - 32px
  */
-const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 250, 60, 90, 85, 85, 85, 100, 32];
+const DEFAULT_WIDTHS = [24, 100, 110, 110, 110, 250, 60, 90, 85, 85, 85, 85, 100, 32];
 const STORAGE_KEY = "casper-purchase-grid-widths-v1";
 
 // ─── Price History Popover ─────────────────────────────────────────────────────
@@ -1867,7 +1869,7 @@ export function PurchaseDataGrid({
                 style={{ gridTemplateColumns: gridTemplate }}
             >
                 {[
-                    "#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
+                    "#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الحد الأدنى", "الإجمالي", ""
                 ].map((label, i) => (
                     <div 
                         key={i} 
@@ -2197,6 +2199,25 @@ export function PurchaseDataGrid({
                                 />
                             </div>
 
+                            {/* ── Min Qty ──────────────────────────────── */}
+                            <div className={clsx(CELL_CLS, "flex items-center gap-0.5 ps-1")}>
+                                <CellInput
+                                    ref={getInputRef(rowIdx, "minQty") as any}
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={row.minQty === 0 && focusCell?.[0] !== rowIdx ? "" : row.minQty}
+                                    placeholder="0"
+                                    className={clsx(
+                                        "font-black font-mono text-end text-slate-500",
+                                        "focus:ring-slate-500"
+                                    )}
+                                    onChange={(e) => updateRow(rowIdx, { minQty: parseFloat(e.target.value) || 0 })}
+                                    onFocus={(e) => { setFocusCell([rowIdx, "minQty"]); e.target.select(); }}
+                                    onKeyDown={(e) => handleKeyDown(e, rowIdx, "minQty")}
+                                />
+                            </div>
+
                             {/* ── Sub-Total (read-only) ────────────────────── */}
                             <div className={clsx(CELL_CLS, "flex items-center justify-end px-3")}>
                                 <span className={clsx(
@@ -2332,6 +2353,7 @@ export function gridRowsToCartItems(rows: GridRow[]): InvoiceItem[] {
             sellPrice: r.sellPrice ?? r.unitPrice,
             sellPrice2: r.sellPrice2,
             sellPrice3: r.sellPrice3,
+            minQty: r.minQty,
             isNew: r.isNew,
             modelId: r.modelId || undefined,
             modelName: r.modelName,
@@ -2364,6 +2386,7 @@ export function cartItemsToGridRows(items: InvoiceItem[]): GridRow[] {
         sellPrice: i.sellPrice,
         sellPrice2: i.sellPrice2,
         sellPrice3: i.sellPrice3,
+        minQty: i.minQty,
         isNew: i.isNew ?? false,
         isDevice: i.isDevice,
         deviceType: i.deviceType,

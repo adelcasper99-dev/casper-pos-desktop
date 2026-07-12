@@ -130,11 +130,28 @@ export const prismaTenantExtension =
                                       // Convert it to findFirst to allow injecting custom non-unique filters (tenantId).
                                       if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
                                           const newOperation = operation === 'findUnique' ? 'findFirst' : 'findFirstOrThrow';
+                                          
+                                          let finalWhere = { ...(args as any).where };
+                                          // Flatten composite keys because findFirst does not accept them
+                                          for (const key of Object.keys(finalWhere)) {
+                                              if (typeof finalWhere[key] === 'object' && finalWhere[key] !== null && key.includes('_')) {
+                                                  const nestedObj = finalWhere[key];
+                                                  const parts = key.split('_');
+                                                  const isComposite = parts.every(part => part in nestedObj);
+                                                  if (isComposite) {
+                                                      for (const part of parts) {
+                                                          finalWhere[part] = nestedObj[part];
+                                                      }
+                                                      delete finalWhere[key];
+                                                  }
+                                              }
+                                          }
+
                                           // @ts-ignore
                                           return client[model][newOperation]({
                                               ...args,
                                               where: {
-                                                  ...(args as any).where,
+                                                  ...finalWhere,
                                                   tenantId: tenantId
                                               }
                                           });

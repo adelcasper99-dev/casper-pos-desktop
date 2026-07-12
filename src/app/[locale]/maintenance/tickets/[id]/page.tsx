@@ -709,6 +709,7 @@ export default function TicketDetailPage() {
                                     onUpdate={loadData}
                                     isWarrantyTicket={!!ticket.parentTicketId}
                                     lastReturnedAt={ticket.lastReturnedAt}
+                                    userRole={user?.role}
                                 />
 
                                 <CollaboratorManager 

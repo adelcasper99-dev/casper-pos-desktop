@@ -28,6 +28,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     const [loading, setLoading] = useState(false);
     const [errorResult, setErrorResult] = useState<string | null>(null);
     const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+    const [isDraftLoaded, setIsDraftLoaded] = useState(false);
 
     // CSRF Management
     const [internalCsrfToken, setInternalCsrfToken] = useState(csrfToken || "");
@@ -177,12 +178,13 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 console.error("Failed to load draft", e);
             }
         }
+        setIsDraftLoaded(true);
     }, [editingInvoiceId]);
 
     // Save to storage on change
     useEffect(() => {
-        // Don't save if editing an existing invoice
-        if (editingInvoiceId) return;
+        // Don't save if editing an existing invoice or if draft hasn't loaded yet
+        if (editingInvoiceId || !isDraftLoaded) return;
 
         const draft = {
             selectedSupplierId,
@@ -214,7 +216,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         walkinName,
         walkinPhone,
         walkinNationalId,
-        editingInvoiceId
+        editingInvoiceId,
+        isDraftLoaded
     ]);
 
     // Reset Form
@@ -494,6 +497,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         csrfError,
         errorResult, setErrorResult,
         editingInvoiceId, setEditingInvoiceId,
+        isDraftLoaded,
 
         // Form Data
         selectedSupplierId, setSelectedSupplierId,

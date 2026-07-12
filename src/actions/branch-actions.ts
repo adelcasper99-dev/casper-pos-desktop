@@ -95,3 +95,64 @@ export const getAllWarehouses = secureAction(async () => {
 
     return { success: true, data: warehouses };
 }, { requireCSRF: false });
+
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
+
+const branchSchema = z.object({
+    name: z.string().min(1, "الاسم مطلوب"),
+    code: z.string().min(1, "الكود مطلوب"),
+    type: z.string().min(1, "النوع مطلوب"),
+    address: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    region: z.string().optional().nullable(),
+    territoryCode: z.string().optional().nullable()
+});
+
+export const createBranch = secureAction(async (data: z.infer<typeof branchSchema> & { csrfToken?: string }) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+    
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.BRANCH_VIEW) || user.branchType === 'CENTER';
+    if (!isHQUser) throw new Error("Unauthorized");
+
+    const validated = branchSchema.parse(data);
+    const branch = await prisma.branch.create({
+        data: validated
+    });
+    
+    revalidatePath('/settings');
+    return { success: true, data: branch };
+}, { requireCSRF: true });
+
+export const updateBranch = secureAction(async (data: z.infer<typeof branchSchema> & { id: string, csrfToken?: string }) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+    
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.BRANCH_VIEW) || user.branchType === 'CENTER';
+    if (!isHQUser) throw new Error("Unauthorized");
+
+    const validated = branchSchema.parse(data);
+    const branch = await prisma.branch.update({
+        where: { id: data.id },
+        data: validated
+    });
+    
+    revalidatePath('/settings');
+    return { success: true, data: branch };
+}, { requireCSRF: true });
+
+export const deleteBranch = secureAction(async (data: { id: string, csrfToken?: string }) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+    
+    const isHQUser = hasPermission(user.permissions, PERMISSIONS.BRANCH_VIEW) || user.branchType === 'CENTER';
+    if (!isHQUser) throw new Error("Unauthorized");
+
+    await prisma.branch.delete({
+        where: { id: data.id }
+    });
+    
+    revalidatePath('/settings');
+    return { success: true };
+}, { requireCSRF: true });

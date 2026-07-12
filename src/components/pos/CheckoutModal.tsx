@@ -284,7 +284,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         if (!force) setCanForce(false);
 
         // If Delivery, get from internal state (more reliable than FormData for force actions)
-        let saleCustomerData = undefined;
+        let saleCustomerData: any = undefined;
 
         if (isDelivery) {
             saleCustomerData = {

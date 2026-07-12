@@ -131,7 +131,7 @@ export const transferCustodyToTech = secureAction(async (data: {
         select: { branchId: true }
     });
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
         for (const item of items) {
             // 1. Check source stock
             const srcStock = await tx.stock.findFirst({
@@ -205,11 +205,12 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
     technicianId: string,
     productId: string,
     quantity: number,
+    sourceWarehouseId?: string,
     transferPrice?: number,
     transferPriceLabel?: string,
     csrfToken?: string
 }) => {
-    const { technicianId, productId, quantity, transferPrice, transferPriceLabel } = data;
+    const { technicianId, productId, quantity, sourceWarehouseId: providedSourceWhId, transferPrice, transferPriceLabel } = data;
 
     if (quantity <= 0) throw new Error("Quantity must be greater than zero");
 
@@ -224,19 +225,25 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
 
     const destWarehouseId = tech.warehouseId;
 
-    // 2. Get Main Maintenance Warehouse
-    const mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
-    
-    if (!mainWh) throw new Error("Main maintenance warehouse not found. Please set a maintenance default.");
+    // 2. Determine Source Warehouse
+    let sourceWarehouseId = providedSourceWhId;
+    let mainWh;
 
-    const sourceWarehouseId = mainWh.id;
+    if (sourceWarehouseId) {
+        mainWh = await prisma.warehouse.findUnique({ where: { id: sourceWarehouseId } });
+        if (!mainWh) throw new Error("Source warehouse not found.");
+    } else {
+        mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
+        if (!mainWh) throw new Error("Main maintenance warehouse not found. Please set a maintenance default.");
+        sourceWarehouseId = mainWh.id;
+    }
 
     if (destWarehouseId === sourceWarehouseId) {
         throw new Error("Cannot transfer to the same warehouse");
     }
 
     // 3. Execute Transfer Transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
         // Check source stock
         const srcStock = await tx.stock.findFirst({
             where: {

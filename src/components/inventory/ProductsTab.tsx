@@ -50,7 +50,10 @@ export default function ProductsTab({
     currency = "EGP",
     initialUnits = [],
     models = [],
-    attributes = []
+    attributes = [],
+    initialStockStatus = "",
+    isShortageOnly = false,
+    globalMinStock
 }: any) {
     const updateDerivedName = (prod: any) => {
         const cat = categories.find((c: Category) => c.id === prod.categoryId);
@@ -59,7 +62,7 @@ export default function ProductsTab({
         
         let newName = prod.name;
         if (cat || mod || attr) {
-            const parts = [];
+            const parts: string[] = [];
             if (cat) parts.push(cat.name);
             if (mod) parts.push(mod.name);
             if (attr) parts.push(attr.name);
@@ -73,7 +76,7 @@ export default function ProductsTab({
     const [debouncedSearch] = useDebounce(search, 500);
     const [page, setPage] = useState(1);
     const [categoryId, setCategoryId] = useState<string>("");
-    const [stockStatus, setStockStatus] = useState<string>("");
+    const [stockStatus, setStockStatus] = useState<string>(initialStockStatus || "");
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -147,7 +150,7 @@ export default function ProductsTab({
 
     // React Query for Pagination & Search & Filtering
     const { data: queryData, isLoading: isQueryLoading, refetch } = useQuery({
-        queryKey: ['products', debouncedSearch, page, categoryId, stockStatus, filterWarehouseId, dateRange, sortBy, sortOrder],
+        queryKey: ['products', debouncedSearch, page, categoryId, stockStatus, filterWarehouseId, dateRange, sortBy, sortOrder, globalMinStock],
         queryFn: async () => {
             const res = await getProducts({ 
                 search: debouncedSearch, 
@@ -159,7 +162,8 @@ export default function ProductsTab({
                 startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
                 endDate: dateRange?.to ? dateRange.to.toISOString() : undefined,
                 sortBy,
-                sortOrder
+                sortOrder,
+                globalMinStock: globalMinStock || undefined
             });
             return res.success ? res : { data: [], pagination: { total: 0, totalPages: 0, page: 1, limit: 50 } };
         },
@@ -190,7 +194,7 @@ export default function ProductsTab({
         if (!editingProduct) return;
         if (!canManage) return;
 
-        const missing = [];
+        const missing: string[] = [];
         if (!editingProduct.sku) missing.push("SKU");
         if (!editingProduct.name) missing.push("Name");
 
@@ -421,34 +425,38 @@ export default function ProductsTab({
                         </DropdownMenu>
 
                         {/* Status Filter */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-white dark:bg-zinc-900/50 rounded-xl hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all shadow-sm">
-                                    <ActivityIcon className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
-                                    <span className="text-slate-700 dark:text-zinc-300 font-bold">
-                                        {stockStatus === "in_stock" ? "متوفر" :
-                                         stockStatus === "low_stock" ? "منخفض" :
-                                         stockStatus === "out_of_stock" ? "نفذ" :
-                                         stockStatus === "services" ? "خدمات" : "كل الحالات"}
-                                    </span>
-                                    <ChevronDown className="w-3 h-3 opacity-50 text-slate-400" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500 p-3">حالة المخزون</DropdownMenuLabel>
-                                {[
-                                    { id: "", label: "كل الحالات" },
-                                    { id: "in_stock", label: "متوفر" },
-                                    { id: "low_stock", label: "أوشك على النفاذ" },
-                                    { id: "out_of_stock", label: "نفذت الكمية" },
-                                    { id: "services", label: "خدمات" }
-                                ].map(st => (
-                                    <DropdownMenuItem key={st.id} onClick={() => { setStockStatus(st.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold", stockStatus === st.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
-                                        {st.label}
-                                    </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        {!isShortageOnly && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-white dark:bg-zinc-900/50 rounded-xl hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all shadow-sm">
+                                        <ActivityIcon className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
+                                        <span className="text-slate-700 dark:text-zinc-300 font-bold">
+                                            {stockStatus === "in_stock" ? "متوفر" :
+                                             stockStatus === "low_stock" ? "منخفض" :
+                                             stockStatus === "out_of_stock" ? "نفذ" :
+                                             stockStatus === "shortage" ? "النواقص" :
+                                             stockStatus === "services" ? "خدمات" : "كل الحالات"}
+                                        </span>
+                                        <ChevronDown className="w-3 h-3 opacity-50 text-slate-400" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                                    <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500 p-3">حالة المخزون</DropdownMenuLabel>
+                                    {[
+                                        { id: "", label: "كل الحالات" },
+                                        { id: "in_stock", label: "متوفر" },
+                                        { id: "low_stock", label: "أوشك على النفاذ" },
+                                        { id: "out_of_stock", label: "نفذت الكمية" },
+                                        { id: "shortage", label: "النواقص (تحت الحد الأدنى)" },
+                                        { id: "services", label: "خدمات" }
+                                    ].map(st => (
+                                        <DropdownMenuItem key={st.id} onClick={() => { setStockStatus(st.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold", stockStatus === st.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
+                                            {st.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
 
                         {/* Sort Logic */}
                         <DropdownMenu>

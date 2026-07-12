@@ -55,7 +55,6 @@ export default function NewTicketPage() {
     const [devicePresets, setDevicePresets] = useState<{ brand: string, model: string }[]>([]);
     const [newPresetName, setNewPresetName] = useState("");
 
-    // Main Form State
     const [formData, setFormData] = useState({
         customerName: '',
         customerPhone: '',
@@ -82,6 +81,7 @@ export default function NewTicketPage() {
     })
 
     const STORAGE_KEY = 'ticket_form_draft';
+    const [isDraftLoaded, setIsDraftLoaded] = useState(false);
 
     // Load draft on mount
     useEffect(() => {
@@ -97,12 +97,15 @@ export default function NewTicketPage() {
                 console.error("Failed to load ticket draft", e);
             }
         }
+        setIsDraftLoaded(true);
     }, []);
 
     // Save draft on change
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
-    }, [formData]);
+        if (isDraftLoaded) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+        }
+    }, [formData, isDraftLoaded]);
 
     // Helper to toggle functional checks
     const toggleCheck = (key: string) => {
