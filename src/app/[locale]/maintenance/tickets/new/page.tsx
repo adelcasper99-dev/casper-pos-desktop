@@ -317,16 +317,31 @@ export default function NewTicketPage() {
                 <div className="lg:col-span-2 overflow-y-auto pr-1 space-y-3 pb-10 scrollbar-hide">
 
                     {/* Header */}
-                    <div className="flex items-center gap-4 mb-4">
-                        <Button variant="ghost" type="button" onClick={() => router.back()} className="h-11 px-5 text-slate-600 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 flex items-center gap-2 rounded-xl transition-all border border-slate-300 dark:border-white/10">
-                            <ArrowLeft className="h-5 w-5" /> <span className="text-sm font-black">عودة</span>
-                        </Button>
-                        <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white flex items-center justify-center shadow-xl shadow-black/20">
-                            <Wrench className="w-6 h-6 text-white dark:text-black" />
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                            <Button variant="ghost" type="button" onClick={() => router.back()} className="h-11 px-5 text-slate-600 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 flex items-center gap-2 rounded-xl transition-all border border-slate-300 dark:border-white/10">
+                                <ArrowLeft className="h-5 w-5" /> <span className="text-sm font-black">عودة</span>
+                            </Button>
+                            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white flex items-center justify-center shadow-xl shadow-black/20">
+                                <Wrench className="w-6 h-6 text-white dark:text-black" />
+                            </div>
+                                تسجيل جهاز جديد
+                            </h1>
                         </div>
-                            تسجيل جهاز جديد
-                        </h1>
+                        <Button 
+                            variant="destructive" 
+                            type="button" 
+                            className="h-11 rounded-xl font-black gap-2 shadow-xl bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white border border-red-200 dark:border-red-900/50"
+                            onClick={() => {
+                                if (window.confirm("هل أنت متأكد من مسح جميع بيانات التذكرة؟")) {
+                                    localStorage.removeItem(STORAGE_KEY);
+                                    window.location.reload();
+                                }
+                            }}
+                        >
+                            <Trash2 className="w-4 h-4" /> مسح البيانات
+                        </Button>
                     </div>
 
                     {/* Customer Info */}

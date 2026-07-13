@@ -240,9 +240,31 @@ export default function PurchasesTab({
     const [gridRows, setGridRows] = useState<GridRow[]>([]);
     const [showNewItemPanel, setShowNewItemPanel] = useState(false);
 
+    const isGridMounted = useRef(false);
+    const lastCartFromGrid = useRef<string>("");
+
+    // When cart changes from outside (e.g. draft load, edit invoice, barcode scan), sync to grid
     useEffect(() => {
+        const currentCartStr = JSON.stringify(cart);
+        if (currentCartStr !== lastCartFromGrid.current) {
+            setGridRows(cartItemsToGridRows(cart));
+            lastCartFromGrid.current = currentCartStr;
+        }
+    }, [cart]);
+
+    // When grid changes, sync to cart (filtering out incomplete rows)
+    useEffect(() => {
+        if (!isGridMounted.current) {
+            isGridMounted.current = true;
+            return;
+        }
         const cartItems = gridRowsToCartItems(gridRows);
-        setCart(cartItems);
+        const newCartStr = JSON.stringify(cartItems);
+        // Only update cart if it actually changed, to avoid React loop
+        if (newCartStr !== lastCartFromGrid.current) {
+            lastCartFromGrid.current = newCartStr;
+            setCart(cartItems);
+        }
     }, [gridRows, setCart]);
 
     // Persistence: Data remains in gridRows even when overlay is closed

@@ -248,7 +248,7 @@ function PriceHistoryPopover({ productId, name }: { productId: string; name: str
 interface CategoryDropdownProps {
     value: string;
     options: CategoryOption[];
-    onChange: (val: string) => void;
+    onChange: (val: string, name: string) => void;
     onEdit?: (id: string, currentName: string) => void;
     onDelete?: (id: string) => void;
     triggerRef?: (el: HTMLElement | null) => void; 
@@ -366,7 +366,7 @@ function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, tri
                                 } else if (e.key === "Enter") {
                                     e.preventDefault();
                                     if (selectedIndex < filtered.length) {
-                                        onChange(filtered[selectedIndex].id);
+                                        onChange(filtered[selectedIndex].id, filtered[selectedIndex].name);
                                         setIsOpen(false);
                                     } else if (canQuickCreate) {
                                         onQuickCreate!(query.trim());
@@ -396,7 +396,7 @@ function CategoryDropdown({ value, options = [], onChange, onEdit, onDelete, tri
                                 <button
                                     type="button"
                                     className="flex-1 text-right h-full outline-none"
-                                    onClick={() => { onChange(opt.id); setIsOpen(false); }}
+                                    onClick={() => { onChange(opt.id, opt.name); setIsOpen(false); }}
                                 >
                                     {opt.name}
                                 </button>
@@ -459,7 +459,7 @@ interface ModelDropdownProps {
     categoryId: string;
     options: ModelOption[];
     categories: CategoryOption[];
-    onChange: (id: string) => void;
+    onChange: (id: string, name: string) => void;
     onEdit?: (id: string, currentName: string) => void;
     onDelete?: (id: string) => void;
     triggerRef?: (el: HTMLElement | null) => void;
@@ -577,7 +577,7 @@ function ModelDropdown({ value, categoryId, options = [], categories = [], onCha
                                 } else if (e.key === "Enter") {
                                     e.preventDefault();
                                     if (selectedIndex < filtered.length) {
-                                        onChange(filtered[selectedIndex].id);
+                                        onChange(filtered[selectedIndex].id, filtered[selectedIndex].name);
                                         setIsOpen(false);
                                     } else if (canQuickCreate) {
                                         onQuickCreate!(query.trim());
@@ -609,7 +609,7 @@ function ModelDropdown({ value, categoryId, options = [], categories = [], onCha
                                 <button
                                     type="button"
                                     className="flex-1 text-right h-full outline-none"
-                                    onClick={() => { onChange(opt.id); setIsOpen(false); }}
+                                    onClick={() => { onChange(opt.id, opt.name); setIsOpen(false); }}
                                 >
                                     {cat ? `${cat.name} - ` : ""}{opt.name}
                                 </button>
@@ -1413,16 +1413,19 @@ export function PurchaseDataGrid({
                             updates.hasOwnProperty('attributeId') ||
                             updates.hasOwnProperty('attributeName');
 
-                        if (hasHierarchyChange) {
+                        if (hasHierarchyChange && (merged.isNew || merged.categoryId)) {
                             const catName =
+                                (updates as any)._tempCatName ||
                                 merged.categoryName ||
                                 categories.find(c => c.id === merged.categoryId)?.name ||
                                 "";
                             const modName =
+                                (updates as any)._tempModName ||
                                 merged.modelName ||
                                 models.find(m => m.id === merged.modelId)?.name ||
                                 "";
                             const attrName =
+                                (updates as any)._tempAttrName ||
                                 merged.attributeName ||
                                 attributes.find(a => a.id === merged.attributeId)?.name ||
                                 "";
@@ -1433,7 +1436,6 @@ export function PurchaseDataGrid({
                                 .join(" - ")
                                 .trim();
                         }
-                    }
 
                     merged.subTotal = computeSubTotal(merged.quantity, merged.unitPrice);
                     return merged;
@@ -1968,21 +1970,19 @@ export function PurchaseDataGrid({
                                      options={categories}
                                      onEdit={handleEditCategory}
                                      onDelete={handleDeleteCategory}
-                                     onChange={async (val) => {
-                                         if (row.isNew && !row.itemCode) {
-                                             await handleAutoSku(rowIdx, { categoryId: val, categoryName: undefined, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                     onChange={async (val: string, name: string) => {
+                                             await handleAutoSku(rowIdx, { categoryId: val, categoryName: name, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined, _tempCatName: name } as any);
                                          } else {
-                                             updateRow(rowIdx, { categoryId: val, categoryName: undefined, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
-                                         }
+                                             updateRow(rowIdx, { categoryId: val, categoryName: name, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined, _tempCatName: name } as any);
                                          setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateCategory) {
                                              onQuickCreateCategory(name, async (newId, createdName) => {
                                                  if (row.isNew && !row.itemCode) {
-                                                     await handleAutoSku(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                                     await handleAutoSku(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined, _tempCatName: createdName } as any);
                                                  } else {
-                                                     updateRow(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined });
+                                                     updateRow(rowIdx, { categoryId: newId, categoryName: createdName, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined, _tempCatName: createdName } as any);
                                                  }
                                                  setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                              });
@@ -2003,14 +2003,14 @@ export function PurchaseDataGrid({
                                      categories={categories}
                                      onEdit={handleEditModel}
                                      onDelete={handleDeleteModel}
-                                     onChange={(val) => {
-                                         updateRow(rowIdx, { modelId: val, modelName: undefined, attributeId: "", attributeName: undefined });
+                                     onChange={(val: string, name: string) => {
+                                         updateRow(rowIdx, { modelId: val, modelName: name, attributeId: "", attributeName: undefined, _tempModName: name } as any);
                                          setTimeout(() => focusInput(rowIdx, "attributeId"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateModel) {
                                              onQuickCreateModel(name, row.categoryId, (newId, createdName) => {
-                                                  updateRow(rowIdx, { modelId: newId, modelName: createdName, attributeId: "", attributeName: undefined });
+                                                  updateRow(rowIdx, { modelId: newId, modelName: createdName, attributeId: "", attributeName: undefined, _tempModName: createdName } as any);
                                                  setTimeout(() => focusInput(rowIdx, "attributeId"), 50);
                                              });
                                          }
@@ -2031,14 +2031,15 @@ export function PurchaseDataGrid({
                                      onChange={(id, name) => {
                                          updateRow(rowIdx, {
                                              attributeId: id,
-                                             attributeName: name && !id ? name : undefined
-                                         });
+                                             attributeName: name && !id ? name : name,
+                                             _tempAttrName: name
+                                         } as any);
                                          setTimeout(() => focusInput(rowIdx, "quantity"), 50);
                                      }}
                                      onQuickCreate={(name) => {
                                          if (onQuickCreateAttribute) {
                                              onQuickCreateAttribute(name, (newId, createdName) => {
-                                                  updateRow(rowIdx, { attributeId: newId, attributeName: createdName });
+                                                  updateRow(rowIdx, { attributeId: newId, attributeName: createdName, _tempAttrName: createdName } as any);
                                                  setTimeout(() => focusInput(rowIdx, "quantity"), 50);
                                              });
                                          }
