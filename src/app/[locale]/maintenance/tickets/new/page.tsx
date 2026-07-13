@@ -74,6 +74,7 @@ export default function NewTicketPage() {
     })
 
     const STORAGE_KEY = 'ticket_form_draft';
+    const [isLoaded, setIsLoaded] = useState(false);
 
     // Load draft on mount
     useEffect(() => {
@@ -89,12 +90,14 @@ export default function NewTicketPage() {
                 console.error("Failed to load ticket draft", e);
             }
         }
+        setIsLoaded(true);
     }, []);
 
     // Save draft on change
     useEffect(() => {
+        if (!isLoaded) return;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
-    }, [formData]);
+    }, [formData, isLoaded]);
 
     // Helper to toggle functional checks
     const toggleCheck = (key: string) => {

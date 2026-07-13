@@ -146,6 +146,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
     // --- Persistence Logic ---
     const STORAGE_KEY = 'purchase_form_draft_v2';
+    const [isLoaded, setIsLoaded] = useState(false);
 
     // Load from storage on mount
     useEffect(() => {
@@ -177,12 +178,13 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 console.error("Failed to load draft", e);
             }
         }
+        setIsLoaded(true);
     }, [editingInvoiceId]);
 
     // Save to storage on change
     useEffect(() => {
-        // Don't save if editing an existing invoice
-        if (editingInvoiceId) return;
+        // Don't save if editing an existing invoice or not fully loaded
+        if (editingInvoiceId || !isLoaded) return;
 
         const draft = {
             selectedSupplierId,
@@ -214,7 +216,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         walkinName,
         walkinPhone,
         walkinNationalId,
-        editingInvoiceId
+        editingInvoiceId,
+        isLoaded
     ]);
 
     // Reset Form
