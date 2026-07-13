@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { MaintenanceProfitReport } from "@/components/reports/MaintenanceProfitReport"
 
 export default function TicketsClientPage({ user }: { user?: any }) {
     const t = useTranslations('Tickets');
@@ -26,6 +27,7 @@ export default function TicketsClientPage({ user }: { user?: any }) {
     const currentTab = searchParams.get('tab') || 'tickets';
     
     const canViewEngineers = hasPermission(user?.permissions, PERMISSIONS.ENGINEER_VIEW);
+    const canViewProfitReport = hasPermission(user?.permissions, PERMISSIONS.REPORTS_VIEW) || canViewEngineers;
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
@@ -103,6 +105,14 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                                             {t('tabs.custody')}
                                         </TabsTrigger>
                                     )}
+                                    {canViewProfitReport && (
+                                        <TabsTrigger 
+                                            value="profit-report" 
+                                            className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                        >
+                                            {t('tabs.maintenanceProfit')}
+                                        </TabsTrigger>
+                                    )}
                                     <TabsTrigger 
                                         value="returns" 
                                         className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
@@ -133,6 +143,12 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                             {canViewEngineers && (
                                 <TabsContent value="custody" className="mt-0 outline-none">
                                     <TechnicianCustodyTab />
+                                </TabsContent>
+                            )}
+
+                            {canViewProfitReport && (
+                                <TabsContent value="profit-report" className="mt-0 outline-none">
+                                    <MaintenanceProfitReport isTab={true} />
                                 </TabsContent>
                             )}
 

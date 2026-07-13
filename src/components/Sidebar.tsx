@@ -78,12 +78,7 @@ const MENU_ITEMS = [
     { key: "accounting_partners", href: "/accounting/partners", icon: Users, permission: PERMISSION_REGISTRY.PARTNERS.VIEW },
     { key: "accounting_balance_sheet", href: "/accounting/balance-sheet", icon: FileText, permission: PERMISSION_REGISTRY.ACCOUNTING.VIEW },
     { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSION_REGISTRY.LOGS.VIEW },
-    // Reports Section
     { key: "reports_main", href: "/reports", icon: BarChart3, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
-    { key: "reports_profit_loss", href: "/reports/profit-loss", icon: TrendingUp, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
-    { key: "reports_inventory", href: "/reports/inventory", icon: Package, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
-    { key: "reports_cash_flow", href: "/reports/cash-flow", icon: Landmark, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
-    { key: "maintenance_dashboard", href: "/dashboard/reports/maintenance-profit", icon: Activity, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
     { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSION_REGISTRY.TICKET.VIEW },
     { key: "returns", href: "/returns", icon: Undo2, permission: undefined },
 ];

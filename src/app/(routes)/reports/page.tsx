@@ -27,8 +27,10 @@ import {
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
 import { format, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { CasperLoader } from "@/components/ui/CasperLoader";
-import { TrendingUp, TrendingDown, Package, Users, DollarSign, FileText, Activity, Calendar, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, Users, DollarSign, FileText, Activity, Calendar, BarChart3, Landmark } from "lucide-react";
 import * as XLSX from "xlsx";
+import CashFlowDashboard from "@/features/reports/ui/CashFlowDashboard";
+import { InventoryReportDetail } from "@/components/reports/InventoryReportDetail";
 
 // ─────────────────────────────────────────────────────────────────────
 // Financial Report Component
@@ -224,84 +226,7 @@ function ProfitLossReport({ data, isLoading }: { data: any, isLoading: boolean }
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Inventory Report Component
-// ─────────────────────────────────────────────────────────────────────
-function InventoryReport({ data, isLoading }: { data: any, isLoading: boolean }) {
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
 
-    if (!data) return <div className="flex justify-center p-20"><CasperLoader /></div>;
-
-    const { summary, products } = data;
-
-    return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                {[
-                    { label: 'إجمالي الأصناف', value: summary?.totalItems, color: 'text-white', glow: 'shadow-white/5' },
-                    { label: 'إجمالي الكمية', value: summary?.totalQuantity?.toLocaleString(), color: 'text-cyan-400', glow: 'shadow-cyan-500/10' },
-                    { label: 'القيمة الإجمالية', value: formatCurrency(summary?.totalValue), color: 'text-emerald-400', glow: 'shadow-emerald-500/10' },
-                    { label: 'مخزون منخفض', value: summary?.lowStockCount, color: 'text-amber-400', glow: 'shadow-amber-500/10' },
-                    { label: 'نفد المخزون', value: summary?.outOfStockCount, color: 'text-rose-400', glow: 'shadow-rose-500/10' }
-                ].map((item, idx) => (
-                    <div key={idx} className={cn(
-                        "glass-card bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-5 shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:bg-card/60",
-                        item.glow
-                    )}>
-                        <h3 className="text-[10px] font-black text-foreground/60 uppercase tracking-widest mb-3">{item.label}</h3>
-                        <div className={cn("text-2xl font-black tracking-tight", item.color)}>
-                            {item.value}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Top Products Table */}
-            <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden">
-                <div className="p-6 border-b border-border/40">
-                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-widest flex items-center gap-2">
-                        <Package className="w-4 h-4 text-cyan-500" />
-                        أصناف المخزون ({products?.length || 0})
-                    </h3>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50">
-                            <tr>
-                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">SKU</th>
-                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">المنتج</th>
-                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الفئة</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الكمية</th>
-                                <th className="text-left py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">القيمة</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الحالة</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/20">
-                            {(products || []).slice(0, 50).map((p: any) => (
-                                <tr key={p.id} className="transition-all hover:bg-primary/10 even:bg-muted/70 group h-14">
-                                    <td className="py-2 px-6 font-mono text-[10px] text-foreground/40">{p.sku}</td>
-                                    <td className="py-2 px-6 font-black text-foreground">{p.name}</td>
-                                    <td className="py-2 px-6 text-foreground/60 text-xs">{p.category}</td>
-                                    <td className="py-2 px-6 text-center text-cyan-500 font-black">{p.quantity}</td>
-                                    <td className="py-2 px-6 text-left text-emerald-500 font-black">{formatCurrency(p.totalValue)}</td>
-                                    <td className="py-2 px-6 text-center">
-                                        {p.isOutOfStock ? 
-                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-rose-500/10 text-rose-500 border border-rose-500/20">نفد</span> :
-                                            p.isLowStock ? 
-                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">منخفض</span> :
-                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">متوفر</span>
-                                        }
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // HR Report Component
@@ -547,6 +472,10 @@ export default function UnifiedReportsPage() {
                         <Package className="w-4 h-4 ml-2" />
                         المخزون
                     </TabsTrigger>
+                    <TabsTrigger value="cash_flow" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-teal-500 data-[state=active]:text-white transition-all duration-300">
+                        <Landmark className="w-4 h-4 ml-2" />
+                        حركة النقدية
+                    </TabsTrigger>
                     <TabsTrigger value="hr" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-amber-500 data-[state=active]:text-white transition-all duration-300">
                         <Users className="w-4 h-4 ml-2" />
                         الموظفين
@@ -567,7 +496,12 @@ export default function UnifiedReportsPage() {
                         <ProfitLossReport data={profitLossData} isLoading={isPending} />
                     </TabsContent>
                     <TabsContent value="inventory" className="focus-visible:outline-none data-[state=inactive]:hidden">
-                        <InventoryReport data={inventoryData} isLoading={isPending} />
+                        <InventoryReportDetail isTab={true} />
+                    </TabsContent>
+                    <TabsContent value="cash_flow" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <div className="glass-card bg-card/10 backdrop-blur-md border border-border/20 rounded-3xl p-6">
+                            <CashFlowDashboard isTab={true} />
+                        </div>
                     </TabsContent>
                     <TabsContent value="hr" className="focus-visible:outline-none data-[state=inactive]:hidden">
                         <HRReport data={hrData} isLoading={isPending} />

@@ -99,7 +99,6 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 { id: 'dashboard', color: 'bg-blue-400', glow: 'shadow-blue-500/20' },
                                 { id: 'pos', color: 'bg-rose-500', glow: 'shadow-rose-500/20' },
                                 { id: 'maintenance', color: 'bg-violet-500', glow: 'shadow-violet-500/20' },
-                                { id: 'maintenance_dashboard', color: 'bg-fuchsia-500', glow: 'shadow-fuchsia-500/20' },
                                 { id: 'hr', color: 'bg-cyan-500', glow: 'shadow-cyan-500/20' },
                                 { id: 'inventory', color: 'bg-blue-500', glow: 'shadow-blue-500/20' },
                                 { id: 'purchasing', color: 'bg-orange-500', glow: 'shadow-orange-500/20' },

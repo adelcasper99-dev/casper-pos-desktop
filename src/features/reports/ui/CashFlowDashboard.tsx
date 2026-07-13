@@ -99,7 +99,7 @@ function translateDescription(desc: string): string {
     return desc;
 }
 
-export default function CashFlowDashboard() {
+export default function CashFlowDashboard({ isTab = false }: { isTab?: boolean }) {
     const [filters, setFilters] = useState<TransactionReportFilters>({
         categoryGroup: "ALL",
         paymentMethod: "ALL"
@@ -149,12 +149,29 @@ export default function CashFlowDashboard() {
         <div className="space-y-6 animate-fade-in-up">
 
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">تقرير التدفقات النقدية والربح</h1>
-                    <p className="text-muted-foreground mt-1">تحليل مفصل للكاش الداخل، الخارج، وصافي الربح التقريبي.</p>
+            {!isTab ? (
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">تقرير التدفقات النقدية والربح</h1>
+                        <p className="text-muted-foreground mt-1">تحليل مفصل للكاش الداخل، الخارج، وصافي الربح التقريبي.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => window.print()}
+                            className="px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-bold text-sm flex items-center gap-2 border border-border/50"
+                        >
+                            <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                        <button
+                            onClick={handleExport}
+                            className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-sm flex items-center gap-2"
+                        >
+                            <Download className="w-4 h-4" /> تصدير CSV
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
+            ) : (
+                <div className="flex justify-end gap-2">
                     <button
                         onClick={() => window.print()}
                         className="px-4 py-2 rounded-xl bg-muted/50 hover:bg-muted text-foreground font-bold text-sm flex items-center gap-2 border border-border/50"
@@ -168,7 +185,7 @@ export default function CashFlowDashboard() {
                         <Download className="w-4 h-4" /> تصدير CSV
                     </button>
                 </div>
-            </div>
+            )}
 
             {/* Filters */}
             <ReportFilterBar filters={filters} onFilterChange={setFilters} />

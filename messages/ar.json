@@ -1279,7 +1279,8 @@
             "engineers": "الفنيون",
             "custody": "العهدة",
             "returns": "المرتجعات",
-            "warranty": "الضمان"
+            "warranty": "الضمان",
+            "maintenanceProfit": "أرباح الصيانة"
         },
         "search": {
             "placeholder": "ابحث بالباركود، الهاتف، الاسم...",
