@@ -2,35 +2,37 @@
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_ACCOUNTS } from './constants';
 
-export async function seedAccounts() {
+export async function seedAccounts(tx?: any) {
+    const client = tx || prisma;
     console.log('Seeding default accounts...');
 
-    for (const acc of DEFAULT_ACCOUNTS) {
-        try {
-            const exists = await prisma.account.findUnique({
-                where: { code: acc.code }
-            });
+    try {
+        const existing = await client.account.findMany({
+            select: { code: true }
+        });
+        const existingCodes = new Set(existing.map((a: any) => a.code));
+        const missing = DEFAULT_ACCOUNTS.filter(acc => !existingCodes.has(acc.code));
 
-            if (!exists) {
-                await prisma.account.create({
-                    data: {
-                        code: acc.code,
-                        name: acc.name,
-                        type: acc.type,
-                        isSystem: acc.isSystem,
-                        description: `System generated ${acc.type} account`,
-                    }
-                });
-                console.log(`[SEED] Created account: ${acc.code} - ${acc.name}`);
-            } else {
-                // If it exists but name is radically different or it's not marked as system, we might want to know
-                if (exists.name !== acc.name) {
-                    console.log(`[SEED] Account ${acc.code} exists as "${exists.name}" (Expected: "${acc.name}")`);
-                }
-            }
-        } catch (error) {
-            console.error(`[SEED ERROR] Failed for account ${acc.code}:`, error);
+        if (missing.length === 0) {
+            console.log('[SEED] All accounts already exist.');
+            return;
         }
+
+        console.log(`[SEED] Found ${missing.length} missing accounts. Seeding...`);
+        for (const acc of missing) {
+            await client.account.create({
+                data: {
+                    code: acc.code,
+                    name: acc.name,
+                    type: acc.type,
+                    isSystem: acc.isSystem,
+                    description: `System generated ${acc.type} account`,
+                }
+            });
+            console.log(`[SEED] Created account: ${acc.code} - ${acc.name}`);
+        }
+        console.log('[SEED] Finished account check.');
+    } catch (error) {
+        console.error('[SEED ERROR] Failed to seed accounts:', error);
     }
-    console.log('[SEED] Finished account check.');
 }

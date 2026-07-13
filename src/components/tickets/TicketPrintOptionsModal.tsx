@@ -106,7 +106,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             if (!isOpen) return;
 
             // 🔍 [DIAGNOSTIC] Provide early feedback if requested but stalling
-            if (silent) {
+            if (isSilent) {
                 console.log("[AutoPrint] Sequence initiated (silent mode)");
                 toast.info("Preparing and checking printers...", {
                     id: "preparing-print",
@@ -116,7 +116,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
 
             // 🛡️ Wait for both ticket and settings to be ready
             if (!ticket || !settings) {
-                if (silent) {
+                if (isSilent) {
                     console.log("[AutoPrint] Waiting for ticket/settings data...", { ticket: !!ticket, settings: !!settings });
                     toast.info("Waiting for data to load...", { id: "autoprint-loading", duration: 1000 });
                 }
@@ -222,7 +222,6 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                 } else {
                     if (isSilent) {
                         console.log("[AutoPrint] Skipped: already printed in this session.");
-                        // 🛡️ REMOVED: Redundant toast on every page view
                     }
                 }
             }
