@@ -45,7 +45,7 @@ const POSITIVE_TYPES = ["IN", "CAPITAL", "SALE", "TICKET", "CUSTOMER_PAYMENT", "
 const TYPE_LABELS: Record<string, string> = {
     CAPITAL: "إيداع", OUT: "سحب", SALE: "مبيعات", TICKET: "تذكرة",
     TRANSFER_IN: "تحويل وارد", TRANSFER_OUT: "تحويل صادر",
-    CUSTOMER_PAYMENT: "دفعة عميل", IN: "وارد",
+    CUSTOMER_PAYMENT: "دفعة عميل", IN: "وارد", REFUND: "مرتجع",
 };
 // ─── Create Treasury Modal ────────────────────────────────────────────────────
 function CreateTreasuryModal({
@@ -890,8 +890,13 @@ export default function TreasuryDashboard({
                                                 </div>
                                             </td>
                                             <td className="p-6 text-center">
-                                                <span className="px-4 py-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 shadow-inner">
-                                                    {METHODS.find(m => m.key === tx.paymentMethod)?.label || (tx.paymentMethod === 'ACCOUNT' ? 'آجل' : tx.paymentMethod)}
+                                                <span className={cn(
+                                                    "px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-inner",
+                                                    (tx.paymentMethod === 'ACCOUNT' || tx.paymentMethod === 'DEFERRED')
+                                                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20"
+                                                        : "bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-white/5"
+                                                )}>
+                                                    {METHODS.find(m => m.key === tx.paymentMethod)?.label || (tx.paymentMethod === 'ACCOUNT' || tx.paymentMethod === 'DEFERRED' ? 'آجل' : tx.paymentMethod)}
                                                 </span>
                                             </td>
                                             <td className="p-6">

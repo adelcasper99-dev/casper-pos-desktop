@@ -27,36 +27,41 @@ export function FlatpickrRangePicker({
 }: FlatpickrRangePickerProps) {
     const inputRef = useRef<HTMLInputElement>(null)
     const flatpickrRef = useRef<flatpickr.Instance | null>(null)
+    const onRangeChangeRef = useRef(onRangeChange)
+
+    useEffect(() => {
+        onRangeChangeRef.current = onRangeChange
+    }, [onRangeChange])
 
     useEffect(() => {
         if (inputRef.current) {
             flatpickrRef.current = flatpickr(inputRef.current as HTMLInputElement, {
                 mode: "range",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "d-m-Y",
+                dateFormat: "d-m-Y",
                 locale: Arabic,
-                defaultDate: initialDates,
-                onClose: (selectedDates: Date[]) => {
-                    if (selectedDates.length === 2 || selectedDates.length === 0) {
-                        onRangeChange(selectedDates)
+                onChange: (selectedDates: Date[]) => {
+                    if (selectedDates.length === 2) {
+                        onRangeChangeRef.current(selectedDates)
+                        flatpickrRef.current?.close()
+                    } else if (selectedDates.length === 0) {
+                        onRangeChangeRef.current(selectedDates)
                     }
                 },
-                // Quick Presets inside the flatpickr could be complex with custom nodes, 
-                // but the specification mentions presets. We'll stick to the core for now 
-                // and handle presets via the buttons we already have outside if needed, 
-                // or add them as a separate bar.
             })
         }
 
         return () => {
             flatpickrRef.current?.destroy()
         }
-    }, [onRangeChange, initialDates])
+    }, [])
+
+    const prevInitialDatesRef = useRef<string>("")
 
     useEffect(() => {
-        if (flatpickrRef.current) {
+        const serialized = (initialDates || []).map(d => d instanceof Date ? d.getTime() : new Date(d).getTime()).join(",")
+        if (flatpickrRef.current && serialized !== prevInitialDatesRef.current) {
             flatpickrRef.current.setDate(initialDates || [], false)
+            prevInitialDatesRef.current = serialized
         }
     }, [initialDates])
 

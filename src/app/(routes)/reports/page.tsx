@@ -34,7 +34,7 @@ import * as XLSX from "xlsx";
 // Financial Report Component
 // ─────────────────────────────────────────────────────────────────────
 function FinancialReport({ reportData, isLoading }: { reportData: any, isLoading: boolean }) {
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount || 0);
+    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
 
     if (!reportData) return <div className="flex justify-center p-20"><CasperLoader /></div>;
 
@@ -82,6 +82,42 @@ function FinancialReport({ reportData, isLoading }: { reportData: any, isLoading
                     </div>
                 ))}
             </div>
+
+            {/* Returns Section */}
+            {(kpis?.salesReturnsCount > 0 || kpis?.purchaseReturnsCount > 0) && (
+                <div className="glass-card bg-rose-500/5 border border-rose-500/20 rounded-2xl p-6">
+                    <h3 className="text-sm font-black text-rose-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <TrendingDown className="w-4 h-4" />
+                        المرتجعات
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-bold text-foreground/60">مرتجعات مبيعات</span>
+                                <div className="text-left">
+                                    <span className="font-black text-rose-400">-{formatCurrency(kpis?.salesReturnsAmount)}</span>
+                                    <span className="text-[10px] text-foreground/40 mr-2">({kpis?.salesReturnsCount} فاتورة)</span>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-bold text-foreground/60">مرتجعات مشتريات</span>
+                                <div className="text-left">
+                                    <span className="font-black text-amber-400">+{formatCurrency(kpis?.purchaseReturnsAmount)}</span>
+                                    <span className="text-[10px] text-foreground/40 mr-2">({kpis?.purchaseReturnsCount} فاتورة)</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex flex-col justify-center border-r border-rose-500/20 pr-6">
+                            <p className="text-[10px] font-black text-foreground/40 uppercase tracking-widest mb-1">صافي تأثير المرتجعات</p>
+                            <p className={cn("text-2xl font-black",
+                                (kpis?.purchaseReturnsAmount - kpis?.salesReturnsAmount) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            )}>
+                                {formatCurrency(kpis?.purchaseReturnsAmount - kpis?.salesReturnsAmount)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -90,11 +126,11 @@ function FinancialReport({ reportData, isLoading }: { reportData: any, isLoading
 // Profit & Loss Component
 // ─────────────────────────────────────────────────────────────────────
 function ProfitLossReport({ data, isLoading }: { data: any, isLoading: boolean }) {
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount || 0);
+    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
 
     if (!data) return <div className="flex justify-center p-20"><CasperLoader /></div>;
 
-    const { income, costs, expenses, profit } = data;
+    const { income, costs, expenses, profit, returns } = data;
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -114,12 +150,12 @@ function ProfitLossReport({ data, isLoading }: { data: any, isLoading: boolean }
                         <div className={cn("text-2xl font-black tracking-tight", item.color)}>
                             {formatCurrency(item.value)}
                         </div>
-                        {item.sub && <div className="text-[10px] font-bold text-foreground/40 mt-1 uppercase tracking-tight">{item.sub}</div>}
+                        {(item as any).sub && <div className="text-[10px] font-bold text-foreground/40 mt-1 uppercase tracking-tight">{(item as any).sub}</div>}
                     </div>
                 ))}
             </div>
 
-            {/* Revenue Breakdown */}
+            {/* Revenue Breakdown + Profit Summary */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-2xl p-6 overflow-hidden relative group">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-cyan-500/10 transition-colors" />
@@ -150,6 +186,40 @@ function ProfitLossReport({ data, isLoading }: { data: any, isLoading: boolean }
                     </div>
                 </div>
             </div>
+
+            {/* Returns Section */}
+            {returns && (returns.salesReturnsCount > 0 || returns.purchaseReturnsCount > 0) && (
+                <div className="glass-card bg-rose-500/5 border border-rose-500/20 rounded-2xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h3 className="text-sm font-black text-rose-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+                        <TrendingDown className="w-4 h-4" />
+                        المرتجعات
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        {/* Sales Returns */}
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-black text-foreground/40 uppercase tracking-widest">مرتجعات مبيعات</p>
+                            <p className="text-2xl font-black text-rose-400">-{formatCurrency(returns.salesReturnsAmount)}</p>
+                            <p className="text-xs text-foreground/50">{returns.salesReturnsCount} فاتورة مرتجعة</p>
+                        </div>
+                        {/* Purchase Returns */}
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-black text-foreground/40 uppercase tracking-widest">مرتجعات مشتريات</p>
+                            <p className="text-2xl font-black text-amber-400">+{formatCurrency(returns.purchaseReturnsAmount)}</p>
+                            <p className="text-xs text-foreground/50">{returns.purchaseReturnsCount} فاتورة مرتجعة</p>
+                        </div>
+                        {/* Net Impact */}
+                        <div className="border-r border-rose-500/20 pr-6 space-y-2">
+                            <p className="text-[10px] font-black text-foreground/40 uppercase tracking-widest">صافي تأثير المرتجعات</p>
+                            <p className={cn("text-2xl font-black",
+                                (returns.purchaseReturnsAmount - returns.salesReturnsAmount) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            )}>
+                                {formatCurrency(returns.purchaseReturnsAmount - returns.salesReturnsAmount)}
+                            </p>
+                            <p className="text-xs text-foreground/50">مرتجعات مشتريات - مرتجعات مبيعات</p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -158,7 +228,7 @@ function ProfitLossReport({ data, isLoading }: { data: any, isLoading: boolean }
 // Inventory Report Component
 // ─────────────────────────────────────────────────────────────────────
 function InventoryReport({ data, isLoading }: { data: any, isLoading: boolean }) {
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount || 0);
+    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
 
     if (!data) return <div className="flex justify-center p-20"><CasperLoader /></div>;
 
@@ -237,7 +307,7 @@ function InventoryReport({ data, isLoading }: { data: any, isLoading: boolean })
 // HR Report Component
 // ─────────────────────────────────────────────────────────────────────
 function HRReport({ data, isLoading }: { data: any, isLoading: boolean }) {
-    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount || 0);
+    const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
 
     if (!data) return <div className="flex justify-center p-20"><CasperLoader /></div>;
 

@@ -43,6 +43,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
         customerAddress, // 🆕 Pull Address
         customerBalance, 
         customerId, 
+        isSupplier,
         tableId, 
         tableName, 
         discountAmount = 0, 
@@ -323,7 +324,8 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
             force: force, // <--- Send Force Flag
             csrfToken,
             idempotencyKey,
-            isTimeSuspicious: casperClock.isTimeSuspicious()
+            isTimeSuspicious: casperClock.isTimeSuspicious(),
+            isSupplier: isSupplier
         };
 
         if (!navigator.onLine) {
@@ -342,6 +344,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 discountPercentage: discountPercentage,
                 status: 'COMPLETED',
                 customerId: customerId,
+                isSupplier: isSupplier,
                 customerName: saleCustomerData?.name,
                 customerPhone: saleCustomerData?.phone,
                 customerAddress: saleCustomerData?.address,

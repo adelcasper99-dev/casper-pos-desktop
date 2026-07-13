@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
             discountPercentage,
             shiftId,
             customerId,
+            isSupplier,
             createdAt, 
             isTimeSuspicious,
             items,
@@ -70,6 +71,20 @@ export async function POST(request: NextRequest) {
         const dDiscount = new Decimal(discountAmount);
         const dSubtotal = subTotal ? new Decimal(subTotal) : dTotal.minus(dTax).plus(dDiscount);
 
+        // 🛡️ CUSTOMER / SUPPLIER FK GUARD
+        let validCustomerId: string | null = null;
+        let validSupplierId: string | null = null;
+        if (customerId && customerId.trim() !== "") {
+            if (isSupplier) {
+                const supplierExists = await prisma.supplier.findUnique({ where: { id: customerId } });
+                if (supplierExists) validSupplierId = supplierExists.id;
+            } else {
+                const customerExists = await prisma.customer.findUnique({ where: { id: customerId } });
+                if (customerExists) validCustomerId = customerExists.id;
+            }
+        }
+        const finalLedgerCustomerId = validCustomerId || validSupplierId;
+
         // ── Atomic Sale Creation & Ledger ──────────────────────────────────────
         const sale = await prisma.$transaction(async (tx) => {
             const newSale = await tx.sale.create({
@@ -86,7 +101,8 @@ export async function POST(request: NextRequest) {
                     discountAmount: dDiscount.toString(),
                     discountPercentage: discountPercentage,
                     shiftId,
-                    customerId,
+                    customerId: validCustomerId,
+                    relatedSupplierId: validSupplierId,
                     branchId,
                     status: 'COMPLETED',
                     syncStatus: 'SYNCED',
@@ -143,21 +159,78 @@ export async function POST(request: NextRequest) {
                 }
             });
 
-            if (customerId && paymentMethod === 'ACCOUNT') {
-                await tx.customerTransaction.create({
-                    data: {
-                        customerId,
-                        type: 'DEBIT',
-                        amount: dTotal.toString(),
-                        description: `Offline Sale Sync: ${newSale.id}`,
-                        reference: newSale.id,
-                        branchId
+            if (finalLedgerCustomerId) {
+                if (isSupplier) {
+                    // 1. Invoice Ledger Entry (Supplier Offset)
+                    await tx.supplierPayment.create({
+                        data: {
+                            supplierId: finalLedgerCustomerId,
+                            amount: dTotal.toString(),
+                            method: 'SALE_OFFSET',
+                            notes: `Offline Sale Sync: ${newSale.id}`,
+                        }
+                    });
+                    
+                    // 2. Update Supplier Balance for Invoice
+                    await tx.supplier.update({
+                        where: { id: finalLedgerCustomerId },
+                        data: { balance: { decrement: dTotal.toString() } }
+                    });
+
+                    // 3. Payment Ledger Entry (Paid Amount)
+                    if (paymentMethod !== 'ACCOUNT') {
+                        await tx.supplierPayment.create({
+                            data: {
+                                supplierId: finalLedgerCustomerId,
+                                amount: dTotal.toString(), // We paid them back the offset
+                                method: 'CASH', // They paid us, which increments our debt back? Wait. If we sell to a supplier, they owe us. We offset our debt to them. If they pay CASH, we don't offset the debt, we just take the cash.
+                                notes: `Offline Payment Sync: ${paymentMethod} for ${newSale.id}`,
+                            }
+                        });
+                        await tx.supplier.update({
+                            where: { id: finalLedgerCustomerId },
+                            data: { balance: { increment: dTotal.toString() } }
+                        });
                     }
-                });
-                await tx.customer.update({
-                    where: { id: customerId },
-                    data: { balance: { increment: dTotal.toString() } }
-                });
+                } else {
+                    // 1. Invoice Ledger Entry (Full Amount)
+                    await tx.customerTransaction.create({
+                        data: {
+                            customerId: finalLedgerCustomerId,
+                            type: 'DEBIT',
+                            amount: dTotal.toString(),
+                            description: `Offline Sale Sync: ${newSale.id}`,
+                            reference: newSale.id,
+                            branchId
+                        }
+                    });
+                    
+                    // 2. Update Customer Balance for Invoice
+                    await tx.customer.update({
+                        where: { id: finalLedgerCustomerId },
+                        data: { balance: { increment: dTotal.toString() } }
+                    });
+
+                    // 3. Payment Ledger Entry (Paid Amount)
+                    if (paymentMethod !== 'ACCOUNT') {
+                        await tx.customerTransaction.create({
+                            data: {
+                                customerId: finalLedgerCustomerId,
+                                type: 'CREDIT',
+                                amount: dTotal.toString(),
+                                description: `Offline Payment Sync: ${paymentMethod} for ${newSale.id}`,
+                                reference: newSale.id,
+                                branchId
+                            }
+                        });
+
+                        // 4. Update Customer Balance for Payment
+                        await tx.customer.update({
+                            where: { id: finalLedgerCustomerId },
+                            data: { balance: { decrement: dTotal.toString() } }
+                        });
+                    }
+                }
             }
 
             // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────

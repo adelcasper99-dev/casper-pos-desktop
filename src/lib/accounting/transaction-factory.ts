@@ -344,22 +344,38 @@ export class AccountingEngine {
         cashPortion: number | Decimal;
         arPortion: number | Decimal;
         walletPortion: number | Decimal;
+        taxAmount?: number | Decimal;
         items: { productId: string; quantity: number | Decimal; unitCost: number | Decimal; isDamaged?: boolean }[];
         reason?: string;
         branchId?: string;
     }, tx?: any) {
-        const { totalRefund, cashPortion, arPortion, walletPortion, items, returnSaleId, saleId, reason, branchId } = data;
+        const { totalRefund, cashPortion, arPortion, walletPortion, taxAmount, items, returnSaleId, saleId, reason, branchId } = data;
         const db = tx || prisma;
 
-        // 1. Core Revenue Reversal
+        // 1. Core Revenue Reversal — split tax from revenue
+        const totalRefundDec = new Decimal(totalRefund);
+        const taxDec = new Decimal(taxAmount || 0);
+        const revenueReversal = totalRefundDec.minus(taxDec); // ex-tax amount only
+
         const lines: TransactionLineInput[] = [
             { 
                 accountCode: GL.REVENUE.SALES, 
-                debit: totalRefund, 
+                debit: revenueReversal, 
                 credit: 0, 
                 description: `Sales Revenue Reversed: #${saleId.slice(0, 8)}` 
             }
         ];
+
+        // Reverse VAT separately if applicable
+        if (taxDec.gt(0)) {
+            lines.push({
+                accountCode: GL.LIABILITIES.VAT_OUTPUT,
+                debit: taxDec,
+                credit: 0,
+                description: `VAT Reversed: #${saleId.slice(0, 8)}`
+            });
+        }
+
 
         // 2. Financial Reversals
         if (new Decimal(cashPortion).gt(0)) {

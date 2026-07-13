@@ -356,33 +356,42 @@ export const refundSale = secureAction(async (data: {
             });
         }
 
-        // 3. Handle Customer Account Reversal (credit portion or full ACCOUNT sale)
-        if (sale.customerId && amountToAccount > 0) {
+        // 3. Handle Customer Account Reversal (Full Return Value + Cash Reversal)
+        if (sale.customerId) {
+            // 1. CREDIT the full return amount (We owe them / Their debt decreases)
             const accountTx = await tx.customerTransaction.create({
                 data: {
                     customerId: sale.customerId,
                     type: 'CREDIT',
-                    amount: new Decimal(-amountToAccount),
-                    description: `Refund (account portion) for Sale #${sale.id.split('-')[0]}`,
+                    amount: new Decimal(remainingTotalAmount), // Positive amount for CREDIT
+                    description: `فاتورة مرتجع #${returnSale.id.split('-')[0]}`,
                     reference: returnSale.id,
                     createdBy: currentUser.id
                 }
             });
-            // Auto-create journal entry
-            await createCustomerTransactionJournal(tx, {
-                customerTransactionId: accountTx.id,
-                customerId: sale.customerId,
-                type: 'REFUND',
-                amount: amountToAccount,
-                description: `Refund: ${accountTx.description}`,
-                reference: returnSale.id,
-                branchId: (sale as any).branchId
-            });
 
             await tx.customer.update({
                 where: { id: sale.customerId },
-                data: { balance: { decrement: amountToAccount } }
+                data: { balance: { decrement: remainingTotalAmount } }
             });
+
+            // 2. DEBIT the cash refunded to customer (We paid them cash, so their debt increases back)
+            if (finalAmountToCash > 0) {
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId: sale.customerId,
+                        type: 'DEBIT',
+                        amount: new Decimal(finalAmountToCash),
+                        description: `استرداد نقدي - مرتجع #${returnSale.id.split('-')[0]}`,
+                        reference: returnSale.id,
+                        createdBy: currentUser.id
+                    }
+                });
+                await tx.customer.update({
+                    where: { id: sale.customerId },
+                    data: { balance: { increment: finalAmountToCash } }
+                });
+            }
         }
 
         // 🆕 Supplier Offset Reversal (B44)
@@ -597,6 +606,11 @@ export const refundSale = secureAction(async (data: {
         });
 
         // 7. Centralized Accounting Reversal (Sales Revenue + AR/Cash/Wallet Split + COGS Bypass)
+        // Prorated tax: proportion of total being refunded
+        const proratedTax = new Decimal(sale.taxAmount || 0)
+            .mul(remainingTotalAmount)
+            .div(new Decimal(sale.totalAmount));
+
         await AccountingEngine.recordSaleReturn({
             saleId,
             returnSaleId: returnSale.id,
@@ -604,6 +618,7 @@ export const refundSale = secureAction(async (data: {
             cashPortion: finalAmountToCash,
             arPortion: amountToAccount,
             walletPortion: amountToWallet,
+            taxAmount: proratedTax,
             branchId: (sale as any).branchId || currentUser.branchId || undefined,
             items: (returnSale as any).items.map((i: any) => ({
                 productId: i.productId,
@@ -880,32 +895,47 @@ export const partialRefundSale = secureAction(async (data: {
             }
         }
 
-        if (sale.customerId && amountToWallet > 0) {
-            await tx.customer.update({ where: { id: sale.customerId }, data: { walletBalance: { increment: amountToWallet } } as any });
+        // Handle Customer Account Reversal (Full Return Value + Cash Reversal)
+        if (sale.customerId) {
+            // 1. CREDIT the full return amount (We owe them / Their debt decreases)
             await tx.customerTransaction.create({
                 data: {
                     customerId: sale.customerId,
                     type: 'CREDIT',
-                    amount: new Decimal(amountToWallet),
-                    description: `Store Credit: Partial Refund Sale #${sale.id.split('-')[0]}`,
+                    amount: new Decimal(refundTotal), // Positive amount for CREDIT
+                    description: `فاتورة مرتجع جزئي #${returnSale.id.split('-')[0]}`,
                     reference: returnSale.id,
                     createdBy: currentUser.id
                 }
             });
-        }
 
-        if (sale.customerId && amountToAccount > 0) {
-            await tx.customer.update({ where: { id: sale.customerId }, data: { balance: { decrement: amountToAccount } } });
-            await tx.customerTransaction.create({
-                data: {
-                    customerId: sale.customerId,
-                    type: 'CREDIT',
-                    amount: new Decimal(-amountToAccount),
-                    description: `AR Reversal: Partial Refund Sale #${sale.id.split('-')[0]}`,
-                    reference: returnSale.id,
-                    createdBy: currentUser.id
-                }
+            await tx.customer.update({
+                where: { id: sale.customerId },
+                data: { balance: { decrement: refundTotal } }
             });
+
+            // 2. DEBIT the cash refunded to customer (We paid them cash, so their debt increases back)
+            if (finalAmountToCash > 0) {
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId: sale.customerId,
+                        type: 'DEBIT',
+                        amount: new Decimal(finalAmountToCash),
+                        description: `استرداد نقدي - مرتجع جزئي #${returnSale.id.split('-')[0]}`,
+                        reference: returnSale.id,
+                        createdBy: currentUser.id
+                    }
+                });
+                await tx.customer.update({
+                    where: { id: sale.customerId },
+                    data: { balance: { increment: finalAmountToCash } }
+                });
+            }
+
+            // 3. Store credit (Wallet)
+            if (amountToWallet > 0) {
+                await tx.customer.update({ where: { id: sale.customerId }, data: { walletBalance: { increment: amountToWallet } } as any });
+            }
         }
 
         // 7. Stock Reversal with Wastage Routing
@@ -1028,6 +1058,7 @@ export const partialRefundSale = secureAction(async (data: {
         }
 
         // 8. Centralized Accounting
+        const partialReturnTax = processedItems.reduce((s, p) => s.plus((p as any).proratedTax || 0), new Decimal(0));
         await AccountingEngine.recordSaleReturn({
             saleId,
             returnSaleId: returnSale.id,
@@ -1035,6 +1066,7 @@ export const partialRefundSale = secureAction(async (data: {
             cashPortion: finalAmountToCash,
             arPortion: amountToAccount,
             walletPortion: amountToWallet,
+            taxAmount: partialReturnTax,
             items: processedItems.map(p => ({
                 productId: p.productId,
                 quantity: p.refundQty,

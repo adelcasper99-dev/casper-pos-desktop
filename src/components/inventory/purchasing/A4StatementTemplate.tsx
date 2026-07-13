@@ -3,7 +3,7 @@ import { formatCurrency } from "@/lib/utils";
 interface Transaction {
     id: string;
     date: Date;
-    type: 'INVOICE' | 'PAYMENT';
+    type: 'INVOICE' | 'PAYMENT' | 'SALE';
     reference: string;
     amount: number;
     status: string;
@@ -220,7 +220,7 @@ export const generateA4StatementHTML = ({ supplierData, transactions, settings }
                                 <div style="font-weight: bold; font-size: 11px; color: ${tx.type === 'INVOICE' && tx.reference.startsWith('RTN-') ? '#b91c1c' : '#333'};">
                                     ${tx.type === 'INVOICE' 
                                         ? (tx.reference.startsWith('RTN-') ? 'مرتجع شراء (-)' : 'فاتورة مشتريات (+)') 
-                                        : 'دفعة مسددة'}
+                                        : tx.type === 'SALE' ? 'مبيعات للمورد' : 'دفعة مسددة'}
                                 </div>
                                 ${tx.items && tx.items.length > 0 ? `
                                     <div style="font-size: 9px; color: #666; margin-top: 2px;">

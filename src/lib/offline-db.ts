@@ -103,6 +103,8 @@ export interface OfflineSale {
     discountAmount: number;
     discountPercentage: number;
     isTimeSuspicious?: boolean;
+    customerId?: string;
+    isSupplier?: boolean;
 }
 
 export interface OfflineTreasuryTransaction {

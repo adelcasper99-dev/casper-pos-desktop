@@ -30,7 +30,7 @@ import { PurchaseInvoiceWithItems } from "@/types/purchasing";
 interface Transaction {
     id: string;
     date: Date;
-    type: 'INVOICE' | 'PAYMENT';
+    type: 'INVOICE' | 'PAYMENT' | 'SALE';
     reference: string;
     amount: number;
     status: string;
@@ -463,6 +463,8 @@ export default function SupplierHistoryTable({
                                                     ) : (
                                                         <span className="text-indigo-400">فاتورة شراء</span>
                                                     )
+                                                ) : tx.type === 'SALE' ? (
+                                                    <span className="text-emerald-500">مبيعات للمورد</span>
                                                 ) : (
                                                     <span className="text-emerald-500">دفعة مستلمة</span>
                                                 )}

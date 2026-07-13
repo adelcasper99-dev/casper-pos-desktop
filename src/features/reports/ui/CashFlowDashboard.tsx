@@ -8,6 +8,97 @@ import { KPICards } from "@/features/reports/ui/KPICards";
 import { Landmark, Loader2, FileText, Download, Printer } from "lucide-react";
 import { format } from "date-fns";
 
+const ACCOUNT_NAME_TRANSLATIONS: Record<string, string> = {
+    "Cash in Hand": "نقدية بالخزينة (الكاش)",
+    "Bank / Card Settlements": "تسويات البنك / البطاقات",
+    "Petty Cash Fund": "صندوق النثرية",
+    "Cash in Treasury / Wallet": "نقدية بالصندوق / المحفظة",
+    "Accounts Receivable": "العملاء (أوراق القبض)",
+    "Inventory Asset": "مخزون الأصول",
+    "Fixed Assets (Equip. & Furniture)": "الأصول الثابتة (أجهزة وأثاث)",
+    "Accumulated Depreciation": "مجمع الإهلاك",
+    "Engineer Tech Custody / AR": "عهدة فني المهندس",
+    "Accounts Payable": "الموردين (أوراق الدفع)",
+    "Sales Tax Payable": "ضريبة المبيعات المستحقة",
+    "Store Credit Liability": "التزامات رصيد المتجر",
+    "Accrued Salaries & Wages": "رواتب وأجور مستحقة",
+    "Owner's Equity / Capital": "حقوق الملكية / رأس المال",
+    "Retained Earnings (Legacy Alias)": "أرباح محتجزة (حساب سابق)",
+    "Owner's Drawings": "مسحوبات شخصية للمالك",
+    "Retained Earnings / Accumulated Profit": "أرباح مرحلة / محتجزة",
+    "Opening Balance Equity": "رأس المال الافتتاحي",
+    "Sales Revenue": "إيرادات المبيعات",
+    "Service Revenue": "إيرادات الخدمات",
+    "Sales Returns": "مرتجع مبيعات",
+    "Sales Discounts": "خصم مبيعات",
+    "Other Income": "إيرادات أخرى",
+    "E-Wallet Commission Revenue": "إيرادات عمولة المحفظة الإلكترونية",
+    "Cost of Goods Sold": "تكلفة البضاعة المباعة",
+    "Salaries & Wages Expense": "مصروفات الرواتب والأجور",
+    "Bonuses & Incentives": "مكافآت وحوافز",
+    "Daily Wages": "أجور يومية",
+    "General & Admin Expenses": "مصروفات عمومية وإدارية",
+    "Rent Expense": "مصروف الإيجار",
+    "Utilities (Electricity & Water)": "المرافق (كهرباء ومياه)",
+    "Internet & Communications": "الإنترنت والاتصالات",
+    "Maintenance & Repairs": "الصيانة والإصلاحات",
+    "Cleaning & Hospitality": "النظافة والضيافة",
+    "Office Supplies": "أدوات ومستلزمات مكتبية",
+    "Miscellaneous General Expense": "مصروفات عمومية متنوعة",
+    "Marketing & Advertising": "التسويق والإعلانات",
+    "Paid Ads": "إعلانات ممولة",
+    "Promotions & Gifts": "عروض وهدايا ترويجية",
+    "Packaging": "التعبئة والتغليف",
+    "Depreciation Expense": "مصروف الإهلاك",
+    "Cash Over/Short": "فروقات نقدية (زيادة/عجز)",
+    "Inventory Spoilage": "تالف المخزون",
+};
+
+function translateAccountName(name: string): string {
+    return ACCOUNT_NAME_TRANSLATIONS[name] || name;
+}
+
+function translateDescription(desc: string): string {
+    if (!desc) return "";
+    
+    // Exact matches
+    const exactMatches: Record<string, string> = {
+        "Cost of Goods Sold": "تكلفة البضاعة المباعة",
+        "Inventory Asset (Out)": "صرف مخزون (صادر)",
+        "Inventory Asset Restored": "استرجاع مخزون (وارد)",
+        "COGS Reversed": "عكس تكلفة البضاعة المباعة",
+        "AR Reduced": "تخفيض حساب العملاء (مدينون)",
+        "ACCOUNT received": "مبيعات آجلة مستلمة",
+        "Sales Tax Payable": "ضريبة المبيعات المستحقة",
+        "Service Revenue": "إيرادات خدمات",
+        "SUPPLIER_OFFSET received": "تسوية مقاصة مورد (خصم مديونية)",
+        "Sales Revenue (ex-tax)": "إيرادات مبيعات (بدون ضريبة)",
+    };
+
+    if (exactMatches[desc]) {
+        return exactMatches[desc];
+    }
+
+    // Pattern matches
+    if (desc.startsWith("Sales Revenue Reversed")) {
+        return desc.replace("Sales Revenue Reversed", "عكس إيرادات مبيعات");
+    }
+    if (desc.startsWith("Service Payment received")) {
+        return desc.replace("Service Payment received", "دفعة خدمات مستلمة");
+    }
+    if (desc.startsWith("Refund")) {
+        return desc.replace("Refund", "مرتجع");
+    }
+    if (desc.startsWith("Supplier Payment")) {
+        return desc.replace("Supplier Payment", "دفعة للمورد");
+    }
+    if (desc.startsWith("Sale #")) {
+        return desc.replace("Sale", "فاتورة مبيعات");
+    }
+
+    return desc;
+}
+
 export default function CashFlowDashboard() {
     const [filters, setFilters] = useState<TransactionReportFilters>({
         categoryGroup: "ALL",
@@ -131,10 +222,10 @@ export default function CashFlowDashboard() {
                                             {format(new Date(tx.date), "dd/MM/yyyy HH:mm")}
                                         </td>
                                         <td className="p-4 font-bold text-foreground group-hover:text-cyan-400 transition-colors">
-                                            {tx.description}
+                                            {translateDescription(tx.description)}
                                         </td>
                                         <td className="p-4 font-medium text-muted-foreground">
-                                            {tx.accountName}
+                                            {translateAccountName(tx.accountName)}
                                         </td>
                                         <td className="p-4">
                                             <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-mono border border-border/50">

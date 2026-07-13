@@ -155,12 +155,13 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 } : {})
             };
 
-            // Sales (4000)
+            // Sales (4000) — Net: credits (sales) minus debits (returns)
             const salesAgg = await prisma.journalLine.aggregate({
                 where: { account: { code: '4000' }, journalEntry: baseJournalEntryWhere },
-                _sum: { credit: true }
+                _sum: { credit: true, debit: true }
             });
-            totalSalesRevenue = new Decimal(salesAgg._sum.credit?.toString() || '0');
+            totalSalesRevenue = new Decimal(salesAgg._sum.credit?.toString() || '0')
+                .minus(salesAgg._sum.debit?.toString() || '0');
 
             const saleCountAgg = await prisma.sale.aggregate({
                 where: saleWhere,
@@ -168,19 +169,27 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             });
             saleCount = Number(saleCountAgg._count.id || 0);
 
-            // COGS (5000) — POS only
+            // COGS (5000) — Net: debits (cost of sales) minus credits (returns reversal)
             const cogsSum = await prisma.journalLine.aggregate({
                 where: { account: { code: '5000' }, journalEntry: baseJournalEntryWhere },
-                _sum: { debit: true }
+                _sum: { debit: true, credit: true }
             });
-            totalCOGS = new Decimal(cogsSum._sum.debit?.toString() || '0');
+            totalCOGS = new Decimal(cogsSum._sum.debit?.toString() || '0')
+                .minus(cogsSum._sum.credit?.toString() || '0');
 
             // Expenses (All sub-accounts)
+            // NOTE: Expense journal entries have no saleId/purchaseId,
+            // so we MUST NOT use baseJournalEntryWhere (which has OR on sale/purchase).
+            // Date-only filter is correct here.
             const expensesAgg = await prisma.journalLine.aggregate({
-                where: { account: { code: { in: ALL_EXPENSE_CODES } }, journalEntry: baseJournalEntryWhere },
+                where: {
+                    account: { code: { in: ALL_EXPENSE_CODES } },
+                    journalEntry: { date: { gte: startDate, lte: endDate } }
+                },
                 _sum: { debit: true }
             });
             totalExpenses = new Decimal(expensesAgg._sum.debit?.toString() || '0');
+
 
             // Purchases (1200)
             const purchasesAgg = await prisma.journalLine.aggregate({
@@ -372,6 +381,18 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             take: 20
         });
 
+        // Returns
+        const salesReturnsAgg = await prisma.sale.aggregate({
+            where: { createdAt: { gte: startDate, lte: endDate }, isReturn: true, ...branchFilter },
+            _sum: { totalAmount: true },
+            _count: { id: true }
+        });
+        const purchaseReturnsAgg = await prisma.purchaseInvoice.aggregate({
+            where: { purchaseDate: { gte: startDate, lte: endDate }, status: { in: ['RETURNED', 'RETURN'] }, ...branchFilter },
+            _sum: { totalAmount: true },
+            _count: { id: true }
+        });
+
         return {
             success: true,
             data: {
@@ -389,6 +410,11 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                     maintenancePartsCost: totalTicketPartsCost.toNumber(),
                     posCount: saleCount,
                     maintenanceCount: ticketCount,
+                    // Returns
+                    salesReturnsAmount: Number(salesReturnsAgg._sum.totalAmount || 0),
+                    salesReturnsCount: salesReturnsAgg._count.id,
+                    purchaseReturnsAmount: Number(purchaseReturnsAgg._sum.totalAmount || 0),
+                    purchaseReturnsCount: purchaseReturnsAgg._count.id,
                 },
                 trendData,
                 transactions,

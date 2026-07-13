@@ -155,7 +155,7 @@ export class AutoJournalService {
               description: 'Service Revenue Reclassification' 
             },
             { 
-              accountId: salesId, 
+              accountId: serviceId, 
               debit: 0, 
               credit: techBilling, 
               description: 'Parts Revenue Dist' 
@@ -167,7 +167,7 @@ export class AutoJournalService {
               description: 'Technician Commission Accrued' 
             },
             { 
-              accountId: salesId, 
+              accountId: serviceId, 
               debit: 0, 
               credit: centerProfit, 
               description: 'Center Labor Profit realized' 

@@ -65,3 +65,5 @@ casper-launcher/release/
 /.compound-engineering/
 /compound-engineering-plugin/
 /copy_skills.ps1
+graphify-out/
+.agency-agents/  

@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
         const originalSale = await prisma.sale.findUnique({
             where: { id: originalSaleId },
-            select: { warehouseId: true, shiftId: true, customerId: true, branchId: true },
+            select: { warehouseId: true, shiftId: true, customerId: true, branchId: true, taxAmount: true, totalAmount: true },
         });
 
         if (!originalSale) {
@@ -112,10 +112,23 @@ export async function POST(request: NextRequest) {
                 throw new Error(`[offline-return] GL accounts missing for branchId=${resolvedBranchId}. salesAccount:${salesAccount?.id}, cashAccount:${cashAccount?.id}. Seed GL accounts before syncing.`);
             }
 
-            let creditAccountId = cashAccount.id;
-            if (returnType === 'ACCOUNT') {
-                const arAccount = await tx.account.findUnique({ where: { code: '1200' } });
-                if (arAccount) creditAccountId = arAccount.id;
+            // Split tax from revenue reversal
+            const creditAccountId = cashAccount.id;
+            const returnTaxAmt = new Decimal(originalSale.taxAmount || 0)
+                .mul(dAmount.abs()).div(new Decimal(originalSale.totalAmount).abs());
+            const returnRevenueAmt = dAmount.abs().minus(returnTaxAmt);
+
+            const returnLines: any[] = [
+                { accountId: salesAccount.id, debit: returnRevenueAmt.toString(), credit: '0' },
+                { accountId: creditAccountId, debit: '0', credit: dAmount.abs().toString() }
+            ];
+
+            // Reverse VAT if applicable
+            if (returnTaxAmt.gt(0)) {
+                const vatAccount = await tx.account.findUnique({ where: { code: '2100' } });
+                if (vatAccount) {
+                    returnLines.push({ accountId: vatAccount.id, debit: returnTaxAmt.toString(), credit: '0' });
+                }
             }
 
             await tx.journalEntry.create({
@@ -126,20 +139,18 @@ export async function POST(request: NextRequest) {
                     saleId: refundSale.id,
                     idempotencyKey: `journal-return-${refundSale.id}`,
                     lines: {
-                        create: [
-                            { accountId: salesAccount.id, debit: dAmount.abs().toString(), credit: '0' },
-                            { accountId: creditAccountId, debit: '0', credit: dAmount.abs().toString() }
-                        ]
+                        create: returnLines
                     }
                 }
             });
 
-            if (originalSale.customerId && returnType === 'ACCOUNT') {
+            if (originalSale.customerId) {
+                // 1. CREDIT the full return amount
                 await tx.customerTransaction.create({
                     data: {
                         customerId: originalSale.customerId,
                         type: 'CREDIT',
-                        amount: dAmount.abs().negated().toString(),
+                        amount: dAmount.abs().toString(),
                         description: `Offline Return Sync: ${refundSale.id}`,
                         reference: refundSale.id,
                         branchId: resolvedBranchId
@@ -148,6 +159,22 @@ export async function POST(request: NextRequest) {
                 await tx.customer.update({
                     where: { id: originalSale.customerId },
                     data: { balance: { decrement: dAmount.abs().toString() } }
+                });
+
+                // 2. DEBIT the cash refunded
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId: originalSale.customerId,
+                        type: 'DEBIT',
+                        amount: dAmount.abs().toString(),
+                        description: `Offline Payment Sync (Refund): ${returnType} for ${refundSale.id}`,
+                        reference: refundSale.id,
+                        branchId: resolvedBranchId
+                    }
+                });
+                await tx.customer.update({
+                    where: { id: originalSale.customerId },
+                    data: { balance: { increment: dAmount.abs().toString() } }
                 });
             }
 

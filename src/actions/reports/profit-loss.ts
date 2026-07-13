@@ -35,7 +35,7 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
         // 📊 REVENUE SOURCES
         // ─────────────────────────────────────────────────────────────────────
 
-        // 1. POS Sales Revenue (4000)
+        // 1. POS Sales Revenue (4000) — Net: credits minus debits (returns)
         const salesRevenueAgg = await prisma.journalLine.aggregate({
             where: {
                 account: { code: '4000' },
@@ -49,9 +49,10 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
                     } : {})
                 }
             },
-            _sum: { credit: true }
+            _sum: { credit: true, debit: true }
         });
-        const posRevenue = new Decimal(salesRevenueAgg._sum.credit?.toString() || '0');
+        const posRevenue = new Decimal(salesRevenueAgg._sum.credit?.toString() || '0')
+            .minus(salesRevenueAgg._sum.debit?.toString() || '0');
 
         // 2. Maintenance Service Revenue (4100)
         const serviceRevenueAcc = await prisma.account.findFirst({
@@ -97,8 +98,41 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
         const totalRevenue = posRevenue.plus(maintenanceRevenue).plus(otherIncome).plus(walletRevenue);
 
         // ─────────────────────────────────────────────────────────────────────
+        // 🔄 RETURNS (Sales & Purchase)
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Sales Returns: sales with isReturn = true
+        const salesReturnsData = await prisma.sale.aggregate({
+            where: {
+                createdAt: { gte: startDate, lte: endDate },
+                isReturn: true,
+                ...branchFilter
+            },
+            _sum: { totalAmount: true },
+            _count: { id: true }
+        });
+        const salesReturnsAmount = new Decimal(salesReturnsData._sum.totalAmount?.toString() || '0');
+        const salesReturnsCount = salesReturnsData._count.id;
+
+        // Purchase Returns
+        const purchaseReturnsData = await prisma.purchaseInvoice.aggregate({
+            where: {
+                purchaseDate: { gte: startDate, lte: endDate },
+                status: { in: ['RETURNED', 'RETURN'] },
+                ...branchFilter
+            },
+            _sum: { totalAmount: true },
+            _count: { id: true }
+        });
+        const purchaseReturnsAmount = new Decimal(purchaseReturnsData._sum.totalAmount?.toString() || '0');
+        const purchaseReturnsCount = purchaseReturnsData._count.id;
+
+        // ─────────────────────────────────────────────────────────────────────
         // 📉 COST OF GOODS SOLD (COGS)
         // ─────────────────────────────────────────────────────────────────────
+        // COGS (5000) — Net: debits (cost sold) minus credits (returns reversal)
+        // GL 5000 already includes BOTH POS COGS and Maintenance COGS
+        // (recordMaintenanceCOGS posts to GL 5000) — no need to add ticket.partsCost separately.
         const cogsAgg = await prisma.journalLine.aggregate({
             where: {
                 account: { code: '5000' },
@@ -111,11 +145,12 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
                     } : {})
                 }
             },
-            _sum: { debit: true }
+            _sum: { debit: true, credit: true }
         });
-        const cogs = new Decimal(cogsAgg._sum.debit?.toString() || '0');
+        const cogs = new Decimal(cogsAgg._sum.debit?.toString() || '0')
+            .minus(cogsAgg._sum.credit?.toString() || '0');
 
-        // Maintenance Parts Cost
+        // Maintenance tickets — only for count/display, NOT added to COGS (already in GL 5000)
         const tickets = await prisma.ticket.findMany({
             where: {
                 createdAt: { gte: startDate, lte: endDate },
@@ -130,8 +165,8 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
             new Decimal(0)
         );
 
-        // Total COGS
-        const totalCOGS = cogs.plus(maintenancePartsCost);
+        // Total COGS = GL 5000 net only (POS + Maintenance both posted here)
+        const totalCOGS = cogs;
 
         // ─────────────────────────────────────────────────────────────────────
         // 💰 OPERATING EXPENSES (Granular per sub-account)
@@ -238,11 +273,18 @@ export const getProfitLossReport = secureAction(async (filters: ProfitLossFilter
                     operatingExpenses: operatingExpenses.toNumber(),
                     breakdown: expenseBreakdown
                 },
+                returns: {
+                    salesReturnsAmount: salesReturnsAmount.toNumber(),
+                    salesReturnsCount,
+                    purchaseReturnsAmount: purchaseReturnsAmount.toNumber(),
+                    purchaseReturnsCount,
+                    totalReturnsAmount: salesReturnsAmount.plus(purchaseReturnsAmount).toNumber()
+                },
                 profit: {
                     grossProfit: grossProfit.toNumber(),
                     netProfit: netProfit.toNumber(),
                     profitMargin: totalRevenue.greaterThan(0)
-                        ? grossProfit.dividedBy(totalRevenue).times(100).toNumber()
+                        ? netProfit.dividedBy(totalRevenue).times(100).toNumber()
                         : 0
                 },
                 trendData,

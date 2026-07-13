@@ -28,6 +28,7 @@ export const OfflineSaleSchema = z.object({
     discountPercentage: z.number().min(0).max(100).default(0),
     shiftId: z.string().uuid().nullable().optional(),
     customerId: z.string().uuid().nullable().optional(),
+    isSupplier: z.boolean().optional(),
     // F-1: IndexedDB stores createdAt as a UNIX ms number; ISO strings also accepted.
     // Both are normalized to ISO string via transform before downstream use.
     createdAt: z.union([

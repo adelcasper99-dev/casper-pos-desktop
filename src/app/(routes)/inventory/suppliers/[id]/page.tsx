@@ -13,7 +13,7 @@ import SupplierActions from "@/components/inventory/SupplierActions";
 interface Transaction {
     id: string;
     date: Date;
-    type: 'INVOICE' | 'PAYMENT';
+    type: 'INVOICE' | 'PAYMENT' | 'SALE';
     reference: string;
     amount: number;
     status: string;
@@ -73,7 +73,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
 
     // 3. Fetch History (Last 50 Transactions)
     // We fetch Invoices and Payments separately then merge, as Union queries in Prisma are tricky
-    const [invoices, payments] = await Promise.all([
+    const [invoices, payments, sales] = await Promise.all([
         prisma.purchaseInvoice.findMany({
             where: { supplierId: id },
             orderBy: { createdAt: 'desc' },
@@ -100,6 +100,32 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             where: { supplierId: id },
             orderBy: { paymentDate: 'desc' },
             take: 500
+        }),
+        prisma.sale.findMany({
+            where: { 
+                relatedSupplierId: id, 
+                status: 'COMPLETED',
+                paymentMethod: { in: ['ACCOUNT', 'DEFERRED'] }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 500,
+            include: {
+                items: {
+                    include: {
+                        product: {
+                            include: {
+                                category: true,
+                                stocks: {
+                                    select: {
+                                        warehouseId: true,
+                                        quantity: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         })
     ]);
 
@@ -131,15 +157,43 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 }
             }))
         })),
-        ...payments.map(pay => ({
-            id: pay.id,
-            date: pay.paymentDate,
-            type: 'PAYMENT' as const,
-            reference: 'PAYMENT',
-            amount: pay.amount.toNumber(),
-            status: 'COMPLETED',
+        ...payments
+            .filter(pay => pay.method !== 'SALE_OFFSET')
+            .map(pay => ({
+                id: pay.id,
+                date: pay.paymentDate,
+                type: 'PAYMENT' as const,
+                reference: 'PAYMENT',
+                amount: pay.amount.toNumber(),
+                status: 'COMPLETED',
+                isCredit: true, // Reduces Debt
+                method: pay.method
+            })),
+        ...sales.map(sale => ({
+            id: sale.id,
+            date: sale.createdAt,
+            type: 'SALE' as const,
+            reference: sale.id.split('-')[0].toUpperCase(),
+            amount: sale.totalAmount.toNumber(),
+            status: sale.status,
             isCredit: true, // Reduces Debt
-            method: pay.method
+            method: sale.paymentMethod,
+            items: sale.items.map(item => ({
+                id: item.id,
+                name: item.product.name,
+                sku: item.product.sku || '',
+                category: item.product.category?.name || '',
+                quantity: item.quantity.toNumber(),
+                unitCost: item.unitPrice.toNumber(),
+                returnedQty: item.refundedQty?.toNumber() || 0,
+                product: {
+                    name: item.product.name,
+                    stocks: item.product.stocks.map(s => ({
+                        warehouseId: s.warehouseId,
+                        quantity: s.quantity.toNumber()
+                    }))
+                }
+            }))
         }))
     ].sort((a, b) => b.date.getTime() - a.date.getTime())
         .slice(0, 500); // Increased limit to 500
