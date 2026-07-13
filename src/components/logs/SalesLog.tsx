@@ -71,10 +71,11 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
         }
     };
 
-    const getStatusLabel = (status: string, paymentMethod: string) => {
+    const getStatusLabel = (status: string, paymentMethod: string, isReturn?: boolean) => {
+        if (isReturn) return 'مستند إرجاع';
         if (status === 'VOIDED') return 'ملغاة (مسترد)';
-        if (status === 'REFUNDED') return 'مرتجع كامل';
-        if (status === 'PARTIAL_REFUND') return 'مرتجع جزئي';
+        if (status === 'REFUNDED') return 'تم الإرجاع (كامل)';
+        if (status === 'PARTIAL_REFUND') return 'تم الإرجاع (جزئي)';
         if (paymentMethod === 'ACCOUNT') return 'آجل';
         return 'مدفوع';
     };
@@ -188,7 +189,7 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
             "العميل": sale.customerName || "عميل نقدي",
             "الإجمالي": sale.totalAmount,
             "طريقة الدفع": getPaymentMethodLabel(sale.paymentMethod),
-            "الحالة": getStatusLabel(sale.status, sale.paymentMethod)
+            "الحالة": getStatusLabel(sale.status, sale.paymentMethod, sale.isReturn || sale._isRefundEntry),
         }));
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -532,7 +533,8 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                     <td className="py-4 px-4 text-center">
                                         <div className={cn(
                                             "font-mono font-black text-sm px-3 py-1 rounded-lg inline-block",
-                                            (sale.isReturn || sale._isRefundEntry) ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-muted text-foreground'
+                                            (sale.isReturn || sale._isRefundEntry) ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 
+                                            sale.status === 'REFUNDED' ? 'bg-muted text-foreground line-through opacity-40' : 'bg-muted text-foreground'
                                         )}>
                                             {sale.totalAmount < 0 ? '-' : ''}{Math.abs(Number(sale.totalAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </div>
@@ -547,7 +549,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                             "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm",
                                             getStatusStyles(sale.status, sale.paymentMethod)
                                         )}>
-                                            {getStatusLabel(sale.status, sale.paymentMethod)}
+                                            {getStatusLabel(sale.status, sale.paymentMethod, sale.isReturn || sale._isRefundEntry)}
                                         </span>
                                     </td>
 

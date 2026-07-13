@@ -166,15 +166,33 @@ export const createUnitOfMeasure = secureAction(async (data: z.infer<typeof unit
 }, { permission: 'INVENTORY_MANAGE' });
 
 export const getDefaultWarehouses = secureAction(async () => {
-    const [posDefault, maintenanceDefault] = await Promise.all([
-        prisma.warehouse.findFirst({ where: { isDefault: true, deletedAt: null } }),
-        prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true, deletedAt: null } })
-    ]);
+    const { getCurrentUser } = await import('./auth');
+    const user = await getCurrentUser();
+    const branchId = user?.branchId;
+
+    let finalPos = null;
+    let finalMaintenance = null;
+
+    if (branchId) {
+        const [posDefault, maintenanceDefault] = await Promise.all([
+            prisma.warehouse.findFirst({ where: { branchId: branchId, isDefault: true, deletedAt: null } }),
+            prisma.warehouse.findFirst({ where: { branchId: branchId, isMaintenanceDefault: true, deletedAt: null } })
+        ]);
+        finalPos = posDefault;
+        finalMaintenance = maintenanceDefault;
+    }
+
+    if (!finalPos) {
+        finalPos = await prisma.warehouse.findFirst({ where: { isDefault: true, deletedAt: null } });
+    }
+    if (!finalMaintenance) {
+        finalMaintenance = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true, deletedAt: null } });
+    }
 
     return {
         success: true,
-        posDefault: posDefault ? { id: posDefault.id, name: posDefault.name } : null,
-        maintenanceDefault: maintenanceDefault ? { id: maintenanceDefault.id, name: maintenanceDefault.name } : null
+        posDefault: finalPos ? { id: finalPos.id, name: finalPos.name } : null,
+        maintenanceDefault: finalMaintenance ? { id: finalMaintenance.id, name: finalMaintenance.name } : null
     };
 }, { permission: 'INVENTORY_VIEW', requireCSRF: false });
 
@@ -2675,11 +2693,15 @@ export const setDefaultWarehouse = secureAction(async (data: { warehouseId: stri
     const { warehouseId, branchId, type = 'pos' } = data;
 
     await prisma.$transaction(async (tx) => {
+        const targetBranchId = branchId || (await tx.warehouse.findUnique({ where: { id: warehouseId } }))?.branchId;
+        
+        if (!targetBranchId) throw new Error("Warehouse not found or has no branch");
+
         if (type === 'maintenance') {
             // Unset existing maintenance default for this branch
             await tx.warehouse.updateMany({
                 where: {
-                    branchId: branchId || undefined,
+                    branchId: targetBranchId,
                     isMaintenanceDefault: true
                 },
                 data: { isMaintenanceDefault: false }
@@ -2693,7 +2715,7 @@ export const setDefaultWarehouse = secureAction(async (data: { warehouseId: stri
             // Unset existing POS default for this branch
             await tx.warehouse.updateMany({
                 where: {
-                    branchId: branchId || undefined,
+                    branchId: targetBranchId,
                     isDefault: true
                 },
                 data: { isDefault: false }

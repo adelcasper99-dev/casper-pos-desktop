@@ -112,6 +112,12 @@ export async function POST(request: NextRequest) {
                 throw new Error(`[offline-return] GL accounts missing for branchId=${resolvedBranchId}. salesAccount:${salesAccount?.id}, cashAccount:${cashAccount?.id}. Seed GL accounts before syncing.`);
             }
 
+            let creditAccountId = cashAccount.id;
+            if (returnType === 'ACCOUNT') {
+                const arAccount = await tx.account.findUnique({ where: { code: '1200' } });
+                if (arAccount) creditAccountId = arAccount.id;
+            }
+
             await tx.journalEntry.create({
                 data: {
                     date: createdAt ? new Date(createdAt) : new Date(),
@@ -122,11 +128,28 @@ export async function POST(request: NextRequest) {
                     lines: {
                         create: [
                             { accountId: salesAccount.id, debit: dAmount.abs().toString(), credit: '0' },
-                            { accountId: cashAccount.id, debit: '0', credit: dAmount.abs().toString() }
+                            { accountId: creditAccountId, debit: '0', credit: dAmount.abs().toString() }
                         ]
                     }
                 }
             });
+
+            if (originalSale.customerId && returnType === 'ACCOUNT') {
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId: originalSale.customerId,
+                        type: 'CREDIT',
+                        amount: dAmount.abs().negated().toString(),
+                        description: `Offline Return Sync: ${refundSale.id}`,
+                        reference: refundSale.id,
+                        branchId: resolvedBranchId
+                    }
+                });
+                await tx.customer.update({
+                    where: { id: originalSale.customerId },
+                    data: { balance: { decrement: dAmount.abs().toString() } }
+                });
+            }
 
             // 3. Increment Stock
             for (const item of items) {

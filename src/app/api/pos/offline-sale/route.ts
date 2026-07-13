@@ -121,6 +121,12 @@ export async function POST(request: NextRequest) {
                 throw new Error(`[offline-sale] GL accounts missing for branchId=${branchId}. salesAccount:${salesAccount?.id}, cashAccount:${cashAccount?.id}. Seed GL accounts before syncing.`);
             }
 
+            let debitAccountId = cashAccount.id;
+            if (paymentMethod === 'ACCOUNT') {
+                const arAccount = await tx.account.findUnique({ where: { code: '1200' } });
+                if (arAccount) debitAccountId = arAccount.id;
+            }
+
             await tx.journalEntry.create({
                 data: {
                     date: createdAt ? new Date(createdAt) : new Date(),
@@ -130,12 +136,29 @@ export async function POST(request: NextRequest) {
                     idempotencyKey: `journal-sale-${newSale.id}`,
                     lines: {
                         create: [
-                            { accountId: cashAccount.id, debit: dTotal.toString(), credit: '0' },
+                            { accountId: debitAccountId, debit: dTotal.toString(), credit: '0' },
                             { accountId: salesAccount.id, debit: '0', credit: dTotal.toString() }
                         ]
                     }
                 }
             });
+
+            if (customerId && paymentMethod === 'ACCOUNT') {
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId,
+                        type: 'DEBIT',
+                        amount: dTotal.toString(),
+                        description: `Offline Sale Sync: ${newSale.id}`,
+                        reference: newSale.id,
+                        branchId
+                    }
+                });
+                await tx.customer.update({
+                    where: { id: customerId },
+                    data: { balance: { increment: dTotal.toString() } }
+                });
+            }
 
             // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
             // 1. Snapshot product metadata for bundle detection

@@ -341,6 +341,7 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                 discountAmount: discountAmount,
                 discountPercentage: discountPercentage,
                 status: 'COMPLETED',
+                customerId: customerId,
                 customerName: saleCustomerData?.name,
                 customerPhone: saleCustomerData?.phone,
                 customerAddress: saleCustomerData?.address,

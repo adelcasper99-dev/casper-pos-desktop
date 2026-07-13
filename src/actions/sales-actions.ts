@@ -289,7 +289,8 @@ export const refundSale = secureAction(async (data: {
                         };
                     }).filter((i: any) => i.quantity > 0)
                 }
-            } as any
+            } as any,
+            include: { items: true }
         });
 
         // ─── REFUND transaction record (Cash portion only) ───
@@ -830,7 +831,8 @@ export const partialRefundSale = secureAction(async (data: {
                         unitCost: new Decimal(p.unitCost)
                     }))
                 }
-            }
+            },
+            include: { items: true }
         });
 
         // 5. Update Original Sale status

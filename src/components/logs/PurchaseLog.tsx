@@ -74,11 +74,11 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const t_logs = useTranslations("Logs");
 
     const getStatusLabel = (status: string, isReturn?: boolean) => {
-        if (isReturn) return "مرتجع";
+        if (isReturn) return "مستند إرجاع";
         switch (status) {
             case 'PAID': return "مدفوع";
-            case 'PARTIAL_RETURN': return "مرتجع جزئي";
-            case 'RETURNED': return "مرتجع كلي";
+            case 'PARTIAL_RETURN': return "تم الإرجاع (جزئي)";
+            case 'RETURNED': return "تم الإرجاع (كامل)";
             case 'VOIDED': return "ملغاة (مسترد)";
             case 'PENDING': return "قيد الانتظار";
             default: return status;
@@ -460,7 +460,8 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                     <td className="py-4 px-6 text-right">
                                         <div className={cn(
                                             "font-mono font-black text-sm px-3 py-1 rounded-lg inline-block",
-                                            inv.isReturn ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-muted text-foreground'
+                                            inv.isReturn ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 
+                                            inv.status === 'RETURNED' ? 'bg-muted text-foreground line-through opacity-40' : 'bg-muted text-foreground'
                                         )}>
                                             {inv.totalAmount < 0 ? '-' : ''}{Math.abs(Number(inv.totalAmount)).toLocaleString()}
                                         </div>

@@ -566,12 +566,11 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         );
 
         // S-01: Audit Log Injection for Traceability
-        await (tx as any).actionLog.create({
+        await tx.actionLog.create({
             data: {
                 action: "POS_SALE_CREATE",
                 details: `Sale #${sale.id.slice(0, 8)}: Total ${totalAmount}, Method: ${data.paymentMethod}`,
                 userId: currentUser.id,
-                referenceId: sale.id,
                 branchId: currentUser.branchId || null
             }
         });

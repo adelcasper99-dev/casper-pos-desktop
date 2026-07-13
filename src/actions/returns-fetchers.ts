@@ -320,7 +320,7 @@ export const issueStoreCredit = secureAction(
       );
 
       // 4. Audit
-      await (tx as any).actionLog.create({
+      await tx.actionLog.create({
         data: {
           action: "STORE_CREDIT_ISSUED",
           details: `Amount: ${amount}, Source: ${sourceId}, Reason: ${reason ?? "Return"}`,

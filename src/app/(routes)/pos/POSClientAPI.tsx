@@ -912,7 +912,7 @@ export default function POSClientAPI({
                                 <button
                                     onClick={() => setIsCheckoutOpen(true)}
                                     disabled={items.length === 0 || isPrinting || !permissions.canCheckout}
-                                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-lg tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none relative"
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg tracking-wide rounded-xl flex items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none relative"
                                 >
                                     <Banknote className="w-5 h-5" />{t('checkout')}
                                     <span className="absolute top-2 right-3 text-[10px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded border border-white/10 font-medium uppercase">ENTER</span>

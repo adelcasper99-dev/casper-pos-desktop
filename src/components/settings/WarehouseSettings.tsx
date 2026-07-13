@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ShoppingCart, Wrench, CheckCircle2, Star, Loader2 } from "lucide-react";
 import { setDefaultWarehouse } from "@/actions/inventory";
 import { toast } from "sonner";
@@ -82,6 +83,8 @@ function WarehouseCard({
 
 export default function WarehouseSettings({ warehouses, currentBranchId }: { warehouses: Warehouse[], currentBranchId?: string }) {
     const [loading, setLoading] = useState<string | null>(null);
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
 
     const handleSetDefault = async (warehouseId: string, type: 'pos' | 'maintenance') => {
         const loadingKey = `${type}-${warehouseId}`;
@@ -90,13 +93,17 @@ export default function WarehouseSettings({ warehouses, currentBranchId }: { war
             const res = await setDefaultWarehouse({ warehouseId, branchId: currentBranchId, type });
             if (res.success) {
                 toast.success(type === 'pos' ? "POS Default Warehouse set" : "Maintenance Default Warehouse set");
+                startTransition(() => {
+                    router.refresh();
+                    setLoading(null);
+                });
             } else {
                 toast.error("Failed to set default warehouse");
+                setLoading(null);
             }
         } catch (error) {
             console.error(error);
             toast.error("An unexpected error occurred");
-        } finally {
             setLoading(null);
         }
     };
