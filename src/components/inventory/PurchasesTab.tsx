@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getPurchase, getPurchaseInvoices } from "@/actions/inventory";
 import { voidPurchase } from "@/actions/purchase-actions";

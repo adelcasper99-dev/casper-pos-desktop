@@ -1436,6 +1436,7 @@ export function PurchaseDataGrid({
                                 .join(" - ")
                                 .trim();
                         }
+                    }
 
                     merged.subTotal = computeSubTotal(merged.quantity, merged.unitPrice);
                     return merged;
