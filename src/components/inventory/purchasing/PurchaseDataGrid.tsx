@@ -1971,9 +1971,11 @@ export function PurchaseDataGrid({
                                      onEdit={handleEditCategory}
                                      onDelete={handleDeleteCategory}
                                      onChange={async (val: string, name: string) => {
+                                         if (row.isNew && !row.itemCode) {
                                              await handleAutoSku(rowIdx, { categoryId: val, categoryName: name, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined, _tempCatName: name } as any);
                                          } else {
                                              updateRow(rowIdx, { categoryId: val, categoryName: name, modelId: "", modelName: undefined, attributeId: "", attributeName: undefined, _tempCatName: name } as any);
+                                         }
                                          setTimeout(() => focusInput(rowIdx, "modelId"), 50);
                                      }}
                                      onQuickCreate={(name) => {
