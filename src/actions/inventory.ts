@@ -1624,93 +1624,122 @@ export const adjustStock = secureAction(async (data: {
     reason: string;
     csrfToken?: string;
 }) => {
-    await prisma.$transaction(async (tx) => {
-        // 1. Get Old Quantity & Branch Info
-        const warehouse = await tx.warehouse.findUnique({
-            where: { id: data.warehouseId },
-            select: { branchId: true }
-        });
-        if (!warehouse) throw new Error("Warehouse not found");
+    let attempts = 0;
+    while (attempts < 3) {
+        try {
+            await prisma.$transaction(async (tx) => {
+                // 1. Get Old Quantity & Branch Info
+                const warehouse = await tx.warehouse.findUnique({
+                    where: { id: data.warehouseId },
+                    select: { branchId: true }
+                });
+                if (!warehouse) throw new Error("Warehouse not found");
 
-        const currentStock = await tx.stock.findUnique({
-            where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } },
-            select: { quantity: true }
-        });
-        const oldQty = toDecimal(currentStock?.quantity || 0);
-        const newQty = toDecimal(data.newQuantity);
-        const delta = newQty.minus(oldQty);
+                const currentStock = await tx.stock.findUnique({
+                    where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } },
+                    select: { quantity: true, version: true }
+                });
+                const oldQty = toDecimal(currentStock?.quantity || 0);
+                const currentVersion = currentStock?.version || 1;
+                const newQty = toDecimal(data.newQuantity);
+                const delta = newQty.minus(oldQty);
 
-        if (delta.isZero()) return; // No change
+                if (delta.isZero()) return; // No change
 
-        // 2. Set Warehouse Stock (One Source of Truth)
-        await tx.stock.upsert({
-            where: { productId_warehouseId: { productId: data.productId, warehouseId: data.warehouseId } },
-            update: { quantity: newQty },
-            create: { productId: data.productId, warehouseId: data.warehouseId, quantity: newQty }
-        });
+                // 2. Set Warehouse Stock (One Source of Truth) with OCC
+                if (currentStock) {
+                    const result = await tx.stock.updateMany({
+                        where: {
+                            productId: data.productId,
+                            warehouseId: data.warehouseId,
+                            version: currentVersion
+                        },
+                        data: { quantity: newQty, version: currentVersion + 1 }
+                    });
+                    if (result.count === 0) {
+                        throw new Error('P2025_OCC_CONFLICT');
+                    }
+                } else {
+                    await tx.stock.create({
+                        data: { productId: data.productId, warehouseId: data.warehouseId, quantity: newQty, version: 1 }
+                    });
+                }
 
-        // 3. Log Movement (Technical Ledger)
-        await tx.stockMovement.create({
-            data: {
-                type: 'ADJUSTMENT',
-                productId: data.productId,
-                fromWarehouseId: data.warehouseId,
-                quantity: delta.abs(),
-                reason: `${data.reason} (Count: ${oldQty} -> ${newQty})`,
-                branchId: warehouse.branchId || null
-            } as any
-        });
+                // 3. Log Movement (Technical Ledger)
+                await tx.stockMovement.create({
+                    data: {
+                        type: 'ADJUSTMENT',
+                        productId: data.productId,
+                        fromWarehouseId: data.warehouseId,
+                        quantity: delta.abs(),
+                        reason: `${data.reason} (Count: ${oldQty} -> ${newQty})`,
+                        branchId: warehouse.branchId || null
+                    } as any
+                });
 
-        // 4. Create AuditLog (Administrative Audit Trail - I-03)
-        const currentUser = await getCurrentUser();
-        await tx.auditLog.create({
-            data: {
-                action: 'MANUAL_STOCK_ADJUSTMENT',
-                entityType: 'PRODUCT',
-                entityId: data.productId,
-                user: currentUser?.username || 'system',
-                branchId: warehouse.branchId || null,
-                reason: `Manual stock adjustment for product ${data.productId} in warehouse ${data.warehouseId}. Qty: ${oldQty} -> ${newQty}. Reason: ${data.reason}`,
+                // 4. Create AuditLog (Administrative Audit Trail - I-03)
+                const currentUser = await getCurrentUser();
+                await tx.auditLog.create({
+                    data: {
+                        action: 'MANUAL_STOCK_ADJUSTMENT',
+                        entityType: 'PRODUCT',
+                        entityId: data.productId,
+                        user: currentUser?.username || 'system',
+                        branchId: warehouse.branchId || null,
+                        reason: `Manual stock adjustment for product ${data.productId} in warehouse ${data.warehouseId}. Qty: ${oldQty} -> ${newQty}. Reason: ${data.reason}`,
+                    }
+                });
+
+                // 4. Recalculate Global Product Stock & Record GL (B31)
+                const product = await tx.product.findUnique({
+                    where: { id: data.productId },
+                    select: { costPrice: true }
+                });
+                const costPrice = toDecimal(product?.costPrice || 0);
+                const totalValueDelta = delta.mul(costPrice);
+
+                if (totalValueDelta.lt(0)) {
+                    // Shrinkage (Loss)
+                    await AccountingEngine.recordWastage({
+                        wastageId: data.productId,
+                        amount: totalValueDelta.abs(),
+                        description: `Stock Shrinkage Adjustment: ${data.reason}`,
+                        branchId: warehouse.branchId
+                    }, tx);
+                } else if (totalValueDelta.gt(0)) {
+                    // Surplus (Gain)
+                    await AccountingEngine.recordStockGain({
+                        productId: data.productId,
+                        amount: totalValueDelta,
+                        description: `Stock Surplus Adjustment: ${data.reason}`,
+                        branchId: warehouse.branchId
+                    }, tx);
+                }
+
+                const aggregation = await tx.stock.aggregate({
+                    where: { productId: data.productId },
+                    _sum: { quantity: true }
+                });
+                const trueTotal = Number(aggregation._sum.quantity) || 0;
+
+                await tx.product.update({
+                    where: { id: data.productId },
+                    data: { stock: trueTotal }
+                });
+            });
+            break; // Success, exit retry loop
+        } catch (error: any) {
+            if (error.message === 'P2025_OCC_CONFLICT' || error.code === 'P2025') {
+                attempts++;
+                if (attempts >= 3) {
+                    throw new Error("Concurrent modification detected. Please try again.");
+                }
+                await new Promise(res => setTimeout(res, Math.pow(2, attempts) * 50));
+            } else {
+                throw error;
             }
-        });
-
-        // 4. Recalculate Global Product Stock & Record GL (B31)
-        const product = await tx.product.findUnique({
-            where: { id: data.productId },
-            select: { costPrice: true }
-        });
-        const costPrice = toDecimal(product?.costPrice || 0);
-        const totalValueDelta = delta.mul(costPrice);
-
-        if (totalValueDelta.lt(0)) {
-            // Shrinkage (Loss)
-            await AccountingEngine.recordWastage({
-                wastageId: data.productId,
-                amount: totalValueDelta.abs(),
-                description: `Stock Shrinkage Adjustment: ${data.reason}`,
-                branchId: warehouse.branchId
-            }, tx);
-        } else if (totalValueDelta.gt(0)) {
-            // Surplus (Gain)
-            await AccountingEngine.recordStockGain({
-                productId: data.productId,
-                amount: totalValueDelta,
-                description: `Stock Surplus Adjustment: ${data.reason}`,
-                branchId: warehouse.branchId
-            }, tx);
         }
-
-        const aggregation = await tx.stock.aggregate({
-            where: { productId: data.productId },
-            _sum: { quantity: true }
-        });
-        const trueTotal = Number(aggregation._sum.quantity) || 0;
-
-        await tx.product.update({
-            where: { id: data.productId },
-            data: { stock: trueTotal }
-        });
-    });
+    }
 
     revalidatePath("/inventory", 'page');
     revalidatePath("/pos", 'page');

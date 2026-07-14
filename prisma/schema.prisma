@@ -366,6 +366,8 @@ model Product {
   stockRequestItems StockRequestItem[]
   wastages          StockWastage[]
   ticketParts       TicketPart[]
+
+  @@index([deletedAt])
 }
 
 model BundleItem {
@@ -385,6 +387,7 @@ model Stock {
   productId   String
   warehouseId String
   quantity    Decimal   @default(0.00)
+  version     Int       @default(1)
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   product     Product   @relation(fields: [productId], references: [id])
 

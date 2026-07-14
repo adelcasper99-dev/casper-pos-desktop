@@ -2513,7 +2513,9 @@ export const processTicketPayment = secureAction(async (data: {
                     description: `Ticket #${ticket.barcode} ${paymentType}`,
                     reference: ticket.id,
                     ticketId: ticket.id,
-                    branchId: currentUser.branchId ?? undefined
+                    branchId: currentUser.branchId ?? undefined,
+                    shiftId: currentShift.id,
+                    isSync: false
                 }, tx);
             }
         } else if (paymentMethod === 'ACCOUNT' && !effectiveAmount.isZero()) {
@@ -2524,7 +2526,9 @@ export const processTicketPayment = secureAction(async (data: {
                 description: `Ticket #${ticket.barcode} Account Deferred`,
                 reference: ticket.id,
                 ticketId: ticket.id,
-                branchId: currentUser.branchId ?? undefined
+                branchId: currentUser.branchId ?? undefined,
+                shiftId: currentShift.id,
+                isSync: false
             }, tx);
         }
 

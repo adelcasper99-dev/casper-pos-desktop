@@ -276,3 +276,19 @@ This document serves as the "Source of Truth" for critical architectural decisio
 ### 🛡️ [NEW] Permission Mapping & Migration Consistency
 *   **Standard Role Seeding**: When adding new permissions (e.g., `PARTNERS_VIEW`, `PARTNERS_MANAGE`, `PARTNERS_TRANSACTIONS`), they must be added to default seed configurations in `src/actions/roles.ts`.
 *   **Database Backfill**: Adding default roles in code only affects *new* installations. For existing databases, a migration/patch script (e.g., `scripts/patch-partner-permissions.ts`) must be created and executed to query and append the new permission keys to active users/roles.
+
+---
+
+## 🛡️ 14. Offline Sync Concurrency & Architecture Hardening
+
+### 🛡️ [NEW] SQLite WAL Starvation Protection
+*   **Rule**: Prisma SQLite connections MUST append `busy_timeout=10000` to prevent immediate `P2004` (Database is locked) crashes during concurrent Next.js API and Sync Engine background operations.
+
+### 🛡️ [NEW] Sync Shift Guards & Orphan Protection
+*   **Rule**: `AccountingEngine` mutations (like `recordMaintenancePayment`) must require `shiftId` and `isSync` flags.
+*   **Protocol**: Live POS transactions throw a hard error if no shift is open. Background sync requests gracefully warn and bypass if a shift is missing, preventing sync queue stalling.
+
+### 🛡️ [NEW] Inventory Optimistic Concurrency Control (OCC)
+*   **Rule**: Manual stock adjustments during active sales MUST use OCC to prevent "last-write-wins" race conditions.
+*   **Protocol**: Add `version` to `Stock` model. Updates must include `where: { version: currentVersion }` and `data: { version: currentVersion + 1 }`.
+*   **Resilience**: Wrap OCC updates in an exponential backoff retry loop (catching `P2025` errors, max 3 attempts) to survive concurrent stock conflicts invisibly to the user.

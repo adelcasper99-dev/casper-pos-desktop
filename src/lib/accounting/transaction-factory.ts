@@ -289,12 +289,21 @@ export class AccountingEngine {
         reference: string;
         ticketId: string;
         branchId?: string;
+        shiftId?: string;
+        isSync?: boolean;
     }, tx?: any) {
-        const { amount, method, description, reference, ticketId, branchId } = data;
+        const { amount, method, description, reference, ticketId, branchId, shiftId, isSync } = data;
+        
+        // B18 Fix: Sync Safety Guard
+        if (!isSync && !shiftId) {
+            throw new Error('ShiftClosedError: You must open a shift first to record this payment.');
+        } else if (isSync && !shiftId) {
+            console.warn(`[Sync Safety] Processing synced payment without an active shift. Ticket: ${ticketId}`);
+        }
+        
         const absAmount = new Decimal(amount).abs();
         const assetAccount = PAYMENT_METHOD_GL_MAP[method];
         if (!assetAccount) throw new Error(`GL Account not mapped for maintenance payment: ${method}`);
-
         return this.recordTransaction({
             description: `Service Payment: ${description}`,
             reference,

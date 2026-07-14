@@ -12,7 +12,12 @@ function getDynamicDbUrl() {
     }
 
     // Default to the local SQLite database
-    const fallbackUrl = process.env.DATABASE_URL || 'file:./local.db';
+    let fallbackUrl = process.env.DATABASE_URL || 'file:./local.db';
+    
+    // Append busy_timeout for SQLite WAL mode concurrency
+    if (fallbackUrl.startsWith('file:') && !fallbackUrl.includes('busy_timeout')) {
+        fallbackUrl += fallbackUrl.includes('?') ? '&busy_timeout=10000' : '?busy_timeout=10000';
+    }
     
     if (process.env.NODE_ENV === 'development') {
         console.log(`[PRISMA DEBUG] DB URL resolved to: ${fallbackUrl}`);
