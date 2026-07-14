@@ -651,13 +651,17 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
 
     productFields.name = finalProductName;
 
+    const oldStock = oldProduct ? new Decimal(oldProduct.stock.toString()) : new Decimal(0);
+    const newStock = new Decimal(effectiveStock);
+    const diff = newStock.minus(oldStock);
+
     await prisma.$transaction(async (tx) => {
         // Update core product fields
         await (tx.product.update as any)({
             where: { id },
             data: {
                 ...productFields,
-                stock: effectiveStock,
+                stock: !effectiveTrackStock ? effectiveStock : undefined,
                 trackStock: effectiveTrackStock,
                 isBundle: isBundle ?? false,
                 unitOfMeasureId: unitOfMeasureId || null,
@@ -665,6 +669,53 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
                 attributeId: validated.attributeId || null,
             }
         });
+
+        // Handle stock update atomically and log StockMovement
+        if (!isBundle && effectiveTrackStock && !diff.isZero()) {
+            if (diff.lt(0)) {
+                // Enforce boundary check: stock must be >= |diff|
+                try {
+                    await tx.product.update({
+                        where: {
+                            id,
+                            stock: { gte: diff.negated() }
+                        },
+                        data: {
+                            stock: { decrement: diff.negated() }
+                        }
+                    });
+                } catch (error: any) {
+                    if (error.code === 'P2025') {
+                        throw new Error("فشل تحديث المخزون: الكمية الحالية غير كافية لإجراء هذا الخصم (قد تكون هناك مبيعات تمت بالتزامن). يرجى التحديث والمحاولة مجدداً.");
+                    }
+                    throw error;
+                }
+            } else if (diff.gt(0)) {
+                await tx.product.update({
+                    where: { id },
+                    data: {
+                        stock: { increment: diff }
+                    }
+                });
+            }
+
+            let defaultWarehouse = await tx.warehouse.findFirst({ where: { isDefault: true } });
+            if (!defaultWarehouse) {
+                defaultWarehouse = await tx.warehouse.findFirst();
+            }
+
+            await tx.stockMovement.create({
+                data: {
+                    type: 'ADJUSTMENT',
+                    productId: id,
+                    toWarehouseId: diff.gt(0) ? defaultWarehouse?.id : null,
+                    fromWarehouseId: diff.lt(0) ? defaultWarehouse?.id : null,
+                    quantity: diff.abs(),
+                    reason: `تعديل مخزون يدوي (المخزون السابق: ${oldStock.toFixed(2)}، الجديد: ${newStock.toFixed(2)})`,
+                    branchId: defaultWarehouse?.branchId || null
+                } as any
+            });
+        }
 
         // Replace bundle items atomically (delete old, insert new)
         if (isBundle) {
@@ -2237,16 +2288,7 @@ export const reportWastage = secureAction(async (data: {
         // V-06 audit fix: handle required reportedBy for super-admin virtual ID
         let reportedBy: string = user.id;
         if (reportedBy === 'super-admin') {
-            const fallback = await tx.user.findFirst({ where: { isGlobalAdmin: true } }) || await tx.user.findFirst();
-            if (fallback) {
-                reportedBy = fallback.id;
-            } else {
-                // If no users exist yet (fresh install), we might need a dummy user or allow it to fail, 
-                // but usually there's at least one admin. 
-                // Alternatively, we could create a system user. 
-                // For now, let's keep it as is or throw a better error.
-                throw new Error("Cannot report wastage as super-admin: No real users exist in the database for attribution.");
-            }
+            reportedBy = 'SYSTEM_USER';
         }
 
         // 3. Create wastage record

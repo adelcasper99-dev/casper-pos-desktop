@@ -48,8 +48,13 @@ export async function POST(request: NextRequest) {
             branchId,
             shiftId,
             userId, 
-            createdAt
+            createdAt,
+            isTimeSuspicious
         } = body;
+
+        // Bounded client time check to guarantee temporal integrity
+        const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
+        const timeCheck = getBoundedTimestamp(createdAt, isTimeSuspicious);
 
         // ── Idempotency Guard ──────────────────────────────────────────────────
         if (idempotencyKey || id) {
@@ -120,7 +125,8 @@ export async function POST(request: NextRequest) {
                     repairPrice: dPrice.toString(),
                     shiftId: shiftId || null,
                     idempotencyKey: idempotencyKey ?? undefined,
-                    createdAt: createdAt ? new Date(createdAt) : undefined,
+                    isTimeSuspicious: timeCheck.isTimeSuspicious,
+                    createdAt: timeCheck.createdAt,
                 }
             });
 

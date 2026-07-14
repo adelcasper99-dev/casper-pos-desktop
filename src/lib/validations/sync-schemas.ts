@@ -75,6 +75,7 @@ export const OfflineReturnSchema = z.object({
         z.string().datetime(),
         z.number().int().positive(),
     ]).optional().transform(v => v !== undefined ? new Date(v).toISOString() : undefined),
+    isTimeSuspicious: z.boolean().default(false),
 });
 
 export type OfflineSaleInput = z.infer<typeof OfflineSaleSchema>;

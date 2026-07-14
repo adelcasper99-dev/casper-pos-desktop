@@ -14,8 +14,12 @@ export async function POST(request: NextRequest) {
             categoryId,
             idempotencyKey,
             isTimeSuspicious,
-            createdAt // 🆕 Extract original timestamp
+            createdAt
         } = body;
+
+        // Bounded client time check to guarantee temporal integrity
+        const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
+        const timeCheck = getBoundedTimestamp(createdAt, isTimeSuspicious);
 
         if (idempotencyKey) {
             const existing = await prisma.transaction.findUnique({
@@ -39,11 +43,11 @@ export async function POST(request: NextRequest) {
                 description,
                 paymentMethod,
                 treasuryId,
-                shiftId,
+                shiftId: shiftId ?? 'SYSTEM_SHIFT',
                 categoryId,
                 idempotencyKey,
-                isTimeSuspicious: isTimeSuspicious || false,
-                createdAt: createdAt ? new Date(createdAt) : undefined // 🆕 Use original time
+                isTimeSuspicious: timeCheck.isTimeSuspicious,
+                createdAt: timeCheck.createdAt
             }
         });
 

@@ -532,13 +532,13 @@ model Sale {
   subTotal           Decimal        @default(0.00)
   discountAmount     Decimal        @default(0.00)
   createdAt          DateTime       @default(now())
-  shiftId            String?
+  shiftId            String
   warrantyDays       Int?
   warrantyExpiryDate DateTime?
   customerId         String?
   tableId            String?
   tableName          String?
-  userId             String?
+  userId             String
   syncStatus         String         @default("PENDING")
   offlineFlag        Boolean        @default(false)
   idempotencyKey     String?        @unique
@@ -551,10 +551,10 @@ model Sale {
   isTimeSuspicious   Boolean        @default(false)
   journalEntries     JournalEntry[]
   customer           Customer?      @relation(fields: [customerId], references: [id])
-  shift              Shift?         @relation("ShiftSales", fields: [shiftId], references: [id])
+  shift              Shift          @relation("ShiftSales", fields: [shiftId], references: [id])
   warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
   branch             Branch?        @relation(fields: [branchId], references: [id])
-  user               User?          @relation("SaleOwner", fields: [userId], references: [id])
+  user               User           @relation("SaleOwner", fields: [userId], references: [id])
   items              SaleItem[]
   payments           SalePayment[]
 
@@ -691,7 +691,7 @@ model Transaction {
   deletedReason        String?
   isTransfer           Boolean       @default(false)
   relatedTransactionId String?
-  shiftId              String?
+  shiftId              String
   treasuryId           String?
   expenseId            String?
   referenceId          String?
@@ -702,7 +702,7 @@ model Transaction {
   idempotencyKey       String?       @unique
   category             CashCategory? @relation(fields: [categoryId], references: [id])
   expense              Expense?      @relation(fields: [expenseId], references: [id])
-  shift                Shift?        @relation(fields: [shiftId], references: [id])
+  shift                Shift         @relation(fields: [shiftId], references: [id])
   treasury             Treasury?     @relation(fields: [treasuryId], references: [id])
   journalEntry         JournalEntry?
 

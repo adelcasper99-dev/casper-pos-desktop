@@ -42,77 +42,88 @@ export class SyncService {
 
     private static pullFailureCount = 0;
     private static lastPullAttempt = 0;
+    private static isSyncing = false;
 
     // ⚡ SPEED: Sync all pending data
     static async syncAll() {
-        const ctx = await this.getCloudContext();
-        
-        // 🛡️ GUARD: Validation
-        if (!ctx.enabled || !ctx.cloudUrl) {
-            logger.error('[Sync:All] Cloud sync is disabled or Cloud URL is missing. Sync aborted.');
-            return { success: false, error: 'Cloud Sync Disabled' };
-        }
-        if (!ctx.secret) {
-            logger.error('[Sync:All] Sync Secret is missing. Sync aborted.');
-            return { success: false, error: 'No Sync Secret' };
+        if (this.isSyncing) {
+            logger.warn('[Sync:All] Sync is already in progress. Bypassing parallel sync attempt.');
+            return { success: false, error: 'Sync Already In Progress' };
         }
 
-        // 📥 PHASE 1: Pull Master Data Delta
-        const now = Date.now();
-        const backoffDelay = Math.min(this.pullFailureCount * 60000, 300000);
+        this.isSyncing = true;
+        try {
+            const ctx = await this.getCloudContext();
+            
+            // 🛡️ GUARD: Validation
+            if (!ctx.enabled || !ctx.cloudUrl) {
+                logger.error('[Sync:All] Cloud sync is disabled or Cloud URL is missing. Sync aborted.');
+                return { success: false, error: 'Cloud Sync Disabled' };
+            }
+            if (!ctx.secret) {
+                logger.error('[Sync:All] Sync Secret is missing. Sync aborted.');
+                return { success: false, error: 'No Sync Secret' };
+            }
 
-        if (now - this.lastPullAttempt > backoffDelay) {
-            this.lastPullAttempt = now;
-            try {
-                const pullResult = await this.pullMasterData();
-                if (pullResult.success) {
-                    this.pullFailureCount = 0;
+            // 📥 PHASE 1: Pull Master Data Delta
+            const now = Date.now();
+            const backoffDelay = Math.min(this.pullFailureCount * 60000, 300000);
+
+            if (now - this.lastPullAttempt > backoffDelay) {
+                this.lastPullAttempt = now;
+                try {
+                    const pullResult = await this.pullMasterData();
+                    if (pullResult.success) {
+                        this.pullFailureCount = 0;
+                    } else {
+                        this.pullFailureCount++;
+                        logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}): ${pullResult.error}`);
+                    }
+                } catch (error) {
+                    logger.error('[Sync:Pull] Fatal error in master data pull', error);
+                }
+            }
+
+            // 📤 PHASE 2: Push Local Changes
+            const modules = [
+                { name: 'Sales', sync: () => this.syncSales() },
+                { name: 'Tickets', sync: () => this.syncTickets() },
+                { name: 'Treasury', sync: () => this.syncTreasuryTransactions() },
+                { name: 'Inventory', sync: () => this.syncInventoryMovements() },
+                { name: 'Returns', sync: () => this.syncReturns() }
+            ];
+
+            const results = await Promise.allSettled(modules.map(m => m.sync()));
+
+            let totalFailed = 0;
+            let anyCriticalError = false;
+
+            results.forEach((r, i) => {
+                const moduleName = modules[i].name;
+                if (r.status === 'rejected') {
+                    logger.error(`[Sync:Push] ${moduleName} REJECTED critically`, r.reason);
+                    anyCriticalError = true;
                 } else {
-                    this.pullFailureCount++;
-                    logger.warn(`[Sync:Pull] Master data pull failed (${this.pullFailureCount}): ${pullResult.error}`);
+                    const res = r.value as any;
+                    const failed = res.failed || 0;
+                    if (failed > 0) {
+                        logger.warn(`[Sync:Push] ${moduleName} finished with ${failed} item failures.`);
+                        totalFailed += failed;
+                    }
                 }
-            } catch (error) {
-                logger.error('[Sync:Pull] Fatal error in master data pull', error);
+            });
+
+            if (totalFailed > 0 || anyCriticalError) {
+                logger.error(`[Sync:Push] Sync cycle failed. Critical:${anyCriticalError} ItemFailures:${totalFailed}`);
             }
+
+            return {
+                success: !anyCriticalError && totalFailed === 0,
+                failures: results.filter(r => r.status === 'rejected')
+            };
+        } finally {
+            this.isSyncing = false;
         }
-
-        // 📤 PHASE 2: Push Local Changes
-        const modules = [
-            { name: 'Sales', sync: () => this.syncSales() },
-            { name: 'Tickets', sync: () => this.syncTickets() },
-            { name: 'Treasury', sync: () => this.syncTreasuryTransactions() },
-            { name: 'Inventory', sync: () => this.syncInventoryMovements() },
-            { name: 'Returns', sync: () => this.syncReturns() }
-        ];
-
-        const results = await Promise.allSettled(modules.map(m => m.sync()));
-
-        let totalFailed = 0;
-        let anyCriticalError = false;
-
-        results.forEach((r, i) => {
-            const moduleName = modules[i].name;
-            if (r.status === 'rejected') {
-                logger.error(`[Sync:Push] ${moduleName} REJECTED critically`, r.reason);
-                anyCriticalError = true;
-            } else {
-                const res = r.value as any;
-                const failed = res.failed || 0;
-                if (failed > 0) {
-                    logger.warn(`[Sync:Push] ${moduleName} finished with ${failed} item failures.`);
-                    totalFailed += failed;
-                }
-            }
-        });
-
-        if (totalFailed > 0 || anyCriticalError) {
-            logger.error(`[Sync:Push] Sync cycle failed. Critical:${anyCriticalError} ItemFailures:${totalFailed}`);
-        }
-
-        return {
-            success: !anyCriticalError && totalFailed === 0,
-            failures: results.filter(r => r.status === 'rejected')
-        };
     }
 
     // 📥 NEW: Pull delta master data from cloud

@@ -15,8 +15,12 @@ export async function POST(request: NextRequest) {
             reason,
             performedById,
             branchId,
-            createdAt, // 🆕 Extract original timestamp
+            createdAt,
         } = body;
+
+        // Bounded client time check to guarantee temporal integrity
+        const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
+        const timeCheck = getBoundedTimestamp(createdAt);
 
         if (!type || !productId || !quantity) {
             return NextResponse.json(
@@ -54,8 +58,8 @@ export async function POST(request: NextRequest) {
                     reason: reason ?? `Offline sync (key: ${idempotencyKey ?? 'N/A'})`,
                     performedById: performedById ?? undefined,
                     branchId: branchId ?? undefined,
-                    idempotencyKey: idempotencyKey ?? undefined, // 🆕 Save the key
-                    createdAt: createdAt ? new Date(createdAt) : undefined, // 🆕 Use original time
+                    idempotencyKey: idempotencyKey ?? undefined,
+                    createdAt: timeCheck.createdAt,
                 },
             });
 

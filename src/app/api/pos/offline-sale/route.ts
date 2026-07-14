@@ -48,6 +48,10 @@ export async function POST(request: NextRequest) {
             items,
         } = body;
 
+        // Bounded client time check to guarantee temporal integrity
+        const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
+        const timeCheck = getBoundedTimestamp(createdAt, isTimeSuspicious);
+
         // ── Idempotency Guard ──────────────────────────────────────────────────
         const lookupKey = idempotencyKey || id;
         if (lookupKey) {
@@ -85,6 +89,13 @@ export async function POST(request: NextRequest) {
         }
         const finalLedgerCustomerId = validCustomerId || validSupplierId;
 
+        // 🛡️ USER ID RESOLUTION
+        let finalUserId = 'SYSTEM_USER';
+        if (shiftId) {
+            const shift = await prisma.shift.findUnique({ where: { id: shiftId }, select: { userId: true } });
+            if (shift) finalUserId = shift.userId;
+        }
+
         // ── Atomic Sale Creation & Ledger ──────────────────────────────────────
         const sale = await prisma.$transaction(async (tx) => {
             const newSale = await tx.sale.create({
@@ -100,16 +111,17 @@ export async function POST(request: NextRequest) {
                     subTotal: dSubtotal.toString(),
                     discountAmount: dDiscount.toString(),
                     discountPercentage: discountPercentage,
-                    shiftId,
+                    shiftId: shiftId ?? 'SYSTEM_SHIFT',
                     customerId: validCustomerId,
                     relatedSupplierId: validSupplierId,
+                    userId: finalUserId,
                     branchId,
                     status: 'COMPLETED',
                     syncStatus: 'SYNCED',
                     offlineFlag: true,
-                    isTimeSuspicious: isTimeSuspicious || false,
+                    isTimeSuspicious: timeCheck.isTimeSuspicious,
                     idempotencyKey: idempotencyKey ?? undefined,
-                    createdAt: createdAt ? new Date(createdAt) : undefined,
+                    createdAt: timeCheck.createdAt,
                     items: {
                         create: items.map((item: any) => ({
                             productId: item.productId,

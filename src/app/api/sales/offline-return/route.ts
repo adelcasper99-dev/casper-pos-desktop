@@ -36,8 +36,13 @@ export async function POST(request: NextRequest) {
             warehouseId,
             shiftId,
             branchId,
-            createdAt
+            createdAt,
+            isTimeSuspicious
         } = body;
+
+        // Bounded client time check to guarantee temporal integrity
+        const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
+        const timeCheck = getBoundedTimestamp(createdAt, isTimeSuspicious);
 
         // ── Idempotency Guard ──────────────────────────────────────────────────
         if (idempotencyKey || id) {
@@ -59,7 +64,7 @@ export async function POST(request: NextRequest) {
 
         const originalSale = await prisma.sale.findUnique({
             where: { id: originalSaleId },
-            select: { warehouseId: true, shiftId: true, customerId: true, branchId: true, taxAmount: true, totalAmount: true },
+            select: { warehouseId: true, shiftId: true, customerId: true, branchId: true, taxAmount: true, totalAmount: true, userId: true },
         });
 
         if (!originalSale) {
@@ -84,12 +89,14 @@ export async function POST(request: NextRequest) {
                     refundReason: reason,
                     isReturn: true,
                     parentId: originalSaleId,
-                    shiftId: shiftId ?? originalSale.shiftId ?? undefined,
+                    shiftId: shiftId ?? originalSale.shiftId ?? 'SYSTEM_SHIFT',
+                    userId: originalSale.userId ?? 'SYSTEM_USER',
                     customerId: originalSale.customerId ?? undefined,
                     syncStatus: 'SYNCED',
                     offlineFlag: true,
+                    isTimeSuspicious: timeCheck.isTimeSuspicious,
                     idempotencyKey: idempotencyKey ?? undefined,
-                    createdAt: createdAt ? new Date(createdAt) : undefined,
+                    createdAt: timeCheck.createdAt,
                     items: {
                         create: items.map((item: any) => ({
                             productId: item.productId,
