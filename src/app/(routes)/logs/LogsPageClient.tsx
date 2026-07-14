@@ -104,7 +104,7 @@ export default function LogsPageClient({ sales, purchases, csrfToken }: LogsPage
                                 <ArrowDownLeft className="w-6 h-6 text-rose-500" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">مطبقي للموردين</span>
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">متبقي للموردين</span>
                                 <div className="flex items-baseline gap-1">
                                     <span className="text-2xl font-black text-rose-600 dark:text-rose-400">
                                         {purchaseTotals.remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}

@@ -758,9 +758,9 @@ export default function PurchasesTab({
                 csrfToken={csrfToken}
             />
 
-            {selectedDetailsInvoice && (
-                <Dialog open={!!selectedDetailsInvoice} onOpenChange={() => setSelectedDetailsInvoice(null)}>
-                    <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <Dialog open={!!selectedDetailsInvoice} onOpenChange={(open) => { if (!open) setSelectedDetailsInvoice(null) }}>
+                <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+                    {selectedDetailsInvoice && (
                         <div className="p-8 space-y-6">
                             <DialogHeader className="pb-4 border-b border-border">
                                 <DialogTitle className="flex items-center justify-between">
@@ -904,9 +904,9 @@ export default function PurchasesTab({
                                 )}
                             </div>
                         </div>
-                    </DialogContent>
-                </Dialog>
-            )}
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {showBarcodePrint && barcodeItems.length > 0 && (
                 <BarcodePrintDialog
