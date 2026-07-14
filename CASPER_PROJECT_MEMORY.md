@@ -123,6 +123,13 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Rule**: When voiding or updating invoices, stock reversals MUST NOT rely on the guaranteed existence of a per-warehouse `Stock` record.
 *   **Technique**: Use `tx.stock.updateMany({ where: { productId, warehouseId }, data: { quantity: { decrement: ... } } })`. This prevents transaction aborts (P2025) if a stock record was missing due to historical corruption or incomplete imports, maintaining financial integrity in the main transaction.
 
+### 🛡️ [NEW] Strict Schema Fallbacks for Offline Sync
+*   **Rule**: When making relational fields (like `userId` or `shiftId`) mandatory in the Prisma schema, all offline sync controllers MUST implement deterministic fallbacks (e.g., `SYSTEM_USER` or `SYSTEM_SHIFT`) for legacy or malformed payloads.
+*   **Protocol**: 
+    -   Do not rely on the client POS `IndexedDB` payload to perfectly match new mandatory schema constraints if the client was offline during the backend update.
+    -   If a sync payload is missing a newly required field (e.g., `userId` in `offline-sale`), the server must dynamically resolve it (e.g., via `shiftId` lookup) or assign it to a fallback system account.
+    -   This ensures that ancient cached records don't crash the Prisma client and stall the entire sync queue.
+
 ### 🛡️ [NEW] Unified Status Convention (Purchases)
 *   **Status Mapping**: 
     -   `'CANCELLED'`: The canonical status for a voided/deleted purchase invoice (goods never received or transaction rolled back).
