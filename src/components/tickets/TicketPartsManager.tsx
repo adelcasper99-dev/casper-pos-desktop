@@ -118,7 +118,7 @@ export default function TicketPartsManager({
     const [selectedProductId, setSelectedProductId] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-    const [quantity, setQuantity] = useState(1);
+    const [quantity, setQuantity] = useState<number | string>(1);
     const [selectedPriceTier, setSelectedPriceTier] = useState<"A" | "B" | "C" | "CUSTOM">("A");
     const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1" | "CUSTOM">("COST");
 
