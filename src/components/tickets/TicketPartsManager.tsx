@@ -25,6 +25,13 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 import { 
     addTicketPart, 
@@ -576,16 +583,24 @@ export default function TicketPartsManager({
                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                         <Label className="text-xs font-black text-zinc-500 mr-2">المخزن المراد النقل منه</Label>
-                                        <select 
-                                            value={sourceWarehouseId}
-                                            onChange={(e) => setSourceWarehouseId(e.target.value)}
-                                            className="w-full bg-muted/50 border-input text-foreground h-12 rounded-xl px-4 text-sm font-bold focus:border-emerald-500 transition-all outline-none"
+                                        <Select 
+                                            value={sourceWarehouseId} 
+                                            onValueChange={setSourceWarehouseId}
                                         >
-                                            <option value="MAIN">المخزن الرئيسي (الافتراضي للصيانة)</option>
-                                            {warehouses.map(wh => (
-                                                <option key={wh.id} value={wh.id}>{wh.name}</option>
-                                            ))}
-                                        </select>
+                                            <SelectTrigger className="w-full bg-muted/50 border-input text-foreground h-12 rounded-xl px-4 text-sm font-bold focus:border-emerald-500 transition-all">
+                                                <SelectValue placeholder="اختر المخزن" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-background/95 backdrop-blur-md border-border">
+                                                <SelectItem value="MAIN" className="font-bold text-sm">
+                                                    المخزن الرئيسي (الافتراضي للصيانة)
+                                                </SelectItem>
+                                                {warehouses.map(wh => (
+                                                    <SelectItem key={wh.id} value={wh.id} className="font-bold text-sm">
+                                                        {wh.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-xs font-black text-zinc-500 mr-2">ابحث عن منتج في المخزن المحدد</Label>
