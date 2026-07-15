@@ -172,6 +172,10 @@ export const createExpense = secureAction(async (data: z.infer<typeof CreateExpe
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
     const currentShift = shiftResult.shift;
 
+    if (!currentShift || currentShift.status !== 'OPEN') {
+        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
         // 1. Create the expense record
         const expense = await tx.expense.create({
@@ -180,7 +184,7 @@ export const createExpense = secureAction(async (data: z.infer<typeof CreateExpe
                 amount: new Decimal(validated.amount),
                 category: validated.category,
                 paymentMethod: validated.paymentMethod || 'CASH',
-                shiftId: currentShift?.id || null, // Link to shift if active
+                shiftId: currentShift.id, // Link to shift
                 branchId: currentUser.branchId ?? null
             }
         });
@@ -193,7 +197,8 @@ export const createExpense = secureAction(async (data: z.infer<typeof CreateExpe
                 paymentMethod: validated.paymentMethod || 'CASH',
                 description: `Expense: ${validated.description}`,
                 treasuryId: validated.treasuryId || null,
-                expenseId: expense.id
+                expenseId: expense.id,
+                shiftId: currentShift.id // Link to shift
             }
         });
 
@@ -380,17 +385,24 @@ export const closeShift = async (...args: Parameters<typeof closeShiftAction>) =
 
 // Add transaction to treasury
 export const addTransaction = secureAction(async (type: string, amount: number, description: string, method: string, treasuryId?: string) => {
+    const { getCurrentUser } = await import('./auth');
+    const user = await getCurrentUser();
+
     // 🆕 If no treasuryId provided, try to find default for current user's branch
     let finalTreasuryId = treasuryId;
-    if (!finalTreasuryId) {
-        const { getCurrentUser } = await import('./auth');
-        const user = await getCurrentUser();
-        if (user?.branchId) {
-            const defaultTreasury = await prisma.treasury.findFirst({
-                where: { branchId: user.branchId, isDefault: true }
-            });
-            if (defaultTreasury) finalTreasuryId = defaultTreasury.id;
-        }
+    if (!finalTreasuryId && user?.branchId) {
+        const defaultTreasury = await prisma.treasury.findFirst({
+            where: { branchId: user.branchId, isDefault: true }
+        });
+        if (defaultTreasury) finalTreasuryId = defaultTreasury.id;
+    }
+
+    const { getCurrentShiftInternal } = await import('./shift-management-actions');
+    const shiftResult = user ? await getCurrentShiftInternal({ userId: user.id }) : null;
+    const currentShift = shiftResult?.shift;
+
+    if (user && (!currentShift || currentShift.status !== 'OPEN')) {
+        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
     }
 
     await prisma.$transaction(async (tx) => {
@@ -400,7 +412,8 @@ export const addTransaction = secureAction(async (type: string, amount: number, 
                 amount: new Decimal(amount),
                 description,
                 paymentMethod: method,
-                treasuryId: finalTreasuryId
+                treasuryId: finalTreasuryId,
+                shiftId: currentShift?.id || 'SYSTEM_SHIFT' // ponytail: fallback system shift if no active shift
             }
         });
 

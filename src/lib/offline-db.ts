@@ -105,6 +105,8 @@ export interface OfflineSale {
     isTimeSuspicious?: boolean;
     customerId?: string;
     isSupplier?: boolean;
+    shiftId?: string;
+    userId?: string;
 }
 
 export interface OfflineTreasuryTransaction {

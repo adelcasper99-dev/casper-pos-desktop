@@ -125,7 +125,6 @@ export async function POST(request: NextRequest) {
                     repairPrice: dPrice.toString(),
                     shiftId: shiftId || null,
                     idempotencyKey: idempotencyKey ?? undefined,
-                    isTimeSuspicious: timeCheck.isTimeSuspicious,
                     createdAt: timeCheck.createdAt,
                 }
             });

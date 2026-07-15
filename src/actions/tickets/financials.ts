@@ -19,6 +19,12 @@ export const processTicketPayment = secureAction(async (data: {
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
+    const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
+    const currentShift = shiftResult.shift;
+    if (!currentShift || currentShift.status !== 'OPEN') {
+        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
         const ticket = await tx.ticket.findUnique({
             where: { id: data.ticketId },
@@ -64,7 +70,8 @@ export const processTicketPayment = secureAction(async (data: {
                     amount: new Decimal(data.amount),
                     paymentMethod: data.paymentMethod,
                     description: `Maintenance Payment: Ticket #${ticket.barcode}`,
-                    treasuryId: treasury.id
+                    treasuryId: treasury.id,
+                    shiftId: currentShift.id
                 }
             });
 

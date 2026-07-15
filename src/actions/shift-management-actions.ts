@@ -387,7 +387,8 @@ export const closeShift = secureAction(async (data: {
                     amount: toDecimal(data.safeDropAmount || 0),
                     paymentMethod: 'CASH',
                     description: `Safe Drop from Shift #${shift.id}`,
-                    treasuryId: data.safeDropTreasuryId
+                    treasuryId: data.safeDropTreasuryId,
+                    shiftId: shift.id
                 }
             });
 

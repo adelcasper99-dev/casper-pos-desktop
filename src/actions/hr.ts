@@ -450,6 +450,10 @@ export const payEmployeeSalary = secureAction(async (data: {
         const { logger } = await import('@/lib/logger');
         logger.info(`[HR] Manual Salary Payment: User ${data.userId} paid ${data.amount} via ${data.paymentMethod} (NetDue: ${netDue.toNumber()})`);
 
+        const { getCurrentShiftInternal } = await import('./shift-management-actions');
+        const shiftResult = session?.user?.id ? await getCurrentShiftInternal({ userId: session.user.id }) : null;
+        const currentShift = shiftResult?.shift;
+
         const result = await (prisma as any).$transaction(async (tx: any) => {
             // 1. Create Employee Transaction (Ledger) - with auto journal
             const empTx = await financialRepo.createEmployeeTransaction(tx, {
@@ -514,6 +518,7 @@ export const payEmployeeSalary = secureAction(async (data: {
                         treasuryId: data.treasuryId,
                         referenceId: empTx.id,
                         referenceType: 'SALARY_PAYMENT',
+                        shiftId: currentShift?.id || 'SYSTEM_SHIFT' // ponytail: fallback system shift if no active shift
                     }
                 });
             }

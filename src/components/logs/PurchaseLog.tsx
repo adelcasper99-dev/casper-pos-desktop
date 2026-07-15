@@ -576,9 +576,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
             />
 
             {/* Details Dialog */}
-            {selectedPurchase && (
-                <Dialog open={!!selectedPurchase} onOpenChange={() => setSelectedPurchase(null)}>
-                    <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
+            <Dialog open={!!selectedPurchase} onOpenChange={(open) => { if (!open) setSelectedPurchase(null) }}>
+                <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
+                    {selectedPurchase && (
                         <div className="p-8 space-y-6">
                             <DialogHeader className="pb-4 border-b border-border">
                                 <DialogTitle className="flex items-center justify-between">
@@ -708,9 +708,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                 ))}
                             </div>
                         </div>
-                    </DialogContent>
-                </Dialog>
-            )}
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Barcode Print Dialog */}
             {showBarcodePrint && selectedPurchase && (

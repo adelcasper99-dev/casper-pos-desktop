@@ -31,6 +31,9 @@ import { TrendingUp, TrendingDown, Package, Users, DollarSign, FileText, Activit
 import * as XLSX from "xlsx";
 import CashFlowDashboard from "@/features/reports/ui/CashFlowDashboard";
 import { InventoryReportDetail } from "@/components/reports/InventoryReportDetail";
+import { AgedReceivablesReport } from "@/components/reports/AgedReceivablesReport";
+import { ZReport } from "@/components/reports/ZReport";
+import { SalesAnalysisReport } from "@/components/reports/SalesAnalysisReport";
 
 // ─────────────────────────────────────────────────────────────────────
 // Financial Report Component
@@ -476,9 +479,21 @@ export default function UnifiedReportsPage() {
                         <Landmark className="w-4 h-4 ml-2" />
                         حركة النقدية
                     </TabsTrigger>
+                    <TabsTrigger value="aged_receivables" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-rose-500 data-[state=active]:text-white transition-all duration-300">
+                        <DollarSign className="w-4 h-4 ml-2" />
+                        أعمار الديون
+                    </TabsTrigger>
                     <TabsTrigger value="hr" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-amber-500 data-[state=active]:text-white transition-all duration-300">
                         <Users className="w-4 h-4 ml-2" />
                         الموظفين
+                    </TabsTrigger>
+                    <TabsTrigger value="z_report" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-indigo-500 data-[state=active]:text-white transition-all duration-300">
+                        <FileText className="w-4 h-4 ml-2" />
+                        الورديات
+                    </TabsTrigger>
+                    <TabsTrigger value="sales_analysis" className="flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-rose-500 data-[state=active]:text-white transition-all duration-300">
+                        <BarChart3 className="w-4 h-4 ml-2" />
+                        تحليل المبيعات
                     </TabsTrigger>
                 </TabsList>
 
@@ -503,8 +518,17 @@ export default function UnifiedReportsPage() {
                             <CashFlowDashboard isTab={true} />
                         </div>
                     </TabsContent>
+                    <TabsContent value="aged_receivables" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <AgedReceivablesReport />
+                    </TabsContent>
                     <TabsContent value="hr" className="focus-visible:outline-none data-[state=inactive]:hidden">
                         <HRReport data={hrData} isLoading={isPending} />
+                    </TabsContent>
+                    <TabsContent value="z_report" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <ZReport />
+                    </TabsContent>
+                    <TabsContent value="sales_analysis" className="focus-visible:outline-none data-[state=inactive]:hidden">
+                        <SalesAnalysisReport />
                     </TabsContent>
                 </div>
             </Tabs>

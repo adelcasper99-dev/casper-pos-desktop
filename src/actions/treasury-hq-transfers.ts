@@ -30,6 +30,10 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
     const user = await getCurrentUser();
     const t = await getTranslations('SystemMessages.Errors');
 
+    const { getCurrentShiftInternal } = await import('./shift-management-actions');
+    const shiftResult = user ? await getCurrentShiftInternal({ userId: user.id }) : null;
+    const currentShift = shiftResult?.shift;
+
     if (fromTreasuryId === toTreasuryId) {
         throw new Error(t('sameTreasury'));
     }
@@ -104,7 +108,8 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
                 description: `Transfer to ${toTreasury.branch.name} - ${description}${approverNotes ? ` | Notes: ${approverNotes}` : ''}`,
                 paymentMethod,
                 treasuryId: fromTreasuryId,
-                isTransfer: true
+                isTransfer: true,
+                shiftId: currentShift?.id || 'SYSTEM_SHIFT' // ponytail: fallback system shift if no active shift
             }
         });
 
@@ -117,7 +122,8 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
                 paymentMethod,
                 treasuryId: toTreasuryId,
                 isTransfer: true,
-                relatedTransactionId: outgoingTx.id // Link to outgoing transaction
+                relatedTransactionId: outgoingTx.id, // Link to outgoing transaction
+                shiftId: currentShift?.id || 'SYSTEM_SHIFT' // ponytail: fallback system shift if no active shift
             }
         });
 

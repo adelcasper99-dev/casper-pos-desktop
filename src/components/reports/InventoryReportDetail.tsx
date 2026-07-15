@@ -11,7 +11,7 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
-import { Search, Package, AlertTriangle, Warehouse, Download, Box, ShieldCheck, XCircle, Info } from "lucide-react";
+import { Search, Package, AlertTriangle, Warehouse, Download, Box, ShieldCheck, XCircle, Info, Ghost } from "lucide-react";
 import { CasperLoader } from "@/components/ui/CasperLoader";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
@@ -30,7 +30,8 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
         warehouseId: "all",
         categoryId: "all",
         lowStock: false,
-        showZeroStock: true
+        showZeroStock: true,
+        deadStock: false
     });
 
     // Fetch Filters Data on Mount
@@ -47,7 +48,7 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
     // Fetch Report Data when filters change
     useEffect(() => {
         fetchReport();
-    }, [filters.warehouseId, filters.categoryId, filters.lowStock, filters.showZeroStock]);
+    }, [filters.warehouseId, filters.categoryId, filters.lowStock, filters.showZeroStock, filters.deadStock]);
 
     const fetchReport = () => {
         startTransition(async () => {
@@ -75,7 +76,9 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
         const thresholdNum = customThreshold !== "" ? Number(customThreshold) : null;
         const matchesThreshold = thresholdNum === null || p.quantity <= thresholdNum;
         
-        return matchesSearch && matchesThreshold;
+        const matchesDeadStock = !filters.deadStock || p.isDeadStock;
+        
+        return matchesSearch && matchesThreshold && matchesDeadStock;
     }) || [];
 
     const exportToExcel = () => {
@@ -90,7 +93,8 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
             "سعر البيع": p.unitPrice,
             "القيمة الإجمالية": p.totalValue,
             "نقطة إعادة الطلب": p.reorderPoint,
-            "حالة المخزون": p.isOutOfStock ? "نفد المخزون" : p.isLowStock ? "مخزون منخفض" : "متوفر"
+            "آخر مبيعات": p.lastSoldAt ? format(new Date(p.lastSoldAt), 'yyyy/MM/dd') : 'لم يتم البيع',
+            "حالة المخزون": p.isDeadStock ? "مخزون راكد" : p.isOutOfStock ? "نفد المخزون" : p.isLowStock ? "مخزون منخفض" : "متوفر"
         }));
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -243,6 +247,18 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
                             </div>
                             <span className="text-xs font-bold text-foreground/60 transition-colors group-hover:text-rose-500">عرض العناصر الصفرية</span>
                         </label>
+                        <label className="flex items-center gap-3 cursor-pointer group">
+                            <div className="relative flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.deadStock}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, deadStock: e.target.checked }))}
+                                    className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-border/60 bg-background/40 transition-all checked:bg-purple-500 checked:border-purple-500"
+                                />
+                                <Ghost className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 transition-opacity" />
+                            </div>
+                            <span className="text-xs font-bold text-foreground/60 transition-colors group-hover:text-purple-500">مخزون راكد ({'>'}60 يوم)</span>
+                        </label>
                     </div>
 
                     <div>
@@ -270,7 +286,7 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
                             { label: 'إجمالي الأصناف', value: reportData.summary.totalItems, color: 'text-white', glow: 'shadow-white/5' },
                             { label: 'إجمالي الكمية', value: reportData.summary.totalQuantity.toLocaleString(), color: 'text-cyan-400', glow: 'shadow-cyan-500/10' },
                             { label: 'القيمة الإجمالية', value: formatCurrency(reportData.summary.totalValue), color: 'text-emerald-400', glow: 'shadow-emerald-500/10' },
-                            { label: 'مخزون منخفض', value: reportData.summary.lowStockCount, color: 'text-amber-400', glow: 'shadow-amber-500/10' },
+                            { label: 'مخزون راكد', value: reportData.summary.deadStockCount || 0, color: 'text-purple-400', glow: 'shadow-purple-500/10' },
                             { label: 'نفد المخزون', value: reportData.summary.outOfStockCount, color: 'text-rose-400', glow: 'shadow-rose-500/10' }
                         ].map((item, idx) => (
                             <div key={idx} className={cn(
@@ -308,7 +324,7 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
                                         <th className="text-left py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">تكلفة الوحدة</th>
                                         <th className="text-left py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">سعر البيع</th>
                                         <th className="text-left py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">القيمة الإجمالية</th>
-                                        <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">حد إعادة الطلب</th>
+                                        <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">آخر بيع</th>
                                         <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">حالة المخزون</th>
                                     </tr>
                                 </thead>
@@ -323,9 +339,18 @@ export function InventoryReportDetail({ isTab = false }: { isTab?: boolean }) {
                                                 <td className="py-2 px-6 text-left text-foreground/60 font-mono">{formatCurrency(p.unitCost)}</td>
                                                 <td className="py-2 px-6 text-left text-foreground font-mono">{formatCurrency(p.unitPrice)}</td>
                                                 <td className="py-2 px-6 text-left text-emerald-500 font-black font-mono">{formatCurrency(p.totalValue)}</td>
-                                                <td className="py-2 px-6 text-center text-foreground/40 font-bold font-mono">{p.reorderPoint || 0}</td>
+                                                <td className="py-2 px-6 text-center text-foreground/60 font-bold text-[10px]">
+                                                    {p.lastSoldAt ? format(new Date(p.lastSoldAt), 'yyyy/MM/dd') : 'لم يُباع'}
+                                                    {p.daysSinceLastSale !== null && (
+                                                        <span className={cn("block text-[9px] mt-0.5", p.isDeadStock ? "text-purple-400" : "text-foreground/40")}>
+                                                            (منذ {p.daysSinceLastSale} يوم)
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="py-2 px-6 text-center">
-                                                    {p.isOutOfStock ? (
+                                                    {p.isDeadStock ? (
+                                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20">مخزون راكد</span>
+                                                    ) : p.isOutOfStock ? (
                                                         <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-rose-500/10 text-rose-500 border border-rose-500/20">نفد المخزون</span>
                                                     ) : p.isLowStock ? (
                                                         <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1 w-fit mx-auto">

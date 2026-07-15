@@ -223,6 +223,13 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
         if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
     }
 
+    const { getCurrentShiftInternal } = await import('./shift-management-actions');
+    const shiftResult = user ? await getCurrentShiftInternal({ userId: user.id }) : null;
+    const currentShift = shiftResult?.shift;
+    if (user && (!currentShift || currentShift.status !== 'OPEN')) {
+        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+    }
+
     await prisma.$transaction(async (tx) => {
         // 1. Create Payment Record - with auto journal
         const payment = await financialRepo.createSupplierPayment(tx, {
@@ -251,7 +258,8 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
                 amount: amountDec,
                 description: `Supplier Payment (${method})`,
                 paymentMethod: method,
-                treasuryId: defaultTreasuryId // 🔗 LINKED
+                treasuryId: defaultTreasuryId, // 🔗 LINKED
+                shiftId: currentShift?.id || 'SYSTEM_SHIFT' // Link to shift
             }
         });
 
@@ -361,6 +369,13 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
 
+    const { getCurrentShiftInternal } = await import('./shift-management-actions');
+    const shiftResult = user ? await getCurrentShiftInternal({ userId: user.id }) : null;
+    const currentShift = shiftResult?.shift;
+    if (user && (!currentShift || currentShift.status !== 'OPEN')) {
+        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
         // 1. Fetch the payment
         const payment = await tx.supplierPayment.findUnique({
@@ -423,7 +438,8 @@ export const voidSupplierPayment = secureAction(async (data: { paymentId: string
                     paymentMethod: payment.method,
                     treasuryId: treasuryTx.treasuryId,
                     referenceId: paymentId,
-                    referenceType: 'SUPPLIER_PAYMENT_VOID'
+                    referenceType: 'SUPPLIER_PAYMENT_VOID',
+                    shiftId: currentShift?.id || 'SYSTEM_SHIFT' // Link to shift
                 }
             });
         }
@@ -1007,6 +1023,13 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
     const totalAmountDec = subtotal.plus(deliveryChargeDec);
     const paidAmountDec = new Decimal(header.paidAmount || 0);
 
+    const { getCurrentShiftInternal } = await import('./shift-management-actions');
+    const shiftResult = user ? await getCurrentShiftInternal({ userId: user.id }) : null;
+    const currentShift = shiftResult?.shift;
+    if (paidAmountDec.gt(0) && user && (!currentShift || currentShift.status !== 'OPEN')) {
+        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+    }
+
     let status = "PENDING";
     if (paidAmountDec.gte(totalAmountDec)) status = "PAID";
     else if (paidAmountDec.gt(0)) status = "PARTIAL";
@@ -1215,7 +1238,8 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                             amount: paidAmountDec,
                             description: `Supplier Payment: Invoice #${finalInvoiceNumber}`,
                             paymentMethod: header.paymentMethod || "CASH",
-                            treasuryId: treasury.id
+                            treasuryId: treasury.id,
+                            shiftId: currentShift?.id || 'SYSTEM_SHIFT' // ponytail: fallback system shift if no active shift
                         }
                     });
 
@@ -1351,6 +1375,10 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
 
     const { getCurrentUser } = await import('./auth');
     const user = await getCurrentUser();
+
+    const { getCurrentShiftInternal } = await import('./shift-management-actions');
+    const shiftResult = user ? await getCurrentShiftInternal({ userId: user.id }) : null;
+    const currentShift = shiftResult?.shift;
 
     const skusToCheck = items.filter(i => !i.productId && i.sku).map(i => i.sku as string);
     const existingProducts = skusToCheck.length > 0
@@ -1520,13 +1548,17 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                     treasury = await tx.treasury.findFirst({ where: { branchId: user.branchId, isDefault: true }, select: { id: true } });
                 }
                 if (treasury) {
+                    if (user && (!currentShift || currentShift.status !== 'OPEN')) {
+                        throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+                    }
                     await tx.transaction.create({
                         data: {
                             type: 'OUT',
                             amount: diffAmountDec,
                             description: `Supplier Payment: Update Invoice #${header.invoiceNumber || id}`,
                             paymentMethod: header.paymentMethod || "CASH",
-                            treasuryId: treasury.id
+                            treasuryId: treasury.id,
+                            shiftId: currentShift?.id || 'SYSTEM_SHIFT'
                         }
                     });
                     await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: diffAmountDec } } });

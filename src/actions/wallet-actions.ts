@@ -73,6 +73,9 @@ export const processWalletTransaction = secureAction(async (data: {
             where: { userId: user.id, status: 'OPEN' },
             orderBy: { openedAt: 'desc' }
         });
+        if (!shift) {
+            throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
+        }
 
         // 🟢 DIGITAL MOVEMENT
         const digitalUpdate = data.operationType === 'DEPOSIT' 
@@ -91,7 +94,7 @@ export const processWalletTransaction = secureAction(async (data: {
                 description: `E-Wallet ${data.operationType}: ${data.notes || ''} ${data.idempotencyKey ? `[IDEM:${data.idempotencyKey}]` : ''} (Digital Side)`,
                 treasuryId: digitalSafe.id,
                 paymentMethod: digitalSafe.paymentMethod || 'WALLET',
-                shiftId: shift?.id,
+                shiftId: shift.id,
                 referenceType: 'WALLET_TRANSACTION'
             }
         });
@@ -113,7 +116,7 @@ export const processWalletTransaction = secureAction(async (data: {
                 description: `E-Wallet ${data.operationType}: ${data.notes || ''} (Physical Side)`,
                 treasuryId: physicalSafe.id,
                 paymentMethod: physicalSafe.paymentMethod || 'CASH',
-                shiftId: shift?.id,
+                shiftId: shift.id,
                 referenceType: 'WALLET_TRANSACTION'
             }
         });

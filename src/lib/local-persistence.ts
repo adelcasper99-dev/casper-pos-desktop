@@ -38,6 +38,8 @@ export class LocalPersistenceService {
                         warehouseId: sale.warehouseId,
                         syncStatus: 'SYNCED',
                         offlineFlag: true,
+                        shiftId: sale.shiftId || 'SYSTEM_SHIFT', // ponytail: fallback system shift
+                        userId: sale.userId || 'SYSTEM_USER', // ponytail: fallback system user
                         // Items would typically be handled in a transaction or separate model, 
                         // for brevity in this baseline we are focusing on the Sale entity.
                     },

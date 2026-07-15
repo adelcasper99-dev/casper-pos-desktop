@@ -145,6 +145,8 @@ export async function addTreasuryTransaction(
     let creditAccount: string | undefined = undefined; 
     let glCode: string | undefined = undefined;
 
+    let dbCategoryName: string | undefined = undefined;
+
     // 🆕 Use dynamic CashCategory from DB if provided (Highest Priority)
     if (categoryId) {
       const dbCategory = await prisma.cashCategory.findUnique({
@@ -153,6 +155,7 @@ export async function addTreasuryTransaction(
       if (dbCategory) {
         finalType = dbCategory.type; // Match DB type strictly
         glCode = dbCategory.glCode || undefined;
+        dbCategoryName = dbCategory.name;
         // If it's an IN type, set creditAccount for accounting mapping
         if (dbCategory.type === 'IN') {
           creditAccount = dbCategory.glCode || undefined;
@@ -184,6 +187,7 @@ export async function addTreasuryTransaction(
     const decimalAmount = new Decimal(amount);
 
     const currentUser = await getCurrentUser();
+    let finalShiftId = shiftId;
 
     // AC-02: Validate shift status before treasury operations (V-01)
     if (currentUser) {
@@ -194,6 +198,7 @@ export async function addTreasuryTransaction(
       if (!shiftToCheck || shiftToCheck.status !== 'OPEN') {
         return { success: false, error: "يجب فتح وردية أولاً لإجراء هذه الحركة" };
       }
+      finalShiftId = shiftToCheck.id;
     }
 
     await prisma.$transaction(async (tx) => {
@@ -235,11 +240,10 @@ export async function addTreasuryTransaction(
           description, 
           paymentMethod, 
           treasuryId: finalTreasuryId || undefined,
-          shiftId, 
+          shiftId: finalShiftId || 'SYSTEM_SHIFT', 
           categoryId,
           idempotencyKey: idempotencyKey ?? undefined, // 🆕 stored for replay detection
-        },
-        include: { category: true }
+        }
       });
 
       if (finalTreasuryId) {
@@ -275,7 +279,7 @@ export async function addTreasuryTransaction(
       const targetBranchId = resolvedTreasury?.branchId || undefined;
 
       // Determine category Label for JournalEntry
-      const categoryLabel = dbTx.category?.name || (isPositive ? "إيداع" : "مصاريف");
+      const categoryLabel = dbCategoryName || (isPositive ? "إيداع" : "مصاريف");
 
       if (finalType === 'OUT') {
         if (!glCode) throw new Error("GL Code mandatory for withdrawals");
@@ -663,6 +667,7 @@ export async function transferBetweenTreasuries(data: {
           description: desc,
           paymentMethod: method,
           treasuryId: data.fromTreasuryId,
+          shiftId: shiftResult.shift?.id || 'SYSTEM_SHIFT', // ponytail: fallback system shift if no active shift
         },
       });
 
@@ -679,6 +684,7 @@ export async function transferBetweenTreasuries(data: {
           paymentMethod: method,
           treasuryId: data.toTreasuryId,
           relatedTransactionId: sourceTx.id, // Link them at the transaction level
+          shiftId: shiftResult.shift?.id || 'SYSTEM_SHIFT', // ponytail: fallback system shift if no active shift
         },
       });
 

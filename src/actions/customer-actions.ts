@@ -565,7 +565,8 @@ export const recordCustomerPayment = secureAction(async (data: {
                 amount: new Decimal(amount),
                 paymentMethod: paymentMethod,
                 description: `Customer Payment - ${customer.name} (Acct Credit)`,
-                treasuryId: defaultTreasuryId
+                treasuryId: defaultTreasuryId,
+                shiftId: shiftResult.shift?.id || 'SYSTEM_SHIFT'
             }
         });
 

@@ -27,7 +27,7 @@ export async function getInventoryReport(filters: InventoryReportFilters): Promi
             orderBy: { name: 'asc' }
         });
 
-        // Get products with their stocks
+        // Get products with their stocks and latest sale date
         const products = await prisma.product.findMany({
             where: {
                 ...categoryFilter,
@@ -38,6 +38,11 @@ export async function getInventoryReport(filters: InventoryReportFilters): Promi
                 category: true,
                 stocks: {
                     include: { warehouse: true }
+                },
+                saleItems: {
+                    take: 1,
+                    orderBy: { sale: { createdAt: 'desc' } },
+                    select: { sale: { select: { createdAt: true } } }
                 }
             },
             orderBy: { name: 'asc' }
@@ -62,6 +67,12 @@ export async function getInventoryReport(filters: InventoryReportFilters): Promi
                 };
             });
 
+            const lastSoldAt = product.saleItems?.[0]?.sale?.createdAt || null;
+            
+            const daysSinceLastSale = lastSoldAt ? Math.floor((new Date().getTime() - new Date(lastSoldAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+            // Define dead stock as quantity > 0 and no sales for > 60 days
+            const isDeadStock = totalQty > 0 && (daysSinceLastSale === null || daysSinceLastSale > 60);
+
             return {
                 id: product.id,
                 sku: product.sku,
@@ -74,6 +85,9 @@ export async function getInventoryReport(filters: InventoryReportFilters): Promi
                 reorderPoint: Number(product.minStock || 0),
                 isLowStock: totalQty <= Number(product.minStock || 0) && totalQty > 0,
                 isOutOfStock: totalQty === 0,
+                lastSoldAt,
+                daysSinceLastSale,
+                isDeadStock,
                 stockByWarehouse
             };
         });
@@ -93,6 +107,7 @@ export async function getInventoryReport(filters: InventoryReportFilters): Promi
         const totalValue = filteredData.reduce((sum, p) => sum + p.totalValue, 0);
         const lowStockCount = filteredData.filter(p => p.isLowStock).length;
         const outOfStockCount = filteredData.filter(p => p.isOutOfStock).length;
+        const deadStockCount = filteredData.filter(p => p.isDeadStock).length;
 
         // Group by category
         const byCategory = categories.map(cat => {
@@ -115,7 +130,8 @@ export async function getInventoryReport(filters: InventoryReportFilters): Promi
                     totalQuantity,
                     totalValue,
                     lowStockCount,
-                    outOfStockCount
+                    outOfStockCount,
+                    deadStockCount
                 },
                 byCategory,
                 warehouses: warehouses.map(w => ({

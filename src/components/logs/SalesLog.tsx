@@ -621,11 +621,10 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
             />
 
             {/* Details Dialog */}
-            {
-                selectedSale && (
-                    <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
-                        <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
-                            <div className="p-8 space-y-6">
+            <Dialog open={!!selectedSale} onOpenChange={(open) => { if (!open) setSelectedSale(null) }}>
+                <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden">
+                    {selectedSale && (
+                        <div className="p-8 space-y-6">
                                 <DialogHeader className="pb-4 border-b border-border">
                                     <DialogTitle className="flex items-center justify-between">
                                         <span className="text-2xl font-black flex items-center gap-3">
@@ -790,11 +789,10 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                         </Button>
                                     </div>
                                 )}
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-                )
-            }
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Partial Refund Dialog */}
             <PartialRefundDialog
