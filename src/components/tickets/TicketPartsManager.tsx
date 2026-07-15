@@ -111,8 +111,12 @@ export default function TicketPartsManager({
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
     const [quantity, setQuantity] = useState(1);
-    const [selectedPriceTier, setSelectedPriceTier] = useState<"A" | "B" | "C">("A");
-    const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1">("COST");
+    const [selectedPriceTier, setSelectedPriceTier] = useState<"A" | "B" | "C" | "CUSTOM">("A");
+    const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1" | "CUSTOM">("COST");
+
+    // Custom price state
+    const [customSellPrice, setCustomSellPrice] = useState<number | "">("");
+    const [customCostPrice, setCustomCostPrice] = useState<number | "">("");
 
     // Service State
     const [serviceName, setServiceName] = useState("");
@@ -157,8 +161,25 @@ export default function TicketPartsManager({
             
             setIsLoading(true);
             try {
-                const priceValue = transferPriceChoice === 'COST' ? selectedProduct?.costPrice : selectedProduct?.sellPrice;
-                const priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : 'بالسعر 1';
+                let priceValue: number | undefined;
+                if (transferPriceChoice === 'COST') priceValue = Number(selectedProduct?.costPrice);
+                else if (transferPriceChoice === 'SELL_1') priceValue = Number(selectedProduct?.sellPrice);
+                else priceValue = Number(customCostPrice);
+
+                if (transferPriceChoice === 'CUSTOM') {
+                    if (priceValue < Number(selectedProduct?.costPrice)) {
+                        toast.error("لا يمكن إدخال تكلفة أقل من التكلفة الحقيقية");
+                        setIsLoading(false);
+                        return;
+                    }
+                    if (!priceValue || isNaN(priceValue)) {
+                        toast.error("يرجى إدخال التكلفة المخصصة بشكل صحيح");
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                const priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : transferPriceChoice === 'SELL_1' ? 'بالسعر 1' : 'سعر مخصص';
 
                 const res = await transferPartToTechnicianQuick({
                     technicianId, 
@@ -195,13 +216,38 @@ export default function TicketPartsManager({
             if (selectedProduct) {
                 if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
                 else if (selectedPriceTier === 'B') unitPrice = Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice);
-                else unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
+                else if (selectedPriceTier === 'C') unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
+                else unitPrice = Number(customSellPrice);
+
+                if (selectedPriceTier === 'CUSTOM') {
+                    if (unitPrice < Number(selectedProduct.costPrice)) {
+                        toast.error("لا يمكن إدخال سعر بيع أقل من التكلفة الحقيقية");
+                        return;
+                    }
+                    if (!unitPrice || isNaN(unitPrice)) {
+                        toast.error("يرجى إدخال سعر البيع المخصص بشكل صحيح");
+                        return;
+                    }
+                }
             }
 
             // Determine Transfer Price (Cost to Engineer)
             let overrideTransferPrice = 0;
             if (selectedProduct) {
-                overrideTransferPrice = transferPriceChoice === 'COST' ? Number(selectedProduct.costPrice) : Number(selectedProduct.sellPrice);
+                if (transferPriceChoice === 'COST') overrideTransferPrice = Number(selectedProduct.costPrice);
+                else if (transferPriceChoice === 'SELL_1') overrideTransferPrice = Number(selectedProduct.sellPrice);
+                else overrideTransferPrice = Number(customCostPrice);
+
+                if (transferPriceChoice === 'CUSTOM') {
+                    if (overrideTransferPrice < Number(selectedProduct.costPrice)) {
+                        toast.error("لا يمكن إدخال تكلفة نقل أقل من التكلفة الحقيقية");
+                        return;
+                    }
+                    if (!overrideTransferPrice || isNaN(overrideTransferPrice)) {
+                        toast.error("يرجى إدخال تكلفة النقل المخصصة بشكل صحيح");
+                        return;
+                    }
+                }
             }
 
             setIsLoading(true);
@@ -298,6 +344,8 @@ export default function TicketPartsManager({
         setServicePrice(0);
         setSelectedPriceTier("A");
         setTransferPriceChoice("COST");
+        setCustomSellPrice("");
+        setCustomCostPrice("");
     }
 
     return (
@@ -544,20 +592,40 @@ export default function TicketPartsManager({
                                         </div>
                                         <div className="space-y-2">
                                             <Label className="text-xs font-black text-muted-foreground mr-2">تسعير النقل للمهندس</Label>
-                                            <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                            <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
                                                 <button
                                                     onClick={() => setTransferPriceChoice("COST")}
-                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                                 >
-                                                    بسعر التكلفة {selectedProduct ? `(${formatCurrencyCtx(selectedProduct.costPrice)})` : ''}
+                                                    <span className="text-[10px] mb-1 opacity-60">التكلفة</span>
+                                                    {selectedProduct ? `${formatCurrencyCtx(selectedProduct.costPrice)}` : ''}
                                                 </button>
                                                 <button
                                                     onClick={() => setTransferPriceChoice("SELL_1")}
-                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                                 >
-                                                    بالسعر 1 {selectedProduct ? `(${formatCurrencyCtx(selectedProduct.sellPrice)})` : ''}
+                                                    <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
+                                                    {selectedProduct ? `${formatCurrencyCtx(selectedProduct.sellPrice)}` : ''}
+                                                </button>
+                                                <button
+                                                    onClick={() => setTransferPriceChoice("CUSTOM")}
+                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "CUSTOM" ? "bg-purple-500/15 border-purple-500/50 text-purple-600 dark:text-purple-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                                >
+                                                    <span className="text-[10px] mb-1 opacity-60">مخصص</span>
+                                                    إدخال يدوي
                                                 </button>
                                             </div>
+                                            {transferPriceChoice === 'CUSTOM' && (
+                                                <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="أدخل التكلفة المخصصة..."
+                                                        className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
+                                                        value={customCostPrice}
+                                                        onChange={e => setCustomCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -590,11 +658,11 @@ export default function TicketPartsManager({
                             {selectedProduct && (
                                 <div className="space-y-2">
                                     <Label className="text-xs font-black text-muted-foreground mr-2">{t('priceTier')}</Label>
-                                    <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
-                                        {(['A', 'B', 'C'] as const).map((tier) => {
+                                    <div className="grid grid-cols-4 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                        {(['A', 'B', 'C', 'CUSTOM'] as const).map((tier) => {
                                             const price = tier === 'A' ? Number(selectedProduct.sellPrice) :
                                                          tier === 'B' ? Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice) :
-                                                         Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
+                                                         tier === 'C' ? Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice) : 0;
                                             
                                             const isSelected = selectedPriceTier === tier;
 
@@ -605,25 +673,36 @@ export default function TicketPartsManager({
                                                     className={cn(
                                                         "flex flex-col items-center justify-center py-3 rounded-xl border transition-all",
                                                         isSelected 
-                                                            ? "bg-primary/10 border-primary/50 text-primary shadow-sm" 
+                                                            ? (tier === 'CUSTOM' ? "bg-purple-500/10 border-purple-500/50 text-purple-600 shadow-sm" : "bg-primary/10 border-primary/50 text-primary shadow-sm")
                                                             : "bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70"
                                                     )}
                                                 >
                                                     <span className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">
-                                                        {tier === 'A' ? 'S' : tier === 'B' ? 'M' : 'L'} Tier
+                                                        {tier === 'A' ? 'S' : tier === 'B' ? 'M' : tier === 'C' ? 'L' : 'Custom'} Tier
                                                     </span>
-                                                    <span className="text-sm font-black tabular-nums">{formatCurrencyCtx(Number(price))}</span>
+                                                    <span className="text-sm font-black tabular-nums">{tier === 'CUSTOM' ? 'مخصص' : formatCurrencyCtx(Number(price))}</span>
                                                 </button>
                                             );
                                         })}
                                     </div>
+                                    {selectedPriceTier === 'CUSTOM' && (
+                                        <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                                            <Input
+                                                type="number"
+                                                placeholder="أدخل سعر البيع المخصص..."
+                                                className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
+                                                value={customSellPrice}
+                                                onChange={e => setCustomSellPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             {selectedProduct && (
                                 <div className="space-y-2 mt-4 pt-4 border-t border-border/50">
                                     <Label className="text-xs font-black text-muted-foreground mr-2">تكلفة النقل على المهندس (العهدة)</Label>
-                                    <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                    <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
                                         <button
                                             onClick={() => setTransferPriceChoice("COST")}
                                             className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
@@ -638,7 +717,25 @@ export default function TicketPartsManager({
                                             <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
                                             {formatCurrencyCtx(selectedProduct.sellPrice)}
                                         </button>
+                                        <button
+                                            onClick={() => setTransferPriceChoice("CUSTOM")}
+                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "CUSTOM" ? "bg-purple-500/15 border-purple-500/50 text-purple-600 dark:text-purple-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                        >
+                                            <span className="text-[10px] mb-1 opacity-60">مخصص</span>
+                                            إدخال يدوي
+                                        </button>
                                     </div>
+                                    {transferPriceChoice === 'CUSTOM' && (
+                                        <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                                            <Input
+                                                type="number"
+                                                placeholder="أدخل تكلفة النقل المخصصة..."
+                                                className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
+                                                value={customCostPrice}
+                                                onChange={e => setCustomCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
