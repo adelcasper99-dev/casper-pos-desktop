@@ -658,6 +658,7 @@ export default function TicketPartsManager({
                                             {transferPriceChoice === 'CUSTOM' && (
                                                 <div className="mt-2 animate-in fade-in slide-in-from-top-1">
                                                     <Input
+                                                        autoFocus
                                                         type="number"
                                                         placeholder="أدخل التكلفة المخصصة..."
                                                         className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
@@ -728,6 +729,7 @@ export default function TicketPartsManager({
                                     {selectedPriceTier === 'CUSTOM' && (
                                         <div className="mt-2 animate-in fade-in slide-in-from-top-1">
                                             <Input
+                                                autoFocus
                                                 type="number"
                                                 placeholder="أدخل سعر البيع المخصص..."
                                                 className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
@@ -768,6 +770,7 @@ export default function TicketPartsManager({
                                     {transferPriceChoice === 'CUSTOM' && (
                                         <div className="mt-2 animate-in fade-in slide-in-from-top-1">
                                             <Input
+                                                autoFocus
                                                 type="number"
                                                 placeholder="أدخل تكلفة النقل المخصصة..."
                                                 className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
