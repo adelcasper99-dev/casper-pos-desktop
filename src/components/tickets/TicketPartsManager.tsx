@@ -33,6 +33,7 @@ import {
     refundTicketPart 
 } from "@/actions/ticket-actions";
 import { transferPartToTechnicianQuick } from "@/actions/technician-custody-actions";
+import { getWarehouses } from "@/actions/inventory";
 
 // Types
 interface ProductData {
@@ -127,6 +128,9 @@ export default function TicketPartsManager({
     const [showDamagedConfirm, setShowDamagedConfirm] = useState(false);
     const [lossPercent, setLossPercent] = useState(70);
 
+    const [warehouses, setWarehouses] = useState<{id: string, name: string}[]>([]);
+    const [sourceWarehouseId, setSourceWarehouseId] = useState("MAIN");
+
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedSearchQuery(searchQuery);
@@ -138,12 +142,19 @@ export default function TicketPartsManager({
         if (isAddingPart) {
             loadData(debouncedSearchQuery);
         }
-    }, [isAddingPart, usageType, debouncedSearchQuery]);
+    }, [isAddingPart, usageType, debouncedSearchQuery, sourceWarehouseId]);
 
     const loadData = async (query?: string) => {
         setIsLoading(true);
-        // If transfer, load from MAIN maintenance warehouse. Otherwise load from technician's warehouse
-        const targetWhId = usageType === "transfer" ? "MAIN" : (technicianId || undefined);
+        
+        if (usageType === "transfer" && warehouses.length === 0) {
+            const whRes = await getWarehouses();
+            if (whRes.success && whRes.data) {
+                setWarehouses(whRes.data.map((w: any) => ({ id: w.id, name: w.name })));
+            }
+        }
+
+        const targetWhId = usageType === "transfer" ? sourceWarehouseId : (technicianId || undefined);
         const res = await getProductsForSelector({ 
             search: query, 
             warehouseId: targetWhId 
@@ -187,6 +198,7 @@ export default function TicketPartsManager({
                     quantity,
                     transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
                     transferPriceLabel: priceLabel,
+                    sourceWarehouseId,
                     csrfToken: csrfToken ?? undefined
                 });
 
@@ -563,7 +575,20 @@ export default function TicketPartsManager({
                                 </p>
                                 <div className="space-y-4">
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-black text-zinc-500 mr-2">ابحث عن منتج في المخزن الرئيسي</Label>
+                                        <Label className="text-xs font-black text-zinc-500 mr-2">المخزن المراد النقل منه</Label>
+                                        <select 
+                                            value={sourceWarehouseId}
+                                            onChange={(e) => setSourceWarehouseId(e.target.value)}
+                                            className="w-full bg-muted/50 border-input text-foreground h-12 rounded-xl px-4 text-sm font-bold focus:border-emerald-500 transition-all outline-none"
+                                        >
+                                            <option value="MAIN">المخزن الرئيسي (الافتراضي للصيانة)</option>
+                                            {warehouses.map(wh => (
+                                                <option key={wh.id} value={wh.id}>{wh.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-black text-zinc-500 mr-2">ابحث عن منتج في المخزن المحدد</Label>
                                         <SearchableSelect
                                             options={products.map(p => ({
                                                 label: `${p.name} (متوفر: ${p.stock})`,
