@@ -201,6 +201,7 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
     productId: string,
     quantity: number,
     transferPrice?: number,
+    transferPriceLabel?: string,
     sourceWarehouseId?: string,
     csrfToken?: string
 }) => {
