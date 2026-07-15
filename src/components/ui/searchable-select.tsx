@@ -60,10 +60,11 @@ export function SearchableSelect({
             // Find option by value to get correct label
             const match = normalizedOptions.find(o => o.value === value || o.label === value);
             setQuery(match ? match.label : value);
-        } else {
+        } else if (!query) {
+            // Only clear if query is already empty to avoid wiping user typing
             setQuery("");
         }
-    }, [value, options]); // Re-run if options change (important for async loading)
+    }, [value]); // DO NOT depend on options, otherwise async loading wipes user input!
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {

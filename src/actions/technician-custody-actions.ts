@@ -202,9 +202,10 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
     quantity: number,
     transferPrice?: number,
     transferPriceLabel?: string,
+    sourceWarehouseId?: string,
     csrfToken?: string
 }) => {
-    const { technicianId, productId, quantity, transferPrice, transferPriceLabel } = data;
+    const { technicianId, productId, quantity, transferPrice, transferPriceLabel, sourceWarehouseId } = data;
 
     if (quantity <= 0) throw new Error("Quantity must be greater than zero");
 
@@ -219,14 +220,15 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
 
     const destWarehouseId = tech.warehouseId;
 
-    // 2. Get Main Maintenance Warehouse
-    const mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
-    
-    if (!mainWh) throw new Error("Main maintenance warehouse not found. Please set a maintenance default.");
+    // 2. Determine Source Warehouse
+    let actualSourceWarehouseId = sourceWarehouseId;
+    if (!actualSourceWarehouseId || actualSourceWarehouseId === 'MAIN') {
+        const mainWh = await prisma.warehouse.findFirst({ where: { isMaintenanceDefault: true } });
+        if (!mainWh) throw new Error("Main maintenance warehouse not found. Please set a maintenance default.");
+        actualSourceWarehouseId = mainWh.id;
+    }
 
-    const sourceWarehouseId = mainWh.id;
-
-    if (destWarehouseId === sourceWarehouseId) {
+    if (destWarehouseId === actualSourceWarehouseId) {
         throw new Error("Cannot transfer to the same warehouse");
     }
 
@@ -235,12 +237,12 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
         // Check source stock
         const srcStock = await tx.stock.findUnique({
             where: {
-                productId_warehouseId: { productId, warehouseId: sourceWarehouseId }
+                productId_warehouseId: { productId, warehouseId: actualSourceWarehouseId }
             }
         });
 
         if (!srcStock || Number(srcStock.quantity) < quantity) {
-            throw new Error(`Insufficient stock in main warehouse. Available: ${srcStock?.quantity || 0}`);
+            throw new Error(`Insufficient stock in selected warehouse. Available: ${srcStock?.quantity || 0}`);
         }
 
         // Deduct from source
@@ -263,15 +265,17 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
         });
 
         // Record stock movement
+        const actualWhData = await tx.warehouse.findUnique({ where: { id: actualSourceWarehouseId }, select: { branchId: true } });
+        
         await tx.stockMovement.create({
             data: {
                 type: 'TRANSFER',
                 productId,
-                fromWarehouseId: sourceWarehouseId,
+                fromWarehouseId: actualSourceWarehouseId,
                 toWarehouseId: destWarehouseId,
                 quantity,
                 reason: `Direct transfer to technician ${tech.name} from ticket manager${transferPriceLabel ? ` [${transferPriceLabel}: ${transferPrice}]` : ''}`,
-                branchId: mainWh.branchId || null
+                branchId: actualWhData?.branchId || null
             } as any
         });
     });
