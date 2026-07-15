@@ -286,5 +286,12 @@
   "284": "setup-plan.ps1",
   "285": "WHATSAPP_TEMPLATES",
   "286": "WHATSAPP_TEMPLATES",
-  "287": "vitest.config.ts"
+  "287": "vitest.config.ts",
+  "288": "inline-journal-helpers.ts",
+  "289": "supplier-payment-helper.ts",
+  "290": "sync-service.ts",
+  "291": "treasury-hq-transfers.ts",
+  "292": "🔄 9. Formalized Workflows",
+  "293": "PurchaseLog.tsx",
+  "294": "SalesLog.tsx"
 }

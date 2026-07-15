@@ -690,8 +690,8 @@
     "semantic_hash": ""
   },
   "src/actions/reports/inventory.ts": {
-    "mtime": 1774479635.2930272,
-    "ast_hash": "e636e1cbaf2f8a34c9cc71a593d9488e",
+    "mtime": 1784086212.5658698,
+    "ast_hash": "5077a32dc934aa3a221a9e219b10fa06",
     "semantic_hash": ""
   },
   "src/actions/reports/maintenance.ts": {
@@ -935,8 +935,8 @@
     "semantic_hash": ""
   },
   "src/app/(routes)/reports/page.tsx": {
-    "mtime": 1783951495.4156892,
-    "ast_hash": "04dc1a12c2c699cccabdcd50797f504a",
+    "mtime": 1784086892.8413591,
+    "ast_hash": "7fe95ea6e018fcc5579cc02acfac8aa2",
     "semantic_hash": ""
   },
   "src/app/(routes)/reports/profit-loss/page.tsx": {
@@ -3355,8 +3355,8 @@
     "semantic_hash": ""
   },
   "src/components/reports/InventoryReportDetail.tsx": {
-    "mtime": 1783951722.572541,
-    "ast_hash": "3088c14529386e15d91e68cc0668f590",
+    "mtime": 1784087090.4793618,
+    "ast_hash": "caabb3145760fcfb633010102a272ed5",
     "semantic_hash": ""
   },
   "src/components/reports/MaintenanceProfitReport.tsx": {
@@ -3382,6 +3382,36 @@
   "docs/solutions/database-issues/offline-sync-concurrency-fixes.md": {
     "mtime": 1784053936.03089,
     "ast_hash": "8a59ca2703e285864de05e1d7197aa4c",
+    "semantic_hash": ""
+  },
+  "src/actions/reports/aged-receivables.ts": {
+    "mtime": 1784086728.5956464,
+    "ast_hash": "18d7c6f95b6aebfcb1582c05f82e399b",
+    "semantic_hash": ""
+  },
+  "src/actions/reports/sales-analysis.ts": {
+    "mtime": 1784086977.325836,
+    "ast_hash": "2d9c07f8557aac8a1cf7a897e6910a8b",
+    "semantic_hash": ""
+  },
+  "src/actions/reports/z-report.ts": {
+    "mtime": 1784086803.7719808,
+    "ast_hash": "bd8483dacc40124233b4cb2a0923a3b0",
+    "semantic_hash": ""
+  },
+  "src/components/reports/AgedReceivablesReport.tsx": {
+    "mtime": 1784087070.2083423,
+    "ast_hash": "e9832ee7ec3b1f00f1e9f728c45f3e6d",
+    "semantic_hash": ""
+  },
+  "src/components/reports/SalesAnalysisReport.tsx": {
+    "mtime": 1784087083.2418675,
+    "ast_hash": "7f3a5dbf8f22e3f9407a40c97a389ce9",
+    "semantic_hash": ""
+  },
+  "src/components/reports/ZReport.tsx": {
+    "mtime": 1784087076.5643373,
+    "ast_hash": "9161df340a5e69952717114f1d62785d",
     "semantic_hash": ""
   }
 }
