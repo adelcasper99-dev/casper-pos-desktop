@@ -123,12 +123,12 @@ export default function TicketPartsManager({
     const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1" | "CUSTOM">("COST");
 
     // Custom price state
-    const [customSellPrice, setCustomSellPrice] = useState<number | "">("");
-    const [customCostPrice, setCustomCostPrice] = useState<number | "">("");
+    const [customSellPrice, setCustomSellPrice] = useState<string>("");
+    const [customCostPrice, setCustomCostPrice] = useState<string>("");
 
     // Service State
     const [serviceName, setServiceName] = useState("");
-    const [servicePrice, setServicePrice] = useState(0);
+    const [servicePrice, setServicePrice] = useState<number | string>(0);
 
     const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -202,7 +202,7 @@ export default function TicketPartsManager({
                 const res = await transferPartToTechnicianQuick({
                     technicianId, 
                     productId: selectedProductId, 
-                    quantity,
+                    quantity: Number(quantity),
                     transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
                     transferPriceLabel: priceLabel,
                     sourceWarehouseId,
@@ -225,7 +225,7 @@ export default function TicketPartsManager({
         }
 
         if (usageType === "part") {
-            if (!selectedProductId || quantity <= 0) {
+            if (!selectedProductId || Number(quantity) <= 0) {
                 toast.error("يرجى اختيار المنتج والكمية");
                 return;
             }
@@ -273,7 +273,7 @@ export default function TicketPartsManager({
             const res = await addTicketPart({
                 ticketId,
                 productId: selectedProductId,
-                quantity,
+                quantity: Number(quantity),
                 price: unitPrice,
                 transferPriceOverride: overrideTransferPrice,
                 csrfToken: csrfToken ?? undefined
@@ -292,7 +292,7 @@ export default function TicketPartsManager({
 
         } else {
             // Service Adding
-            if (!serviceName.trim() || servicePrice < 0) {
+            if (!serviceName.trim() || Number(servicePrice) < 0) {
                 toast.error("يرجى إدخال اسم الخدمة والسعر");
                 return;
             }
@@ -302,7 +302,7 @@ export default function TicketPartsManager({
                 ticketId,
                 name: serviceName,
                 quantity: 1,
-                price: servicePrice,
+                price: Number(servicePrice),
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -662,7 +662,7 @@ export default function TicketPartsManager({
                                                         placeholder="أدخل التكلفة المخصصة..."
                                                         className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
                                                         value={customCostPrice}
-                                                        onChange={e => setCustomCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                                        onChange={e => setCustomCostPrice(e.target.value)}
                                                     />
                                                 </div>
                                             )}
@@ -732,7 +732,7 @@ export default function TicketPartsManager({
                                                 placeholder="أدخل سعر البيع المخصص..."
                                                 className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
                                                 value={customSellPrice}
-                                                onChange={e => setCustomSellPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                                onChange={e => setCustomSellPrice(e.target.value)}
                                             />
                                         </div>
                                     )}
@@ -772,7 +772,7 @@ export default function TicketPartsManager({
                                                 placeholder="أدخل تكلفة النقل المخصصة..."
                                                 className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
                                                 value={customCostPrice}
-                                                onChange={e => setCustomCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                                onChange={e => setCustomCostPrice(e.target.value)}
                                             />
                                         </div>
                                     )}
@@ -786,7 +786,7 @@ export default function TicketPartsManager({
                                     min={1}
                                     className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                     value={quantity}
-                                    onChange={e => setQuantity(Number(e.target.value))}
+                                    onChange={e => setQuantity(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -807,7 +807,7 @@ export default function TicketPartsManager({
                                     type="number"
                                     className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                     value={servicePrice}
-                                    onChange={e => setServicePrice(Number(e.target.value))}
+                                    onChange={e => setServicePrice(e.target.value)}
                                 />
                             </div>
                         </div>
