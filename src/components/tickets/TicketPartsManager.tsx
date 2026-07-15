@@ -142,8 +142,8 @@ export default function TicketPartsManager({
 
     const loadData = async (query?: string) => {
         setIsLoading(true);
-        // If transfer, load global, otherwise prioritizing technician's warehouse
-        const targetWhId = usageType === "transfer" ? undefined : (technicianId || undefined);
+        // If transfer, load from MAIN maintenance warehouse. Otherwise load from technician's warehouse
+        const targetWhId = usageType === "transfer" ? "MAIN" : (technicianId || undefined);
         const res = await getProductsForSelector({ 
             search: query, 
             warehouseId: targetWhId 
