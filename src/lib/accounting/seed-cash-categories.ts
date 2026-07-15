@@ -33,29 +33,33 @@ const DEFAULT_CASH_CATEGORIES = [
 export async function seedCashCategories() {
     console.log('Seeding default cash categories...');
 
-    for (const cat of DEFAULT_CASH_CATEGORIES) {
-        try {
-            const exists = await prisma.cashCategory.findFirst({
-                where: { name: cat.name }
-            });
+    try {
+        const existing = await prisma.cashCategory.findMany({
+            select: { name: true }
+        });
+        const existingNames = new Set(existing.map((c: any) => c.name));
+        const missing = DEFAULT_CASH_CATEGORIES.filter(cat => !existingNames.has(cat.name));
 
-            if (!exists) {
-                await prisma.cashCategory.create({
-                    data: {
-                        name: cat.name,
-                        type: cat.type,
-                        isSystem: cat.isSystem,
-                        glCode: cat.glCode,
-                        isActive: true
-                    }
-                });
-                console.log(`[SEED] Created CashCategory: ${cat.name} (${cat.type})`);
-            } else {
-                console.log(`[SEED] CashCategory "${cat.name}" already exists`);
-            }
-        } catch (error) {
-            console.error(`[SEED ERROR] Failed for category ${cat.name}:`, error);
+        if (missing.length === 0) {
+            console.log('[SEED] All cash categories already exist.');
+            return;
         }
+
+        console.log(`[SEED] Found ${missing.length} missing cash categories. Seeding...`);
+        for (const cat of missing) {
+            await prisma.cashCategory.create({
+                data: {
+                    name: cat.name,
+                    type: cat.type,
+                    isSystem: cat.isSystem,
+                    glCode: cat.glCode,
+                    isActive: true
+                }
+            });
+            console.log(`[SEED] Created CashCategory: ${cat.name} (${cat.type})`);
+        }
+        console.log('[SEED] Finished cash categories check.');
+    } catch (error) {
+        console.error('[SEED ERROR] Failed cash categories check:', error);
     }
-    console.log('[SEED] Finished cash categories check.');
 }

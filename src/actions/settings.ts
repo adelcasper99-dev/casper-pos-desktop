@@ -107,11 +107,17 @@ export const updateStoreSettings = secureAction(async (data: any) => {
 
     let featuresString = validated.features;
 
-    // Merge logic for whatsappTemplates into features JSON
-    if (validated.whatsappTemplates !== undefined || validated.whatsappEnabled !== undefined) {
+    // Merge logic for whatsappTemplates and other feature flags into features JSON
+    if (validated.whatsappTemplates !== undefined || validated.whatsappEnabled !== undefined || validated.features !== undefined) {
         const currentFeatures = JSON.parse(currentSettings?.features || '{}');
+        let incomingFeatures = {};
+        if (validated.features) {
+            try { incomingFeatures = JSON.parse(validated.features); } catch (e) {}
+        }
+        
         featuresString = JSON.stringify({
             ...currentFeatures,
+            ...incomingFeatures,
             whatsappTemplates: validated.whatsappTemplates ?? currentFeatures.whatsappTemplates,
             whatsappEnabled: validated.whatsappEnabled ?? currentFeatures.whatsappEnabled
         });

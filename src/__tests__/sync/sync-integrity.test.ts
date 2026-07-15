@@ -4,6 +4,11 @@ import { POST as syncSale } from '@/app/api/pos/offline-sale/route';
 import { resetTestDB } from './setup';
 import { NextRequest } from 'next/server';
 
+const BRANCH_ID = '11111111-1111-4111-8111-111111111111';
+const WAREHOUSE_ID = '22222222-2222-4222-8222-222222222222';
+const PRODUCT_ID = '33333333-3333-4333-8333-333333333333';
+const CATEGORY_ID = 'cat-1';
+
 describe('Sync Engine: Idempotency & Temporal Integrity', () => {
     
     beforeEach(async () => {
@@ -11,11 +16,37 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
         
         // Setup minimal data (Branch, etc)
         await prisma.branch.create({
-            data: { id: 'branch-1', name: 'Main Branch', code: 'BR-1' }
+            data: { id: BRANCH_ID, name: 'Main Branch', code: 'BR-1' }
         });
 
         await prisma.warehouse.create({
-            data: { id: 'WH-1', name: 'Main Warehouse', branchId: 'branch-1' }
+            data: { id: WAREHOUSE_ID, name: 'Main Warehouse', branchId: BRANCH_ID }
+        });
+
+        // Seed GL Accounts required for double-entry bookkeeping validation
+        await prisma.account.deleteMany();
+        await prisma.account.createMany({
+            data: [
+                { code: '4000', name: 'Sales Revenue', type: 'REVENUE' },
+                { code: '1000', name: 'Cash Treasury', type: 'ASSET' }
+            ]
+        });
+
+        // Seed Product and Category
+        await prisma.category.create({
+            data: { id: CATEGORY_ID, name: 'Test Category' }
+        });
+
+        await prisma.product.create({
+            data: {
+                id: PRODUCT_ID,
+                sku: 'test-sku',
+                name: 'Test Product',
+                costPrice: 50,
+                sellPrice: 100,
+                categoryId: CATEGORY_ID,
+                trackStock: false
+            }
         });
     });
 
@@ -30,9 +61,18 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
             customerName: 'Chaos User',
             totalAmount: 100,
             paymentMethod: 'CASH',
-            branchId: 'branch-1',
-            warehouseId: 'WH-1',
-            items: []
+            branchId: BRANCH_ID,
+            warehouseId: WAREHOUSE_ID,
+            taxAmount: 0,
+            discountAmount: 0,
+            discountPercentage: 0,
+            items: [
+                {
+                    productId: PRODUCT_ID,
+                    quantity: 1,
+                    unitPrice: 100
+                }
+            ]
         };
 
         const executeRequest = () => {
@@ -79,10 +119,19 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
             customerName: 'Time Traveler',
             totalAmount: 200,
             paymentMethod: 'CASH',
-            branchId: 'branch-1',
-            warehouseId: 'WH-1',
+            branchId: BRANCH_ID,
+            warehouseId: WAREHOUSE_ID,
             createdAt: backdatedTime.toISOString(),
-            items: []
+            taxAmount: 0,
+            discountAmount: 0,
+            discountPercentage: 0,
+            items: [
+                {
+                    productId: PRODUCT_ID,
+                    quantity: 2,
+                    unitPrice: 100
+                }
+            ]
         };
 
         const req = new NextRequest('http://localhost/api/pos/offline-sale', {

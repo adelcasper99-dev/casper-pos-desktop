@@ -55,6 +55,11 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
     const printContentRef = useRef<HTMLDivElement>(null)
     const [previewMode, setPreviewMode] = useState<'receipt' | 'label' | 'engineer'>(defaultMode)
 
+    const registry = printService.getRegistry();
+    const speedPrintEnabled = registry ? registry.enableSpeedPrint !== false : true;
+    const autoPrintEnabled = settings?.autoPrintTicket === true && speedPrintEnabled;
+    const isSilent = silent && speedPrintEnabled;
+
     useEffect(() => {
         if (isOpen) {
             setPreviewMode(defaultMode)
@@ -101,7 +106,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             if (!isOpen) return;
 
             // 🔍 [DIAGNOSTIC] Provide early feedback if requested but stalling
-            if (silent) {
+            if (isSilent) {
                 console.log("[AutoPrint] Sequence initiated (silent mode)");
                 toast.info("Preparing and checking printers...", {
                     id: "preparing-print",
@@ -111,7 +116,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
 
             // 🛡️ Wait for both ticket and settings to be ready
             if (!ticket || !settings) {
-                if (silent) {
+                if (isSilent) {
                     console.log("[AutoPrint] Waiting for ticket/settings data...", { ticket: !!ticket, settings: !!settings });
                     toast.info("Waiting for data to load...", { id: "autoprint-loading", duration: 1000 });
                 }
@@ -134,14 +139,14 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             const isOnline = isElectron ? true : await printService.isServerOnline();
 
             // 🛡️ Show error if print service is offline (not just QZ)
-            if (!isOnline && (settings?.autoPrintTicket || silent)) {
+            if (!isOnline && (autoPrintEnabled || isSilent)) {
                 toast.error("الطابعة غير متصلة. يرجى تشغيل برنامج الطباعة.", {
                     id: "printer-offline-warning"
                 });
                 return;
             }
 
-            if ((settings?.autoPrintTicket || silent) && isOnline) {
+            if ((autoPrintEnabled || isSilent) && isOnline) {
                 const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);
 
                 if (!hasAutoPrintedSession) {
@@ -164,7 +169,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                                             localStorage.getItem('printer_label') || 
                                             localStorage.getItem('printer_barcode');
 
-                        if (!receiptPrinter && !silent) {
+                        if (!receiptPrinter && !isSilent) {
                             toast.error("No receipt printer configured. Please set one in settings.");
                         }
 
@@ -215,16 +220,15 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
                         toast.error("Auto-print failed. Please try manually.");
                     }
                 } else {
-                    if (silent) {
+                    if (isSilent) {
                         console.log("[AutoPrint] Skipped: already printed in this session.");
-                        // 🛡️ REMOVED: Redundant toast on every page view
                     }
                 }
             }
         };
 
-        if (isOpen && (settings?.autoPrintTicket || silent)) {
-            if (silent) {
+        if (isOpen && (autoPrintEnabled || isSilent)) {
+            if (isSilent) {
                 // Only show "Starting" if we haven't checked the session guard yet
                 const hasAutoPrintedSession = sessionStorage.getItem(`ticket_autoprint_${ticket?.id}`);
                 if (!hasAutoPrintedSession) {
@@ -245,7 +249,7 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
             isMounted = false; 
             if (timerId) clearTimeout(timerId);
         };
-    }, [isOpen, settings, silent, qzStatus, ticket, ticket?.id, defaultMode, singleDocument]);
+    }, [isOpen, settings, silent, qzStatus, ticket, ticket?.id, defaultMode, singleDocument, speedPrintEnabled, autoPrintEnabled, isSilent]);
 
 
     const handlePrinterChange = (value: string) => {
@@ -527,12 +531,11 @@ export default function TicketPrintOptionsModal({ isOpen, onClose, ticket, setti
     }
 
     // 🚀 Suppress UI only if in silent mode AND we have a printer to actually do the job
-    const registry = printService.getRegistry();
     const hasPrinter = (defaultMode === 'receipt' && (selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer'))) ||
                        (defaultMode === 'label' && (selectedLabelPrinter || registry?.labelPrinter || localStorage.getItem('printer_label'))) ||
                        (defaultMode === 'engineer' && (selectedPrinter || registry?.thermalPrinter || localStorage.getItem('thermal_printer')));
 
-    if (silent && hasPrinter) return null;
+    if (isSilent && hasPrinter) return null;
 
     return (
         <GlassModal

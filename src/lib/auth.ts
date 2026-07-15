@@ -64,13 +64,15 @@ export async function getSession() {
 
     // Fast-path for super-admin backdoor
     if (token.startsWith('super-admin-token-')) {
+        const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+        const mainBranchId = await ensureMainBranch();
         return {
             user: {
                 id: 'super-admin',
                 username: 'a',
                 name: 'Super Admin',
                 role: 'ADMIN',
-                branchId: null,
+                branchId: mainBranchId || null,
                 permissions: ['*'],
                 maxDiscount: 100,
                 maxDiscountAmount: 9999999

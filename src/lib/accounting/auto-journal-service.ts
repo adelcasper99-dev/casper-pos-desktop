@@ -22,12 +22,24 @@ export class AutoJournalService {
    * Helper: Get Account ID from GL code
    */
   private static async getAccountId(tx: any, glCode: string): Promise<string> {
-    const account = await tx.account.findUnique({
+    let account = await tx.account.findUnique({
       where: { code: glCode }
     });
     
     if (!account) {
-      throw new Error(`GL Account ${glCode} not found. Run accounting seed.`);
+      console.warn(`[AutoJournalService] GL Account ${glCode} not found. Attempting self-healing seed...`);
+      try {
+        const { seedAccounts } = await import('./seed-accounts');
+        await seedAccounts(tx);
+        account = await tx.account.findUnique({
+          where: { code: glCode }
+        });
+      } catch (err) {
+        console.error(`[AutoJournalService] Self-healing seed failed for ${glCode}:`, err);
+      }
+      if (!account) {
+        throw new Error(`GL Account ${glCode} not found. Run accounting seed.`);
+      }
     }
     
     return account.id;

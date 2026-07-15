@@ -1,0 +1,18 @@
+{
+  "0": "inventory.ts",
+  "1": "returns-fetchers.ts",
+  "2": "CheckoutModal.tsx",
+  "3": "sales-actions.ts",
+  "4": "prisma.ts",
+  "5": "WarehouseSettings.tsx",
+  "6": "PurchaseLog.tsx",
+  "7": "SupplierHistoryTable.tsx",
+  "8": "page.tsx",
+  "9": "AutoJournalService",
+  "10": "AccountingEngine",
+  "11": "check-gl.js",
+  "12": "CashFlowDashboard.tsx",
+  "13": "getBundleComponents",
+  "14": "db",
+  "15": "PurchaseDataGrid.tsx"
+}
