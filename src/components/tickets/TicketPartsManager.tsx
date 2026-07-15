@@ -250,32 +250,12 @@ export default function TicketPartsManager({
                 }
             }
 
-            // Determine Transfer Price (Cost to Engineer)
-            let overrideTransferPrice = 0;
-            if (selectedProduct) {
-                if (transferPriceChoice === 'COST') overrideTransferPrice = Number(selectedProduct.costPrice);
-                else if (transferPriceChoice === 'SELL_1') overrideTransferPrice = Number(selectedProduct.sellPrice);
-                else overrideTransferPrice = Number(customCostPrice);
-
-                if (transferPriceChoice === 'CUSTOM') {
-                    if (overrideTransferPrice < Number(selectedProduct.costPrice)) {
-                        toast.error("لا يمكن إدخال تكلفة نقل أقل من التكلفة الحقيقية");
-                        return;
-                    }
-                    if (!overrideTransferPrice || isNaN(overrideTransferPrice)) {
-                        toast.error("يرجى إدخال تكلفة النقل المخصصة بشكل صحيح");
-                        return;
-                    }
-                }
-            }
-
             setIsLoading(true);
             const res = await addTicketPart({
                 ticketId,
                 productId: selectedProductId,
                 quantity: Number(quantity),
                 price: unitPrice,
-                transferPriceOverride: overrideTransferPrice,
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -735,47 +715,6 @@ export default function TicketPartsManager({
                                                 className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
                                                 value={customSellPrice}
                                                 onChange={e => setCustomSellPrice(e.target.value)}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {selectedProduct && (
-                                <div className="space-y-2 mt-4 pt-4 border-t border-border/50">
-                                    <Label className="text-xs font-black text-muted-foreground mr-2">تكلفة النقل على المهندس (العهدة)</Label>
-                                    <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
-                                        <button
-                                            onClick={() => setTransferPriceChoice("COST")}
-                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
-                                        >
-                                            <span className="text-[10px] mb-1 opacity-60">سعر التكلفة الأساسي</span>
-                                            {formatCurrencyCtx(selectedProduct.costPrice)}
-                                        </button>
-                                        <button
-                                            onClick={() => setTransferPriceChoice("SELL_1")}
-                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
-                                        >
-                                            <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
-                                            {formatCurrencyCtx(selectedProduct.sellPrice)}
-                                        </button>
-                                        <button
-                                            onClick={() => setTransferPriceChoice("CUSTOM")}
-                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "CUSTOM" ? "bg-purple-500/15 border-purple-500/50 text-purple-600 dark:text-purple-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
-                                        >
-                                            <span className="text-[10px] mb-1 opacity-60">مخصص</span>
-                                            إدخال يدوي
-                                        </button>
-                                    </div>
-                                    {transferPriceChoice === 'CUSTOM' && (
-                                        <div className="mt-2 animate-in fade-in slide-in-from-top-1">
-                                            <Input
-                                                autoFocus
-                                                type="number"
-                                                placeholder="أدخل تكلفة النقل المخصصة..."
-                                                className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
-                                                value={customCostPrice}
-                                                onChange={e => setCustomCostPrice(e.target.value)}
                                             />
                                         </div>
                                     )}
