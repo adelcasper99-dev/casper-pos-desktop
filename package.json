@@ -14,7 +14,8 @@
         "dist": "npm run dist:assets && npm run compile:bytecode && npm run electron:build && electron-builder",
         "db:push": "prisma db push",
         "db:studio": "prisma studio",
-        "postinstall": "prisma generate",
+        "postinstall": "prisma generate && npx @electron/rebuild -f -w better-sqlite3",
+        "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
         "validate:db": "node scripts/validate-database-files.js",
         "prebuild": "npm run validate:db",
         "test": "vitest run",
@@ -39,6 +40,7 @@
             "node_modules/prisma/**/*",
             "node_modules/@prisma/**/*",
             "node_modules/@whiskeysockets/baileys/**/*",
+            "node_modules/better-sqlite3/**/*",
             "prisma/**/*"
         ],
         "files": [
@@ -99,6 +101,7 @@
         "app-builder-bin": "^4.2.0",
         "arabic-reshaper": "^1.1.0",
         "bcryptjs": "^3.0.3",
+        "better-sqlite3": "^12.11.1",
         "bidi-js": "^1.0.3",
         "bwip-js": "^4.8.0",
         "bytenode": "^1.5.7",

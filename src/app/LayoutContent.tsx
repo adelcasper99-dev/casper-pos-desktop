@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import TitleBar from "@/components/TitleBar";
 import SplashScreen from "@/components/SplashScreen";
+import AutoUpdateListener from "@/components/layout/AutoUpdateListener";
 
 const TrainingModal = dynamic(() => import("@/components/ui/TrainingModal"), { ssr: false });
 
@@ -56,6 +57,7 @@ export default function LayoutContent({
                 </main>
             </div>
             <TrainingModal />
+            <AutoUpdateListener />
         </div>
     );
 }

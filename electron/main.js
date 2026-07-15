@@ -6,6 +6,8 @@ const net = require('net');
 const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const whatsappService = require('./whatsappService');
+const schemas = require('./ipc-schemas');
+const PrintQueue = require('./print-queue');
 
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
@@ -16,8 +18,24 @@ const log = (msg) => {
 /**
  * Hardened IPC Error Handlers
  */
-const safeHandle = (channel, handler) => {
+const safeHandle = (channel, handler, schema = null) => {
     ipcMain.handle(channel, async (event, ...args) => {
+        // 1. Sender-frame check (non-negotiable safety guard)
+        if (event.senderFrame !== event.sender.mainFrame) {
+            log(`IPC Rejected [${channel}] — Non-main-frame sender`);
+            return { success: false, error: 'Unauthorized sender frame' };
+        }
+
+        // 2. Schema validation
+        if (schema) {
+            try {
+                schema.parse(args);
+            } catch (validationError) {
+                log(`IPC Validation Failure [${channel}]: ${validationError.message}`);
+                return { success: false, error: `Invalid payload parameters: ${validationError.message}` };
+            }
+        }
+
         try {
             const result = await handler(event, ...args);
             // If the result is already in {success, data} format, return it directly
@@ -378,6 +396,69 @@ let splashWindow = null;
 let nextServer;
 let appPort = 3001;
 
+let printQueue = null;
+let queueWorkerInterval = null;
+let isProcessingQueue = false;
+
+const startQueueWorker = () => {
+    if (queueWorkerInterval) return;
+    
+    try {
+        printQueue.recoverPending();
+    } catch (err) {
+        log(`Failed to recover pending queue jobs: ${err.message}`);
+    }
+
+    queueWorkerInterval = setInterval(async () => {
+        if (isProcessingQueue) return;
+        isProcessingQueue = true;
+
+        try {
+            const job = printQueue.dequeueNext();
+            if (job) {
+                printQueue.markProcessing(job.id);
+                log(`Processing queued print job: id=${job.id}, type=${job.job_type}, printer=${job.printer}`);
+
+                let result;
+                if (job.job_type === 'receipt' || job.job_type === 'barcode') {
+                    result = await handleThermalPrint(null, job.html, job.printer, job.paper_width || 80);
+                } else {
+                    result = await handleStandardPrint(null, job.html, job.printer, {});
+                }
+
+                if (result && result.success) {
+                    printQueue.markDone(job.id);
+                    log(`Queued print job succeeded: id=${job.id}`);
+                } else {
+                    const errorMsg = result ? result.error : 'Unknown print failure';
+                    printQueue.markFailed(job.id, errorMsg);
+                    log(`Queued print job failed: id=${job.id}, error=${errorMsg}`);
+                }
+
+                notifyQueueStatusChanged();
+            }
+        } catch (err) {
+            log(`Print Queue Worker error: ${err.message}`);
+        } finally {
+            isProcessingQueue = false;
+        }
+    }, 2000);
+};
+
+const stopQueueWorker = () => {
+    if (queueWorkerInterval) {
+        clearInterval(queueWorkerInterval);
+        queueWorkerInterval = null;
+    }
+};
+
+const notifyQueueStatusChanged = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        const status = printQueue.getQueueStatus();
+        mainWindow.webContents.send('print:queue-changed', status);
+    }
+};
+
 const findFreePort = () => {
     return new Promise((resolve) => {
         const server = net.createServer();
@@ -556,7 +637,7 @@ safeHandle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
 safeHandle('shell:open-external', async (event, url) => {
     await shell.openExternal(url);
-});
+}, schemas.OpenExternalSchema);
 
 // --- WhatsApp Native Engine ---
 const initWhatsApp = async () => {
@@ -583,7 +664,7 @@ safeHandle('whatsapp:initialize', async () => {
     return await initWhatsApp();
 });
 
-safeHandle('whatsapp:send-message', (_, to, body) => whatsappService.sendMessage(to, body));
+safeHandle('whatsapp:send-message', (_, to, body) => whatsappService.sendMessage(to, body), schemas.SendMessageSchema);
 safeHandle('whatsapp:get-status', () => ({ status: whatsappService.getStatus() }));
 safeHandle('whatsapp:logout', async () => { 
     const result = await whatsappService.logout();
@@ -675,7 +756,7 @@ const handleStandardPrint = async (event, html, printerName, options) => {
 /**
  * Dedicated Handler for Thermal (Roll/Receipt) Printing
  */
-const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
+const handleThermalPrint = async (event, html, printerName, paperWidthMm, margins = {}) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
     const widthPx = Math.round((paperWidthMm || 80) * 3.78);
@@ -704,12 +785,20 @@ const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
 
         log(`Print [Thermal] Requested: HTML Length [${html?.length}], Printer [${printerName}], Width [${paperWidthMm}mm]`);
 
+        const { top = 0, bottom = 0, left = 0, right = 0 } = margins || {};
+
+        // Convert millimeters to pixels (1mm ≈ 3.78px at 96 DPI)
+        const topPx = Math.round(top * 3.78);
+        const bottomPx = Math.round(bottom * 3.78);
+        const leftPx = Math.round(left * 3.78);
+        const rightPx = Math.round(right * 3.78);
+
         const printOptions = {
             silent: true,
             deviceName: (printerName && printerName !== 'none' && printerName !== 'undefined') ? printerName : '',
             printBackground: true,
             color: false, // Thermal is B&W
-            margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }, // No margins for thermal
+            margins: { marginType: 'custom', top: topPx, bottom: bottomPx, left: leftPx, right: rightPx }, // Apply custom margins in pixels
             pageSize: {
                 width: Math.round((paperWidthMm || 80) * 1000),
                 height: 1000000 // Very tall height for continuous thermal roll - prevents page splitting
@@ -794,14 +883,53 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
     }
 });
 
-ipcMain.handle('print:standard', handleStandardPrint);
-safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
-    return await handleThermalPrint(event, html, printerName, paperWidthMm);
-});
+safeHandle('print:standard', handleStandardPrint, schemas.PrintStandardSchema);
+safeHandle('print:thermal', async (event, html, printerName, paperWidthMm, margins) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm, margins);
+}, schemas.PrintThermalSchema);
 // Legacy support
-ipcMain.handle('print:silent', handleStandardPrint);
-safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
-    return await handleThermalPrint(event, html, printerName, paperWidthMm);
+safeHandle('print:silent', handleStandardPrint, schemas.PrintStandardSchema);
+safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm, margins) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm, margins);
+}, schemas.PrintThermalSchema);
+
+safeHandle('hardware:kick-drawer', async (event, printerName) => {
+    try {
+        const res = await fetch('http://localhost:4040/api/drawer/kick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ printerName })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Bridge drawer kick failed');
+        }
+        return { success: true };
+    } catch (e) {
+        log(`Drawer Kick Error: ${e.message}`);
+        return { success: false, error: e.message };
+    }
+}, schemas.KickDrawerSchema);
+
+safeHandle('print:enqueue', async (event, job) => {
+    try {
+        const id = printQueue.enqueue(
+            job.id,
+            job.jobType,
+            job.html,
+            job.printer || null,
+            job.paperWidth || null
+        );
+        notifyQueueStatusChanged();
+        return { success: true, id };
+    } catch (e) {
+        log(`Failed to enqueue job: ${e.message}`);
+        return { success: false, error: e.message };
+    }
+}, schemas.PrintEnqueueSchema);
+
+safeHandle('print:queue-status', () => {
+    return printQueue.getQueueStatus();
 });
 
 // --- NEW CONFIG AND SETUP IPC HANDLERS ---
@@ -864,7 +992,7 @@ safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
     app.relaunch();
     app.quit();
     return true;
-});
+}, schemas.SaveConfigAndRestartSchema);
 
 safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
     try {
@@ -883,7 +1011,7 @@ safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
         log(`Failed to save node config: ${err.message}`);
         return { success: false, error: err.message };
     }
-});
+}, schemas.SaveNodeConfigSchema);
 
 safeHandle('app:get-cloud-config', () => {
     try {
@@ -915,7 +1043,7 @@ safeHandle('app:save-cloud-config', async (event, configData) => {
         log(`Failed to save cloud config: ${err.message}`);
         return { success: false, error: err.message };
     }
-});
+}, schemas.SaveCloudConfigSchema);
 
 safeHandle('app:migrate-to-postgres', async (event) => {
     try {
@@ -1218,10 +1346,14 @@ ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
 });
 
 app.on('before-quit', () => {
+    stopQueueWorker();
     whatsappService.destroyClient();
 });
 
 app.whenReady().then(async () => {
+    const userDataPath = app.getPath('userData');
+    printQueue = new PrintQueue(userDataPath, log);
+    startQueueWorker();
     await initWhatsApp();
     createWindow();
 });

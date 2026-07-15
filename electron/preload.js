@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /**
      * Thermal silent print (Roll / Receipt)
      */
-    printThermal: (html, printerName, paperWidthMm) =>
-        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
+    printThermal: (html, printerName, paperWidthMm, margins) =>
+        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm, margins),
 
     saveToPDF: (html, filename) =>
         ipcRenderer.invoke('print:to-pdf', html, filename),
@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     printThermalReceipt: (html, printerName, paperWidthMm) =>
         ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
+
+    /**
+     * Kick the cash drawer independently of a print job.
+     */
+    kickDrawer: (printerName) =>
+        ipcRenderer.invoke('hardware:kick-drawer', printerName),
 
     /**
      * Custom window controls (used by TitleBar component).
@@ -143,6 +149,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     shell: {
         openExternal: (url) => ipcRenderer.invoke('shell:open-external', url)
+    },
+
+    /**
+     * SQLite-backed Print Queue API
+     */
+    printQueue: {
+        enqueue: (job) => ipcRenderer.invoke('print:enqueue', job),
+        getStatus: () => ipcRenderer.invoke('print:queue-status'),
+        onStatusChange: (cb) => {
+            const handler = (_event, status) => cb(status);
+            ipcRenderer.on('print:queue-changed', handler);
+            return () => ipcRenderer.removeListener('print:queue-changed', handler);
+        }
     },
 
     /**

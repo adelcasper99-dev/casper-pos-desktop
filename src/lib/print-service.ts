@@ -56,8 +56,8 @@ class ElectronPrintChannel {
     return await window.electronAPI!.printStandard(html, printerName, options ?? {});
   }
 
-  async printThermal(html: string, printerName: string, paperWidthMm: number): Promise<{ success: boolean; error?: string }> {
-    return await window.electronAPI!.printThermal(html, printerName, paperWidthMm);
+  async printThermal(html: string, printerName: string, paperWidthMm: number, margins?: { top?: number, right?: number, bottom?: number, left?: number }): Promise<{ success: boolean; error?: string }> {
+    return await window.electronAPI!.printThermal(html, printerName, paperWidthMm, margins);
   }
 }
 
@@ -68,6 +68,37 @@ const electronChannel = new ElectronPrintChannel();
 // ─────────────────────────────────────────────
 
 class HardwareBridgeClient {
+  private cachedToken: string | null = null;
+
+  async getSecurityToken(): Promise<string | null> {
+    if (this.cachedToken) return this.cachedToken;
+
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(PRINTER_REGISTRY_KEY);
+      if (stored) {
+        try {
+          const registry = JSON.parse(stored) as PrinterRegistry;
+          if (registry.bridgeSecurityToken) {
+            this.cachedToken = registry.bridgeSecurityToken;
+            return this.cachedToken;
+          }
+        } catch (e) {}
+      }
+    }
+
+    try {
+      const res = await fetch('http://localhost:4040/api/security/token', {
+        signal: AbortSignal.timeout(2000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.cachedToken = data.token || null;
+        return this.cachedToken;
+      }
+    } catch (e) {}
+    return null;
+  }
+
   private async getBridgeUrl(): Promise<string> {
     if (typeof window !== 'undefined') {
       const api = (window as any).electronAPI;
@@ -102,9 +133,16 @@ class HardwareBridgeClient {
   async isAvailable(): Promise<boolean> {
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const token = await this.getSecurityToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['x-casper-token'] = token;
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
+      const res = await fetch(`${bridgeUrl}/api/status`, { 
+        headers,
+        signal: controller.signal 
+      });
       clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
@@ -115,9 +153,16 @@ class HardwareBridgeClient {
   async getStatus() {
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const token = await this.getSecurityToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['x-casper-token'] = token;
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${bridgeUrl}/api/status`, { signal: controller.signal });
+      const res = await fetch(`${bridgeUrl}/api/status`, { 
+        headers,
+        signal: controller.signal 
+      });
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error('Bridge responding but with error');
       return await res.json();
@@ -130,12 +175,16 @@ class HardwareBridgeClient {
     let timeoutId: NodeJS.Timeout | undefined;
     try {
       const bridgeUrl = await this.getBridgeUrl();
+      const token = await this.getSecurityToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['x-casper-token'] = token;
+
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), 15000);
       
       const res = await fetch(`${bridgeUrl}/api/print`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ html, jobType, printer: printerName }),
         signal: controller.signal
       });
@@ -400,13 +449,26 @@ class PrintService {
   /**
    * Optimized thermal printing.
    * Directly uses the high-speed thermal channel in Electron if available.
+   * Falls back to generic silent print with registry-calibrated width.
    */
-  async printThermal(html: string, printerName: string, paperWidthMm: number = 80): Promise<boolean> {
+  async printThermal(html: string, printerName: string, paperWidthMm?: number): Promise<boolean> {
+    // Registry calibration overrides caller if not explicitly provided
+    const registryWidth = this.registry?.thermalPaperWidthMm;
+    const width = paperWidthMm ?? registryWidth ?? 80;
+    const marginTop = this.registry?.thermalMarginTopMm ?? 0;
+    const marginRight = this.registry?.thermalMarginRightMm ?? 0;
+    const marginBottom = this.registry?.thermalMarginBottomMm ?? 0;
+    const marginLeft = this.registry?.thermalMarginLeftMm ?? 0;
     if (this.isElectron()) {
       try {
-        const result = await electronChannel.printThermal(html, printerName, paperWidthMm);
+        const result = await electronChannel.printThermal(html, printerName, width, {
+          top: marginTop,
+          right: marginRight,
+          bottom: marginBottom,
+          left: marginLeft
+        });
         if (result?.success) {
-          logger.info(`✓ [Electron-Thermal] Printed to "${printerName}"`);
+          logger.info(`✓ [Electron-Thermal] Printed to "${printerName}" @ ${width}mm`);
           return true;
         } else {
           console.warn('[PrintService] Electron thermal reported failure:', result?.error);
@@ -416,11 +478,53 @@ class PrintService {
       }
     }
     // Fallback to generic silent print
-    return await this.printSilentHTML(html, printerName, { paperWidthMm });
+    return await this.printSilentHTML(html, printerName, {
+      paperWidthMm: width,
+      marginTopMm: marginTop,
+      marginRightMm: marginRight,
+      marginBottomMm: marginBottom,
+      marginLeftMm: marginLeft,
+    });
   }
 
   isElectron(): boolean {
     return typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  }
+
+  async kickCashDrawer(printerName?: string): Promise<{ success: boolean; error?: string }> {
+    if (this.isElectron()) {
+      try {
+        if (window.electronAPI?.kickDrawer) {
+          const res = await window.electronAPI.kickDrawer(printerName);
+          if (res?.success) return { success: true };
+          return { success: false, error: res?.error || 'Electron native drawer kick failed' };
+        }
+      } catch (err: any) {
+        console.warn('[PrintService] Electron native drawer kick failed, falling back to Bridge...', err);
+      }
+    }
+
+    try {
+      const bridgeUrl = await (hardwareBridge as any).getBridgeUrl();
+      const token = await (hardwareBridge as any).getSecurityToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['x-casper-token'] = token;
+
+      const res = await fetch(`${bridgeUrl}/api/drawer/kick`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ printerName }),
+        signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) {
+        return { success: true };
+      }
+      const err = await res.json();
+      return { success: false, error: err.error || 'Bridge drawer kick failed' };
+    } catch (e: any) {
+      console.warn('[PrintService] Bridge drawer kick failed', e);
+      return { success: false, error: e.message || 'Bridge offline' };
+    }
   }
 
   /**
@@ -428,7 +532,17 @@ class PrintService {
    * Priority: Electron IPC → Casper Agent → QZ Tray
    * Returns true if a silent print succeeded.
    */
-  async printSilentHTML(html: string, printerName: string, options?: { paperWidthMm?: number }): Promise<boolean> {
+  async printSilentHTML(
+    html: string,
+    printerName: string,
+    options?: {
+      paperWidthMm?: number;
+      marginTopMm?: number;
+      marginBottomMm?: number;
+      marginLeftMm?: number;
+      marginRightMm?: number;
+    }
+  ): Promise<boolean> {
     // 1. Electron (best path — zero dependencies, truly silent)
     if (electronChannel.isAvailable()) {
       try {
