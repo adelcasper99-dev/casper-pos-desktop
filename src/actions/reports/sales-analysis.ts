@@ -109,7 +109,7 @@ export async function getSalesAnalysis(groupBy: GroupByOption, dateRange?: { sta
 
                 if (groupBy === 'salesman') {
                     groupKey = sale.userId;
-                    groupName = sale.user?.name || sale.cashierName || 'غير معروف';
+                    groupName = sale.user?.name || 'غير معروف';
                 } else if (groupBy === 'branch') {
                     groupKey = sale.warehouseId;
                     groupName = sale.warehouse?.name || 'مستودع محذوف';
