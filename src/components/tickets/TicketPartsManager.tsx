@@ -175,7 +175,7 @@ export default function TicketPartsManager({
     const handleAdd = async () => {
         if (usageType === "transfer") {
             if (!technicianId) { toast.error("يرجى إسناد فني أولاً"); return; }
-            if (!selectedProductId || quantity <= 0) { toast.error("يرجى اختيار المنتج والكمية"); return; }
+            if (!selectedProductId || Number(quantity) <= 0) { toast.error("يرجى اختيار المنتج والكمية"); return; }
             
             setIsLoading(true);
             try {
