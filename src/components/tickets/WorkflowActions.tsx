@@ -263,10 +263,7 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject, what
                             ticketNumber={ticket.barcode}
                             totalCost={ticket.repairPrice}
                             status={ticket.status}
-                            device={`${ticket.deviceBrand} ${ticket.deviceModel}`}
-                            issue={ticket.issueDescription || undefined}
                             onSuccess={onUpdate}
-                            whatsappTemplates={whatsappTemplates}
                         />
                         {ticket.logs && ticket.logs.length > 0 && (
                             <div className="text-[10px] text-zinc-500 font-medium px-2 flex items-center gap-1.5">
