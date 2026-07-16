@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { CasperLogo } from "@/components/ui/CasperLogo";
 import { Minus, Square, Copy, X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { extractIpcData } from "@/lib/ipc-utils";
+import SyncStatusBar from "@/components/SyncStatusBar";
+import PrinterStatusBadge from "@/components/layout/PrinterStatusBadge";
 
 /**
  * TitleBar – Custom frameless window chrome replacement.
@@ -73,6 +75,12 @@ export default function TitleBar() {
                 <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
                     Casper ERP
                 </span>
+            </div>
+
+            {/* ── Sync Status & Printer Health (Center) ───────────────── */}
+            <div className="flex-1 flex justify-center gap-3 no-drag" style={{ pointerEvents: "auto" }}>
+                <SyncStatusBar />
+                <PrinterStatusBadge />
             </div>
 
             {/* ── Controls Group ───────────────────────────────────────── */}

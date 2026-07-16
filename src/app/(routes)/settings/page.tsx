@@ -2,8 +2,9 @@ import { Suspense } from "react";
 import { getTranslations } from "@/lib/i18n-mock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle } from "lucide-react";
+import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle, Building2, Cloud, Wifi } from "lucide-react";
 import StoreConfig from "@/components/settings/StoreConfig";
+import BranchManager from "@/components/settings/BranchManager";
 import MessagingSettings from "@/components/settings/MessagingSettings";
 import PrinterSettings from "@/components/settings/PrinterSettings";
 import BackupManager from "@/components/settings/BackupManager";
@@ -14,6 +15,8 @@ import OpeningBalanceWizard from "@/components/setup/OpeningBalanceWizard";
 import WarehouseSettings from "@/components/settings/WarehouseSettings";
 import SyncManagement from "@/components/settings/SyncManagement";
 import SuperAdminSecurity from "@/components/settings/SuperAdminSecurity";
+import CloudSettings from "@/components/settings/CloudSettings";
+import NetworkInfoCard from "@/components/settings/NetworkInfoCard";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -73,8 +76,9 @@ export default async function SettingsPage() {
     const canManageUsers = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_USERS);
     const canManageRoles = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_ROLES);
     const canManageWarehouses = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_WAREHOUSES);
-    const canManageTables = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_TABLES);
+    const canManageBranches = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.BRANCH_MANAGE);
     const canManageModules = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_MODULES);
+    const canManageTables = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_TABLES);
     const canManageAccounting = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_ACCOUNTING_SETUP);
 
     const canSeePrinters = canManagePrinters || isAdmin;
@@ -148,6 +152,15 @@ export default async function SettingsPage() {
                         </TabsTrigger>
                     )}
 
+                    {canManageBranches && (
+                        <TabsTrigger 
+                            value="branches" 
+                            className="data-[state=active]:bg-indigo-500/20 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:border-indigo-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <Building2 className="w-4 h-4 opacity-70" /> الفروع
+                        </TabsTrigger>
+                    )}
+
                     {canManageBackups && (
                         <TabsTrigger 
                             value="backups" 
@@ -171,7 +184,7 @@ export default async function SettingsPage() {
                             value="modules" 
                             className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:border-rose-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
                         >
-                            <Shield className="w-4 h-4 opacity-70" /> {t('tabs.modules', 'Modules')}
+                            <Shield className="w-4 h-4 opacity-70" /> {t('tabs.modules', 'الميزات / Features')}
                         </TabsTrigger>
                     )}
 
@@ -185,12 +198,26 @@ export default async function SettingsPage() {
                     )}
 
                     {isAdmin && (
-                        <TabsTrigger 
-                            value="sync" 
-                            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
-                        >
-                            <RefreshCw className="w-4 h-4 opacity-70" /> Sync Management
-                        </TabsTrigger>
+                        <>
+                            <TabsTrigger 
+                                value="cloud" 
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <Cloud className="w-4 h-4 opacity-70" /> Cloud Sync Config
+                            </TabsTrigger>
+                            <TabsTrigger 
+                                value="sync" 
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <RefreshCw className="w-4 h-4 opacity-70" /> Sync Management
+                            </TabsTrigger>
+                            <TabsTrigger 
+                                value="network" 
+                                className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <Wifi className="w-4 h-4 opacity-70" /> شبكة الفرع
+                            </TabsTrigger>
+                        </>
                     )}
                     {isSuperAdmin && (
                         <TabsTrigger 
@@ -304,6 +331,12 @@ export default async function SettingsPage() {
                         </TabsContent>
                     )}
 
+                    {canManageBranches && (
+                        <TabsContent value="branches" className="outline-none focus-visible:ring-0">
+                            <BranchManager branches={branches as any} />
+                        </TabsContent>
+                    )}
+
 
                     {canManageTables && (
                         <TabsContent value="tables" className="outline-none focus-visible:ring-0">
@@ -324,9 +357,19 @@ export default async function SettingsPage() {
                     )}
 
                     {isAdmin && (
-                        <TabsContent value="sync" className="outline-none focus-visible:ring-0">
-                            <SyncManagement />
-                        </TabsContent>
+                        <>
+                            <TabsContent value="cloud" className="outline-none focus-visible:ring-0">
+                                <CloudSettings />
+                            </TabsContent>
+                            <TabsContent value="sync" className="outline-none focus-visible:ring-0">
+                                <SyncManagement />
+                            </TabsContent>
+                            <TabsContent value="network" className="outline-none focus-visible:ring-0">
+                                <div className="max-w-2xl">
+                                    <NetworkInfoCard />
+                                </div>
+                            </TabsContent>
+                        </>
                     )}
                     {isSuperAdmin && (
                         <TabsContent value="security" className="outline-none focus-visible:ring-0">

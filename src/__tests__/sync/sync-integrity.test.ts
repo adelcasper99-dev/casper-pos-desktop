@@ -77,6 +77,7 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
                     quantity: 1,
                     unitPrice: 100,
                     unitCost: 50
+                }
             ]
         };
 
