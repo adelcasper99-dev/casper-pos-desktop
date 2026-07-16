@@ -1,3 +1,4 @@
+"use server";
 import { prisma } from "@/lib/prisma";
 import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS } from "@/lib/permissions";

@@ -16,6 +16,7 @@ interface Warehouse {
     branch?: {
         name: string;
     } | null;
+    isMaintenanceDefault?: boolean;
 }
 
 interface StockItem {
@@ -28,7 +29,7 @@ interface StockItem {
     categoryName: string;
 }
 
-export default function WarehouseManager({ warehouses, csrfToken, branchId }: { warehouses: Warehouse[], csrfToken?: string, branchId?: string }) {
+export default function WarehouseManager({ warehouses, csrfToken, branchId, branches, isAdmin }: { warehouses: Warehouse[], csrfToken?: string, branchId?: string, branches?: {id: string, name: string}[], isAdmin?: boolean }) {
     const t = useTranslations('Inventory.warehouses');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -37,6 +38,8 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
     const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
+    const [selectedBranchId, setSelectedBranchId] = useState(branchId || (branches?.[0]?.id) || "");
+    const [isMaintenanceDefault, setIsMaintenanceDefault] = useState(false);
 
     // Delete State
     const [isDeleting, setIsDeleting] = useState(false);
@@ -53,6 +56,8 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setEditingWarehouse(null);
         setName("");
         setAddress("");
+        setSelectedBranchId(branchId || (branches?.[0]?.id) || "");
+        setIsMaintenanceDefault(false);
         setIsModalOpen(true);
     };
 
@@ -60,6 +65,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setEditingWarehouse(warehouse);
         setName(warehouse.name);
         setAddress(warehouse.address || "");
+        setIsMaintenanceDefault(warehouse.isMaintenanceDefault || false);
         setIsModalOpen(true);
     };
 
@@ -68,8 +74,8 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
         setLoading(true);
 
         const res = editingWarehouse
-            ? await updateWarehouse({ id: editingWarehouse.id, name, address, csrfToken })
-            : await createWarehouse({ name, address, csrfToken, branchId });
+            ? await updateWarehouse({ id: editingWarehouse.id, name, address, csrfToken, isMaintenanceDefault })
+            : await createWarehouse({ name, address, csrfToken, branchId: selectedBranchId, isMaintenanceDefault });
 
         setLoading(false);
 
@@ -171,6 +177,7 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                                 )} />
                                 <div className="flex gap-2 items-center">
                                     {w.isDefault && <span className="text-[10px] bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 px-3 py-1 rounded-full font-black border border-cyan-500/20 uppercase tracking-tighter">{t('mainLabel')}</span>}
+                                    {w.isMaintenanceDefault && <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full font-black border border-amber-500/20 uppercase tracking-tighter">صيانة</span>}
                                     {!w.isDefault && (
                                         <div className="flex gap-2 items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
                                             <button
@@ -252,6 +259,35 @@ export default function WarehouseManager({ warehouses, csrfToken, branchId }: { 
                             onChange={e => setAddress(e.target.value)}
                         />
                     </div>
+                    {branches && !editingWarehouse && (
+                        <div>
+                            <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-2 block tracking-widest">الفرع التابع له</label>
+                            <select
+                                className="glass-input w-full font-black text-slate-900 dark:text-white bg-white dark:bg-black/20"
+                                value={selectedBranchId}
+                                onChange={e => setSelectedBranchId(e.target.value)}
+                                required
+                            >
+                                {branches.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    {isAdmin && (
+                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200 dark:border-white/10">
+                            <input
+                                type="checkbox"
+                                id="isMaintenanceDefault"
+                                className="w-5 h-5 rounded border-slate-300 text-cyan-500 focus:ring-cyan-500"
+                                checked={isMaintenanceDefault}
+                                onChange={(e) => setIsMaintenanceDefault(e.target.checked)}
+                            />
+                            <label htmlFor="isMaintenanceDefault" className="text-sm font-black text-slate-700 dark:text-slate-300 cursor-pointer">
+                                مستودع الصيانة الرئيسي (يستقبل قطع غيار المهندسين المرتجعة)
+                            </label>
+                        </div>
+                    )}
                     <button
                         type="submit"
                         disabled={loading}

@@ -28,6 +28,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     const [loading, setLoading] = useState(false);
     const [errorResult, setErrorResult] = useState<string | null>(null);
     const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+    const [isDraftLoaded, setIsDraftLoaded] = useState(false);
 
     // CSRF Management
     const [internalCsrfToken, setInternalCsrfToken] = useState(csrfToken || "");
@@ -498,6 +499,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         csrfError,
         errorResult, setErrorResult,
         editingInvoiceId, setEditingInvoiceId,
+        isDraftLoaded,
 
         // Form Data
         selectedSupplierId, setSelectedSupplierId,

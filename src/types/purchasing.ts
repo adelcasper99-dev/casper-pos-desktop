@@ -41,6 +41,7 @@ export interface CartItem {
     sellPrice?: number | string;
     sellPrice2?: number | string;
     sellPrice3?: number | string;
+    minQty?: number | string;
     isDevice?: boolean;
     condition?: string;
     imei?: string;
@@ -61,6 +62,7 @@ export interface PurchaseFormReturn {
     setErrorResult: (error: string | null) => void;
     editingInvoiceId: string | null;
     setEditingInvoiceId: (id: string | null) => void;
+    isDraftLoaded: boolean;
 
     selectedSupplierId: string;
     setSelectedSupplierId: (id: string) => void;

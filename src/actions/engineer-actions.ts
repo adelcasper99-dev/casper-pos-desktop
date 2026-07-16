@@ -104,7 +104,7 @@ export const upsertEngineer = secureAction(async (data: {
             if (data.username && data.password) {
                 const hashedPassword = await bcrypt.hash(data.password, 10);
                 const existing = await tx.user.findUnique({ where: { username: data.username } });
-                if (existing) throw new Error("Username already taken");
+                if (existing) throw new Error("اسم المستخدم مسجل مسبقاً، يرجى اختيار اسم مستخدم آخر.");
 
                 const user = await tx.user.create({
                     data: {
@@ -116,6 +116,8 @@ export const upsertEngineer = secureAction(async (data: {
                     }
                 });
                 userId = user.id;
+            } else if (!data.id) {
+                throw new Error("بيانات الدخول مفقودة: يرجى إدخال (اسم المستخدم) و (كلمة المرور) لإنشاء حساب للفني.");
             }
 
             let warehouseId: string | null = null;

@@ -278,8 +278,20 @@ export function generateLabelCommands(product: LabelProduct, template?: LabelTem
   return commands;
 }
 
+function generateReceiptModeCommands(product: LabelProduct): string[] {
+  const commands: string[] = [];
+  
+  // Basic init
+  commands.push(ESC + '@');
+  commands.push(ESC + '7' + String.fromCharCode(12) + String.fromCharCode(200));
+  commands.push(ESC + '3' + String.fromCharCode(0));
+  commands.push(ESC + 'a' + String.fromCharCode(1)); // Center
+
+  return commands;
+}
+
 function generateDefaultLegacyCommands(product: LabelProduct): string[] {
-  const commands = [];
+  const commands: string[] = [];
   commands.push(ESC + '@');
   commands.push(ESC + '7' + String.fromCharCode(12) + String.fromCharCode(200));
   commands.push(ESC + '3' + String.fromCharCode(0));

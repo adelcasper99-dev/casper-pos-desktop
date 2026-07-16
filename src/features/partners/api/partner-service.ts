@@ -92,7 +92,7 @@ export async function createPartnerTransaction(data: { partnerId: string; type: 
             });
 
             // Journal Entry
-            const lines = [];
+            const lines: { accountCode: string; debit: number; credit: number; description: string }[] = [];
             const treasuryGl = treasury.glCode || GL.ASSETS.CASH;
 
             if (data.type === "DEPOSIT") {
@@ -147,7 +147,7 @@ export async function distributeProfitLoss(data: { periodFrom: Date; periodTo: D
             const existingEntry = await tx.journalEntry.findUnique({ where: { idempotencyKey } });
             if (existingEntry) throw new Error("تم توزيع أرباح هذه الفترة من قبل");
 
-            const lines = [];
+            const lines: { accountCode: string; debit: number; credit: number; description: string }[] = [];
             // Dr/Cr Retained Earnings (3300)
             if (isProfit) {
                 // We debit Retained Earnings to clear it out to Partners

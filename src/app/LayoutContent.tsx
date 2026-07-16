@@ -1,26 +1,29 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import TitleBar from "@/components/TitleBar";
 import SplashScreen from "@/components/SplashScreen";
 import AutoUpdateListener from "@/components/layout/AutoUpdateListener";
+import { LicenseProvider } from "@/contexts/LicenseContext";
 
 const TrainingModal = dynamic(() => import("@/components/ui/TrainingModal"), { ssr: false });
 
 export default function LayoutContent({
     children,
     user,
-    settings
+    settings,
+    licenseStatus
 }: {
     children: React.ReactNode;
     user: any;
     settings: any;
+    licenseStatus?: any;
 }) {
     const pathname = usePathname();
-    const isStandalonePage = pathname === "/" || pathname === "/login" || pathname === "/setup" || pathname === "/network-setup";
+    const isStandalonePage = pathname === "/" || pathname === "/login" || pathname === "/setup" || pathname === "/network-setup" || pathname === "/onboarding" || pathname === "/activate";
 
     // Show splash screen on Electron startup (client-side only, won't SSR)
     const [showSplash, setShowSplash] = useState(false);
@@ -29,6 +32,17 @@ export default function LayoutContent({
             setShowSplash(true);
         }
     }, []);
+
+    const router = useRouter();
+    useEffect(() => {
+        // Allow cloud URL config pages through — user may need them to complete activation
+        const activationAllowlist = ['/activate', '/login', '/setup', '/network-setup', '/onboarding'];
+        if (licenseStatus?.status === 'MISSING' && !activationAllowlist.includes(pathname)) {
+            router.push('/activate');
+        }
+    }, [licenseStatus, pathname, router]);
+
+    const isReadOnly = licenseStatus?.status !== 'VALID' && licenseStatus?.status !== 'MISSING';
 
     if (isStandalonePage) {
         return (
@@ -52,8 +66,18 @@ export default function LayoutContent({
             </div>
             <div className="flex flex-1 overflow-hidden">
                 {user && <Sidebar user={user} settings={settings} />}
-                <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-                    {children}
+                <main className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
+                    {isReadOnly && (
+                        <div className="bg-destructive text-destructive-foreground px-4 py-2 text-center text-sm font-semibold flex items-center justify-center gap-2">
+                            <span>License Issue: {licenseStatus?.message} (Code: {licenseStatus?.errorCode})</span>
+                            <span className="opacity-80 font-normal">System is in Read-Only Mode. Please contact support.</span>
+                        </div>
+                    )}
+                    <LicenseProvider isReadOnly={isReadOnly}>
+                        <div className="flex-1 relative">
+                            {children}
+                        </div>
+                    </LicenseProvider>
                 </main>
             </div>
             <TrainingModal />

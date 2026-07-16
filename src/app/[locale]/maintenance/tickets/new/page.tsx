@@ -41,13 +41,20 @@ export default function NewTicketPage() {
     const [isEditingPresets, setIsEditingPresets] = useState<"ISSUE" | "CONDITION" | null>(null)
     const [settings, setSettings] = useState<any>(null);
 
+    // Reset Modal State
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetOptions, setResetOptions] = useState({
+        customer: true,
+        device: true,
+        issues: true
+    });
+
     // Dynamic Presets
     const [issuesList, setIssuesList] = useState<{ id: string, name: string }[]>([]);
     const [conditionsList, setConditionsList] = useState<{ id: string, name: string }[]>([]);
     const [devicePresets, setDevicePresets] = useState<{ brand: string, model: string }[]>([]);
     const [newPresetName, setNewPresetName] = useState("");
 
-    // Main Form State
     const [formData, setFormData] = useState({
         customerName: '',
         customerPhone: '',
@@ -165,6 +172,31 @@ export default function NewTicketPage() {
             setIsExistingCustomer(false);
         }
     }
+
+    const handleReset = () => {
+        setFormData(prev => ({
+            ...prev,
+            customerName: resetOptions.customer ? '' : prev.customerName,
+            customerPhone: resetOptions.customer ? '' : prev.customerPhone,
+            customerEmail: resetOptions.customer ? '' : prev.customerEmail,
+            deviceBrand: resetOptions.device ? '' : prev.deviceBrand,
+            deviceModel: resetOptions.device ? '' : prev.deviceModel,
+            deviceImei: resetOptions.device ? '' : prev.deviceImei,
+            deviceColor: resetOptions.device ? '' : prev.deviceColor,
+            securityCode: resetOptions.device ? '' : prev.securityCode,
+            patternData: resetOptions.device ? '' : prev.patternData,
+            issueDescription: resetOptions.issues ? '' : prev.issueDescription,
+            conditionNotes: resetOptions.issues ? '' : prev.conditionNotes,
+            repairPrice: resetOptions.issues ? '' : prev.repairPrice,
+            expectedDuration: resetOptions.issues ? '' : prev.expectedDuration,
+            selectedIssues: resetOptions.issues ? [] : prev.selectedIssues,
+            selectedConditions: resetOptions.issues ? [] : prev.selectedConditions,
+        }));
+        if (resetOptions.customer) setIsExistingCustomer(false);
+        if (resetOptions.device) setShowPattern(false);
+        setShowResetModal(false);
+        toast.success("تم تفريغ النموذج بناءً على اختيارك");
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -792,6 +824,53 @@ export default function NewTicketPage() {
                             </div>
                         ))}
                     </div>
+                </div>
+            </GlassModal>
+
+            <GlassModal
+                isOpen={showResetModal}
+                onClose={() => setShowResetModal(false)}
+                title="تفريغ النموذج"
+            >
+                <div className="space-y-4 p-2">
+                    <p className="text-sm font-bold text-slate-600 dark:text-zinc-400 mb-4">اختر البيانات التي تريد تفريغها:</p>
+                    
+                    <label className="flex items-center gap-3 p-3 bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
+                        <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded border-slate-300 dark:border-white/20 text-black dark:text-white focus:ring-black dark:focus:ring-white"
+                            checked={resetOptions.customer} 
+                            onChange={e => setResetOptions(prev => ({...prev, customer: e.target.checked}))} 
+                        />
+                        <span className="font-black text-slate-900 dark:text-white">تفريغ بيانات العميل</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 p-3 bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
+                        <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded border-slate-300 dark:border-white/20 text-black dark:text-white focus:ring-black dark:focus:ring-white"
+                            checked={resetOptions.device} 
+                            onChange={e => setResetOptions(prev => ({...prev, device: e.target.checked}))} 
+                        />
+                        <span className="font-black text-slate-900 dark:text-white">تفريغ بيانات الجهاز</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 p-3 bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
+                        <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded border-slate-300 dark:border-white/20 text-black dark:text-white focus:ring-black dark:focus:ring-white"
+                            checked={resetOptions.issues} 
+                            onChange={e => setResetOptions(prev => ({...prev, issues: e.target.checked}))} 
+                        />
+                        <span className="font-black text-slate-900 dark:text-white">تفريغ المشاكل والوصف والسعر</span>
+                    </label>
+
+                    <Button 
+                        onClick={handleReset} 
+                        className="w-full mt-6 h-12 bg-red-600 hover:bg-red-700 text-white font-black text-lg rounded-xl"
+                    >
+                        تأكيد التفريغ
+                    </Button>
                 </div>
             </GlassModal>
         </div>

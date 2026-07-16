@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { env } from '@/env';
 
 export type UserSession = {
   id: string;
@@ -15,7 +16,7 @@ export type UserSession = {
 };
 
 // JWT configuration
-const secretKey = process.env.JWT_SECRET || 'dev-secret-key-casper-pos-desktop';
+const secretKey = env.JWT_SECRET;
 const key = new TextEncoder().encode(secretKey);
 
 // Session TTL configurations

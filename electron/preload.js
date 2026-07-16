@@ -182,6 +182,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
             ipcRenderer.on('whatsapp:status', handler);
             return () => ipcRenderer.removeListener('whatsapp:status', handler);
         }
+    },
+
+    /**
+     * License: Hardware machine UUID (fetched from OS via main process,
+     * not from the server — ensures we bind to the client machine).
+     */
+    license: {
+        getMachineId: () => ipcRenderer.invoke('hardware:get-machine-id'),
     }
 });
 

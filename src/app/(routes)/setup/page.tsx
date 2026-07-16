@@ -4,6 +4,14 @@ import { redirect } from "next/navigation";
 import SetupWizard from "@/components/setup/SetupWizard";
 
 export default async function SetupPage() {
+    // 0. License guard: must have active license or trial first
+    const settings = await prisma.storeSettings.findUnique({
+        where: { id: "settings" }
+    });
+    if (!settings?.licenseJwt && !settings?.trialStartDate) {
+        redirect("/onboarding");
+    }
+
     // 1. Double check: if users already exist, redirect away to dashboard
     const userCount = await prisma.user.count();
     if (userCount > 0) {

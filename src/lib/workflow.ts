@@ -46,13 +46,29 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
         description: "Waiting for approval or parts",
         actionLabel: "فى انتظار"
     },
-    // 4. فى انتظار / تعيين مهندس -> تم الاصلاح (Fixed)
+    // 4. فى انتظار / تعيين مهندس -> إرسال للجودة (Send to QC)
     {
         from: [TicketStatus.PENDING_APPROVAL, TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING, TicketStatus.IN_PROGRESS],
+        to: TicketStatus.QC_PENDING,
+        requiredPermission: PERMISSIONS.TICKET_EDIT,
+        description: "Send to Quality Control",
+        actionLabel: "إرسال للجودة"
+    },
+    // 4.1 إرسال للجودة -> تم الاصلاح (Fixed)
+    {
+        from: [TicketStatus.QC_PENDING],
         to: TicketStatus.COMPLETED,
         requiredPermission: PERMISSIONS.TICKET_COMPLETE,
-        description: "Repair finished",
-        actionLabel: "تم الاصلاح"
+        description: "Repair finished and QC passed",
+        actionLabel: "تم الاصلاح (اجتاز الفحص)"
+    },
+    // 4.2 إرسال للجودة -> إعادة للمهندس (Return to Tech)
+    {
+        from: [TicketStatus.QC_PENDING],
+        to: TicketStatus.RETURNED_FOR_REFIX,
+        requiredPermission: PERMISSIONS.TICKET_EDIT,
+        description: "QC Failed - Return to technician",
+        actionLabel: "فشل الفحص - إعادة للمهندس"
     },
     // 5. تم الاصلاح -> الدفع (Payment)
     {
@@ -73,7 +89,7 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
 
     // Rejection Flow
     {
-        from: [TicketStatus.DIAGNOSING, TicketStatus.AT_CENTER, TicketStatus.PENDING_APPROVAL, TicketStatus.RETURNED_FOR_REFIX],
+        from: [TicketStatus.DIAGNOSING, TicketStatus.AT_CENTER, TicketStatus.PENDING_APPROVAL, TicketStatus.RETURNED_FOR_REFIX, TicketStatus.QC_PENDING],
         to: TicketStatus.REJECTED,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
         description: "Reject / Unrepairable",

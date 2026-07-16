@@ -51,6 +51,8 @@ export default function WarehouseClient({ warehouses, products, csrfToken, branc
                     warehouses={warehouses}
                     csrfToken={csrfToken}
                     branchId={branchId}
+                    branches={branches}
+                    isAdmin={isHQUser}
                 />
             )}
 

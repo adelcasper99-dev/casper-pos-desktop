@@ -50,10 +50,15 @@ export default function SetupWizard() {
             document.cookie = `nodeRole=${role}; path=/; max-age=31536000`;
             
             const api = (window as any).electronAPI;
-            await api.config.saveNodeConfig({
-                nodeRole: role,
-                masterIp: role === "SUB_NODE" ? masterIp : "127.0.0.1",
-            });
+            if (api?.config?.saveNodeConfig) {
+                await api.config.saveNodeConfig({
+                    nodeRole: role,
+                    masterIp: role === "SUB_NODE" ? masterIp : "127.0.0.1",
+                });
+            } else {
+                // In dev mode (browser), just redirect to dashboard
+                window.location.href = "/dashboard";
+            }
         } catch (error: any) {
             toast.error(`حدث خطأ أثناء الحفظ: ${error.message}`);
         }

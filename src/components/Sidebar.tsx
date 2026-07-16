@@ -139,6 +139,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
     );
 
     const isSettingsActive = pathname === `/settings` || pathname.startsWith(`/settings/`);
+    const isAdminLicensesActive = pathname === `/admin/licenses` || pathname.startsWith(`/admin/licenses`);
     const isAdmin = user?.role === 'ADMIN' || user?.role === 'Admin';
 
     const filteredItems = useMemo(() => {
@@ -391,6 +392,29 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                         التدريب
                     </span>
                 </button>
+
+                {isAdmin && (
+                    <Link
+                        href={`/admin/licenses`}
+                        className={cn(
+                            "relative flex items-center gap-4 p-3 rounded-lg w-full transition-all duration-200 group overflow-hidden",
+                            isAdminLicensesActive
+                                ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
+                        )}
+                    >
+                        {isAdminLicensesActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
+                        )}
+                        <ShieldCheck strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10 text-cyan-500")} />
+                        <span className={cn(
+                            "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
+                            isExpanded ? "opacity-100" : "opacity-0 w-0"
+                        )}>
+                            Client Licenses
+                        </span>
+                    </Link>
+                )}
 
                 {(isAdmin || hasPermission(user?.permissions, PERMISSION_REGISTRY.ADMIN.MANAGE_SETTINGS) || hasPermission(user?.permissions, PERMISSION_REGISTRY.ADMIN.MANAGE_USERS)) && (
                     <Link

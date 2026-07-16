@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 
 import { getFormattedTicketNumber } from '@/lib/id-generator';
+import { verifyServerLicense } from '@/lib/license/server-verify';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 /**
  * Sequential barcode generation with atomic protection
@@ -27,8 +29,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
     }
 
-    let body: any = null;
-    try {
+    const licenseJwt = request.headers.get('x-license-jwt');
+    const licenseCheck = verifyServerLicense(licenseJwt);
+    if (!licenseCheck.valid && licenseCheck.response) {
+        return licenseCheck.response;
+    }
+
+    const tenantId = licenseCheck.tenantId;
+    if (!tenantId) {
+        return NextResponse.json({ success: false, error: 'Invalid tenant context in license' }, { status: 400 });
+    }
+
+    return await runWithTenant(tenantId, async () => {
+        let body: any = null;
+        try {
         body = await request.json();
         const {
             id,
@@ -83,7 +97,7 @@ export async function POST(request: NextRequest) {
         const dPrice = new Decimal(repairPrice);
 
         // ── Transaction ────────────────────────────────────────────────────────
-        const ticket = await prisma.$transaction(async (tx) => {
+        const ticket = await secureTransaction(async (tx) => {
             // 1. Barcode Generation
             const barcode = await getNextTicketNumberInsideTx(tx, branchId);
 
@@ -179,4 +193,5 @@ export async function POST(request: NextRequest) {
         console.error('[offline-ticket] failed:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+    });
 }

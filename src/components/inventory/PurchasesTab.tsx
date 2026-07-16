@@ -354,7 +354,38 @@ export default function PurchasesTab({
         if (!isNewPurchaseOpen) return;
         const product = products.find(p => p.sku === code);
         if (product) {
-            addToCartExisting(product);
+            setGridRows(prev => {
+                const existingRowIndex = prev.findIndex(r => r.productId === product.id);
+                let newRows;
+                if (existingRowIndex >= 0) {
+                    newRows = [...prev];
+                    newRows[existingRowIndex] = { 
+                        ...newRows[existingRowIndex], 
+                        quantity: Number(newRows[existingRowIndex].quantity) + 1,
+                        subTotal: (Number(newRows[existingRowIndex].quantity) + 1) * Number(newRows[existingRowIndex].unitPrice)
+                    };
+                } else {
+                    const newRow: GridRow = {
+                        id: safeRandomUUID(),
+                        productId: product.id,
+                        itemCode: product.sku,
+                        itemName: product.name,
+                        categoryId: product.categoryId || "",
+                        unit: "قطعة",
+                        quantity: 1,
+                        unitPrice: product.costPrice || 0,
+                        subTotal: product.costPrice || 0,
+                        sellPrice: product.sellPrice,
+                        sellPrice2: product.sellPrice2,
+                        sellPrice3: product.sellPrice3,
+                        isNew: false,
+                        conversionFactor: 1
+                    };
+                    newRows = [...prev, newRow];
+                }
+                setCart(gridRowsToCartItems(newRows));
+                return newRows;
+            });
         } else {
             setEntryMode('NEW');
             setNewItemSku(code);
@@ -537,6 +568,7 @@ export default function PurchasesTab({
                         <button
                             onClick={() => {
                                 form.resetForm();
+                                setGridRows([]);
                                 setIsNewPurchaseOpen(true);
                             }}
                             className="flex items-center gap-2 px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-zinc-900/20"
@@ -723,7 +755,10 @@ export default function PurchasesTab({
                 onClose={() => setIsNewPurchaseOpen(false)}
                 form={form}
                 gridRows={gridRows}
-                onRowsChange={setGridRows}
+                onRowsChange={(newRows) => {
+                    setGridRows(newRows);
+                    setCart(gridRowsToCartItems(newRows));
+                }}
                 handleScan={handleScan}
                 handleAutoSku={handleAutoSku}
                 showNewItemPanel={showNewItemPanel}

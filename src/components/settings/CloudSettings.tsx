@@ -26,6 +26,14 @@ export default function CloudSettings() {
     const [availableBranches, setAvailableBranches] = useState<{ id: string, name: string, code: string }[]>([]);
     const [fetchingBranches, setFetchingBranches] = useState(false);
 
+    // License Generator State
+    const [licenseLoading, setLicenseLoading] = useState(false);
+    const [licenseCode, setLicenseCode] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+    const [clientName, setClientName] = useState('');
+    const [durationDays, setDurationDays] = useState(30);
+    const [planType, setPlanType] = useState('trial');
+
     useEffect(() => {
         CloudConfigManager.getCloudConfig().then(c => {
             setConfig(c);
@@ -119,7 +127,8 @@ export default function CloudSettings() {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <Card className="glass-card bg-card/40 border-border/40 overflow-hidden relative">
+            {/* Cloud Connection Card */}
+            <Card className="glass-card bg-card/40 border-border/40 overflow-hidden relative shadow-md">
                 <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/50" />
                 <CardHeader>
                     <div className="flex items-center gap-3">
@@ -129,7 +138,7 @@ export default function CloudSettings() {
                         <div>
                             <CardTitle className="text-xl">Cloud Connection Settings</CardTitle>
                             <CardDescription>
-                                Optional settings to link this local terminal to the central Casper Cloud ERP. 
+                                Settings to link this local terminal to the central Casper Cloud ERP. 
                                 Leave disabled to operate strictly offline.
                             </CardDescription>
                         </div>
@@ -234,6 +243,97 @@ export default function CloudSettings() {
                         Save Cloud Settings
                     </Button>
                 </CardFooter>
+            </Card>
+
+            {/* License Generator Card */}
+            <Card className="glass-card bg-card/40 border-border/40 overflow-hidden relative shadow-md">
+                <div className="absolute top-0 left-0 w-1 h-full bg-violet-500/50" />
+                <CardHeader>
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-500">
+                            <KeyRound className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-xl">Generate License Activation Code</CardTitle>
+                            <CardDescription>
+                                Create single-use activation codes for client terminals. 
+                                Binds to client motherboard UUID on activation.
+                            </CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <form onSubmit={handleGenerateLicense}>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="clientName">Client / Branch Name</Label>
+                                <Input 
+                                    id="clientName"
+                                    placeholder="e.g. Riyadh Main Terminal"
+                                    value={clientName}
+                                    onChange={(e) => setClientName(e.target.value)}
+                                    className="bg-background/50"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="planType">License Plan Type</Label>
+                                <select 
+                                    id="planType"
+                                    value={planType}
+                                    onChange={(e) => setPlanType(e.target.value)}
+                                    className="w-full h-11 rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                >
+                                    <option value="trial">Trial</option>
+                                    <option value="basic">Basic</option>
+                                    <option value="premium">Premium</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="durationDays">Duration (Days)</Label>
+                                <Input 
+                                    id="durationDays"
+                                    type="number"
+                                    value={durationDays}
+                                    onChange={(e) => setDurationDays(Number(e.target.value))}
+                                    className="bg-background/50"
+                                    min={1}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {licenseCode && (
+                            <div className="mt-6 p-4 rounded-xl bg-violet-500/10 border border-violet-500/20 flex flex-col md:flex-row items-center justify-between gap-4 animate-in zoom-in duration-300">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] uppercase font-black tracking-widest text-violet-400">Activation Code Generated</p>
+                                    <p className="text-2xl font-mono font-black tracking-widest text-violet-600 dark:text-violet-400">{licenseCode}</p>
+                                </div>
+                                <Button 
+                                    type="button"
+                                    variant="outline" 
+                                    onClick={handleCopy}
+                                    className="border-violet-500/30 bg-background/50 hover:bg-violet-500/10 hover:text-violet-600"
+                                >
+                                    {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                                    {copied ? 'Copied' : 'Copy Code'}
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                    <CardFooter className="bg-muted/20 border-t border-border/10 p-6 flex justify-end">
+                        <Button 
+                            type="submit" 
+                            disabled={licenseLoading || !clientName}
+                            className="bg-violet-500 hover:bg-violet-600 text-white shadow-lg shadow-violet-500/20"
+                        >
+                            {licenseLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <KeyRound className="w-4 h-4 mr-2" />}
+                            Generate Code
+                        </Button>
+                    </CardFooter>
+                </form>
             </Card>
         </div>
     );

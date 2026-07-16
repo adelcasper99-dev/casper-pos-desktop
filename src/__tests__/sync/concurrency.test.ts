@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { POST as syncTicket } from '@/app/api/tickets/offline-ticket/route';
-import { resetTestDB } from './setup';
+import { resetTestDB, syncHeaders } from './setup';
 import { NextRequest } from 'next/server';
 import { SyncWorker } from '@/lib/sync-worker';
 import { SyncService } from '@/lib/sync-service';
 import { offlineDB } from '@/lib/offline-db';
+
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 describe('Sync Engine: Concurrency & Stability', () => {
     
@@ -13,9 +15,11 @@ describe('Sync Engine: Concurrency & Stability', () => {
         await resetTestDB();
         (SyncWorker as any).isSyncing = false; // 🛡️ Reset state between tests
         
-        // Setup minimal data (Branch, etc)
-        await prisma.branch.create({
-            data: { id: 'branch-1', name: 'Main Branch', code: 'BR-1' }
+        await runWithTenant('test-tenant', async () => {
+            // Setup minimal data (Branch, etc)
+            await prisma.branch.create({
+                data: { id: 'branch-1', name: 'Main Branch', code: 'BR-1' }
+            });
         });
     });
 
@@ -47,6 +51,7 @@ describe('Sync Engine: Concurrency & Stability', () => {
         const executeRequest = (p: any) => {
             const req = new NextRequest('http://localhost/api/tickets/offline-ticket', {
                 method: 'POST',
+                headers: syncHeaders,
                 body: JSON.stringify(p)
             });
             return syncTicket(req);

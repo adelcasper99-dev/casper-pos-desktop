@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { useState, useEffect } from "react";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { CSRFProvider } from "@/contexts/CSRFContext";
+import { LicenseProvider } from "@/components/providers/LicenseProvider";
 
 export default function Providers({
     children,

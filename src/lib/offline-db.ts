@@ -42,6 +42,10 @@ export interface OfflineStoreSettings {
     currency: string;
     receiptFooter: string;
     updatedAt: string;
+    licenseJwt?: string;
+    lastServerNow?: number;
+    localUptimeTicks?: number;
+    blindCloseEnabled?: boolean;
 }
 
 export interface OfflineSystemConfig {

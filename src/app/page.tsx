@@ -1,11 +1,27 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LoginForm from "./LoginForm";
+import { getSession } from "@/lib/auth";
 
 export default async function LoginPageServer() {
-    const userCount = await prisma.user.count();
+    const session = await getSession();
+    if (session) {
+        redirect("/dashboard");
+    }
+    // 1. Check license / trial
+    const settings = await prisma.storeSettings.findUnique({
+        where: { id: "settings" }
+    });
 
-    // Redirect to /setup if there are no users in the system
+    const hasLicense = !!settings?.licenseJwt;
+    const hasTrial = !!settings?.trialStartDate;
+
+    if (!hasLicense && !hasTrial) {
+        redirect("/onboarding");
+    }
+
+    // 2. Redirect to /setup if there are no users in the system
+    const userCount = await prisma.user.count();
     if (userCount === 0) {
         redirect("/setup");
     }

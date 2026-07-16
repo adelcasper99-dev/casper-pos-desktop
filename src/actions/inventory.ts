@@ -200,7 +200,7 @@ export const getDefaultWarehouses = secureAction(async () => {
 export const deleteSupplier = secureAction(async (data: { id: string, csrfToken?: string }) => {
     try {
         await prisma.supplier.delete({ where: { id: data.id } });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
             throw error;
         }
@@ -882,7 +882,7 @@ export async function getBundleComponents(bundleProductId: string) {
                     : Infinity,
             }))
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[getBundleComponents] Error:', error);
         return { success: false, components: [] };
     }
@@ -1015,7 +1015,7 @@ export const deleteCategory = secureAction(async (data: { id: string; csrfToken?
     const { id } = data;
     try {
         await prisma.category.delete({ where: { id } });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
             throw error;
         }
@@ -1075,8 +1075,8 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
         })
         : [];
 
-    const idMap = new Map(existingProducts.map(p => [p.id, p]));
-    const skuMap = new Map(existingProducts.map(p => [p.sku, p]));
+    const idMap = new Map<string, any>(existingProducts.map(p => [p.id, p]));
+    const skuMap = new Map<string, any>(existingProducts.map(p => [p.sku, p]));
 
     // Prepare Warehouse ID
     let warehouseId = header.warehouseId;
@@ -1138,6 +1138,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         sellPrice2: item.sellPrice2 || 0,
                         sellPrice3: item.sellPrice3 || 0,
                         stock: 0,
+                        minStock: item.minQty ?? 5,
                         isDevice: item.isDevice || false,
                         deviceType: item.deviceType || undefined,
                         condition: item.condition || undefined,
@@ -1316,6 +1317,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
             latestSellPrice?: number,
             latestSellPrice2?: number,
             latestSellPrice3?: number,
+            latestMinQty?: number,
         }>();
 
         for (const item of processedItems) {
@@ -1332,6 +1334,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 if (item.sellPrice) existing.latestSellPrice = item.sellPrice;
                 if (item.sellPrice2) existing.latestSellPrice2 = item.sellPrice2;
                 if (item.sellPrice3) existing.latestSellPrice3 = item.sellPrice3;
+                if (item.minQty !== undefined) existing.latestMinQty = item.minQty;
             } else {
                 aggregatedMap.set(item.productId, {
                     productId: item.productId,
@@ -1340,6 +1343,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                     latestSellPrice: item.sellPrice,
                     latestSellPrice2: item.sellPrice2,
                     latestSellPrice3: item.sellPrice3,
+                    latestMinQty: item.minQty,
                 });
             }
         }
@@ -1374,7 +1378,8 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         costPrice: item.latestUnitCost, 
                         ...(item.latestSellPrice ? { sellPrice: item.latestSellPrice } : {}),
                         ...(item.latestSellPrice2 ? { sellPrice2: item.latestSellPrice2 } : {}),
-                        ...(item.latestSellPrice3 ? { sellPrice3: item.latestSellPrice3 } : {})
+                        ...(item.latestSellPrice3 ? { sellPrice3: item.latestSellPrice3 } : {}),
+                        ...(item.latestMinQty !== undefined ? { minStock: item.latestMinQty } : {})
                     }
                 })
             ),
@@ -1440,7 +1445,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
     const existingProducts = skusToCheck.length > 0
         ? await prisma.product.findMany({ where: { sku: { in: skusToCheck } } })
         : [];
-    const existingProductMap = new Map(existingProducts.map(p => [p.sku, p]));
+    const existingProductMap = new Map<string, any>(existingProducts.map(p => [p.sku, p]));
 
     let warehouseId = header.warehouseId;
     if (!warehouseId) {
@@ -1510,6 +1515,7 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                         sellPrice2: item.sellPrice2 || 0,
                         sellPrice3: item.sellPrice3 || 0,
                         stock: 0,
+                        minStock: item.minQty ?? 5,
                         isDevice: item.isDevice || false,
                         deviceType: item.deviceType || undefined,
                         condition: item.condition || undefined,
@@ -1856,7 +1862,7 @@ export const getWarehouses = secureAction(async () => {
 
     const warehouses = await prisma.warehouse.findMany({
         where: isHQUser ? { deletedAt: null } : { branchId: user.branchId || '', deletedAt: null },
-        include: { branch: true },
+        include: { branch: { where: { deletedAt: null } } },
         orderBy: { isDefault: 'desc' }
     });
 
@@ -1970,7 +1976,7 @@ export const getPurchase = secureAction(async (id: string) => {
     return { success: true, data: purchase };
 }, { requireCSRF: false });
 
-export const createWarehouse = secureAction(async (data: { name: string; address?: string; branchId?: string; csrfToken?: string }) => {
+export const createWarehouse = secureAction(async (data: { name: string; address?: string; branchId?: string; isMaintenanceDefault?: boolean; csrfToken?: string }) => {
     let targetBranchId = data.branchId;
 
     if (!targetBranchId) {
@@ -2007,7 +2013,7 @@ export const createWarehouse = secureAction(async (data: { name: string; address
     }
     // ─────────────────────────────────────────────────────────────────
 
-    await prisma.warehouse.create({
+    const newWarehouse = await prisma.warehouse.create({
         data: {
             name: data.name.trim(),
             address: data.address || null,
@@ -2015,6 +2021,23 @@ export const createWarehouse = secureAction(async (data: { name: string; address
             isDefault: false
         }
     });
+
+    if (data.isMaintenanceDefault) {
+        const user = await getCurrentUser();
+        const isAdmin = user && (user.role === 'ADMIN' || user.role === 'مدير النظام' || user.role === 'المالك' || hasPermission(user.permissions, '*'));
+        if (isAdmin) {
+             await prisma.$transaction([
+                 prisma.warehouse.updateMany({
+                     where: { branchId: targetBranchId, isMaintenanceDefault: true },
+                     data: { isMaintenanceDefault: false }
+                 }),
+                 prisma.warehouse.update({
+                     where: { id: newWarehouse.id },
+                     data: { isMaintenanceDefault: true }
+                 })
+             ]);
+        }
+    }
 
     revalidatePath("/inventory");
     revalidatePath(`/branches/${targetBranchId}/warehouses`);
@@ -2032,6 +2055,23 @@ export const updateWarehouse = secureAction(async (data: { id: string } & z.infe
             address: validated.address || null,
         }
     });
+
+    if (validated.isMaintenanceDefault) {
+        const user = await getCurrentUser();
+        const isAdmin = user && (user.role === 'ADMIN' || user.role === 'مدير النظام' || user.role === 'المالك' || hasPermission(user.permissions, '*'));
+        if (isAdmin) {
+             await prisma.$transaction([
+                 prisma.warehouse.updateMany({
+                     where: { branchId: warehouse.branchId, isMaintenanceDefault: true },
+                     data: { isMaintenanceDefault: false }
+                 }),
+                 prisma.warehouse.update({
+                     where: { id: warehouse.id },
+                     data: { isMaintenanceDefault: true }
+                 })
+             ]);
+        }
+    }
 
     revalidatePath("/inventory");
     revalidatePath(`/branches/${warehouse.branchId}/warehouses`);
@@ -2125,7 +2165,7 @@ export const deleteWarehouse = secureAction(async (data: { id: string; csrfToken
             await tx.warehouse.delete({
                 where: { id }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
                 throw error;
             }
@@ -2232,6 +2272,7 @@ export const getProducts = secureAction(async (params: {
     endDate?: string;
     sortBy?: 'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice';
     sortOrder?: 'asc' | 'desc';
+    globalMinStock?: number;
 } = {}) => {
     const page = params.page || 1;
     const limit = params.limit || 50;
@@ -2261,25 +2302,43 @@ export const getProducts = secureAction(async (params: {
 
     // Stock Status Logic (Conditional on Warehouse)
     if (params.stockStatus) {
-        const statusWhere: any = {};
-        if (params.stockStatus === 'in_stock') statusWhere.gte = 5;
-        else if (params.stockStatus === 'low_stock') statusWhere.gt = 0, statusWhere.lt = 5;
-        else if (params.stockStatus === 'out_of_stock') statusWhere.lte = 0;
-        
-        if (params.stockStatus !== 'services') {
-            where.trackStock = true;
-            if (params.warehouseId) {
-                where.stocks = {
-                    some: {
-                        warehouseId: params.warehouseId,
-                        quantity: statusWhere
-                    }
-                };
-            } else {
-                where.stock = statusWhere;
-            }
+        if (params.stockStatus === 'shortage') {
+            const productsWithMinStock = await prisma.product.findMany({
+                where: { deletedAt: null, trackStock: true },
+                select: { id: true, stock: true, minStock: true }
+            });
+            const threshold = params.globalMinStock !== undefined ? params.globalMinStock : null;
+            const shortageIds = productsWithMinStock
+                .filter(p => {
+                    const stockNum = typeof p.stock === 'number' ? p.stock : (p.stock as any).toNumber();
+                    const minStockNum = threshold !== null 
+                        ? threshold 
+                        : (typeof p.minStock === 'number' ? p.minStock : (p.minStock as any).toNumber());
+                    return stockNum <= minStockNum;
+                })
+                .map(p => p.id);
+            where.id = { in: shortageIds };
         } else {
-            where.trackStock = false;
+            const statusWhere: any = {};
+            if (params.stockStatus === 'in_stock') statusWhere.gte = 5;
+            else if (params.stockStatus === 'low_stock') statusWhere.gt = 0, statusWhere.lt = 5;
+            else if (params.stockStatus === 'out_of_stock') statusWhere.lte = 0;
+            
+            if (params.stockStatus !== 'services') {
+                where.trackStock = true;
+                if (params.warehouseId) {
+                    where.stocks = {
+                        some: {
+                            warehouseId: params.warehouseId,
+                            quantity: statusWhere
+                        }
+                    };
+                } else {
+                    where.stock = statusWhere;
+                }
+            } else {
+                where.trackStock = false;
+            }
         }
     } else if (params.warehouseId) {
         // Just filter by warehouse presence if no status given but wh is
@@ -2615,10 +2674,10 @@ export const bulkImportPurchases = secureAction(async (data: {
     ]);
 
     // Maps for O(1) Lookup
-    const productMap = new Map(existingProducts.map(p => [p.sku, p]));
-    const categoryMap = new Map(existingCategories.map(c => [c.name, c]));
-    const supplierMap = new Map(existingSuppliers.map(s => [s.name, s]));
-    const warehouseMap = new Map(existingWarehouses.map(w => [w.name, w]));
+    const productMap = new Map<string, any>(existingProducts.map(p => [p.sku, p]));
+    const categoryMap = new Map<string, any>(existingCategories.map(c => [c.name, c]));
+    const supplierMap = new Map<string, any>(existingSuppliers.map(s => [s.name, s]));
+    const warehouseMap = new Map<string, any>(existingWarehouses.map(w => [w.name, w]));
 
     // 2. Data Preparation (WRITE Phase - Pre-Transaction)
     // ---------------------------------------------------------
@@ -2798,16 +2857,16 @@ export const bulkImportPurchases = secureAction(async (data: {
 
             results.successful++;
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             results.failed++;
             results.errors.push({
                 invoice: invoice.invoiceNumber || 'Unknown',
-                error: error.message
+                error: (error instanceof Error ? error.message : String(error))
             });
-            if (!results.gaps.some(g => g.message === error.message)) {
+            if (!results.gaps.some(g => g.message === (error instanceof Error ? error.message : String(error)))) {
                 results.gaps.push({
                     type: 'SYSTEM',
-                    message: error.message,
+                    message: (error instanceof Error ? error.message : String(error)),
                     item: invoice.invoiceNumber
                 });
             }
@@ -2918,7 +2977,7 @@ export const deleteModel = secureAction(async (data: { id: string, csrfToken?: s
         await prisma.model.delete({
             where: { id: data.id }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
             throw new Error("لا يمكن حذف الموديل لأنه مرتبط بمنتجات حالية.");
         }
@@ -2942,7 +3001,7 @@ export const deleteAttribute = secureAction(async (data: { id: string, csrfToken
         await prisma.attribute.delete({
             where: { id: data.id }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
             throw new Error("لا يمكن حذف هذه الصفة لأنها مرتبطة بمنتجات حالية.");
         }
@@ -2968,7 +3027,7 @@ export const deleteUnitOfMeasure = secureAction(async (data: { id: string, csrfT
         await prisma.unitOfMeasure.delete({
             where: { id: data.id }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
             throw new Error("لا يمكن حذف هذه الوحدة لأنها مرتبطة بمنتجات أو فواتير حالية.");
         }

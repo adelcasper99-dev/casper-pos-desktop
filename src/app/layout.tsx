@@ -15,6 +15,7 @@ import Sidebar from "@/components/Sidebar";
 import NavigationHotkeys from "@/components/NavigationHotkeys";
 import { getCurrentUser } from "@/actions/auth";
 import { getStoreSettings } from "@/actions/settings";
+import { LicenseVerifier } from "@/lib/license/verify";
 import LayoutContent from "./LayoutContent";
 import { TimeSyncWarning } from "@/components/layout/TimeSyncWarning";
  
@@ -38,13 +39,21 @@ export default async function RootLayout({
     const settingsRes = await getStoreSettings();
     const settings = settingsRes?.data || {};
 
+    let licenseStatus = null;
+    try {
+        licenseStatus = await LicenseVerifier.verify();
+    } catch (error) {
+        console.error("License verification error in layout:", error);
+        licenseStatus = { status: 'ERROR', message: 'Failed to verify license' };
+    }
+
     return (
         <html lang="ar" dir="rtl" suppressHydrationWarning>
             <body className="antialiased">
                 <Providers initialToken={csrfToken} initialSettings={settings}>
                     <TimeSyncWarning />
                     <NavigationHotkeys />
-                    <LayoutWrapper user={user} settings={settings}>
+                    <LayoutWrapper user={user} settings={settings} licenseStatus={licenseStatus}>
                         {children}
                     </LayoutWrapper>
                     <Toaster richColors position="top-center" expand={true} style={{ zIndex: 10000 }} />
@@ -56,9 +65,9 @@ export default async function RootLayout({
 
 // Client-side wrapper to handle conditional sidebar
 
-function LayoutWrapper({ children, user, settings }: { children: React.ReactNode, user: any, settings: any }) {
+function LayoutWrapper({ children, user, settings, licenseStatus }: { children: React.ReactNode, user: any, settings: any, licenseStatus: any }) {
     return (
-        <LayoutContent user={user} settings={settings}>
+        <LayoutContent user={user} settings={settings} licenseStatus={licenseStatus}>
             {children}
         </LayoutContent>
     );

@@ -48,7 +48,7 @@ export default async function SettingsPage() {
         getUsersForPage().catch(() => []),
         getRoles(),
         prisma.branch.findMany({
-            select: { id: true, name: true },
+            select: { id: true, name: true, code: true, type: true, address: true, phone: true, createdAt: true, updatedAt: true, deletedAt: true, _count: { select: { warehouses: { where: { deletedAt: null } }, users: true } } },
             where: { deletedAt: null }
         }),
         prisma.warehouse.findMany({
@@ -148,6 +148,15 @@ export default async function SettingsPage() {
                         </TabsTrigger>
                     )}
 
+                    {isAdmin && (
+                        <TabsTrigger 
+                            value="branches" 
+                            className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-600 dark:data-[state=active]:text-orange-400 data-[state=active]:border-orange-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <Store className="w-4 h-4 opacity-70" /> الفروع
+                        </TabsTrigger>
+                    )}
+
                     {canManageBackups && (
                         <TabsTrigger 
                             value="backups" 
@@ -191,6 +200,12 @@ export default async function SettingsPage() {
                                 className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
                             >
                                 <Cloud className="w-4 h-4 opacity-70" /> Cloud Sync Config
+                            </TabsTrigger>
+                            <TabsTrigger 
+                                value="licenses" 
+                                className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-600 dark:data-[state=active]:text-violet-400 data-[state=active]:border-violet-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <Shield className="w-4 h-4 opacity-70" /> Client Licenses
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="sync" 
@@ -312,6 +327,12 @@ export default async function SettingsPage() {
                         </TabsContent>
                     )}
 
+                    {isAdmin && (
+                        <TabsContent value="branches" className="outline-none focus-visible:ring-0">
+                            <BranchManager branches={branches as any} />
+                        </TabsContent>
+                    )}
+
 
                     {canManageTables && (
                         <TabsContent value="tables" className="outline-none focus-visible:ring-0">
@@ -335,6 +356,9 @@ export default async function SettingsPage() {
                         <>
                             <TabsContent value="cloud" className="outline-none focus-visible:ring-0">
                                 <CloudSettings />
+                            </TabsContent>
+                            <TabsContent value="licenses" className="outline-none focus-visible:ring-0">
+                                <LicenseManagement />
                             </TabsContent>
                             <TabsContent value="sync" className="outline-none focus-visible:ring-0">
                                 <SyncManagement />

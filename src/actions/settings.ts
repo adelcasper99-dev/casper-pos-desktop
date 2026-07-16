@@ -184,3 +184,17 @@ export const updateStoreSettings = secureAction(async (data: any) => {
     return { success: true };
 }, { permission: 'MANAGE_SETTINGS', requireCSRF: false });
 
+
+export const clearLocalLicenseJwt = secureAction(async () => {
+    try {
+        await prisma.storeSettings.update({
+            where: { id: "settings" },
+            data: { licenseJwt: null }
+        });
+        revalidatePath('/', 'layout');
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error clearing license JWT:", error);
+        return { success: false, error: error.message };
+    }
+}, { requireCSRF: false });

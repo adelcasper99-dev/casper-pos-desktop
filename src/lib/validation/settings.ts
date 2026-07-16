@@ -19,6 +19,7 @@ export const settingsSchema = z.object({
     locationLng: z.coerce.number().optional(),
     locationRadius: z.coerce.number().optional(),
     allowNegativeStock: z.boolean().optional(),
+    googleDriveBackupPath: z.string().optional().nullable(),
     blindCloseEnabled: z.boolean().optional(),
     whatsappEnabled: z.boolean().optional(),
     whatsappTemplates: z.object({

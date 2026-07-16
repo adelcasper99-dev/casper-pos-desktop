@@ -143,7 +143,8 @@ export default function SalesLog({ initialSales, csrfToken, onTotalsChange }: Sa
                 saleId,
                 reason: data.reason || undefined,
                 treasuryId: data.treasuryId,
-                refundMethod: data.refundMethod,
+                refundMethod: data.refundMethod || 'CASH',
+                isDamaged: false,
                 csrfToken
             });
             if (res.success) {

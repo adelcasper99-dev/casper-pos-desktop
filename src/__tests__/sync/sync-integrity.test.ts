@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { POST as syncSale } from '@/app/api/pos/offline-sale/route';
-import { resetTestDB } from './setup';
+import { resetTestDB, syncHeaders } from './setup';
 import { NextRequest } from 'next/server';
 import { seedAccounts } from '@/lib/accounting/seed-accounts';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 const BRANCH_ID = '11111111-1111-4111-8111-111111111111';
 const WAREHOUSE_ID = '22222222-2222-4222-8222-222222222222';
@@ -19,40 +20,42 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
     beforeEach(async () => {
         await resetTestDB();
         
-        // Setup minimal data (Branch, Warehouse, Category, Product)
-        await prisma.branch.create({
-            data: { id: branchId, name: 'Main Branch', code: 'BR-1' }
-        });
+        await runWithTenant('test-tenant', async () => {
+            // Setup minimal data (Branch, Warehouse, Category, Product)
+            await prisma.branch.create({
+                data: { id: branchId, name: 'Main Branch', code: 'BR-1' }
+            });
 
-        await prisma.warehouse.create({
-            data: { id: warehouseId, name: 'Main Warehouse', branchId }
-        });
+            await prisma.warehouse.create({
+                data: { id: warehouseId, name: 'Main Warehouse', branchId }
+            });
 
-        await prisma.category.upsert({
-            where: { id: categoryId },
-            update: {},
-            create: {
-                id: categoryId,
-                name: 'Test Category'
-            }
-        });
+            await prisma.category.upsert({
+                where: { id: categoryId },
+                update: {},
+                create: {
+                    id: categoryId,
+                    name: 'Test Category'
+                }
+            });
 
-        await prisma.product.upsert({
-            where: { id: productId },
-            update: {},
-            create: {
-                id: productId,
-                name: 'Test Product',
-                sku: 'TEST-SKU',
-                costPrice: 50,
-                sellPrice: 100,
-                trackStock: false,
-                categoryId: categoryId
-            }
-        });
+            await prisma.product.upsert({
+                where: { id: productId },
+                update: {},
+                create: {
+                    id: productId,
+                    name: 'Test Product',
+                    sku: 'TEST-SKU',
+                    costPrice: 50,
+                    sellPrice: 100,
+                    trackStock: false,
+                    categoryId: categoryId
+                }
+            });
 
-        // Seed default GL accounts needed for sales transactions
-        await seedAccounts();
+            // Seed default GL accounts needed for sales transactions
+            await seedAccounts();
+        });
     });
 
     /**
@@ -81,6 +84,7 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
         const executeRequest = () => {
             const req = new NextRequest('http://localhost/api/pos/offline-sale', {
                 method: 'POST',
+                headers: syncHeaders,
                 body: JSON.stringify(payload)
             });
             return syncSale(req);
@@ -96,8 +100,10 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
         ]);
 
         // Check DB count
-        const count = await prisma.sale.count({
-            where: { idempotencyKey: 'test-key-123' }
+        const count = await runWithTenant('test-tenant', async () => {
+            return await prisma.sale.count({
+                where: { idempotencyKey: 'test-key-123' }
+            });
         });
 
         expect(count).toBe(1);
@@ -137,6 +143,7 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
 
         const req = new NextRequest('http://localhost/api/pos/offline-sale', {
             method: 'POST',
+            headers: syncHeaders,
             body: JSON.stringify(payload)
         });
 
@@ -144,8 +151,10 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
         const data = await res.json();
         expect(data.success).toBe(true);
 
-        const savedSale = await prisma.sale.findUnique({
-            where: { id: data.id }
+        const savedSale = await runWithTenant('test-tenant', async () => {
+            return await prisma.sale.findUnique({
+                where: { id: data.id }
+            });
         });
 
         // Compare timestamps (allowing for small string conversion variance if any)

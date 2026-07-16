@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, secureTransaction } from '@/lib/prisma';
+import { verifyServerLicense } from '@/lib/license/server-verify';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const clientSecret = request.headers.get('x-sync-secret');
+        if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
+            return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
+        }
+
+        const licenseJwt = request.headers.get('x-license-jwt');
+        const licenseCheck = verifyServerLicense(licenseJwt);
+        if (!licenseCheck.valid && licenseCheck.response) {
+            return licenseCheck.response;
+        }
+
+        const tenantId = licenseCheck.tenantId;
+        if (!tenantId) {
+            return NextResponse.json({ success: false, error: 'Invalid tenant context in license' }, { status: 400 });
+        }
+
+        return await runWithTenant(tenantId, async () => {
+            const body = await request.json();
+            if (body.tenantId && body.tenantId !== tenantId) {
+                return NextResponse.json({ success: false, error: 'Tenant mismatch' }, { status: 403 });
+            }
         const {
             id,
             idempotencyKey,
@@ -46,7 +68,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await secureTransaction(async (tx) => {
             const movement = await tx.stockMovement.create({
                 data: {
                     ...(id ? { id } : {}),
@@ -93,6 +115,7 @@ export async function POST(request: NextRequest) {
         });
 
         return NextResponse.json({ success: true, id: result.id, existing: false });
+        });
     } catch (error: any) {
         console.error('[offline-movement] failed:', error);
         return NextResponse.json(

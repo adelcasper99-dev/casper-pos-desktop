@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 import { decrementWarehouseStock } from '@/lib/stock-helpers';
 import { logger } from '@/lib/logger';
 import { OfflineSaleSchema, type OfflineSaleInput } from '@/lib/validations/sync-schemas';
+import { verifyServerLicense } from '@/lib/license/server-verify';
+import { runWithTenant } from '@/lib/prisma-tenant-extension';
+
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake
@@ -12,9 +15,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
     }
 
-    let body: OfflineSaleInput | null = null;
-    try {
-        const rawBody = await request.json();
+    const licenseJwt = request.headers.get('x-license-jwt');
+    const licenseCheck = verifyServerLicense(licenseJwt);
+    if (!licenseCheck.valid && licenseCheck.response) {
+        return licenseCheck.response;
+    }
+
+    const tenantId = licenseCheck.tenantId;
+    if (!tenantId) {
+        return NextResponse.json({ success: false, error: 'Invalid tenant context in license' }, { status: 400 });
+    }
+
+    return await runWithTenant(tenantId, async () => {
+        let body: OfflineSaleInput | null = null;
+        try {
+            const rawBody = await request.json();
+
         const parseResult = OfflineSaleSchema.safeParse(rawBody);
         
         if (!parseResult.success) {
@@ -26,6 +42,9 @@ export async function POST(request: NextRequest) {
         }
 
         body = parseResult.data;
+        if (body.tenantId && body.tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Tenant mismatch. Unauthorized data write.' }, { status: 403 });
+        }
         const {
             id,
             idempotencyKey,
@@ -97,7 +116,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Atomic Sale Creation & Ledger ──────────────────────────────────────
-        const sale = await prisma.$transaction(async (tx) => {
+        const sale = await secureTransaction(async (tx) => {
             const newSale = await tx.sale.create({
                 data: {
                     ...(id ? { id } : {}),
@@ -264,7 +283,7 @@ export async function POST(request: NextRequest) {
             // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
             // 1. Snapshot product metadata for bundle detection
             const pIds = items.map((i: any) => i.productId).filter(Boolean);
-            const productMetas = await tx.product.findMany({
+            const productMetas: any[] = await tx.product.findMany({
                 where: { id: { in: pIds } },
                 select: { id: true, isBundle: true, trackStock: true }
             });
@@ -351,4 +370,5 @@ export async function POST(request: NextRequest) {
         console.error('[offline-sale] failed:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+    });
 }
