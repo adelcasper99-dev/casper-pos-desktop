@@ -89,11 +89,12 @@ interface PurchaseDataGridProps {
     rows: GridRow[];
     onRowsChange: (rows: GridRow[]) => void;
     currencySymbol?: string;
-    onQuickCreateCategory?: (name: string, callback: (id: string) => void) => void;
-    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string) => void) => void;
-    onQuickCreateAttribute?: (name: string, callback: (id: string) => void) => void;
+    onQuickCreateCategory?: (name: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateModel?: (name: string, categoryId: string, callback: (id: string, name: string) => void) => void;
+    onQuickCreateAttribute?: (name: string, callback: (id: string, name: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
     csrfToken?: string;
+    features?: any;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
