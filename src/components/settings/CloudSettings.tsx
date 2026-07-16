@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Cloud, CheckCircle2, XCircle, Loader2, DownloadCloud } from "lucide-react";
+import { Cloud, CheckCircle2, XCircle, Loader2, DownloadCloud, KeyRound, Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { CloudConfigManager, CloudConfig } from "@/utils/cloudConfigManager";
 
@@ -33,6 +33,39 @@ export default function CloudSettings() {
     const [clientName, setClientName] = useState('');
     const [durationDays, setDurationDays] = useState(30);
     const [planType, setPlanType] = useState('trial');
+
+    const handleGenerateLicense = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLicenseLoading(true);
+        setLicenseCode(null);
+        try {
+            const res = await fetch('/api/admin/license/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientName, durationDays, planType })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setLicenseCode(data.activationCode);
+                toast.success('License activation code generated successfully!');
+            } else {
+                toast.error(data.error || 'Failed to generate code.');
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'An error occurred.');
+        } finally {
+            setLicenseLoading(false);
+        }
+    };
+
+    const handleCopy = () => {
+        if (licenseCode) {
+            navigator.clipboard.writeText(licenseCode);
+            setCopied(true);
+            toast.success('Activation code copied to clipboard!');
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
 
     useEffect(() => {
         CloudConfigManager.getCloudConfig().then(c => {

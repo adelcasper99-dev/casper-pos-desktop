@@ -15,7 +15,7 @@ import Sidebar from "@/components/Sidebar";
 import NavigationHotkeys from "@/components/NavigationHotkeys";
 import { getCurrentUser } from "@/actions/auth";
 import { getStoreSettings } from "@/actions/settings";
-import { LicenseVerifier } from "@/lib/license/verify";
+import { LicenseVerifier, LicenseCheckResult } from "@/lib/license/verify";
 import LayoutContent from "./LayoutContent";
 import { TimeSyncWarning } from "@/components/layout/TimeSyncWarning";
  
@@ -39,7 +39,7 @@ export default async function RootLayout({
     const settingsRes = await getStoreSettings();
     const settings = settingsRes?.data || {};
 
-    let licenseStatus = null;
+    let licenseStatus: LicenseCheckResult | null = null;
     try {
         licenseStatus = await LicenseVerifier.verify();
     } catch (error) {

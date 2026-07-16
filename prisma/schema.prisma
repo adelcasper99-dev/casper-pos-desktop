@@ -427,6 +427,7 @@ model Product {
   stockRequestItems StockRequestItem[]
   wastages          StockWastage[]
   ticketParts       TicketPart[]
+  ReorderRule       ReorderRule[]
 
   @@index([deletedAt])
 }
@@ -896,6 +897,7 @@ model DevicePreset {
 
 model Ticket {
   id                      String               @id @default(uuid())
+  tenantId                String               @default("default")
   barcode                 String               @unique
   customerName            String
   customerPhone           String

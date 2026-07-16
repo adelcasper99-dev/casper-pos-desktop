@@ -26,6 +26,27 @@ async function main() {
     data: { name: 'Electronics' }
   });
 
+  // 2.5 Setup User and Shift for Sale compatibility
+  const user = await prisma.user.create({
+    data: {
+      username: 'mktg_user_' + Date.now(),
+      password: 'dummy_password',
+      name: 'Marketing Seeder',
+      roleStr: 'ADMIN',
+      branchId: branch.id
+    }
+  });
+
+  const shift = await prisma.shift.create({
+    data: {
+      userId: user.id,
+      openedAt: new Date(),
+      status: 'OPEN',
+      cashierName: user.name,
+      startCash: 100
+    }
+  });
+
   // 3. Setup Products
   const products = await Promise.all([
     prisma.product.create({ data: { sku: 'PROD-001', name: 'iPhone 15 Pro Max', costPrice: 1000, sellPrice: 1200, stock: 50, categoryId: category.id } }),
@@ -59,6 +80,8 @@ async function main() {
         status: 'COMPLETED',
         syncStatus: 'SYNCED',
         branchId: branch.id,
+        userId: user.id,
+        shiftId: shift.id,
         items: {
           create: [{
             productId: product.id,

@@ -11,10 +11,15 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "@/lib/i18n-mock";
 import { useSettings } from "@/contexts/SettingsContext";
+import { LocalPersistenceService } from "@/lib/local-persistence";
 
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
     const [saving, setSaving] = useState(false);
+    const isSaving = saving;
+    const setIsSaving = setSaving;
+    const [isTestingDrive, setIsTestingDrive] = useState(false);
+    const [isSyncingDrive, setIsSyncingDrive] = useState(false);
     const { refreshSettings } = useSettings();
     const t = useTranslations('StoreConfig');
     const fileInputRef = useRef<HTMLInputElement>(null);

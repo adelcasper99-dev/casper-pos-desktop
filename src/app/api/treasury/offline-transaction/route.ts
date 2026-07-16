@@ -5,37 +5,9 @@ import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const {
-            type,
-            amount,
-            description,
-            paymentMethod,
-            treasuryId,
-            shiftId,
-            categoryId,
-            idempotencyKey,
-            isTimeSuspicious,
-            createdAt
-        } = body;
-
-        // Bounded client time check to guarantee temporal integrity
-        const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
-        const timeCheck = getBoundedTimestamp(createdAt, isTimeSuspicious);
-
-        if (idempotencyKey) {
-            const existing = await prisma.transaction.findUnique({
-                where: { idempotencyKey }
-            });
-
-            if (existing) {
-                return NextResponse.json({
-                    success: true,
-                    existing: true,
-                    id: existing.id,
-                    message: 'Transaction already processed'
-                });
-            }
+        const clientSecret = request.headers.get('x-sync-secret');
+        if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
+            return NextResponse.json({ success: false, error: 'Unauthorized sync attempt' }, { status: 401 });
         }
 
         const licenseJwt = request.headers.get('x-license-jwt');
@@ -61,13 +33,12 @@ export async function POST(request: NextRequest) {
                 description,
                 paymentMethod,
                 treasuryId,
-                shiftId: shiftId ?? 'SYSTEM_SHIFT',
+                shiftId,
                 categoryId,
                 idempotencyKey,
-                isTimeSuspicious: timeCheck.isTimeSuspicious,
-                createdAt: timeCheck.createdAt
-            }
-        });
+                isTimeSuspicious,
+                createdAt
+            } = body;
 
             if (idempotencyKey) {
                 const existing = await prisma.transaction.findUnique({

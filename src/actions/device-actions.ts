@@ -12,7 +12,7 @@ export async function getDevicePresets() {
 
         if (devices.length === 0) {
             // Auto-seed from static file
-            const seedData = [];
+            const seedData: { brand: string; model: string }[] = [];
             for (const [brand, models] of Object.entries(staticModels)) {
                 for (const model of models) {
                     seedData.push({ brand, model });

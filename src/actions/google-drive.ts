@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
  * Check if Google Drive folder is accessible
  */
 export async function testGoogleDrive(testPath?: string) {
-  let foundPath = null;
+  let foundPath: string | null = null;
 
   if (testPath) {
     if (existsSync(testPath)) {

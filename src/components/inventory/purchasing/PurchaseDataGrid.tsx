@@ -96,7 +96,7 @@ interface PurchaseDataGridProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // "categoryId" is skipped in Tab for existing rows — handled in handleKeyDown
-const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "description", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
+const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "description", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3", "minQty"] as const;
 type EditableCol = (typeof ALL_EDITABLE_COLS)[number];
 
 const CELL_CLS = "border-e border-slate-200 dark:border-white/10 last:border-e-0 truncate px-3 py-2 transition-colors";

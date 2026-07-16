@@ -25,13 +25,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 
 import { 
     addTicketPart, 
@@ -122,21 +115,15 @@ export default function TicketPartsManager({
     const [selectedProductId, setSelectedProductId] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-    const [quantity, setQuantity] = useState<number | string>(1);
+    const [quantity, setQuantity] = useState(1);
     const [selectedPriceTier, setSelectedPriceTier] = useState<"A" | "B" | "C" | "CUSTOM">("A");
     const [transferPriceChoice, setTransferPriceChoice] = useState<"COST" | "SELL_1" | "CUSTOM">("COST");
-
-    // Custom price state
-    const [customSellPrice, setCustomSellPrice] = useState<string>("");
-    const [customCostPrice, setCustomCostPrice] = useState<string>("");
-
-    // Confirmation State
-    const [showBelowCostConfirm, setShowBelowCostConfirm] = useState(false);
-    const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
+    const [customUnitPrice, setCustomUnitPrice] = useState<number | "">("");
+    const [customTransferPrice, setCustomTransferPrice] = useState<number | "">("");
 
     // Service State
     const [serviceName, setServiceName] = useState("");
-    const [servicePrice, setServicePrice] = useState<number | string>(0);
+    const [servicePrice, setServicePrice] = useState(0);
 
     const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -167,9 +154,6 @@ export default function TicketPartsManager({
         setIsLoading(false);
     };
 
-    const [warehouses, setWarehouses] = useState<{id: string, name: string}[]>([]);
-    const [sourceWarehouseId, setSourceWarehouseId] = useState("MAIN");
-
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedSearchQuery(searchQuery);
@@ -181,24 +165,20 @@ export default function TicketPartsManager({
         if (isAddingPart) {
             loadData(debouncedSearchQuery);
         }
-    }, [isAddingPart, usageType, debouncedSearchQuery, sourceWarehouseId]);
+    }, [isAddingPart, debouncedSearchQuery, usageType, technicianId, sourceWarehouseId]);
 
     const loadData = async (query?: string) => {
         setIsLoading(true);
-        
-        if (usageType === "transfer" && warehouses.length === 0) {
-            const whRes = await getWarehouses();
-            if (whRes.success && whRes.data) {
-                setWarehouses(whRes.data.map((w: any) => ({ id: w.id, name: w.name })));
-            }
+        const targetWhId = usageType === "transfer" ? (sourceWarehouseId || undefined) : (technicianId || undefined);
+        try {
+            const res = await getProductsForSelector({ 
+                search: query, 
+                warehouseId: targetWhId 
+            });
+            if (res.success) setProducts((res.data || []) as ProductData[]);
+        } catch (err: any) {
+            console.error("Search error:", err);
         }
-
-        const targetWhId = usageType === "transfer" ? sourceWarehouseId : (technicianId || undefined);
-        const res = await getProductsForSelector({ 
-            search: query, 
-            warehouseId: targetWhId 
-        });
-        if (res.success) setProducts((res.data || []) as ProductData[]);
         setIsLoading(false);
     };
 
@@ -225,37 +205,40 @@ export default function TicketPartsManager({
     const handleAdd = async () => {
         if (usageType === "transfer") {
             if (!technicianId) { toast.error("يرجى إسناد فني أولاً"); return; }
-            if (!selectedProductId || Number(quantity) <= 0) { toast.error("يرجى اختيار المنتج والكمية"); return; }
+            if (!selectedProductId || quantity <= 0) { toast.error("يرجى اختيار المنتج والكمية"); return; }
+            if (!sourceWarehouseId) {
+                toast.error("الرجاء اختيار المخزن المحول منه");
+                return;
+            }
             
             setIsLoading(true);
             try {
-                let priceValue: number | undefined;
-                if (transferPriceChoice === 'COST') priceValue = Number(selectedProduct?.costPrice);
-                else if (transferPriceChoice === 'SELL_1') priceValue = Number(selectedProduct?.sellPrice);
-                else priceValue = Number(customCostPrice);
+                let priceValue: any = transferPriceChoice === 'COST' ? selectedProduct?.costPrice : selectedProduct?.sellPrice;
+                let priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : 'بالسعر 1';
 
                 if (transferPriceChoice === 'CUSTOM') {
-                    if (priceValue < Number(selectedProduct?.costPrice)) {
-                        toast.error("لا يمكن إدخال تكلفة أقل من التكلفة الحقيقية");
-                        setIsLoading(false);
-                        return;
-                    }
-                    if (!priceValue || isNaN(priceValue)) {
-                        toast.error("يرجى إدخال التكلفة المخصصة بشكل صحيح");
-                        setIsLoading(false);
-                        return;
+                    priceValue = customTransferPrice;
+                    priceLabel = 'سعر مخصص';
+                    
+                    const actualCost = Number(selectedProduct?.costPrice || 0);
+                    const isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'مدير النظام' || userRole === 'المالك';
+                    
+                    if (Number(priceValue) < actualCost) {
+                        if (!isAdminOrManager) {
+                            toast.error("سعر النقل للمهندس لا يمكن أن يكون أقل من التكلفة الفعلية");
+                            setIsLoading(false);
+                            return;
+                        }
                     }
                 }
-
-                let priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : transferPriceChoice === 'SELL_1' ? 'بالسعر 1' : 'سعر مخصص';
 
                 const res = await transferPartToTechnicianQuick({
                     technicianId, 
                     productId: selectedProductId, 
-                    quantity: Number(quantity),
+                    quantity,
+                    sourceWarehouseId,
                     transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
                     transferPriceLabel: priceLabel,
-                    sourceWarehouseId,
                     csrfToken: csrfToken ?? undefined
                 });
 
@@ -264,57 +247,18 @@ export default function TicketPartsManager({
                     setUsageType("part"); 
                     loadData();
                 } else {
-                    priceValue = Number(customCostPrice) || 0;
-                    priceLabel = 'سعر مخصص';
+                    toast.error(res.error || "فشل النقل");
                 }
-
-                const executeTransfer = async () => {
-                    setIsLoading(true);
-                    try {
-                        const res = await transferPartToTechnicianQuick({
-                            technicianId, 
-                            productId: selectedProductId, 
-                            quantity: Number(quantity),
-                            transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
-                            transferPriceLabel: priceLabel,
-                            csrfToken: csrfToken ?? undefined
-                        });
-
-                        if (res.success) {
-                            toast.success("تم النقل للمهندس بنجاح. يمكنك الآن إضافة القطعة للتذكرة.");
-                            setUsageType("part"); 
-                            loadData();
-                        } else {
-                            toast.error(res.error || "فشل النقل");
-                        }
-                    } catch (error: any) {
-                        toast.error(error.message || "فشل النقل");
-                    } finally {
-                        setIsLoading(false);
-                    }
-                };
-
-                if (transferPriceChoice === 'CUSTOM' && selectedProduct && (priceValue !== undefined && priceValue < Number(selectedProduct.costPrice))) {
-                    if (!['ADMIN', 'مدير النظام', 'المالك'].includes(userRole || '')) {
-                        toast.error("عفواً، لا تملك صلاحية لنقل القطعة بأقل من سعر التكلفة");
-                        return;
-                    }
-                    setPendingAction(() => executeTransfer);
-                    setShowBelowCostConfirm(true);
-                    return;
-                }
-
-                await executeTransfer();
-                return;
             } catch (error: any) {
                 toast.error(error.message || "فشل النقل");
+            } finally {
                 setIsLoading(false);
             }
             return;
         }
 
         if (usageType === "part") {
-            if (!selectedProductId || Number(quantity) <= 0) {
+            if (!selectedProductId || quantity <= 0) {
                 toast.error("يرجى اختيار المنتج والكمية");
                 return;
             }
@@ -326,63 +270,40 @@ export default function TicketPartsManager({
             } else if (selectedProduct) {
                 if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
                 else if (selectedPriceTier === 'B') unitPrice = Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice);
-                else if (selectedPriceTier === 'C') unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
-                else unitPrice = Number(customSellPrice);
+                else unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
+            }
 
-                if (selectedPriceTier === 'CUSTOM') {
-                    if (unitPrice < Number(selectedProduct.costPrice)) {
-                        toast.error("لا يمكن إدخال سعر بيع أقل من التكلفة الحقيقية");
-                        return;
-                    }
-                    if (!unitPrice || isNaN(unitPrice)) {
-                        toast.error("يرجى إدخال سعر البيع المخصص بشكل صحيح");
-                        return;
-                    }
+            // Determine Transfer Price (Cost to Engineer)
+            let overrideTransferPrice = 0;
+            if (transferPriceChoice === 'CUSTOM') {
+                overrideTransferPrice = Number(customTransferPrice);
+            } else if (selectedProduct) {
+                overrideTransferPrice = transferPriceChoice === 'COST' ? Number(selectedProduct.costPrice) : Number(selectedProduct.sellPrice);
+            }
+
+            const actualCost = Number(selectedProduct?.costPrice || 0);
+            const isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'مدير النظام' || userRole === 'المالك';
+
+            if (unitPrice < actualCost) {
+                if (!isAdminOrManager) {
+                    toast.error("سعر البيع لا يمكن أن يكون أقل من التكلفة الفعلية");
+                    return;
+                } else {
+                    setPendingLossPart({ unitPrice, overrideTransferPrice });
+                    return;
                 }
             }
 
-            const executeAddPart = async () => {
-                try {
-                    setIsLoading(true);
-                    const res = await addTicketPart({
-                        ticketId,
-                        productId: selectedProductId,
-                        quantity: Number(quantity),
-                        price: unitPrice,
-                        csrfToken: csrfToken ?? undefined
-                    });
-
-                    if (res.success) {
-                        toast.success(t('success'));
-                        setIsAddingPart(false);
-                        resetForm();
-                        router.refresh();
-                        onUpdate?.();
-                    } else {
-                        toast.error((res as any).error || t('error'));
-                    }
-                } catch (error: any) {
-                    toast.error(error.message || t('error'));
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-
-            // Security Check for Manual Selling Price
-            if (selectedPriceTier === 'CUSTOM' && selectedProduct && unitPrice < Number(selectedProduct.costPrice)) {
-                if (!['ADMIN', 'مدير النظام', 'المالك'].includes(userRole || '')) {
-                    toast.error("عفواً، لا تملك صلاحية لبيع القطعة بأقل من سعر التكلفة");
-                    return;
-                }
-                setPendingAction(() => executeAddPart);
-                setShowBelowCostConfirm(true);
+            if (!isAdminOrManager && overrideTransferPrice < actualCost) {
+                toast.error("تكلفة النقل لا يمكن أن تكون أقل من التكلفة الفعلية إلا للمديرين");
                 return;
             }
 
-            await executeAddPart();
+            await executeAddPart(unitPrice, overrideTransferPrice);
+
         } else {
             // Service Adding
-            if (!serviceName.trim() || Number(servicePrice) < 0) {
+            if (!serviceName.trim() || servicePrice < 0) {
                 toast.error("يرجى إدخال اسم الخدمة والسعر");
                 return;
             }
@@ -392,7 +313,7 @@ export default function TicketPartsManager({
                 ticketId,
                 name: serviceName,
                 quantity: 1,
-                price: Number(servicePrice),
+                price: servicePrice,
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -453,8 +374,8 @@ export default function TicketPartsManager({
         setServicePrice(0);
         setSelectedPriceTier("A");
         setTransferPriceChoice("COST");
-        setCustomSellPrice("");
-        setCustomCostPrice("");
+        setCustomUnitPrice("");
+        setCustomTransferPrice("");
     }
 
     return (
@@ -511,7 +432,6 @@ export default function TicketPartsManager({
                                     const renderRow = (part: TicketPart, isNewAddition: boolean) => {
                                         const isRefunded = part.status === 'REFUNDED';
                                         const isWarrantyPart = !isRefunded && Number(part.price) === 0 && isWarrantyTicket;
-                                        const isBelowCost = !isRefunded && !isWarrantyPart && Number(part.price) < Number(part.cost);
                                         
                                         return (
                                             <TableRow key={part.id} className={cn(
@@ -546,10 +466,8 @@ export default function TicketPartsManager({
                                                             )}
                                                         </div>
                                                         <div className={cn(
-                                                            "text-[10px] font-bold uppercase tracking-widest",
-                                                            isRefunded ? "text-muted-foreground/80 opacity-80" : 
-                                                            isBelowCost ? "text-red-500 dark:text-red-400 font-black" : 
-                                                            "text-muted-foreground opacity-80"
+                                                            "text-[10px] font-bold uppercase tracking-widest opacity-80",
+                                                            isRefunded ? "text-muted-foreground/80" : "text-muted-foreground"
                                                         )}>
                                                             {formatCurrencyCtx(Number(part.price))} /الوحدة
                                                             {part.addedBy && (
@@ -563,12 +481,7 @@ export default function TicketPartsManager({
                                                     isRefunded ? "text-muted-foreground" : "text-foreground/80"
                                                 )}>{part.quantity}</TableCell>
                                                 <TableCell className="text-left px-6">
-                                                    <div className={cn(
-                                                        "text-sm font-bold",
-                                                        isRefunded ? "text-muted-foreground" : 
-                                                        isBelowCost ? "text-red-500 dark:text-red-400" : 
-                                                        "text-cyan-400"
-                                                    )}>
+                                                    <div className="text-sm font-bold text-cyan-400">
                                                         {formatCurrencyCtx(new Decimal(part.price.toString()).mul(part.quantity).toNumber())}
                                                     </div>
                                                 </TableCell>
@@ -680,25 +593,22 @@ export default function TicketPartsManager({
                                 </p>
                                 <div className="space-y-4">
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-black text-zinc-500 mr-2">المخزن المراد النقل منه</Label>
-                                        <Select 
-                                            value={sourceWarehouseId} 
-                                            onValueChange={setSourceWarehouseId}
+                                        <Label className="text-xs font-black text-zinc-500 mr-2">المخزن المحول منه (المخزن الرئيسي)</Label>
+                                        <select
+                                            value={sourceWarehouseId}
+                                            onChange={(e) => {
+                                                setSourceWarehouseId(e.target.value);
+                                                setSelectedProductId(""); // Reset product selection when warehouse changes
+                                            }}
+                                            className="w-full flex h-10 w-full items-center justify-between rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
-                                            <SelectTrigger className="w-full bg-muted/50 border-input text-foreground h-12 rounded-xl px-4 text-sm font-bold focus:border-emerald-500 transition-all">
-                                                <SelectValue placeholder="اختر المخزن" />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-background/95 backdrop-blur-md border-border">
-                                                <SelectItem value="MAIN" className="font-bold text-sm">
-                                                    المخزن الرئيسي (الافتراضي للصيانة)
-                                                </SelectItem>
-                                                {warehouses.map(wh => (
-                                                    <SelectItem key={wh.id} value={wh.id} className="font-bold text-sm">
-                                                        {wh.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            <option value="" disabled>اختر المخزن...</option>
+                                            {warehouses.filter(wh => wh.id !== technicianWarehouseId).map(wh => (
+                                                <option key={wh.id} value={wh.id}>
+                                                    {wh.name} {wh.branch ? `(${wh.branch.name})` : ''} {wh.isMaintenanceDefault ? '🌟' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-xs font-black text-zinc-500 mr-2">ابحث عن منتج في المخزن المحدد</Label>
@@ -735,25 +645,24 @@ export default function TicketPartsManager({
                                             <Label className="text-xs font-black text-muted-foreground mr-2">تسعير النقل للمهندس</Label>
                                             <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
                                                 <button
-                                                    onClick={() => setTransferPriceChoice("COST")}
+                                                    onClick={() => {
+                                                        setTransferPriceChoice("COST");
+                                                        setCustomTransferPrice(Number(selectedProduct?.costPrice || 0));
+                                                    }}
                                                     className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                                 >
-                                                    <span className="text-[10px] mb-1 opacity-60">التكلفة</span>
-                                                    {selectedProduct ? `${formatCurrencyCtx(selectedProduct.costPrice)}` : ''}
+                                                    <span className="text-[10px] mb-1 opacity-60">بسعر التكلفة</span>
+                                                    {selectedProduct && formatCurrencyCtx(selectedProduct.costPrice)}
                                                 </button>
                                                 <button
-                                                    onClick={() => setTransferPriceChoice("SELL_1")}
+                                                    onClick={() => {
+                                                        setTransferPriceChoice("SELL_1");
+                                                        setCustomTransferPrice(Number(selectedProduct?.sellPrice || 0));
+                                                    }}
                                                     className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
                                                 >
-                                                    <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
-                                                    {selectedProduct ? `${formatCurrencyCtx(selectedProduct.sellPrice)}` : ''}
-                                                </button>
-                                                <button
-                                                    onClick={() => setTransferPriceChoice("CUSTOM")}
-                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "CUSTOM" ? "bg-purple-500/15 border-purple-500/50 text-purple-600 dark:text-purple-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
-                                                >
-                                                    <span className="text-[10px] mb-1 opacity-60">مخصص</span>
-                                                    إدخال يدوي
+                                                    <span className="text-[10px] mb-1 opacity-60">بالسعر 1</span>
+                                                    {selectedProduct && formatCurrencyCtx(selectedProduct.sellPrice)}
                                                 </button>
                                                 <div className={cn("flex flex-col items-center justify-center p-1 rounded-xl border transition-all", transferPriceChoice === 'CUSTOM' ? "bg-emerald-500/15 border-emerald-500/50 shadow-sm" : "border-transparent bg-transparent")}>
                                                     <span className="text-[10px] mb-1 opacity-60 text-muted-foreground">مخصص</span>
@@ -770,18 +679,6 @@ export default function TicketPartsManager({
                                                     />
                                                 </div>
                                             </div>
-                                            {transferPriceChoice === 'CUSTOM' && (
-                                                <div className="mt-2 animate-in fade-in slide-in-from-top-1">
-                                                    <Input
-                                                        autoFocus
-                                                        type="number"
-                                                        placeholder="أدخل التكلفة المخصصة..."
-                                                        className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
-                                                        value={customCostPrice}
-                                                        onChange={e => setCustomCostPrice(e.target.value)}
-                                                    />
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -824,10 +721,10 @@ export default function TicketPartsManager({
                                 <div className="space-y-2">
                                     <Label className="text-xs font-black text-muted-foreground mr-2">{t('priceTier')}</Label>
                                     <div className="grid grid-cols-4 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
-                                        {(['A', 'B', 'C', 'CUSTOM'] as const).map((tier) => {
+                                        {(['A', 'B', 'C'] as const).map((tier) => {
                                             const price = tier === 'A' ? Number(selectedProduct.sellPrice) :
                                                          tier === 'B' ? Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice) :
-                                                         tier === 'C' ? Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice) : 0;
+                                                         Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
                                             
                                             const isSelected = selectedPriceTier === tier;
 
@@ -841,14 +738,14 @@ export default function TicketPartsManager({
                                                     className={cn(
                                                         "flex flex-col items-center justify-center py-3 rounded-xl border transition-all",
                                                         isSelected 
-                                                            ? (tier === 'CUSTOM' ? "bg-purple-500/10 border-purple-500/50 text-purple-600 shadow-sm" : "bg-primary/10 border-primary/50 text-primary shadow-sm")
+                                                            ? "bg-primary/10 border-primary/50 text-primary shadow-sm" 
                                                             : "bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70"
                                                     )}
                                                 >
                                                     <span className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">
-                                                        {tier === 'A' ? 'S' : tier === 'B' ? 'M' : tier === 'C' ? 'L' : 'Custom'} Tier
+                                                        {tier === 'A' ? 'S' : tier === 'B' ? 'M' : 'L'} Tier
                                                     </span>
-                                                    <span className="text-sm font-black tabular-nums">{tier === 'CUSTOM' ? 'مخصص' : formatCurrencyCtx(Number(price))}</span>
+                                                    <span className="text-sm font-black tabular-nums">{formatCurrencyCtx(Number(price))}</span>
                                                 </button>
                                             );
                                         })}
@@ -867,20 +764,10 @@ export default function TicketPartsManager({
                                             />
                                         </div>
                                     </div>
-                                    {selectedPriceTier === 'CUSTOM' && (
-                                        <div className="mt-2 animate-in fade-in slide-in-from-top-1">
-                                            <Input
-                                                autoFocus
-                                                type="number"
-                                                placeholder="أدخل سعر البيع المخصص..."
-                                                className="bg-muted/50 border-input text-foreground h-12 rounded-xl text-center font-black focus:border-purple-500 transition-all font-mono"
-                                                value={customSellPrice}
-                                                onChange={e => setCustomSellPrice(e.target.value)}
-                                            />
-                                        </div>
-                                    )}
                                 </div>
                             )}
+
+
 
                             <div className="space-y-2">
                                 <Label className="text-xs font-black text-muted-foreground mr-2">{t('quantity')}</Label>
@@ -889,7 +776,7 @@ export default function TicketPartsManager({
                                     min={1}
                                     className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                     value={quantity}
-                                    onChange={e => setQuantity(e.target.value)}
+                                    onChange={e => setQuantity(Number(e.target.value))}
                                 />
                             </div>
                         </div>
@@ -910,7 +797,7 @@ export default function TicketPartsManager({
                                     type="number"
                                     className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
                                     value={servicePrice}
-                                    onChange={e => setServicePrice(e.target.value)}
+                                    onChange={e => setServicePrice(Number(e.target.value))}
                                 />
                             </div>
                         </div>
@@ -1018,25 +905,29 @@ export default function TicketPartsManager({
                     </div>
                 </div>
             </ConfirmationModal>
-
-            <ConfirmationModal
-                isOpen={showBelowCostConfirm}
-                onClose={() => {
-                    setShowBelowCostConfirm(false);
-                    setPendingAction(null);
-                }}
+            <ConfirmationModal 
+                isOpen={!!pendingLossPart}
+                onClose={() => setPendingLossPart(null)}
                 onConfirm={async () => {
-                    if (pendingAction) {
-                        await pendingAction();
+                    if (!pendingLossPart) return;
+                    
+                    const actualCost = Number(selectedProduct?.costPrice || 0);
+                    const isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'مدير النظام' || userRole === 'المالك';
+                    
+                    if (!isAdminOrManager && pendingLossPart.overrideTransferPrice < actualCost) {
+                        toast.error("تكلفة النقل لا يمكن أن تكون أقل من التكلفة الفعلية إلا للمديرين");
+                        setPendingLossPart(null);
+                        return;
                     }
-                    setShowBelowCostConfirm(false);
-                    setPendingAction(null);
+                    
+                    await executeAddPart(pendingLossPart.unitPrice, pendingLossPart.overrideTransferPrice);
+                    setPendingLossPart(null);
                 }}
-                title="تأكيد إضافة بسعر أقل من التكلفة"
-                message={`أنت على وشك إضافة القطعة بسعر أقل من التكلفة الأساسية. هل أنت متأكد من رغبتك في الاستمرار؟`}
-                confirmText="نعم، أضف القطعة"
+                title="تأكيد بيع بخسارة"
+                message="تحذير: سعر البيع أقل من التكلفة الفعلية (أنت تبيع بخسارة). هل أنت متأكد من الاستمرار؟"
+                confirmText="تأكيد ومتابعة"
                 cancelText="إلغاء"
-                variant="danger"
+                variant="warning"
                 loading={isLoading}
             />
         </div>

@@ -15,6 +15,8 @@ import WarehouseSettings from "@/components/settings/WarehouseSettings";
 import SyncManagement from "@/components/settings/SyncManagement";
 import CloudSettings from "@/components/settings/CloudSettings";
 import NetworkInfoCard from "@/components/settings/NetworkInfoCard";
+import BranchManager from "@/components/settings/BranchManager";
+import LicenseManagement from "@/components/settings/LicenseManagement";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";

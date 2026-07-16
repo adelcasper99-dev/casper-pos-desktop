@@ -65,7 +65,7 @@ export default function AddProductModal({
         
         let newName = currentForm.name;
         if (cat || mod || attr || currentForm.description) {
-            const parts = [];
+            const parts: string[] = [];
             if (cat) parts.push(cat.name);
             if (mod) parts.push(mod.name);
             if (attr) parts.push(attr.name);

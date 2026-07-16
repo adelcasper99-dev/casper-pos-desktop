@@ -65,7 +65,7 @@ export default function ProductsTab({
         
         let newName = prod.name;
         if (cat || mod || attr || prod.description) {
-            const parts = [];
+            const parts: string[] = [];
             if (cat) parts.push(cat.name);
             if (mod) parts.push(mod.name);
             if (attr) parts.push(attr.name);

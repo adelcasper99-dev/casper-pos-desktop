@@ -205,7 +205,7 @@ export const transferStock = secureAction(async (data: z.infer<typeof TransferSt
                 await AccountingEngine.recordTransaction({
                     description: `Inter-Branch Stock Transfer: ${sourceName} -> ${destName}`,
                     reference: `TRF-${Date.now()}`,
-                    branchId: sourceBranchId,
+                    branchId: sourceBranchId ?? undefined,
                     lines: [
                         { accountCode: destGlCode, debit: totalTransferValue, credit: 0, description: `Inventory Received at ${destName}` },
                         { accountCode: sourceGlCode, debit: 0, credit: totalTransferValue, description: `Inventory Dispatched from ${sourceName}` }

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { GL } from "@/shared/constants/accounting-mappings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, Shift } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
@@ -1201,7 +1201,7 @@ export const softDeleteTicket = secureAction(async (data: {
 
     // 2. Shift Guard if money needs to be reversed
     const amountToRefund = Number(ticket.amountPaid) || 0;
-    let currentShift = null;
+    let currentShift: Shift | null = null;
     if (amountToRefund > 0) {
         const shiftResult = await getCurrentShiftInternal({ userId: user.id });
         if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {

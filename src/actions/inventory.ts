@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, Warehouse } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from 'zod';
 import { Decimal } from "@prisma/client/runtime/library";
@@ -171,8 +171,8 @@ export const getDefaultWarehouses = secureAction(async () => {
     const user = await getCurrentUser();
     const branchId = user?.branchId;
 
-    let finalPos = null;
-    let finalMaintenance = null;
+    let finalPos: Warehouse | null = null;
+    let finalMaintenance: Warehouse | null = null;
 
     if (branchId) {
         const [posDefault, maintenanceDefault] = await Promise.all([
@@ -509,7 +509,7 @@ export const createProduct = secureAction(async (data: z.infer<typeof productSch
 
     // I-02: Static Name Concatenation for Category, Model, Attribute and Description
     let finalProductName = productData.name;
-    const nameParts = [];
+    const nameParts: string[] = [];
     
     if (categoryId) {
         const cat = await prisma.category.findUnique({ where: { id: categoryId } });
@@ -662,7 +662,7 @@ export const updateProduct = secureAction(async (data: { id: string } & z.infer<
 
     // I-03: Static Name Concatenation for Category, Model, Attribute and Description
     let finalProductName = productFields.name;
-    const nameParts = [];
+    const nameParts: string[] = [];
 
     const categoryId = validated.categoryId;
     if (categoryId) {
@@ -1151,7 +1151,7 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                 });
 
                 // Standardized Naming Reconstruction
-                const nameParts = [];
+                const nameParts: string[] = [];
                 if (item.categoryId) {
                     const cat = await tx.category.findUnique({ where: { id: item.categoryId } });
                     if (cat) nameParts.push(cat.name);

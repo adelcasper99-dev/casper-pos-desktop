@@ -1,170 +1,114 @@
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
 
-// ---------------------------------------------------------------------------
-// Browser / Electron-renderer guard
-// ---------------------------------------------------------------------------
-// Electron main process:  process.type === 'browser'  (counterintuitive naming)
-// Electron renderer:      process.type === 'renderer'
-// Next.js server / SSR:   typeof window === 'undefined'
-//
-// PrismaClient must NEVER be instantiated in the browser or Electron renderer.
-// A naive `typeof window === 'undefined'` check can be bypassed by Web Workers.
-// The safest check is verifying the presence of Node.js.
-const isServerContext: boolean =
-    typeof window === 'undefined' &&
-    typeof process !== 'undefined' &&
-    process.versions != null &&
-    process.versions.node != null &&
-    (process as NodeJS.Process & { type?: string }).type !== 'renderer';
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-// ---------------------------------------------------------------------------
-// URL resolver
-// ---------------------------------------------------------------------------
-function getDynamicDbUrl(): string | undefined {
-    if (!isServerContext) {
+
+// Utility to read dynamic database path from Electron's config if it exists.
+// Uses dynamic require so Next.js never statically bundles 'fs' into the client chunk.
+function getDynamicDbUrl() {
+    if (typeof window !== 'undefined') {
+        // Running in the browser bundle
         return process.env.DATABASE_URL;
     }
 
-    // Default to the local SQLite database
-    let fallbackUrl = process.env.DATABASE_URL || 'file:./local.db';
-    
-    // Append busy_timeout for SQLite WAL mode concurrency
-    if (fallbackUrl.startsWith('file:') && !fallbackUrl.includes('busy_timeout')) {
-        fallbackUrl += fallbackUrl.includes('?') ? '&busy_timeout=10000' : '?busy_timeout=10000';
+    if (process.env.NODE_ENV === 'test') {
+        return process.env.DATABASE_URL;
+    }
+
+    // If we're booted by Electron, main.js passes NODE_ROLE and MASTER_IP
+    if (process.env.NODE_ROLE) {
+        return process.env.DATABASE_URL || 'file:./local.db';
+    }
+
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const fs = require('fs') as typeof import('fs');
+        const isWindows = process.platform === 'win32';
+        const homeDir = process.env.APPDATA || (isWindows ? process.env.USERPROFILE + '\\AppData\\Roaming' : process.env.HOME + '/Library/Application Support');
+        const configPath = path.join(homeDir!, 'casper-pos-desktop', 'casper-config.json');
+
+        if (fs.existsSync(configPath)) {
+            const rawConfig = fs.readFileSync(configPath, 'utf8');
+            try {
+                const config = JSON.parse(rawConfig) as { nodeRole?: string, masterIp?: string };
+                if (config.nodeRole) {
+                    return process.env.DATABASE_URL || 'file:./local.db';
+                }
+            } catch (jsonError) {
+                console.warn('Malformed casper-config.json:', jsonError);
+            }
+        }
+    } catch (error) {
+        console.warn('Could not read casper-config.json for dynamic DB path, falling back to process.env:', error);
     }
     
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`[PRISMA DEBUG] DB URL resolved to: ${fallbackUrl}`);
-    }
-    
+    const fallbackUrl = process.env.DATABASE_URL || 'file:./local.db';
+    console.log(`[PRISMA DEBUG] PrismaClient getDynamicDbUrl returned: ${fallbackUrl}`);
     return fallbackUrl;
 }
 
-// ---------------------------------------------------------------------------
-// StockMovement warehouse guard (replaces deprecated $use middleware)
-// ---------------------------------------------------------------------------
-// Preserves exact semantics of the old $use guard:
-//   • Both keys must be PRESENT in the payload ('in' check) before null test.
-//     This avoids false positives on partial-update payloads where only one
-//     warehouse key is supplied (e.g. adjustments touching only fromWarehouseId).
-//   • Throws only when BOTH are explicitly null simultaneously.
-function assertWarehouseIds(data: unknown): void {
-    if (
-        data !== null &&
-        typeof data === 'object' &&
-        'fromWarehouseId' in data &&
-        'toWarehouseId' in data &&
-        (data as Record<string, unknown>).fromWarehouseId === null &&
-        (data as Record<string, unknown>).toWarehouseId === null
-    ) {
-        throw new Error(
-            'P2010: StockMovement must have either fromWarehouseId or toWarehouseId (both cannot be null)'
-        );
-    }
-}
+import { prismaTenantExtension, getTenantId } from './prisma-tenant-extension';
 
-// ---------------------------------------------------------------------------
-// Singleton factory — only called in server context
-// ---------------------------------------------------------------------------
-function applyPrismaExtensions(base: PrismaClient) {
-    // Migrate from deprecated $use to typed Prisma Client Extension ($extends).
-    // $use is removed in Prisma 6; $extends is the stable successor in Prisma 5.
-    return base.$extends({
-        query: {
-            stockMovement: {
-                async create({ args, query }) {
-                    assertWarehouseIds(args.data);
-                    return query(args);
-                },
-                async update({ args, query }) {
-                    assertWarehouseIds(args.data);
-                    return query(args);
-                },
-                async createMany({ args, query }) {
-                    const rows = Array.isArray(args.data) ? args.data : [args.data];
-                    rows.forEach(assertWarehouseIds);
-                    return query(args);
-                },
-                async updateMany({ args, query }) {
-                    assertWarehouseIds(args.data);
-                    return query(args);
+// Browser guard: @prisma/client is stubbed via next.config.js webpack resolve.alias,
+// so PrismaClient is `undefined` in the browser. Guard all instantiation here as a
+// second defensive layer so the module is safe to evaluate even if the alias ever misses.
+const isBrowser = typeof window !== 'undefined';
+
+const basePrisma = isBrowser
+    ? null
+    : (globalForPrisma.prisma ||
+        new PrismaClient({
+            log: ['error', 'warn'],
+            datasources: {
+                db: {
+                    url: getDynamicDbUrl(),
                 },
             },
-        },
-    });
+            // @ts-ignore - Transaction configuration for interactive transactions
+            transactionOptions: {
+                maxWait: 5000,  // 5s to wait for a connection
+                timeout: 60000, // 60s for the transaction to complete
+            },
+        }));
+
+if (!isBrowser && process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = basePrisma as PrismaClient;
 }
 
-type ExtendedPrismaClientType = ReturnType<typeof applyPrismaExtensions>;
-export type { ExtendedPrismaClientType as ExtendedPrismaClient };
+export const prisma = isBrowser
+    ? (null as any)
+    : basePrisma!.$extends(prismaTenantExtension);
 
-function buildPrismaClient(): ExtendedPrismaClientType {
-    const base = new PrismaClient({
-        log: ['error', 'warn'],
-        datasources: {
-            db: {
-                url: getDynamicDbUrl(),
-            },
-        },
-        // @ts-ignore — Transaction configuration for interactive transactions
-        transactionOptions: {
-            maxWait: 5000,  // 5 s to acquire a connection
-            timeout: 60000, // 60 s for the transaction to complete
-        },
-    });
+export const isPostgres = 
+    process.env.DATABASE_URL?.startsWith('postgres') || 
+    process.env.DATABASE_URL?.startsWith('postgresql');
 
-    try {
-        // If Next.js compiles prisma.ts for a Client Component SSR pass, it may resolve
-        // @prisma/client to the browser stub. The stub throws on any property access.
-        typeof base.$extends;
-    } catch (e: any) {
-        if (e && e.message && e.message.includes('browser environment')) {
-            console.warn('[Casper] Prisma browser stub detected in Node.js SSR. Returning safe proxy.');
-            return makeBrowserStub();
+/**
+ * Execute a transaction setting the PostgreSQL RLS context first.
+ */
+export async function secureTransaction<T>(
+    fn: (tx: Omit<typeof prisma, '$transaction' | '$extends'>) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+): Promise<T> {
+    const tenantId = getTenantId();
+    return await prisma.$transaction(async (tx) => {
+        if (isPostgres && tenantId) {
+            // @ts-ignore
+            await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
         }
-        throw e;
-    }
-
-    return applyPrismaExtensions(base);
+        return await fn(tx as any);
+    }, options);
 }
 
-// PrismaTransactionClient — use this instead of `Prisma.TransactionClient` for
-// the `tx` parameter in `prisma.$transaction((tx) => ...)` callbacks.
-// After $extends, the transaction client is the extended type, not the base one.
-export type PrismaTransactionClient = Parameters<
-    Parameters<ExtendedPrismaClientType['$transaction']>[0]
->[0];
-
-
-// ---------------------------------------------------------------------------
-// Global singleton (HMR-safe)
-// ---------------------------------------------------------------------------
-const globalForPrisma = global as unknown as { prisma: ExtendedPrismaClientType };
-
-// ---------------------------------------------------------------------------
-// Browser / renderer stub — replaces cryptic Prisma internals crash with a
-// clear, actionable error that names the broken import chain.
-// ---------------------------------------------------------------------------
-function makeBrowserStub(): ExtendedPrismaClientType {
-    return new Proxy({} as ExtendedPrismaClientType, {
-        get(_target, prop: string | symbol) {
-            throw new Error(
-                `[Casper] prisma.${String(prop)} was called in a browser/renderer context. ` +
-                `prisma.ts is a server-only module — trace your import chain for a ` +
-                `client component that statically imports a server action or lib file.`
-            );
-        },
-    });
+/**
+ * Execute a raw query setting the PostgreSQL RLS context first.
+ */
+export async function secureRawQuery<T>(
+    fn: (tx: Omit<typeof prisma, '$transaction' | '$extends'>) => Promise<T>
+): Promise<T> {
+    return await secureTransaction(fn);
 }
 
-// ---------------------------------------------------------------------------
-// Export
-// ---------------------------------------------------------------------------
-export const prisma: ExtendedPrismaClientType = isServerContext
-    ? (globalForPrisma.prisma ?? buildPrismaClient())
-    : makeBrowserStub();
+export type PrismaTransactionClient = Omit<typeof prisma, '$transaction' | '$extends'>;
 
-// Persist singleton for Next.js HMR (avoids "too many Prisma clients" warnings)
-if (isServerContext) {
-    globalForPrisma.prisma = prisma;
-}

@@ -1,0 +1,52 @@
+{
+  "name": "casper-launcher",
+  "version": "1.0.0",
+  "productName": "Casper POS",
+  "description": "Casper POS Sub PC Launcher — auto-discovers the Master on the LAN and opens the web app.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.caspererp.launcher",
+    "productName": "Casper POS",
+    "copyright": "Copyright © 2026 Casper POS",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../public/assets/casper-light.png",
+        "to": "assets/casper-light.png"
+      },
+      {
+        "from": "../build/icon.ico",
+        "to": "assets/icon.ico"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "../build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "include": "installer.nsh",
+      "language": "1025"
+    }
+  }
+}
