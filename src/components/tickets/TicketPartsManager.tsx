@@ -128,6 +128,10 @@ export default function TicketPartsManager({
     const [customSellPrice, setCustomSellPrice] = useState<string>("");
     const [customCostPrice, setCustomCostPrice] = useState<string>("");
 
+    // Confirmation State
+    const [showBelowCostConfirm, setShowBelowCostConfirm] = useState(false);
+    const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
+
     // Service State
     const [serviceName, setServiceName] = useState("");
     const [servicePrice, setServicePrice] = useState<number | string>(0);
@@ -199,7 +203,7 @@ export default function TicketPartsManager({
                     }
                 }
 
-                const priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : transferPriceChoice === 'SELL_1' ? 'بالسعر 1' : 'سعر مخصص';
+                let priceLabel = transferPriceChoice === 'COST' ? 'بسعر التكلفة' : transferPriceChoice === 'SELL_1' ? 'بالسعر 1' : 'سعر مخصص';
 
                 const res = await transferPartToTechnicianQuick({
                     technicianId, 
@@ -216,7 +220,7 @@ export default function TicketPartsManager({
                     setUsageType("part"); 
                     loadData();
                 } else {
-                    priceValue = Number(manualTransferPrice) || 0;
+                    priceValue = Number(customCostPrice) || 0;
                     priceLabel = 'سعر مخصص';
                 }
 
@@ -226,7 +230,7 @@ export default function TicketPartsManager({
                         const res = await transferPartToTechnicianQuick({
                             technicianId, 
                             productId: selectedProductId, 
-                            quantity,
+                            quantity: Number(quantity),
                             transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
                             transferPriceLabel: priceLabel,
                             csrfToken: csrfToken ?? undefined
@@ -246,7 +250,7 @@ export default function TicketPartsManager({
                     }
                 };
 
-                if (transferPriceChoice === 'MANUAL' && selectedProduct && (priceValue !== undefined && priceValue < Number(selectedProduct.costPrice))) {
+                if (transferPriceChoice === 'CUSTOM' && selectedProduct && (priceValue !== undefined && priceValue < Number(selectedProduct.costPrice))) {
                     if (!['ADMIN', 'مدير النظام', 'المالك'].includes(userRole || '')) {
                         toast.error("عفواً، لا تملك صلاحية لنقل القطعة بأقل من سعر التكلفة");
                         return;
@@ -274,10 +278,7 @@ export default function TicketPartsManager({
             // Determine Price based on Tier
             let unitPrice = 0;
             if (selectedProduct) {
-                if (selectedPriceTier === 'MANUAL') {
-                    unitPrice = Number(manualPrice) || 0;
-                }
-                else if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
+                if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
                 else if (selectedPriceTier === 'B') unitPrice = Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice);
                 else if (selectedPriceTier === 'C') unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
                 else unitPrice = Number(customSellPrice);
@@ -294,14 +295,16 @@ export default function TicketPartsManager({
                 }
             }
 
-            setIsLoading(true);
-            const res = await addTicketPart({
-                ticketId,
-                productId: selectedProductId,
-                quantity: Number(quantity),
-                price: unitPrice,
-                csrfToken: csrfToken ?? undefined
-            });
+            const executeAddPart = async () => {
+                try {
+                    setIsLoading(true);
+                    const res = await addTicketPart({
+                        ticketId,
+                        productId: selectedProductId,
+                        quantity: Number(quantity),
+                        price: unitPrice,
+                        csrfToken: csrfToken ?? undefined
+                    });
 
                     if (res.success) {
                         toast.success(t('success'));
@@ -320,7 +323,7 @@ export default function TicketPartsManager({
             };
 
             // Security Check for Manual Selling Price
-            if (selectedPriceTier === 'MANUAL' && selectedProduct && unitPrice < Number(selectedProduct.costPrice)) {
+            if (selectedPriceTier === 'CUSTOM' && selectedProduct && unitPrice < Number(selectedProduct.costPrice)) {
                 if (!['ADMIN', 'مدير النظام', 'المالك'].includes(userRole || '')) {
                     toast.error("عفواً، لا تملك صلاحية لبيع القطعة بأقل من سعر التكلفة");
                     return;

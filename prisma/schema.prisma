@@ -645,7 +645,7 @@ model Shift {
   totalTicketRevenueInstapay Decimal           @default(0.00)
   totalTicketRevenueWallet   Decimal           @default(0.00)
   cashBreakdown              String?
-  cashDenominationsBreakdown Json?
+  cashDenominationsBreakdown String?
   cardTerminalSettlement     Decimal           @default(0.00)
   transitStatus              String            @default("NONE")
   expenses                   Expense[]         @relation("ShiftExpenses")
@@ -703,7 +703,7 @@ model Transaction {
   deletedReason        String?
   isTransfer           Boolean       @default(false)
   relatedTransactionId String?
-  shiftId              String
+  shiftId              String?
   treasuryId           String?
   expenseId            String?
   referenceId          String?
@@ -714,7 +714,7 @@ model Transaction {
   idempotencyKey       String?       @unique
   category             CashCategory? @relation(fields: [categoryId], references: [id])
   expense              Expense?      @relation(fields: [expenseId], references: [id])
-  shift                Shift         @relation(fields: [shiftId], references: [id])
+  shift                Shift?        @relation(fields: [shiftId], references: [id])
   treasury             Treasury?     @relation(fields: [treasuryId], references: [id])
   journalEntry         JournalEntry?
 
