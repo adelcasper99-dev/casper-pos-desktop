@@ -11,35 +11,6 @@ const log = (msg) => {
     fs.appendFileSync(debugLog, `[${new Date().toISOString()}] [PROCESS ${process.pid}] ${msg}\n`);
 };
 
-/**
- * Hardened IPC Error Handlers
- */
-const safeHandle = (channel, handler) => {
-    ipcMain.handle(channel, async (event, ...args) => {
-        try {
-            const result = await handler(event, ...args);
-            // If the result is already in {success, data} format, return it directly
-            if (result && typeof result === 'object' && ('success' in result)) {
-                return result;
-            }
-            return { success: true, data: result };
-        } catch (error) {
-            log(`IPC Error [${channel}]: ${error.message}`);
-            return { success: false, error: error.message };
-        }
-    });
-};
-
-const safeOn = (channel, handler) => {
-    ipcMain.on(channel, (event, ...args) => {
-        try {
-            handler(event, ...args);
-        } catch (error) {
-            log(`IPC Exception [${channel}]: ${error.message}`);
-        }
-    });
-};
-
 // Configure autoUpdater logger
 autoUpdater.logger = {
     info(msg) { log(`Updater: ${msg}`); },
@@ -80,9 +51,6 @@ const getDatabasePath = () => {
         try {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             if (config.dbPath) {
-                if (!fs.existsSync(config.dbPath)) {
-                    fs.mkdirSync(config.dbPath, { recursive: true });
-                }
                 // Return custom path with local.db appended
                 return path.join(config.dbPath, 'local.db');
             }
@@ -98,6 +66,7 @@ const getDatabasePath = () => {
 const runMigrations = (dbPath) => {
     if (!app.isPackaged) return;
     log('Migrations: Starting...');
+    const startTime = Date.now();
 
     const normalizedDbPath = dbPath.replace(/\\/g, '/');
     const dbUrl = `file:${normalizedDbPath}`;
@@ -118,224 +87,185 @@ const runMigrations = (dbPath) => {
         PRISMA_CLI_QUERY_ENGINE_TYPE: 'library'
     };
 
-    const runSql = (sql) => {
+    const runSqlWithOutput = (sql) => {
         try {
-            execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+            return execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
                 env, input: sql, windowsHide: true, encoding: 'utf-8'
             });
-            return true;
         } catch (e) {
-            return false;
+            return null;
+        }
+    };
+
+    const sendStatus = (status) => {
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.webContents.send('boot-status', status);
         }
     };
 
     // ─── Pre-Patch: Apply each missing column individually ────────────────────
-    // Each statement runs in isolation so "duplicate column" errors on already-
-    // patched databases are silently ignored without blocking the full migration.
     const prePatchStatements = [
-      // Product
-      'ALTER TABLE "Product" ADD COLUMN "isDevice" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Product" ADD COLUMN "deviceType" TEXT',
-      'ALTER TABLE "Product" ADD COLUMN "condition" TEXT',
-      'ALTER TABLE "Product" ADD COLUMN "color" TEXT',
+        // Product
+        'ALTER TABLE "Product" ADD COLUMN "isDevice" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Product" ADD COLUMN "deviceType" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "condition" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "color" TEXT',
 
-      // PurchaseItem
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "imei" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "condition" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "color" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "deviceType" TEXT',
-      'ALTER TABLE "PurchaseItem" ADD COLUMN "returnedQty" INTEGER NOT NULL DEFAULT 0',
+        // PurchaseItem
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "imei" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "condition" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "color" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "deviceType" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "returnedQty" INTEGER NOT NULL DEFAULT 0',
 
-      // SaleItem
-      'ALTER TABLE "SaleItem" ADD COLUMN "imei" TEXT',
-      'ALTER TABLE "SaleItem" ADD COLUMN "condition" TEXT',
-      'ALTER TABLE "SaleItem" ADD COLUMN "color" TEXT',
-      'ALTER TABLE "SaleItem" ADD COLUMN "deviceType" TEXT',
+        // SaleItem
+        'ALTER TABLE "SaleItem" ADD COLUMN "imei" TEXT',
+        'ALTER TABLE "SaleItem" ADD COLUMN "condition" TEXT',
+        'ALTER TABLE "SaleItem" ADD COLUMN "color" TEXT',
+        'ALTER TABLE "SaleItem" ADD COLUMN "deviceType" TEXT',
 
-      // PurchaseInvoice
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isWalkin" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinName" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinPhone" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinNationalId" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "attachmentUrl" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidReason" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedAt" DATETIME',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedBy" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "parentId" TEXT',
-      'ALTER TABLE "PurchaseInvoice" ADD COLUMN "branchId" TEXT',
+        // PurchaseInvoice
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isWalkin" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinName" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinPhone" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "walkinNationalId" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "attachmentUrl" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidReason" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedAt" DATETIME',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "voidedBy" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "parentId" TEXT',
+        'ALTER TABLE "PurchaseInvoice" ADD COLUMN "branchId" TEXT',
 
-      // Transaction
-      'ALTER TABLE "Transaction" ADD COLUMN "categoryId" TEXT',
-      'ALTER TABLE "Transaction" ADD COLUMN "idempotencyKey" TEXT',
+        // Transaction
+        'ALTER TABLE "Transaction" ADD COLUMN "categoryId" TEXT',
+        'ALTER TABLE "Transaction" ADD COLUMN "idempotencyKey" TEXT',
 
-      // Sale
-      'ALTER TABLE "Sale" ADD COLUMN "warrantyDays" INTEGER',
-      'ALTER TABLE "Sale" ADD COLUMN "warrantyExpiryDate" DATETIME',
-      'ALTER TABLE "Sale" ADD COLUMN "customerId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "tableId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "tableName" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "userId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "syncStatus" TEXT NOT NULL DEFAULT "PENDING"',
-      'ALTER TABLE "Sale" ADD COLUMN "offlineFlag" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Sale" ADD COLUMN "discountPercentage" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "Sale" ADD COLUMN "previousStatus" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Sale" ADD COLUMN "parentId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "branchId" TEXT',
-      'ALTER TABLE "Sale" ADD COLUMN "relatedSupplierId" TEXT',
+        // Sale
+        'ALTER TABLE "Sale" ADD COLUMN "warrantyDays" INTEGER',
+        'ALTER TABLE "Sale" ADD COLUMN "warrantyExpiryDate" DATETIME',
+        'ALTER TABLE "Sale" ADD COLUMN "customerId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "tableId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "tableName" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "userId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "syncStatus" TEXT NOT NULL DEFAULT "PENDING"',
+        'ALTER TABLE "Sale" ADD COLUMN "offlineFlag" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Sale" ADD COLUMN "discountPercentage" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "Sale" ADD COLUMN "previousStatus" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "isReturn" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Sale" ADD COLUMN "parentId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "branchId" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "relatedSupplierId" TEXT',
 
-      // Ticket
-      'ALTER TABLE "Ticket" ADD COLUMN "finalCustomerPrice" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "techBillingPrice" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "partCostPrice" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "laborPoolAmount" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "techCommissionAmount" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "centerLaborProfit" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "centerPartProfit" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "commissionClawback" DECIMAL NOT NULL DEFAULT 0.00',
-      'ALTER TABLE "Ticket" ADD COLUMN "lastReturnedAt" DATETIME',
-      'ALTER TABLE "Ticket" ADD COLUMN "originalTechId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "returnCount" INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE "Ticket" ADD COLUMN "returnReason" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "rejectionReason" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "rejectedAt" DATETIME',
-      'ALTER TABLE "Ticket" ADD COLUMN "clientSupplierId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "clientUserId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "parentTicketId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "barcode" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
-      'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
-      // Backfill: Migrate sharedLossAmount to new field (Skips NULL and zero intentionally)
-      // Safety: Only run if sharedLossAmount column actually exists to prevent SQLite from interpreting the name as a string literal
-      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE (SELECT COUNT(*) FROM pragma_table_info("Ticket") WHERE name = "sharedLossAmount") > 0 AND "sharedLossAmount" > 0',
-      // Self-healing: If data was already corrupted by the string literal "sharedLossAmount", reset it to 0.00
-      'UPDATE "Ticket" SET "excessLossAmount" = 0.00 WHERE typeof("excessLossAmount") = "text"',
+        // Ticket
+        'ALTER TABLE "Ticket" ADD COLUMN "finalCustomerPrice" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "techBillingPrice" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "partCostPrice" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "laborPoolAmount" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "techCommissionAmount" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "centerLaborProfit" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "centerPartProfit" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "commissionClawback" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Ticket" ADD COLUMN "lastReturnedAt" DATETIME',
+        'ALTER TABLE "Ticket" ADD COLUMN "originalTechId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "returnCount" INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE "Ticket" ADD COLUMN "returnReason" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "rejectionReason" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "rejectedAt" DATETIME',
+        'ALTER TABLE "Ticket" ADD COLUMN "clientSupplierId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "clientUserId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "parentTicketId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "barcode" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
 
-      // User
-      'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "User" ADD COLUMN "monthlyOffDays" INTEGER DEFAULT 4',
-      'ALTER TABLE "User" ADD COLUMN "hireDate" DATETIME',
-      'ALTER TABLE "User" ADD COLUMN "maxDiscount" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "User" ADD COLUMN "maxDiscountAmount" DECIMAL DEFAULT 0.00',
-      'ALTER TABLE "User" ADD COLUMN "isFrozen" BOOLEAN NOT NULL DEFAULT false',
+        // User
+        'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "User" ADD COLUMN "monthlyOffDays" INTEGER DEFAULT 4',
+        'ALTER TABLE "User" ADD COLUMN "hireDate" DATETIME',
+        'ALTER TABLE "User" ADD COLUMN "maxDiscount" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "User" ADD COLUMN "maxDiscountAmount" DECIMAL DEFAULT 0.00',
+        'ALTER TABLE "User" ADD COLUMN "isFrozen" BOOLEAN NOT NULL DEFAULT false',
 
-      // Technician
-      'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
-      'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
-      'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
-      // Backfill: Migrate sharedLossRate to lossRate (Prevents overwriting fresh 70.00 defaults)
-      // Safety: Only run if sharedLossRate column actually exists to prevent SQLite from interpreting the name as a string literal
-      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE (SELECT COUNT(*) FROM pragma_table_info("Technician") WHERE name = "sharedLossRate") > 0 AND "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
-      // Self-healing: If data was already corrupted by the string literal "sharedLossRate", reset it to 70.00
-      'UPDATE "Technician" SET "lossRate" = 70.00 WHERE typeof("lossRate") = "text"',
+        // Technician
+        'ALTER TABLE "Technician" ADD COLUMN "defaultPriceTier" TEXT NOT NULL DEFAULT "COST"',
+        'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
+        'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
+        'ALTER TABLE "Technician" ADD COLUMN "commissionRuleId" TEXT',
 
-      // Warehouse & Branch
-      'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
-      'ALTER TABLE "Warehouse" ADD COLUMN "isMaintenanceDefault" BOOLEAN NOT NULL DEFAULT false',
-      'ALTER TABLE "Branch" ADD COLUMN "isMaintenanceHQ" BOOLEAN NOT NULL DEFAULT false',
+        // Warehouse & Branch
+        'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
+        'ALTER TABLE "Warehouse" ADD COLUMN "isMaintenanceDefault" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "Branch" ADD COLUMN "isMaintenanceHQ" BOOLEAN NOT NULL DEFAULT false',
 
-      // New Tables
-      'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
-      'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")',
+        // New Tables & Missing Columns
+        'CREATE TABLE IF NOT EXISTS "Model" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "Model_name_categoryId_key" ON "Model"("name", "categoryId")',
+        'CREATE TABLE IF NOT EXISTS "Attribute" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "Attribute_name_key" ON "Attribute"("name")',
+        'CREATE TABLE IF NOT EXISTS "Sequence" ("name" TEXT NOT NULL PRIMARY KEY, "value" INTEGER NOT NULL DEFAULT 0)',
+        'CREATE TABLE IF NOT EXISTS "CommissionRule" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "value" DECIMAL NOT NULL DEFAULT 0.00, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'ALTER TABLE "Customer" ADD COLUMN "totalPurchaseValue" DECIMAL NOT NULL DEFAULT 0.00',
+        'ALTER TABLE "Customer" ADD COLUMN "receivesNotifications" BOOLEAN NOT NULL DEFAULT true',
+        'ALTER TABLE "JournalEntry" ADD COLUMN "idempotencyKey" TEXT',
+        'ALTER TABLE "JournalEntry" ADD COLUMN "transactionId" TEXT',
+        'ALTER TABLE "NotificationLog" ADD COLUMN "metadata" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "modelId" TEXT',
+        'ALTER TABLE "Product" ADD COLUMN "attributeId" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "unitOfMeasureId" TEXT',
+        'ALTER TABLE "PurchaseItem" ADD COLUMN "conversionFactor" DECIMAL NOT NULL DEFAULT 1.00',
+        'ALTER TABLE "Sale" ADD COLUMN "idempotencyKey" TEXT',
+        'ALTER TABLE "Sale" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "TicketPart" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'ALTER TABLE "Transaction" ADD COLUMN "isTimeSuspicious" BOOLEAN NOT NULL DEFAULT false',
+        'ALTER TABLE "StockMovement" ADD COLUMN "idempotencyKey" TEXT',
+        'ALTER TABLE "Ticket" ADD COLUMN "idempotencyKey" TEXT',
 
-      // --- COMPREHENSIVE DATA HEALING (Prevention of "White Screen" crashes) ---
-      // These statements reset any Decimal columns that were corrupted with string literals 
-      // (a common SQLite quirk when using double quotes in UPDATE statements with missing columns).
-      
-      // Product Healing
-      'UPDATE "Product" SET "costPrice" = 0.00 WHERE typeof("costPrice") = "text"',
-      'UPDATE "Product" SET "sellPrice" = 0.00 WHERE typeof("sellPrice") = "text"',
-      'UPDATE "Product" SET "sellPrice2" = 0.00 WHERE typeof("sellPrice2") = "text"',
-      'UPDATE "Product" SET "sellPrice3" = 0.00 WHERE typeof("sellPrice3") = "text"',
-      
-      // SaleItem Healing
-      'UPDATE "SaleItem" SET "unitPrice" = 0.00 WHERE typeof("unitPrice") = "text"',
-      'UPDATE "SaleItem" SET "unitCost" = 0.00 WHERE typeof("unitCost") = "text"',
-      
-      // Sale Healing
-      'UPDATE "Sale" SET "totalAmount" = 0.00 WHERE typeof("totalAmount") = "text"',
-      'UPDATE "Sale" SET "subTotal" = 0.00 WHERE typeof("subTotal") = "text"',
-      'UPDATE "Sale" SET "discountAmount" = 0.00 WHERE typeof("discountAmount") = "text"',
-      'UPDATE "Sale" SET "taxAmount" = 0.00 WHERE typeof("taxAmount") = "text"',
-      
-      // User/Employee Healing
-      'UPDATE "User" SET "salary" = 0.00 WHERE typeof("salary") = "text"',
-      'UPDATE "User" SET "maxDiscount" = 0.00 WHERE typeof("maxDiscount") = "text"',
-      'UPDATE "User" SET "maxDiscountAmount" = 0.00 WHERE typeof("maxDiscountAmount") = "text"',
-
-      // Shift Healing (CRITICAL: Prevents White Screen on Z-Report)
-      'UPDATE "Shift" SET "totalCashSales" = 0.00 WHERE typeof("totalCashSales") = "text"',
-      'UPDATE "Shift" SET "totalCardSales" = 0.00 WHERE typeof("totalCardSales") = "text"',
-      'UPDATE "Shift" SET "totalWalletSales" = 0.00 WHERE typeof("totalWalletSales") = "text"',
-      'UPDATE "Shift" SET "totalInstapay" = 0.00 WHERE typeof("totalInstapay") = "text"',
-      'UPDATE "Shift" SET "totalAccountSales" = 0.00 WHERE typeof("totalAccountSales") = "text"',
-      'UPDATE "Shift" SET "totalCashRefunds" = 0.00 WHERE typeof("totalCashRefunds") = "text"',
-      'UPDATE "Shift" SET "totalAccountRefunds" = 0.00 WHERE typeof("totalAccountRefunds") = "text"'
+        // Legacy New Tables
+        'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
+        'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
+        'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
     ];
 
-    // --- OPTIMIZED PRE-PATCH BYPASS ---
-    // 1. Determine target version based on statement count
-    const targetPatchVersion = prePatchStatements.length;
-    let cachedPatchVersion = 0;
-    let casperConfig = {};
-    const userDataPath = app.getPath('userData');
-    const configPath = path.join(userDataPath, 'casper-config.json');
+    const CURRENT_SCHEMA_VERSION = prePatchStatements.length;
+    log(`Migrations: Target schema version: ${CURRENT_SCHEMA_VERSION}`);
 
-    try {
-        if (fs.existsSync(configPath)) {
-            casperConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            cachedPatchVersion = casperConfig.appliedPatchVersion || 0;
-        }
-    } catch (e) {
-        log(`Config: Failed to load configuration for boot check: ${e.message}`);
-    }
-
-    let isAlreadyPatched = false;
-
-    if (cachedPatchVersion === targetPatchVersion) {
+    // Check current version
+    const versionOutput = runSqlWithOutput('PRAGMA user_version;');
+    let currentVersion = 0;
+    if (versionOutput) {
         try {
-            log('Database: Checking schema signature to verify cached version...');
-            const signatureCheck = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
-                env, input: 'SELECT name FROM sqlite_master WHERE type="table" AND name="CashCategory";', windowsHide: true, encoding: 'utf-8'
-            });
-            if (signatureCheck.includes('CashCategory')) {
-                const columnCheck = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
-                    env, input: 'PRAGMA table_info("Product");', windowsHide: true, encoding: 'utf-8'
-                });
-                if (columnCheck.includes('isDevice')) {
-                    isAlreadyPatched = true;
-                    log(`Database: Schema matches cached version (${targetPatchVersion}). Skipping 93 pre-patch migrations.`);
-                }
-            }
+            const parsed = JSON.parse(versionOutput);
+            currentVersion = parsed[0]?.user_version || 0;
         } catch (e) {
-            log(`Database: Schema signature check failed (expected on empty/new DB): ${e.message}`);
+            log(`Migrations: Failed to parse user_version: ${e.message}`);
         }
     }
+    log(`Migrations: Current schema version: ${currentVersion}`);
 
-    if (!isAlreadyPatched) {
-        log(`Migrations: Applying ${targetPatchVersion} pre-patch SQL statements...`);
-        for (const sql of prePatchStatements) {
+    if (currentVersion < CURRENT_SCHEMA_VERSION) {
+        log(`Migrations: Applying ${CURRENT_SCHEMA_VERSION - currentVersion} missing patches...`);
+        sendStatus(`Optimizing Database (${currentVersion}/${CURRENT_SCHEMA_VERSION})...`);
+
+        for (let i = currentVersion; i < CURRENT_SCHEMA_VERSION; i++) {
+            const sql = prePatchStatements[i];
             const ok = runSql(sql + ';');
+            if (ok) {
+                // Update version after each successful patch to allow resuming
+                runSql(`PRAGMA user_version = ${i + 1};`);
+            }
+            if (i % 5 === 0 || i === CURRENT_SCHEMA_VERSION - 1) {
+                sendStatus(`Optimizing Database (${i + 1}/${CURRENT_SCHEMA_VERSION})...`);
+            }
             log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
         }
         log('Migrations: Pre-patch complete.');
-
-        // Save successfully applied version to config
-        try {
-            if (!fs.existsSync(userDataPath)) {
-                fs.mkdirSync(userDataPath, { recursive: true });
-            }
-            casperConfig.appliedPatchVersion = targetPatchVersion;
-            fs.writeFileSync(configPath, JSON.stringify(casperConfig, null, 2), 'utf8');
-            log(`Config: Updated appliedPatchVersion to ${targetPatchVersion}`);
-        } catch (e) {
-            log(`Config: Failed to write configuration: ${e.message}`);
-        }
+    } else {
+        log('Migrations: Database already up to date.');
     }
+    log(`Migrations: Phase complete in ${Date.now() - startTime}ms.`);
     // ──────────────────────────────────────────────────────────────────────────
 
     const attemptMigration = (attempt) => {
@@ -366,21 +296,7 @@ const runMigrations = (dbPath) => {
         }
     };
 
-    // Check for schema integrity BEFORE running migrations if possible,
-    // though Prisma handle migration safety, PRAGMA check is for data durability.
-    try {
-        log('Database: Running integrity check...');
-        const output = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
-            env, input: 'PRAGMA integrity_check;', windowsHide: true, encoding: 'utf-8'
-        });
-        if (output.includes('ok')) {
-            log('Database: Integrity check - OK');
-        } else {
-            log(`Database: Integrity check found issues: ${output}`);
-        }
-    } catch (e) {
-        log(`Database: Integrity check failed to run: ${e.message}`);
-    }
+    // REMOVED Redundant Integrity Check (handled in db-init.ts)
 
     // First attempt
     const firstAttempt = attemptMigration(1);
@@ -390,15 +306,6 @@ const runMigrations = (dbPath) => {
         // Delete it and retry from scratch so the user doesn't need to manually intervene.
         log('Migrations: AUTO-RECOVERY — deleting corrupt/empty database and retrying...');
         try {
-            // Reset the applied patch version in config
-            casperConfig.appliedPatchVersion = 0;
-            try {
-                fs.writeFileSync(configPath, JSON.stringify(casperConfig, null, 2), 'utf8');
-                log('Config: Reset appliedPatchVersion to 0 due to auto-recovery.');
-            } catch (configWriteErr) {
-                log(`Config: Failed to write reset configuration during auto-recovery: ${configWriteErr.message}`);
-            }
-
             if (fs.existsSync(dbPath)) {
                 fs.unlinkSync(dbPath);
                 log(`Migrations: Deleted corrupt database at ${dbPath}`);
@@ -456,7 +363,7 @@ const startServer = () => {
                     ELECTRON_RUN_AS_NODE: '1',
                     PORT: String(appPort),
                     HOST: '127.0.0.1',
-                    DATABASE_URL: `file:${normalizedDbPath}?socket_timeout=10000&connection_limit=1&journal_mode=WAL&synchronous=NORMAL&cache_size=-2000&temp_store=memory`,
+                    DATABASE_URL: `file:${normalizedDbPath}`,
                     PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath
                 }
             });
@@ -471,7 +378,7 @@ const startServer = () => {
             });
 
             let pollCount = 0;
-            const MAX_POLL = 1200; // 60 seconds at 50ms intervals
+            const MAX_POLL = 120; // 60 seconds at 500ms intervals
             const poll = setInterval(() => {
                 if (++pollCount > MAX_POLL) {
                     clearInterval(poll);
@@ -487,7 +394,7 @@ const startServer = () => {
                 }).on('error', () => {
                     socket.destroy();
                 }).connect(appPort, '127.0.0.1');
-            }, 50);
+            }, 500);
 
         } else {
             resolve();
@@ -498,7 +405,10 @@ const startServer = () => {
 const createSplashWindow = () => {
     splashWindow = new BrowserWindow({
         width: 400, height: 400, transparent: true, frame: false, alwaysOnTop: true,
-        webPreferences: { nodeIntegration: false, contextIsolation: true }
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false, contextIsolation: true
+        }
     });
     splashWindow.loadFile(path.join(__dirname, 'splash.html'));
 };
@@ -577,26 +487,34 @@ autoUpdater.on('update-downloaded', (info) => {
     if (mainWindow) mainWindow.webContents.send('updater:update-downloaded', info);
 });
 
-safeHandle('app:install-update', () => {
-    autoUpdater.quitAndInstall();
+ipcMain.handle('app:install-update', () => {
+    log('Updater: Installing update and quitting...');
+    autoUpdater.quitAndInstall(false, true);
 });
 
-safeOn('window:minimize', () => mainWindow?.minimize());
-safeOn('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
-safeOn('window:close', () => mainWindow?.close());
-safeHandle('window:isMaximized', () => mainWindow?.isMaximized() || false);
+ipcMain.on('window:minimize', () => mainWindow?.minimize());
+ipcMain.on('window:maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
+ipcMain.on('window:close', () => mainWindow?.close());
+ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
-safeHandle('shell:open-external', async (event, url) => {
-    await shell.openExternal(url);
+ipcMain.handle('shell:open-external', async (event, url) => {
+    try {
+        await shell.openExternal(url);
+        return { success: true };
+    } catch (error) {
+        log(`Shell openExternal Error: ${error.message}`);
+        return { success: false, error: error.message };
+    }
 });
 
-safeHandle('printers:list', async () => {
-    const printers = await mainWindow.webContents.getPrintersAsync();
-    return printers.map(p => ({
-        name: p.name,
-        isDefault: p.isDefault,
-        status: p.status
-    }));
+ipcMain.handle('printers:list', async () => {
+    if (!mainWindow) return [];
+    try {
+        return await mainWindow.webContents.getPrintersAsync();
+    } catch (error) {
+        log(`Error getting printers: ${error.message}`);
+        return [];
+    }
 });
 
 /**
@@ -794,12 +712,12 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
 });
 
 ipcMain.handle('print:standard', handleStandardPrint);
-safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
+ipcMain.handle('print:thermal', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 // Legacy support
 ipcMain.handle('print:silent', handleStandardPrint);
-safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
+ipcMain.handle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
     return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 
@@ -817,7 +735,8 @@ const loadConfig = () => {
     return {};
 };
 
-safeHandle('dialog:showOpenDialog', async () => {
+ipcMain.handle('dialog:showOpenDialog', async () => {
+    if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Database Folder'
@@ -825,7 +744,8 @@ safeHandle('dialog:showOpenDialog', async () => {
     return result.canceled ? null : result.filePaths[0];
 });
 
-safeHandle('dialog:showBackupFolderDialog', async () => {
+ipcMain.handle('dialog:showBackupFolderDialog', async () => {
+    if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Custom Backup Folder'
@@ -842,27 +762,32 @@ safeHandle('dialog:showBackupFolderDialog', async () => {
     return selectedPath;
 });
 
-safeHandle('app:get-config', () => {
+ipcMain.handle('app:get-config', () => {
     return loadConfig();
 });
 
-safeHandle('app:get-db-path', () => {
+ipcMain.handle('app:get-db-path', () => {
     return path.dirname(getDatabasePath());
 });
 
-safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
-    const userDataPath = app.getPath('userData');
-    const configPath = path.join(userDataPath, 'casper-config.json');
-    const existingConfig = loadConfig();
-    const newConfig = { ...existingConfig, dbPath: newDbFolder };
+ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'casper-config.json');
+        const existingConfig = loadConfig();
+        const newConfig = { ...existingConfig, dbPath: newDbFolder };
 
-    fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
-    log(`Saved new config path: ${newDbFolder}. Restarting...`);
+        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
+        log(`Saved new config path: ${newDbFolder}. Restarting...`);
 
-    // Relaunch the application and exit
-    app.relaunch();
-    app.quit();
-    return true;
+        // Relaunch the application and exit
+        app.relaunch();
+        app.quit();
+        return true;
+    } catch (err) {
+        log(`Failed save-config-and-restart: ${err.message}`);
+        return false;
+    }
 });
 
 ipcMain.handle('app:save-backup-config', async (event, configData) => {
@@ -1089,50 +1014,6 @@ ipcMain.handle('app:vacuum-db', async () => {
         });
         return { success: true };
     } catch (err) { return { success: false, error: err.message }; }
-});
-
-// --- Restore From External File ---
-safeHandle('dialog:showOpenDbFileDialog', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-        title: 'اختر ملف قاعدة البيانات لاستعادته',
-        filters: [{ name: 'SQLite Database', extensions: ['db'] }],
-        properties: ['openFile']
-    });
-    return canceled ? null : filePaths[0];
-});
-
-ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
-    try {
-        if (!fs.existsSync(sourcePath)) throw new Error('الملف المختار غير موجود');
-
-        log(`RESTORE EXTERNAL: From ${sourcePath}`);
-        const activeDbPath = getDatabasePath();
-
-        // 1. Kill Next Server to release locks
-        if (nextServer) nextServer.kill('SIGKILL');
-        await new Promise(r => setTimeout(r, 1500));
-
-        // 2. Backup current as safety
-        const backupPath = `${activeDbPath}.pre-ext-restore.${Date.now()}.bak`;
-        if (fs.existsSync(activeDbPath)) fs.copyFileSync(activeDbPath, backupPath);
-
-        // 3. Copy new file
-        fs.copyFileSync(sourcePath, activeDbPath);
-
-        // 4. Cleanup WAL/SHM
-        const walPath = `${activeDbPath}-wal`;
-        const shmPath = `${activeDbPath}-shm`;
-        if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-        if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-
-        log(`RESTORE EXTERNAL: Complete. Relaunching...`);
-        app.relaunch();
-        app.quit();
-        return { success: true };
-    } catch (err) {
-        log(`RESTORE EXTERNAL ERROR: ${err.message}`);
-        return { success: false, error: err.message };
-    }
 });
 
 app.whenReady().then(createWindow);

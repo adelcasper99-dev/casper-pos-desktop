@@ -42,7 +42,7 @@ import TicketPaymentModal from "@/components/tickets/TicketPaymentModal";
 import ReturnForRepairModal from "@/components/tickets/ReturnForRepairModal";
 import RefundTicketModal from "@/components/tickets/RefundTicketModal";
 import RejectTicketModal from "@/components/tickets/RejectTicketModal";
-import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModal";
+import TicketPrintOptionsModal, { checkPrinterAndRedirect } from "@/components/tickets/TicketPrintOptionsModal";
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
@@ -258,20 +258,11 @@ export default function TicketDetailPage() {
     const [showPrintOptions, setShowPrintOptions] = useState(false);
     const [isSilentPrint, setIsSilentPrint] = useState(false);
     const [defaultPrintMode, setDefaultPrintMode] = useState<'receipt' | 'label'>('receipt');
+    const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
 
-    // Helper: detect configured printers & clear session guard for re-print
-    const hasThermalPrinter = () =>
-        !!(localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer') || localStorage.getItem('casper_ticket_printer'));
-    const hasLabelPrinter = () =>
-        !!(localStorage.getItem('printer_label') || localStorage.getItem('casper_barcode_printer') || localStorage.getItem('casper_label_printer'));
+
     const clearPrintGuard = () =>
         ticket?.id && sessionStorage.removeItem(`ticket_autoprint_${ticket.id}`);
-    // Check whether the global "fast print" toggle is on (matches TicketsList logic)
-    const isSpeedPrintEnabled = () => {
-        const registry = printService.getRegistry();
-        if (registry && typeof registry.enableSpeedPrint === 'boolean') return registry.enableSpeedPrint;
-        return false; // safe default: show the dialog unless explicitly opted in
-    };
 
     useEffect(() => {
         if (id) loadData();
@@ -302,17 +293,10 @@ export default function TicketDetailPage() {
         }
 
         const shouldPrint = searchParams.get('print') === 'true';
-        console.log('[AutoPrint] shouldPrint:', shouldPrint);
+        console.log('[AutoPrint] shouldPrint:', shouldPrint, 'speedPrintEnabled:', isSpeedPrintEnabled);
 
-        // If print=true in URL, show print options regardless of settings
-        // This ensures the print dialog works immediately after ticket creation
+        // Clean URL if we have print=true
         if (shouldPrint && ticket && !hasPrinted) {
-            console.log('[AutoPrint] ✓ Triggering from print=true URL param');
-            setHasPrinted(true);
-            setIsSilentPrint(false); // 🛡️ FIX: Do not force silent print from URL. Let settings dictate auto-print.
-            setShowPrintOptions(true);
-            
-            // Clean URL
             try {
                 const url = new URL(window.location.href);
                 url.searchParams.delete('print');
@@ -320,13 +304,19 @@ export default function TicketDetailPage() {
             } catch (e) {
                 console.log('[AutoPrint] URL clean failed:', e);
             }
-            return;
         }
 
-        // 🛡️ FIX: Removed flawed fallback auto-print logic.
-        // It used to print tickets every time they were opened in a new session if autoPrintTicket was true.
-        // Now, auto-printing only occurs immediately after creation (via print=true URL param) 
-        // or explicitly via manual UI actions.
+        if (isSpeedPrintEnabled && ticket && !hasPrinted) {
+            const autoPrintEnabled = settings?.autoPrintTicket === true;
+            
+            // 🛡️ ONLY auto-print if BOTH ?print=true AND autoPrintEnabled in settings are true
+            if (shouldPrint && autoPrintEnabled) {
+                console.log('[AutoPrint] ✓ Triggering auto-print (shouldPrint and settings enabled)');
+                setHasPrinted(true);
+                setIsSilentPrint(true);
+                setShowPrintOptions(true);
+            }
+        }
     }, [searchParams, ticket, loading, hasPrinted, settings, showPrintOptions]);
 
     async function loadData() {
@@ -435,13 +425,22 @@ export default function TicketDetailPage() {
         }
     };
 
-    // Function to open print modal
-    const openBarcodePrint = () => {
-        console.log('[TEST] Force opening print modal');
+    const openBarcodePrint = async (e?: React.MouseEvent) => {
+        console.log('[DirectPrint] Manual Label request');
+        
+        const isManualOverride = e?.shiftKey;
+        if (!isManualOverride && !await checkPrinterAndRedirect('label', router, locale)) return;
+
         clearPrintGuard();
         setDefaultPrintMode('label');
-        // 🛡️ [FIX] Respect the fast-print toggle — silent only when both printer AND speed-print are on
-        setIsSilentPrint(hasLabelPrinter() && isSpeedPrintEnabled());
+        
+        // Check printers for silent flag
+        const registry = printService.getRegistry();
+        const hasLabelPrinter = !!(registry?.labelPrinter || localStorage.getItem('printer_label') || localStorage.getItem('printer_barcode'));
+        
+        // Enable silent only if printer is configured AND Speed Print is enabled AND NOT manual override
+        const silent = hasLabelPrinter && isSpeedPrintEnabled && !isManualOverride;
+        setIsSilentPrint(silent);
         setShowPrintOptions(true);
     };
 
@@ -519,7 +518,20 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter() && isSpeedPrintEnabled()); setShowPrintOptions(true); }}
+                        onClick={async (e) => { 
+                            const isManualOverride = e.shiftKey;
+                            if (!isManualOverride && !await checkPrinterAndRedirect('engineer', router, locale)) return;
+
+                            clearPrintGuard(); 
+                            setDefaultPrintMode('engineer' as any); 
+                            
+                            const registry = printService.getRegistry();
+                            const hasThermalPrinter = !!(registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer'));
+                            
+                            const silent = hasThermalPrinter && isSpeedPrintEnabled && !isManualOverride;
+                            setIsSilentPrint(silent); 
+                            setShowPrintOptions(true); 
+                        }}
                         className="bg-orange-500/5 border-orange-500/20 text-orange-400 h-10 px-3 flex gap-2 items-center hover:bg-orange-500/10 transition-colors"
                     >
                         <SettingsIcon className="h-4 w-4" />
@@ -527,12 +539,29 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter() && isSpeedPrintEnabled()); setShowPrintOptions(true); }}
+                        onClick={async (e) => { 
+                            const isManualOverride = e.shiftKey;
+                            if (!isManualOverride && !await checkPrinterAndRedirect('receipt', router, locale)) return;
+
+                            clearPrintGuard(); 
+                            setDefaultPrintMode('receipt'); 
+
+                            const registry = printService.getRegistry();
+                            const hasThermalPrinter = !!(registry?.thermalPrinter || localStorage.getItem('thermal_printer') || localStorage.getItem('casper_receipt_printer'));
+
+                            const silent = hasThermalPrinter && isSpeedPrintEnabled && !isManualOverride;
+                            setIsSilentPrint(silent); 
+                            setShowPrintOptions(true); 
+                        }}
                         className="bg-slate-200/50 dark:bg-zinc-800/50 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-300 h-10 px-3 flex gap-2 items-center hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <Printer className="h-4 w-4" />
                         <span className="text-xs font-bold">{t('printOptions.printReceipt')}</span>
                     </Button>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-500/10 rounded-md border border-zinc-500/20 ml-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
+                        <span className="text-[10px] text-zinc-400 font-medium">{t('printOptions.shiftClickHint') || 'Shift + Click للمعاينة'}</span>
+                    </div>
                     <div className="h-8 w-[1px] bg-slate-300 dark:bg-white/10 mx-1" />
                     <div className="flex -space-x-2 rtl:space-x-reverse shrink-0">
                         <div className="w-10 h-10 rounded-full border-2 border-white dark:border-[#09090b] bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-zinc-400">
@@ -778,8 +807,11 @@ export default function TicketDetailPage() {
                                                         <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
                                                             {metadata.triggeredStatus ? `تحديث الحالة إلى: ${metadata.triggeredStatus}` : 'إشعار مخصص للمحافظة على العميل'}
                                                         </p>
-                                                        {metadata.gapHours !== undefined && (
+                                                        {metadata.riskLevel && (
                                                             <div className="flex items-center gap-3 mt-2">
+                                                                <Badge className={cn("text-[9px] px-2 py-0", metadata.riskLevel === 'high' ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500")}>
+                                                                    Risk: {metadata.riskLevel}
+                                                                </Badge>
                                                                 <span className="text-[9px] text-slate-500 dark:text-zinc-500">Gap: {metadata.gapHours}h</span>
                                                             </div>
                                                         )}
@@ -825,17 +857,11 @@ export default function TicketDetailPage() {
                                         toast.error("يرجى ربط العميل أولاً لإرسال إشعارات تلقائية");
                                         return;
                                     }
-                                    const template = getStatusTemplate(ticket.status, 'ar', settings?.whatsappTemplates);
-                                    if (!template) {
-                                        toast.error("هذا النوع من الرسائل معطل حالياً من الإعدادات");
-                                        return;
-                                    }
+                                    const template = getStatusTemplate(ticket.status, 'ar');
                                     const url = generateWhatsAppUrl(ticket.customer.phone, template, {
                                         name: ticket.customer.name,
                                         device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
-                                        barcode: ticket.barcode, 
-                                        branch: settings?.name || 'الفرع الرئيسي', 
-                                        issue: ticket.issueDescription
+                                        barcode: ticket.barcode, branch: 'الفرع الرئيسي', issue: ticket.issueDescription
                                     });
                                     window.open(url, '_blank');
                                 }}
@@ -980,7 +1006,6 @@ export default function TicketDetailPage() {
                                     user={user} 
                                     onUpdate={loadData}
                                     onReject={['ADMIN', 'مدير النظام', 'المالك'].includes(user?.role) ? () => setShowRejectModal(true) : undefined}
-                                    whatsappTemplates={settings?.whatsappTemplates}
                                 />
                             </div>
                         </div>
@@ -998,7 +1023,12 @@ export default function TicketDetailPage() {
                                         <span className="font-mono text-slate-800 dark:text-zinc-300">{ticket.gap || '--:--'}</span>
                                     </div>
                                 </DataRow>
-
+                                <DataRow label="تقدير المخاطرة الحالي">
+                                    <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${ticket.riskLevel === 'high' ? 'text-red-500' : (ticket.riskLevel === 'medium' ? 'text-orange-400' : 'text-emerald-400')}`}>
+                                        <div className={`w-2 h-2 rounded-full ${ticket.riskLevel === 'high' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : (ticket.riskLevel === 'medium' ? 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]')}`} />
+                                        {ticket.riskLevel === 'high' ? 'High Risk' : (ticket.riskLevel === 'medium' ? 'Medium' : 'Safe')}
+                                    </div>
+                                </DataRow>
                                 <div className="pt-4 border-t-2 border-slate-300 dark:border-zinc-700 mt-4 space-y-2">
                                     <div className="flex items-center justify-between px-1">
                                         <label className="text-[9px] font-black uppercase text-slate-500 dark:text-zinc-600 tracking-widest">الفني المسؤول</label>

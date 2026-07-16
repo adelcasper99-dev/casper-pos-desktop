@@ -29,7 +29,6 @@ import { searchCustomers } from "@/actions/customer-actions";
 import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
 import { useDebounce } from "use-debounce";
 import clsx from "clsx";
-import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
 
 interface TicketPaymentModalProps {
     isOpen: boolean;
@@ -43,7 +42,6 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const router = useRouter();
     const commonT = useTranslations("Common");
     const { token: csrfToken } = useCSRF();
-    const autoNotify = useWhatsAppAutoNotify();
     const [isLoading, setIsLoading] = useState(false);
     const [settings, setSettings] = useState<any>(null);
     const [settingsLoading, setSettingsLoading] = useState(false);
@@ -213,46 +211,37 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             onSuccess?.();
             router.refresh();
 
-            // 🚀 WhatsApp Auto-Notify (Non-blocking)
-            if (paymentType === 'PAYMENT' || netDelta === 0) {
-                autoNotify('PAID_DELIVERED', {
-                    customerPhone: ticket.customerPhone,
-                    customerName: ticket.customerName,
-                    barcode: ticket.barcode,
-                    deviceBrand: ticket.deviceBrand,
-                    deviceModel: ticket.deviceModel,
-                    repairPrice: totalNewPrice,
-                    branchName: settings?.name ?? undefined,
-                    issueDescription: ticket.issueDescription
-                }, {
-                    whatsappEnabled: settings?.whatsappEnabled,
-                    whatsappTemplates: settings?.whatsappTemplates
-                });
-            }
+            // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
+            // Only auto-print when explicitly enabled to avoid unexpected behavior
+            // 🛡️ FIX: Wait for settings to load and check loading state
+            const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
 
-            // 🛡️ [AUTO-PRINT] Wait for settings to be ready with a hard deadline
-            let resolvedSettings = settings;
-            if (!resolvedSettings) {
-                // Settings not loaded yet — fetch directly (no stale closure risk)
-                try {
-                    const settingsRes = await getEffectiveStoreSettings();
-                    if (settingsRes.success) {
-                        resolvedSettings = settingsRes.data;
-                        setSettings(settingsRes.data);
-                    }
-                } catch (e) {
-                    console.warn('[AutoPrint] Failed to fetch settings:', e);
-                }
-            }
-
-            if (resolvedSettings?.autoPrintTicket === true) {
+            if (!settingsLoading && settings && settings.autoPrintTicket === true && isSpeedPrintEnabled) {
+                // We use a small delay to ensure the success state is rendered or the state is ready
                 setTimeout(() => {
                     handlePrint(true);
-                    setTimeout(() => onClose(), 1200);
+                    // Close slightly later after print job is sent
+                    setTimeout(() => {
+                        onClose();
+                    }, 1200);
                 }, 500);
+            } else if (settingsLoading) {
+                // 🛡️ Settings still loading - wait for them to load then auto-print
+                const checkSettingsAndPrint = () => {
+                    if (settings && settings.autoPrintTicket === true && printService.getRegistry()?.enableSpeedPrint !== false) {
+                        handlePrint(true);
+                        setTimeout(() => onClose(), 1200);
+                    } else {
+                        onClose();
+                    }
+                };
+                // Wait a bit and check again
+                setTimeout(checkSettingsAndPrint, 1000);
             } else {
-                // Auto close after small delay to let user see success toast
-                setTimeout(() => onClose(), 800);
+                // Auto close after small delay to let user see success state/toast
+                setTimeout(() => {
+                    onClose();
+                }, 800);
             }
         } else {
             toast.error((res as any).error || t('paymentError'));

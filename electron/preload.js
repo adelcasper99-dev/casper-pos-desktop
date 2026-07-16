@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /**
      * Thermal silent print (Roll / Receipt)
      */
-    printThermal: (html, printerName, paperWidthMm, margins) =>
-        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm, margins),
+    printThermal: (html, printerName, paperWidthMm) =>
+        ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
 
     saveToPDF: (html, filename) =>
         ipcRenderer.invoke('print:to-pdf', html, filename),
@@ -40,12 +40,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     printThermalReceipt: (html, printerName, paperWidthMm) =>
         ipcRenderer.invoke('print:thermal', html, printerName, paperWidthMm),
-
-    /**
-     * Kick the cash drawer independently of a print job.
-     */
-    kickDrawer: (printerName) =>
-        ipcRenderer.invoke('hardware:kick-drawer', printerName),
 
     /**
      * Custom window controls (used by TitleBar component).
@@ -81,24 +75,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         showOpenDialog: () => ipcRenderer.invoke('dialog:showOpenDialog'),
         selectBackupFolder: () => ipcRenderer.invoke('dialog:showBackupFolderDialog'),
         getConfig: () => ipcRenderer.invoke('app:get-config'),
-        getCloudConfig: () => ipcRenderer.invoke('app:get-cloud-config'),
-        saveCloudConfig: (data) => ipcRenderer.invoke('app:save-cloud-config', data),
-        onCloudConfigUpdated: (callback) => {
-            const handler = (_event, config) => callback(config);
-            ipcRenderer.on('app:cloud-config-updated', handler);
-            return () => ipcRenderer.removeListener('app:cloud-config-updated', handler);
-        },
         getDbPath: () => ipcRenderer.invoke('app:get-db-path'),
         saveConfigAndRestart: (path) => ipcRenderer.invoke('app:save-config-and-restart', path),
         saveBackupConfig: (path) => ipcRenderer.invoke('app:save-backup-config', path),
-        saveNodeConfig: (config) => ipcRenderer.invoke('app:save-node-config', config),
-        checkLegacyDb: () => ipcRenderer.invoke('app:check-legacy-db'),
-        migrateToPostgres: () => ipcRenderer.invoke('app:migrate-to-postgres'),
-        onMigrationProgress: (callback) => {
-            const handler = (_event, progress) => callback(progress);
-            ipcRenderer.on('migration:progress', handler);
-            return () => ipcRenderer.removeListener('migration:progress', handler);
-        }
     },
 
     /**
@@ -110,8 +89,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getAvailableBackups: () => ipcRenderer.invoke('app:get-available-backups'),
         deleteBackup: (filePath) => ipcRenderer.invoke('app:delete-backup', filePath),
         restoreFromBackup: (filePath) => ipcRenderer.invoke('app:restore-from-backup', filePath),
-        restoreFromExternalFile: (filePath) => ipcRenderer.invoke('app:restore-from-external-file', filePath),
-        showOpenDbFileDialog: () => ipcRenderer.invoke('dialog:showOpenDbFileDialog'),
         exportSupportBundle: () => ipcRenderer.invoke('app:export-support-bundle'),
         vacuumDatabase: () => ipcRenderer.invoke('app:vacuum-db'),
         printThermalReceipt: (layout) => ipcRenderer.invoke('app:print-thermal-receipt', layout),
@@ -152,44 +129,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     /**
-     * SQLite-backed Print Queue API
+     * Boot Progress API (Used by Splash Screen)
      */
-    printQueue: {
-        enqueue: (job) => ipcRenderer.invoke('print:enqueue', job),
-        getStatus: () => ipcRenderer.invoke('print:queue-status'),
-        onStatusChange: (cb) => {
-            const handler = (_event, status) => cb(status);
-            ipcRenderer.on('print:queue-changed', handler);
-            return () => ipcRenderer.removeListener('print:queue-changed', handler);
-        }
-    },
-
-    /**
-     * Native WhatsApp Automation API
-     */
-    whatsapp: {
-        sendMessage: (to, body) => ipcRenderer.invoke('whatsapp:send-message', to, body),
-        getStatus: () => ipcRenderer.invoke('whatsapp:get-status'),
-        logout: () => ipcRenderer.invoke('whatsapp:logout'),
-        initialize: () => ipcRenderer.invoke('whatsapp:initialize'),
-        onQRUpdate: (cb) => {
-            const handler = (_event, qr) => cb(qr);
-            ipcRenderer.on('whatsapp:qr', handler);
-            return () => ipcRenderer.removeListener('whatsapp:qr', handler);
-        },
-        onStatusChange: (cb) => {
-            const handler = (_event, status) => cb(status);
-            ipcRenderer.on('whatsapp:status', handler);
-            return () => ipcRenderer.removeListener('whatsapp:status', handler);
-        }
-    },
-
-    /**
-     * License: Hardware machine UUID (fetched from OS via main process,
-     * not from the server — ensures we bind to the client machine).
-     */
-    license: {
-        getMachineId: () => ipcRenderer.invoke('hardware:get-machine-id'),
+    onBootStatus: (callback) => {
+        const handler = (_event, status) => callback(status);
+        ipcRenderer.on('boot-status', handler);
+        return () => ipcRenderer.removeListener('boot-status', handler);
     }
 });
 
