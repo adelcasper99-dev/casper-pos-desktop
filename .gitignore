@@ -69,3 +69,6 @@ casper-launcher/release/
 /copy_skills.ps1
 graphify-out/
 .agency-agents/  
+
+# workspace files
+*.code-workspace

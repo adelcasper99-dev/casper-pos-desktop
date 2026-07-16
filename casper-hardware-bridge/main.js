@@ -128,9 +128,12 @@ expressApp.get('/api/status', async (req, res) => {
         } else if (win.webContents.getPrinters) {
             printers = win.webContents.getPrinters();
         }
+        const configured = !!(store?.get('receiptPrinter') || store?.get('thermalPrinter') || store?.get('barcodePrinter') || store?.get('a4Printer'));
         res.json({
             online: true,
-            version: '1.0.0',
+            status: 'online',
+            version: typeof app !== 'undefined' ? app.getVersion() : '1.0.0',
+            printerConfigured: configured,
             printers: printers
         });
     } catch (err) {

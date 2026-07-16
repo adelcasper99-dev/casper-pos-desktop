@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Printer, RefreshCw, Save, CheckCircle, AlertCircle, ShieldCheck, Download, Loader2, Zap, Settings2 } from 'lucide-react';
+import { Printer, RefreshCw, Save, CheckCircle, AlertCircle, ShieldCheck, Download, Loader2, Zap, Settings2, HelpCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,6 +11,8 @@ import { printService } from '@/lib/print-service';
 import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
 import { checkQZCertificateStatus, installQZCertificate } from '@/actions/qz-actions';
+import { useTranslations } from '@/lib/i18n-mock';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 type CertStatus = 'checking' | 'not-installed' | 'mismatch' | 'installed' | 'qz-missing';
 
@@ -20,6 +22,9 @@ export default function PrinterSettings() {
     const [qzStatus, setQzStatus] = useState<{ online: boolean; version?: string } | null>(null);
     const [certStatus, setCertStatus] = useState<CertStatus>('checking');
     const [installing, setInstalling] = useState(false);
+    const [testingBridge, setTestingBridge] = useState(false);
+    const [showGuide, setShowGuide] = useState(false);
+    const t = useTranslations('Bridge');
 
     // Preferences
     const [bridgeIpAddress, setBridgeIpAddress] = useState<string>('');
@@ -200,6 +205,47 @@ export default function PrinterSettings() {
         }
     };
 
+    const handleTestBridge = async () => {
+        if (!bridgeIpAddress || bridgeIpAddress.trim() === '') {
+            return toast.error("Please enter a Bridge IP address first");
+        }
+        setTestingBridge(true);
+        const toastId = toast.loading("Pinging hardware bridge...");
+
+        try {
+            let ip = bridgeIpAddress.trim().replace(/\/$/, '');
+            if (!ip.startsWith('http')) ip = `http://${ip}`;
+            if ((ip.match(/:/g) || []).length === 1) {
+                ip = `${ip}:4040`;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            const res = await fetch(`${ip}/api/status`, {
+                signal: controller.signal,
+                cache: 'no-store'
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                toast.dismiss(toastId);
+                toast.success(`Success! Connected to Bridge v${data.version || '1.0'}${data.printerConfigured ? ' (Printers Mapped)' : ' (No Printers Configured)'}`);
+                // snap refresh connection state and printers list
+                checkQZConnection();
+            } else {
+                toast.dismiss(toastId);
+                toast.error("Handshake failed: Bridge responded with error");
+            }
+        } catch (e: any) {
+            toast.dismiss(toastId);
+            toast.error(e.name === 'AbortError' ? "Handshake failed: Connection timed out" : "Handshake failed: Target is unreachable");
+        } finally {
+            setTestingBridge(false);
+        }
+    };
+
     const getCertStatusDisplay = () => {
         switch (certStatus) {
             case 'checking':
@@ -317,10 +363,21 @@ export default function PrinterSettings() {
                         {/* Hardware Bridge IP (Network Printing) */}
                         {!printService.isElectron() && (
                             <div className="space-y-4 pb-6 border-b border-border/20">
-                                <Label className="text-xs font-black uppercase tracking-widest text-foreground ml-1 flex items-center gap-2">
-                                    <Zap className="w-3 h-3 text-cyan-500" /> Hardware Bridge IP Address (Network Node)
-                                </Label>
-                                <div className="flex gap-3 items-start">
+                                <div className="flex items-center justify-between ml-1">
+                                    <Label className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+                                        <Zap className="w-3 h-3 text-cyan-500" /> {t('status.title', 'Hardware Bridge IP Address (Network Node)')}
+                                    </Label>
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        onClick={() => setShowGuide(true)}
+                                        className="h-auto p-0 text-cyan-500 hover:text-cyan-400 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 transition-colors focus:ring-0 focus:outline-none"
+                                    >
+                                        <HelpCircle className="w-3.5 h-3.5" />
+                                        {t('guide.title', 'How to Connect')}
+                                    </Button>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-4">
                                     <input
                                         type="text"
                                         value={bridgeIpAddress}
@@ -339,6 +396,15 @@ export default function PrinterSettings() {
                                     >
                                         <RefreshCw className={cn("w-5 h-5", detecting && "animate-spin")} />
                                     </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={handleTestBridge}
+                                        disabled={testingBridge}
+                                        className="h-14 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase tracking-widest shrink-0 transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        {testingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 animate-pulse text-cyan-200" />}
+                                        {t('status.connecting', 'Test Handshake')}
+                                    </Button>
                                 </div>
                                 {detectError && (
                                     <p className="text-[10px] font-black uppercase tracking-widest text-rose-400/90 leading-tight flex items-center gap-1.5">
@@ -347,7 +413,7 @@ export default function PrinterSettings() {
                                     </p>
                                 )}
                                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">
-                                    Required for Web browsers & mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.
+                                    {t('guide.subtitle', 'Required for Web browsers & mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.')}
                                 </p>
                             </div>
                         )}
@@ -676,6 +742,87 @@ export default function PrinterSettings() {
                     </div>
                 </div>
             </div>
+
+            {/* Connection Guide Dialog */}
+            <Dialog open={showGuide} onOpenChange={setShowGuide}>
+                <DialogContent className="glass-card bg-card/95 dark:bg-card/75 backdrop-blur-2xl border-border/40 rounded-[2.5rem] p-8 max-w-2xl w-full shadow-2xl overflow-y-auto max-h-[90vh]">
+                    <DialogHeader className="space-y-3 pb-6 border-b border-border/20 text-right">
+                        <DialogTitle className="text-2xl font-black flex items-center gap-3 text-foreground justify-end">
+                            <Zap className="w-6 h-6 text-cyan-500 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+                            {t('guide.title')}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs font-bold text-muted-foreground/80 leading-relaxed text-right">
+                            {t('guide.subtitle')}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-6 my-6 text-right" dir="rtl">
+                        {/* Step 1 */}
+                        <div className="flex gap-4 items-start">
+                            <div className="flex-1 space-y-1">
+                                <h4 className="text-sm font-black text-foreground">{t('guide.step_1_title')}</h4>
+                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_1_desc')}</p>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
+                                ١
+                            </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="flex gap-4 items-start">
+                            <div className="flex-1 space-y-1">
+                                <h4 className="text-sm font-black text-foreground">{t('guide.step_2_title')}</h4>
+                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_2_desc')}</p>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
+                                ٢
+                            </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="flex gap-4 items-start">
+                            <div className="flex-1 space-y-1">
+                                <h4 className="text-sm font-black text-foreground">{t('guide.step_3_title')}</h4>
+                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_3_desc')}</p>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
+                                ٣
+                            </div>
+                        </div>
+
+                        {/* Step 4 */}
+                        <div className="flex gap-4 items-start">
+                            <div className="flex-1 space-y-1">
+                                <h4 className="text-sm font-black text-foreground">{t('guide.step_4_title')}</h4>
+                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_4_desc')}</p>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
+                                ٤
+                            </div>
+                        </div>
+
+                        {/* Note Callout */}
+                        <div className="p-5 rounded-[2rem] bg-amber-500/5 border border-amber-500/25 flex gap-4 items-start mt-6">
+                            <div className="flex-1 space-y-1">
+                                <span className="text-xs font-black text-amber-500 flex items-center gap-1.5 justify-end">
+                                    <Info className="w-3.5 h-3.5" />
+                                    {t('guide.note_title')}
+                                </span>
+                                <p className="text-[11px] font-bold text-amber-500/80 leading-relaxed text-right">{t('guide.note_desc')}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t border-border/20">
+                        <Button
+                            onClick={() => setShowGuide(false)}
+                            className="bg-primary hover:bg-primary/90 px-8 h-12 rounded-2xl text-white font-black uppercase tracking-widest text-xs shadow-xl transition-all"
+                        >
+                            {t('guide.close')}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
