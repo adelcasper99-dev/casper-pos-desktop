@@ -100,9 +100,11 @@ export default function SetupWizard() {
         setLoading(true);
         try {
             const res = await performSetup(formData);
-            if (res.success) {
+            if (res?.success) {
                 toast.success("System set up successfully!");
                 router.push("/login");
+            } else {
+                toast.error(res?.error || "Failed to set up system");
             }
         } catch (err: any) {
             toast.error(err.message || "Failed to set up system");

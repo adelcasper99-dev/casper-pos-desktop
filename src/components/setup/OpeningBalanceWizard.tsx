@@ -88,11 +88,11 @@ export default function OpeningBalanceWizard() {
             };
 
             const res = await setOpeningBalances(payload);
-            if (res.success) {
+            if (res?.success) {
                 toast.success("تم تسجيل الأرصدة الافتتاحية بنجاح");
                 setDone(true);
             } else {
-                toast.error(res.error || "حدث خطأ أثناء حفظ الأرصدة");
+                toast.error(res?.error || "حدث خطأ أثناء حفظ الأرصدة");
             }
         } catch (error: any) {
             toast.error(error.message || "فشل الاتصال بالخادم");
