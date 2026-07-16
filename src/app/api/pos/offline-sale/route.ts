@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
             discountPercentage,
             shiftId,
             customerId,
-            isSupplier,
+
             createdAt, 
             isTimeSuspicious,
             items,
