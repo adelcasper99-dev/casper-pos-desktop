@@ -54,8 +54,9 @@ export async function POST(request: NextRequest) {
             shiftId,
             branchId,
             createdAt,
-            isTimeSuspicious
         } = body;
+        
+        const isTimeSuspicious = 'isTimeSuspicious' in body ? (body as any).isTimeSuspicious === true : false;
 
         // Bounded client time check to guarantee temporal integrity
         const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
