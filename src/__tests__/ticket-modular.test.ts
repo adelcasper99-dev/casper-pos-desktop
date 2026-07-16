@@ -82,7 +82,7 @@ vi.mock('@/lib/accounting/transaction-factory', () => ({
         recordRefund: vi.fn(),
         recordMaintenancePayment: vi.fn(),
         recordSale: vi.fn(),
-        ensureGLAccounts: vi.fn(),
+
     },
 }));
 

@@ -1,7 +1,6 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { GL } from "@/shared/constants/accounting-mappings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { Prisma, Shift } from "@prisma/client";
@@ -2227,13 +2226,7 @@ export const processTicketPayment = secureAction(async (data: {
     }
     const currentShift = shiftResult.shift;
 
-    // 🛡️ PRE-WARM GL Accounts BEFORE entering the transaction to prevent deadlocks.
-    // AccountingEngine.recordMaintenancePayment uses GL.ASSETS.CASH/BANK/WALLET/RECEIVABLES + GL.REVENUE.SERVICE
-    const glCodesToWarm = [
-        PAYMENT_METHOD_GL_MAP[paymentMethod] ?? '',
-        GL.REVENUE.SERVICE,
-    ].filter(Boolean);
-    await AccountingEngine.ensureGLAccounts(glCodesToWarm);
+
 
     const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? new Decimal(ticket.parentTicket.amountPaid || 0) : new Decimal(0);
     const previousPaid = new Decimal(ticket.amountPaid || 0);
