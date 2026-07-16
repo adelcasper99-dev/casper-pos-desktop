@@ -99,7 +99,7 @@ export default function SetupWizard() {
     const handleSetup = async () => {
         setLoading(true);
         try {
-            const res = await performSetup(formData);
+            const res = await performSetup(formData) as any;
             if (res?.success) {
                 toast.success("System set up successfully!");
                 router.push("/login");

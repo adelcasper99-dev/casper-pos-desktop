@@ -221,7 +221,7 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
             // Safely archive any duplicates (active or soft-deleted) that collide on name or paymentMethod but have a different id
             const duplicates = allTreasuries.filter(x => (x.name === t.name || x.paymentMethod === t.paymentMethod) && x.id !== t.id);
             for (const d of duplicates) {
-                const archivedName = `${d.name} (Archived ${Date.now()})`;
+                const archivedName = `${d.name} (Archived ${Date.now()}-${d.id.slice(0,4)})`;
                 await prisma.treasury.update({ 
                     where: { id: d.id }, 
                     data: { name: archivedName, paymentMethod: null, isDefault: false } 
@@ -232,7 +232,7 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
             // Safely archive any colliding names or payment methods before we attempt creation
             const collidingNames = allTreasuries.filter(x => x.name === t.name || x.paymentMethod === t.paymentMethod);
             for (const d of collidingNames) {
-                const archivedName = `${d.name} (Archived ${Date.now()})`;
+                const archivedName = `${d.name} (Archived ${Date.now()}-${d.id.slice(0,4)})`;
                 await prisma.treasury.update({ 
                     where: { id: d.id }, 
                     data: { name: archivedName, paymentMethod: null, isDefault: false } 
