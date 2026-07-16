@@ -14,74 +14,63 @@ export interface RateLimitOptions {
 /**
  * Checks if an identifier has exceeded its rate limit.
  * Uses a probabilistic 5% cleanup job to prevent DB locks (Thundering Herd) during heavy load.
- * Returns { success: boolean, remaining: number, resetAt: number }
+ * Returns { success: boolean, remaining: number, reset: number }
  */
 export async function rateLimit(identifier: string, options: RateLimitOptions) {
     const now = new Date();
     const key = `${options.keyPrefix}:${identifier}`;
     const windowMs = options.windowSeconds * 1000;
-    
+
     // Probabilistic Cleanup (5% chance on each call to purge expired limits globally)
     if (Math.random() < 0.05) {
-        // Run async in background without awaiting, avoiding blocking the main execution path.
-        prisma.rateLimit.deleteMany({
-            where: {
-                resetAt: {
-                    lt: now
-                }
-            }
-        }).catch(err => console.error("[RateLimit Cleanup] Error:", err));
+        // Fire-and-forget — do not block the main execution path
+        prisma.rateLimit
+            .deleteMany({ where: { resetAt: { lt: now } } })
+            .catch((err) =>
+                console.warn("[RateLimit Cleanup] Table maybe missing, skipping:", err)
+            );
     }
 
     try {
-        const entry = await prisma.rateLimit.findUnique({
-            where: { key }
-        });
+        const entry = await prisma.rateLimit.findUnique({ where: { key } });
 
-        // Does not exist or is expired
+        // Does not exist or is expired — start a fresh window
         if (!entry || entry.resetAt < now) {
             const resetTime = new Date(now.getTime() + windowMs);
             await prisma.rateLimit.upsert({
                 where: { key },
-                create: {
-                    key,
-                    count: 1,
-                    resetAt: resetTime
-                },
-                update: {
-                    count: 1,
-                    resetAt: resetTime
-                }
+                create: { key, count: 1, resetAt: resetTime },
+                update: { count: 1, resetAt: resetTime },
             });
-            return { 
-                success: true, 
-                limit: options.limit, 
-                remaining: options.limit - 1, 
-                reset: resetTime.getTime() 
+            return {
+                success: true,
+                limit: options.limit,
+                remaining: options.limit - 1,
+                reset: resetTime.getTime(),
             };
         }
 
-        // Limit reached
+        // Limit already reached
         if (entry.count >= options.limit) {
-            return { 
-                success: false, 
-                limit: options.limit, 
-                remaining: 0, 
-                reset: entry.resetAt.getTime() 
+            return {
+                success: false,
+                limit: options.limit,
+                remaining: 0,
+                reset: entry.resetAt.getTime(),
             };
         }
 
-        // Increment
+        // Increment counter within current window
         await prisma.rateLimit.update({
             where: { key },
-            data: { count: entry.count + 1 }
+            data: { count: entry.count + 1 },
         });
 
-        return { 
-            success: true, 
-            limit: options.limit, 
-            remaining: options.limit - (entry.count + 1), 
-            reset: entry.resetAt.getTime() 
+        return {
+            success: true,
+            limit: options.limit,
+            remaining: options.limit - (entry.count + 1),
+            reset: entry.resetAt.getTime(),
         };
     } catch (error) {
         // Fallback: If DB is unreachable, fail open to prevent total system lockout
@@ -90,7 +79,7 @@ export async function rateLimit(identifier: string, options: RateLimitOptions) {
             success: true,
             limit: options.limit,
             remaining: 1,
-            reset: now.getTime() + windowMs
+            reset: now.getTime() + windowMs,
         };
     }
 }

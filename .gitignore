@@ -60,6 +60,11 @@ casper-launcher/node_modules/
 casper-launcher/dist/
 casper-launcher/out/
 casper-launcher/release/
+casper-launcher/*.js
+casper-launcher/*.html
+casper-launcher/*.nsh
+casper-launcher/package*.json
+casper-launcher/.gitignore
 
 # Agent & Skill Library (Local only)
 /.gemini/

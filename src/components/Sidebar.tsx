@@ -99,10 +99,10 @@ function BridgeStatusBadge({ isExpanded, locale, router }: BridgeStatusBadgeProp
     const isRtl = locale === 'ar';
 
     let bgStyle = "";
-    let icon = null;
+    let icon: React.ReactNode = null;
     let label = "";
     let tooltip = "";
-    let onClick = undefined;
+    let onClick: (() => void) | undefined = undefined;
 
     switch (state) {
         case 'checking':
