@@ -47,6 +47,7 @@ export interface CartItem {
     deviceType?: string;
     unitOfMeasureId?: string;
     conversionFactor?: number | string;
+    description?: string;
 }
 
 export interface PurchaseFormReturn {

@@ -95,7 +95,7 @@ interface PurchaseDataGridProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // "categoryId" is skipped in Tab for existing rows — handled in handleKeyDown
-const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
+const ALL_EDITABLE_COLS = ["itemCode", "categoryId", "modelId", "attributeId", "description", "itemName", "quantity", "unitPrice", "sellPrice", "sellPrice2", "sellPrice3"] as const;
 type EditableCol = (typeof ALL_EDITABLE_COLS)[number];
 
 const CELL_CLS = "border-e border-slate-200 dark:border-white/10 last:border-e-0 truncate px-3 py-2 transition-colors";
@@ -1880,8 +1880,25 @@ export function PurchaseDataGrid({
                 style={{ gridTemplateColumns: gridTemplate }}
             >
                 {[
-                    "#", "الكود", "الفئة", "الموديل", "الوصف (الصفة)", "اسم المنتج النهائي", "الكمية", "التكلفة", "سعر 1", "سعر 2", "سعر 3", "الإجمالي", ""
-                ].map((label, i) => (
+                    { label: "#", idx: 0 },
+                    { label: "الكود", idx: 1 },
+                    { label: "الفئة", idx: 2 },
+                    { label: "الموديل", idx: 3 },
+                    { label: "الوصف (الصفة)", idx: 4 },
+                    { label: "اسم المنتج النهائي", idx: 5 },
+                    { label: "الوصف الإضافي", idx: 6 },
+                    ...(features?.unitVisibility !== false ? [
+                        { label: "الوحدة", idx: 7 },
+                        { label: "العبوة", idx: 8 }
+                    ] : []),
+                    { label: "الكمية", idx: 9 },
+                    { label: "التكلفة", idx: 10 },
+                    { label: "سعر 1", idx: 11 },
+                    { label: "سعر 2", idx: 12 },
+                    { label: "سعر 3", idx: 13 },
+                    { label: "الإجمالي", idx: 14 },
+                    { label: "", idx: 15 }
+                ].map((col, i) => (
                     <div 
                         key={i} 
                         className={clsx(HEADER_CELL_CLS, i === 0 && "text-center px-1")}

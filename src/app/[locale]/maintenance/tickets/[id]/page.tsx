@@ -306,8 +306,8 @@ export default function TicketDetailPage() {
         console.log('[AutoPrint] shouldPrint:', shouldPrint);
 
         const speedPrintEnabled = getSpeedPrintEnabled();
-        const autoPrintEnabled = settings?.autoPrintTicket === true;
-        console.log('[AutoPrint] speedPrintEnabled:', speedPrintEnabled, 'autoPrintEnabled:', autoPrintEnabled);
+        const autoPrintSetting = settings?.autoPrintTicket === true;
+        console.log('[AutoPrint] speedPrintEnabled:', speedPrintEnabled, 'autoPrintSetting:', autoPrintSetting);
 
         // If print=true in URL, show print options regardless of settings
         // This ensures the print dialog works immediately after ticket creation
