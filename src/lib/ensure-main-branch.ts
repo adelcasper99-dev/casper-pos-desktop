@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 const MAIN_BRANCH_CODE = 'MAIN';
 let cachedMainBranchId: string | null = null; // V-08: In-memory cache for ultra-fast login
 let migrationChecked = false; // Ensure migration logic runs at least once per process
+let initPromise: Promise<string> | null = null;
 
 /**
  * Resets the in-memory caches so the next call to ensureMainBranch() and
@@ -21,6 +22,7 @@ let migrationChecked = false; // Ensure migration logic runs at least once per p
 export function resetBranchCache(): void {
     cachedMainBranchId = null;
     migrationChecked = false;
+    initPromise = null;
     // Also reset the db-init flag so initDatabase() re-runs on next request
     const g = globalThis as unknown as { dbInitialized?: boolean };
     g.dbInitialized = false;
@@ -34,6 +36,15 @@ const PAYMENT_TREASURIES = [
 ];
 
 export async function ensureMainBranch(): Promise<string> {
+    if (initPromise) return initPromise;
+    initPromise = _ensureMainBranchInternal().catch(e => {
+        initPromise = null;
+        throw e;
+    });
+    return initPromise;
+}
+
+async function _ensureMainBranchInternal(): Promise<string> {
     // ── Migration Check (Legacy branch-1 → MAIN) ──
     if (!migrationChecked) {
         const allBranches = await prisma.branch.findMany({ select: { id: true, code: true, type: true } });
