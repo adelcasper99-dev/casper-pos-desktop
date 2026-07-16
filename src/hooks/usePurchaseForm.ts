@@ -431,7 +431,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 sellPrice2: Number(i.sellPrice2 || 0),
                 sellPrice3: Number(i.sellPrice3 || 0),
                 quantity: Number(i.quantity),
-                unitCost: Number(i.unitCost),
+                unitCost: String(i.unitCost),
                 isDevice: i.isDevice,
                 deviceType: i.deviceType,
                 condition: i.condition,
