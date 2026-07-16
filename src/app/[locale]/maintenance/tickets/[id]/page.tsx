@@ -858,7 +858,7 @@ export default function TicketDetailPage() {
                                         return;
                                     }
                                     const template = getStatusTemplate(ticket.status, 'ar');
-                                    const url = generateWhatsAppUrl(ticket.customer.phone, template, {
+                                    const url = generateWhatsAppUrl(ticket.customer.phone || '', template, {
                                         name: ticket.customer.name,
                                         device: `${ticket.deviceBrand} ${ticket.deviceModel}`,
                                         barcode: ticket.barcode, branch: 'الفرع الرئيسي', issue: ticket.issueDescription
