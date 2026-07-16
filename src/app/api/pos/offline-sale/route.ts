@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
         // 🛡️ CUSTOMER / SUPPLIER FK GUARD
         let validCustomerId: string | null = null;
         let validSupplierId: string | null = null;
+        const isSupplier = (body as any).isSupplier === true;
         if (customerId && customerId.trim() !== "") {
             if (isSupplier) {
                 const supplierExists = await prisma.supplier.findUnique({ where: { id: customerId } });
