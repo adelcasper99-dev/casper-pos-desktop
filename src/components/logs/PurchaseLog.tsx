@@ -38,7 +38,7 @@ import { voidPurchase } from '@/actions/purchase-actions';
 import { cn, formatCurrency } from '@/lib/utils';
 import { DateRange } from "react-day-picker"
 import { useTranslations } from '@/lib/i18n-mock';
-import PartialReturnPurchaseDialog, { DialogItem } from './PartialReturnPurchaseDialog';
+import PartialReturnPurchaseDialog from './PartialReturnPurchaseDialog';
 import { PurchaseInvoiceWithItems } from '@/types/purchasing';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { BarcodePrintDialog } from '@/components/inventory/BarcodePrintDialog';
@@ -199,7 +199,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
         // This would normally use a library like xlsx
     };
 
-    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: DialogItem[], newTotal: number, updatedItems: DialogItem[]) => {
+    const handlePartialReturnDone = (purchaseId: string, returnedAmount: number, allReturned: boolean, returnedItems: any[], newTotal: number, updatedItems: any[]) => {
         setPurchases(prev => prev.map(p => {
             if (p.id !== purchaseId) return p;
             return {
