@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getPurchase, getPurchaseInvoices } from "@/actions/inventory";
 import { voidPurchase } from "@/actions/purchase-actions";
@@ -23,8 +23,8 @@ import { BulkUploadDialog } from "@/components/inventory/purchasing/BulkUploadDi
 import { generateA4PurchaseHTML } from "./purchasing/A4PurchaseTemplate";
 import { generateThermalPurchaseHTML } from "./purchasing/ThermalPurchaseTemplate";
 import { printService } from "@/lib/print-service";
+import { getStoreSettings } from "@/actions/settings";
 import { useTranslations } from "@/lib/i18n-mock";
-import { useSettings } from "@/contexts/SettingsContext";
 import { usePurchaseForm } from "@/hooks/usePurchaseForm";
 import type { InvoiceItem } from "@/hooks/usePurchaseForm";
 import { toast } from "sonner";
@@ -37,11 +37,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse, Unit, Attribute } from "@/types/product";
-import { Treasury } from "@/types/treasury";
+import { Product, Supplier, Category, Model, PurchaseInvoice, Branch, Warehouse } from "@/types/product";
 
 export default function PurchasesTab({
     suppliers,
@@ -67,10 +66,10 @@ export default function PurchasesTab({
     branches?: Branch[],
     isHQUser?: boolean,
     userBranchId?: string,
-    units?: Unit[],
-    attributes?: Attribute[],
+    units?: any[],
+    attributes?: any[],
     csrfToken?: string,
-    treasuries?: Treasury[]
+    treasuries?: any[]
 }) {
     const t = useTranslations('Purchasing');
     const tCommon = useTranslations('Common');
@@ -96,11 +95,11 @@ export default function PurchasesTab({
     const [suppliersList, setSuppliersList] = useState<Supplier[]>(suppliers);
     const [categoriesList, setCategoriesList] = useState<Category[]>(categories);
     const [modelsList, setModelsList] = useState<Model[]>(models || []);
-    const [attributesList, setAttributesList] = useState<Attribute[]>(attributes || []);
-    const [unitsList, setUnitsList] = useState<Unit[]>(initialUnits);
+    const [attributesList, setAttributesList] = useState<any[]>(attributes || []);
+    const [unitsList, setUnitsList] = useState<any[]>(initialUnits);
 
     const [showBulkUpload, setShowBulkUpload] = useState(false);
-    const { settings } = useSettings();
+    const [settings, setSettings] = useState<any>(null);
     const [showBarcodePrint, setShowBarcodePrint] = useState(false);
     const [selectedTableInvoice, setSelectedTableInvoice] = useState<any>(null);
     const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
@@ -189,6 +188,11 @@ export default function PurchasesTab({
         return sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-cyan-400" /> : <ChevronDown className="w-3 h-3 text-cyan-400" />;
     };
 
+    useEffect(() => {
+        getStoreSettings().then(res => {
+            if (res.success) setSettings(res.data);
+        });
+    }, []);
 
     // Also sync props if they change (e.g. on full revalidation)
     useEffect(() => { setSuppliersList(suppliers); }, [suppliers]);
@@ -235,31 +239,9 @@ export default function PurchasesTab({
     const [gridRows, setGridRows] = useState<GridRow[]>([]);
     const [showNewItemPanel, setShowNewItemPanel] = useState(false);
 
-    const isGridMounted = useRef(false);
-    const lastCartFromGrid = useRef<string>("");
-
-    // When cart changes from outside (e.g. draft load, edit invoice, barcode scan), sync to grid
     useEffect(() => {
-        const currentCartStr = JSON.stringify(cart);
-        if (currentCartStr !== lastCartFromGrid.current) {
-            setGridRows(cartItemsToGridRows(cart));
-            lastCartFromGrid.current = currentCartStr;
-        }
-    }, [cart]);
-
-    // When grid changes, sync to cart (filtering out incomplete rows)
-    useEffect(() => {
-        if (!isGridMounted.current) {
-            isGridMounted.current = true;
-            return;
-        }
         const cartItems = gridRowsToCartItems(gridRows);
-        const newCartStr = JSON.stringify(cartItems);
-        // Only update cart if it actually changed, to avoid React loop
-        if (newCartStr !== lastCartFromGrid.current) {
-            lastCartFromGrid.current = newCartStr;
-            setCart(cartItems);
-        }
+        setCart(cartItems);
     }, [gridRows, setCart]);
 
     // Persistence: Data remains in gridRows even when overlay is closed
@@ -354,38 +336,7 @@ export default function PurchasesTab({
         if (!isNewPurchaseOpen) return;
         const product = products.find(p => p.sku === code);
         if (product) {
-            setGridRows(prev => {
-                const existingRowIndex = prev.findIndex(r => r.productId === product.id);
-                let newRows;
-                if (existingRowIndex >= 0) {
-                    newRows = [...prev];
-                    newRows[existingRowIndex] = { 
-                        ...newRows[existingRowIndex], 
-                        quantity: Number(newRows[existingRowIndex].quantity) + 1,
-                        subTotal: (Number(newRows[existingRowIndex].quantity) + 1) * Number(newRows[existingRowIndex].unitPrice)
-                    };
-                } else {
-                    const newRow: GridRow = {
-                        id: safeRandomUUID(),
-                        productId: product.id,
-                        itemCode: product.sku,
-                        itemName: product.name,
-                        categoryId: product.categoryId || "",
-                        unit: "قطعة",
-                        quantity: 1,
-                        unitPrice: product.costPrice || 0,
-                        subTotal: product.costPrice || 0,
-                        sellPrice: product.sellPrice,
-                        sellPrice2: product.sellPrice2,
-                        sellPrice3: product.sellPrice3,
-                        isNew: false,
-                        conversionFactor: 1
-                    };
-                    newRows = [...prev, newRow];
-                }
-                setCart(gridRowsToCartItems(newRows));
-                return newRows;
-            });
+            addToCartExisting(product);
         } else {
             setEntryMode('NEW');
             setNewItemSku(code);
@@ -414,7 +365,7 @@ export default function PurchasesTab({
         }
     };
 
-    const handleQuickCreateCategory = async (name: string, callback: (id: string, name: string) => void) => {
+    const handleQuickCreateCategory = async (name: string, callback: (id: string) => void) => {
         const { createCategory } = await import("@/actions/inventory");
         const res = await createCategory({ 
             name, 
@@ -426,7 +377,7 @@ export default function PurchasesTab({
         if (res.success && res.category) {
             const newCat = res.category as any;
             setCategoriesList(prev => [newCat, ...prev]);
-            callback(newCat.id, newCat.name);
+            callback(newCat.id);
             toast.success("تم إضافة الفئة");
         } else {
             toast.error(res.error || "فشل إضافة الفئة");
@@ -453,7 +404,7 @@ export default function PurchasesTab({
             toast.error(res.error || "فشل إضافة الوحدة");
         }
     };
-    const handleQuickCreateModel = async (name: string, categoryId: string, callback: (id: string, name: string) => void) => {
+    const handleQuickCreateModel = async (name: string, categoryId: string, callback: (id: string) => void) => {
         const { createModel } = await import("@/actions/inventory");
         const res = await createModel({ 
             name, 
@@ -464,7 +415,7 @@ export default function PurchasesTab({
         if (res.success && res.model) {
             const newMod = res.model as any;
             setModelsList(prev => [newMod, ...prev]);
-            callback(newMod.id, newMod.name);
+            callback(newMod.id);
             toast.success("تم إضافة الموديل");
         } else {
             const err = (res as any).error || "فشل إضافة الموديل";
@@ -472,7 +423,7 @@ export default function PurchasesTab({
         }
     };
 
-    const handleQuickCreateAttribute = async (name: string, callback: (id: string, name: string) => void) => {
+    const handleQuickCreateAttribute = async (name: string, callback: (id: string) => void) => {
         const { createAttribute } = await import("@/actions/inventory");
         const res = await createAttribute({ 
             name, 
@@ -482,7 +433,7 @@ export default function PurchasesTab({
         if (res.success && res.attribute) {
             const newAttr = res.attribute as any;
             setAttributesList(prev => [newAttr, ...prev]);
-            callback(newAttr.id, newAttr.name);
+            callback(newAttr.id);
             toast.success("تم إضافة الصفة");
         } else {
             const err = (res as any).error || "فشل إضافة الصفة";
@@ -524,8 +475,8 @@ export default function PurchasesTab({
         });
 
     const stats = {
-        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? Number(inv.totalAmount) : 0), 0),
-        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? Number(inv.paidAmount) : 0), 0),
+        totalPurchases: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.totalAmount : 0), 0),
+        totalPaid: filteredInvoices.reduce((acc, inv) => acc + (!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status) ? inv.paidAmount : 0), 0),
     };
 
     const barcodeItems = selectedTableInvoice ? selectedTableInvoice.items : cart;
@@ -537,7 +488,7 @@ export default function PurchasesTab({
     }));
     const barcodeQuantities = (barcodeItems || []).reduce((acc: any, item: any) => {
         const id = item.productId || item.product?.id || `temp-${item.sku}`;
-        acc[id] = Number(item.quantity);
+        acc[id] = item.quantity;
         return acc;
     }, {});
 
@@ -568,7 +519,6 @@ export default function PurchasesTab({
                         <button
                             onClick={() => {
                                 form.resetForm();
-                                setGridRows([]);
                                 setIsNewPurchaseOpen(true);
                             }}
                             className="flex items-center gap-2 px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-zinc-900/20"
@@ -755,10 +705,7 @@ export default function PurchasesTab({
                 onClose={() => setIsNewPurchaseOpen(false)}
                 form={form}
                 gridRows={gridRows}
-                onRowsChange={(newRows) => {
-                    setGridRows(newRows);
-                    setCart(gridRowsToCartItems(newRows));
-                }}
+                onRowsChange={setGridRows}
                 handleScan={handleScan}
                 handleAutoSku={handleAutoSku}
                 showNewItemPanel={showNewItemPanel}
@@ -779,7 +726,6 @@ export default function PurchasesTab({
                 onQuickCreateAttribute={handleQuickCreateAttribute}
                 onQuickCreateUnit={handleQuickCreateUnit}
                 treasuries={treasuries}
-                features={typeof settings?.features === 'string' ? JSON.parse(settings.features) : settings?.features}
             />
 
             <BulkUploadDialog
@@ -789,9 +735,9 @@ export default function PurchasesTab({
                 csrfToken={csrfToken}
             />
 
-            <Dialog open={!!selectedDetailsInvoice} onOpenChange={(open) => { if (!open) setSelectedDetailsInvoice(null) }}>
-                <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-                    {selectedDetailsInvoice && (
+            {selectedDetailsInvoice && (
+                <Dialog open={!!selectedDetailsInvoice} onOpenChange={() => setSelectedDetailsInvoice(null)}>
+                    <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="p-8 space-y-6">
                             <DialogHeader className="pb-4 border-b border-border">
                                 <DialogTitle className="flex items-center justify-between">
@@ -805,9 +751,6 @@ export default function PurchasesTab({
                                         {selectedDetailsInvoice.invoiceNumber || `#${selectedDetailsInvoice.id.slice(0, 8).toUpperCase()}`}
                                     </Badge>
                                 </DialogTitle>
-                                <DialogDescription className="sr-only">
-                                    عرض تفاصيل فاتورة المشتريات.
-                                </DialogDescription>
                             </DialogHeader>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -935,9 +878,9 @@ export default function PurchasesTab({
                                 )}
                             </div>
                         </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+                    </DialogContent>
+                </Dialog>
+            )}
 
             {showBarcodePrint && barcodeItems.length > 0 && (
                 <BarcodePrintDialog

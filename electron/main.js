@@ -5,10 +5,6 @@ const os = require('os');
 const net = require('net');
 const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
-const whatsappService = require('./whatsappService');
-const schemas = require('./ipc-schemas');
-const PrintQueue = require('./print-queue');
-
 
 const debugLog = path.join(os.homedir(), 'casper-boot.log');
 const log = (msg) => {
@@ -18,24 +14,8 @@ const log = (msg) => {
 /**
  * Hardened IPC Error Handlers
  */
-const safeHandle = (channel, handler, schema = null) => {
+const safeHandle = (channel, handler) => {
     ipcMain.handle(channel, async (event, ...args) => {
-        // 1. Sender-frame check (non-negotiable safety guard)
-        if (event.senderFrame !== event.sender.mainFrame) {
-            log(`IPC Rejected [${channel}] — Non-main-frame sender`);
-            return { success: false, error: 'Unauthorized sender frame' };
-        }
-
-        // 2. Schema validation
-        if (schema) {
-            try {
-                schema.parse(args);
-            } catch (validationError) {
-                log(`IPC Validation Failure [${channel}]: ${validationError.message}`);
-                return { success: false, error: `Invalid payload parameters: ${validationError.message}` };
-            }
-        }
-
         try {
             const result = await handler(event, ...args);
             // If the result is already in {success, data} format, return it directly
@@ -100,9 +80,6 @@ const getDatabasePath = () => {
         try {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             if (config.dbPath) {
-                if (!fs.existsSync(config.dbPath)) {
-                    fs.mkdirSync(config.dbPath, { recursive: true });
-                }
                 // Return custom path with local.db appended
                 return path.join(config.dbPath, 'local.db');
             }
@@ -119,15 +96,8 @@ const runMigrations = (dbPath) => {
     if (!app.isPackaged) return;
     log('Migrations: Starting...');
 
-    const config = loadConfig();
-    const nodeRole = config.nodeRole || 'UNCONFIGURED';
-    
-    if (nodeRole !== 'MASTER') {
-        log(`Migrations: Skipped. nodeRole is ${nodeRole}. Only MASTER executes migrations.`);
-        return;
-    }
-
-    const dbUrl = 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
+    const normalizedDbPath = dbPath.replace(/\\/g, '/');
+    const dbUrl = `file:${normalizedDbPath}`;
 
     const enginesPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@prisma', 'engines');
     const queryEnginePath = path.join(enginesPath, 'query_engine-windows.dll.node');
@@ -145,64 +115,14 @@ const runMigrations = (dbPath) => {
         PRISMA_CLI_QUERY_ENGINE_TYPE: 'library'
     };
 
-
-    const runSqlBatch = () => {
-        let tmpPath;
+    const runSql = (sql) => {
         try {
-            const script = `
-                const { PrismaClient } = require('@prisma/client');
-                const prisma = new PrismaClient({
-                    datasources: { db: { url: process.env.DATABASE_URL } }
-                });
-                async function main() {
-                    const statements = ${JSON.stringify(prePatchStatements)};
-                    for (const sql of statements) {
-                        try {
-                            await prisma.$executeRawUnsafe(sql);
-                            console.log('OK: ' + sql.slice(0, 70));
-                        } catch(e) {
-                            console.log('SKIP: ' + sql.slice(0, 70));
-                        }
-                    }
-                }
-                main()
-                    .then(() => prisma.$disconnect())
-                    .then(() => process.exit(0))
-                    .catch(() => process.exit(1));
-            `;
-            tmpPath = require('path').join(require('os').tmpdir(), 'casper-patch-' + Date.now() + '.js');
-            require('fs').writeFileSync(tmpPath, script);
-            
-            const output = execSync('"' + process.execPath + '" "' + tmpPath + '"', {
-                env,
-                cwd: require('path').join(process.resourcesPath, 'app.asar.unpacked'),
-                windowsHide: true,
-                encoding: 'utf-8'
+            execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+                env, input: sql, windowsHide: true, encoding: 'utf-8'
             });
-
-            if (output) {
-                output.split(/\r?\n/).forEach(line => {
-                    const trimmed = line.trim();
-                    if (trimmed) {
-                        log('Migrations: Pre-patch ' + trimmed);
-                    }
-                });
-            }
             return true;
         } catch (e) {
-            log('Migrations: Pre-patch batch failed: ' + e.message);
-            if (e.stdout) {
-                log('Migrations: Pre-patch Output: ' + e.stdout.toString().trim());
-            }
             return false;
-        } finally {
-            if (tmpPath) {
-                try {
-                    require('fs').unlinkSync(tmpPath);
-                } catch (unlinkErr) {
-                    log('Migrations: Temp script cleanup warning: ' + unlinkErr.message);
-                }
-            }
         }
     };
 
@@ -285,10 +205,7 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
       'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
       // Backfill: Migrate sharedLossAmount to new field (Skips NULL and zero intentionally)
-      // Safety: Only run if sharedLossAmount column actually exists to prevent SQLite from interpreting the name as a string literal
-      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE (SELECT COUNT(*) FROM pragma_table_info("Ticket") WHERE name = "sharedLossAmount") > 0 AND "sharedLossAmount" > 0',
-      // Self-healing: If data was already corrupted by the string literal "sharedLossAmount", reset it to 0.00
-      'UPDATE "Ticket" SET "excessLossAmount" = 0.00 WHERE typeof("excessLossAmount") = "text"',
+      'UPDATE "Ticket" SET "excessLossAmount" = "sharedLossAmount" WHERE "sharedLossAmount" > 0',
 
       // User
       'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',
@@ -303,10 +220,7 @@ const runMigrations = (dbPath) => {
       'ALTER TABLE "Technician" ADD COLUMN "deletedAt" DATETIME',
       'ALTER TABLE "Technician" ADD COLUMN "lossRate" DECIMAL NOT NULL DEFAULT 70.00',
       // Backfill: Migrate sharedLossRate to lossRate (Prevents overwriting fresh 70.00 defaults)
-      // Safety: Only run if sharedLossRate column actually exists to prevent SQLite from interpreting the name as a string literal
-      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE (SELECT COUNT(*) FROM pragma_table_info("Technician") WHERE name = "sharedLossRate") > 0 AND "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
-      // Self-healing: If data was already corrupted by the string literal "sharedLossRate", reset it to 70.00
-      'UPDATE "Technician" SET "lossRate" = 70.00 WHERE typeof("lossRate") = "text"',
+      'UPDATE "Technician" SET "lossRate" = "sharedLossRate" WHERE "sharedLossRate" IS NOT NULL AND "sharedLossRate" != 70.00',
 
       // Warehouse & Branch
       'ALTER TABLE "Warehouse" ADD COLUMN "type" TEXT NOT NULL DEFAULT "SELLABLE"',
@@ -317,48 +231,16 @@ const runMigrations = (dbPath) => {
       'CREATE TABLE IF NOT EXISTS "CashCategory" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "type" TEXT NOT NULL, "isSystem" BOOLEAN NOT NULL DEFAULT false, "glCode" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
       'CREATE UNIQUE INDEX IF NOT EXISTS "CashCategory_name_key" ON "CashCategory"("name")',
       'CREATE TABLE IF NOT EXISTS "SalePayment" ("id" TEXT NOT NULL PRIMARY KEY, "saleId" TEXT NOT NULL, "method" TEXT NOT NULL, "amount" DECIMAL NOT NULL, "reference" TEXT, CONSTRAINT "SalePayment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE RESTRICT ON UPDATE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")',
-
-      // --- COMPREHENSIVE DATA HEALING (Prevention of "White Screen" crashes) ---
-      // These statements reset any Decimal columns that were corrupted with string literals 
-      // (a common SQLite quirk when using double quotes in UPDATE statements with missing columns).
-      
-      // Product Healing
-      'UPDATE "Product" SET "costPrice" = 0.00 WHERE typeof("costPrice") = "text"',
-      'UPDATE "Product" SET "sellPrice" = 0.00 WHERE typeof("sellPrice") = "text"',
-      'UPDATE "Product" SET "sellPrice2" = 0.00 WHERE typeof("sellPrice2") = "text"',
-      'UPDATE "Product" SET "sellPrice3" = 0.00 WHERE typeof("sellPrice3") = "text"',
-      
-      // SaleItem Healing
-      'UPDATE "SaleItem" SET "unitPrice" = 0.00 WHERE typeof("unitPrice") = "text"',
-      'UPDATE "SaleItem" SET "unitCost" = 0.00 WHERE typeof("unitCost") = "text"',
-      
-      // Sale Healing
-      'UPDATE "Sale" SET "totalAmount" = 0.00 WHERE typeof("totalAmount") = "text"',
-      'UPDATE "Sale" SET "subTotal" = 0.00 WHERE typeof("subTotal") = "text"',
-      'UPDATE "Sale" SET "discountAmount" = 0.00 WHERE typeof("discountAmount") = "text"',
-      'UPDATE "Sale" SET "taxAmount" = 0.00 WHERE typeof("taxAmount") = "text"',
-      
-      // User/Employee Healing
-      'UPDATE "User" SET "salary" = 0.00 WHERE typeof("salary") = "text"',
-      'UPDATE "User" SET "maxDiscount" = 0.00 WHERE typeof("maxDiscount") = "text"',
-      'UPDATE "User" SET "maxDiscountAmount" = 0.00 WHERE typeof("maxDiscountAmount") = "text"',
-
-      // Shift Healing (CRITICAL: Prevents White Screen on Z-Report)
-      'UPDATE "Shift" SET "totalCashSales" = 0.00 WHERE typeof("totalCashSales") = "text"',
-      'UPDATE "Shift" SET "totalCardSales" = 0.00 WHERE typeof("totalCardSales") = "text"',
-      'UPDATE "Shift" SET "totalWalletSales" = 0.00 WHERE typeof("totalWalletSales") = "text"',
-      'UPDATE "Shift" SET "totalInstapay" = 0.00 WHERE typeof("totalInstapay") = "text"',
-      'UPDATE "Shift" SET "totalAccountSales" = 0.00 WHERE typeof("totalAccountSales") = "text"',
-      'UPDATE "Shift" SET "totalCashRefunds" = 0.00 WHERE typeof("totalCashRefunds") = "text"',
-      'UPDATE "Shift" SET "totalAccountRefunds" = 0.00 WHERE typeof("totalAccountRefunds") = "text"'
+      'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
     ];
 
     log('Migrations: Applying pre-patch SQL statements...');
-    runSqlBatch();
+    for (const sql of prePatchStatements) {
+        const ok = runSql(sql + ';');
+        log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
+    }
     log('Migrations: Pre-patch complete.');
     // ──────────────────────────────────────────────────────────────────────────
-
 
     const attemptMigration = (attempt) => {
         try {
@@ -388,76 +270,49 @@ const runMigrations = (dbPath) => {
         }
     };
 
-    attemptMigration(1);
+    // Check for schema integrity BEFORE running migrations if possible,
+    // though Prisma handle migration safety, PRAGMA check is for data durability.
+    try {
+        log('Database: Running integrity check...');
+        const output = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+            env, input: 'PRAGMA integrity_check;', windowsHide: true, encoding: 'utf-8'
+        });
+        if (output.includes('ok')) {
+            log('Database: Integrity check - OK');
+        } else {
+            log(`Database: Integrity check found issues: ${output}`);
+        }
+    } catch (e) {
+        log(`Database: Integrity check failed to run: ${e.message}`);
+    }
+
+    // First attempt
+    const firstAttempt = attemptMigration(1);
+
+    if (!firstAttempt) {
+        // Auto-recovery: the DB is likely corrupt/empty from a previous failed boot.
+        // Delete it and retry from scratch so the user doesn't need to manually intervene.
+        log('Migrations: AUTO-RECOVERY — deleting corrupt/empty database and retrying...');
+        try {
+            if (fs.existsSync(dbPath)) {
+                fs.unlinkSync(dbPath);
+                log(`Migrations: Deleted corrupt database at ${dbPath}`);
+            }
+            // Also remove WAL and SHM sidecar files if present
+            [`${dbPath}-wal`, `${dbPath}-shm`].forEach(f => {
+                if (fs.existsSync(f)) { fs.unlinkSync(f); log(`Migrations: Deleted ${f}`); }
+            });
+            attemptMigration(2);
+        } catch (recoveryErr) {
+            log(`Migrations: FATAL - Auto-recovery failed: ${recoveryErr.message}`);
+        }
+    }
 };
 
 let mainWindow = null;
 let splashWindow = null;
 let nextServer;
 let appPort = 3001;
-
-let printQueue = null;
-let queueWorkerInterval = null;
-let isProcessingQueue = false;
-
-const startQueueWorker = () => {
-    if (queueWorkerInterval) return;
-    
-    try {
-        printQueue.recoverPending();
-    } catch (err) {
-        log(`Failed to recover pending queue jobs: ${err.message}`);
-    }
-
-    queueWorkerInterval = setInterval(async () => {
-        if (isProcessingQueue) return;
-        isProcessingQueue = true;
-
-        try {
-            const job = printQueue.dequeueNext();
-            if (job) {
-                printQueue.markProcessing(job.id);
-                log(`Processing queued print job: id=${job.id}, type=${job.job_type}, printer=${job.printer}`);
-
-                let result;
-                if (job.job_type === 'receipt' || job.job_type === 'barcode') {
-                    result = await handleThermalPrint(null, job.html, job.printer, job.paper_width || 80);
-                } else {
-                    result = await handleStandardPrint(null, job.html, job.printer, {});
-                }
-
-                if (result && result.success) {
-                    printQueue.markDone(job.id);
-                    log(`Queued print job succeeded: id=${job.id}`);
-                } else {
-                    const errorMsg = result ? result.error : 'Unknown print failure';
-                    printQueue.markFailed(job.id, errorMsg);
-                    log(`Queued print job failed: id=${job.id}, error=${errorMsg}`);
-                }
-
-                notifyQueueStatusChanged();
-            }
-        } catch (err) {
-            log(`Print Queue Worker error: ${err.message}`);
-        } finally {
-            isProcessingQueue = false;
-        }
-    }, 2000);
-};
-
-const stopQueueWorker = () => {
-    if (queueWorkerInterval) {
-        clearInterval(queueWorkerInterval);
-        queueWorkerInterval = null;
-    }
-};
-
-const notifyQueueStatusChanged = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        const status = printQueue.getQueueStatus();
-        mainWindow.webContents.send('print:queue-changed', status);
-    }
-};
 
 const findFreePort = () => {
     return new Promise((resolve) => {
@@ -475,17 +330,7 @@ const startServer = () => {
 
         if (app.isPackaged) {
             runMigrations(dbPath);
-
-            // Prefer the persisted port from config, then try 3001 as the canonical default.
-            const persistedPort = (() => {
-                try {
-                    const cfg = JSON.parse(fs.readFileSync(
-                        path.join(app.getPath('userData'), 'casper-config.json'), 'utf8'
-                    ));
-                    return cfg.appPort || 3001;
-                } catch (_) { return 3001; }
-            })();
-            appPort = await tryClaimPort(persistedPort);
+            appPort = await findFreePort();
 
             const cwd = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone');
             const serverPath = path.join(cwd, 'server.js');
@@ -494,17 +339,10 @@ const startServer = () => {
                 return reject(new Error(`Next.js server.js not found! Ensure '.next/standalone' is in asarUnpack.\nPath checked: ${serverPath}`));
             }
 
-            log(`Server: Starting on port ${appPort} (LAN: 0.0.0.0) inside ${cwd}...`);
+            log(`Server: Starting on port ${appPort} inside ${cwd}...`);
             const enginesPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@prisma', 'engines');
             const queryEnginePath = path.join(enginesPath, 'query_engine-windows.dll.node');
-            const config = loadConfig();
-            const nodeRole = config.nodeRole || 'UNCONFIGURED';
-            const masterIp = config.masterIp || '127.0.0.1';
-
-            let databaseUrl = 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos';
-            if (nodeRole === 'SUB_NODE') {
-                databaseUrl = `postgresql://postgres:postgres@${masterIp}:5432/casper_pos`;
-            }
+            const normalizedDbPath = dbPath.replace(/\\/g, '/');
 
             nextServer = spawn(process.execPath, [serverPath], {
                 cwd,
@@ -513,10 +351,8 @@ const startServer = () => {
                     ELECTRON_RUN_AS_NODE: '1',
                     PORT: String(appPort),
                     HOST: '127.0.0.1',
-                    DATABASE_URL: databaseUrl,
-                    PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath,
-                    NODE_ROLE: nodeRole,
-                    MASTER_IP: masterIp
+                    DATABASE_URL: `file:${normalizedDbPath}`,
+                    PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath
                 }
             });
 
@@ -595,68 +431,6 @@ const createWindow = async () => {
         mainWindow.maximize();
         mainWindow.show();
 
-        // ── Start mDNS broadcast so Sub PCs can reach this as casper-pos.local ──
-        if (app.isPackaged) {
-            try {
-                bonjourInstance = new Bonjour();
-                bonjourInstance.publish({
-                    name: 'Casper POS Master',
-                    type: 'http',
-                    port: appPort,
-                    host: 'casper-pos.local',
-                    txt: { version: app.getVersion(), lan: getLanIp() }
-                });
-                log(`mDNS: Broadcasting as casper-pos.local:${appPort} (LAN IP: ${getLanIp()})`);
-            } catch (mdnsErr) {
-                log(`mDNS: Failed to start broadcast (non-fatal): ${mdnsErr.message}`);
-            }
-
-            // ── UDP Discovery Beacon for Casper Launcher on Sub PCs ──────────────────
-            // Broadcasts a compact JSON packet every 3 seconds so the Launcher finds
-            // the Master instantly regardless of mDNS availability.
-            // Also responds immediately to any 'ping' the Launcher sends on startup,
-            // eliminating the worst-case broadcast timing dead zone.
-            try {
-                const BEACON_PORT = 55432;
-                const beaconPayload = Buffer.from(JSON.stringify({
-                    app: 'casper-pos', v: 1, ip: getLanIp(), port: appPort
-                }));
-
-                udpBeacon = dgram.createSocket('udp4');
-                udpBeacon.on('error', (err) => log(`UDP Beacon error: ${err.message}`));
-
-                udpBeacon.on('message', (msg, rinfo) => {
-                    try {
-                        const req = JSON.parse(msg.toString());
-                        // Launcher sent a ping — respond directly with our info
-                        if (req.app === 'casper-launcher' && req.action === 'ping') {
-                            udpBeacon.send(beaconPayload, rinfo.port, rinfo.address, () => {});
-                            log(`UDP Beacon: Responded to ping from ${rinfo.address}:${rinfo.port}`);
-                        }
-                    } catch (_) { /* ignore malformed packets */ }
-                });
-
-                udpBeacon.bind(BEACON_PORT, () => {
-                    udpBeacon.setBroadcast(true);
-                    log(`UDP Beacon: Listening on port ${BEACON_PORT}, broadcasting every 3s`);
-
-                    // Immediate first broadcast
-                    udpBeacon.send(beaconPayload, BEACON_PORT, '255.255.255.255', () => {});
-
-                    // Repeat every 3 seconds (down from 10s — closes timing dead zone)
-                    const interval = setInterval(() => {
-                        if (udpBeacon) {
-                            udpBeacon.send(beaconPayload, BEACON_PORT, '255.255.255.255', () => {});
-                        } else {
-                            clearInterval(interval);
-                        }
-                    }, 3000);
-                });
-            } catch (udpErr) {
-                log(`UDP Beacon: Failed to start (non-fatal): ${udpErr.message}`);
-            }
-        }
-
         // Check for updates shortly after boot
         setTimeout(() => {
             if (app.isPackaged) {
@@ -677,12 +451,6 @@ app.on('window-all-closed', () => {
 });
 app.on('will-quit', () => {
     if (nextServer) nextServer.kill();
-    if (bonjourInstance) {
-        try { bonjourInstance.destroy(); } catch (_) { }
-    }
-    if (udpBeacon) {
-        try { udpBeacon.close(); udpBeacon = null; } catch (_) { }
-    }
 });
 
 // --- AUTO UPDATER EVENTS AND IPC ---
@@ -715,40 +483,7 @@ safeHandle('window:isMaximized', () => mainWindow?.isMaximized() || false);
 
 safeHandle('shell:open-external', async (event, url) => {
     await shell.openExternal(url);
-}, schemas.OpenExternalSchema);
-
-// --- WhatsApp Native Engine ---
-const initWhatsApp = async () => {
-    const waLogger = {
-        info: (m) => log(`[WhatsApp] ${m}`),
-        warn: (m) => log(`[WhatsApp] WARN: ${m}`),
-        error: (m) => log(`[WhatsApp] ERROR: ${m}`)
-    };
-
-    try {
-        await whatsappService.initialize((event, payload) => {
-            if (mainWindow && !mainWindow.webContents.isDestroyed()) {
-                mainWindow.webContents.send(`whatsapp:${event}`, payload);
-            }
-        }, waLogger);
-        return { success: true };
-    } catch (err) {
-        log(`[WhatsApp] Init error: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-};
-
-safeHandle('whatsapp:initialize', async () => {
-    return await initWhatsApp();
 });
-
-safeHandle('whatsapp:send-message', (_, to, body) => whatsappService.sendMessage(to, body), schemas.SendMessageSchema);
-safeHandle('whatsapp:get-status', () => ({ status: whatsappService.getStatus() }));
-safeHandle('whatsapp:logout', async () => { 
-    const result = await whatsappService.logout();
-    return result;
-});
-
 
 safeHandle('printers:list', async () => {
     const printers = await mainWindow.webContents.getPrintersAsync();
@@ -834,7 +569,7 @@ const handleStandardPrint = async (event, html, printerName, options) => {
 /**
  * Dedicated Handler for Thermal (Roll/Receipt) Printing
  */
-const handleThermalPrint = async (event, html, printerName, paperWidthMm, margins = {}) => {
+const handleThermalPrint = async (event, html, printerName, paperWidthMm) => {
     if (!mainWindow) return { success: false, error: 'Main window not found' };
 
     const widthPx = Math.round((paperWidthMm || 80) * 3.78);
@@ -863,20 +598,12 @@ const handleThermalPrint = async (event, html, printerName, paperWidthMm, margin
 
         log(`Print [Thermal] Requested: HTML Length [${html?.length}], Printer [${printerName}], Width [${paperWidthMm}mm]`);
 
-        const { top = 0, bottom = 0, left = 0, right = 0 } = margins || {};
-
-        // Convert millimeters to pixels (1mm ≈ 3.78px at 96 DPI)
-        const topPx = Math.round(top * 3.78);
-        const bottomPx = Math.round(bottom * 3.78);
-        const leftPx = Math.round(left * 3.78);
-        const rightPx = Math.round(right * 3.78);
-
         const printOptions = {
             silent: true,
             deviceName: (printerName && printerName !== 'none' && printerName !== 'undefined') ? printerName : '',
             printBackground: true,
             color: false, // Thermal is B&W
-            margins: { marginType: 'custom', top: topPx, bottom: bottomPx, left: leftPx, right: rightPx }, // Apply custom margins in pixels
+            margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }, // No margins for thermal
             pageSize: {
                 width: Math.round((paperWidthMm || 80) * 1000),
                 height: 1000000 // Very tall height for continuous thermal roll - prevents page splitting
@@ -961,53 +688,14 @@ ipcMain.handle('print:to-pdf', async (event, html, filename) => {
     }
 });
 
-safeHandle('print:standard', handleStandardPrint, schemas.PrintStandardSchema);
-safeHandle('print:thermal', async (event, html, printerName, paperWidthMm, margins) => {
-    return await handleThermalPrint(event, html, printerName, paperWidthMm, margins);
-}, schemas.PrintThermalSchema);
+ipcMain.handle('print:standard', handleStandardPrint);
+safeHandle('print:thermal', async (event, html, printerName, paperWidthMm) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm);
+});
 // Legacy support
-safeHandle('print:silent', handleStandardPrint, schemas.PrintStandardSchema);
-safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm, margins) => {
-    return await handleThermalPrint(event, html, printerName, paperWidthMm, margins);
-}, schemas.PrintThermalSchema);
-
-safeHandle('hardware:kick-drawer', async (event, printerName) => {
-    try {
-        const res = await fetch('http://localhost:4040/api/drawer/kick', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ printerName })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Bridge drawer kick failed');
-        }
-        return { success: true };
-    } catch (e) {
-        log(`Drawer Kick Error: ${e.message}`);
-        return { success: false, error: e.message };
-    }
-}, schemas.KickDrawerSchema);
-
-safeHandle('print:enqueue', async (event, job) => {
-    try {
-        const id = printQueue.enqueue(
-            job.id,
-            job.jobType,
-            job.html,
-            job.printer || null,
-            job.paperWidth || null
-        );
-        notifyQueueStatusChanged();
-        return { success: true, id };
-    } catch (e) {
-        log(`Failed to enqueue job: ${e.message}`);
-        return { success: false, error: e.message };
-    }
-}, schemas.PrintEnqueueSchema);
-
-safeHandle('print:queue-status', () => {
-    return printQueue.getQueueStatus();
+ipcMain.handle('print:silent', handleStandardPrint);
+safeHandle('app:print-thermal-receipt', async (event, html, printerName, paperWidthMm) => {
+    return await handleThermalPrint(event, html, printerName, paperWidthMm);
 });
 
 // --- NEW CONFIG AND SETUP IPC HANDLERS ---
@@ -1070,87 +758,6 @@ safeHandle('app:save-config-and-restart', async (event, newDbFolder) => {
     app.relaunch();
     app.quit();
     return true;
-}, schemas.SaveConfigAndRestartSchema);
-
-safeHandle('app:save-node-config', async (event, { nodeRole, masterIp }) => {
-    try {
-        const userDataPath = app.getPath('userData');
-        const configPath = path.join(userDataPath, 'casper-config.json');
-        const existingConfig = loadConfig();
-        const newConfig = { ...existingConfig, nodeRole, masterIp };
-
-        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf8');
-        log(`Saved node config: role=${nodeRole}, masterIp=${masterIp}. Restarting...`);
-
-        app.relaunch();
-        app.quit();
-        return { success: true };
-    } catch (err) {
-        log(`Failed to save node config: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-}, schemas.SaveNodeConfigSchema);
-
-safeHandle('app:get-cloud-config', () => {
-    try {
-        const userDataPath = app.getPath('userData');
-        const configPath = path.join(userDataPath, 'cloud-config.json');
-        if (fs.existsSync(configPath)) {
-            return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        }
-        return { enabled: false, cloudUrl: '', branchId: '', syncSecret: '' };
-    } catch (err) {
-        log(`Failed to read cloud-config: ${err.message}`);
-        return { enabled: false, cloudUrl: '', branchId: '', syncSecret: '' };
-    }
-});
-
-safeHandle('app:save-cloud-config', async (event, configData) => {
-    try {
-        const userDataPath = app.getPath('userData');
-        const configPath = path.join(userDataPath, 'cloud-config.json');
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
-        log(`Saved cloud config: enabled=${configData.enabled}`);
-        
-        // Notify any open windows that cloud config changed, triggering SyncWorker restart
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('app:cloud-config-updated', configData);
-        }
-        return { success: true };
-    } catch (err) {
-        log(`Failed to save cloud config: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-}, schemas.SaveCloudConfigSchema);
-
-safeHandle('app:migrate-to-postgres', async (event) => {
-    try {
-        log('Starting SQLite to PostgreSQL migration...');
-        
-        // TODO: The actual logic to read from dev.db and write to PostgreSQL
-        // using Prisma or a child process. For now, simulate progress for UI binding.
-        for (let i = 0; i <= 100; i += 25) {
-            if (mainWindow) mainWindow.webContents.send('migration:progress', { percent: i, message: `Migrating batch ${i}...` });
-            await new Promise(r => setTimeout(r, 500));
-        }
-
-        return { success: true };
-    } catch (err) {
-        log(`Migration Failed: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-});
-
-safeHandle('app:check-legacy-db', async () => {
-    try {
-        const dbPath = getDatabasePath();
-        if (fs.existsSync(dbPath)) {
-            return { exists: true, path: dbPath };
-        }
-        return { exists: false };
-    } catch (err) {
-        return { exists: false, error: err.message };
-    }
 });
 
 ipcMain.handle('app:save-backup-config', async (event, configData) => {
@@ -1379,131 +986,4 @@ ipcMain.handle('app:vacuum-db', async () => {
     } catch (err) { return { success: false, error: err.message }; }
 });
 
-// --- Restore From External File ---
-safeHandle('dialog:showOpenDbFileDialog', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-        title: 'اختر ملف قاعدة البيانات لاستعادته',
-        filters: [{ name: 'SQLite Database', extensions: ['db'] }],
-        properties: ['openFile']
-    });
-    return canceled ? null : filePaths[0];
-});
-
-ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
-    try {
-        if (!fs.existsSync(sourcePath)) throw new Error('الملف المختار غير موجود');
-
-        log(`RESTORE EXTERNAL: From ${sourcePath}`);
-        const activeDbPath = getDatabasePath();
-
-        // 1. Kill Next Server to release locks
-        if (nextServer) nextServer.kill('SIGKILL');
-        await new Promise(r => setTimeout(r, 1500));
-
-        // 2. Backup current as safety
-        const backupPath = `${activeDbPath}.pre-ext-restore.${Date.now()}.bak`;
-        if (fs.existsSync(activeDbPath)) fs.copyFileSync(activeDbPath, backupPath);
-
-        // 3. Copy new file
-        fs.copyFileSync(sourcePath, activeDbPath);
-
-        // 4. Cleanup WAL/SHM
-        const walPath = `${activeDbPath}-wal`;
-        const shmPath = `${activeDbPath}-shm`;
-        if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-        if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-
-        log(`RESTORE EXTERNAL: Complete. Relaunching...`);
-        app.relaunch();
-        app.quit();
-        return { success: true };
-    } catch (err) {
-        log(`RESTORE EXTERNAL ERROR: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-});
-
-app.on('before-quit', () => {
-    stopQueueWorker();
-    whatsappService.destroyClient();
-    if (activeTunnel) activeTunnel.close();
-});
-
-let activeTunnel = null;
-let activeTunnelUrl = null;
-
-safeHandle('tunnel:start', async (event, branchCode) => {
-    try {
-        if (activeTunnel) {
-            return { success: true, url: activeTunnelUrl };
-        }
-        
-        // Define fixed subdomain based on branch code, e.g. casper-pos-store-1
-        const subdomain = branchCode ? `casper-pos-${branchCode}` : undefined;
-        
-        activeTunnel = await localtunnel({ port: appPort, subdomain });
-        activeTunnelUrl = activeTunnel.url;
-        
-        activeTunnel.on('close', () => {
-            log('Tunnel closed');
-            activeTunnel = null;
-            activeTunnelUrl = null;
-        });
-        
-        activeTunnel.on('error', (err) => {
-            log(`Tunnel error: ${err.message}`);
-        });
-
-        log(`Tunnel established at ${activeTunnelUrl}`);
-        return { success: true, url: activeTunnelUrl };
-    } catch (err) {
-        log(`Tunnel failed to start: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-});
-
-safeHandle('tunnel:status', () => {
-    return { success: true, url: activeTunnelUrl, active: !!activeTunnel };
-});
-
-// ── License: Hardware Machine ID ─────────────────────────────────────────────
-// Fetched via IPC so it runs in the main process (Node.js context), not inside
-// a Next.js server action where exec() would return the *server* machine UUID.
-ipcMain.handle('hardware:get-machine-id', async () => {
-    return new Promise((resolve, reject) => {
-        const platform = process.platform;
-        if (platform === 'win32') {
-            require('child_process').exec('wmic csproduct get uuid', (err, stdout) => {
-                if (err) return reject(new Error('Failed to fetch hardware UUID on Windows'));
-                const uuid = stdout.split('\n')[1]?.trim();
-                if (!uuid) return reject(new Error('Empty UUID on Windows'));
-                resolve(uuid);
-            });
-        } else if (platform === 'darwin') {
-            require('child_process').exec(
-                "ioreg -d2 -c IOPlatformExpertDevice | awk -F\\\" '/IOPlatformUUID/{print $(NF-1)}'",
-                (err, stdout) => {
-                    if (err) return reject(new Error('Failed to fetch hardware UUID on Mac'));
-                    const uuid = stdout.trim();
-                    if (!uuid) return reject(new Error('Empty UUID on Mac'));
-                    resolve(uuid);
-                }
-            );
-        } else {
-            require('child_process').exec('cat /var/lib/dbus/machine-id || cat /etc/machine-id', (err, stdout) => {
-                if (err) return reject(new Error('Failed to fetch hardware UUID on Linux'));
-                const uuid = stdout.trim();
-                if (!uuid) return reject(new Error('Empty UUID on Linux'));
-                resolve(uuid);
-            });
-        }
-    });
-});
-
-app.whenReady().then(async () => {
-    const userDataPath = app.getPath('userData');
-    printQueue = new PrintQueue(userDataPath, log);
-    startQueueWorker();
-    await initWhatsApp();
-    createWindow();
-});
+app.whenReady().then(createWindow);

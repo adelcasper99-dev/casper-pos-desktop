@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MessageCircle, ShieldCheck, Loader2, Copy, Check } from 'lucide-react';
-import { isPhoneValid, generateWhatsAppLink, resolveQuickTemplate } from '@/lib/whatsapp-utils';
-import { useWhatsAppAutoNotify } from '@/hooks/useWhatsAppAutoNotify';
+import { MessageCircle, ExternalLink, Loader2, Copy, Check } from 'lucide-react';
+import { generateWhatsAppLink, WHATSAPP_TEMPLATES, isPhoneValid } from '@/lib/whatsapp-utils';
+import { logTicketNotification } from '@/actions/ticket-actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -15,21 +15,11 @@ interface WhatsAppQuickButtonProps {
   ticketNumber: string;
   totalCost: string | number;
   status?: string;
-  device?: string;
-  issue?: string;
   onSuccess?: () => void;
   className?: string;
-  whatsappTemplates?: { 
-    NEW?: string; 
-    READY?: string; 
-    PAID_DELIVERED?: string;
-    enabled?: {
-      NEW?: boolean;
-      READY?: boolean;
-      PAID_DELIVERED?: boolean;
-    }
-  } | null;
 }
+
+
 
 /**
  * A premium WhatsApp button that uses deep links for instant redirection.
@@ -42,96 +32,85 @@ export default function WhatsAppQuickButton({
   ticketNumber,
   totalCost,
   status = 'READY',
-  device,
-  issue,
   onSuccess,
-  className,
-  whatsappTemplates
+  className
 }: WhatsAppQuickButtonProps) {
   const [isOpening, setIsOpening] = useState(false);
   const [copied, setCopied] = useState(false);
-  const autoNotify = useWhatsAppAutoNotify();
 
-  // Determine current template type for display and logic
-  const type: any = 
-               status === 'NEW' ? 'NEW' :
-               status === 'REJECTED' ? 'REJECTED' : 
-               (status === 'PAID_DELIVERED' ? 'PAID_DELIVERED' : 
-               (['COMPLETED', 'READY_AT_BRANCH'].includes(status) ? 'READY' : 'COMPLETED'));
-  
-  const isTemplateEnabled = whatsappTemplates?.enabled ? (whatsappTemplates.enabled[type as keyof typeof whatsappTemplates.enabled] !== false) : true;
+  const handleSendMessage = async () => {
+    if (!customerPhone) {
+      toast.error('رقم هاتف العميل غير متوفر');
+      return;
+    }
 
-    const handleSendMessage = async () => {
-        if (!customerPhone) {
-            toast.error('رقم هاتف العميل غير متوفر');
-            return;
+    if (!isPhoneValid(customerPhone)) {
+      toast.error('رقم الهاتف غير صالح');
+      return;
+    }
+
+    setIsOpening(true);
+
+    // Determine template based on status
+    let message = '';
+    if (status === 'REJECTED') {
+      message = WHATSAPP_TEMPLATES.REJECTED(ticketNumber);
+    } else if (['COMPLETED', 'READY_AT_BRANCH'].includes(status)) {
+      message = WHATSAPP_TEMPLATES.READY(ticketNumber, totalCost);
+    } else {
+      message = WHATSAPP_TEMPLATES.GENERAL(ticketNumber);
+    }
+    
+    const deepLink = generateWhatsAppLink(customerPhone, message, false);
+    const webLink = generateWhatsAppLink(customerPhone, message, true);
+
+    try {
+      // Logic for notification payload
+      const notificationData = {
+        ticketId,
+        type: 'WHATSAPP' as const,
+        status: 'SENT' as const,
+        metadata: { messageType: status, target: 'QUICK_BUTTON' }
+      };
+
+      if (window.electronAPI) {
+        const res = await window.electronAPI.shell.openExternal(deepLink);
+        if (res.success) {
+          await logTicketNotification(notificationData);
+          onSuccess?.();
+        } else {
+          console.warn('Electron openExternal failed, falling back to webLink:', res.error);
+          window.open(webLink, '_blank');
+          toast.info('جاري فتح واتساب ويب...');
+          // Optional: We could log a different status or skip logging here since it's a fallback
         }
+      } else {
+        // Standard Web handling with fallback
+        window.location.href = deepLink;
+        const timeout = setTimeout(() => {
+          window.open(webLink, '_blank');
+          toast.info('جاري فتح واتساب ويب...');
+        }, 2500);
 
-        if (!isPhoneValid(customerPhone)) {
-            toast.error('رقم الهاتف غير صالح');
-            return;
-        }
-
-        setIsOpening(true);
-
-        try {
-            // 1. Check if the Native Engine is READY
-            const statusRes = await window.electronAPI?.whatsapp?.getStatus();
-            const isNativeReady = statusRes?.success && statusRes.data.status === 'READY';
-
-            if (isNativeReady) {
-                // 🚀 Option A: Using the Native Background Engine
-                await autoNotify(type, {
-                    customerPhone,
-                    customerName,
-                    barcode: ticketNumber,
-                    deviceBrand: device || '',
-                    deviceModel: '', 
-                    repairPrice: totalCost,
-                    issueDescription: issue || ''
-                }, {
-                    whatsappEnabled: true,
-                    whatsappTemplates: whatsappTemplates || undefined
-                });
-                toast.success('جارِ إرسال الرسالة في الخلفية...');
-            } else {
-                // 🌐 Option B: Fallback to Manual Link (wa.me)
-                const message = resolveQuickTemplate(
-                    type,
-                    whatsappTemplates || undefined,
-                    ticketNumber,
-                    totalCost,
-                    { name: customerName, device, issue }
-                ) || '';
-                
-                const link = generateWhatsAppLink(customerPhone, message);
-                
-                if (window.electronAPI?.shell) {
-                    await window.electronAPI.shell.openExternal(link);
-                } else {
-                    window.open(link, '_blank');
-                }
-                toast.success('تم فتح واتساب للإرسال اليدوي');
-            }
-            
-            onSuccess?.();
-        } catch (error) {
-            console.error('WhatsApp trigger failed:', error);
-            toast.error('فشل إرسال الرسالة');
-        } finally {
-            setIsOpening(false);
-        }
-    };
+        const handleBlur = async () => {
+          clearTimeout(timeout);
+          window.removeEventListener('blur', handleBlur);
+          await logTicketNotification(notificationData);
+          onSuccess?.();
+          setIsOpening(false); // Cleanup early on success
+        };
+        window.addEventListener('blur', handleBlur);
+      }
+    } catch (error) {
+      console.error('WhatsApp trigger failed:', error);
+    } finally {
+      setIsOpening(false);
+    }
+  };
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const message = resolveQuickTemplate(
-      type,
-      whatsappTemplates || undefined,
-      ticketNumber,
-      totalCost,
-      { name: customerName, device, issue }
-    ) || '';
+    const message = WHATSAPP_TEMPLATES.READY(ticketNumber, totalCost);
     const webLink = generateWhatsAppLink(customerPhone, message, true);
     navigator.clipboard.writeText(webLink);
     setCopied(true);
@@ -142,23 +121,17 @@ export default function WhatsAppQuickButton({
   return (
     <div className="flex items-center gap-1">
       <motion.button
-        whileHover={isTemplateEnabled ? { scale: 1.02, translateY: -2 } : {}}
-        whileTap={isTemplateEnabled ? { scale: 0.98 } : {}}
+        whileHover={{ scale: 1.02, translateY: -2 }}
+        whileTap={{ scale: 0.98 }}
         onClick={handleSendMessage}
-        disabled={isOpening || !isTemplateEnabled}
-        title={!isTemplateEnabled ? "هذا النوع من الرسائل معطل من الإعدادات" : "إرسال رسالة واتساب للعميل"}
+        disabled={isOpening}
+        title="إرسال رسالة واتساب للعميل"
         className={cn(
           "group relative flex items-center gap-3 px-6 h-11 rounded-xl font-bold transition-all overflow-hidden",
-          !isTemplateEnabled 
-            ? "bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed opacity-60 grayscale"
-            : status === 'REJECTED' 
-              ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-500/20"
-              : status === 'PAID_DELIVERED'
-                ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/20"
-                : status === 'NEW'
-                  ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20"
-                  : "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20",
-          "hover:shadow-lg disabled:opacity-70",
+          status === 'REJECTED' 
+            ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-500/20"
+            : "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20",
+          "hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed",
           className
         )}
       >
@@ -173,18 +146,10 @@ export default function WhatsAppQuickButton({
         </div>
 
         <span className="relative z-10 whitespace-nowrap text-sm">
-          {isOpening 
-            ? 'جاري الاتصال...' 
-            : status === 'NEW'
-              ? 'إرسال رسالة ترحيب'
-              : status === 'REJECTED' 
-                ? 'إبلاغ بالرفض' 
-                : status === 'PAID_DELIVERED'
-                  ? 'إرسال رسالة شكر'
-                  : 'إبلاغ بالجاهزية'}
+          {isOpening ? 'جاري الاتصال...' : status === 'REJECTED' ? 'إبلاغ بالرفض' : 'إبلاغ بالجاهزية'}
         </span>
 
-        <ShieldCheck className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
+        <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
         <div className="absolute inset-0 rounded-xl border border-white/20 group-hover:border-white/40 transition-colors" />
       </motion.button>
 
@@ -200,3 +165,5 @@ export default function WhatsAppQuickButton({
     </div>
   );
 }
+
+
