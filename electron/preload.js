@@ -135,6 +135,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (_event, status) => callback(status);
         ipcRenderer.on('boot-status', handler);
         return () => ipcRenderer.removeListener('boot-status', handler);
+    },
+
+    /**
+     * WhatsApp Service API
+     */
+    whatsapp: {
+        initialize: () => ipcRenderer.invoke('whatsapp:initialize'),
+        getStatus: () => ipcRenderer.invoke('whatsapp:getStatus'),
+        logout: () => ipcRenderer.invoke('whatsapp:logout'),
+        onStatusChange: (callback) => {
+            const handler = (_event, status) => callback(status);
+            ipcRenderer.on('whatsapp:status', handler);
+            return () => ipcRenderer.removeListener('whatsapp:status', handler);
+        },
+        onQRUpdate: (callback) => {
+            const handler = (_event, qr) => callback(qr);
+            ipcRenderer.on('whatsapp:qr', handler);
+            return () => ipcRenderer.removeListener('whatsapp:qr', handler);
+        }
     }
 });
-

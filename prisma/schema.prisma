@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -1075,6 +1075,9 @@ model RepairPayment {
   journalEntryId String?
   ticket         Ticket        @relation(fields: [ticketId], references: [id])
   journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  tenantId       String        @default("default")
+
+  @@index([tenantId])
 }
 
 model Feedback {

@@ -46,6 +46,7 @@ next-env.d.ts
 /prisma/*.db-wal
 /prisma/*.db-shm
 /prisma/schema.test.prisma
+/prisma/schema.postgres.prisma
 prisma/prisma/dev.db-shm
 prisma/prisma/dev.db-wal
 

@@ -240,7 +240,7 @@ export const transferPartToTechnicianQuick = secureAction(async (data: {
     // 3. Execute Transfer Transaction
     await prisma.$transaction(async (tx: any) => {
         // Check source stock
-        const srcStock = await tx.stock.findFirst({
+        const srcStock = await tx.stock.findUnique({
             where: {
                 productId_warehouseId: { productId, warehouseId: actualSourceWarehouseId }
             }

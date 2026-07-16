@@ -179,6 +179,8 @@ const runMigrations = (dbPath) => {
         'ALTER TABLE "Ticket" ADD COLUMN "customerId" TEXT',
         'ALTER TABLE "Ticket" ADD COLUMN "lossResponsibility" TEXT',
         'ALTER TABLE "Ticket" ADD COLUMN "excessLossAmount" DECIMAL NOT NULL DEFAULT 0.00',
+        // [MODEL: RepairPayment] [ADDED: 2026-07-16] tenantId (Fixes tenant-aware mismatch)
+        'ALTER TABLE "RepairPayment" ADD COLUMN "tenantId" TEXT NOT NULL DEFAULT \'default\'',
 
         // User
         'ALTER TABLE "User" ADD COLUMN "salary" DECIMAL DEFAULT 0.00',

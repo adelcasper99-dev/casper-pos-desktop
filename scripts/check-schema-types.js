@@ -10,6 +10,8 @@ const WHITELIST = new Set([
     'BackupLog.fileSize',
     'StoreSettings.locationLat',
     'StoreSettings.locationLng',
+    'StoreSettings.lastServerNow',
+    'StoreSettings.localUptimeTicks',
 ]);
 
 function checkSchema() {
@@ -47,6 +49,29 @@ function checkSchema() {
                 console.error(`   Financial fields must use 'Decimal'. If this is intentional, add '${qualifiedName}' to the WHITELIST.`);
                 errors++;
             }
+        }
+
+        // SQLite compatibility: Reject PostgreSQL-specific '@db.' type directives
+        if (line.includes('@db.')) {
+            console.error(`❌ PostgreSQL-specific '@db.' directive found at line ${index + 1}:`);
+            console.error(`   "${line.trim()}"`);
+            console.error(`   To maintain SQLite compatibility for local dev, avoid database-specific type mappings.`);
+            errors++;
+        }
+
+        // SQLite compatibility: Reject Unsupported() types
+        if (line.includes('Unsupported(')) {
+            console.error(`❌ Unsupported type declaration found at line ${index + 1}:`);
+            console.error(`   "${line.trim()}"`);
+            errors++;
+        }
+
+        // SQLite compatibility: Reject native enum declarations (use String in schema instead)
+        if (/^enum\s+\w+/.test(line.trim())) {
+            console.error(`❌ Enum declaration found at line ${index + 1}:`);
+            console.error(`   "${line.trim()}"`);
+            console.error(`   Prisma does not support native enums on SQLite. Use a String field with validation instead.`);
+            errors++;
         }
     });
 
