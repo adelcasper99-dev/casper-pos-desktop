@@ -28,9 +28,8 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { searchCustomers } from "@/actions/customer-actions";
 import { searchEmployeeByPhone } from "@/actions/employee-transaction-actions";
 import { useDebounce } from "use-debounce";
-import { clsx } from "clsx";
+import clsx from "clsx";
 import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
-import { shouldAutoPrint } from "@/lib/print-guard";
 
 interface TicketPaymentModalProps {
     isOpen: boolean;
@@ -231,35 +230,29 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 });
             }
 
-            // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
-            // Only auto-print when explicitly enabled to avoid unexpected behavior
-            // 🛡️ FIX: Wait for settings to load and check loading state
-            if (!settingsLoading && shouldAutoPrint(settings, 'ticket')) {
-                // We use a small delay to ensure the success state is rendered or the state is ready
+            // 🛡️ [AUTO-PRINT] Wait for settings to be ready with a hard deadline
+            let resolvedSettings = settings;
+            if (!resolvedSettings) {
+                // Settings not loaded yet — fetch directly (no stale closure risk)
+                try {
+                    const settingsRes = await getEffectiveStoreSettings();
+                    if (settingsRes.success) {
+                        resolvedSettings = settingsRes.data;
+                        setSettings(settingsRes.data);
+                    }
+                } catch (e) {
+                    console.warn('[AutoPrint] Failed to fetch settings:', e);
+                }
+            }
+
+            if (resolvedSettings?.autoPrintTicket === true) {
                 setTimeout(() => {
                     handlePrint(true);
-                    // Close slightly later after print job is sent
-                    setTimeout(() => {
-                        onClose();
-                    }, 1200);
+                    setTimeout(() => onClose(), 1200);
                 }, 500);
-            } else if (settingsLoading) {
-                // 🛡️ Settings still loading - wait for them to load then auto-print
-                const checkSettingsAndPrint = () => {
-                    if (shouldAutoPrint(settings, 'ticket')) {
-                        handlePrint(true);
-                        setTimeout(() => onClose(), 1200);
-                    } else {
-                        onClose();
-                    }
-                };
-                // Wait a bit and check again
-                setTimeout(checkSettingsAndPrint, 1000);
             } else {
-                // Auto close after small delay to let user see success state/toast
-                setTimeout(() => {
-                    onClose();
-                }, 800);
+                // Auto close after small delay to let user see success toast
+                setTimeout(() => onClose(), 800);
             }
         } else {
             toast.error((res as any).error || t('paymentError'));
@@ -336,35 +329,18 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
             const htmlContent = generatePaidTicketReceiptHTML(finalTicketForPrint, currentSettings, translations);
 
-            // 🛡️ [DECOUPLED HARDENING] Print and kick cash drawer independently
-            const printPromise = targetPrinter
-                ? printService.printThermal(htmlContent, targetPrinter, paperWidthMm)
-                : printService.printHTML(htmlContent, undefined, { paperWidthMm, strictlySilent: isAutoPrint }).then(() => true);
-
-            const drawerPromise = printService.kickCashDrawer(targetPrinter || undefined);
-
-            const [printRes, drawerRes] = await Promise.allSettled([printPromise, drawerPromise]);
-
-            let printSuccess = false;
-            if (printRes.status === 'fulfilled') {
-                printSuccess = typeof printRes.value === 'boolean' ? printRes.value : true;
-            }
-
-            let drawerSuccess = false;
-            if (drawerRes.status === 'fulfilled') {
-                drawerSuccess = drawerRes.value.success === true;
-            }
-
-            if (printSuccess) {
-                if (!isAutoPrint) toast.success("Print job sent successfully");
+            // 🛡️ [FIX] Use HIGH PRECISION printThermal for the customer copy
+            if (targetPrinter) {
+                 await printService.printThermal(htmlContent, targetPrinter, paperWidthMm);
             } else {
-                toast.error("Failed to print receipt (check paper/connection)");
+                await printService.printHTML(htmlContent, undefined, {
+                    paperWidthMm,
+                    strictlySilent: isAutoPrint
+                });
             }
 
-            if (!drawerSuccess) {
-                const errorDetail = drawerRes.status === 'rejected' ? drawerRes.reason?.message : drawerRes.value?.error;
-                console.warn("Drawer kick failed:", errorDetail);
-            }
+            if (!isAutoPrint) toast.success("Print job sent successfully");
+
         } catch (error) {
             console.error("Print Error:", error);
             toast.error("Failed to print receipt");
@@ -753,7 +729,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                                 "text-xs font-bold",
                                                 Number(selectedCustomer.balance) > 0 ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-green-400"
                                             )}>
-                                                {formatCurrency(-Number(selectedCustomer.balance))}
+                                                {formatCurrency(selectedCustomer.balance)}
                                             </span>
                                         </div>
                                     )}

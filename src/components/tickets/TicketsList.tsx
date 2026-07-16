@@ -36,7 +36,6 @@ import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
 import TicketPrintOptionsModal from './TicketPrintOptionsModal'
 import { toast } from "sonner"
-import { formatDurationHours } from "@/lib/ticket-print-helpers";
 
 export default function TicketsList() {
     const t = useTranslations('Tickets');
@@ -308,9 +307,9 @@ export default function TicketsList() {
                 } else if (sortConfig.key === 'customerSuccessRatio') {
                     aVal = Number(a.customerSuccessRatio);
                     bVal = Number(b.customerSuccessRatio);
-                } else if (sortConfig.key === 'technician') {
-                    aVal = a.technician?.name || "";
-                    bVal = b.technician?.name || "";
+                } else if (sortConfig.key === 'technicianName') {
+                    aVal = a.technician?.name || '';
+                    bVal = b.technician?.name || '';
                 }
 
                 if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -534,18 +533,18 @@ export default function TicketsList() {
                     <div className="overflow-x-auto custom-scrollbar">
                         <table className="zebra-table w-full text-right text-sm text-zinc-900 dark:text-zinc-200 table-fixed" dir="rtl">
                             <colgroup>
-                                <col className="w-[130px]" /> {/* Status */}
+                                <col className="w-[150px]" /> {/* Status */}
                                 <col className="w-[80px]" />  {/* Gap */}
-                                <col className="w-[90px]" /> {/* Success */}
-                                <col className="w-[110px]" /> {/* Date */}
-                                <col className="w-[110px]" /> {/* Info */}
-                                <col className="w-[110px]" /> {/* Paid */}
-                                <col className="w-[110px]" /> {/* Due */}
-                                <col className="w-[160px]" /> {/* Customer */}
-                                <col className="w-[160px]" /> {/* Device */}
-                                <col className="w-[160px]" /> {/* Fault/Issue */}
-                                <col className="w-[130px]" /> {/* Engineer */}
-                                <col className="w-[90px]" />  {/* Time */}
+                                <col className="w-[100px]" /> {/* Success */}
+                                <col className="w-[120px]" /> {/* Date */}
+                                <col className="w-[120px]" /> {/* Info */}
+                                <col className="w-[120px]" /> {/* Paid */}
+                                <col className="w-[120px]" /> {/* Due */}
+                                <col className="w-[180px]" /> {/* Customer */}
+                                <col className="w-[180px]" /> {/* Device */}
+                                <col className="w-[180px]" /> {/* Fault/Issue */}
+                                <col className="w-[150px]" /> {/* Technician */}
+                                <col className="w-[100px]" /> {/* Time */}
                                 <col className="w-[50px]" />  {/* Actions */}
                             </colgroup>
                                 <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 uppercase font-black text-[11px] tracking-wider border-b border-zinc-200 dark:border-white/10">
@@ -599,12 +598,12 @@ export default function TicketsList() {
                                                  {t('table.risk')}
                                              </div>
                                          </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('technician')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('technician')}
-                                                {t('table.technician')}
-                                            </div>
-                                        </th>
+                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('technicianName')}>
+                                             <div className="flex items-center gap-2">
+                                                 {getSortIcon('technicianName')}
+                                                 {t('table.technician')}
+                                             </div>
+                                         </th>
                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('expectedDuration')}
@@ -759,17 +758,11 @@ export default function TicketsList() {
                                                     {ticket.issueDescription}
                                                 </div>
                                             </td>
-                                            {/* 🛠 Engineer Column */}
-                                            <td className="px-4 py-4">
-                                                {ticket.technician?.name ? (
-                                                    <span className="text-xs font-black text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-white/5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 inline-block max-w-[120px] truncate" title={ticket.technician.name}>
-                                                        {ticket.technician.name}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-600 bg-zinc-50 dark:bg-white/[0.02] px-2.5 py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-white/5 inline-block">
-                                                        {t('details.unassigned')}
-                                                    </span>
-                                                )}
+                                            {/* 🛠 Technician Column */}
+                                            <td className="px-6 py-4">
+                                                <span className="text-slate-900 dark:text-zinc-200 font-black truncate block">
+                                                    {ticket.technician?.name || t('details.unassigned')}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
@@ -779,26 +772,6 @@ export default function TicketsList() {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                 <div className="flex flex-col gap-1">
-                                                     {/* اسم المهندس المسؤول */}
-                                                     {ticket.technician?.name && (
-                                                         <div className="flex items-center gap-1">
-                                                             <UserIcon className="w-3 h-3 text-cyan-500 flex-shrink-0" />
-                                                             <span className="text-[10px] font-black text-cyan-600 dark:text-cyan-400 truncate max-w-[100px]">
-                                                                 {ticket.technician.name}
-                                                             </span>
-                                                         </div>
-                                                     )}
-                                                     {/* الوقت المتبقي / المتوقع */}
-                                                     <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
-                                                         <Clock className="w-3.5 h-3.5" />
-                                                         <span className="text-sm font-black">
-                                                             {urgency ? urgency.label : formatDurationHours(ticket.expectedDuration)}
-                                                         </span>
-                                                     </div>
-                                                 </div>
-                                             </td>
 
                                             <td className="px-6 py-4 whitespace-nowrap text-right">                                                <DropdownMenu>
                                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

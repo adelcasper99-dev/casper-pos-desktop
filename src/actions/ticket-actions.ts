@@ -11,6 +11,7 @@ import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
 import { getCurrentShiftInternal, updateShiftHeartbeat } from "./shift-management-actions";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
+import { GL, PAYMENT_METHOD_GL_MAP } from "@/shared/constants/accounting-mappings";
 import { ticketSchema } from "@/lib/validation/tickets";
 import { logger } from "@/lib/logger";
 import { calculateNetProfit, calculateCommission, resolveCommission } from "@/lib/commission-validation";
@@ -347,7 +348,16 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     }
     const currentShift = shiftResult.shift;
 
-    if (!currentUser.branchId) {
+    let branchId = currentUser.branchId;
+    if (!branchId) {
+        const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'Admin' || currentUser.role === 'مدير النظام' || currentUser.role === 'المالك';
+        if (isAdmin) {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            branchId = await ensureMainBranch().catch(() => null);
+        }
+    }
+
+    if (!branchId) {
         throw new Error("User must be assigned to a branch to create tickets");
     }
 
@@ -423,7 +433,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 securityCode: data.securityCode || null,
                 patternData: data.patternData || null,
                 status: 'NEW',
-                currentBranchId: currentUser.branchId!,
+                currentBranchId: branchId,
                 initialQuote: new Decimal(data.repairPrice || 0),
                 repairPrice: new Decimal(data.repairPrice || 0),
                 shiftId: currentShift.id,
@@ -2217,6 +2227,14 @@ export const processTicketPayment = secureAction(async (data: {
     }
     const currentShift = shiftResult.shift;
 
+    // 🛡️ PRE-WARM GL Accounts BEFORE entering the transaction to prevent deadlocks.
+    // AccountingEngine.recordMaintenancePayment uses GL.ASSETS.CASH/BANK/WALLET/RECEIVABLES + GL.REVENUE.SERVICE
+    const glCodesToWarm = [
+        PAYMENT_METHOD_GL_MAP[paymentMethod] ?? '',
+        GL.REVENUE.SERVICE,
+    ].filter(Boolean);
+    await AccountingEngine.ensureGLAccounts(glCodesToWarm);
+
     const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? new Decimal(ticket.parentTicket.amountPaid || 0) : new Decimal(0);
     const previousPaid = new Decimal(ticket.amountPaid || 0);
     const repairPrice = new Decimal(ticket.repairPrice || 0);
@@ -2728,7 +2746,7 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         return updatedTicket;
-    }, { timeout: 60000 });
+    }, { timeout: 15000 });
 
     await updateShiftHeartbeat(currentShift.id).catch(console.error);
 
@@ -3406,7 +3424,16 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    if (!user.branchId) throw new Error("User must be assigned to a branch.");
+    let branchId = user.branchId;
+    if (!branchId) {
+        const isAdmin = user.role === 'ADMIN' || user.role === 'Admin' || user.role === 'مدير النظام' || user.role === 'المالك';
+        if (isAdmin) {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            branchId = await ensureMainBranch().catch(() => null);
+        }
+    }
+
+    if (!branchId) throw new Error("User must be assigned to a branch.");
 
     // SHIFT GUARD: active shift required
     const shiftResult = await getCurrentShiftInternal({ userId: user.id });
@@ -3509,7 +3536,7 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
                 deposit: new Decimal(0),
                 amountPaid: new Decimal(0),
                 // Operational
-                currentBranchId: user.branchId!,
+                currentBranchId: branchId,
                 shiftId: currentShift.id,
             }
         });

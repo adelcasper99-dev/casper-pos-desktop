@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Printer, RefreshCw, Save, CheckCircle, AlertCircle, ShieldCheck, Download, Loader2, Zap, Settings2, HelpCircle, Info } from 'lucide-react';
+import { Printer, RefreshCw, Save, CheckCircle, AlertCircle, ShieldCheck, Download, Loader2, Zap, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,8 +11,6 @@ import { printService } from '@/lib/print-service';
 import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
 import { checkQZCertificateStatus, installQZCertificate } from '@/actions/qz-actions';
-import { useTranslations } from '@/lib/i18n-mock';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 type CertStatus = 'checking' | 'not-installed' | 'mismatch' | 'installed' | 'qz-missing';
 
@@ -22,9 +20,6 @@ export default function PrinterSettings() {
     const [qzStatus, setQzStatus] = useState<{ online: boolean; version?: string } | null>(null);
     const [certStatus, setCertStatus] = useState<CertStatus>('checking');
     const [installing, setInstalling] = useState(false);
-    const [testingBridge, setTestingBridge] = useState(false);
-    const [showGuide, setShowGuide] = useState(false);
-    const t = useTranslations('Bridge');
 
     // Preferences
     const [bridgeIpAddress, setBridgeIpAddress] = useState<string>('');
@@ -39,17 +34,6 @@ export default function PrinterSettings() {
     const [detecting, setDetecting] = useState(false);
     const [detectError, setDetectError] = useState(false);
     const detectInitRef = useRef(false);
-
-    // ── Calibration State ──────────────────────────────────────────────────────
-    const [thermalPaperWidthMm, setThermalPaperWidthMm] = useState<number>(80);
-    const [thermalMarginTopMm, setThermalMarginTopMm] = useState<number>(0);
-    const [thermalMarginRightMm, setThermalMarginRightMm] = useState<number>(0);
-    const [thermalMarginBottomMm, setThermalMarginBottomMm] = useState<number>(0);
-    const [thermalMarginLeftMm, setThermalMarginLeftMm] = useState<number>(0);
-    const [a4MarginTopMm, setA4MarginTopMm] = useState<number>(10);
-    const [a4MarginRightMm, setA4MarginRightMm] = useState<number>(10);
-    const [a4MarginBottomMm, setA4MarginBottomMm] = useState<number>(10);
-    const [a4MarginLeftMm, setA4MarginLeftMm] = useState<number>(10);
 
     useEffect(() => {
         loadSettings();
@@ -79,20 +63,10 @@ export default function PrinterSettings() {
             if (registry.a4Printer) setA4Printer(registry.a4Printer);
             if (registry.receiptFormat) setReceiptFormat(registry.receiptFormat);
             if (registry.labelPrinter) setLabelPrinter(registry.labelPrinter);
-            if (registry.enableThermal !== undefined) setEnableThermal(registry.enableThermal);
-            if (registry.enableA4 !== undefined) setEnableA4(registry.enableA4);
+            setEnableThermal(registry.enableThermal !== false);
+            setEnableA4(registry.enableA4 !== false);
             setEnableSpeedPrint(registry.enableSpeedPrint !== false);
             if (registry.defaultCopies) setDefaultCopies(registry.defaultCopies);
-            // Calibration
-            if (registry.thermalPaperWidthMm) setThermalPaperWidthMm(registry.thermalPaperWidthMm);
-            if (registry.thermalMarginTopMm !== undefined) setThermalMarginTopMm(registry.thermalMarginTopMm);
-            if (registry.thermalMarginRightMm !== undefined) setThermalMarginRightMm(registry.thermalMarginRightMm);
-            if (registry.thermalMarginBottomMm !== undefined) setThermalMarginBottomMm(registry.thermalMarginBottomMm);
-            if (registry.thermalMarginLeftMm !== undefined) setThermalMarginLeftMm(registry.thermalMarginLeftMm);
-            if (registry.a4MarginTopMm !== undefined) setA4MarginTopMm(registry.a4MarginTopMm);
-            if (registry.a4MarginRightMm !== undefined) setA4MarginRightMm(registry.a4MarginRightMm);
-            if (registry.a4MarginBottomMm !== undefined) setA4MarginBottomMm(registry.a4MarginBottomMm);
-            if (registry.a4MarginLeftMm !== undefined) setA4MarginLeftMm(registry.a4MarginLeftMm);
         } else {
             const savedThermal = localStorage.getItem('thermal_printer');
             const savedA4 = localStorage.getItem('a4_printer');
@@ -183,13 +157,10 @@ export default function PrinterSettings() {
     const handleSave = () => {
         printService.updateRegistry({
             bridgeIpAddress, thermalPrinter, a4Printer, receiptFormat, labelPrinter,
-            enableThermal, enableA4, enableSpeedPrint, defaultCopies,
-            // Calibration
-            thermalPaperWidthMm, thermalMarginTopMm, thermalMarginRightMm, thermalMarginBottomMm, thermalMarginLeftMm,
-            a4MarginTopMm, a4MarginRightMm, a4MarginBottomMm, a4MarginLeftMm,
+            enableThermal, enableA4, enableSpeedPrint, defaultCopies
         });
         localStorage.setItem('casper_default_print_copies', defaultCopies.toString());
-        toast.success('Printer preferences saved to this device registry');
+        toast.success("Printer preferences saved to this device registry");
     };
 
     const handleTestReceipt = async () => {
@@ -202,47 +173,6 @@ export default function PrinterSettings() {
             toast.success("Test sent to " + target);
         } catch (e: any) {
             toast.error("Print failed: " + e.message);
-        }
-    };
-
-    const handleTestBridge = async () => {
-        if (!bridgeIpAddress || bridgeIpAddress.trim() === '') {
-            return toast.error("Please enter a Bridge IP address first");
-        }
-        setTestingBridge(true);
-        const toastId = toast.loading("Pinging hardware bridge...");
-
-        try {
-            let ip = bridgeIpAddress.trim().replace(/\/$/, '');
-            if (!ip.startsWith('http')) ip = `http://${ip}`;
-            if ((ip.match(/:/g) || []).length === 1) {
-                ip = `${ip}:4040`;
-            }
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-            const res = await fetch(`${ip}/api/status`, {
-                signal: controller.signal,
-                cache: 'no-store'
-            });
-            clearTimeout(timeoutId);
-
-            if (res.ok) {
-                const data = await res.json();
-                toast.dismiss(toastId);
-                toast.success(`Success! Connected to Bridge v${data.version || '1.0'}${data.printerConfigured ? ' (Printers Mapped)' : ' (No Printers Configured)'}`);
-                // snap refresh connection state and printers list
-                checkQZConnection();
-            } else {
-                toast.dismiss(toastId);
-                toast.error("Handshake failed: Bridge responded with error");
-            }
-        } catch (e: any) {
-            toast.dismiss(toastId);
-            toast.error(e.name === 'AbortError' ? "Handshake failed: Connection timed out" : "Handshake failed: Target is unreachable");
-        } finally {
-            setTestingBridge(false);
         }
     };
 
@@ -363,21 +293,10 @@ export default function PrinterSettings() {
                         {/* Hardware Bridge IP (Network Printing) */}
                         {!printService.isElectron() && (
                             <div className="space-y-4 pb-6 border-b border-border/20">
-                                <div className="flex items-center justify-between ml-1">
-                                    <Label className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-2">
-                                        <Zap className="w-3 h-3 text-cyan-500" /> {t('status.title', 'Hardware Bridge IP Address (Network Node)')}
-                                    </Label>
-                                    <Button
-                                        type="button"
-                                        variant="link"
-                                        onClick={() => setShowGuide(true)}
-                                        className="h-auto p-0 text-cyan-500 hover:text-cyan-400 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 transition-colors focus:ring-0 focus:outline-none"
-                                    >
-                                        <HelpCircle className="w-3.5 h-3.5" />
-                                        {t('guide.title', 'How to Connect')}
-                                    </Button>
-                                </div>
-                                <div className="flex flex-col sm:flex-row gap-4">
+                                <Label className="text-xs font-black uppercase tracking-widest text-foreground ml-1 flex items-center gap-2">
+                                    <Zap className="w-3 h-3 text-cyan-500" /> Hardware Bridge IP Address (Network Node)
+                                </Label>
+                                <div className="flex gap-3 items-start">
                                     <input
                                         type="text"
                                         value={bridgeIpAddress}
@@ -396,24 +315,15 @@ export default function PrinterSettings() {
                                     >
                                         <RefreshCw className={cn("w-5 h-5", detecting && "animate-spin")} />
                                     </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={handleTestBridge}
-                                        disabled={testingBridge}
-                                        className="h-14 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase tracking-widest shrink-0 transition-all shadow-lg flex items-center gap-2"
-                                    >
-                                        {testingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 animate-pulse text-cyan-200" />}
-                                        {t('status.connecting', 'Test Handshake')}
-                                    </Button>
                                 </div>
                                 {detectError && (
                                     <p className="text-[10px] font-black uppercase tracking-widest text-rose-400/90 leading-tight flex items-center gap-1.5">
                                         <AlertCircle className="w-3 h-3 shrink-0" />
-                                        Auto-detection failed — enter the Bridge PC's IP manually.
+                                        Auto-detection failed — enter the Bridge PC&apos;s IP manually.
                                     </p>
                                 )}
                                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">
-                                    {t('guide.subtitle', 'Required for Web browsers & mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.')}
+                                    Required for Web browsers &amp; mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.
                                 </p>
                             </div>
                         )}
@@ -574,255 +484,6 @@ export default function PrinterSettings() {
                     </div>
                 </div>
             </div>
-
-            {/* ── Print Calibration ───────────────────────────────────────────── */}
-            <div className="glass-card bg-card/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl space-y-8 relative overflow-hidden group/calib">
-                <div className="absolute top-0 left-0 w-48 h-48 bg-violet-500/10 blur-3xl opacity-0 group-hover/calib:opacity-100 transition-opacity" />
-                <div className="space-y-2 relative z-10">
-                    <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                        <Settings2 className="w-6 h-6 text-violet-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.5)]" />
-                        Print Calibration
-                    </h3>
-                    <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Fine-tune paper dimensions and margins — no code changes required</p>
-                </div>
-
-                <div className="space-y-8 relative z-10">
-                    {/* Thermal Calibration */}
-                    {enableThermal && (
-                        <div className="space-y-6 p-6 rounded-3xl border border-border/20 bg-background/40">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-violet-400 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-                                Thermal Roll Calibration
-                            </div>
-
-                            {/* Paper Width */}
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Paper Width</Label>
-                                    <span className="text-sm font-black text-violet-400 font-mono tabular-nums">{thermalPaperWidthMm} mm</span>
-                                </div>
-                                <div className="flex gap-2 flex-wrap">
-                                    {[58, 72, 80, 104].map(w => (
-                                        <button
-                                            key={w}
-                                            onClick={() => setThermalPaperWidthMm(w)}
-                                            className={cn(
-                                                'px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest border transition-all duration-200',
-                                                thermalPaperWidthMm === w
-                                                    ? 'bg-violet-500 border-violet-500 text-white shadow-lg shadow-violet-500/30'
-                                                    : 'bg-background/60 border-border/40 text-muted-foreground hover:border-violet-500/50 hover:text-violet-400'
-                                            )}
-                                        >
-                                            {w}mm
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Match the physical roll width of your thermal printer</p>
-                            </div>
-
-                            {/* Thermal Margins */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {([
-                                    { label: 'Top Margin', value: thermalMarginTopMm, set: setThermalMarginTopMm },
-                                    { label: 'Right Margin', value: thermalMarginRightMm, set: setThermalMarginRightMm },
-                                    { label: 'Bottom Margin', value: thermalMarginBottomMm, set: setThermalMarginBottomMm },
-                                    { label: 'Left Margin', value: thermalMarginLeftMm, set: setThermalMarginLeftMm },
-                                ] as { label: string; value: number; set: (v: number) => void }[]).map(({ label, value, set }) => (
-                                    <div key={label} className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">{label}</Label>
-                                            <span className="text-sm font-black text-violet-400 font-mono tabular-nums w-12 text-right">{value} mm</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min={0} max={20} step={1}
-                                            value={value}
-                                            onChange={e => set(Number(e.target.value))}
-                                            className="w-full h-2 rounded-full appearance-none bg-border/40 accent-violet-500 cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
-                                            <span>0mm</span><span>20mm</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Visual thermal margin preview */}
-                            <div className="flex items-center justify-center py-4">
-                                <div className="relative border-2 border-violet-500/30 bg-background/60 flex items-center justify-center shadow-inner" style={{ width: '120px', height: '160px' }}>
-                                    {/* Paper strip aesthetic */}
-                                    <div className="absolute top-[-4px] left-0 right-0 h-1 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjQiPjxwb2x5Z29uIHBvaW50cz0iMCwwIDQsNCA4LDAiIGZpbGw9IiNlNWU3ZWIiLz48L3N2Zz4=')] opacity-50" />
-                                    <div
-                                        className="absolute inset-0 border-2 border-dashed border-violet-400/50"
-                                        style={{
-                                            top: `${(thermalMarginTopMm / 30) * 100}%`,
-                                            right: `${(thermalMarginRightMm / 30) * 100}%`,
-                                            bottom: `${(thermalMarginBottomMm / 30) * 100}%`,
-                                            left: `${(thermalMarginLeftMm / 30) * 100}%`,
-                                        }}
-                                    />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 z-10 text-center leading-tight">
-                                        Receipt<br/>Content
-                                    </span>
-                                </div>
-                                <div className="ml-4 space-y-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
-                                    <div>T: {thermalMarginTopMm}mm</div>
-                                    <div>R: {thermalMarginRightMm}mm</div>
-                                    <div>B: {thermalMarginBottomMm}mm</div>
-                                    <div>L: {thermalMarginLeftMm}mm</div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* A4 Calibration */}
-                    {enableA4 && (
-                        <div className="space-y-6 p-6 rounded-3xl border border-border/20 bg-background/40">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                                A4 Page Margin Calibration
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {([
-                                    { label: 'Top', value: a4MarginTopMm, set: setA4MarginTopMm },
-                                    { label: 'Right', value: a4MarginRightMm, set: setA4MarginRightMm },
-                                    { label: 'Bottom', value: a4MarginBottomMm, set: setA4MarginBottomMm },
-                                    { label: 'Left', value: a4MarginLeftMm, set: setA4MarginLeftMm },
-                                ] as { label: string; value: number; set: (v: number) => void }[]).map(({ label, value, set }) => (
-                                    <div key={label} className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">{label} Margin</Label>
-                                            <span className="text-sm font-black text-sky-400 font-mono tabular-nums w-12 text-right">{value} mm</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min={0} max={30} step={1}
-                                            value={value}
-                                            onChange={e => set(Number(e.target.value))}
-                                            className="w-full h-2 rounded-full appearance-none bg-border/40 accent-sky-500 cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
-                                            <span>0mm</span><span>30mm</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Visual margin preview */}
-                            <div className="flex items-center justify-center py-4">
-                                <div className="relative w-32 h-44 border-2 border-sky-500/30 rounded-lg bg-background/60 flex items-center justify-center shadow-inner">
-                                    <div
-                                        className="absolute inset-0 border-2 border-dashed border-sky-400/40 rounded"
-                                        style={{
-                                            top: `${(a4MarginTopMm / 30) * 100}%`,
-                                            right: `${(a4MarginRightMm / 30) * 100}%`,
-                                            bottom: `${(a4MarginBottomMm / 30) * 100}%`,
-                                            left: `${(a4MarginLeftMm / 30) * 100}%`,
-                                        }}
-                                    />
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/40 z-10">Content Area</span>
-                                </div>
-                                <div className="ml-4 space-y-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
-                                    <div>T: {a4MarginTopMm}mm</div>
-                                    <div>R: {a4MarginRightMm}mm</div>
-                                    <div>B: {a4MarginBottomMm}mm</div>
-                                    <div>L: {a4MarginLeftMm}mm</div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="flex justify-end pt-2">
-                        <Button
-                            onClick={handleSave}
-                            className="bg-violet-600 hover:bg-violet-500 px-10 h-12 rounded-2xl text-white font-black uppercase tracking-widest gap-3 shadow-lg shadow-violet-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                        >
-                            <Save className="w-4 h-4" /> Save Calibration
-                        </Button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Connection Guide Dialog */}
-            <Dialog open={showGuide} onOpenChange={setShowGuide}>
-                <DialogContent className="glass-card bg-card/95 dark:bg-card/75 backdrop-blur-2xl border-border/40 rounded-[2.5rem] p-8 max-w-2xl w-full shadow-2xl overflow-y-auto max-h-[90vh]">
-                    <DialogHeader className="space-y-3 pb-6 border-b border-border/20 text-right">
-                        <DialogTitle className="text-2xl font-black flex items-center gap-3 text-foreground justify-end">
-                            <Zap className="w-6 h-6 text-cyan-500 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-                            {t('guide.title')}
-                        </DialogTitle>
-                        <DialogDescription className="text-xs font-bold text-muted-foreground/80 leading-relaxed text-right">
-                            {t('guide.subtitle')}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-6 my-6 text-right" dir="rtl">
-                        {/* Step 1 */}
-                        <div className="flex gap-4 items-start">
-                            <div className="flex-1 space-y-1">
-                                <h4 className="text-sm font-black text-foreground">{t('guide.step_1_title')}</h4>
-                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_1_desc')}</p>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
-                                ١
-                            </div>
-                        </div>
-
-                        {/* Step 2 */}
-                        <div className="flex gap-4 items-start">
-                            <div className="flex-1 space-y-1">
-                                <h4 className="text-sm font-black text-foreground">{t('guide.step_2_title')}</h4>
-                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_2_desc')}</p>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
-                                ٢
-                            </div>
-                        </div>
-
-                        {/* Step 3 */}
-                        <div className="flex gap-4 items-start">
-                            <div className="flex-1 space-y-1">
-                                <h4 className="text-sm font-black text-foreground">{t('guide.step_3_title')}</h4>
-                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_3_desc')}</p>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
-                                ٣
-                            </div>
-                        </div>
-
-                        {/* Step 4 */}
-                        <div className="flex gap-4 items-start">
-                            <div className="flex-1 space-y-1">
-                                <h4 className="text-sm font-black text-foreground">{t('guide.step_4_title')}</h4>
-                                <p className="text-xs text-muted-foreground/85 leading-relaxed">{t('guide.step_4_desc')}</p>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/5">
-                                ٤
-                            </div>
-                        </div>
-
-                        {/* Note Callout */}
-                        <div className="p-5 rounded-[2rem] bg-amber-500/5 border border-amber-500/25 flex gap-4 items-start mt-6">
-                            <div className="flex-1 space-y-1">
-                                <span className="text-xs font-black text-amber-500 flex items-center gap-1.5 justify-end">
-                                    <Info className="w-3.5 h-3.5" />
-                                    {t('guide.note_title')}
-                                </span>
-                                <p className="text-[11px] font-bold text-amber-500/80 leading-relaxed text-right">{t('guide.note_desc')}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end pt-4 border-t border-border/20">
-                        <Button
-                            onClick={() => setShowGuide(false)}
-                            className="bg-primary hover:bg-primary/90 px-8 h-12 rounded-2xl text-white font-black uppercase tracking-widest text-xs shadow-xl transition-all"
-                        >
-                            {t('guide.close')}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

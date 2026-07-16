@@ -30,16 +30,14 @@ async function compile() {
                 throw new Error(`Source file not found: ${file.src}`);
             }
 
-            // Delete old .jsc if exists to avoid cache issues
-            if (fs.existsSync(file.dest)) {
-                fs.unlinkSync(file.dest);
-            }
-
+            // Atomic write: compile to temp file, then rename
+            const tmpDest = file.dest + '.tmp';
             await bytenode.compileFile({
                 filename: file.src,
-                output: file.dest,
+                output: tmpDest,
                 compileAsModule: true
             });
+            fs.renameSync(tmpDest, file.dest);
 
             console.log(`  ✓ Compiled: ${path.basename(file.dest)}`);
         } catch (err) {
@@ -49,6 +47,9 @@ async function compile() {
     }
 
     console.log('✅ Bytecode compilation complete.');
+    console.log('Note: the Electron loader now uses file mtime to decide between source (.js) and bytecode (.jsc).');
+    console.log('      If you edit main.js/preload.js after compiling, the app will load from source.');
+    console.log('      Re-run this script to update bytecode before shipping a distribution build.');
     process.exit(0);
 }
 

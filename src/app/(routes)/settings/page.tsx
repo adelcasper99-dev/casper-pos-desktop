@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getTranslations } from "@/lib/i18n-mock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle, Cloud, Wifi } from "lucide-react";
+import { Store, Printer, Database, Users, Shield, Globe, Calculator, Settings2, RefreshCw, MessageCircle } from "lucide-react";
 import StoreConfig from "@/components/settings/StoreConfig";
 import MessagingSettings from "@/components/settings/MessagingSettings";
 import PrinterSettings from "@/components/settings/PrinterSettings";
@@ -13,10 +13,7 @@ import TablesManagement from "@/components/settings/TablesManagement";
 import OpeningBalanceWizard from "@/components/setup/OpeningBalanceWizard";
 import WarehouseSettings from "@/components/settings/WarehouseSettings";
 import SyncManagement from "@/components/settings/SyncManagement";
-import CloudSettings from "@/components/settings/CloudSettings";
-import NetworkInfoCard from "@/components/settings/NetworkInfoCard";
-import BranchManager from "@/components/settings/BranchManager";
-import LicenseManagement from "@/components/settings/LicenseManagement";
+import SuperAdminSecurity from "@/components/settings/SuperAdminSecurity";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -50,7 +47,7 @@ export default async function SettingsPage() {
         getUsersForPage().catch(() => []),
         getRoles(),
         prisma.branch.findMany({
-            select: { id: true, name: true, code: true, type: true, address: true, phone: true, createdAt: true, updatedAt: true, deletedAt: true, _count: { select: { warehouses: { where: { deletedAt: null } }, users: true } } },
+            select: { id: true, name: true },
             where: { deletedAt: null }
         }),
         prisma.warehouse.findMany({
@@ -67,6 +64,7 @@ export default async function SettingsPage() {
     const whatsappTemplates = (settings as any).whatsappTemplates ?? null;
     const rawFeatures = (settings as any).features ?? '{}';
     const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'مدير النظام' || session.user.role === 'المالك' || hasPermission(session.user.permissions, '*');
+    const isSuperAdmin = session.user.id === 'super-admin';
     
     // Permission Checks
     const canManageGeneral = isAdmin || hasPermission(session.user.permissions, PERMISSIONS.MANAGE_SETTINGS);
@@ -150,15 +148,6 @@ export default async function SettingsPage() {
                         </TabsTrigger>
                     )}
 
-                    {isAdmin && (
-                        <TabsTrigger 
-                            value="branches" 
-                            className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-600 dark:data-[state=active]:text-orange-400 data-[state=active]:border-orange-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
-                        >
-                            <Store className="w-4 h-4 opacity-70" /> الفروع
-                        </TabsTrigger>
-                    )}
-
                     {canManageBackups && (
                         <TabsTrigger 
                             value="backups" 
@@ -196,33 +185,19 @@ export default async function SettingsPage() {
                     )}
 
                     {isAdmin && (
-                        <>
-                            <TabsTrigger 
-                                value="cloud" 
-                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
-                            >
-                                <Cloud className="w-4 h-4 opacity-70" /> Cloud Sync Config
-                            </TabsTrigger>
-                            <TabsTrigger 
-                                value="licenses" 
-                                className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-600 dark:data-[state=active]:text-violet-400 data-[state=active]:border-violet-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
-                            >
-                                <Shield className="w-4 h-4 opacity-70" /> Client Licenses
-                            </TabsTrigger>
-                            <TabsTrigger 
-                                value="sync" 
-                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
-                            >
-                                <RefreshCw className="w-4 h-4 opacity-70" /> Sync Logs
-                            </TabsTrigger>
-                        </>
-                    )}
-                    {isAdmin && (
                         <TabsTrigger 
-                            value="network" 
-                            className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            value="sync" 
+                            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
                         >
-                            <Wifi className="w-4 h-4 opacity-70" /> شبكة الفرع
+                            <RefreshCw className="w-4 h-4 opacity-70" /> Sync Management
+                        </TabsTrigger>
+                    )}
+                    {isSuperAdmin && (
+                        <TabsTrigger 
+                            value="security" 
+                            className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:border-rose-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <Shield className="w-4 h-4 opacity-70" /> الحماية
                         </TabsTrigger>
                     )}
                 </TabsList>
@@ -329,12 +304,6 @@ export default async function SettingsPage() {
                         </TabsContent>
                     )}
 
-                    {isAdmin && (
-                        <TabsContent value="branches" className="outline-none focus-visible:ring-0">
-                            <BranchManager branches={branches as any} />
-                        </TabsContent>
-                    )}
-
 
                     {canManageTables && (
                         <TabsContent value="tables" className="outline-none focus-visible:ring-0">
@@ -355,24 +324,13 @@ export default async function SettingsPage() {
                     )}
 
                     {isAdmin && (
-                        <>
-                            <TabsContent value="cloud" className="outline-none focus-visible:ring-0">
-                                <CloudSettings />
-                            </TabsContent>
-                            <TabsContent value="licenses" className="outline-none focus-visible:ring-0">
-                                <LicenseManagement />
-                            </TabsContent>
-                            <TabsContent value="sync" className="outline-none focus-visible:ring-0">
-                                <SyncManagement />
-                            </TabsContent>
-                        </>
+                        <TabsContent value="sync" className="outline-none focus-visible:ring-0">
+                            <SyncManagement />
+                        </TabsContent>
                     )}
-
-                    {isAdmin && (
-                        <TabsContent value="network" className="outline-none focus-visible:ring-0">
-                            <div className="max-w-2xl">
-                                <NetworkInfoCard />
-                            </div>
+                    {isSuperAdmin && (
+                        <TabsContent value="security" className="outline-none focus-visible:ring-0">
+                            <SuperAdminSecurity />
                         </TabsContent>
                     )}
                 </div>

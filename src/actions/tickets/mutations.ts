@@ -25,7 +25,16 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     }
     const currentShift = shiftResult.shift;
 
-    if (!currentUser.branchId) {
+    let branchId = currentUser.branchId;
+    if (!branchId) {
+        const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'Admin' || currentUser.role === 'مدير النظام' || currentUser.role === 'المالك';
+        if (isAdmin) {
+            const { ensureMainBranch } = await import('@/lib/ensure-main-branch');
+            branchId = await ensureMainBranch().catch(() => null);
+        }
+    }
+
+    if (!branchId) {
         throw new Error("User must be assigned to a branch to create tickets");
     }
 
@@ -34,7 +43,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     let retries = 0;
     const MAX_RETRIES = 3;
     while (retries < MAX_RETRIES) {
-        barcode = await getNextTicketNumber(currentUser.branchId || undefined);
+        barcode = await getNextTicketNumber(branchId || undefined);
         const existing = await prisma.ticket.findUnique({ where: { barcode } });
         if (!existing) break;
         await new Promise(res => setTimeout(res, Math.random() * 200));
@@ -98,7 +107,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 securityCode: data.securityCode || null,
                 patternData: data.patternData || null,
                 status: 'NEW',
-                currentBranchId: currentUser.branchId!,
+                currentBranchId: branchId,
                 initialQuote: new Decimal(data.repairPrice || 0),
                 repairPrice: new Decimal(data.repairPrice || 0),
                 shiftId: currentShift.id,

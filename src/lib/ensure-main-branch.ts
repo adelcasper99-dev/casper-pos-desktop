@@ -34,14 +34,40 @@ const PAYMENT_TREASURIES = [
 ];
 
 export async function ensureMainBranch(): Promise<string> {
-    // ── Migration Check (MAIN-001 -> MAIN) ──
+    // ── Migration Check (Legacy branch-1 → MAIN) ──
     if (!migrationChecked) {
-        // ── Self-Healing: Fix users with orphaned branchId links ──
-        const allBranches = await prisma.branch.findMany({ select: { id: true } });
+        const allBranches = await prisma.branch.findMany({ select: { id: true, code: true, type: true } });
         const allBranchIds = allBranches.map(b => b.id);
-        const mainBranch = allBranches.find(b => b.id === 'branch-1' || b.id === 'MAIN') || await prisma.branch.findFirst({ where: { code: MAIN_BRANCH_CODE } });
-        
+
+        // Find the true MAIN branch (code=MAIN). Fall back to branch-1 or first branch.
+        const mainBranch =
+            await prisma.branch.findFirst({ where: { code: MAIN_BRANCH_CODE } }) ||
+            allBranches.find(b => b.id === 'branch-1') ||
+            allBranches[0];
+
         if (mainBranch) {
+            // Self-heal: ensure the active main branch is type CENTER.
+            // Under single-branch mode, the main branch acts as the repair center.
+            if (mainBranch.type !== 'CENTER') {
+                await prisma.branch.update({
+                    where: { id: mainBranch.id },
+                    data: { type: 'CENTER' }
+                });
+                console.log(`[INIT] Self-healed active branch ${mainBranch.id} (${mainBranch.code}) type → CENTER`);
+                mainBranch.type = 'CENTER';
+            }
+
+            // Also ensure the legacy "branch-1" is CENTER if it still exists separately
+            const legacyBranch1 = allBranches.find(b => b.id === 'branch-1');
+            if (legacyBranch1 && legacyBranch1.type !== 'CENTER') {
+                await prisma.branch.update({
+                    where: { id: 'branch-1' },
+                    data: { type: 'CENTER' }
+                });
+                console.log(`[INIT] Self-healed legacy branch-1 type → CENTER`);
+            }
+
+            // Fix users with orphaned or null branchId
             await prisma.user.updateMany({
                 where: {
                     OR: [
@@ -52,9 +78,10 @@ export async function ensureMainBranch(): Promise<string> {
                 data: { branchId: mainBranch.id }
             });
         }
-        
+
         migrationChecked = true;
     }
+
 
 
 
@@ -104,19 +131,20 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
             data: {
                 name: storeInfo.name,
                 code: MAIN_BRANCH_CODE,
-                type: 'STORE',
+                type: 'CENTER', // Single-branch mode: the main branch IS the repair center
                 phone: storeInfo.phone,
                 address: storeInfo.address,
                 sortOrder: 0
             }
         });
-    } else if (branch.name !== storeInfo.name || branch.phone !== storeInfo.phone || branch.address !== storeInfo.address) {
+    } else if (branch.name !== storeInfo.name || branch.phone !== storeInfo.phone || branch.address !== storeInfo.address || branch.type !== 'CENTER') {
         branch = await prisma.branch.update({
             where: { code: MAIN_BRANCH_CODE },
             data: {
                 name: storeInfo.name,
                 phone: storeInfo.phone,
-                address: storeInfo.address
+                address: storeInfo.address,
+                type: 'CENTER' // Self-heal: ensure main branch is always CENTER type
             }
         });
     }
@@ -169,45 +197,63 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
 
     // 🚨 ANTI-DUPLICATION LOCK: Clean up any existing accidental duplicates first
     // V-09: We now search by Name OR ID and merge them strictly.
+    // NOTE: Include soft-deleted records (no deletedAt filter) so we detect static ID
+    // collisions that would otherwise surface as P2002 unique-constraint violations.
     const allTreasuries = await prisma.treasury.findMany({
-        where: { branchId: branch.id, deletedAt: null },
+        where: { branchId: branch.id },
     });
+    // Active (non-deleted) subset used for duplicate detection
+    const activeTreasuries = allTreasuries.filter(x => x.deletedAt === null);
 
     // Ensure all required payment-method treasuries exist with STATIC IDs
     for (const t of PAYMENT_TREASURIES) {
-        // Find existing by STATIC ID first, then by name
-        let existing = allTreasuries.find(x => x.id === t.id || x.name === t.name || x.paymentMethod === t.paymentMethod);
+        // Check ALL rows (including soft-deleted) to avoid P2002 on the static ID
+        const anyWithStaticId = allTreasuries.find(x => x.id === t.id);
+        // Check active rows for name / paymentMethod collisions
+        const activeMatch = activeTreasuries.find(x => x.name === t.name || x.paymentMethod === t.paymentMethod);
 
-        if (!existing) {
-            try {
-                await prisma.treasury.create({
-                    data: {
-                        id: t.id, // FORCE STATIC ID
-                        name: t.name,
-                        branchId: branch.id,
-                        isDefault: t.isDefault,
-                        paymentMethod: t.paymentMethod,
-                        balance: 0
-                    }
+        if (anyWithStaticId) {
+            // Row with the static ID already exists (may be soft-deleted). Restore + sync it.
+            if (anyWithStaticId.deletedAt !== null || anyWithStaticId.name !== t.name || anyWithStaticId.paymentMethod !== t.paymentMethod) {
+                await prisma.treasury.update({
+                    where: { id: t.id },
+                    data: { deletedAt: null, name: t.name, paymentMethod: t.paymentMethod, branchId: branch.id }
                 });
-                console.log(`[INIT] Created static treasury: ${t.name}`);
-            } catch (error: any) {
-                // If ID already exists (P2002), we are good.
-                if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
-                    console.error(`[INIT] Error creating static treasury ${t.name}:`, error.message);
-                }
+                console.log(`[INIT] Restored / synced static treasury: ${t.name}`);
             }
-        } else {
-            // If it exists but with a random ID, we might have a name collision.
-            // In a production environment, we'd merge logs, but here we enforce the static one.
-            if (existing.id !== t.id) {
-                console.warn(`[INIT] Detected non-static treasury for ${t.name}. Cleaning up...`);
-                // Move balance if possible (simplified here to just cleanup duplicates)
-                const duplicates = allTreasuries.filter(x => (x.name === t.name || x.paymentMethod === t.paymentMethod) && x.id !== t.id);
-                for (const d of duplicates) {
-                    await prisma.treasury.deleteMany({ where: { id: d.id } });
-                }
+            // Remove any active duplicates that collide on name or paymentMethod but have a different id
+            const duplicates = activeTreasuries.filter(x => (x.name === t.name || x.paymentMethod === t.paymentMethod) && x.id !== t.id);
+            for (const d of duplicates) {
+                await prisma.treasury.deleteMany({ where: { id: d.id } });
+                console.warn(`[INIT] Removed duplicate treasury id=${d.id} name=${d.name}`);
             }
+        } else if (!activeMatch) {
+            // No row at all — safe to create with the static ID
+            await prisma.treasury.create({
+                data: {
+                    id: t.id,
+                    name: t.name,
+                    branchId: branch.id,
+                    isDefault: t.isDefault,
+                    paymentMethod: t.paymentMethod,
+                    balance: 0
+                }
+            });
+            console.log(`[INIT] Created static treasury: ${t.name}`);
+        } else if (activeMatch.id !== t.id) {
+            // Active row exists but has a random/wrong ID. Purge it, then create the static one.
+            console.warn(`[INIT] Detected non-static treasury for ${t.name} (id=${activeMatch.id}). Replacing with static id...`);
+            await prisma.treasury.deleteMany({ where: { id: activeMatch.id } });
+            await prisma.treasury.create({
+                data: {
+                    id: t.id,
+                    name: t.name,
+                    branchId: branch.id,
+                    isDefault: t.isDefault,
+                    paymentMethod: t.paymentMethod,
+                    balance: 0
+                }
+            });
         }
     }
 
