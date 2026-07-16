@@ -524,7 +524,6 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         totalAmount,
 
         // Missing properties for PurchaseFormReturn
-        csrfLoading,
         csrfError: false,
         isDraftLoaded: false
     };
