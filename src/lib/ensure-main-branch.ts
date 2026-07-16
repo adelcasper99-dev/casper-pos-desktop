@@ -207,10 +207,7 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
 
     // Ensure all required payment-method treasuries exist with STATIC IDs
     for (const t of PAYMENT_TREASURIES) {
-        // Check ALL rows (including soft-deleted) to avoid P2002 on the static ID
         const anyWithStaticId = allTreasuries.find(x => x.id === t.id);
-        // Check active rows for name / paymentMethod collisions
-        const activeMatch = activeTreasuries.find(x => x.name === t.name || x.paymentMethod === t.paymentMethod);
 
         if (anyWithStaticId) {
             // Row with the static ID already exists (may be soft-deleted). Restore + sync it.
@@ -221,13 +218,28 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
                 });
                 console.log(`[INIT] Restored / synced static treasury: ${t.name}`);
             }
-            // Remove any active duplicates that collide on name or paymentMethod but have a different id
-            const duplicates = activeTreasuries.filter(x => (x.name === t.name || x.paymentMethod === t.paymentMethod) && x.id !== t.id);
+            // Safely archive any duplicates (active or soft-deleted) that collide on name or paymentMethod but have a different id
+            const duplicates = allTreasuries.filter(x => (x.name === t.name || x.paymentMethod === t.paymentMethod) && x.id !== t.id);
             for (const d of duplicates) {
-                await prisma.treasury.deleteMany({ where: { id: d.id } });
-                console.warn(`[INIT] Removed duplicate treasury id=${d.id} name=${d.name}`);
+                const archivedName = `${d.name} (Archived ${Date.now()})`;
+                await prisma.treasury.update({ 
+                    where: { id: d.id }, 
+                    data: { name: archivedName, paymentMethod: null, isDefault: false } 
+                });
+                console.warn(`[INIT] Archived duplicate treasury id=${d.id} to name="${archivedName}"`);
             }
-        } else if (!activeMatch) {
+        } else {
+            // Safely archive any colliding names or payment methods before we attempt creation
+            const collidingNames = allTreasuries.filter(x => x.name === t.name || x.paymentMethod === t.paymentMethod);
+            for (const d of collidingNames) {
+                const archivedName = `${d.name} (Archived ${Date.now()})`;
+                await prisma.treasury.update({ 
+                    where: { id: d.id }, 
+                    data: { name: archivedName, paymentMethod: null, isDefault: false } 
+                });
+                console.warn(`[INIT] Archived duplicate treasury id=${d.id} to name="${archivedName}" to prevent P2002`);
+            }
+
             // No row at all — safe to create with the static ID
             await prisma.treasury.create({
                 data: {
@@ -240,20 +252,6 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
                 }
             });
             console.log(`[INIT] Created static treasury: ${t.name}`);
-        } else if (activeMatch.id !== t.id) {
-            // Active row exists but has a random/wrong ID. Purge it, then create the static one.
-            console.warn(`[INIT] Detected non-static treasury for ${t.name} (id=${activeMatch.id}). Replacing with static id...`);
-            await prisma.treasury.deleteMany({ where: { id: activeMatch.id } });
-            await prisma.treasury.create({
-                data: {
-                    id: t.id,
-                    name: t.name,
-                    branchId: branch.id,
-                    isDefault: t.isDefault,
-                    paymentMethod: t.paymentMethod,
-                    balance: 0
-                }
-            });
         }
     }
 
