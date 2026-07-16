@@ -308,9 +308,19 @@ export const voidPurchase = secureAction(async (data: { id: string; reason?: str
         }
 
         // 6. Accounting Reversal
+        const originalDeliveryCharge = new Decimal(invoice.deliveryCharge?.toString() || 0);
+        const originalSubtotal = invoice.items.reduce((acc, item) => acc.plus(new Decimal(item.unitCost.toString()).times(item.quantity)), new Decimal(0));
+        const overheadRatio = originalSubtotal.gt(0) ? originalDeliveryCharge.div(originalSubtotal) : new Decimal(0);
+
+        const inventoryReductionAmount = actualReturnAmount.times(overheadRatio.plus(1));
+        const nonRecoverableShippingLoss = inventoryReductionAmount.minus(actualReturnAmount);
+
         const accountingLines: TransactionLineInput[] = [];
         accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: actualReturnAmount, credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: actualReturnAmount, description: 'Inventory Asset Reversed (Purchase Return)' });
+        if (nonRecoverableShippingLoss.gt(0)) {
+            accountingLines.push({ accountCode: GL.EXPENSES.SHIPPING_LOSS, debit: nonRecoverableShippingLoss, credit: 0, description: 'Non-Recoverable Shipping Loss' });
+        }
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: inventoryReductionAmount, description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Return Invoice (Void): ${returnInvoice.invoiceNumber}`,
@@ -534,9 +544,19 @@ export const partialReturnPurchase = secureAction(async (data: {
         /* Skipping Treasury Adjustment to keep full amount in Supplier Balance (Credit) */
 
         // 7. Accounting Entry for the Return Invoice
+        const originalDeliveryCharge = new Decimal(invoice.deliveryCharge?.toString() || 0);
+        const originalSubtotal = invoice.items.reduce((acc, item) => acc.plus(new Decimal(item.unitCost.toString()).times(item.quantity)), new Decimal(0));
+        const overheadRatio = originalSubtotal.gt(0) ? originalDeliveryCharge.div(originalSubtotal) : new Decimal(0);
+
+        const inventoryReductionAmount = returnTotal.times(overheadRatio.plus(1));
+        const nonRecoverableShippingLoss = inventoryReductionAmount.minus(returnTotal);
+
         const accountingLines: TransactionLineInput[] = [];
         accountingLines.push({ accountCode: GL.LIABILITIES.PAYABLES, debit: returnTotal, credit: 0, description: 'AP Reduced (Purchase Return)' });
-        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: returnTotal, description: 'Inventory Asset Reversed (Purchase Return)' });
+        if (nonRecoverableShippingLoss.gt(0)) {
+            accountingLines.push({ accountCode: GL.EXPENSES.SHIPPING_LOSS, debit: nonRecoverableShippingLoss, credit: 0, description: 'Non-Recoverable Shipping Loss' });
+        }
+        accountingLines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: inventoryReductionAmount, description: 'Inventory Asset Reversed (Purchase Return)' });
 
         await AccountingEngine.recordTransaction({
             description: `Partial Return Invoice: ${returnInvoice.invoiceNumber}`,

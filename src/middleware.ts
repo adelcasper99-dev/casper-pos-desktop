@@ -71,7 +71,8 @@ export function middleware(request: NextRequest) {
 
     const isPublic = publicRoutes.includes(path) || 
                      publicApiPrefixes.some(pref => path.startsWith(pref)) ||
-                     publicApiWhitelist.includes(path);
+                     publicApiWhitelist.includes(path) ||
+                     path.startsWith('/c/');
 
     // If no session and trying to access a protected route
     if (!sessionToken && !isPublic) {
@@ -80,8 +81,9 @@ export function middleware(request: NextRequest) {
 
     // Node Role Enforcement: Redirect to /network-setup if node is not configured
     const isPublicAsset = publicApiPrefixes.some(pref => path.startsWith(pref));
+    const isCustomerPortal = path.startsWith('/c/');
     const nodeRole = process.env.NODE_ROLE || request.cookies.get('nodeRole')?.value;
-    if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset) {
+    if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
         return NextResponse.redirect(new URL('/network-setup', request.url));
     }
 

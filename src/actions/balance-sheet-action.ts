@@ -3,9 +3,12 @@
 import { getBalanceSheet } from "@/lib/accounting/balance-sheet";
 import { getNetProfit } from "@/lib/accounting/net-profit";
 
+import { revalidatePath } from "next/cache";
+
 export async function fetchBalanceSheetData(asOfDate: Date) {
     try {
         const result = await getBalanceSheet(asOfDate);
+        revalidatePath('/accounting/balance-sheet');
         return { success: true, data: result };
     } catch (error: any) {
         console.error("fetchBalanceSheetData error:", error);

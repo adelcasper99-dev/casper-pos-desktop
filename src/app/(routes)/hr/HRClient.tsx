@@ -8,9 +8,11 @@ import { Users, Calendar, DollarSign, CalendarOff, ShoppingCart, ChevronLeft, Ch
 import { getHRDashboardSummary } from "@/actions/hr"
 import { cn } from "@/lib/utils"
 
-export default function HRClient({ csrfToken }: { csrfToken: string }) {
+import TechniciansPayrollDashboard from "@/components/hr/TechniciansPayrollDashboard"
+
+export default function HRClient({ csrfToken, currentUserId, branchId }: { csrfToken: string, currentUserId: string, branchId: string }) {
     const t = useTranslations("HR")
-    const [activeTab, setActiveTab] = useState<'directory' | 'attendance'>('directory')
+    const [activeTab, setActiveTab] = useState<'directory' | 'attendance' | 'technicians'>('directory')
     const [currentDate, setCurrentDate] = useState(new Date())
 
     const [summary, setSummary] = useState({ expectedSalaries: 0, totalAbsences: 0, employeeCreditSales: 0 })
@@ -167,12 +169,25 @@ export default function HRClient({ csrfToken }: { csrfToken: string }) {
                     <Calendar className="w-4 h-4" />
                     {t("tabs.attendance")}
                 </button>
+                <button
+                    onClick={() => setActiveTab('technicians')}
+                    className={cn(
+                        "flex items-center gap-3 px-8 h-12 rounded-xl text-sm font-black transition-all tracking-wide uppercase",
+                        activeTab === 'technicians'
+                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10'
+                            : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/5'
+                    )}
+                >
+                    <DollarSign className="w-4 h-4" />
+                    تسوية الفنيين
+                </button>
             </div>
 
             {/* Content area */}
             <div className="mt-8">
                 {activeTab === 'directory' && <EmployeeDirectory csrfToken={csrfToken} filterDate={currentDate} />}
                 {activeTab === 'attendance' && <AttendanceManager csrfToken={csrfToken} filterDate={currentDate} />}
+                {activeTab === 'technicians' && <TechniciansPayrollDashboard filterDate={currentDate} currentUserId={currentUserId} branchId={branchId} />}
             </div>
         </div>
     )

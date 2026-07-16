@@ -136,6 +136,7 @@ export interface PurchaseFormReturn {
 export interface PurchaseInvoiceWithItems {
     id: string;
     warehouseId: string;
+    deliveryCharge?: number | string | null;
     items: Array<{
         id: string;
         quantity: number;

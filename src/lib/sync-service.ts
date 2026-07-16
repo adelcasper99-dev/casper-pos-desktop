@@ -8,6 +8,7 @@ const SYNC_BATCH_SIZE = 50;
 
 export class SyncService {
     // 🛡️ HELPER: Get cloud context dynamically
+    // 🛡️ HELPER: Get cloud context dynamically
     private static async getCloudContext() {
         const config = await CloudConfigManager.getCloudConfig();
         return {
@@ -16,6 +17,37 @@ export class SyncService {
             secret: config.syncSecret || '',
             branchId: config.branchId || ''
         };
+    }
+
+    // 🆕 RELIABILITY: Sync Master Data (Models/Categories) to resolve offline collisions
+    static async syncMasterData() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
+
+        try {
+            const response = await fetch('/api/local/sync-master-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cloudUrl: ctx.cloudUrl,
+                    secret: ctx.secret
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Master Data sync failed: ${error}`);
+            }
+
+            const data = await response.json();
+            if (data.pulled > 0) {
+                logger.info(`✅ Master Data sync: processed ${data.pulled} ID overrides`);
+            }
+            return { synced: data.pulled || 0, failed: 0 };
+        } catch (error: any) {
+            logger.error(`⚠️ Master Data sync error: ${error.message}`);
+            return { synced: 0, failed: 1 };
+        }
     }
     // 🛡️ RELIABILITY: Retry logic with exponential backoff
     private static async retryWithBackoff<T>(
@@ -49,6 +81,12 @@ export class SyncService {
         if (this.isSyncing) {
             logger.warn('[Sync:All] Sync is already in progress. Bypassing parallel sync attempt.');
             return { success: false, error: 'Sync Already In Progress' };
+        }
+        
+        // 🛡️ GUARD: DB State Gating
+        if (!offlineDB.isOpen) {
+            logger.warn('[Sync:All] IndexedDB is not open. Sync aborted to prevent state corruption.');
+            return { success: false, error: 'Database Closed' };
         }
 
         this.isSyncing = true;
@@ -502,6 +540,7 @@ export class SyncService {
             } catch (error: any) {
                 const newRetries = (m.syncRetries || 0) + 1;
                 if (newRetries >= 5) {
+                    logger.error(`⚠️ Dead-lettering inventory movement ${m.id} after 5 failures`, error);
                     await offlineDB.inventoryMovements.update(m.id, {
                         syncRetries: newRetries,
                         syncError: 'DEAD_LETTER: Requires manual intervention',
@@ -573,6 +612,7 @@ export class SyncService {
             } catch (error: any) {
                 const newRetries = (r.syncRetries || 0) + 1;
                 if (newRetries >= 5) {
+                    logger.error(`⚠️ Dead-lettering return ${r.id} after 5 failures`, error);
                     await offlineDB.returns.update(r.id, {
                         syncRetries: newRetries,
                         syncError: 'DEAD_LETTER: Requires manual intervention',

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -165,6 +165,8 @@ model Customer {
   totalPurchaseValue    Decimal               @default(0.00)
   creditLimit           Decimal?
   linkedEmployeeId      String?               @unique
+  portalToken           String?               @unique
+  portalTokenExpiresAt  DateTime?
   linkedEmployee        User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
   transactions          CustomerTransaction[]
   sales                 Sale[]
@@ -261,6 +263,7 @@ model JournalEntry {
   transactionId         String?              @unique
   transaction           Transaction?         @relation(fields: [transactionId], references: [id])
   lines                 JournalLine[]
+  repairPayments        RepairPayment[]
 
   @@index([date])
   @@index([branchId])
@@ -356,8 +359,8 @@ model Product {
   unitOfMeasure     UnitOfMeasure?     @relation(fields: [unitOfMeasureId], references: [id])
   componentOf       BundleItem[]       @relation("ComponentProduct")
   bundleItems       BundleItem[]       @relation("BundleProduct")
-  category          Category           @relation(fields: [categoryId], references: [id])
-  model             Model?             @relation(fields: [modelId], references: [id])
+  category          Category           @relation(fields: [categoryId], references: [id], onUpdate: Cascade)
+  model             Model?             @relation(fields: [modelId], references: [id], onUpdate: Cascade)
   attribute         Attribute?         @relation(fields: [attributeId], references: [id])
   purchaseItems     PurchaseItem[]
   saleItems         SaleItem[]
@@ -395,6 +398,9 @@ model Stock {
 }
 
 model StockMovement {
+  // Note: PostgreSQL has a raw DB constraint "chk_stock_movement_warehouse_non_null"
+  // ensuring that fromWarehouseId and toWarehouseId cannot both be null.
+  // SQLite compatibility is enforced via Prisma middleware in src/lib/prisma.ts.
   id              String     @id @default(uuid())
   type            String
   productId       String
@@ -639,6 +645,9 @@ model Shift {
   totalTicketRevenueInstapay Decimal           @default(0.00)
   totalTicketRevenueWallet   Decimal           @default(0.00)
   cashBreakdown              String?
+  cashDenominationsBreakdown Json?
+  cardTerminalSettlement     Decimal           @default(0.00)
+  transitStatus              String            @default("NONE")
   expenses                   Expense[]         @relation("ShiftExpenses")
   sales                      Sale[]            @relation("ShiftSales")
   user                       User              @relation("ShiftOwner", fields: [userId], references: [id])
@@ -748,6 +757,7 @@ model Technician {
   commissionRate        Decimal                @default(0.00)
   commissionRuleId      String?
   lossRate              Decimal                @default(70.00)
+  lossSharePercentage   Decimal                @default(0.00)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   warehouseId           String?
@@ -756,7 +766,6 @@ model Technician {
   user                  User                   @relation(fields: [userId], references: [id])
   warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
   commissionRule        CommissionRule?        @relation(fields: [commissionRuleId], references: [id])
-  TechnicianPerformance TechnicianPerformance?
   tickets               Ticket[]
   completedTickets      Ticket[]               @relation("CompletedBy")
   collaborations        TicketCollaborator[]
@@ -781,88 +790,91 @@ model DevicePreset {
 }
 
 model Ticket {
-  id                   String               @id @default(uuid())
-  barcode              String               @unique
-  customerName         String
-  customerPhone        String
-  customerEmail        String?
-  customerId           String?
-  deviceBrand          String
-  deviceModel          String
-  deviceImei           String?
-  deviceColor          String?
-  securityCode         String?
-  patternData          String?
-  issueDescription     String
-  conditionNotes       String?
-  warrantyExpiry       DateTime?
-  status               String               @default("NEW")
-  currentBranchId      String
-  movementId           String?
-  technicianId         String?
-  completedById        String?
-  initialQuote         Decimal              @default(0.00)
-  repairPrice          Decimal              @default(0.00)
-  partsCost            Decimal              @default(0.00)
-  deposit              Decimal              @default(0.00)
-  commissionRate       Decimal              @default(0.00)
-  commissionAmount     Decimal              @default(0.00)
-  netProfit            Decimal              @default(0.00)
-  paymentStatus        String               @default("unpaid")
-  paymentMethod        String?
-  amountPaid           Decimal              @default(0.00)
-  finalCustomerPrice   Decimal              @default(0.00)
-  techBillingPrice     Decimal              @default(0.00)
-  partCostPrice        Decimal              @default(0.00)
-  laborPoolAmount      Decimal              @default(0.00)
-  techCommissionAmount Decimal              @default(0.00)
-  centerLaborProfit    Decimal              @default(0.00)
-  centerPartProfit     Decimal              @default(0.00)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  deletedAt            DateTime?
-  version              Int                  @default(1)
-  completedAt          DateTime?
-  deliveredAt          DateTime?
-  commissionClawback   Decimal              @default(0.00)
-  lastReturnedAt       DateTime?
-  originalTechId       String?
-  returnCount          Int                  @default(0)
-  returnReason         String?
-  rejectionReason      String? // Reason when ticket is rejected
-  rejectedAt           DateTime? // When the ticket was rejected
-  rejectedBy           String? // User ID who rejected the ticket
-  lossResponsibility   String? // NEW: TECH | CENTER | SPLIT
-  excessLossAmount     Decimal              @default(0.00) // NEW: Amount of loss beyond initial profit
-  shiftId              String?
-  warrantyExpiryDate   DateTime?
-  expectedDuration     Int?
-  startedAt            DateTime?
-  clientUserId         String?
-  clientSupplierId     String?
-  previousStatus       String?
-  parentTicketId       String?
-  isWarrantyReturn     Boolean              @default(false)
-  slaDeadlineAt        DateTime?
-  slaBreachedAt        DateTime?
-  idempotencyKey       String?              @unique
-  feedback             Feedback?
-  journalEntries       JournalEntry[]
-  logs                 NotificationLog[]
-  payments             RepairPayment[]
-  clientSupplier       Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
-  clientUser           User?                @relation("ClientUser", fields: [clientUserId], references: [id])
-  technician           Technician?          @relation(fields: [technicianId], references: [id])
-  shift                Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
-  movement             DeviceMovement?      @relation(fields: [movementId], references: [id])
-  customer             Customer?            @relation(fields: [customerId], references: [id])
-  currentBranch        Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
-  parentTicket         Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
-  returnTickets        Ticket[]             @relation("TicketReturns")
-  completedBy          Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
-  collaborators        TicketCollaborator[]
-  notes                TicketNote[]
-  parts                TicketPart[]
+  id                      String               @id @default(uuid())
+  barcode                 String               @unique
+  customerName            String
+  customerPhone           String
+  customerEmail           String?
+  customerId              String?
+  deviceBrand             String
+  deviceModel             String
+  deviceImei              String?
+  deviceColor             String?
+  securityCode            String?
+  patternData             String?
+  issueDescription        String
+  conditionNotes          String?
+  warrantyExpiry          DateTime?
+  status                  String               @default("NEW")
+  currentBranchId         String
+  movementId              String?
+  technicianId            String?
+  completedById           String?
+  initialQuote            Decimal              @default(0.00)
+  repairPrice             Decimal              @default(0.00)
+  partsCost               Decimal              @default(0.00)
+  deposit                 Decimal              @default(0.00)
+  commissionRate          Decimal              @default(0.00)
+  commissionAmount        Decimal              @default(0.00)
+  netProfit               Decimal              @default(0.00)
+  paymentStatus           String               @default("unpaid")
+  paymentMethod           String?
+  amountPaid              Decimal              @default(0.00)
+  finalCustomerPrice      Decimal              @default(0.00)
+  techBillingPrice        Decimal              @default(0.00)
+  partCostPrice           Decimal              @default(0.00)
+  laborPoolAmount         Decimal              @default(0.00)
+  techCommissionAmount    Decimal              @default(0.00)
+  centerLaborProfit       Decimal              @default(0.00)
+  centerPartProfit        Decimal              @default(0.00)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  version                 Int                  @default(1)
+  completedAt             DateTime?
+  deliveredAt             DateTime?
+  commissionClawback      Decimal              @default(0.00)
+  lastReturnedAt          DateTime?
+  originalTechId          String?
+  returnCount             Int                  @default(0)
+  returnReason            String?
+  rejectionReason         String? // Reason when ticket is rejected
+  rejectedAt              DateTime? // When the ticket was rejected
+  rejectedBy              String? // User ID who rejected the ticket
+  lossResponsibility      String? // NEW: TECH | CENTER | SPLIT
+  excessLossAmount        Decimal              @default(0.00) // NEW: Amount of loss beyond initial profit
+  shiftId                 String?
+  warrantyExpiryDate      DateTime?
+  expectedDuration        Int?
+  startedAt               DateTime?
+  clientUserId            String?
+  clientSupplierId        String?
+  previousStatus          String?
+  parentTicketId          String?
+  isWarrantyReturn        Boolean              @default(false)
+  slaDeadlineAt           DateTime?
+  slaBreachedAt           DateTime?
+  idempotencyKey          String?              @unique
+  isTechCommissionSettled Boolean              @default(false)
+  techCommissionSettledAt DateTime?
+  isPenaltyWaived         Boolean              @default(false)
+  feedback                Feedback?
+  journalEntries          JournalEntry[]
+  logs                    NotificationLog[]
+  payments                RepairPayment[]
+  clientSupplier          Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
+  clientUser              User?                @relation("ClientUser", fields: [clientUserId], references: [id])
+  technician              Technician?          @relation(fields: [technicianId], references: [id])
+  shift                   Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
+  movement                DeviceMovement?      @relation(fields: [movementId], references: [id])
+  customer                Customer?            @relation(fields: [customerId], references: [id])
+  currentBranch           Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  parentTicket            Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
+  returnTickets           Ticket[]             @relation("TicketReturns")
+  completedBy             Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
+  collaborators           TicketCollaborator[]
+  notes                   TicketNote[]
+  parts                   TicketPart[]
 
   @@index([barcode])
   @@index([status, createdAt])
@@ -933,25 +945,17 @@ model TicketNote {
 }
 
 model RepairPayment {
-  id         String   @id @default(uuid())
-  ticketId   String
-  amount     Decimal
-  method     String
-  reference  String?
-  recordedBy String?
-  recordedAt DateTime @default(now())
-  type       String   @default("PAYMENT")
-  ticket     Ticket   @relation(fields: [ticketId], references: [id])
-}
-
-model TechnicianPerformance {
-  id                String     @id @default(uuid())
-  technicianId      String     @unique
-  repairCount       Int        @default(0)
-  avgRepairTime     Float      @default(0.0)
-  satisfactionScore Decimal    @default(0.0)
-  updatedAt         DateTime   @updatedAt
-  technician        Technician @relation(fields: [technicianId], references: [id])
+  id             String        @id @default(uuid())
+  ticketId       String
+  amount         Decimal
+  method         String
+  reference      String?
+  recordedBy     String?
+  recordedAt     DateTime      @default(now())
+  type           String        @default("PAYMENT")
+  journalEntryId String?
+  ticket         Ticket        @relation(fields: [ticketId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 }
 
 model Feedback {
@@ -1015,6 +1019,7 @@ model EmployeeTransaction {
 
   @@index([userId])
   @@index([branchId])
+  @@unique([userId, referenceId, type], name: "unique_employee_tx_per_entity")
 }
 
 model AuditLog {
@@ -1081,14 +1086,14 @@ model SparePart {
   category    String
   productName String
   brand       String
-  quantity    String
+  quantity    Decimal  @default(0.00)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  costPrice   String   @default("0")
-  sellPrice   String   @default("0")
-  price1      String   @default("0")
-  price2      String   @default("0")
-  price3      String   @default("0")
+  costPrice   Decimal  @default(0.00)
+  sellPrice   Decimal  @default(0.00)
+  price1      Decimal  @default(0.00)
+  price2      Decimal  @default(0.00)
+  price3      Decimal  @default(0.00)
 
   @@index([sku])
   @@index([brand])
@@ -1160,3 +1165,15 @@ model PartnerTransaction {
 
   @@index([periodFrom, periodTo])
 }
+
+model MasterDataTombstone {
+  id         String   @id @default(uuid())
+  entityType String
+  fromId     String
+  toId       String
+  createdAt  DateTime @default(now())
+
+  @@index([fromId])
+  @@index([entityType, fromId])
+}
+

@@ -23,31 +23,7 @@ export default function Providers({
         },
     }));
 
-    // Initialize Background Sync & Mirroring via dynamic import to prevent
-    // Next.js from statically bundling Node.js dependencies (fs, prisma) into
-    // the client chunk during SSR compilation.
-    useEffect(() => {
-        const initSync = async () => {
-            const api = (window as any).electronAPI;
-            if (api?.config?.getConfig) {
-                try {
-                    const config = await api.config.getConfig();
-                    if (config?.nodeRole === 'SUB_NODE') {
-                        console.log('[SyncWorker] Skipping background sync (Sub-Node)');
-                        return;
-                    }
-                } catch (e) {
-                    console.warn('Failed to read config for SyncWorker', e);
-                }
-            }
-            
-            import("@/lib/sync-worker").then(({ SyncWorker }) => {
-                SyncWorker.start(30000); // Check every 30s
-            });
-        };
-        
-        initSync();
-    }, []);
+
 
     return (
         <QueryClientProvider client={queryClient}>

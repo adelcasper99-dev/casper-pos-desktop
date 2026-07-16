@@ -82,7 +82,6 @@ async function resetForSetup(options: ResetOptions = {}): Promise<void> {
 
         // CONDITIONAL MODULE: Employees
         if (!options.keepEmployees) {
-            await prisma.technicianPerformance.deleteMany({});
             await prisma.technician.deleteMany({});
             await prisma.dailyWorkLog.deleteMany({});
             await prisma.employeeTransaction.deleteMany({});

@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const paymentStatusSchema = z.enum(['unpaid', 'partial', 'paid', 'refunded']);
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+
 export const ticketSchema = z.object({
     customerName: z.string().min(1, "Customer Name is required"),
     customerPhone: z.string()

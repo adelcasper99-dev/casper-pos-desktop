@@ -4,7 +4,8 @@
  * Creates SupplierPayment + Automatic Journal Entry
  * Follows Odoo best practices: every financial move creates accounting entries
  */
-import { AutoJournalService } from './auto-journal-service';
+import { AccountingEngine } from './transaction-factory';
+import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
 
 export type SupplierPaymentType = 
   | 'PAYMENT'    // Supplier paid (reduces AP)
@@ -73,54 +74,60 @@ export async function createSupplierPaymentWithJournal(
 
   // 2. Create automatic journal entry (Odoo style)
   if (createJournal && amount > 0) {
+    const glCode = PAYMENT_METHOD_GL_MAP[method] ?? GL.ASSETS.CASH;
     switch (type) {
       case 'PAYMENT':
-        await AutoJournalService.recordSupplierPayment(tx, {
-          supplierPaymentId: payment.id,
-          supplierId,
-          amount,
-          method,
+        await AccountingEngine.recordTransaction({
+          description: notes || `Supplier Payment: ${referenceId || payment.id.slice(0, 8)}`,
           reference: referenceId,
-          description: notes,
-          branchId
-        });
+          branchId,
+          idempotencyKey: `SUPP_PAY_${payment.id}`,
+          lines: [
+            { accountCode: GL.LIABILITIES.PAYABLES, debit: amount, credit: 0, description: "AP Reduced" },
+            { accountCode: glCode, debit: 0, credit: amount, description: "Cash/Bank Paid" }
+          ]
+        }, tx);
         break;
 
       case 'INVOICE':
-        await AutoJournalService.recordSupplierReceipt(tx, {
-          supplierPaymentId: payment.id,
-          supplierId,
-          amount,
+        await AccountingEngine.recordTransaction({
+          description: notes || `Supplier Invoice: ${referenceId || payment.id.slice(0, 8)}`,
           reference: referenceId,
-          description: notes,
-          branchId
-        });
+          branchId,
+          idempotencyKey: `SUPP_INV_${payment.id}`,
+          lines: [
+            { accountCode: GL.ASSETS.INVENTORY, debit: amount, credit: 0, description: "Inventory Asset" },
+            { accountCode: GL.LIABILITIES.PAYABLES, debit: 0, credit: amount, description: "Accounts Payable" }
+          ]
+        }, tx);
         break;
 
       case 'CREDIT':
         // Credit memo: Debit AP, Credit (reduce expense/inventory)
-        await AutoJournalService.recordSupplierPayment(tx, {
-          supplierPaymentId: payment.id,
-          supplierId,
-          amount,
-          method: 'CREDIT',
-          reference: referenceId,
+        await AccountingEngine.recordTransaction({
           description: `Credit Memo: ${notes}`,
-          branchId
-        });
+          reference: referenceId,
+          branchId,
+          idempotencyKey: `SUPP_PAY_${payment.id}`,
+          lines: [
+            { accountCode: GL.LIABILITIES.PAYABLES, debit: amount, credit: 0, description: "AP Reduced" },
+            { accountCode: PAYMENT_METHOD_GL_MAP['CREDIT'] ?? GL.ASSETS.CASH, debit: 0, credit: amount, description: "Cash/Bank Paid" }
+          ]
+        }, tx);
         break;
 
       case 'REFUND':
         // Refund: Debit Cash, Credit AP
-        await AutoJournalService.recordSupplierPayment(tx, {
-          supplierPaymentId: payment.id,
-          supplierId,
-          amount,
-          method: 'CASH',
-          reference: referenceId,
+        await AccountingEngine.recordTransaction({
           description: `Refund: ${notes}`,
-          branchId
-        });
+          reference: referenceId,
+          branchId,
+          idempotencyKey: `SUPP_PAY_${payment.id}`,
+          lines: [
+            { accountCode: GL.LIABILITIES.PAYABLES, debit: amount, credit: 0, description: "AP Reduced" },
+            { accountCode: PAYMENT_METHOD_GL_MAP['CASH'] ?? GL.ASSETS.CASH, debit: 0, credit: amount, description: "Cash/Bank Paid" }
+          ]
+        }, tx);
         break;
     }
   }

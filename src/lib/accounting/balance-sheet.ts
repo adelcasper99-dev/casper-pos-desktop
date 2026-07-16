@@ -171,12 +171,12 @@ export async function getBalanceSheet(asOfDate: Date): Promise<BalanceSheetResul
         asOfDate: targetDate,
         assets: {
             currentAssets: {
-                title: "الأصول المتداولة (Current Assets)",
+                title: "الأصول المتداولة",
                 items: currentAssetItems.filter(i => i.balance !== 0),
                 total: totalCurrentAssets.toNumber()
             },
             fixedAssets: {
-                title: "الأصول الثابتة (Fixed Assets)",
+                title: "الأصول الثابتة",
                 items: fixedAssetItems.filter(i => i.balance !== 0),
                 total: totalFixedAssets.toNumber()
             },
@@ -184,7 +184,7 @@ export async function getBalanceSheet(asOfDate: Date): Promise<BalanceSheetResul
         },
         liabilities: {
             currentLiabilities: {
-                title: "الخصوم المتداولة (Current Liabilities)",
+                title: "الخصوم المتداولة",
                 items: currentLiabilityItems.filter(i => i.balance !== 0),
                 total: totalCurrentLiabilities.toNumber()
             },
@@ -192,17 +192,17 @@ export async function getBalanceSheet(asOfDate: Date): Promise<BalanceSheetResul
         },
         equity: {
             capital: {
-                title: "رأس المال (Capital)",
+                title: "رأس المال",
                 items: capitalItems.filter(i => i.balance !== 0),
                 total: totalCapital.toNumber()
             },
             retainedEarnings: {
-                title: "الأرباح المحتجزة (Retained Earnings)",
+                title: "الأرباح المحتجزة",
                 items: retainedEarningsItems.filter(i => i.balance !== 0),
                 total: totalRetainedEarnings.toNumber()
             },
             currentAccounts: {
-                title: "الحسابات الجارية والمسحوبات (Partner Current Accounts / Drawings)",
+                title: "الحسابات الجارية والمسحوبات",
                 items: currentAccountItems.filter(i => i.balance !== 0),
                 total: totalCurrentAccounts.toNumber()
             },

@@ -29,6 +29,7 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
             branch: true,
             technician: {
                 include: {
+                    commissionRule: true,
                     tickets: {
                         where: {
                             createdAt: { gte: startDate, lte: endDate }

@@ -81,6 +81,11 @@ export default function PartialReturnPurchaseDialog({
         return acc.plus(item ? new Decimal(String(item.unitCost)).times(qty) : 0);
     }, new Decimal(0));
 
+    const deliveryChargeDec = new Decimal(purchase?.deliveryCharge?.toString() || 0);
+    const originalSubtotal = items.reduce((acc: Decimal, item: DialogItem) => acc.plus(new Decimal(String(item.unitCost)).times(item.quantity)), new Decimal(0));
+    const overheadRatio = originalSubtotal.gt(0) ? deliveryChargeDec.div(originalSubtotal) : new Decimal(0);
+    const expectedShippingLoss = totalToReturn.times(overheadRatio);
+
     const handleReturn = async () => {
         const returnData = Object.entries(selectedItems).map(([itemId, quantity]) => ({
             itemId,
@@ -266,38 +271,48 @@ export default function PartialReturnPurchaseDialog({
                         />
                     </div>
 
-                    <div className="flex items-center justify-between p-5 bg-orange-500/10 rounded-3xl border border-orange-500/20 shadow-inner">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 opacity-60">سيتم خصم مالي بقيمة</span>
-                            <span className="text-3xl font-black font-mono text-orange-600 dark:text-orange-400">
-                                {totalToReturn.toNumber().toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </span>
+                    <div className="flex flex-col gap-3 p-5 bg-orange-500/10 rounded-3xl border border-orange-500/20 shadow-inner">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 opacity-60">مرتجع المستحقات للمورد بقيمة</span>
+                                <span className="text-3xl font-black font-mono text-orange-600 dark:text-orange-400">
+                                    {totalToReturn.toNumber().toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    className="h-12 px-6 border-border bg-background hover:bg-muted font-black rounded-2xl text-sm transition-all"
+                                    onClick={onClose}
+                                    disabled={loading}
+                                >
+                                    إغلاق
+                                </Button>
+                                <Button
+                                    className="h-12 px-8 bg-orange-500 text-black hover:bg-orange-400 shadow-lg shadow-orange-500/20 font-black rounded-2xl gap-2 transition-all active:scale-95"
+                                    onClick={handleReturn}
+                                    disabled={loading || totalToReturn.toNumber() <= 0}
+                                >
+                                    {loading ? (
+                                        <div className="w-5 h-5 border-3 border-black/20 border-t-black rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <RotateCcw className="w-5 h-5" />
+                                            تأكيد المرتجع
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
 
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                className="h-12 px-6 border-border bg-background hover:bg-muted font-black rounded-2xl text-sm transition-all"
-                                onClick={onClose}
-                                disabled={loading}
-                            >
-                                إغلاق
-                            </Button>
-                            <Button
-                                className="h-12 px-8 bg-orange-500 text-black hover:bg-orange-400 shadow-lg shadow-orange-500/20 font-black rounded-2xl gap-2 transition-all active:scale-95"
-                                onClick={handleReturn}
-                                disabled={loading || totalToReturn.toNumber() <= 0}
-                            >
-                                {loading ? (
-                                    <div className="w-5 h-5 border-3 border-black/20 border-t-black rounded-full animate-spin" />
-                                ) : (
-                                    <>
-                                        <RotateCcw className="w-5 h-5" />
-                                        تأكيد المرتجع
-                                    </>
-                                )}
-                            </Button>
-                        </div>
+                        {expectedShippingLoss.gt(0) && (
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                                <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                                <p className="text-[11px] text-red-600 dark:text-red-400 font-bold leading-relaxed">
+                                    تحذير: سيتم تسجيل مبلغ <span className="font-mono text-xs">{expectedShippingLoss.toNumber().toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> ج.م كمصروفات شحن غير مستردة (خسائر) نتيجة إرجاع هذه الأصناف. المورد غير مسؤول عن رد رسوم التوصيل.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </DialogContent>

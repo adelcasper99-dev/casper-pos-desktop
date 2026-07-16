@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { secureAction } from '@/lib/safe-action';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { Decimal } from '@prisma/client/runtime/library';
 import { getTranslations } from '@/lib/i18n-mock';
 import { getCurrentUser } from './auth';
@@ -414,7 +415,12 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
             },
             tickets: {
                 orderBy: { createdAt: 'desc' },
-                take: 50
+                take: 50,
+                include: {
+                    parts: {
+                        select: { name: true }
+                    }
+                }
             }
         }
     });
@@ -469,16 +475,20 @@ export const getCustomerDetails = secureAction(async (customerId: string) => {
                 unitPrice: Number(i.unitPrice)
             }))
         })),
-        tickets: customer.tickets.map(t => ({
-            id: t.id,
-            barcode: t.barcode,
-            device: `${t.deviceBrand} ${t.deviceModel}`,
-            status: t.status,
-            repairPrice: Number(t.repairPrice),
-            deposit: Number(t.deposit),
-            due: Number(t.repairPrice) - Number(t.deposit),
-            createdAt: t.createdAt
-        }))
+        tickets: customer.tickets.map(t => {
+            const partsName = t.parts && t.parts.length > 0 ? t.parts.map((p: any) => p.name).filter(Boolean).join(' + ') : '';
+            return {
+                id: t.id,
+                barcode: t.barcode,
+                device: `${t.deviceBrand} ${t.deviceModel}`,
+                issueDescription: partsName || t.issueDescription,
+                status: t.status,
+                repairPrice: Number(t.repairPrice),
+                deposit: Number(t.deposit),
+                due: Number(t.repairPrice) - Number(t.deposit),
+                createdAt: t.createdAt
+            };
+        })
     };
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
 
@@ -557,6 +567,10 @@ export const recordCustomerPayment = secureAction(async (data: {
                 where: { branchId: currentUser.branchId, isDefault: true }
             });
             if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
+        }
+
+        if (currentUser.branchId && !defaultTreasuryId) {
+            throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل استقبال المدفوعات.");
         }
 
         await tx.transaction.create({
@@ -763,3 +777,71 @@ export const triggerCustomerReindex = secureAction(async () => {
     CustomerIndexingService.reindexAll().catch(e => console.error('[IndexingService] Error during reindex:', e));
     return { success: true };
 }, { permission: 'CUSTOMER_VIEW', requireCSRF: false });
+
+
+/**
+ * Generate or retrieve a permanent portal token for a customer
+ */
+export const getOrGeneratePortalToken = secureAction(async (customerId: string, forceRegenerate: boolean = false) => {
+    const crypto = require('crypto');
+    
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) throw new Error('Customer not found');
+
+    if (customer.portalToken && !forceRegenerate) {
+        return { success: true, token: customer.portalToken };
+    }
+
+    const newToken = crypto.randomBytes(32).toString('hex');
+    await prisma.customer.update({
+        where: { id: customerId },
+        data: { portalToken: newToken }
+    });
+    
+    revalidatePath(`/customers/${customerId}`);
+    return { success: true, token: newToken };
+}, { requireCSRF: false });
+
+/**
+ * Verify portal PIN (last 4 digits of phone)
+ */
+export async function verifyPortalPin(token: string, pin: string) {
+    const customer = await prisma.customer.findUnique({ where: { portalToken: token } });
+    if (!customer || !customer.phone) return { success: false, error: 'Invalid token or no phone on record' };
+
+    const last4 = customer.phone.slice(-4);
+    if (pin === last4) {
+        return { success: true, customerId: customer.id };
+    }
+    return { success: false, error: 'Incorrect PIN' };
+}
+
+/**
+ * Fetch customer portal data
+ */
+export async function getPortalData(token: string) {
+    const customer = await prisma.customer.findUnique({
+        where: { portalToken: token },
+        include: {
+            tickets: { orderBy: { createdAt: 'desc' }, take: 20 },
+            sales: { orderBy: { createdAt: 'desc' }, take: 20 },
+            transactions: { orderBy: { createdAt: 'desc' }, take: 20 }
+        }
+    });
+    if (!customer) throw new Error('Not found');
+    
+    // Serialize to prevent Next.js from throwing serialization errors or triggering prototype traversal
+    return JSON.parse(JSON.stringify(customer));
+}
+
+export async function authenticatePortal(token: string, pin: string) {
+    const customer = await prisma.customer.findUnique({ where: { portalToken: token } });
+    if (!customer || !customer.phone) return { success: false, error: 'Invalid token or no phone' };
+
+    if (pin === customer.phone.slice(-4)) {
+        const cookieStore = cookies();
+        cookieStore.set(`c-auth-${token}`, 'true', { maxAge: 60 * 60 * 24 * 7, path: '/' });
+        return { success: true };
+    }
+    return { success: false, error: 'Incorrect PIN' };
+}

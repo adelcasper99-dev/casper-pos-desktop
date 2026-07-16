@@ -753,7 +753,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                                 "text-xs font-bold",
                                                 Number(selectedCustomer.balance) > 0 ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-green-400"
                                             )}>
-                                                {formatCurrency(selectedCustomer.balance)}
+                                                {formatCurrency(-Number(selectedCustomer.balance))}
                                             </span>
                                         </div>
                                     )}

@@ -61,7 +61,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     const [loading, setLoading] = useState<string | null>(null);
     const [partialReturnPurchase, setPartialReturnPurchase] = useState<PurchaseInvoiceWithItems | null>(null);
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
-    const [voidItem, setVoidItem] = useState<{ id: string } | null>(null);
+    const [voidItem, setVoidItem] = useState<any | null>(null);
     const [showBarcodePrint, setShowBarcodePrint] = useState(false);
     const [settings, setSettings] = useState<any>(null);
     const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
@@ -536,7 +536,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                         className="h-9 w-9 text-rose-500 hover:bg-rose-500/10 rounded-xl"
                                                         title="إلغاء كامل"
                                                         disabled={loading === inv.id}
-                                                        onClick={() => setVoidItem({ id: inv.id })}
+                                                        onClick={() => setVoidItem(inv)}
                                                     >
                                                         {loading === inv.id ? (
                                                             <div className="w-4 h-4 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
@@ -564,6 +564,16 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                 }}
                 title="سبب إلغاء فاتورة المشتريات"
                 placeholder="أدخل سبب الإلغاء (اختياري)..."
+                warningMessage={
+                    voidItem && Number(voidItem.deliveryCharge) > 0 ? (
+                        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-2xl mb-4">
+                            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                            <p className="text-[11px] text-red-600 dark:text-red-400 font-bold leading-relaxed">
+                                تحذير: سيتم تسجيل مبلغ الشحن <span className="font-mono text-xs">{Number(voidItem.deliveryCharge).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> ج.م كمصروفات شحن غير مستردة (خسائر) نتيجة إلغاء هذه الفاتورة. المورد غير مسؤول عن رد رسوم التوصيل.
+                            </p>
+                        </div>
+                    ) : undefined
+                }
             />
 
             {/* Partial Return Dialog */}

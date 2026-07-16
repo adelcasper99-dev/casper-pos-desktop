@@ -5,6 +5,7 @@ import { Plus, Trash2, Loader2, Save, Wand2, Package, Box, Infinity as InfinityI
 import { createProduct, generateNextSku, seedBundleCategory } from "@/actions/inventory";
 import GlassModal from "../ui/GlassModal";
 import { Combobox } from "@/components/ui/combobox";
+import { AsyncCreatableSelect } from "@/components/ui/async-creatable-select";
 import { useTranslations } from "@/lib/i18n-mock";
 import { cn } from "@/lib/utils";
 
@@ -150,6 +151,44 @@ export default function AddProductModal({
         ));
     };
 
+    const fetchCategories = async (query: string) => {
+        const res = await fetch(`/api/categories?q=${encodeURIComponent(query)}`);
+        const json = await res.json();
+        return json.data.map((c: any) => ({ label: c.name, value: c.id }));
+    };
+
+    const fetchModels = async (query: string) => {
+        let url = `/api/models?q=${encodeURIComponent(query)}`;
+        if (form.categoryId) url += `&categoryId=${form.categoryId}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        return json.data.map((m: any) => ({ label: m.name, value: m.id }));
+    };
+
+    const handleCreateCategory = async (name: string) => {
+        const res = await fetch('/api/inventory/categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const json = await res.json();
+        if (json.success && json.category) {
+            return json.category.id;
+        }
+    };
+
+    const handleCreateModel = async (name: string) => {
+        const res = await fetch('/api/inventory/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, categoryId: form.categoryId })
+        });
+        const json = await res.json();
+        if (json.success && json.model) {
+            return json.model.id;
+        }
+    };
+
 
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -238,41 +277,40 @@ export default function AddProductModal({
                     </div>
                     <div>
                         <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">{tCommon('category') || "التصنيف"}</label>
-                        <select
-                            className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                        <AsyncCreatableSelect
+                            className="w-full text-slate-900 dark:text-white"
                             value={form.categoryId}
-                            onChange={e => {
-                                const nextForm = { ...form, categoryId: e.target.value, modelId: "", attributeId: "" };
+                            onChange={val => {
+                                const nextForm = { ...form, categoryId: val, modelId: "", attributeId: "" };
                                 setForm({ ...nextForm, name: updateDerivedName(nextForm) });
                             }}
-                        >
-                            <option value="">{tCommon('selectCategory') || "اختر تصنيفاً"}</option>
-                            {categories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
+                            fetchOptions={fetchCategories}
+                            onAdd={handleCreateCategory}
+                            placeholder={tCommon('selectCategory') || "اختر تصنيفاً"}
+                            defaultOptions={categories.map((c: Category) => ({ label: c.name, value: c.id }))}
+                        />
                     </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">{tCommon('model') || "الموديل"}</label>
-                        <select
-                            className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                        <AsyncCreatableSelect
+                            className="w-full text-slate-900 dark:text-white"
                             value={form.modelId}
-                            onChange={e => {
-                                const nextForm = { ...form, modelId: e.target.value };
+                            onChange={val => {
+                                const nextForm = { ...form, modelId: val };
                                 setForm({ ...nextForm, name: updateDerivedName(nextForm) });
                             }}
-                        >
-                            <option value="">No Model</option>
-                            {models.filter((m: any) => !form.categoryId || m.categoryId === form.categoryId).map((m: any) => {
+                            fetchOptions={fetchModels}
+                            onAdd={form.categoryId ? handleCreateModel : undefined}
+                            disabled={!form.categoryId}
+                            placeholder="اختر موديل"
+                            defaultOptions={models.filter((m: any) => !form.categoryId || m.categoryId === form.categoryId).map((m: any) => {
                                 const cat = categories.find((c: any) => c.id === m.categoryId);
-                                return (
-                                    <option key={m.id} value={m.id}>
-                                        {cat ? `${cat.name} - ` : ''}{m.name}
-                                    </option>
-                                );
+                                return { label: cat ? `${cat.name} - ${m.name}` : m.name, value: m.id };
                             })}
-                        </select>
+                        />
                     </div>
                     <div>
                         <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1.5 block tracking-widest">الوصف/الصفة</label>

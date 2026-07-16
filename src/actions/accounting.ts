@@ -76,7 +76,7 @@ function checkRateLimit(userId: string): { allowed: boolean; remaining: number; 
 export const repairAccounting = secureAction(async () => {
     await seedAccounts();
     return { success: true, message: "Accounting accounts synchronized" };
-}, { permission: 'ACCOUNTING_MANAGE' });
+}, { permission: 'ACCOUNTING_MANAGE', requireCSRF: false });
 
 
 const FALLBACK_EXPENSE_GL = '5200';
@@ -327,7 +327,7 @@ export const deleteExpense = secureAction(async (id: string, reason?: string) =>
 
         // 2. Find and reverse the associated journal entries (GL)
         const { FinancialReversalService } = await import('@/lib/financial-reversal-service');
-        await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason || 'Parent expense deleted');
+        await FinancialReversalService.reverseAccountingEntries(tx, existing.id, reason || 'Parent expense deleted', "expenseId");
 
         // 3. Reverse associated treasury transactions linked via expenseId
         const linkedTransactions = await tx.transaction.findMany({

@@ -301,10 +301,10 @@ export default function CustomerSearch() {
                                     <div className="text-right">
                                         <div className="text-[10px] uppercase text-muted-foreground font-bold">{t('balance') || "رصيد"}</div>
                                         <div className={clsx(
-                                            "text-sm font-mono font-bold",
+                                            "font-mono font-black tabular-nums tracking-tight",
                                             c.balance > 0 ? "text-red-400" : "text-green-400"
                                         )}>
-                                            {formatCurrency(c.balance)}
+                                            {formatCurrency(-Number(c.balance))}
                                         </div>
                                         {c.linkedEmployeeId && (
                                             <div className="mt-1">

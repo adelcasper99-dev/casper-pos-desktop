@@ -7,6 +7,7 @@ import CashCounter from "./CashCounter";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import Decimal from "decimal.js";
 
 interface ShiftManagerProps {
     currentShift?: any;
@@ -23,6 +24,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     const [startCash, setStartCash] = useState("");
     const [actualCash, setActualCash] = useState("");
     const [cashBreakdown, setCashBreakdown] = useState<Record<string, number>>({});
+    const [cardTerminalSettlement, setCardTerminalSettlement] = useState("");
     const [notes, setNotes] = useState("");
     const [selectedRegister, setSelectedRegister] = useState(registers[0]?.id || null);
     const [settings, setSettings] = useState<any>(null);
@@ -40,9 +42,15 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     const isBlindClose = settings?.blindCloseEnabled !== false; // Default to true if not loaded yet
 
     const handleOpenShift = async () => {
-        const cashValue = startCash === "" ? 0 : parseFloat(startCash);
+        let cashValue = 0;
+        try {
+            cashValue = startCash === "" ? 0 : new Decimal(startCash).toNumber();
+        } catch {
+            toast.error("Please enter valid starting cash amount");
+            return;
+        }
 
-        if (isNaN(cashValue) || cashValue < 0) {
+        if (cashValue < 0) {
             toast.error("Please enter valid starting cash amount");
             return;
         }
@@ -71,7 +79,15 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
     };
 
     const handleCloseShift = async () => {
-        if (!actualCash || parseFloat(actualCash) < 0) {
+        let parsedActualCash = 0;
+        try {
+            parsedActualCash = new Decimal(actualCash).toNumber();
+        } catch {
+            toast.error("Please enter valid actual cash amount");
+            return;
+        }
+
+        if (!actualCash || parsedActualCash < 0) {
             toast.error("Please enter valid actual cash amount");
             return;
         }
@@ -81,12 +97,31 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
             return;
         }
 
+        if (isBlindClose && cardTerminalSettlement === "") {
+            toast.error("Please enter the total card terminal settlement");
+            return;
+        }
+
+        let parsedCard: number | undefined;
+        try {
+            parsedCard = cardTerminalSettlement ? new Decimal(cardTerminalSettlement).toNumber() : undefined;
+        } catch {
+            toast.error("Please enter a valid card terminal settlement");
+            return;
+        }
+
+        if (isBlindClose && parsedCard !== undefined && parsedCard < 0) {
+            toast.error("Card settlement cannot be negative");
+            return;
+        }
+
         setIsLoading(true);
         try {
             const result = await closeShift({
                 shiftId: currentShift.id,
-                actualCash: parseFloat(actualCash),
+                actualCash: parsedActualCash,
                 cashBreakdown,
+                cardTerminalSettlement: parsedCard,
                 notes: notes || undefined
             });
 
@@ -94,6 +129,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                 toast.success(result.message || "Shift closed successfully!");
                 setShowCloseModal(false);
                 setActualCash("");
+                setCardTerminalSettlement("");
                 setNotes("");
                 router.refresh();
             } else {
@@ -219,10 +255,10 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                         <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Expected Cash</p>
                                         <p className="text-lg font-bold text-green-400">
                                             ${(
-                                                Number(currentShift.startCash) +
-                                                Number(currentShift.totalCashSales || 0) -
-                                                Number(currentShift.totalExpenses || 0)
-                                            ).toFixed(2)}
+                                                new Decimal(currentShift.startCash || 0)
+                                                    .plus(currentShift.totalCashSales || 0)
+                                                    .minus(currentShift.totalExpenses || 0)
+                                            ).toNumber().toFixed(2)}
                                         </p>
                                     </div>
                                 )}
@@ -235,16 +271,16 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                     <span className="text-sm font-medium">Expected Cash</span>
                                     <span className="text-2xl font-bold">
                                         ${(
-                                            Number(currentShift.startCash) +
-                                            Number(currentShift.totalCashSales || 0) -
-                                            Number(currentShift.totalExpenses || 0)
-                                        ).toFixed(2)}
+                                            new Decimal(currentShift.startCash || 0)
+                                                .plus(currentShift.totalCashSales || 0)
+                                                .minus(currentShift.totalExpenses || 0)
+                                        ).toNumber().toFixed(2)}
                                     </span>
                                 </div>
                                 <div className="text-xs text-gray-400">
-                                    Start: ${Number(currentShift.startCash).toFixed(2)} +
-                                    Sales: ${Number(currentShift.totalCashSales || 0).toFixed(2)} -
-                                    Expenses: ${Number(currentShift.totalExpenses || 0).toFixed(2)}
+                                    Start: ${new Decimal(currentShift.startCash || 0).toNumber().toFixed(2)} +
+                                    Sales: ${new Decimal(currentShift.totalCashSales || 0).toNumber().toFixed(2)} -
+                                    Expenses: ${new Decimal(currentShift.totalExpenses || 0).toNumber().toFixed(2)}
                                 </div>
                             </div>
                         )}
@@ -268,14 +304,34 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                     type="number"
                                     step="0.01"
                                     min="0"
+                                    readOnly={isBlindClose}
                                     value={actualCash}
                                     onChange={(e) => setActualCash(e.target.value)}
-                                    className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                    className={`w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent ${isBlindClose ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     placeholder="0.00"
-                                    autoFocus
                                 />
                             </div>
                         </div>
+
+                        {isBlindClose && (
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2 text-gray-300">
+                                    Total Card Terminal Settlement
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-3 text-gray-400 text-lg">$</span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={cardTerminalSettlement}
+                                        onChange={(e) => setCardTerminalSettlement(e.target.value)}
+                                        className="w-full p-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="mb-6">
                             <label className="block text-sm font-medium mb-2 text-gray-300">
@@ -302,6 +358,7 @@ export default function ShiftManager({ currentShift, registers = [] }: ShiftMana
                                 onClick={() => {
                                     setShowCloseModal(false);
                                     setActualCash("");
+                                    setCardTerminalSettlement("");
                                     setNotes("");
                                 }}
                                 disabled={isLoading}

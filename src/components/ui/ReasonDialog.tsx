@@ -22,6 +22,7 @@ interface ReasonDialogProps {
     defaultValue?: string;
     confirmLabel?: string;
     cancelLabel?: string;
+    warningMessage?: React.ReactNode;
 }
 
 export function ReasonDialog({
@@ -33,6 +34,7 @@ export function ReasonDialog({
     defaultValue = "",
     confirmLabel,
     cancelLabel,
+    warningMessage,
 }: ReasonDialogProps) {
     const [reason, setReason] = useState(defaultValue);
     const t = useTranslations("Common");
@@ -54,6 +56,11 @@ export function ReasonDialog({
                         أدخل سبباً لإتمام هذا الإجراء.
                     </DialogDescription>
                 </DialogHeader>
+                {warningMessage && (
+                    <div className="px-6 -mb-4">
+                        {warningMessage}
+                    </div>
+                )}
                 <div className="py-6">
                     <Textarea
                         value={reason}

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { AutoJournalService } from "@/lib/accounting/auto-journal-service";
+import { GL } from "@/shared/constants/accounting-mappings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -745,12 +745,16 @@ export const updateTicketStatus = secureAction(async (data: {
 
         // B19 Fix: Record Maintenance COGS (Parts Cost) in GL when COMPLETED
         if (status === 'COMPLETED' && existingTicket.status !== 'COMPLETED') {
-            const finalPartsCost = partsCost ?? Number(existingTicket.partsCost) ?? 0;
-            if (finalPartsCost > 0) {
+            const inventoryParts = await tx.ticketPart.findMany({
+                where: { ticketId: ticket.id, status: 'ACTIVE', productId: { not: null } }
+            });
+            const inventoryPartsCost = inventoryParts.reduce((sum, p) => sum.plus(new Decimal(p.cost?.toString() || 0).mul(p.quantity)), new Decimal(0));
+            
+            if (inventoryPartsCost.gt(0)) {
                 await AccountingEngine.recordMaintenanceCOGS({
                     ticketId: ticket.id,
                     barcode: ticket.barcode,
-                    partsCost: finalPartsCost,
+                    partsCost: inventoryPartsCost,
                     branchId: user.branchId ?? undefined
                 }, tx);
             }
@@ -1144,7 +1148,7 @@ export const refundTicket = secureAction(async (data: {
             }
         }
 
-        await AccountingEngine.recordRefund({
+        const je = await AccountingEngine.recordRefund({
             amount,
             method: refundMethod,
             description: `Refund: Ticket #${ticket.barcode}`,
@@ -1153,6 +1157,13 @@ export const refundTicket = secureAction(async (data: {
             cogsReversal: 0, // No COGS reversal on simple refund
             branchId: user.branchId ?? undefined
         }, tx);
+
+        if (je) {
+            await tx.repairPayment.update({
+                where: { id: payment.id },
+                data: { journalEntryId: je.id }
+            });
+        }
 
         return payment;
     }, { timeout: 60000 });
@@ -1222,7 +1233,7 @@ export const softDeleteTicket = secureAction(async (data: {
             const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
             // 1. RepairPayment (Audit)
-            await tx.repairPayment.create({
+            const payment = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: 'REFUND',
@@ -1248,6 +1259,10 @@ export const softDeleteTicket = secureAction(async (data: {
                     where: { branchId: user.branchId!, isDefault: true }
                 });
 
+                if (!defaultTreasury && user.branchId) {
+                    throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل إتمام الاسترجاع.");
+                }
+
                 if (defaultTreasury) {
                     await tx.transaction.create({
                         data: {
@@ -1269,7 +1284,7 @@ export const softDeleteTicket = secureAction(async (data: {
                 // 4. Customer Balance (Account Payment)
                 await tx.customer.update({
                     where: { id: ticket.customerId },
-                    data: { balance: { increment: amountToRefund } }
+                    data: { balance: { decrement: amountToRefund } }
                 });
 
                 await tx.customerTransaction.create({
@@ -1285,7 +1300,7 @@ export const softDeleteTicket = secureAction(async (data: {
             }
 
             // 5. Accounting
-            await AccountingEngine.recordRefund({
+            const je = await AccountingEngine.recordRefund({
                 amount: amountToRefund,
                 method: refundMethod,
                 description: `Delete Ticket: #${ticket.barcode}`,
@@ -1294,6 +1309,13 @@ export const softDeleteTicket = secureAction(async (data: {
                 cogsReversal: totalPartsCostReversal,
                 branchId: user.branchId ?? undefined
             }, tx);
+
+            if (je) {
+                await tx.repairPayment.update({
+                    where: { id: payment.id },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         // --- Part 3: Relationship Cleanup ---
@@ -1329,7 +1351,7 @@ export const softDeleteTicket = secureAction(async (data: {
 
         // 6. Comprehensive Accounting Reversal (T-02)
         const { FinancialReversalService } = await import('@/lib/financial-reversal-service');
-        await FinancialReversalService.reverseAccountingEntries(tx, ticketId, `مسح التذكرة: ${reason}`);
+        await FinancialReversalService.reverseAccountingEntries(tx, ticketId, `مسح التذكرة: ${reason}`, "ticketId");
 
         // --- Part 5: Final Audit Log ---
         await tx.auditLog.create({
@@ -1349,11 +1371,11 @@ export const softDeleteTicket = secureAction(async (data: {
         });
 
         if (lastEntry) {
-            await AutoJournalService.reverseJournalEntry(tx, {
-                originalEntryId: lastEntry.id,
-                reason: `Ticket Voided (${reason})`,
-                branchId: ticket.currentBranchId || undefined
-            });
+            await AccountingEngine.reverseJournalEntry(
+                lastEntry.id,
+                `REVERSAL_${lastEntry.id}`,
+                tx
+            );
         }
 
         return deletedTicket;
@@ -1372,10 +1394,10 @@ export const softDeleteTicket = secureAction(async (data: {
 export const markForReRepair = secureAction(async (data: {
     ticketId: string;
     returnReason: string;
-    clawbackOption?: string;
+    isPenaltyWaived?: boolean;
     csrfToken?: string;
 }) => {
-    const { ticketId, returnReason, clawbackOption = 'NONE' } = data;
+    const { ticketId, returnReason, isPenaltyWaived = false } = data;
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
@@ -1394,13 +1416,6 @@ export const markForReRepair = secureAction(async (data: {
     const originalTechId = ticket.completedById || ticket.technicianId;
     const originalCommission = Number(ticket.commissionAmount) || 0;
 
-    let clawbackAmount = 0;
-    if (clawbackOption === 'FULL' && originalCommission > 0) {
-        clawbackAmount = originalCommission;
-    } else if (clawbackOption === 'PARTIAL' && originalCommission > 0) {
-        clawbackAmount = originalCommission * 0.5; // Default 50%
-    }
-
     const result = await prisma.$transaction(async (tx) => {
         const updatedTicket = await tx.ticket.update({
             where: { id: ticketId },
@@ -1410,7 +1425,7 @@ export const markForReRepair = secureAction(async (data: {
                 lastReturnedAt: new Date(),
                 returnReason,
                 originalTechId: originalTechId,
-                commissionClawback: { increment: clawbackAmount }
+                isPenaltyWaived: isPenaltyWaived
             }
         });
 
@@ -1420,39 +1435,39 @@ export const markForReRepair = secureAction(async (data: {
         });
 
         if (lastEntry) {
-            await AutoJournalService.reverseJournalEntry(tx, {
-                originalEntryId: lastEntry.id,
-                reason: `Warranty Rework (${returnReason})`,
-                branchId: ticket.currentBranchId || undefined
-            });
+            await AccountingEngine.reverseJournalEntry(
+                lastEntry.id,
+                `REVERSAL_${lastEntry.id}`,
+                tx
+            );
         }
 
-        // 💰 [NEW] Record Actual Employee Transaction for the Clawback (Debit)
-        if (clawbackAmount > 0 && originalTechId) {
-            // 🛡️ Resolve Technician -> User ID (Required for EmployeeTransaction P2003)
+        // 💰 [NEW] ALWAYS apply a FULL temporary reversal of the existing commission 
+        // to the original technician, UNLESS the penalty was explicitly waived.
+        if (originalCommission > 0 && originalTechId && !isPenaltyWaived) {
             const techProfile = await tx.technician.findUnique({
                 where: { id: originalTechId },
                 select: { userId: true }
             });
 
             if (techProfile?.userId) {
-                // 🛡️ [IDEMPOTENCY]: Avoid duplicate clawbacks for the same ticket rework
-                const existingClawback = await tx.employeeTransaction.findFirst({
+                // 🛡️ [IDEMPOTENCY]: Avoid duplicate reversals for the same ticket rework
+                const existingReversal = await tx.employeeTransaction.findFirst({
                     where: { 
                         userId: techProfile.userId,
                         referenceId: ticket.id,
-                        type: 'MAINTENANCE_COMMISSION',
-                        amount: { lt: 0 } // Negative means it's a clawback
+                        type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                        amount: { lt: 0 } 
                     }
                 });
 
-                if (!existingClawback) {
+                if (!existingReversal) {
                     await tx.employeeTransaction.create({
                         data: {
                             userId: techProfile.userId,
-                            type: 'MAINTENANCE_COMMISSION',
-                            amount: -clawbackAmount, // Negative amount for debit
-                            description: `Clawback: Warranty Rework for Ticket #${ticket.barcode}`,
+                            type: 'MAINTENANCE_COMMISSION_REVERSAL',
+                            amount: -originalCommission, // Negative amount for debit
+                            description: `Reversal: Warranty Rework for Ticket #${ticket.barcode}`,
                             referenceId: ticket.id,
                             referenceType: 'TICKET_REWORK',
                             branchId: ticket.currentBranchId || undefined
@@ -1463,19 +1478,18 @@ export const markForReRepair = secureAction(async (data: {
         }
 
 
-        if (clawbackAmount > 0 && originalTechId) {
+        if (originalCommission > 0 && originalTechId) {
             await tx.auditLog.create({
                 data: {
-                    entityType: 'COMMISSION_CLAWBACK',
+                    entityType: 'COMMISSION_REVERSAL',
                     entityId: ticketId,
-                    action: clawbackOption === 'FULL' ? 'FULL_CLAWBACK' : 'PARTIAL_CLAWBACK',
+                    action: isPenaltyWaived ? 'WAIVED_REVERSAL' : 'FULL_REVERSAL',
                     previousData: JSON.stringify({
                         technicianId: originalTechId,
                         originalCommission,
-                        clawbackAmount,
                         returnReason
                     }),
-                    reason: `Commission clawback of ${clawbackAmount.toFixed(2)} for warranty return`,
+                    reason: `Commission reversal of ${originalCommission.toFixed(2)} for warranty return`,
                     user: user?.name || 'System'
                 }
             });
@@ -1484,7 +1498,7 @@ export const markForReRepair = secureAction(async (data: {
         await tx.ticketNote.create({
             data: {
                 ticketId,
-                text: `🔄 Returned for re-repair. Reason: ${returnReason}. ${clawbackAmount > 0 ? `Commission clawback: $${clawbackAmount.toFixed(2)}` : ''}`,
+                text: `🔄 Returned for re-repair. Reason: ${returnReason}. ${originalCommission > 0 ? `Commission reversed: $${originalCommission.toFixed(2)}` : ''}`,
                 author: user.name || user.username || "System",
                 isInternal: true
             }
@@ -1529,7 +1543,7 @@ export const getCustomersWithBalance = secureAction(async (filters?: {
             id: c.id,
             name: c.name,
             phone: c.phone,
-            balance: Number(c.balance),
+            balance: new Decimal(c.balance?.toString() || 0).toNumber(),
         }))
     };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
@@ -1544,6 +1558,7 @@ export const applyCustomerCredit = secureAction(async (data: {
     csrfToken?: string;
 }) => {
     const { ticketId, customerId, amount } = data;
+    const amountDec = new Decimal(amount);
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
@@ -1551,9 +1566,9 @@ export const applyCustomerCredit = secureAction(async (data: {
         const customer = await tx.customer.findUnique({ where: { id: customerId } });
         if (!customer) throw new Error("Customer not found");
 
-        const balance = Number(customer.balance);
-        if (balance >= 0) throw new Error("Customer has no credit balance.");
-        if (amount > Math.abs(balance)) throw new Error("Amount exceeds available credit.");
+        const balance = new Decimal(customer.balance?.toString() || 0);
+        if (balance.gte(0)) throw new Error("Customer has no credit balance.");
+        if (amountDec.gt(balance.abs())) throw new Error("Amount exceeds available credit.");
 
         const ticket = await tx.ticket.findFirst({
             where: { OR: [{ id: ticketId }, { barcode: ticketId }] }
@@ -1564,15 +1579,15 @@ export const applyCustomerCredit = secureAction(async (data: {
             throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
         }
 
-        const repairPrice = Number(ticket.repairPrice);
-        const amountPaid = Number(ticket.amountPaid);
-        if (amount > (repairPrice - amountPaid)) throw new Error("Amount exceeds balance due.");
+        const repairPrice = new Decimal(ticket.repairPrice?.toString() || 0);
+        const amountPaid = new Decimal(ticket.amountPaid?.toString() || 0);
+        if (amountDec.gt(repairPrice.minus(amountPaid))) throw new Error("Amount exceeds balance due.");
 
         // 1. Create Payment
         await tx.repairPayment.create({
             data: {
                 ticketId: ticket.id,
-                amount: new Decimal(amount),
+                amount: amountDec,
                 method: 'CREDIT_APPLIED',
                 type: 'PAYMENT',
                 recordedBy: user.name || user.username || "System",
@@ -1585,7 +1600,7 @@ export const applyCustomerCredit = secureAction(async (data: {
             data: {
                 customerId,
                 type: 'DEBIT',
-                amount: new Decimal(amount),
+                amount: amountDec,
                 description: `Ticket #${ticket.barcode} - Credit Applied`,
                 reference: ticket.id,
                 createdBy: user.id
@@ -1595,17 +1610,17 @@ export const applyCustomerCredit = secureAction(async (data: {
         // 3. Update customer balance
         await tx.customer.update({
             where: { id: customerId },
-            data: { balance: { increment: amount } }
+            data: { balance: { increment: amountDec } }
         });
 
         // 4. Update ticket balance
-        const newPaid = amountPaid + amount;
-        const newStatus = newPaid >= repairPrice ? 'paid' : 'partial';
+        const newPaid = amountPaid.plus(amountDec);
+        const newStatus = newPaid.gte(repairPrice) ? 'paid' : 'partial';
 
         return await tx.ticket.update({
             where: { id: ticket.id },
             data: {
-                amountPaid: new Decimal(newPaid),
+                amountPaid: newPaid,
                 paymentStatus: newStatus
             }
         });
@@ -1644,9 +1659,9 @@ export const addTicketPart = secureAction(async (data: {
         throw new Error("هذه التذكرة مغلقة ولا يمكن إضافة أي شيء إليها. (إلا في حالة المرتجع)");
     }
 
-    let baseCostPrice = 0;
-    let transferPrice = 0;
-    let price = data.price || 0;
+    let baseCostPrice = new Decimal(0);
+    let transferPrice = new Decimal(0);
+    let price = data.price ? new Decimal(data.price) : new Decimal(0);
     let productName = data.name || "Unknown Item";
 
     const tech = ticket.technicianId 
@@ -1658,22 +1673,22 @@ export const addTicketPart = secureAction(async (data: {
         const product = await prisma.product.findUnique({ where: { id: data.productId } });
         if (!product) throw new Error("Product not found");
 
-        baseCostPrice = Number(product.costPrice);
+        baseCostPrice = new Decimal(product.costPrice || 0);
         
         // Determine transfer price based on override or technician tier
         if (data.transferPriceOverride !== undefined) {
-            transferPrice = data.transferPriceOverride;
+            transferPrice = new Decimal(data.transferPriceOverride);
         } else if (tier === 'SELL_1') {
-            transferPrice = Number(product.sellPrice);
+            transferPrice = new Decimal(product.sellPrice || 0);
         } else if (tier === 'SELL_2') {
-            transferPrice = Number(product.sellPrice2);
+            transferPrice = new Decimal(product.sellPrice2 || 0);
         } else if (tier === 'SELL_3') {
-            transferPrice = Number(product.sellPrice3);
+            transferPrice = new Decimal(product.sellPrice3 || 0);
         } else {
-            transferPrice = Number(product.costPrice); // Default to COST
+            transferPrice = new Decimal(product.costPrice || 0); // Default to COST
         }
 
-        if (!price) price = Number(product.sellPrice);
+        if (price.isZero()) price = new Decimal(product.sellPrice || 0);
         productName = product.name;
 
         let sourceWarehouseId = data.warehouseId;
@@ -1777,10 +1792,10 @@ export const addTicketPart = secureAction(async (data: {
                         productId: data.productId || undefined,
                         name: productName,
                         quantity: data.quantity,
-                        cost: new Decimal(transferPrice), // Legacy field uses transferPrice
-                        baseCostPrice: new Decimal(baseCostPrice),
-                        transferPrice: new Decimal(transferPrice),
-                        price: new Decimal(price),
+                        cost: transferPrice,
+                        baseCostPrice: baseCostPrice,
+                        transferPrice: transferPrice,
+                        price: price,
                         warehouseId: finalWarehouseId,
                         status: 'ACTIVE'
                     }
@@ -1795,10 +1810,10 @@ export const addTicketPart = secureAction(async (data: {
                 ticketId: ticket.id,
                 name: productName,
                 quantity: data.quantity,
-                cost: new Decimal(transferPrice),
-                baseCostPrice: new Decimal(baseCostPrice),
-                transferPrice: new Decimal(transferPrice),
-                price: new Decimal(price),
+                cost: transferPrice,
+                baseCostPrice: baseCostPrice,
+                transferPrice: transferPrice,
+                price: price,
                 status: 'ACTIVE'
             }
         });
@@ -1812,16 +1827,16 @@ export const addTicketPart = secureAction(async (data: {
 
     const isWarrantyFix = ticket.status === 'RETURNED_FOR_REFIX';
     const updateData: Prisma.TicketUpdateInput = {
-        partsCost: new Decimal(totalPartsCost),
+        partsCost: totalPartsCost,
     };
 
     if (!isWarrantyFix) {
-        updateData.repairPrice = new Decimal(totalSellPrice);
+        updateData.repairPrice = totalSellPrice;
     }
 
-    const finalPrice = isWarrantyFix ? Number(ticket.repairPrice || 0) : totalSellPrice;
-    const netProfit = calculateNetProfit(new Decimal(finalPrice), new Decimal(totalPartsCost));
-    updateData.netProfit = new Decimal(netProfit);
+    const finalPrice = isWarrantyFix ? new Decimal(ticket.repairPrice?.toString() || 0) : totalSellPrice;
+    const netProfit = calculateNetProfit(finalPrice, totalPartsCost);
+    updateData.netProfit = netProfit;
 
     if (ticket.technicianId) {
         const commission = calculateCommission(netProfit, Number(ticket.commissionRate || 0));
@@ -1880,7 +1895,6 @@ export const refundTicketPart = secureAction(async (data: {
                 const partCost = new Decimal(part.baseCostPrice?.toString() || part.cost?.toString() || 0).mul(quantity);
                 const lossRate = Number(part.ticket.technician?.lossRate || 100);
                 const techDeduction = partCost.mul(lossRate / 100);
-                const centerLoss = partCost.sub(techDeduction);
                 
                 // 1. Tech Share
                 if (techDeduction.gt(0) && part.ticket.technician) {
@@ -1899,12 +1913,16 @@ export const refundTicketPart = secureAction(async (data: {
 
                 // 2. Financial Ledger: Record FULL Wastage Expense to credit 1200 Inventory for the destroyed physical asset
                 if (partCost.gt(0)) {
-                    await AutoJournalService.recordWastageLoss(tx, {
-                        amount: partCost,
+                    await AccountingEngine.recordTransaction({
                         description: `إثبات هالك كلي للقطعة (تحمل المهندس ${lossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
                         branchId: part.ticket.currentBranchId,
-                        reference: part.ticket.id
-                    });
+                        reference: part.ticket.id,
+                        idempotencyKey: `WASTE_${part.ticket.id}_${partCost.toString()}`,
+                        lines: [
+                            { accountCode: GL.EXPENSES.SPOILAGE, debit: partCost, credit: 0, description: "Wastage Loss" },
+                            { accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: partCost, description: "Inventory Reduced" }
+                        ]
+                    }, tx);
                 }
             }
         }
@@ -1923,9 +1941,9 @@ export const refundTicketPart = secureAction(async (data: {
         await tx.ticket.update({
             where: { id: ticketId },
             data: {
-                partsCost: new Decimal(totalCost),
-                repairPrice: isFix ? undefined : new Decimal(totalSell),
-                netProfit: new Decimal(netPro),
+                partsCost: totalCost,
+                repairPrice: isFix ? undefined : totalSell,
+                netProfit: netPro,
                 commissionAmount: part.ticket?.technicianId ? new Decimal(calculateCommission(netPro, Number(part.ticket.commissionRate || 0))) : undefined
             }
         });
@@ -1998,7 +2016,6 @@ export const removeTicketPart = secureAction(async (data: {
                 const partCost = new Decimal(part.baseCostPrice?.toString() || part.cost?.toString() || 0).mul(quantity);
                 const effectiveLossRate = lossRateOverride ?? Number(part.ticket.technician?.lossRate || 100);
                 const techDeduction = partCost.mul(effectiveLossRate / 100);
-                const centerLoss = partCost.sub(techDeduction);
                 
                 // 1. Tech Share
                 if (techDeduction.gt(0) && part.ticket.technician) {
@@ -2017,12 +2034,16 @@ export const removeTicketPart = secureAction(async (data: {
 
                 // 2. Financial Ledger: Record FULL Wastage Expense to credit 1200 Inventory for the destroyed physical asset
                 if (partCost.gt(0)) {
-                    await AutoJournalService.recordWastageLoss(tx, {
-                        amount: partCost,
+                    await AccountingEngine.recordTransaction({
                         description: `إثبات هالك كلي للقطعة (تحمل المهندس ${effectiveLossRate}%) - تذكرة #${part.ticket.barcode} - (${part.name || 'بدون اسم'})`,
                         branchId: part.ticket.currentBranchId,
-                        reference: part.ticket.id
-                    });
+                        reference: part.ticket.id,
+                        idempotencyKey: `WASTE_${part.ticket.id}_${partCost.toString()}_${Date.now()}`, // adding Date.now() to prevent conflict since ticket part removal can happen multiple times
+                        lines: [
+                            { accountCode: GL.EXPENSES.SPOILAGE, debit: partCost, credit: 0, description: "Wastage Loss" },
+                            { accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: partCost, description: "Inventory Reduced" }
+                        ]
+                    }, tx);
                 }
             }
         }
@@ -2045,7 +2066,7 @@ export const removeTicketPart = secureAction(async (data: {
         };
 
         if (!isWarrantyFix) {
-            updateFields.repairPrice = new Decimal(totalSellPrice);
+            updateFields.repairPrice = totalSellPrice;
         }
 
         const finalPrice = isWarrantyFix ? new Decimal(part.ticket?.repairPrice?.toString() || 0) : totalSellPrice;
@@ -2122,7 +2143,7 @@ export const getProductsForSelector = secureAction(async (data: { search?: strin
     });
 
     const resultData = products.map(p => {
-        let stockValue: Decimal | number = p.stock;
+        let stockValue: Decimal = p.stock;
         if (targetWarehouseId) {
             const st = p.stocks.find(s => s.warehouseId === targetWarehouseId);
             stockValue = st ? st.quantity : new Decimal(0);
@@ -2134,11 +2155,11 @@ export const getProductsForSelector = secureAction(async (data: { search?: strin
             id: p.id,
             name: p.name,
             sku: p.sku,
-            stock: Number(stockValue),
-            costPrice: Number(p.costPrice),
-            sellPrice: Number(p.sellPrice),
-            sellPrice2: Number(p.sellPrice2),
-            sellPrice3: Number(p.sellPrice3),
+            stock: stockValue.toNumber(),
+            costPrice: new Decimal(p.costPrice || 0).toNumber(),
+            sellPrice: new Decimal(p.sellPrice || 0).toNumber(),
+            sellPrice2: new Decimal(p.sellPrice2 || 0).toNumber(),
+            sellPrice3: new Decimal(p.sellPrice3 || 0).toNumber(),
             trackStock
         };
     }).filter(p => !p.trackStock || p.stock > 0);
@@ -2163,6 +2184,7 @@ export const processTicketPayment = secureAction(async (data: {
     };
 }) => {
     const { ticketId, amount, paymentMethod, paymentType = 'PAYMENT', reference, customerId, warranty } = data;
+    const amountDec = new Decimal(amount);
 
     const ticket = await prisma.ticket.findFirst({
         where: { OR: [{ id: ticketId }, { barcode: ticketId }] },
@@ -2175,10 +2197,10 @@ export const processTicketPayment = secureAction(async (data: {
     if (!ticket) throw new Error('Ticket not found');
 
     // Relaxed validation: Allow 0 for warranty returns or reworks (even swap)
-    const isActuallyRefund = paymentType === 'REFUND' || amount < 0;
-    const isWarrantyEvenSwap = (ticket.isWarrantyReturn || ticket.status === 'RETURNED_FOR_REFIX') && amount === 0;
+    const isActuallyRefund = paymentType === 'REFUND' || amountDec.lt(0);
+    const isWarrantyEvenSwap = (ticket.isWarrantyReturn || ticket.status === 'RETURNED_FOR_REFIX') && amountDec.isZero();
 
-    if (!isActuallyRefund && !isWarrantyEvenSwap && amount <= 0) {
+    if (!isActuallyRefund && !isWarrantyEvenSwap && amountDec.lte(0)) {
         throw new Error('Payment amount must be greater than zero');
     }
 
@@ -2199,7 +2221,7 @@ export const processTicketPayment = secureAction(async (data: {
     const previousPaid = new Decimal(ticket.amountPaid || 0);
     const repairPrice = new Decimal(ticket.repairPrice || 0);
 
-    let effectiveAmount = new Decimal(amount);
+    let effectiveAmount = amountDec;
     
     // Absorption Logic: If this is a warranty return and we haven't absorbed the credit yet (amountPaid === 0),
     // include the inheritedCredit in the new total paid calculation.
@@ -2245,7 +2267,7 @@ export const processTicketPayment = secureAction(async (data: {
                 await tx.employeeTransaction.create({
                     data: {
                         userId: employeeId,
-                        amount: new Prisma.Decimal(Math.abs(effectiveAmount.toNumber())),
+                        amount: effectiveAmount.abs(),
                         type: txType,
                         referenceId: ticket.id,
                         referenceType: isActuallyRefund ? 'TICKET_REFUND' : 'TICKET',
@@ -2263,9 +2285,9 @@ export const processTicketPayment = secureAction(async (data: {
                 actualCustomerId = customer.id;
                 await tx.customer.update({
                     where: { id: customer.id },
-                    // Collecting money (effectiveAmount > 0) DECREASES balance.
-                    // Refunding money (effectiveAmount < 0) INCREASES balance.
-                    data: { balance: { decrement: new Prisma.Decimal(effectiveAmount) } }
+                    // Charging to account (effectiveAmount > 0) INCREASES debt balance.
+                    // Refunding to account (effectiveAmount < 0) DECREASES debt balance.
+                    data: { balance: { increment: effectiveAmount } }
                 });
 
                 if (!ticket.customerId) {
@@ -2277,34 +2299,36 @@ export const processTicketPayment = secureAction(async (data: {
             }
         }
 
+        let paymentRecordId: string | null = null;
         if (!effectiveAmount.isZero()) {
-            await tx.repairPayment.create({
+            const paymentRecord = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: effectiveAmount.lt(0) ? 'REFUND' : paymentType,
-                    amount: new Prisma.Decimal(effectiveAmount),
+                    amount: effectiveAmount,
                     method: paymentMethod,
                     reference: reference || null,
                     recordedBy: currentUser.name || currentUser.username || 'System'
                 }
             });
+            paymentRecordId = paymentRecord.id;
         }
 
         const effectiveCustomerId = actualCustomerId || (paymentMethod === 'ACCOUNT' ? customerId : null);
         if (effectiveCustomerId && !effectiveAmount.isZero() && !isSalaryDeduction) {
             const isDeferred = paymentMethod === 'ACCOUNT';
-            let description = `Ticket #${ticket.barcode}`;
-            if (paymentType === 'DEPOSIT') description += ' - Deposit';
-            else if (isActuallyRefund) description += ' - Refund';
-            else if (isDeferred) description += ' - Deferred';
-            else description += ` - ${paymentMethod} Payment`;
+            let description = `فاتورة #${ticket.barcode}`;
+            if (paymentType === 'DEPOSIT') description += ' - عربون';
+            else if (isActuallyRefund) description += ' - مرتجع';
+            else if (isDeferred) description += ' - آجل';
+            else description += ` - دفع ${paymentMethod}`;
 
             await tx.customerTransaction.create({
                 data: {
                     customerId: effectiveCustomerId,
                     // 💰 [STANDARD] CREDIT increases wallet/balance. DEBIT increases debt.
                     type: isDeferred ? 'DEBIT' : 'CREDIT',
-                    amount: new Prisma.Decimal(Math.abs(effectiveAmount.toNumber())),
+                    amount: effectiveAmount.abs(),
                     description,
                     reference: ticket.id,
                     createdBy: currentUser.id,
@@ -2315,20 +2339,41 @@ export const processTicketPayment = secureAction(async (data: {
 
         // --- Profit Distribution Calculation & Snapshotted Fields ---
         // Triggered only when transitioning to PAID_DELIVERED
-        let distributionData = {};
+        let distributionData: Partial<{
+            finalCustomerPrice: Decimal;
+            techBillingPrice: Decimal;
+            partCostPrice: Decimal;
+            laborPoolAmount: Decimal;
+            techCommissionAmount: Decimal;
+            centerLaborProfit: Decimal;
+            centerPartProfit: Decimal;
+            commissionAmount: Decimal;
+            netProfit: Decimal;
+        }> = {};
         if (paymentStatus === 'paid' && paymentType === 'PAYMENT') {
             const activeParts = await tx.ticketPart.findMany({
                 where: { ticketId: ticket.id, status: 'ACTIVE' }
             });
 
-            const techBillingPrice = activeParts.reduce((sum, p) => sum.add(p.transferPrice || p.cost || 0), new Prisma.Decimal(0));
-            const partCostPrice = activeParts.reduce((sum, p) => sum.add(p.baseCostPrice || p.cost || 0), new Prisma.Decimal(0));
-            const finalCustomerPrice = new Prisma.Decimal(newTotalPaid); // Assume total paid is final price
+            const techBillingPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.transferPrice?.toString() || p.cost?.toString() || 0)), new Decimal(0));
+            const partCostPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.baseCostPrice?.toString() || p.cost?.toString() || 0)), new Decimal(0));
+            const finalCustomerPrice = newTotalPaid; // Assume total paid is final price
             const laborPoolAmount = finalCustomerPrice.minus(techBillingPrice);
             
             // Re-calculate commission based on the new labor pool
-            const commissionRateDec = new Prisma.Decimal(ticket.commissionRate || 0);
-            const techCommissionAmount = laborPoolAmount.mul(commissionRateDec.div(100));
+            let techCommissionAmount = new Decimal(0);
+            let technician = null;
+            if (ticket.technicianId) {
+                technician = await tx.technician.findUnique({
+                    where: { id: ticket.technicianId },
+                    include: { commissionRule: true }
+                });
+                if (technician) {
+                    const resolved = resolveCommission(technician, laborPoolAmount);
+                    techCommissionAmount = resolved.commissionAmount;
+                }
+            }
+
             const centerLaborProfit = laborPoolAmount.minus(techCommissionAmount);
             const centerPartProfit = techBillingPrice.minus(partCostPrice);
 
@@ -2346,21 +2391,24 @@ export const processTicketPayment = secureAction(async (data: {
             };
 
             // --- New: Record Balanced Journal Entry ---
-            await AutoJournalService.recordTicketDistribution(tx, {
-                ticketId: ticket.id,
-                barcode: ticket.barcode,
-                amount: finalCustomerPrice,
-                techBillingPrice,
-                techCommissionAmount,
-                centerLaborProfit,
-                branchId: currentUser?.branchId ?? undefined
-            });
+            await AccountingEngine.recordTransaction({
+                description: `Maintenance Distribution: Ticket #${ticket.barcode}`,
+                reference: ticket.id,
+                branchId: currentUser?.branchId ?? undefined,
+                idempotencyKey: `TICKET_DIST_${ticket.id}`,
+                lines: [
+                    { accountCode: GL.REVENUE.SERVICE, debit: finalCustomerPrice, credit: 0, description: "Service Revenue Reclassification" },
+                    { accountCode: GL.REVENUE.SALES, debit: 0, credit: techBillingPrice, description: "Parts Revenue Dist" },
+                    { accountCode: GL.LIABILITIES.ACCRUED_SALARIES, debit: 0, credit: techCommissionAmount, description: "Technician Commission Accrued" },
+                    { accountCode: GL.REVENUE.SALES, debit: 0, credit: centerLaborProfit, description: "Center Labor Profit realized" }
+                ]
+            }, tx);
         }
 
         const updatedTicket = await tx.ticket.update({
             where: { id: ticket.id },
             data: {
-                amountPaid: new Prisma.Decimal(newTotalPaid),
+                amountPaid: newTotalPaid,
                 paymentStatus,
                 paymentMethod: paymentMethod,
                 // Automatically close the ticket if fully paid
@@ -2379,17 +2427,139 @@ export const processTicketPayment = secureAction(async (data: {
         });
 
         // --- Part 4: Engineer Commission Recording ---
-        // Only trigger if status changes to PAID_DELIVERED in this transaction
+        // Only trigger if status changes to PAID_DELIVERED, or paymentStatus reaches 'paid' while DELIVERED
         const wasPaidDelivered = ticket.status === 'PAID_DELIVERED';
         const isPaidDeliveredNow = updatedTicket.status === 'PAID_DELIVERED';
 
         if (isPaidDeliveredNow && !wasPaidDelivered && !isActuallyRefund) {
-            // 1. Record Main Technician Commission (Note: Handled via recordTicketDistribution GL entries)
-            /* 
-            if (ticket.technicianId && Number(ticket.commissionAmount) > 0) {
-                // ... (legacy logic)
+            if (!ticket.id) {
+                throw new Error("Commission record requires a non-null referenceId (ticket.id).");
             }
-            */
+            
+            // 1. Delta-Based Commission/Loss Engine for Reworks & Normal Tickets
+            if (ticket.technicianId) {
+                const currentTechId = ticket.technicianId;
+                const originalTechId = ticket.originalTechId || ticket.technicianId;
+                const netProfit = distributionData.laborPoolAmount || new Decimal(0);
+
+                // --- Normal Ticket (First Time) ---
+                if (originalTechId === currentTechId && !ticket.originalTechId) {
+                    const technician = await tx.technician.findUnique({
+                        where: { id: currentTechId },
+                        include: { commissionRule: true }
+                    });
+
+                    if (technician) {
+                        const existingComm = await tx.employeeTransaction.findFirst({
+                            where: {
+                                referenceId: ticket.id,
+                                type: 'MAINTENANCE_COMMISSION'
+                            }
+                        });
+
+                        if (!existingComm) {
+                            const resolved = resolveCommission(technician, netProfit);
+                            if (resolved.commissionAmount.gt(0)) {
+                                await tx.employeeTransaction.create({
+                                    data: {
+                                        userId: technician.userId,
+                                        type: 'MAINTENANCE_COMMISSION',
+                                        amount: resolved.commissionAmount.toNumber(),
+                                        description: `عمولة صيانة: ${ticket.barcode} (سداد الفاتورة)`,
+                                        referenceId: ticket.id,
+                                        referenceType: 'TICKET'
+                                    }
+                                });
+                            }
+                        }
+                    }
+                } 
+                // --- Rework Ticket Logic ---
+                else {
+                    const isPenaltyWaived = ticket.isPenaltyWaived;
+
+                    // A. Handle Current Tech (New Profits)
+                    // If there is profit left, grant it to the current technician.
+                    // IMPORTANT: To prevent double-dipping, if the current technician is the same as the original technician,
+                    // and their penalty was waived (meaning they kept their original commission), DO NOT grant them a second commission on the same profit pool.
+                    const isSameTech = currentTechId === originalTechId;
+                    const canGrantNewCommission = !isSameTech || (isSameTech && !isPenaltyWaived);
+
+                    if (netProfit.gt(0) && canGrantNewCommission) {
+                        const currentTech = await tx.technician.findUnique({
+                            where: { id: currentTechId },
+                            include: { commissionRule: true }
+                        });
+                        
+                        if (currentTech && currentTech.userId) {
+                            const existingComm = await tx.employeeTransaction.findFirst({
+                                where: {
+                                    referenceId: ticket.id,
+                                    type: 'MAINTENANCE_COMMISSION',
+                                    userId: currentTech.userId,
+                                    createdAt: { gt: ticket.lastReturnedAt || ticket.createdAt }
+                                }
+                            });
+
+                            if (!existingComm) {
+                                const resolved = resolveCommission(currentTech, netProfit);
+                                if (resolved.commissionAmount.gt(0)) {
+                                    await tx.employeeTransaction.create({
+                                        data: {
+                                            userId: currentTech.userId,
+                                            type: 'MAINTENANCE_COMMISSION',
+                                            amount: resolved.commissionAmount.toNumber(),
+                                            description: `عمولة إعادة صيانة: ${ticket.barcode}`,
+                                            referenceId: ticket.id,
+                                            referenceType: 'TICKET_REWORK'
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // B. Handle Original Tech (Loss)
+                    // If there is a net loss, and penalty is NOT waived, deduct from original tech.
+                    if (netProfit.lt(0) && !isPenaltyWaived) {
+                        const originalTech = await tx.technician.findUnique({
+                            where: { id: originalTechId }
+                        });
+                        
+                        if (originalTech && originalTech.userId) {
+                            let lossShare = originalTech.lossSharePercentage || new Decimal(0);
+                            if (lossShare.isNaN() || !lossShare.isFinite()) {
+                                lossShare = new Decimal(0);
+                            }
+                            const expectedLoss = netProfit.abs().mul(lossShare.div(100));
+                            
+                            if (expectedLoss.gt(0)) {
+                                const existingLoss = await tx.employeeTransaction.findFirst({
+                                    where: {
+                                        referenceId: ticket.id,
+                                        type: 'LOSS_DEDUCTION',
+                                        userId: originalTech.userId,
+                                        createdAt: { gt: ticket.lastReturnedAt || ticket.createdAt }
+                                    }
+                                });
+
+                                if (!existingLoss) {
+                                    await tx.employeeTransaction.create({
+                                        data: {
+                                            userId: originalTech.userId,
+                                            type: 'LOSS_DEDUCTION',
+                                            amount: -expectedLoss.toNumber(), // Negative amount for debit
+                                            description: `خصم خسارة إعادة صيانة (عيب فني): ${ticket.barcode}`,
+                                            referenceId: ticket.id,
+                                            referenceType: 'TICKET_REWORK'
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // 2. Record Collaborators Commissions
             const collaborators = await tx.ticketCollaborator.findMany({
@@ -2398,18 +2568,26 @@ export const processTicketPayment = secureAction(async (data: {
             });
 
             for (const collab of collaborators) {
-                const repairPriceDec = new Prisma.Decimal(ticket.repairPrice || 0);
-                const partsCostDec = new Prisma.Decimal(ticket.partsCost || 0);
-                const netProfitDec = repairPriceDec.minus(partsCostDec);
-                const collabRateDec = new Prisma.Decimal(collab.commissionRate || 0);
-                const collabCommissionDec = netProfitDec.mul(collabRateDec.div(100));
+                const repairPriceDec = new Decimal(ticket.repairPrice || 0);
+                const partsCostDec = new Decimal(ticket.partsCost || 0);
+                
+                const laborPoolAmount = distributionData.laborPoolAmount || new Decimal(0);
+                
+                console.warn('[COMMISSION_BASE_MIGRATION]', { 
+                    ticketId: ticket.id, 
+                    oldBase: repairPriceDec.minus(partsCostDec).toNumber(), 
+                    newBase: laborPoolAmount.toNumber() 
+                });
+
+                const collabRateDec = new Decimal(collab.commissionRate || 0);
+                const collabCommissionDec = laborPoolAmount.mul(collabRateDec.div(100));
 
                 if (collabCommissionDec.gt(0)) {
                     await tx.employeeTransaction.create({
                         data: {
                             userId: collab.technician.userId,
                             type: 'MAINTENANCE_COMMISSION',
-                            amount: collabCommissionDec,
+                            amount: collabCommissionDec.toNumber(),
                             description: `عمولة تعاون (مساعد) تذكرة #${ticket.barcode}`,
                             referenceId: ticket.id,
                             referenceType: 'TICKET'
@@ -2421,7 +2599,7 @@ export const processTicketPayment = secureAction(async (data: {
 
         if (paymentMethod !== 'ACCOUNT' && !effectiveAmount.isZero()) {
             const shiftUpdate: import("@prisma/client").Prisma.ShiftUpdateInput = {};
-            const absAmount = new Prisma.Decimal(Math.abs(effectiveAmount.toNumber()));
+            const absAmount = effectiveAmount.abs();
 
             switch (paymentMethod) {
                 case 'CASH':
@@ -2477,10 +2655,14 @@ export const processTicketPayment = secureAction(async (data: {
                 if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
             }
 
+            if (currentUser.branchId && !defaultTreasuryId) {
+                throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل استقبال المدفوعات.");
+            }
+
             await tx.transaction.create({
                 data: {
                     type: txType,
-                    amount: new Prisma.Decimal(effectiveAmount),
+                    amount: effectiveAmount,
                     paymentMethod,
                     description: `Ticket #${ticket.barcode} (${isActuallyRefund ? 'Refund' : paymentType})`,
                     shiftId: currentShift.id,
@@ -2492,14 +2674,15 @@ export const processTicketPayment = secureAction(async (data: {
                 // Use increment with signed value to correctly handle both payments and refunds
                 await tx.treasury.update({
                     where: { id: defaultTreasuryId },
-                    data: { balance: { increment: new Prisma.Decimal(effectiveAmount) } }
+                    data: { balance: { increment: effectiveAmount } }
                 });
             }
 
             // Unified Accounting Integration (Fix B17 & B18)
+            let je: any = null;
             if (isActuallyRefund) {
-                await AccountingEngine.recordRefund({
-                    amount: Math.abs(effectiveAmount.toNumber()),
+                je = await AccountingEngine.recordRefund({
+                    amount: effectiveAmount.abs().toNumber(),
                     method: paymentMethod,
                     description: `Ticket #${ticket.barcode} Refund`,
                     reference: ticket.id,
@@ -2507,7 +2690,7 @@ export const processTicketPayment = secureAction(async (data: {
                     branchId: currentUser.branchId ?? undefined
                 }, tx);
             } else {
-                await AccountingEngine.recordMaintenancePayment({
+                je = await AccountingEngine.recordMaintenancePayment({
                     amount: effectiveAmount,
                     method: paymentMethod,
                     description: `Ticket #${ticket.barcode} ${paymentType}`,
@@ -2518,9 +2701,15 @@ export const processTicketPayment = secureAction(async (data: {
                     isSync: false
                 }, tx);
             }
+            if (je && paymentRecordId) {
+                await tx.repairPayment.update({
+                    where: { id: paymentRecordId },
+                    data: { journalEntryId: je.id }
+                });
+            }
         } else if (paymentMethod === 'ACCOUNT' && !effectiveAmount.isZero()) {
             // B18 Fix: Record deferred revenue in GL
-            await AccountingEngine.recordMaintenancePayment({
+            const je = await AccountingEngine.recordMaintenancePayment({
                 amount: effectiveAmount,
                 method: paymentMethod,
                 description: `Ticket #${ticket.barcode} Account Deferred`,
@@ -2530,6 +2719,12 @@ export const processTicketPayment = secureAction(async (data: {
                 shiftId: currentShift.id,
                 isSync: false
             }, tx);
+            if (je && paymentRecordId) {
+                await tx.repairPayment.update({
+                    where: { id: paymentRecordId },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         return updatedTicket;
@@ -2576,8 +2771,8 @@ export const getOrCreateCustomer = secureAction(async (data: {
         name: customer.name,
         phone: customer.phone,
         email: customer.email,
-        balance: Number(customer.balance),
-        creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null
+        balance: new Decimal(customer.balance?.toString() || 0).toNumber(),
+        creditLimit: customer.creditLimit ? new Decimal(customer.creditLimit.toString()).toNumber() : null
     };
 }, { permission: PERMISSIONS.TICKET_VIEW, requireCSRF: false });
 
@@ -2899,17 +3094,18 @@ export const fullTicketReturn = secureAction(async (data: {
         }
 
         // --- Part 2: Financial Refund ---
-        const amountToRefund = new Decimal(ticket.amountPaid || 0);
+        const amountToRefund = new Decimal(ticket.amountPaid?.toString() || 0);
+        
         if (amountToRefund.gt(0)) {
             const lastPayment = ticket.payments.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
             const refundMethod = lastPayment?.method || ticket.paymentMethod || 'CASH';
 
             // 1. Create Refund record in RepairPayment
-            await tx.repairPayment.create({
+            const payment = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: 'REFUND',
-                    amount: new Decimal(amountToRefund),
+                    amount: amountToRefund,
                     method: refundMethod,
                     reference: `Full Return: ${reason}`,
                     recordedBy: currentUser.name || currentUser.username || 'System'
@@ -2924,7 +3120,7 @@ export const fullTicketReturn = secureAction(async (data: {
                     data: {
                         customerId: ticket.customerId,
                         type: 'CREDIT', // Standardized to CREDIT for returns
-                        amount: new Decimal(amountToRefund),
+                        amount: amountToRefund,
                         description: `Ticket #${ticket.barcode} - Full Return Refund`,
                         reference: ticket.id,
                         createdBy: currentUser.id
@@ -2934,7 +3130,7 @@ export const fullTicketReturn = secureAction(async (data: {
                 if (isDeferred) {
                     await tx.customer.update({
                         where: { id: ticket.customerId },
-                        data: { balance: { decrement: new Decimal(amountToRefund) } }
+                        data: { balance: { decrement: amountToRefund } }
                     });
                 }
             }
@@ -2946,11 +3142,11 @@ export const fullTicketReturn = secureAction(async (data: {
             });
 
             if (lastEntry) {
-                await AutoJournalService.reverseJournalEntry(tx, {
-                    originalEntryId: lastEntry.id,
-                    reason: `Full Return Refund (${reason})`,
-                    branchId: ticket.currentBranchId || undefined
-                });
+                await AccountingEngine.reverseJournalEntry(
+                    lastEntry.id,
+                    `REVERSAL_${lastEntry.id}`,
+                    tx
+                );
             }
 
             // 💰 [NEW] Profit-First Loss Absorption (Clawback)
@@ -3037,7 +3233,7 @@ export const fullTicketReturn = secureAction(async (data: {
             }
 
             // 3. Update Shift Balances (Standardized to use totalRefunds)
-            const absAmount = new Decimal(amountToRefund);
+            const absAmount = amountToRefund;
             if (refundMethod === 'ACCOUNT' || refundMethod === 'DEFERRED') {
                 await tx.shift.update({
                     where: { id: currentShift.id },
@@ -3083,6 +3279,10 @@ export const fullTicketReturn = secureAction(async (data: {
                     treasuryId = defaultTreasury?.id || null;
                 }
 
+                if (refundMethod !== 'ACCOUNT' && refundMethod !== 'DEFERRED' && currentUser.branchId && !treasuryId) {
+                    throw new Error("لا يوجد صندوق افتراضي لهذا الفرع. يرجى تكوين صندوق قبل إتمام الاسترجاع.");
+                }
+
                 await tx.transaction.create({
                     data: {
                         type: 'REFUND',
@@ -3110,7 +3310,7 @@ export const fullTicketReturn = secureAction(async (data: {
             }
 
             // 5. Unified Double-Entry Accounting
-            await AccountingEngine.recordRefund({
+            const je = await AccountingEngine.recordRefund({
                 amount: amountToRefund,
                 method: refundMethod,
                 description: `Full Return: Ticket #${ticket.barcode}`,
@@ -3120,6 +3320,13 @@ export const fullTicketReturn = secureAction(async (data: {
                 spoilageAmount: totalDamagedPartsCost.toNumber(),
                 branchId: currentUser.branchId ?? undefined
             }, tx);
+
+            if (je) {
+                await tx.repairPayment.update({
+                    where: { id: payment.id },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         // --- Part 3: Ticket Status Update ---
@@ -3415,8 +3622,9 @@ export const partialRefundTicket = secureAction(async (data: {
         }
 
         // 3. Create Refund Payment Record
+        let payment: any = null;
         if (totalRefundAmount.gt(0)) {
-            await tx.repairPayment.create({
+            payment = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
                     type: 'REFUND',
@@ -3500,7 +3708,7 @@ export const partialRefundTicket = secureAction(async (data: {
             }
 
             // 6. Accounting
-            await AccountingEngine.recordRefund({
+            const je = await AccountingEngine.recordRefund({
                 amount: totalRefundAmount.toNumber(),
                 method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
                 description: `Partial Refund: Ticket #${ticket.barcode}`,
@@ -3510,6 +3718,13 @@ export const partialRefundTicket = secureAction(async (data: {
                 spoilageAmount: totalSpoilageAmount.toNumber(),
                 branchId: currentUser.branchId ?? undefined
             }, tx);
+
+            if (je && payment) {
+                await tx.repairPayment.update({
+                    where: { id: payment.id },
+                    data: { journalEntryId: je.id }
+                });
+            }
         }
 
         return { success: true, refundedAmount: totalRefundAmount.toNumber() };
@@ -3585,7 +3800,7 @@ export const fullRefundTicket = secureAction(async (data: {
         }
 
         // 2. Create Refund Record
-        await tx.repairPayment.create({
+        const payment = await tx.repairPayment.create({
             data: {
                 ticketId: ticket.id,
                 type: 'REFUND',
@@ -3646,7 +3861,7 @@ export const fullRefundTicket = secureAction(async (data: {
         }
 
         // 5. Accounting Log
-        await AccountingEngine.recordRefund({
+        const je = await AccountingEngine.recordRefund({
             amount: totalRefundAmount.toNumber(),
             method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
             description: `Full Refund: Ticket #${ticket.barcode}`,
@@ -3657,6 +3872,13 @@ export const fullRefundTicket = secureAction(async (data: {
             branchId: currentUser.branchId ?? undefined
         }, tx);
 
+        if (je) {
+            await tx.repairPayment.update({
+                where: { id: payment.id },
+                data: { journalEntryId: je.id }
+            });
+        }
+
         return { success: true };
     }, { timeout: 90000 });
 
@@ -3665,5 +3887,102 @@ export const fullRefundTicket = secureAction(async (data: {
     return result;
 }, { permission: PERMISSIONS.TICKET_EDIT });
 
+export const overrideProfitDistribution = secureAction(async (data: {
+    ticketId: string;
+    newTechCommissionAmount: number;
+    csrfToken?: string;
+}) => {
+    const currentUser = await getCurrentUser();
+    if (!currentUser || !['ADMIN', 'مدير النظام', 'المالك'].includes(currentUser.role)) {
+        return { success: false, error: "Unauthorized. Admin/Manager required." };
+    }
 
+    const { ticketId, newTechCommissionAmount } = data;
 
+    const result = await prisma.$transaction(async (tx) => {
+        const ticket = await tx.ticket.findUnique({
+            where: { id: ticketId }
+        });
+
+        if (!ticket) throw new Error("Ticket not found");
+        if (ticket.status !== 'PAID_DELIVERED') {
+            throw new Error("Cannot override distribution. Ticket is not PAID_DELIVERED.");
+        }
+
+        const laborPoolAmount = new Decimal(ticket.laborPoolAmount?.toString() || 0);
+        const centerPartProfit = new Decimal(ticket.centerPartProfit?.toString() || 0);
+        const newCommission = new Decimal(newTechCommissionAmount);
+        
+        // Calculate new center labor profit
+        const newCenterLaborProfit = laborPoolAmount.minus(newCommission);
+        const newNetProfit = newCenterLaborProfit.plus(centerPartProfit);
+
+        // Accounting Logic
+        const originalIdempotencyKey = `TICKET_DIST_${ticketId}`;
+        const existingOriginal = await tx.journalEntry.findFirst({
+            where: { idempotencyKey: originalIdempotencyKey }
+        });
+
+        if (existingOriginal) {
+            // Check if already reversed
+            const alreadyReversed = await tx.journalEntry.findFirst({
+                where: { reference: existingOriginal.id, description: { startsWith: 'REVERSAL:' } }
+            });
+            if (!alreadyReversed) {
+                await AccountingEngine.reverseJournalEntry(existingOriginal.id, `REV_${originalIdempotencyKey}_${Date.now()}`, tx);
+            }
+        }
+
+        // 🐛 FIX: Must also reverse any prior overrides to prevent compounding balances
+        const priorOverrides = await tx.journalEntry.findMany({
+            where: { 
+                reference: ticketId,
+                idempotencyKey: { startsWith: `TICKET_DIST_OVERRIDE_${ticketId}_` }
+            }
+        });
+
+        for (const override of priorOverrides) {
+            const alreadyReversed = await tx.journalEntry.findFirst({
+                where: { reference: override.id, description: { startsWith: 'REVERSAL:' } }
+            });
+            if (!alreadyReversed) {
+                await AccountingEngine.reverseJournalEntry(override.id, `REV_${override.idempotencyKey}_${Date.now()}`, tx);
+            }
+        }
+
+        // Only repost if the original entry was reversed successfully or we didn't find one but still need to post?
+        // Let's always repost to fix the ledger with the new values.
+        const finalCustomerPrice = new Decimal(ticket.finalCustomerPrice?.toString() || 0);
+        const techBillingPrice = new Decimal(ticket.techBillingPrice?.toString() || 0);
+
+        await AccountingEngine.recordTransaction({
+            description: `Maintenance Distribution Override: Ticket #${ticket.barcode}`,
+            reference: ticket.id,
+            branchId: ticket.currentBranchId ?? undefined,
+            idempotencyKey: `TICKET_DIST_OVERRIDE_${ticket.id}_${Date.now()}`,
+            lines: [
+                { accountCode: GL.REVENUE.SERVICE, debit: finalCustomerPrice, credit: 0, description: "Service Revenue Reclassification" },
+                { accountCode: GL.REVENUE.SALES, debit: 0, credit: techBillingPrice, description: "Parts Revenue Dist" },
+                { accountCode: GL.LIABILITIES.ACCRUED_SALARIES, debit: 0, credit: newCommission, description: "Technician Commission Accrued (Override)" },
+                { accountCode: GL.REVENUE.SALES, debit: 0, credit: newCenterLaborProfit, description: "Center Labor Profit realized (Override)" }
+            ]
+        }, tx);
+
+        // Update Ticket
+        const updatedTicket = await tx.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                techCommissionAmount: newCommission,
+                centerLaborProfit: newCenterLaborProfit,
+                commissionAmount: newCommission, // Legacy field
+                netProfit: newNetProfit
+            }
+        });
+
+        return updatedTicket;
+    }, { timeout: 90000 });
+
+    revalidatePath(`/maintenance/tickets/${ticketId}`);
+    revalidatePath(`/ar/maintenance/tickets/${ticketId}`);
+    return { success: true, data: result };
+}, { permission: PERMISSIONS.TICKET_EDIT });

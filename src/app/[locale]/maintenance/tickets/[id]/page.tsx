@@ -46,6 +46,7 @@ import RejectTicketModal from "@/components/tickets/RejectTicketModal";
 import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModal";
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
+import ProfitDistributionOverrideModal from "@/components/tickets/ProfitDistributionOverrideModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
 import { printService } from "@/lib/print-service";
 
@@ -246,6 +247,7 @@ export default function TicketDetailPage() {
     const [showRefundModal, setShowRefundModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showTechModal, setShowTechModal] = useState(false);
+    const [showProfitOverrideModal, setShowProfitOverrideModal] = useState(false);
     const [editingIssue, setEditingIssue] = useState(false);
     const [issueText, setIssueText] = useState('');
     const [showSecurityCode, setShowSecurityCode] = useState(false);
@@ -754,6 +756,7 @@ export default function TicketDetailPage() {
                                     onUpdate={loadData}
                                     isWarrantyTicket={!!ticket.parentTicketId}
                                     lastReturnedAt={ticket.lastReturnedAt}
+                                    userRole={user?.role}
                                 />
 
                                 <CollaboratorManager 
@@ -971,24 +974,35 @@ export default function TicketDetailPage() {
                             {/* Profit Distribution Snapshot (New: CP-02) */}
                             {ticket.status === 'PAID_DELIVERED' && ticket.finalCustomerPrice > 0 && (
                                 <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-gradient-to-br dark:from-zinc-800 dark:to-zinc-900 border-2 border-slate-300 dark:border-zinc-700 space-y-3 animate-fly-in shadow-lg">
-                                    <h4 className="text-[10px] font-black text-slate-900 dark:text-cyan-500 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                                        <Database className="w-3 h-3" />
-                                        توزيع الأرباح النهائي
-                                    </h4>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="text-[10px] font-black text-slate-900 dark:text-cyan-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                                            <Database className="w-3 h-3" />
+                                            توزيع الأرباح النهائي
+                                        </h4>
+                                        {['ADMIN', 'مدير النظام', 'المالك'].includes(user?.role) && (
+                                            <button 
+                                                onClick={() => setShowProfitOverrideModal(true)}
+                                                className="text-cyan-600 hover:text-cyan-500 transition-colors p-1"
+                                                title="تعديل نسبة الربح/الخسارة"
+                                            >
+                                                <Edit2 className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
                                     
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center px-1">
-                                            <span className="text-[10px] text-slate-600 dark:text-zinc-500 font-bold">وعاء المصنعية</span>
-                                            <span className="text-xs font-black text-slate-900 dark:text-white">{ticket.laborPoolAmount.toLocaleString()} <span className="text-[9px] text-slate-500 dark:text-zinc-600">EGP</span></span>
+                                            <span className={`text-[10px] font-bold ${ticket.laborPoolAmount < 0 ? 'text-red-500' : 'text-slate-600 dark:text-zinc-500'}`}>وعاء المصنعية</span>
+                                            <span className={`text-xs font-black ${ticket.laborPoolAmount < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{ticket.laborPoolAmount.toLocaleString()} <span className="text-[9px] opacity-60">EGP</span></span>
                                         </div>
                                         <div className="flex justify-between items-center px-1">
-                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-500/70 font-bold">عمولة المهندس</span>
-                                            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">-{ticket.techCommissionAmount.toLocaleString()} <span className="text-[9px] text-slate-500 dark:text-zinc-600">EGP</span></span>
+                                            <span className={`text-[10px] font-bold ${ticket.techCommissionAmount < 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-500/70'}`}>عمولة المهندس</span>
+                                            <span className={`text-xs font-black ${ticket.techCommissionAmount < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{ticket.techCommissionAmount.toLocaleString()} <span className="text-[9px] opacity-60">EGP</span></span>
                                         </div>
                                         <Separator className="bg-slate-200 dark:bg-white/5" />
                                         <div className="flex justify-between items-center px-1 pt-1">
-                                            <span className="text-[10px] text-slate-800 dark:text-cyan-500 font-bold">صافي ربح المركز</span>
-                                            <span className="text-sm font-black text-slate-900 dark:text-white">{(ticket.centerLaborProfit + ticket.centerPartProfit).toLocaleString()} <span className="text-[9px] text-slate-500 dark:text-zinc-600 uppercase">EGP</span></span>
+                                            <span className={`text-[10px] font-bold ${(ticket.centerLaborProfit + ticket.centerPartProfit) < 0 ? 'text-red-500' : 'text-slate-800 dark:text-cyan-500'}`}>صافي ربح المركز</span>
+                                            <span className={`text-sm font-black ${(ticket.centerLaborProfit + ticket.centerPartProfit) < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{(ticket.centerLaborProfit + ticket.centerPartProfit).toLocaleString()} <span className="text-[9px] opacity-60 uppercase">EGP</span></span>
                                         </div>
                                     </div>
                                 </div>
@@ -1159,6 +1173,15 @@ export default function TicketDetailPage() {
                     deviceBrand: ticket.deviceBrand,
                     deviceModel: ticket.deviceModel,
                 }}
+                onSuccess={loadData}
+            />
+
+            <ProfitDistributionOverrideModal
+                isOpen={showProfitOverrideModal}
+                onClose={() => setShowProfitOverrideModal(false)}
+                ticketId={ticket?.id}
+                laborPoolAmount={ticket?.laborPoolAmount || 0}
+                currentTechCommission={ticket?.techCommissionAmount || 0}
                 onSuccess={loadData}
             />
         </div>

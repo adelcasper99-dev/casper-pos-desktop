@@ -19,8 +19,8 @@ export const processWalletTransaction = secureAction(async (data: {
     operationType: 'DEPOSIT' | 'WITHDRAWAL';
     digitalTreasuryId: string;
     physicalTreasuryId: string;
-    baseAmount: number;
-    commission: number;
+    baseAmount: number | string;
+    commission: number | string;
     notes?: string;
     idempotencyKey?: string;
 }) => {
@@ -79,8 +79,8 @@ export const processWalletTransaction = secureAction(async (data: {
 
         // 🟢 DIGITAL MOVEMENT
         const digitalUpdate = data.operationType === 'DEPOSIT' 
-            ? { decrement: baseAmount.toNumber() } 
-            : { increment: baseAmount.toNumber() };
+            ? { decrement: baseAmount } 
+            : { increment: baseAmount };
         
         await tx.treasury.update({
             where: { id: digitalSafe.id },
@@ -101,8 +101,8 @@ export const processWalletTransaction = secureAction(async (data: {
 
         // 🟢 PHYSICAL MOVEMENT
         const physicalUpdate = data.operationType === 'DEPOSIT'
-            ? { increment: totalPhysicalMovement.toNumber() }
-            : { decrement: totalPhysicalMovement.toNumber() };
+            ? { increment: totalPhysicalMovement }
+            : { decrement: totalPhysicalMovement };
 
         await tx.treasury.update({
             where: { id: physicalSafe.id },
@@ -126,14 +126,14 @@ export const processWalletTransaction = secureAction(async (data: {
         // Deposit:    DR Digital (Base), CR Physical (Base-Comm), CR Revenue (Comm)
         const journalLines = data.operationType === 'WITHDRAWAL' 
             ? [
-                { accountCode: physicalSafe.glCode || '1000', debit: totalPhysicalMovement.toNumber(), credit: 0, description: 'Physical Cash Movement (In)' },
-                { accountCode: digitalSafe.glCode || '1020', debit: 0, credit: baseAmount.toNumber(), description: 'Digital Wallet Movement (Out)' },
-                { accountCode: '4500', debit: 0, credit: commission.toNumber(), description: 'E-Wallet Commission' }
+                { accountCode: physicalSafe.glCode || '1000', debit: totalPhysicalMovement, credit: 0, description: 'Physical Cash Movement (In)' },
+                { accountCode: digitalSafe.glCode || '1020', debit: 0, credit: baseAmount, description: 'Digital Wallet Movement (Out)' },
+                { accountCode: '4500', debit: 0, credit: commission, description: 'E-Wallet Commission' }
             ]
             : [
-                { accountCode: digitalSafe.glCode || '1020', debit: baseAmount.toNumber(), credit: 0, description: 'Digital Wallet Movement (In)' },
-                { accountCode: physicalSafe.glCode || '1000', debit: 0, credit: totalPhysicalMovement.toNumber(), description: 'Physical Cash Movement (Out)' },
-                { accountCode: '4500', debit: 0, credit: commission.toNumber(), description: 'E-Wallet Commission' }
+                { accountCode: digitalSafe.glCode || '1020', debit: baseAmount, credit: 0, description: 'Digital Wallet Movement (In)' },
+                { accountCode: physicalSafe.glCode || '1000', debit: 0, credit: totalPhysicalMovement, description: 'Physical Cash Movement (Out)' },
+                { accountCode: '4500', debit: 0, credit: commission, description: 'E-Wallet Commission' }
             ];
 
         await AccountingEngine.recordTransaction({
@@ -150,8 +150,8 @@ export const processWalletTransaction = secureAction(async (data: {
                 await tx.shift.update({
                     where: { id: shift.id },
                     data: {
-                        totalCashSales: { decrement: totalPhysicalMovement.toNumber() },
-                        totalWalletSales: { increment: baseAmount.toNumber() }
+                        totalCashSales: { decrement: totalPhysicalMovement },
+                        totalWalletSales: { increment: baseAmount }
                     }
                 });
             } else {
@@ -159,8 +159,8 @@ export const processWalletTransaction = secureAction(async (data: {
                 await tx.shift.update({
                     where: { id: shift.id },
                     data: {
-                        totalCashSales: { increment: totalPhysicalMovement.toNumber() },
-                        totalWalletSales: { decrement: baseAmount.toNumber() }
+                        totalCashSales: { increment: totalPhysicalMovement },
+                        totalWalletSales: { decrement: baseAmount }
                     }
                 });
             }

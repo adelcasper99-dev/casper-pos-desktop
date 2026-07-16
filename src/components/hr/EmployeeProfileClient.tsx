@@ -755,9 +755,15 @@ export default function EmployeeProfileClient({
                                             </td>
                                             <td className={clsx(
                                                 "p-4 text-center font-black tabular-nums",
-                                                Number(ticket.displayCommission || 0) >= 0 ? "text-cyan-600 dark:text-cyan-400" : "text-rose-600 dark:text-rose-400"
+                                                Number(ticket.displayCommission || 0) >= 0 ? "text-cyan-600 dark:text-cyan-400" : "text-rose-600 dark:text-rose-400",
+                                                ticket.isPendingCredit && "opacity-50 line-through decoration-amber-500/50"
                                             )}>
                                                 {Number(ticket.displayCommission || 0).toLocaleString()} EGP
+                                                {ticket.isPendingCredit && (
+                                                    <Badge className="block mt-1 mx-auto w-max text-[10px] font-bold px-2 py-0.5 border-none bg-amber-500/10 text-amber-500 dark:text-amber-400">
+                                                        ⏳ آجل - معلق
+                                                    </Badge>
+                                                )}
                                             </td>
                                             <td className="p-4">
                                                 <button onClick={() => router.push(`/${locale}/maintenance/tickets/${ticket.id}`)} className="text-[10px] font-bold text-zinc-400 hover:text-white flex items-center gap-1 transition-colors">
@@ -785,7 +791,7 @@ export default function EmployeeProfileClient({
                                                 {data.tickets.reduce((acc: number, t: any) => acc + Number(t.laborAmount || 0), 0).toLocaleString()} EGP
                                             </td>
                                             <td className="p-4 text-center font-black text-xl text-cyan-400 tabular-nums">
-                                                {data.tickets.reduce((acc: number, t: any) => acc + Number(t.displayCommission || 0), 0).toLocaleString()} EGP
+                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.isPendingCredit ? 0 : Number(t.displayCommission || 0)), 0).toLocaleString()} EGP
                                             </td>
                                             <td></td>
                                         </tr>

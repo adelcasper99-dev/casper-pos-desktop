@@ -116,7 +116,7 @@ export function CustomerAutocomplete({ onSelect, placeholder = "Search existing 
                                             </p>
                                             {customer.balance !== undefined && customer.balance > 0 && (
                                                 <span className="text-[10px] bg-slate-900 dark:bg-white text-white dark:text-black px-2 py-1 rounded-md border border-slate-900 dark:border-white font-mono font-bold shadow-lg shadow-black/10">
-                                                    {customer.balance}
+                                                    {-Number(customer.balance)}
                                                 </span>
                                             )}
                                         </div>

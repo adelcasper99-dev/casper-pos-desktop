@@ -1426,6 +1426,44 @@ ipcMain.handle('app:restore-from-external-file', async (event, sourcePath) => {
 app.on('before-quit', () => {
     stopQueueWorker();
     whatsappService.destroyClient();
+    if (activeTunnel) activeTunnel.close();
+});
+
+let activeTunnel = null;
+let activeTunnelUrl = null;
+
+safeHandle('tunnel:start', async (event, branchCode) => {
+    try {
+        if (activeTunnel) {
+            return { success: true, url: activeTunnelUrl };
+        }
+        
+        // Define fixed subdomain based on branch code, e.g. casper-pos-store-1
+        const subdomain = branchCode ? `casper-pos-${branchCode}` : undefined;
+        
+        activeTunnel = await localtunnel({ port: appPort, subdomain });
+        activeTunnelUrl = activeTunnel.url;
+        
+        activeTunnel.on('close', () => {
+            log('Tunnel closed');
+            activeTunnel = null;
+            activeTunnelUrl = null;
+        });
+        
+        activeTunnel.on('error', (err) => {
+            log(`Tunnel error: ${err.message}`);
+        });
+
+        log(`Tunnel established at ${activeTunnelUrl}`);
+        return { success: true, url: activeTunnelUrl };
+    } catch (err) {
+        log(`Tunnel failed to start: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+});
+
+safeHandle('tunnel:status', () => {
+    return { success: true, url: activeTunnelUrl, active: !!activeTunnel };
 });
 
 app.whenReady().then(async () => {

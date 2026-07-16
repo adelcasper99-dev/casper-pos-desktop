@@ -86,6 +86,7 @@ interface TicketPartsManagerProps {
     onUpdate?: () => void;
     isWarrantyTicket?: boolean;
     lastReturnedAt?: string | Date | null;
+    userRole?: string;
 }
 
 export default function TicketPartsManager({
@@ -98,7 +99,8 @@ export default function TicketPartsManager({
     onChangeTechnician,
     onUpdate,
     isWarrantyTicket,
-    lastReturnedAt
+    lastReturnedAt,
+    userRole
 }: TicketPartsManagerProps) {
     const t = useTranslations("Tickets.PartsManager");
     const formatCurrencyCtx = useFormatCurrency();
@@ -214,11 +216,50 @@ export default function TicketPartsManager({
                     setUsageType("part"); 
                     loadData();
                 } else {
-                    toast.error(res.error || "فشل النقل");
+                    priceValue = Number(manualTransferPrice) || 0;
+                    priceLabel = 'سعر مخصص';
                 }
+
+                const executeTransfer = async () => {
+                    setIsLoading(true);
+                    try {
+                        const res = await transferPartToTechnicianQuick({
+                            technicianId, 
+                            productId: selectedProductId, 
+                            quantity,
+                            transferPrice: priceValue !== undefined ? Number(priceValue) : undefined,
+                            transferPriceLabel: priceLabel,
+                            csrfToken: csrfToken ?? undefined
+                        });
+
+                        if (res.success) {
+                            toast.success("تم النقل للمهندس بنجاح. يمكنك الآن إضافة القطعة للتذكرة.");
+                            setUsageType("part"); 
+                            loadData();
+                        } else {
+                            toast.error(res.error || "فشل النقل");
+                        }
+                    } catch (error: any) {
+                        toast.error(error.message || "فشل النقل");
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+
+                if (transferPriceChoice === 'MANUAL' && selectedProduct && (priceValue !== undefined && priceValue < Number(selectedProduct.costPrice))) {
+                    if (!['ADMIN', 'مدير النظام', 'المالك'].includes(userRole || '')) {
+                        toast.error("عفواً، لا تملك صلاحية لنقل القطعة بأقل من سعر التكلفة");
+                        return;
+                    }
+                    setPendingAction(() => executeTransfer);
+                    setShowBelowCostConfirm(true);
+                    return;
+                }
+
+                await executeTransfer();
+                return;
             } catch (error: any) {
                 toast.error(error.message || "فشل النقل");
-            } finally {
                 setIsLoading(false);
             }
             return;
@@ -233,7 +274,10 @@ export default function TicketPartsManager({
             // Determine Price based on Tier
             let unitPrice = 0;
             if (selectedProduct) {
-                if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
+                if (selectedPriceTier === 'MANUAL') {
+                    unitPrice = Number(manualPrice) || 0;
+                }
+                else if (selectedPriceTier === 'A') unitPrice = Number(selectedProduct.sellPrice);
                 else if (selectedPriceTier === 'B') unitPrice = Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice);
                 else if (selectedPriceTier === 'C') unitPrice = Number(selectedProduct.sellPrice3 || selectedProduct.sellPrice);
                 else unitPrice = Number(customSellPrice);
@@ -259,17 +303,34 @@ export default function TicketPartsManager({
                 csrfToken: csrfToken ?? undefined
             });
 
-            if (res.success) {
-                toast.success(t('success'));
-                setIsAddingPart(false);
-                resetForm();
-                router.refresh();
-                onUpdate?.();
-            } else {
-                toast.error((res as any).error || t('error'));
-            }
-            setIsLoading(false);
+                    if (res.success) {
+                        toast.success(t('success'));
+                        setIsAddingPart(false);
+                        resetForm();
+                        router.refresh();
+                        onUpdate?.();
+                    } else {
+                        toast.error((res as any).error || t('error'));
+                    }
+                } catch (error: any) {
+                    toast.error(error.message || t('error'));
+                } finally {
+                    setIsLoading(false);
+                }
+            };
 
+            // Security Check for Manual Selling Price
+            if (selectedPriceTier === 'MANUAL' && selectedProduct && unitPrice < Number(selectedProduct.costPrice)) {
+                if (!['ADMIN', 'مدير النظام', 'المالك'].includes(userRole || '')) {
+                    toast.error("عفواً، لا تملك صلاحية لبيع القطعة بأقل من سعر التكلفة");
+                    return;
+                }
+                setPendingAction(() => executeAddPart);
+                setShowBelowCostConfirm(true);
+                return;
+            }
+
+            await executeAddPart();
         } else {
             // Service Adding
             if (!serviceName.trim() || Number(servicePrice) < 0) {
@@ -401,6 +462,7 @@ export default function TicketPartsManager({
                                     const renderRow = (part: TicketPart, isNewAddition: boolean) => {
                                         const isRefunded = part.status === 'REFUNDED';
                                         const isWarrantyPart = !isRefunded && Number(part.price) === 0 && isWarrantyTicket;
+                                        const isBelowCost = !isRefunded && !isWarrantyPart && Number(part.price) < Number(part.cost);
                                         
                                         return (
                                             <TableRow key={part.id} className={cn(
@@ -435,8 +497,10 @@ export default function TicketPartsManager({
                                                             )}
                                                         </div>
                                                         <div className={cn(
-                                                            "text-[10px] font-bold uppercase tracking-widest opacity-80",
-                                                            isRefunded ? "text-muted-foreground/80" : "text-muted-foreground"
+                                                            "text-[10px] font-bold uppercase tracking-widest",
+                                                            isRefunded ? "text-muted-foreground/80 opacity-80" : 
+                                                            isBelowCost ? "text-red-500 dark:text-red-400 font-black" : 
+                                                            "text-muted-foreground opacity-80"
                                                         )}>
                                                             {formatCurrencyCtx(Number(part.price))} /الوحدة
                                                             {part.addedBy && (
@@ -450,7 +514,12 @@ export default function TicketPartsManager({
                                                     isRefunded ? "text-muted-foreground" : "text-foreground/80"
                                                 )}>{part.quantity}</TableCell>
                                                 <TableCell className="text-left px-6">
-                                                    <div className="text-sm font-bold text-cyan-400">
+                                                    <div className={cn(
+                                                        "text-sm font-bold",
+                                                        isRefunded ? "text-muted-foreground" : 
+                                                        isBelowCost ? "text-red-500 dark:text-red-400" : 
+                                                        "text-cyan-400"
+                                                    )}>
                                                         {formatCurrencyCtx(new Decimal(part.price.toString()).mul(part.quantity).toNumber())}
                                                     </div>
                                                 </TableCell>
@@ -857,6 +926,27 @@ export default function TicketPartsManager({
                     </div>
                 </div>
             </ConfirmationModal>
+
+            <ConfirmationModal
+                isOpen={showBelowCostConfirm}
+                onClose={() => {
+                    setShowBelowCostConfirm(false);
+                    setPendingAction(null);
+                }}
+                onConfirm={async () => {
+                    if (pendingAction) {
+                        await pendingAction();
+                    }
+                    setShowBelowCostConfirm(false);
+                    setPendingAction(null);
+                }}
+                title="تأكيد إضافة بسعر أقل من التكلفة"
+                message={`أنت على وشك إضافة القطعة بسعر أقل من التكلفة الأساسية. هل أنت متأكد من رغبتك في الاستمرار؟`}
+                confirmText="نعم، أضف القطعة"
+                cancelText="إلغاء"
+                variant="danger"
+                loading={isLoading}
+            />
         </div>
     );
 }

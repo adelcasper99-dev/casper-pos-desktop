@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { SyncService } from '@/lib/sync-service';
 import { offlineDB } from '@/lib/offline-db';
 import { resetTestDB } from './setup';
+import { CloudConfigManager } from '@/utils/cloudConfigManager';
 
 describe('Sync Engine: DLQ Routing & Backoff', () => {
     
@@ -11,6 +12,13 @@ describe('Sync Engine: DLQ Routing & Backoff', () => {
         
         // Mock global fetch for API failures
         (global as any).fetch = vi.fn();
+        
+        vi.spyOn(CloudConfigManager, 'getCloudConfig').mockResolvedValue({
+            enabled: true,
+            cloudUrl: 'http://localhost:4040',
+            syncSecret: 'test-secret',
+            branchId: 'test-branch'
+        });
     });
 
     /**

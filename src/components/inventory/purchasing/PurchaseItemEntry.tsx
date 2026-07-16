@@ -5,6 +5,7 @@ import { Search, Wand2, Plus } from "lucide-react";
 import { clsx } from "clsx";
 import { Combobox } from "@/components/ui/combobox";
 import CategoryModal from "../CategoryModal";
+import { AsyncCreatableSelect } from "@/components/ui/async-creatable-select";
 import { useState } from "react";
 
 // Define the Product type for existing item props
@@ -27,6 +28,8 @@ interface PurchaseItemEntryProps {
     setNewItemName: (val: string) => void;
     newItemCategoryId: string;
     setNewItemCategoryId: (val: string) => void;
+    newItemModelId?: string;
+    setNewItemModelId?: (val: string) => void;
 
     newItemCost: string;
     setNewItemCost: (val: string) => void;
@@ -80,6 +83,8 @@ export function PurchaseItemEntry({
     setNewItemSellPrice2,
     newItemSellPrice3,
     setNewItemSellPrice3,
+    newItemModelId,
+    setNewItemModelId,
     categories,
     onAutoSku,
     onAddNewSubmit,
@@ -87,9 +92,44 @@ export function PurchaseItemEntry({
 }: PurchaseItemEntryProps) {
     const t = useTranslations('Purchasing');
     const { handleKeyDown, getNavProps } = useKeyboardNavigation();
-    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    
+    const fetchCategories = async (query: string) => {
+        const res = await fetch(`/api/categories?q=${encodeURIComponent(query)}`);
+        const json = await res.json();
+        return json.data.map((c: any) => ({ label: c.name, value: c.id }));
+    };
 
-    const categoryOptions = categories.map(c => ({ label: c.name, value: c.id }));
+    const fetchModels = async (query: string) => {
+        let url = `/api/models?q=${encodeURIComponent(query)}`;
+        if (newItemCategoryId) url += `&categoryId=${newItemCategoryId}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        return json.data.map((m: any) => ({ label: m.name, value: m.id }));
+    };
+
+    const handleCreateCategory = async (name: string) => {
+        const res = await fetch('/api/inventory/categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const json = await res.json();
+        if (json.success && json.category) {
+            return json.category.id;
+        }
+    };
+
+    const handleCreateModel = async (name: string) => {
+        const res = await fetch('/api/inventory/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, categoryId: newItemCategoryId })
+        });
+        const json = await res.json();
+        if (json.success && json.model) {
+            return json.model.id;
+        }
+    };
 
     return (
         <div className="bg-muted/30 rounded-xl p-4 border border-border relative">
@@ -185,26 +225,31 @@ export function PurchaseItemEntry({
                                 />
                             </div>
 
-                            {/* Category */}
-                            <div className="relative">
-                                <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('category')}</label>
-                                <Combobox
-                                    {...getNavProps(4)}
-                                    options={categoryOptions}
-                                    value={newItemCategoryId}
-                                    onChange={setNewItemCategoryId}
-                                    onKeyDown={(e: any) => handleKeyDown(e, 4, 13, undefined)}
-                                    placeholder={t('select')}
-                                    className="h-9 [&_.glass-input]:h-9 [&_.glass-input]:text-xs"
-                                />
-                                <div className="absolute -right-6 top-6">
-                                    <button
-                                        onClick={() => setIsCategoryModalOpen(true)}
-                                        className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 p-1.5 rounded-lg transition-colors"
-                                        title={t('newCategory')}
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </button>
+                            {/* Category & Model Container */}
+                            <div className="lg:col-span-2 grid grid-cols-2 gap-4">
+                                {/* Category */}
+                                <div className="relative">
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">{t('category')}</label>
+                                    <AsyncCreatableSelect
+                                        value={newItemCategoryId}
+                                        onChange={(val) => { setNewItemCategoryId(val); setNewItemModelId?.(''); }}
+                                        fetchOptions={fetchCategories}
+                                        onAdd={handleCreateCategory}
+                                        placeholder={t('select')}
+                                    />
+                                </div>
+
+                                {/* Model */}
+                                <div className="relative">
+                                    <label className="text-xs text-muted-foreground uppercase font-bold mb-1 block">الموديل (اختياري)</label>
+                                    <AsyncCreatableSelect
+                                        value={newItemModelId || ''}
+                                        onChange={(val) => setNewItemModelId?.(val)}
+                                        fetchOptions={fetchModels}
+                                        onAdd={newItemCategoryId ? handleCreateModel : undefined}
+                                        disabled={!newItemCategoryId}
+                                        placeholder="اختر موديل"
+                                    />
                                 </div>
                             </div>
 
@@ -284,15 +329,6 @@ export function PurchaseItemEntry({
                     </>
                 )}
             </div>
-            {/* Category Modal */}
-            <CategoryModal
-                isOpen={isCategoryModalOpen}
-                onClose={() => setIsCategoryModalOpen(false)}
-                csrfToken={csrfToken}
-                onSuccess={(newCategory) => {
-                    setNewItemCategoryId(newCategory.id);
-                }}
-            />
         </div>
     );
 }

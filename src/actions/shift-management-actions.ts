@@ -24,6 +24,12 @@ import { toDecimal, toNumber } from "@/lib/decimal-utils";
 // HELPER FUNCTIONS
 // ============================================================================
 
+export type CloseShiftResult = 
+    | { success: true; shift: any; message?: string }
+    | { success: false; code: "DISCREPANCY_DETECTED"; expectedCash?: string; expectedCard?: string; cashVariance?: string; cardVariance?: string; message: string; notes: string[] }
+    | { success: false; code?: never; message: string; error?: string };
+
+
 /**
  * Get current timezone based on branch settings
  * Default to Africa/Cairo (Egypt) if branch timezone not set
@@ -193,6 +199,7 @@ export const closeShift = secureAction(async (data: {
     actualCash: number;
     notes?: string;
     cashBreakdown?: Record<string, number>;
+    cardTerminalSettlement?: number;
     safeDropAmount?: number;
     safeDropTreasuryId?: string;
     csrfToken?: string; // For CSRF validation
@@ -225,6 +232,11 @@ export const closeShift = secureAction(async (data: {
     if (shift.status !== "OPEN") {
         throw new Error(t('shiftCloseError', { status: shift.status }));
     }
+
+    const config = await prisma.storeSettings.findUnique({
+        where: { id: "settings" }
+    });
+    const blindCloseEnabled = config?.blindCloseEnabled ?? true;
 
 
     // ✅ CRITICAL FIX: Use ACCUMULATED values (tracked in real-time)
@@ -272,6 +284,16 @@ export const closeShift = secureAction(async (data: {
     const actualCashDecimal = toDecimal(data.actualCash);
     const cashVariance = actualCashDecimal.minus(expectedCash);
 
+    // Card Settlement:
+    const expectedCard = totalCardSales;
+    const submittedCard = data.cardTerminalSettlement !== undefined ? toDecimal(data.cardTerminalSettlement) : expectedCard;
+    const cardVariance = submittedCard.minus(expectedCard);
+
+    // Auto-calculate safe drop for blind close if not provided (Actual Cash - Float)
+    const floatAmount = toDecimal(shift.startCash);
+    const computedSafeDrop = data.safeDropAmount ?? actualCashDecimal.minus(floatAmount).toNumber();
+    const finalSafeDropAmount = Math.max(0, computedSafeDrop);
+
     // ✅ FIX #2: VERIFY COUNTS (Don't recalculate!)
     const actualSalesCount = shift.sales.length;
     const actualTicketsCount = 0; // shift.tickets.length; // REMOVED
@@ -293,53 +315,37 @@ export const closeShift = secureAction(async (data: {
         });
     }
 
+    const VARIANCE_TOLERANCE_EGP = new Decimal('0.00'); // TODO(Finance): Confirm acceptable variance with owner
+
+    // Check cash variance
+    if (cashVariance.abs().gt(VARIANCE_TOLERANCE_EGP)) {
+        hasDiscrepancy = true;
+        discrepancyNotes.push(`Cash variance: Expected=${expectedCash}, Actual=${actualCashDecimal}, Diff=${cashVariance}`);
+        console.error('[CRITICAL] Cash variance detected', { shiftId: shift.id, expected: expectedCash.toNumber(), actual: actualCashDecimal.toNumber() });
+    }
+
+    // Check card variance
+    if (cardVariance.abs().gt(VARIANCE_TOLERANCE_EGP)) {
+        hasDiscrepancy = true;
+        discrepancyNotes.push(`Card variance: Expected=${expectedCard}, Actual=${submittedCard}, Diff=${cardVariance}`);
+        console.error('[CRITICAL] Card variance detected', { shiftId: shift.id, expected: expectedCard.toNumber(), actual: submittedCard.toNumber() });
+    }
+
     // SH-01: Block finalization if discrepancy detected without explicit acceptance
     if (hasDiscrepancy && !data.acceptDiscrepancy) {
         return serialize({
             success: false,
             code: "DISCREPANCY_DETECTED",
-            expected: shift.totalSales,
-            actual: actualSalesCount,
-            message: "عفواً، تم اكتشاف اختلاف في عدد المبيعات المسجل مقارنة بالفعلي. يرجى مراجعة العمليات أو تأكيد الإغلاق من قبل المدير."
+            expectedCash: blindCloseEnabled ? undefined : expectedCash.toFixed(2),
+            expectedCard: blindCloseEnabled ? undefined : expectedCard.toFixed(2),
+            cashVariance: blindCloseEnabled ? undefined : cashVariance.toFixed(2),
+            cardVariance: blindCloseEnabled ? undefined : cardVariance.toFixed(2),
+            notes: discrepancyNotes,
+            message: "عفواً، يوجد اختلاف بين المبالغ الفعلية (أو عدد العمليات) والمتوقعة. يرجى مراجعة الإغلاق أو تأكيد الإغلاق مع العجز/الزيادة."
         });
     }
 
-    /* // REMOVED TICKET CHECK
-    // Check tickets count
-    if (shift.totalTickets !== actualTicketsCount) {
-        hasDiscrepancy = true;
-        const diff = actualTicketsCount - shift.totalTickets;
-        discrepancyNotes.push(
-            `Ticket count mismatch: Recorded=${shift.totalTickets}, Actual=${actualTicketsCount}, Diff=${diff}`
-        );
-        console.error('[CRITICAL] Ticket count discrepancy detected', {
-            shiftId: shift.id,
-            recorded: shift.totalTickets,
-            actual: actualTicketsCount
-        });
-    }
-    */
-
-    // ✅ FIX #3: CREATE AUDIT LOG FOR DISCREPANCIES
-    if (hasDiscrepancy) {
-        await prisma.auditLog.create({
-            data: {
-                entityType: "SHIFT",
-                entityId: shift.id,
-                action: "COUNT_DISCREPANCY",
-                previousData: JSON.stringify({
-                    recorded: { sales: shift.totalSales, tickets: shift.totalTickets },
-                    actual: { sales: actualSalesCount, tickets: actualTicketsCount }
-                }),
-                newData: JSON.stringify({
-                    action: "AUTO_CORRECTED",
-                    correctedTo: { sales: actualSalesCount, tickets: actualTicketsCount }
-                }),
-                reason: discrepancyNotes.join('; '),
-                user: shift.cashierName || 'SYSTEM'
-            }
-        });
-    }
+    // TODO(SH-02): Re-enable ticket count validation after ticket-shift linkage is stabilized
 
     // Use verified counts (with auto-correction if needed)
     const finalSalesCount = hasDiscrepancy ? actualSalesCount : shift.totalSales;
@@ -360,6 +366,8 @@ export const closeShift = secureAction(async (data: {
         totalWalletSales,
         totalInstapay,
         totalAccountSales,
+        cardTerminalSettlement: submittedCard,
+        transitStatus: finalSafeDropAmount > 0 ? "PENDING" : "NONE",
         totalCashRefunds: totalCashRefundsAccumulated,
         totalAccountRefunds: totalAccountRefundsAccumulated,
         totalSplitPayments: splitPaymentCount,
@@ -367,24 +375,70 @@ export const closeShift = secureAction(async (data: {
         totalSales: finalSalesCount,      // ✅ Verified
         totalTickets: finalTicketsCount,  // ✅ Verified
         hasAdjustments: hasDiscrepancy,   // ✅ Flag if corrected
+        cashDenominationsBreakdown: data.cashBreakdown ? data.cashBreakdown : undefined,
         cashBreakdown: data.cashBreakdown ? JSON.stringify(data.cashBreakdown) : undefined,
         notes: hasDiscrepancy
             ? `${data.notes || ''}\n\n[AUTO-CORRECTED]: ${discrepancyNotes.join('\n')}`
             : data.notes || shift.notes
     };
 
-    const closedShift = await prisma.shift.update({
-        where: { id: data.shiftId },
+    const shiftUpdateResult = await prisma.shift.updateMany({
+        where: { id: data.shiftId, status: "OPEN" },
         data: shiftUpdateData
     });
 
+    if (shiftUpdateResult.count === 0) {
+        const existingShift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
+        return serialize({
+            success: true, // Idempotent success
+            shift: existingShift,
+            variance: 0,
+            hasDiscrepancy: false,
+            discrepancyNotes: [],
+            message: "Shift was already closed."
+        });
+    }
+
+    const closedShift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
+
+    // ✅ FIX #3: CREATE AUDIT LOG FOR DISCREPANCIES
+    if (hasDiscrepancy) {
+        await prisma.auditLog.create({
+            data: {
+                entityType: "SHIFT",
+                entityId: shift.id,
+                action: "COUNT_DISCREPANCY",
+                previousData: JSON.stringify({
+                    recorded: { sales: shift.totalSales, tickets: shift.totalTickets },
+                    actual: { sales: actualSalesCount, tickets: actualTicketsCount },
+                    expectedCash: expectedCash.toFixed(2),
+                    expectedCard: expectedCard.toFixed(2)
+                }),
+                newData: JSON.stringify({
+                    action: "AUTO_CORRECTED",
+                    correctedTo: { sales: actualSalesCount, tickets: actualTicketsCount },
+                    cashVariance: cashVariance.toFixed(2),
+                    cardVariance: cardVariance.toFixed(2),
+                    expectedCash: expectedCash.toFixed(2),
+                    expectedCard: expectedCard.toFixed(2),
+                    accepted: data.acceptDiscrepancy ?? false
+                }),
+                reason: discrepancyNotes.join('; '),
+                user: shift.cashierName || 'SYSTEM'
+            }
+        });
+    }
+
     // Handle Safe Drop (Treasury Transfer) AND Accounting Entries
     await prisma.$transaction(async (tx) => {
-        if (data.safeDropAmount && data.safeDropAmount > 0 && data.safeDropTreasuryId) {
+        const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
+        const branchId = shiftOwner?.branchId;
+
+        if (finalSafeDropAmount > 0 && data.safeDropTreasuryId) {
             await tx.transaction.create({
                 data: {
-                    type: 'SAFE_DROP',
-                    amount: toDecimal(data.safeDropAmount || 0),
+                    type: 'TRANSIT_DROP',
+                    amount: toDecimal(finalSafeDropAmount),
                     paymentMethod: 'CASH',
                     description: `Safe Drop from Shift #${shift.id}`,
                     treasuryId: data.safeDropTreasuryId,
@@ -392,10 +446,7 @@ export const closeShift = secureAction(async (data: {
                 }
             });
 
-            await tx.treasury.update({
-                where: { id: data.safeDropTreasuryId },
-                data: { balance: { increment: data.safeDropAmount } }
-            });
+            // Transit Drops DO NOT increment the Treasury yet. The Manager Confirm action will increment it.
 
             // 🆕 Dynamic Treasury GL Mapping (B39)
             let safeDropDestCode = '1020';
@@ -405,31 +456,29 @@ export const closeShift = secureAction(async (data: {
             });
             if (destTreasury?.glCode) safeDropDestCode = destTreasury.glCode;
 
-            // Resolve branchId from shift owner (Shift doesn't have indirect relation to Branch in this schema)
-            const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
-            const branchId = shiftOwner?.branchId;
-
             const shiftTreasury = await tx.treasury.findFirst({
                 where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
             });
             const cashAccountCode = shiftTreasury?.glCode || PAYMENT_METHOD_GL_MAP.CASH;
 
             // ── Phase 4: Z-Report Safe Drop Journal Entry ──
+            const transitAccountCode = '1015'; // Cash In Transit GL Code
             await AccountingEngine.recordTransaction({
-                description: `Z-Report Safe Drop - Shift #${shift.id.slice(0, 8)}`,
+                description: `Z-Report Safe Drop (In Transit) - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
+                idempotencyKey: `SAFE_DROP_${shift.id}`,
                 date: new Date(),
                 branchId: branchId || undefined,
                 lines: [
-                    { accountCode: safeDropDestCode, debit: data.safeDropAmount, credit: 0, description: "Safe Drop - To Treasury" },
-                    { accountCode: cashAccountCode, debit: 0, credit: data.safeDropAmount, description: "Safe Drop - From Cash Drawer" }
+                    { accountCode: transitAccountCode, debit: finalSafeDropAmount, credit: 0, description: "Cash In Transit" },
+                    { accountCode: cashAccountCode, debit: 0, credit: finalSafeDropAmount, description: "Safe Drop - From Cash Drawer" }
                 ]
             }, tx);
         }
 
         // ── Phase 4: Z-Report Cash Variance (Over/Short) ──
         if (!cashVariance.isZero()) {
-            const varianceAmt = Math.abs(cashVariance.toNumber());
+            const varianceAmt = cashVariance.abs();
             const isShortage = cashVariance.isNegative(); // If negative, we have less cash than expected
 
             // 🆕 Get system CashCategory for overage/shortage
@@ -455,9 +504,6 @@ export const closeShift = secureAction(async (data: {
                 });
             }
 
-            const shiftOwner = await tx.user.findUnique({ where: { id: shift.userId }, select: { branchId: true } });
-            const branchId = shiftOwner?.branchId;
-
             const shiftTreasury = await tx.treasury.findFirst({
                 where: { branchId: branchId || undefined, isDefault: true, paymentMethod: "CASH" }
             });
@@ -466,6 +512,7 @@ export const closeShift = secureAction(async (data: {
             await AccountingEngine.recordTransaction({
                 description: `Z-Report Cash Variance - Shift #${shift.id.slice(0, 8)}`,
                 reference: shift.id,
+                idempotencyKey: `CASH_VAR_${shift.id}`,
                 date: new Date(),
                 branchId: branchId || undefined,
                 lines: isShortage ? [
@@ -476,6 +523,27 @@ export const closeShift = secureAction(async (data: {
                     // Overage: Cash In (DR) / Contra-Expense or Income (CR)
                     { accountCode: cashAccountCode, debit: varianceAmt, credit: 0, description: "Cash Register Adjustment" },
                     { accountCode: '4500', debit: 0, credit: varianceAmt, description: "Cash Overage (Gain)" }
+                ]
+            }, tx);
+        }
+
+        // ── Phase 4: Z-Report Card Variance (Over/Short) ──
+        if (!cardVariance.isZero()) {
+            const varAmt = cardVariance.abs();
+            const isShortage = cardVariance.isNegative();
+
+            await AccountingEngine.recordTransaction({
+                description: `Z-Report Card Variance - Shift #${shift.id.slice(0, 8)}`,
+                reference: shift.id,
+                idempotencyKey: `CARD_VAR_${shift.id}`,
+                date: new Date(),
+                branchId: branchId || undefined,
+                lines: isShortage ? [
+                    { accountCode: '5500', debit: varAmt, credit: 0, description: "Card Shortage (Loss)" },
+                    { accountCode: '1030', debit: 0, credit: varAmt, description: "Card Settlement Adjustment" }
+                ] : [
+                    { accountCode: '1030', debit: varAmt, credit: 0, description: "Card Settlement Adjustment" },
+                    { accountCode: '4500', debit: 0, credit: varAmt, description: "Card Overage (Gain)" }
                 ]
             }, tx);
         }

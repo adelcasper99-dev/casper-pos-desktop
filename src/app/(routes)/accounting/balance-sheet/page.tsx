@@ -64,7 +64,7 @@ export default function BalanceSheetPage() {
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
                         <FileText className="w-8 h-8 text-cyan-500" />
-                        الميزانية العمومية (Balance Sheet)
+                        الميزانية العمومية
                     </h1>
                     <p className="text-muted-foreground mt-1">
                         بيان المركز المالي للشركة وعرض الأصول والخصوم وحقوق الملكية
@@ -128,7 +128,7 @@ export default function BalanceSheetPage() {
                         <Card className="shadow-xl border-border bg-card overflow-hidden">
                             <CardHeader className="bg-muted/10 border-b py-4">
                                 <CardTitle className="text-xl font-bold flex justify-between items-center text-cyan-400">
-                                    <span>الأصول (Assets)</span>
+                                    <span>الأصول</span>
                                     <span className="font-mono">{formatCurrency(data.assets.totalAssets)}</span>
                                 </CardTitle>
                             </CardHeader>
@@ -183,7 +183,7 @@ export default function BalanceSheetPage() {
                         <Card className="shadow-xl border-border bg-card overflow-hidden">
                             <CardHeader className="bg-muted/10 border-b py-4">
                                 <CardTitle className="text-xl font-bold flex justify-between items-center text-green-400">
-                                    <span>الخصوم وحقوق الملكية (Liabilities & Equity)</span>
+                                    <span>الخصوم وحقوق الملكية</span>
                                     <span className="font-mono">{formatCurrency(data.totalLiabilitiesAndEquity)}</span>
                                 </CardTitle>
                             </CardHeader>
@@ -275,7 +275,7 @@ export default function BalanceSheetPage() {
 
                                 {/* Current Period Net Profit */}
                                 <div className="p-4 flex justify-between items-center bg-cyan-500/5">
-                                    <h3 className="font-bold text-foreground/90">صافي ربح/خسارة الفترة الحالية (Current Period Net Profit)</h3>
+                                    <h3 className="font-bold text-foreground/90">صافي ربح/خسارة الفترة الحالية</h3>
                                     <span className={`font-bold font-mono ${data.equity.currentPeriodProfit >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
                                         {formatCurrency(data.equity.currentPeriodProfit)}
                                     </span>

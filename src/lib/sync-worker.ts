@@ -19,6 +19,12 @@ export class SyncWorker {
 
         this.currentConfig = await CloudConfigManager.getCloudConfig();
 
+        if (process.env.NODE_ROLE === 'SUB_NODE') {
+            logger.info('[SyncWorker] Skipping background sync (Sub-Node)');
+            this.isRunning = false;
+            return;
+        }
+
         if (!this.configUnsubscribe) {
             this.configUnsubscribe = CloudConfigManager.onConfigUpdated(async (newConfig) => {
                 logger.info('[SyncWorker] Cloud config updated. Initiating graceful restart...');
