@@ -5,7 +5,7 @@ import {
     Search, Box, Edit, Loader2, Save, Wand2, Trash2, 
     ChevronLeft, ChevronRight, Lock, Printer, Infinity as InfinityIcon, 
     Plus, Filter, ChevronDown, Clock, Calendar, Activity as ActivityIcon, 
-    ArrowUpDown, ChevronUp, AlertTriangle 
+    ArrowUpDown, ChevronUp, AlertTriangle, Download
 } from "lucide-react";
 import { BarcodePrintDialog } from "./BarcodePrintDialog";
 import { WastageDialog } from "./WastageDialog";
@@ -41,6 +41,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { Product, Category } from "@/types/product";
+import { generateInventoryTemplate } from "@/lib/export-templates";
 
 export default function ProductsTab({
     products: initialProducts,
@@ -294,13 +295,29 @@ export default function ProductsTab({
 
                     <div className="flex items-center gap-2 flex-wrap">
                         {canManage && (
-                            <button
-                                onClick={() => setAddProductOpen(true)}
-                                className="px-5 py-3 h-11 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-bold rounded-xl flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-amber-500/20 active:scale-95"
-                            >
-                                <Plus className="w-4 h-4" />
-                                {tCommon('add') || "إضافة منتج"}
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => {
+                                        generateInventoryTemplate(
+                                            categories.map((c: any) => c.name),
+                                            models.map((m: any) => m.name),
+                                            attributes.map((a: any) => a.name)
+                                        );
+                                    }}
+                                    className="px-5 py-3 h-11 bg-white dark:bg-zinc-900/50 hover:bg-slate-50 dark:hover:bg-zinc-800 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-zinc-300 font-bold rounded-xl flex items-center gap-2 transition-all shadow-sm"
+                                    title="تحميل ملف Excel جاهز للاستيراد"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    تحميل النموذج
+                                </button>
+                                <button
+                                    onClick={() => setAddProductOpen(true)}
+                                    className="px-5 py-3 h-11 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-bold rounded-xl flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-amber-500/20 active:scale-95"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    {tCommon('add') || "إضافة منتج"}
+                                </button>
+                            </>
                         )}
 
                         {selectedProducts.size > 0 && (

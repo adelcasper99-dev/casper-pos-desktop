@@ -1,7 +1,9 @@
 /**
- * CSV Invoice Import Parser
- * Handles parsing and validation of CSV files for bulk invoice import
+ * CSV & Excel Invoice Import Parser
+ * Handles parsing and validation of files for bulk invoice import
  */
+import * as XLSX from 'xlsx';
+import { Decimal } from 'decimal.js';
 
 export interface CSVInvoiceRow {
     supplier: string;
@@ -134,37 +136,65 @@ export function parseCSV(csvText: string): CSVInvoiceRow[] {
     // Map header names to object keys (case-insensitive, trim)
     const fieldMap: Record<string, keyof CSVInvoiceRow> = {
         'supplier': 'supplier',
+        'المورد (supplier)': 'supplier',
+        'المورد': 'supplier',
         'invoice number': 'invoiceNumber',
         'invoicenumber': 'invoiceNumber',
+        'رقم الفاتورة (invoice number)': 'invoiceNumber',
+        'رقم الفاتورة': 'invoiceNumber',
         'product sku': 'productSku',
         'productsku': 'productSku',
         'sku': 'productSku',
+        'كود المنتج (product sku)': 'productSku',
+        'كود المنتج': 'productSku',
         'product name': 'productName',
         'productname': 'productName',
         'name': 'productName',
+        'اسم المنتج (product name)': 'productName',
+        'اسم المنتج': 'productName',
         'category': 'category',
+        'القسم (category)': 'category',
+        'القسم': 'category',
         'quantity': 'quantity',
         'qty': 'quantity',
+        'الكمية (quantity)': 'quantity',
+        'الكمية': 'quantity',
         'unit cost': 'unitCost',
         'unitcost': 'unitCost',
         'cost': 'unitCost',
+        'سعر التكلفة (unit cost)': 'unitCost',
+        'سعر التكلفة': 'unitCost',
         'sell price 1': 'sellPrice1',
         'sellprice1': 'sellPrice1',
         'price': 'sellPrice1',
+        'سعر البيع 1 (sell price 1)': 'sellPrice1',
+        'سعر البيع': 'sellPrice1',
         'sell price 2': 'sellPrice2',
         'sellprice2': 'sellPrice2',
+        'سعر البيع 2 (sell price 2)': 'sellPrice2',
+        'سعر البيع 2': 'sellPrice2',
         'sell price 3': 'sellPrice3',
         'sellprice3': 'sellPrice3',
+        'سعر البيع 3 (sell price 3)': 'sellPrice3',
+        'سعر البيع 3': 'sellPrice3',
         'delivery charge': 'deliveryCharge',
         'deliverycharge': 'deliveryCharge',
         'delivery': 'deliveryCharge',
+        'رسوم التوصيل (delivery charge)': 'deliveryCharge',
+        'رسوم التوصيل': 'deliveryCharge',
         'paid amount': 'paidAmount',
         'paidamount': 'paidAmount',
         'paid': 'paidAmount',
+        'المبلغ المدفوع (paid amount)': 'paidAmount',
+        'المبلغ المدفوع': 'paidAmount',
         'payment method': 'paymentMethod',
         'paymentmethod': 'paymentMethod',
         'payment': 'paymentMethod',
+        'طريقة الدفع (payment method)': 'paymentMethod',
+        'طريقة الدفع': 'paymentMethod',
         'warehouse': 'warehouse',
+        'المستودع (warehouse)': 'warehouse',
+        'المستودع': 'warehouse'
     };
 
     const rows: CSVInvoiceRow[] = [];
@@ -199,6 +229,136 @@ export function parseCSV(csvText: string): CSVInvoiceRow[] {
 
     return rows;
 }
+
+export function parseExcel(fileBuffer: ArrayBuffer): CSVInvoiceRow[] {
+    const workbook = XLSX.read(fileBuffer, { type: 'array' });
+    
+    // Read the first sheet (Data sheet)
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    // Convert to array of arrays, but only the data part
+    const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+    
+    if (jsonData.length < 2) {
+        throw new Error('Excel file must contain a header row and at least one data row');
+    }
+
+    // The header is the first row
+    const rawHeader = jsonData[0] as string[];
+    const header = rawHeader.map(h => (h || '').toString().toLowerCase());
+
+    const fieldMap: Record<string, keyof CSVInvoiceRow> = {
+        'supplier': 'supplier',
+        'المورد (supplier)': 'supplier',
+        'المورد': 'supplier',
+        'invoice number': 'invoiceNumber',
+        'invoicenumber': 'invoiceNumber',
+        'رقم الفاتورة (invoice number)': 'invoiceNumber',
+        'رقم الفاتورة': 'invoiceNumber',
+        'product sku': 'productSku',
+        'productsku': 'productSku',
+        'sku': 'productSku',
+        'كود المنتج (product sku)': 'productSku',
+        'كود المنتج': 'productSku',
+        'product name': 'productName',
+        'productname': 'productName',
+        'name': 'productName',
+        'اسم المنتج (product name)': 'productName',
+        'اسم المنتج': 'productName',
+        'category': 'category',
+        'القسم (category)': 'category',
+        'القسم': 'category',
+        'quantity': 'quantity',
+        'qty': 'quantity',
+        'الكمية (quantity)': 'quantity',
+        'الكمية': 'quantity',
+        'unit cost': 'unitCost',
+        'unitcost': 'unitCost',
+        'cost': 'unitCost',
+        'سعر التكلفة (unit cost)': 'unitCost',
+        'سعر التكلفة': 'unitCost',
+        'sell price 1': 'sellPrice1',
+        'sellprice1': 'sellPrice1',
+        'price': 'sellPrice1',
+        'سعر البيع 1 (sell price 1)': 'sellPrice1',
+        'سعر البيع 1': 'sellPrice1',
+        'سعر البيع': 'sellPrice1',
+        'sell price 2': 'sellPrice2',
+        'sellprice2': 'sellPrice2',
+        'سعر البيع 2 (sell price 2)': 'sellPrice2',
+        'سعر البيع 2': 'sellPrice2',
+        'sell price 3': 'sellPrice3',
+        'sellprice3': 'sellPrice3',
+        'سعر البيع 3 (sell price 3)': 'sellPrice3',
+        'سعر البيع 3': 'sellPrice3',
+        'delivery charge': 'deliveryCharge',
+        'deliverycharge': 'deliveryCharge',
+        'delivery': 'deliveryCharge',
+        'رسوم التوصيل (delivery charge)': 'deliveryCharge',
+        'رسوم التوصيل': 'deliveryCharge',
+        'paid amount': 'paidAmount',
+        'paidamount': 'paidAmount',
+        'paid': 'paidAmount',
+        'المبلغ المدفوع (paid amount)': 'paidAmount',
+        'المبلغ المدفوع': 'paidAmount',
+        'payment method': 'paymentMethod',
+        'paymentmethod': 'paymentMethod',
+        'payment': 'paymentMethod',
+        'طريقة الدفع (payment method)': 'paymentMethod',
+        'طريقة الدفع': 'paymentMethod',
+        'warehouse': 'warehouse',
+        'المستودع (warehouse)': 'warehouse',
+        'المستودع': 'warehouse'
+    };
+
+    const rows: CSVInvoiceRow[] = [];
+
+    // The second row might be instructions if it's our template
+    let startIdx = 1;
+    if (jsonData.length > 1) {
+        const row1 = jsonData[1] as any[];
+        // if the row has strings that contain "مطلوب" or "اختياري", it's the instruction row
+        const isInstruction = row1.some(val => typeof val === 'string' && (val.includes('مطلوب') || val.includes('اختياري')));
+        if (isInstruction) {
+            startIdx = 2;
+        }
+    }
+
+    for (let i = startIdx; i < jsonData.length; i++) {
+        const values = jsonData[i] as any[];
+        if (!values || values.length === 0 || values.every(v => v === undefined || v === null || v === '')) {
+            continue; // Skip empty rows
+        }
+
+        const row: any = {};
+
+        for (let j = 0; j < header.length; j++) {
+            const fieldKey = fieldMap[header[j]];
+            if (!fieldKey) continue;
+
+            const value = values[j] !== undefined && values[j] !== null ? values[j].toString().trim() : '';
+
+            // Parse numeric fields
+            if (['quantity', 'unitCost', 'sellPrice1', 'sellPrice2', 'sellPrice3', 'deliveryCharge', 'paidAmount'].includes(fieldKey)) {
+                // Remove thousand separators and currency symbols
+                const cleanValue = value.replace(/[$,\s]/g, '');
+                const num = parseFloat(cleanValue);
+                row[fieldKey] = isNaN(num) ? undefined : num;
+            } else {
+                row[fieldKey] = value || undefined;
+            }
+        }
+
+        // Only add if it has some required fields to ignore completely blank template rows
+        if (row.productSku || row.productName || row.supplier) {
+            rows.push(row as CSVInvoiceRow);
+        }
+    }
+
+    return rows;
+}
+
 
 /**
  * Group CSV rows into invoices
@@ -326,12 +486,16 @@ export function validateCSVData(invoices: ParsedInvoice[]): ValidationResult {
             }
 
             // Validate sell price >= cost (profit check)
-            if (item.sellPrice !== undefined && item.unitCost !== undefined && item.sellPrice < item.unitCost) {
-                errors.push({
-                    row: rowIndex,
-                    field: 'sellPrice',
-                    message: `Sell price (${item.sellPrice}) cannot be less than cost (${item.unitCost})`
-                });
+            if (item.sellPrice !== undefined && item.unitCost !== undefined) {
+                const sellDec = new Decimal(String(item.sellPrice));
+                const costDec = new Decimal(String(item.unitCost));
+                if (sellDec.lt(costDec)) {
+                    errors.push({
+                        row: rowIndex,
+                        field: 'sellPrice',
+                        message: `Sell price (${item.sellPrice}) cannot be less than cost (${item.unitCost})`
+                    });
+                }
             }
 
             rowIndex++;

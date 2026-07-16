@@ -127,4 +127,72 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnTest.textContent = 'Test Alignment';
         }
     });
+
+    // Active Clients Polling logic
+    const noClientsText = document.getElementById('noClientsText');
+    const clientsTable = document.getElementById('clientsTable');
+    const clientsList = document.getElementById('clientsList');
+
+    function cleanUserAgent(ua) {
+        if (!ua) return 'Unknown Browser';
+        if (ua.includes('iPad')) return 'iPad';
+        if (ua.includes('iPhone')) return 'iPhone';
+        if (ua.includes('Android')) return 'Android';
+        if (ua.includes('Chrome')) return 'Chrome (PC)';
+        if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari (Mac/iOS)';
+        if (ua.includes('Firefox')) return 'Firefox';
+        return 'Web Browser';
+    }
+
+    async function updateActiveClientsList() {
+        try {
+            const clients = await window.electronAPI.getActiveClients();
+            if (!clients || clients.length === 0) {
+                noClientsText.style.display = 'block';
+                clientsTable.style.display = 'none';
+                return;
+            }
+
+            noClientsText.style.display = 'none';
+            clientsTable.style.display = 'table';
+            clientsList.innerHTML = '';
+
+            clients.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--border)';
+                
+                const tdIp = document.createElement('td');
+                tdIp.style.padding = '8px 4px';
+                tdIp.style.fontWeight = 'bold';
+                tdIp.style.color = 'var(--textPrimary)';
+                tdIp.textContent = c.ip;
+                
+                const tdBrowser = document.createElement('td');
+                tdBrowser.style.padding = '8px 4px';
+                tdBrowser.style.color = 'var(--textSecondary)';
+                tdBrowser.textContent = cleanUserAgent(c.userAgent);
+                
+                const tdPing = document.createElement('td');
+                tdPing.style.padding = '8px 4px';
+                tdPing.style.textAlign = 'right';
+                tdPing.style.color = 'var(--primary)';
+                tdPing.style.fontWeight = 'bold';
+                
+                // Format last active relative time in seconds
+                const diffSec = Math.max(0, Math.floor((Date.now() - c.lastActive) / 1000));
+                tdPing.textContent = diffSec === 0 ? 'Just now' : `${diffSec}s ago`;
+
+                tr.appendChild(tdIp);
+                tr.appendChild(tdBrowser);
+                tr.appendChild(tdPing);
+                clientsList.appendChild(tr);
+            });
+        } catch (err) {
+            console.error('Failed to update active clients list:', err);
+        }
+    }
+
+    // Update immediately and then poll every 2 seconds
+    updateActiveClientsList();
+    setInterval(updateActiveClientsList, 2000);
 });

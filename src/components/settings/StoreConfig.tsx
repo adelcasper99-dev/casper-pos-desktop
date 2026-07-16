@@ -1,28 +1,36 @@
 "use client";
 
-import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X, CheckCircle2, HardDrive, Loader2 } from "lucide-react";
+import { Store, Phone, MapPin, Receipt, Save, History, Shield, Image as ImageIcon, Upload, X, CheckCircle2, Globe } from "lucide-react";
 import { useState, useRef } from "react";
 import { updateStoreSettings } from "@/actions/settings";
-import { testGoogleDrive } from "@/actions/google-drive";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { useTranslations } from "@/lib/i18n-mock";
-import { useSettings } from "@/contexts/SettingsContext";
-import { LocalPersistenceService } from "@/lib/local-persistence";
 
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
     const [saving, setSaving] = useState(false);
-    const isSaving = saving;
-    const setIsSaving = setSaving;
-    const [isTestingDrive, setIsTestingDrive] = useState(false);
-    const [isSyncingDrive, setIsSyncingDrive] = useState(false);
-    const { refreshSettings } = useSettings();
+    const [ipError, setIpError] = useState<string | null>(null);
     const t = useTranslations('StoreConfig');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const getFeatures = () => {
+        try {
+            return typeof form.features === 'string' 
+                ? JSON.parse(form.features || "{}") 
+                : (form.features || {});
+        } catch (e) {
+            return {};
+        }
+    };
+
+    const updateFeature = (key: string, value: any) => {
+        const features = getFeatures();
+        features[key] = value;
+        handleChange('features', JSON.stringify(features));
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -66,7 +74,19 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
     };
 
     const handleSave = async () => {
-        setIsSaving(true);
+        // Validate Static IP if manual IP configuration is enabled
+        const features = getFeatures();
+        if (features.manualIpEnabled) {
+            const ipPattern = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+            if (!features.staticIp || !ipPattern.test(features.staticIp.trim())) {
+                const errMsg = t('staticIpInvalid') || "عنوان IP غير صالح";
+                setIpError(errMsg);
+                toast.error(errMsg);
+                return;
+            }
+        }
+        setIpError(null);
+        setSaving(true);
         try {
             const payload = {
                 ...form,
@@ -78,56 +98,13 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
             const result = await updateStoreSettings(payload);
             if (result?.success) {
                 toast.success(t('success'));
-                await refreshSettings();
             } else {
                 toast.error(result?.error || t('error'));
             }
         } catch (error) {
             toast.error(t('error'));
         } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleTestDrive = async () => {
-        setIsTestingDrive(true);
-        try {
-            const result = await testGoogleDrive(form.googleDriveBackupPath || undefined);
-            if (result.success) {
-                toast.success(result.message);
-            } else {
-                toast.error(result.message);
-            }
-        } catch (error) {
-            toast.error("Error testing Google Drive path");
-        } finally {
-            setIsTestingDrive(false);
-        }
-    };
-
-    const handleSyncDrive = async () => {
-        // Automatically save the path first before syncing
-        await handleSave();
-        
-        // Also save to Electron's local config so the desktop app knows where to backup
-        if (typeof window !== 'undefined' && window.electronAPI?.config) {
-            await window.electronAPI.config.saveBackupConfig({
-                backupPath: form.googleDriveBackupPath || undefined
-            });
-        }
-        
-        setIsSyncingDrive(true);
-        try {
-            const result = await LocalPersistenceService.backupToFilesystem(true);
-            if (result && result.success) {
-                toast.success("Successfully synced to Google Drive");
-            } else {
-                toast.error(result?.error || "Failed to sync to Google Drive");
-            }
-        } catch (error) {
-            toast.error("Error syncing to Google Drive");
-        } finally {
-            setIsSyncingDrive(false);
+            setSaving(false);
         }
     };
 
@@ -151,6 +128,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 { id: 'dashboard', color: 'bg-blue-400', glow: 'shadow-blue-500/20' },
                                 { id: 'pos', color: 'bg-rose-500', glow: 'shadow-rose-500/20' },
                                 { id: 'maintenance', color: 'bg-violet-500', glow: 'shadow-violet-500/20' },
+                                { id: 'maintenance_dashboard', color: 'bg-fuchsia-500', glow: 'shadow-fuchsia-500/20' },
                                 { id: 'hr', color: 'bg-cyan-500', glow: 'shadow-cyan-500/20' },
                                 { id: 'inventory', color: 'bg-blue-500', glow: 'shadow-blue-500/20' },
                                 { id: 'purchasing', color: 'bg-orange-500', glow: 'shadow-orange-500/20' },
@@ -294,48 +272,6 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                             </div>
                         </div>
 
-                        {/* Google Drive Backup */}
-                        <div className="space-y-8 pt-6 border-t border-border/20">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-                                    <HardDrive className="w-5 h-5 text-cyan-400" />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-black uppercase tracking-widest">Google Drive Backup</h3>
-                                    <p className="text-xs text-muted-foreground font-medium">Configure path for offline backups</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-6 p-6 rounded-[2rem] bg-cyan-500/5 border border-cyan-500/10 animate-in fade-in slide-in-from-top-4">
-                                <div className="space-y-2 group">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">Local Drive Path</Label>
-                                    <div className="flex gap-3">
-                                        <input
-                                            className="flex-1 bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-cyan-500/50 shadow-sm"
-                                            value={form.googleDriveBackupPath || ""}
-                                            onChange={e => handleChange('googleDriveBackupPath', e.target.value)}
-                                            placeholder="e.g. G:\My Drive"
-                                        />
-                                        <Button 
-                                            variant="secondary" 
-                                            onClick={handleTestDrive} 
-                                            disabled={isTestingDrive || isSyncingDrive}
-                                            className="rounded-2xl"
-                                        >
-                                            {isTestingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : "Test Path"}
-                                        </Button>
-                                        <Button 
-                                            variant="default" 
-                                            onClick={handleSyncDrive} 
-                                            disabled={isTestingDrive || isSyncingDrive}
-                                            className="rounded-2xl bg-cyan-600 hover:bg-cyan-700 text-white"
-                                        >
-                                            {isSyncingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK to Sync"}
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Financial & Tax Policies */}
                         <div className="space-y-8 pt-6 border-t border-border/20">
                             <div className="flex items-center gap-3 mb-6">
@@ -407,7 +343,6 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 {[
                                     { id: 'allowNegativeStock', label: t('allowNegativeStock'), desc: t('allowNegativeStockDesc'), val: form.allowNegativeStock || false, fn: (c: boolean) => handleChange('allowNegativeStock', c) },
                                     { id: 'hideLocationsTab', label: t('hideLocationsTab'), desc: t('hideLocationsTabDesc'), val: getFeatureValue('hideLocationsTab') === true, fn: (c: boolean) => handleFeatureToggle('hideLocationsTab', c) },
-                                    { id: 'unitVisibility', label: "إظهار الوحدات", desc: "إظهار أو إخفاء وحدات القياس في النظام (الافتراضي مفعل)", val: getFeatureValue('unitVisibility') !== false, fn: (c: boolean) => handleFeatureToggle('unitVisibility', c) },
                                     { id: 'blindCloseEnabled', label: "Blind Close Shift", desc: "Hide expected cash totals during shift close.", val: form.blindCloseEnabled !== false, fn: (c: boolean) => handleChange('blindCloseEnabled', c) },
                                 ].map((item) => (
                                     <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
@@ -500,6 +435,65 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 </div>
                             </div>
                         </div>
+
+                        {/* LAN Network Settings */}
+                        <div className="space-y-8 pt-6 border-t border-border/20">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
+                                    <Globe className="w-5 h-5 text-cyan-400" />
+                                </div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('staticIpLabel')}</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
+                                    <div className="space-y-0.5 max-w-[70%]">
+                                        <Label className="text-xs font-black uppercase tracking-widest text-foreground">{t('staticIpLabel')}</Label>
+                                        <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{t('staticIpDesc')}</p>
+                                    </div>
+                                    <Switch
+                                        checked={getFeatures().manualIpEnabled || false}
+                                        onCheckedChange={(checked) => {
+                                            updateFeature('manualIpEnabled', checked);
+                                            if (!checked) {
+                                                updateFeature('staticIp', '');
+                                                setIpError(null);
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                {getFeatures().manualIpEnabled && (
+                                    <div className="space-y-2 group animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('staticIpInput')}</Label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                className={cn(
+                                                    "w-full bg-background/60 dark:bg-background/40 border rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all",
+                                                    ipError ? "border-rose-500 focus:border-rose-500" : "border-border/40 focus:border-primary"
+                                                )}
+                                                value={getFeatures().staticIp || ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    updateFeature('staticIp', val);
+                                                    const ipPattern = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+                                                    if (val && !ipPattern.test(val.trim())) {
+                                                        setIpError(t('staticIpInvalid') || "عنوان IP غير صالح");
+                                                    } else {
+                                                        setIpError(null);
+                                                    }
+                                                }}
+                                                placeholder={t('staticIpPlaceholder') || "192.168.1.6"}
+                                            />
+                                            {ipError && (
+                                                <span className="text-xs text-rose-500 font-bold block mt-1 ps-1">{ipError}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -507,11 +501,11 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                 <div className="pt-10 flex justify-end">
                     <button
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={saving}
                         className="group relative inline-flex items-center justify-center gap-3 bg-primary px-10 py-4 rounded-2xl text-white font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] disabled:opacity-50"
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                        {isSaving ? (
+                        {saving ? (
                             <span className="flex items-center gap-2 animate-pulse">
                                <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                                {t('saving')}

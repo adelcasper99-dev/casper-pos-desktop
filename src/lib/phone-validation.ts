@@ -16,14 +16,17 @@ export const PHONE_ERROR_MSG = "Phone number must be exactly 11 digits";
 export async function checkGlobalPhoneUniqueness(
     phone: string,
     excludeType?: 'USER' | 'SUPPLIER' | 'CUSTOMER',
-    excludeId?: string
+    excludeId?: string,
+    tx?: any
 ): Promise<{ unique: boolean, usedBy?: 'USER' | 'SUPPLIER' | 'CUSTOMER', entityId?: string, entityName?: string }> {
 
     if (!phone) return { unique: true };
 
+    const db = tx || prisma;
+
     // 1. Check Users
     if (excludeType !== 'USER' || !excludeId) {
-        const user = await prisma.user.findFirst({
+        const user = await db.user.findFirst({
             where: {
                 phone,
                 NOT: excludeType === 'USER' && excludeId ? { id: excludeId } : undefined
@@ -35,7 +38,7 @@ export async function checkGlobalPhoneUniqueness(
 
     // 2. Check Suppliers
     if (excludeType !== 'SUPPLIER' || !excludeId) {
-        const supplier = await prisma.supplier.findFirst({
+        const supplier = await db.supplier.findFirst({
             where: {
                 phone,
                 NOT: excludeType === 'SUPPLIER' && excludeId ? { id: excludeId } : undefined
@@ -50,7 +53,7 @@ export async function checkGlobalPhoneUniqueness(
     // However, if we are creating a Ticket, we might "link" to an existing customer, so this check
     // is primarily for creating a NEW profile. 
     if (excludeType !== 'CUSTOMER' || !excludeId) {
-        const customer = await prisma.customer.findFirst({
+        const customer = await db.customer.findFirst({
             where: {
                 phone,
                 NOT: excludeType === 'CUSTOMER' && excludeId ? { id: excludeId } : undefined

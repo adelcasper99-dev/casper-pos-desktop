@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Calendar, User, Wrench, AlertTriangle, Loader2, Search, X, ChevronDown, Filter } from 'lucide-react';
-import { useTranslations } from '@/lib/i18n-mock';
+import { useTranslations, useLocale } from '@/lib/i18n-mock';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ interface ReturnedTicket {
 export default function ReturnedTicketsTab() {
     const t = useTranslations('returns');
     const tt = useTranslations('Tickets');
+    const locale = useLocale();
     const [tickets, setTickets] = useState<ReturnedTicket[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -336,10 +337,23 @@ export default function ReturnedTicketsTab() {
                                         </TableCell>
                                         <TableCell className="font-black">
                                             <div className="flex items-center gap-2 text-slate-700 dark:text-zinc-400 font-black">
-                                                <Calendar className="w-3.5 h-3.5" />
-                                                <span className="text-sm">
-                                                    {ticket.lastReturnedAt ? new Date(ticket.lastReturnedAt).toLocaleDateString() : '-'}
-                                                </span>
+                                                <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                                                {(() => {
+                                                    const dateVal = ticket.lastReturnedAt || ticket.createdAt;
+                                                    if (!dateVal) return <span className="text-sm">-</span>;
+                                                    const dateObj = new Date(dateVal);
+                                                    return (
+                                                        <div className="flex flex-col gap-0.5 min-w-[110px]">
+                                                            <span className="text-slate-900 dark:text-zinc-200 font-bold text-xs">
+                                                                {dateObj.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                            </span>
+                                                            <span className="text-[10px] text-zinc-500 dark:text-zinc-500 font-semibold flex items-center gap-1">
+                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                                                                {dateObj.toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </TableCell>
                                         <TableCell>

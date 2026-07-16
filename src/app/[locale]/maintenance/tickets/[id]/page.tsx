@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { shouldAutoPrint } from "@/lib/print-guard";
 
 import {
     getTicketDetails,
@@ -46,7 +45,6 @@ import RejectTicketModal from "@/components/tickets/RejectTicketModal";
 import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModal";
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
-import ProfitDistributionOverrideModal from "@/components/tickets/ProfitDistributionOverrideModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
 import { printService } from "@/lib/print-service";
 
@@ -247,7 +245,6 @@ export default function TicketDetailPage() {
     const [showRefundModal, setShowRefundModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showTechModal, setShowTechModal] = useState(false);
-    const [showProfitOverrideModal, setShowProfitOverrideModal] = useState(false);
     const [editingIssue, setEditingIssue] = useState(false);
     const [issueText, setIssueText] = useState('');
     const [showSecurityCode, setShowSecurityCode] = useState(false);
@@ -269,11 +266,11 @@ export default function TicketDetailPage() {
         !!(localStorage.getItem('printer_label') || localStorage.getItem('casper_barcode_printer') || localStorage.getItem('casper_label_printer'));
     const clearPrintGuard = () =>
         ticket?.id && sessionStorage.removeItem(`ticket_autoprint_${ticket.id}`);
-
-    const getSpeedPrintEnabled = () => {
-        if (typeof window === 'undefined') return true;
+    // Check whether the global "fast print" toggle is on (matches TicketsList logic)
+    const isSpeedPrintEnabled = () => {
         const registry = printService.getRegistry();
-        return registry ? registry.enableSpeedPrint !== false : true;
+        if (registry && typeof registry.enableSpeedPrint === 'boolean') return registry.enableSpeedPrint;
+        return false; // safe default: show the dialog unless explicitly opted in
     };
 
     useEffect(() => {
@@ -307,16 +304,12 @@ export default function TicketDetailPage() {
         const shouldPrint = searchParams.get('print') === 'true';
         console.log('[AutoPrint] shouldPrint:', shouldPrint);
 
-        const speedPrintEnabled = getSpeedPrintEnabled();
-        const autoPrintSetting = settings?.autoPrintTicket === true;
-        console.log('[AutoPrint] speedPrintEnabled:', speedPrintEnabled, 'autoPrintSetting:', autoPrintSetting);
-
         // If print=true in URL, show print options regardless of settings
         // This ensures the print dialog works immediately after ticket creation
         if (shouldPrint && ticket && !hasPrinted) {
             console.log('[AutoPrint] ✓ Triggering from print=true URL param');
             setHasPrinted(true);
-            setIsSilentPrint(shouldAutoPrint(settings, 'ticket'));
+            setIsSilentPrint(false); // 🛡️ FIX: Do not force silent print from URL. Let settings dictate auto-print.
             setShowPrintOptions(true);
             
             // Clean URL
@@ -330,18 +323,10 @@ export default function TicketDetailPage() {
             return;
         }
 
-        // Additional check: If autoPrintTicket is explicitly enabled in settings, auto-print
-        const autoPrintEnabled = shouldAutoPrint(settings, 'ticket');
-        console.log('[AutoPrint] autoPrintEnabled:', autoPrintEnabled);
-        
-        const alreadyPrinted = ticket?.id && sessionStorage.getItem(`ticket_autoprint_${ticket.id}`);
-
-        if (autoPrintEnabled && ticket && !hasPrinted && !alreadyPrinted) {
-            console.log('[AutoPrint] ✓ Triggering from settings');
-            setIsSilentPrint(speedPrintEnabled);
-            setShowPrintOptions(true);
-            setHasPrinted(true);
-        }
+        // 🛡️ FIX: Removed flawed fallback auto-print logic.
+        // It used to print tickets every time they were opened in a new session if autoPrintTicket was true.
+        // Now, auto-printing only occurs immediately after creation (via print=true URL param) 
+        // or explicitly via manual UI actions.
     }, [searchParams, ticket, loading, hasPrinted, settings, showPrintOptions]);
 
     async function loadData() {
@@ -455,7 +440,8 @@ export default function TicketDetailPage() {
         console.log('[TEST] Force opening print modal');
         clearPrintGuard();
         setDefaultPrintMode('label');
-        setIsSilentPrint(hasLabelPrinter() && getSpeedPrintEnabled());
+        // 🛡️ [FIX] Respect the fast-print toggle — silent only when both printer AND speed-print are on
+        setIsSilentPrint(hasLabelPrinter() && isSpeedPrintEnabled());
         setShowPrintOptions(true);
     };
 
@@ -533,7 +519,7 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter() && getSpeedPrintEnabled()); setShowPrintOptions(true); }}
+                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter() && isSpeedPrintEnabled()); setShowPrintOptions(true); }}
                         className="bg-orange-500/5 border-orange-500/20 text-orange-400 h-10 px-3 flex gap-2 items-center hover:bg-orange-500/10 transition-colors"
                     >
                         <SettingsIcon className="h-4 w-4" />
@@ -541,7 +527,7 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter() && getSpeedPrintEnabled()); setShowPrintOptions(true); }}
+                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter() && isSpeedPrintEnabled()); setShowPrintOptions(true); }}
                         className="bg-slate-200/50 dark:bg-zinc-800/50 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-300 h-10 px-3 flex gap-2 items-center hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <Printer className="h-4 w-4" />
@@ -617,44 +603,10 @@ export default function TicketDetailPage() {
                                         <span className="font-mono text-zinc-400 tabular-nums">{ticket.deviceImei || '-'}</span>
                                     </DataRow>
                                     <div className="py-4">
-                                        <div className="flex items-center justify-between mb-2 px-1">
-                                            <span className="text-xs font-black text-slate-600 dark:text-zinc-600">وصف العطل</span>
-                                            {!['PAID_DELIVERED', 'CANCELLED', 'VOIDED'].includes(ticket.status) && (
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    onClick={() => {
-                                                        setIssueText(ticket.issueDescription);
-                                                        setEditingIssue(true);
-                                                    }}
-                                                    className="h-6 w-6 text-slate-400 hover:text-white"
-                                                >
-                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                </Button>
-                                            )}
+                                        <span className="text-xs font-black text-slate-600 dark:text-zinc-600 block mb-2 px-1">وصف العطل</span>
+                                        <div className="p-5 bg-slate-100 dark:bg-white/[0.02] rounded-2xl border-2 border-slate-300 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-300 leading-relaxed font-bold shadow-inner">
+                                            "{ticket.issueDescription}"
                                         </div>
-                                        {editingIssue ? (
-                                            <div className="space-y-2">
-                                                <Textarea 
-                                                    value={issueText}
-                                                    onChange={(e) => setIssueText(e.target.value)}
-                                                    className="bg-white dark:bg-black border-2 border-slate-300 dark:border-zinc-700 min-h-[100px] text-sm font-bold"
-                                                    placeholder="اكتب وصف العطل هنا..."
-                                                />
-                                                <div className="flex gap-2">
-                                                    <Button size="sm" onClick={handleSaveIssue} className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1">
-                                                        <Save className="w-4 h-4 ml-2" /> حفظ
-                                                    </Button>
-                                                    <Button size="sm" variant="outline" onClick={() => setEditingIssue(false)} className="flex-1 dark:bg-zinc-800 dark:border-zinc-700">
-                                                        إلغاء
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="p-5 bg-slate-100 dark:bg-white/[0.02] rounded-2xl border-2 border-slate-300 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-300 leading-relaxed font-bold shadow-inner">
-                                                "{ticket.issueDescription}"
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             </section>
@@ -756,7 +708,6 @@ export default function TicketDetailPage() {
                                     onUpdate={loadData}
                                     isWarrantyTicket={!!ticket.parentTicketId}
                                     lastReturnedAt={ticket.lastReturnedAt}
-                                    userRole={user?.role}
                                 />
 
                                 <CollaboratorManager 
@@ -974,35 +925,24 @@ export default function TicketDetailPage() {
                             {/* Profit Distribution Snapshot (New: CP-02) */}
                             {ticket.status === 'PAID_DELIVERED' && ticket.finalCustomerPrice > 0 && (
                                 <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-gradient-to-br dark:from-zinc-800 dark:to-zinc-900 border-2 border-slate-300 dark:border-zinc-700 space-y-3 animate-fly-in shadow-lg">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h4 className="text-[10px] font-black text-slate-900 dark:text-cyan-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            <Database className="w-3 h-3" />
-                                            توزيع الأرباح النهائي
-                                        </h4>
-                                        {['ADMIN', 'مدير النظام', 'المالك'].includes(user?.role) && (
-                                            <button 
-                                                onClick={() => setShowProfitOverrideModal(true)}
-                                                className="text-cyan-600 hover:text-cyan-500 transition-colors p-1"
-                                                title="تعديل نسبة الربح/الخسارة"
-                                            >
-                                                <Edit2 className="w-3 h-3" />
-                                            </button>
-                                        )}
-                                    </div>
+                                    <h4 className="text-[10px] font-black text-slate-900 dark:text-cyan-500 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                        <Database className="w-3 h-3" />
+                                        توزيع الأرباح النهائي
+                                    </h4>
                                     
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center px-1">
-                                            <span className={`text-[10px] font-bold ${ticket.laborPoolAmount < 0 ? 'text-red-500' : 'text-slate-600 dark:text-zinc-500'}`}>وعاء المصنعية</span>
-                                            <span className={`text-xs font-black ${ticket.laborPoolAmount < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{ticket.laborPoolAmount.toLocaleString()} <span className="text-[9px] opacity-60">EGP</span></span>
+                                            <span className="text-[10px] text-slate-600 dark:text-zinc-500 font-bold">وعاء المصنعية</span>
+                                            <span className="text-xs font-black text-slate-900 dark:text-white">{ticket.laborPoolAmount.toLocaleString()} <span className="text-[9px] text-slate-500 dark:text-zinc-600">EGP</span></span>
                                         </div>
                                         <div className="flex justify-between items-center px-1">
-                                            <span className={`text-[10px] font-bold ${ticket.techCommissionAmount < 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-500/70'}`}>عمولة المهندس</span>
-                                            <span className={`text-xs font-black ${ticket.techCommissionAmount < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{ticket.techCommissionAmount.toLocaleString()} <span className="text-[9px] opacity-60">EGP</span></span>
+                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-500/70 font-bold">عمولة المهندس</span>
+                                            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">-{ticket.techCommissionAmount.toLocaleString()} <span className="text-[9px] text-slate-500 dark:text-zinc-600">EGP</span></span>
                                         </div>
                                         <Separator className="bg-slate-200 dark:bg-white/5" />
                                         <div className="flex justify-between items-center px-1 pt-1">
-                                            <span className={`text-[10px] font-bold ${(ticket.centerLaborProfit + ticket.centerPartProfit) < 0 ? 'text-red-500' : 'text-slate-800 dark:text-cyan-500'}`}>صافي ربح المركز</span>
-                                            <span className={`text-sm font-black ${(ticket.centerLaborProfit + ticket.centerPartProfit) < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{(ticket.centerLaborProfit + ticket.centerPartProfit).toLocaleString()} <span className="text-[9px] opacity-60 uppercase">EGP</span></span>
+                                            <span className="text-[10px] text-slate-800 dark:text-cyan-500 font-bold">صافي ربح المركز</span>
+                                            <span className="text-sm font-black text-slate-900 dark:text-white">{(ticket.centerLaborProfit + ticket.centerPartProfit).toLocaleString()} <span className="text-[9px] text-slate-500 dark:text-zinc-600 uppercase">EGP</span></span>
                                         </div>
                                     </div>
                                 </div>
@@ -1173,15 +1113,6 @@ export default function TicketDetailPage() {
                     deviceBrand: ticket.deviceBrand,
                     deviceModel: ticket.deviceModel,
                 }}
-                onSuccess={loadData}
-            />
-
-            <ProfitDistributionOverrideModal
-                isOpen={showProfitOverrideModal}
-                onClose={() => setShowProfitOverrideModal(false)}
-                ticketId={ticket?.id}
-                laborPoolAmount={ticket?.laborPoolAmount || 0}
-                currentTechCommission={ticket?.techCommissionAmount || 0}
                 onSuccess={loadData}
             />
         </div>

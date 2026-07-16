@@ -18,12 +18,26 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
-    // SHIFT GUARD: Ensure active shift exists
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error("No active shift. Please open a shift first.");
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (currentUser.branchId) {
+        // Fallback: find any open shift in the same branch (for managers/supervisors)
+        const { prisma: prismaClient } = await import('@/lib/prisma');
+        const branchShift = await prismaClient.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: currentUser.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const { PERMISSIONS: PERMS, hasPermission: hasPerm } = await import('@/lib/permissions');
+    const canBypassShift = hasPerm(currentUser.permissions, PERMS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");    
+    }
 
     let branchId = currentUser.branchId;
     if (!branchId) {
@@ -61,7 +75,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
             const normalizedPhone = data.customerPhone.trim();
 
             const { checkGlobalPhoneUniqueness } = await import('@/lib/phone-validation');
-            const phoneCheck = await checkGlobalPhoneUniqueness(normalizedPhone);
+            const phoneCheck = await checkGlobalPhoneUniqueness(normalizedPhone, undefined, undefined, tx);
 
             if (!phoneCheck.unique) {
                 if (phoneCheck.usedBy === 'USER') clientUserId = phoneCheck.entityId;
@@ -110,7 +124,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 currentBranchId: branchId,
                 initialQuote: new Decimal(data.repairPrice || 0),
                 repairPrice: new Decimal(data.repairPrice || 0),
-                shiftId: currentShift.id,
+                shiftId: currentShift?.id || null,
                 expectedDuration: data.expectedDuration || null,
                 idempotencyKey: idempotencyKey || null,
             }
@@ -125,10 +139,12 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
             }
         });
 
-        await tx.shift.update({
-            where: { id: currentShift.id },
-            data: { totalTickets: { increment: 1 }, lastHeartbeat: new Date() }
-        });
+        if (currentShift) {
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: { totalTickets: { increment: 1 }, lastHeartbeat: new Date() }
+            });
+        }
 
         return ticket;
     }, { timeout: 60000 });
@@ -137,7 +153,7 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     revalidateTag("dashboard");
 
     return { success: true, ticketId: result.id, barcode: result.barcode };
-}, { permission: PERMISSIONS.TICKET_EDIT });
+}, { permission: PERMISSIONS.TICKET_CREATE });
 
 export const updateTicketDetails = secureAction(async (data: TicketUpdateData) => {
     const currentUser = await getCurrentUser();

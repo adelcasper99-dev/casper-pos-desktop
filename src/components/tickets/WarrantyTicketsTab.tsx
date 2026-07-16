@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Shield, Calendar, Clock, AlertCircle, Loader2, ArrowRight, Search, X, ChevronDown, Filter, RefreshCw } from 'lucide-react';
-import { useTranslations } from '@/lib/i18n-mock';
+import { useTranslations, useLocale } from '@/lib/i18n-mock';
 import { Badge } from '@/components/ui/badge';
 import { Input } from "@/components/ui/input";
 import {
@@ -50,6 +50,7 @@ export default function WarrantyTicketsTab() {
     const t = useTranslations('Tickets.warranty');
     const tt = useTranslations('Tickets');
     const router = useRouter();
+    const locale = useLocale();
     const [tickets, setTickets] = useState<WarrantyTicket[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -328,10 +329,21 @@ export default function WarrantyTicketsTab() {
                                         </TableCell>
                                         <TableCell className="font-black">
                                             <div className="flex items-center gap-2 text-slate-700 dark:text-zinc-400 font-black">
-                                                <Calendar className="w-3.5 h-3.5" />
-                                                <span className="text-sm">
-                                                    {new Date(ticket.deliveredAt).toLocaleDateString()}
-                                                </span>
+                                                <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                                                {(() => {
+                                                    const dateObj = new Date(ticket.deliveredAt);
+                                                    return (
+                                                        <div className="flex flex-col gap-0.5 min-w-[110px]">
+                                                            <span className="text-slate-900 dark:text-zinc-200 font-bold text-xs">
+                                                                {dateObj.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                            </span>
+                                                            <span className="text-[10px] text-zinc-500 dark:text-zinc-500 font-semibold flex items-center gap-1">
+                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                                                                {dateObj.toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </TableCell>
                                         <TableCell className="font-black">
@@ -343,7 +355,7 @@ export default function WarrantyTicketsTab() {
                                                     </span>
                                                 </span>
                                                 <span className="text-[10px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-tighter">
-                                                    إلى: {new Date(ticket.warrantyExpiryDate).toLocaleDateString()}
+                                                    إلى: {new Date(ticket.warrantyExpiryDate).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                 </span>
                                             </div>
                                         </TableCell>

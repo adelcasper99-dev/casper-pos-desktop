@@ -18,44 +18,114 @@ const expressApp = express();
 expressApp.use(cors({ origin: '*' })); // Permissive for local bridging
 expressApp.use(express.json());
 
-const securityMiddleware = (req, res, next) => {
-    const clientIp = req.ip || req.connection.remoteAddress || '';
-    const isLocalhost = 
-        clientIp === '127.0.0.1' || 
-        clientIp === '::1' || 
-        clientIp === '::ffff:127.0.0.1' || 
-        clientIp.includes('localhost');
+const activeClients = new Map();
 
-    if (isLocalhost) {
-        return next();
+function updateActiveClient(req) {
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (ip === '::1' || ip === '::ffff:127.0.0.1') ip = '127.0.0.1';
+    
+    const { ping, userAgent, url } = req.body || {};
+    
+    const clientInfo = activeClients.get(ip) || {
+        ip,
+        userAgent: userAgent || req.headers['user-agent'] || 'Unknown Browser',
+        url: url || '',
+        connects: 0
+    };
+    
+    clientInfo.lastActive = Date.now();
+    clientInfo.connects += 1;
+    if (userAgent) clientInfo.userAgent = userAgent;
+    if (url) clientInfo.url = url;
+    
+    activeClients.set(ip, clientInfo);
+    
+    // Clean up stale clients (offline for more than 30 seconds)
+    const staleCutoff = Date.now() - 30000;
+    let sizeBefore = activeClients.size;
+    for (const [key, val] of activeClients.entries()) {
+        if (val.lastActive < staleCutoff) {
+            activeClients.delete(key);
+        }
     }
-
-    const token = req.headers['x-casper-token'];
-    const configuredToken = store?.get('securityToken');
-
-    if (configuredToken && token === configuredToken) {
-        return next();
+    
+    if (activeClients.size !== sizeBefore || clientInfo.connects === 1) {
+        updateTrayMenu();
     }
+}
 
-    console.warn(`[Security Alert] Blocked unauthorized remote bridge access from IP: ${clientIp}`);
-    return res.status(403).json({ error: 'Unauthorized remote bridge access' });
-};
+let _printerCache = null;
+let _printerCacheAt = 0;
+const PRINTER_CACHE_TTL_MS = 30000;
 
-expressApp.use(securityMiddleware);
-
-expressApp.get('/api/security/token', (req, res) => {
-    const clientIp = req.ip || req.connection.remoteAddress || '';
-    const isLocalhost = 
-        clientIp === '127.0.0.1' || 
-        clientIp === '::1' || 
-        clientIp === '::ffff:127.0.0.1' || 
-        clientIp.includes('localhost');
-
-    if (!isLocalhost) {
-        return res.status(403).json({ error: 'Token is only accessible via localhost' });
+async function getOSPrinters() {
+    const now = Date.now();
+    if (_printerCache && (now - _printerCacheAt) < PRINTER_CACHE_TTL_MS) {
+        return _printerCache;
     }
+    try {
+        const win = getWorkerWindow();
+        let printers = [];
+        if (win.webContents.getPrintersAsync) {
+            printers = await win.webContents.getPrintersAsync();
+        } else if (win.webContents.getPrinters) {
+            printers = win.webContents.getPrinters();
+        }
+        _printerCache = printers;
+        _printerCacheAt = now;
+        return printers;
+    } catch (err) {
+        console.error('[Bridge] Printer Discovery ERROR:', err);
+        return _printerCache || [];
+    }
+}
 
-    return res.json({ token: store?.get('securityToken') });
+function updateTrayMenu() {
+    if (!tray) return;
+    try {
+        const clientCount = activeClients.size;
+        const clientsLabel = clientCount === 0 
+            ? 'Status: Active (4040)' 
+            : `Status: Active (4040) - ${clientCount} Connected`;
+            
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'Casper Hardware Bridge', enabled: false },
+            { label: clientsLabel, enabled: false },
+            { type: 'separator' },
+            { label: 'Settings', click: () => createSettingsWindow() },
+            { label: 'Restart Service', click: () => { app.relaunch(); app.exit(); } },
+            { type: 'separator' },
+            { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
+        ]);
+        tray.setContextMenu(contextMenu);
+    } catch (err) {
+        console.error('Tray menu update error:', err);
+    }
+}
+
+// Client registration middleware
+expressApp.use((req, res, next) => {
+    updateActiveClient(req);
+    next();
+});
+
+// GET /api/status - client check for online status & printers list
+expressApp.get('/api/status', async (req, res) => {
+    try {
+        const printers = await getOSPrinters();
+        res.json({
+            online: true,
+            version: '1.0.0',
+            printers: printers
+        });
+    } catch (e) {
+        res.json({ online: true, version: '1.0.0', printers: [], error: e.message });
+    }
+});
+
+// POST /api/status - heartbeat endpoint returning client list
+expressApp.post('/api/status', (req, res) => {
+    res.json({ success: true, clients: Array.from(activeClients.values()) });
 });
 
 // Initialize electron-store asynchronously for ESM compatibility
@@ -70,7 +140,6 @@ async function initStore() {
                 a4Printer: 'auto',
                 marginTop: 0,
                 marginLeft: 0,
-                securityToken: require('crypto').randomBytes(32).toString('hex'),
             }
         });
     } catch (e) {
@@ -114,33 +183,10 @@ function createSettingsWindow() {
 // Global hidden window for silent A4 printing
 let workerWindow = null;
 function getWorkerWindow() {
-    if (workerWindow && !workerWindow.isDestroyed()) return workerWindow;
+    if (workerWindow) return workerWindow;
     workerWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true } });
     return workerWindow;
 }
-
-expressApp.get('/api/status', async (req, res) => {
-    try {
-        const win = getWorkerWindow();
-        let printers = [];
-        if (win.webContents.getPrintersAsync) {
-            printers = await win.webContents.getPrintersAsync();
-        } else if (win.webContents.getPrinters) {
-            printers = win.webContents.getPrinters();
-        }
-        const configured = !!(store?.get('receiptPrinter') || store?.get('thermalPrinter') || store?.get('barcodePrinter') || store?.get('a4Printer'));
-        res.json({
-            online: true,
-            status: 'online',
-            version: typeof app !== 'undefined' ? app.getVersion() : '1.0.0',
-            printerConfigured: configured,
-            printers: printers
-        });
-    } catch (err) {
-        console.error('[Bridge] Status endpoint error:', err);
-        res.status(500).json({ error: 'Failed to retrieve status' });
-    }
-});
 
 expressApp.post('/api/print', async (req, res) => {
     try {
@@ -199,33 +245,13 @@ expressApp.post('/api/print', async (req, res) => {
         }
         
         printer.cut();
+        if (jobType !== 'barcode') printer.openCashDrawer();
 
         await printer.execute();
         res.json({ success: true });
 
     } catch (e) {
         console.error('Print error:', e);
-        res.status(500).json({ error: e.message || 'Execution Error' });
-    }
-});
-
-expressApp.post('/api/drawer/kick', async (req, res) => {
-    try {
-        const { printerName } = req.body;
-        const pInterface = printerName || store.get('receiptPrinter') || 'printer:auto';
-        const pType = store.get('printerType') || PrinterTypes.EPSON;
-        
-        let printer = new ThermalPrinter({
-            type: pType,
-            interface: pInterface.startsWith('printer:') || pInterface.startsWith('tcp:') ? pInterface : `printer:${pInterface}`,
-            options: { timeout: 2000 }
-        });
-
-        printer.openCashDrawer();
-        await printer.execute();
-        res.json({ success: true });
-    } catch (e) {
-        console.error('Drawer kick error:', e);
         res.status(500).json({ error: e.message || 'Execution Error' });
     }
 });
@@ -249,25 +275,16 @@ app.whenReady().then(async () => {
             const { nativeImage } = require('electron');
             tray = new Tray(nativeImage.createEmpty()); 
         }
-
-        const contextMenu = Menu.buildFromTemplate([
-            { label: 'Casper Hardware Bridge', enabled: false },
-            { label: 'Status: Active (4040)', enabled: false },
-            { type: 'separator' },
-            { label: 'Settings', click: () => createSettingsWindow() },
-            { label: 'Restart Service', click: () => { app.relaunch(); app.exit(); } },
-            { type: 'separator' },
-            { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
-        ]);
         
         tray.setToolTip('Casper Hardware Bridge');
-        tray.setContextMenu(contextMenu);
+        // Use the shared updateTrayMenu to render initial state (0 clients)
+        updateTrayMenu();
     } catch (err) {
         console.error('Tray Init Error:', err);
     }
 
-    expressApp.listen(4040, '0.0.0.0', () => {
-        console.log('API Router Active: http://0.0.0.0:4040');
+    expressApp.listen(4040, () => {
+        console.log('API Router Active: http://localhost:4040');
     }).on('error', (err) => {
         if (err.code === 'EADDRINUSE') app.quit();
     });
@@ -279,24 +296,11 @@ app.whenReady().then(async () => {
     });
     
     ipcMain.handle('get-printers', async () => {
-        try {
-            const win = getWorkerWindow();
-            if (win.webContents.getPrintersAsync) {
-                const printers = await win.webContents.getPrintersAsync();
-                console.log(`[Bridge] Discovery Scan (Async): Found ${printers.length} printers`);
-                return printers;
-            }
-            if (win.webContents.getPrinters) {
-                const printers = win.webContents.getPrinters();
-                console.log(`[Bridge] Discovery Scan (Sync): Found ${printers.length} printers`);
-                return printers;
-            }
-            console.error('[Bridge] No printing discovery method found on webContents');
-            return [];
-        } catch (err) {
-            console.error('[Bridge] Printer Discovery ERROR:', err);
-            return [];
-        }
+        return await getOSPrinters();
+    });
+
+    ipcMain.handle('get-active-clients', () => {
+        return Array.from(activeClients.values());
     });
 
     ipcMain.handle('close-window', () => {

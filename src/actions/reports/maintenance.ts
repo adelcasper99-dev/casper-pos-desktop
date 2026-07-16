@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay, subDays } from 'date-fns';
-import { Decimal } from "@prisma/client/runtime/library";
+import Decimal from "decimal.js";
 import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getCurrentUser } from "../auth";
@@ -45,44 +45,104 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             customer: true,
             parts: {
                 include: { product: true }
-            }
+            },
+            payments: true
         },
         orderBy: { createdAt: 'desc' }
     });
 
-    let totalRevenue = 0;
-    let partsCOGS = 0;
-    let laborRevenue = 0;
-    let totalCommissions = 0;
+    let totalRevenue = new Decimal(0);
+    let partsCOGS = new Decimal(0);
+    let laborRevenue = new Decimal(0);
+    let totalCommissions = new Decimal(0);
     let deliveredCount = 0;
     let returnCount = 0;
 
+    let totalDues = new Decimal(0);
+    let totalPaid = new Decimal(0);
+    let totalDeferred = new Decimal(0);
+
+    const partsAggregation = new Map<string, { name: string; qty: number; revenue: number; profit: number; type: string }>();
+
     const mappedTickets = tickets.map(ticket => {
         // Use final customer price if closed/paid, otherwise repair price
-        const ticketRevenue = Number(ticket.finalCustomerPrice || ticket.repairPrice || 0);
+        const ticketRevenue = new Decimal(ticket.finalCustomerPrice?.toString() || ticket.repairPrice?.toString() || '0');
         
         // Fix: Use partCostPrice (True Cost) for accurate Center Margin calculation.
         // Fallback to partsCost if historical/legacy ticket.
-        const ticketPartsCost = Number(ticket.partCostPrice) > 0 
-            ? Number(ticket.partCostPrice) 
-            : Number(ticket.partsCost || 0);
+        const ticketPartsCost = new Decimal(
+            Number(ticket.partCostPrice) > 0 
+                ? ticket.partCostPrice.toString() 
+                : (ticket.partsCost?.toString() || '0')
+        );
             
-        const commission = Number(ticket.commissionAmount || 0);
+        const commission = new Decimal(ticket.commissionAmount?.toString() || '0');
         
-        totalRevenue += ticketRevenue;
-        partsCOGS += ticketPartsCost;
-        totalCommissions += commission;
+        totalRevenue = totalRevenue.plus(ticketRevenue);
+        partsCOGS = partsCOGS.plus(ticketPartsCost);
+        totalCommissions = totalCommissions.plus(commission);
+
+        // Calculate Dues, Paid, and Deferred
+        const ticketDues = new Decimal(ticket.initialQuote?.toString() || ticket.repairPrice?.toString() || '0');
+        totalDues = totalDues.plus(ticketDues);
+
+        let ticketDeferredVal = ticket.payments
+            .filter(p => p.method === 'ACCOUNT')
+            .reduce((sum, p) => sum.plus(new Decimal(p.amount?.toString() || '0')), new Decimal(0));
+            
+        if (ticket.payments.length === 0 && ticket.paymentMethod === 'ACCOUNT') {
+            ticketDeferredVal = new Decimal(ticket.amountPaid?.toString() || '0');
+        }
+        totalDeferred = totalDeferred.plus(ticketDeferredVal);
+
+        let ticketPaidVal = ticket.payments
+            .filter(p => p.method !== 'ACCOUNT')
+            .reduce((sum, p) => sum.plus(new Decimal(p.amount?.toString() || '0')), new Decimal(0));
+            
+        if (ticket.payments.length === 0 && ticket.paymentMethod !== 'ACCOUNT') {
+            ticketPaidVal = new Decimal(ticket.amountPaid?.toString() || '0');
+        }
+        totalPaid = totalPaid.plus(ticketPaidVal);
 
         // Calculate Parts Revenue vs Cost
         const ticketPartsRevenue = ticket.parts
             .filter(p => p.product?.itemType !== 'SERVICE' && p.status !== 'SERVICE')
-            .reduce((sum, p) => sum + Number(p.price || 0), 0);
+            .reduce((sum, p) => sum.plus(new Decimal(p.price?.toString() || '0')), new Decimal(0));
         
         // Use effective parts revenue to properly split the total repairPrice
-        const effectivePartsRevenue = Math.max(ticketPartsRevenue, ticketPartsCost);
-        const ticketLaborRevenue = ticketRevenue - effectivePartsRevenue;
+        const effectivePartsRevenue = Decimal.max(ticketPartsRevenue, ticketPartsCost);
+        const ticketLaborRevenue = ticketRevenue.minus(effectivePartsRevenue);
         
-        laborRevenue += ticketLaborRevenue;
+        laborRevenue = laborRevenue.plus(ticketLaborRevenue);
+
+        // Top Selling / Profitable parts & services aggregation
+        ticket.parts.forEach(p => {
+            if (p.deletedAt) return;
+            const partName = p.name || p.product?.name || 'قطعة غير معروفة';
+            const qty = Number(p.quantity || 1) - Number(p.refundedQty || 0);
+            if (qty <= 0) return;
+            
+            const pRevenue = new Decimal(p.price?.toString() || '0').times(qty);
+            const pCost = new Decimal(p.baseCostPrice?.toString() || p.cost?.toString() || '0').times(qty);
+            const pProfit = pRevenue.minus(pCost);
+            
+            const isService = p.product?.itemType === 'SERVICE' || p.status === 'SERVICE';
+            const typeLabel = isService ? 'SERVICE' : 'PART';
+            
+            if (!partsAggregation.has(partName)) {
+                partsAggregation.set(partName, {
+                    name: partName,
+                    qty: 0,
+                    revenue: 0,
+                    profit: 0,
+                    type: typeLabel
+                });
+            }
+            const agg = partsAggregation.get(partName)!;
+            agg.qty += qty;
+            agg.revenue = new Decimal(agg.revenue).plus(pRevenue).toNumber();
+            agg.profit = new Decimal(agg.profit).plus(pProfit).toNumber();
+        });
 
         // Refined Gap Analysis
         const lastUpdate = new Date(ticket.updatedAt).getTime();
@@ -119,10 +179,10 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             date: ticket.createdAt,
             customerName: ticket.customerName,
             technicianName: ticket.technician?.name || 'غير محدد',
-            revenue: ticketRevenue,
-            partsCost: ticketPartsCost,
-            commission: commission,
-            netProfit: ticketRevenue - (ticketPartsCost + commission),
+            revenue: ticketRevenue.toNumber(),
+            partsCost: ticketPartsCost.toNumber(),
+            commission: commission.toNumber(),
+            netProfit: ticketRevenue.minus(ticketPartsCost.plus(commission)).toNumber(),
             gap: gapDescription,
             status: ticket.status,
             issueDescription: ticket.issueDescription
@@ -133,17 +193,33 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
         ? (deliveredCount / (deliveredCount + returnCount)) * 100 
         : 100;
 
+    const topSellingParts = Array.from(partsAggregation.values())
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 5);
+
+    const mostProfitableParts = Array.from(partsAggregation.values())
+        .sort((a, b) => b.profit - a.profit)
+        .slice(0, 5);
+
     return {
         success: true,
         data: {
             kpis: {
-                totalRevenue,
-                partsCOGS,
-                totalCommissions,
-                laborNetProfit: laborRevenue - totalCommissions,
-                partsNetProfit: (totalRevenue - laborRevenue) - partsCOGS,
-                totalNetProfit: totalRevenue - (partsCOGS + totalCommissions),
-                successRatio: successRatio.toFixed(1)
+                totalRevenue: totalRevenue.toNumber(),
+                partsCOGS: partsCOGS.toNumber(),
+                totalCommissions: totalCommissions.toNumber(),
+                laborNetProfit: laborRevenue.minus(totalCommissions).toNumber(),
+                partsNetProfit: totalRevenue.minus(laborRevenue).minus(partsCOGS).toNumber(),
+                totalNetProfit: totalRevenue.minus(partsCOGS.plus(totalCommissions)).toNumber(),
+                successRatio: successRatio.toFixed(1),
+                totalDues: totalDues.toNumber(),
+                totalPaid: totalPaid.toNumber(),
+                totalDeferred: totalDeferred.toNumber(),
+                laborRevenue: laborRevenue.toNumber()
+            },
+            topParts: {
+                selling: topSellingParts,
+                profitable: mostProfitableParts
             },
             tickets: mappedTickets
         }

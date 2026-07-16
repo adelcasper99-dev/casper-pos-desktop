@@ -234,12 +234,65 @@ const runMigrations = (dbPath) => {
       'CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")'
     ];
 
-    log('Migrations: Applying pre-patch SQL statements...');
-    for (const sql of prePatchStatements) {
-        const ok = runSql(sql + ';');
-        log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
+    // --- OPTIMIZED PRE-PATCH BYPASS ---
+    // 1. Determine target version based on statement count
+    const targetPatchVersion = prePatchStatements.length;
+    let cachedPatchVersion = 0;
+    let casperConfig = {};
+    const userDataPath = app.getPath('userData');
+    const configPath = path.join(userDataPath, 'casper-config.json');
+
+    try {
+        if (fs.existsSync(configPath)) {
+            casperConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            cachedPatchVersion = casperConfig.appliedPatchVersion || 0;
+        }
+    } catch (e) {
+        log(`Config: Failed to load configuration for boot check: ${e.message}`);
     }
-    log('Migrations: Pre-patch complete.');
+
+    let isAlreadyPatched = false;
+
+    if (cachedPatchVersion === targetPatchVersion) {
+        try {
+            log('Database: Checking schema signature to verify cached version...');
+            const signatureCheck = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+                env, input: 'SELECT name FROM sqlite_master WHERE type="table" AND name="CashCategory";', windowsHide: true, encoding: 'utf-8'
+            });
+            if (signatureCheck.includes('CashCategory')) {
+                const columnCheck = execSync(`"${process.execPath}" "${prismaJs}" db execute --stdin --schema "${schemaPath}"`, {
+                    env, input: 'PRAGMA table_info("Product");', windowsHide: true, encoding: 'utf-8'
+                });
+                if (columnCheck.includes('isDevice')) {
+                    isAlreadyPatched = true;
+                    log(`Database: Schema matches cached version (${targetPatchVersion}). Skipping 93 pre-patch migrations.`);
+                }
+            }
+        } catch (e) {
+            log(`Database: Schema signature check failed (expected on empty/new DB): ${e.message}`);
+        }
+    }
+
+    if (!isAlreadyPatched) {
+        log(`Migrations: Applying ${targetPatchVersion} pre-patch SQL statements...`);
+        for (const sql of prePatchStatements) {
+            const ok = runSql(sql + ';');
+            log(`Migrations: Pre-patch ${ok ? 'OK' : 'SKIP'}: ${sql.slice(0, 70)}...`);
+        }
+        log('Migrations: Pre-patch complete.');
+
+        // Save successfully applied version to config
+        try {
+            if (!fs.existsSync(userDataPath)) {
+                fs.mkdirSync(userDataPath, { recursive: true });
+            }
+            casperConfig.appliedPatchVersion = targetPatchVersion;
+            fs.writeFileSync(configPath, JSON.stringify(casperConfig, null, 2), 'utf8');
+            log(`Config: Updated appliedPatchVersion to ${targetPatchVersion}`);
+        } catch (e) {
+            log(`Config: Failed to write configuration: ${e.message}`);
+        }
+    }
     // ──────────────────────────────────────────────────────────────────────────
 
     const attemptMigration = (attempt) => {
@@ -294,6 +347,15 @@ const runMigrations = (dbPath) => {
         // Delete it and retry from scratch so the user doesn't need to manually intervene.
         log('Migrations: AUTO-RECOVERY — deleting corrupt/empty database and retrying...');
         try {
+            // Reset the applied patch version in config
+            casperConfig.appliedPatchVersion = 0;
+            try {
+                fs.writeFileSync(configPath, JSON.stringify(casperConfig, null, 2), 'utf8');
+                log('Config: Reset appliedPatchVersion to 0 due to auto-recovery.');
+            } catch (configWriteErr) {
+                log(`Config: Failed to write reset configuration during auto-recovery: ${configWriteErr.message}`);
+            }
+
             if (fs.existsSync(dbPath)) {
                 fs.unlinkSync(dbPath);
                 log(`Migrations: Deleted corrupt database at ${dbPath}`);
@@ -351,7 +413,7 @@ const startServer = () => {
                     ELECTRON_RUN_AS_NODE: '1',
                     PORT: String(appPort),
                     HOST: '127.0.0.1',
-                    DATABASE_URL: `file:${normalizedDbPath}`,
+                    DATABASE_URL: `file:${normalizedDbPath}?socket_timeout=10000&connection_limit=1&journal_mode=WAL&synchronous=NORMAL&cache_size=-2000&temp_store=memory`,
                     PRISMA_QUERY_ENGINE_LIBRARY: queryEnginePath
                 }
             });
@@ -366,7 +428,7 @@ const startServer = () => {
             });
 
             let pollCount = 0;
-            const MAX_POLL = 120; // 60 seconds at 500ms intervals
+            const MAX_POLL = 1200; // 60 seconds at 50ms intervals
             const poll = setInterval(() => {
                 if (++pollCount > MAX_POLL) {
                     clearInterval(poll);
@@ -382,7 +444,7 @@ const startServer = () => {
                 }).on('error', () => {
                     socket.destroy();
                 }).connect(appPort, '127.0.0.1');
-            }, 500);
+            }, 50);
 
         } else {
             resolve();

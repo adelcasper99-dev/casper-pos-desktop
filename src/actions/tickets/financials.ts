@@ -115,12 +115,25 @@ export const refundTicket = secureAction(async (data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // SHIFT GUARD
+    // SHIFT GUARD: Try current user's shift first, then any open branch shift
+    let currentShift: any = null;
     const shiftResult = await getCurrentShiftInternal({ userId: user.id });
-    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
-        throw new Error("No active shift.");
+    if (shiftResult.shift?.status === 'OPEN') {
+        currentShift = shiftResult.shift;
+    } else if (user.branchId) {
+        const { prisma: prismaClient } = await import('@/lib/prisma');
+        const branchShift = await prismaClient.shift.findFirst({
+            where: { status: 'OPEN', user: { branchId: user.branchId } },
+            orderBy: { openedAt: 'desc' }
+        });
+        if (branchShift) currentShift = branchShift;
     }
-    const currentShift = shiftResult.shift;
+
+    const { PERMISSIONS: PERMS, hasPermission: hasPerm } = await import('@/lib/permissions');
+    const canBypassShift = hasPerm(user.permissions, PERMS.TICKET_OVERRIDE);
+    if (!currentShift && !canBypassShift) {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً أو التواصل مع مدير الفرع.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
         const ticket = await tx.ticket.findFirst({
@@ -191,10 +204,12 @@ export const refundTicket = secureAction(async (data: {
                 break;
         }
 
-        await tx.shift.update({
-            where: { id: currentShift.id },
-            data: shiftUpdate
-        });
+        if (currentShift) {
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: shiftUpdate
+            });
+        }
 
         const treasury = await tx.treasury.findFirst({
             where: { branchId: user.branchId!, isDefault: true }
@@ -207,7 +222,7 @@ export const refundTicket = secureAction(async (data: {
                     amount: new Decimal(amount).negated(),
                     paymentMethod: refundMethod,
                     description: `Refund: Ticket #${ticket.barcode}`,
-                    shiftId: currentShift.id,
+                    shiftId: currentShift?.id || null,
                     treasuryId: treasury.id
                 }
             });
