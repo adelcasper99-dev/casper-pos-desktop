@@ -521,6 +521,11 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
         // Computeds
         subtotal,
-        totalAmount
+        totalAmount,
+
+        // Missing properties for PurchaseFormReturn
+        csrfLoading,
+        csrfError: false,
+        isDraftLoaded: false
     };
 }
