@@ -26,7 +26,7 @@ interface TicketData {
     commission: number | string;
     netProfit: number | string;
     gap: string;
-    issueDescription: string;
+    riskLevel: string;
     status: string;
 }
 
@@ -80,7 +80,13 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
         );
     }
 
-
+    const getRiskColor = (level: string) => {
+        switch (level) {
+            case 'high': return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
+            case 'medium': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
+            default: return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+        }
+    };
 
     const getStatusBadge = (status: string) => {
         const labels: Record<string, string> = {
@@ -124,6 +130,12 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                                 العميل
                             </div>
                         </TableHead>
+                        <TableHead className="text-right cursor-pointer hover:bg-muted/50 transition-colors group/head" onClick={() => handleSort('technicianName')}>
+                            <div className="flex items-center gap-2 text-[10px] font-black text-foreground/80 uppercase tracking-widest">
+                                <SortIcon column="technicianName" />
+                                المهندس
+                            </div>
+                        </TableHead>
                         <TableHead className="text-right cursor-pointer hover:bg-muted/50 transition-colors group/head" onClick={() => handleSort('revenue')}>
                             <div className="flex items-center gap-2 text-[10px] font-black text-foreground/80 uppercase tracking-widest">
                                 <SortIcon column="revenue" />
@@ -149,13 +161,7 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                             </div>
                         </TableHead>
                         <TableHead className="text-right text-[10px] font-black text-foreground/80 uppercase tracking-widest">التأخير</TableHead>
-                        <TableHead className="text-right text-[10px] font-black text-foreground/80 uppercase tracking-widest">العطل</TableHead>
-                        <TableHead className="text-right cursor-pointer hover:bg-muted/50 transition-colors group/head" onClick={() => handleSort('technicianName')}>
-                            <div className="flex items-center gap-2 text-[10px] font-black text-foreground/80 uppercase tracking-widest">
-                                <SortIcon column="technicianName" />
-                                المهندس
-                            </div>
-                        </TableHead>
+                        <TableHead className="text-right text-[10px] font-black text-foreground/80 uppercase tracking-widest">المخاطر</TableHead>
                         <TableHead className="text-center text-[10px] font-black text-foreground/80 uppercase tracking-widest">الحالة</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -193,6 +199,12 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                                     </div>
                                 </div>
                             </TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-bold">
+                                    <Wrench className="w-3 h-3 opacity-30" />
+                                    {ticket.technicianName}
+                                </div>
+                            </TableCell>
                             <TableCell className="font-mono font-black text-sm text-foreground/90">{formatCurrency(Number(ticket.revenue))}</TableCell>
                             <TableCell className="text-rose-600 dark:text-rose-400/80 font-mono text-[11px] font-black">-{formatCurrency(Number(ticket.partsCost))}</TableCell>
                             <TableCell className="text-fuchsia-600 dark:text-fuchsia-400/80 font-mono text-[11px] font-black">-{formatCurrency(Number(ticket.commission))}</TableCell>
@@ -208,16 +220,10 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                                     {ticket.gap}
                                 </div>
                             </TableCell>
-                             <TableCell>
-                                <div className="text-[10px] font-black text-muted-foreground truncate max-w-[120px]" title={ticket.issueDescription}>
-                                    {ticket.issueDescription}
-                                </div>
-                            </TableCell>
                             <TableCell>
-                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-bold">
-                                    <Wrench className="w-3.5 h-3.5 opacity-30" />
-                                    {ticket.technicianName}
-                                </div>
+                                <Badge className={cn("border px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-tighter shadow-sm", getRiskColor(ticket.riskLevel))}>
+                                    {ticket.riskLevel === 'high' ? 'عالي الخطورة' : ticket.riskLevel === 'medium' ? 'متوسط' : 'آمن'}
+                                </Badge>
                             </TableCell>
                             <TableCell className="text-center">
                                 {getStatusBadge(ticket.status)}

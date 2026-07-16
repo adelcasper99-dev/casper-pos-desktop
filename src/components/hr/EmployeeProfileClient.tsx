@@ -743,13 +743,13 @@ export default function EmployeeProfileClient({
                                         <tr>
                                             <td colSpan={4} className="p-4 text-left font-bold text-zinc-400 uppercase tracking-widest">الإجمالي للمحدد:</td>
                                             <td className="p-4 text-center font-black text-xl text-white tabular-nums">
-                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.totalAmount || 0), 0).toLocaleString()} EGP
+                                                {data.tickets.reduce((acc: number, t: any) => acc + Number(t.totalAmount || 0), 0).toLocaleString()} EGP
                                             </td>
                                             <td className="p-4 text-center font-bold text-lg text-zinc-400 tabular-nums">
-                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.laborAmount || 0), 0).toLocaleString()} EGP
+                                                {data.tickets.reduce((acc: number, t: any) => acc + Number(t.laborAmount || 0), 0).toLocaleString()} EGP
                                             </td>
                                             <td className="p-4 text-center font-black text-xl text-cyan-400 tabular-nums">
-                                                {data.tickets.reduce((acc: number, t: any) => acc + (t.displayCommission || 0), 0).toLocaleString()} EGP
+                                                {data.tickets.reduce((acc: number, t: any) => acc + Number(t.displayCommission || 0), 0).toLocaleString()} EGP
                                             </td>
                                             <td></td>
                                         </tr>

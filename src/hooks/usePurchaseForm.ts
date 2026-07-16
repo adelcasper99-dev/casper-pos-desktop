@@ -1,26 +1,47 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { generateNextSku, createPurchase, updatePurchase } from "@/actions/inventory";
 import { useTranslations } from "@/lib/i18n-mock";
 import { toast } from "sonner";
 import { safeRandomUUID } from "@/lib/utils";
-import { Decimal } from 'decimal.js';
-import { toDecimal } from '@/lib/decimal-utils';
-import { CartItem as InvoiceItem, PurchaseFormReturn } from "@/types/purchasing";
-import { Product, Branch, Warehouse } from "@/types/product";
-import { compressImage } from "@/lib/image-compressor";
-export type { InvoiceItem };
+
+// Define strict types for the hook
+export interface InvoiceItem {
+    id: string;
+    productId?: string;
+    isNew?: boolean;
+    name: string;
+    sku: string;
+    categoryId?: string;
+    modelId?: string;
+    modelName?: string;
+    isNewModel?: boolean;
+    attributeId?: string;
+    attributeName?: string;
+    isNewAttribute?: boolean;
+    quantity: number | string;
+    unitCost: number | string;
+    sellPrice?: number | string;
+    sellPrice2?: number | string;
+    sellPrice3?: number | string;
+    isDevice?: boolean;
+    condition?: string;
+    imei?: string;
+    deviceType?: string;
+    unitOfMeasureId?: string;
+    conversionFactor?: number | string;
+}
 
 interface UsePurchaseFormProps {
-    products: Product[];
+    products: any[]; // Replace with specific Product type
     isHQUser: boolean;
     userBranchId?: string;
-    branches: Branch[];
-    warehouses: Warehouse[];
+    branches: any[];
+    warehouses: any[];
     csrfToken?: string;
     onSaveSuccess?: () => void;
 }
 
-export function usePurchaseForm({ products, isHQUser, userBranchId, branches, warehouses, csrfToken, onSaveSuccess }: UsePurchaseFormProps): PurchaseFormReturn {
+export function usePurchaseForm({ products, isHQUser, userBranchId, branches, warehouses, csrfToken, onSaveSuccess }: UsePurchaseFormProps) {
     const t = useTranslations('Purchasing');
 
     // UI State
@@ -28,46 +49,27 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     const [loading, setLoading] = useState(false);
     const [errorResult, setErrorResult] = useState<string | null>(null);
     const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
-    const [isDraftLoaded, setIsDraftLoaded] = useState(false);
 
     // CSRF Management
     const [internalCsrfToken, setInternalCsrfToken] = useState(csrfToken || "");
     const [csrfLoading, setCsrfLoading] = useState(!csrfToken);
-    const [csrfError, setCsrfError] = useState(false);
 
     useEffect(() => {
         if (!internalCsrfToken) {
             setCsrfLoading(true);
-            setCsrfError(false);
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-            }, 5000);
-
             // Try to fetch existing token first (GET)
-            fetch('/api/csrf/generate', { signal: controller.signal })
+            fetch('/api/csrf/generate')
                 .then(async (res) => {
                     if (res.ok) return res.json();
                     // If 404, try generating new one (POST)
-                    const gen = await fetch('/api/csrf/generate', { method: 'POST', signal: controller.signal });
+                    const gen = await fetch('/api/csrf/generate', { method: 'POST' });
                     return gen.json();
                 })
                 .then(data => {
-                    if (data.token) {
-                        setInternalCsrfToken(data.token);
-                        setCsrfError(false);
-                    } else {
-                        setCsrfError(true);
-                    }
+                    if (data.token) setInternalCsrfToken(data.token);
                 })
-                .catch(e => {
-                    console.error("CSRF Fetch Error:", e);
-                    setCsrfError(true);
-                })
-                .finally(() => {
-                    clearTimeout(timeoutId);
-                    setCsrfLoading(false);
-                });
+                .catch(e => console.error("CSRF Fetch Error:", e))
+                .finally(() => setCsrfLoading(false));
         }
     }, [internalCsrfToken]);
 
@@ -112,46 +114,34 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
     const [walkinName, setWalkinName] = useState("");
     const [walkinPhone, setWalkinPhone] = useState("");
     const [walkinNationalId, setWalkinNationalId] = useState("");
-    const [attachmentUrl, _setAttachmentUrl] = useState<string | null>(null);
-    const attachmentFileRef = useRef<File | null>(null);
-
-    const setAttachmentUrl = (url: string | null, file?: File | null) => {
-        _setAttachmentUrl(url);
-        if (file !== undefined) {
-            attachmentFileRef.current = file;
-        } else if (url === null) {
-            attachmentFileRef.current = null;
-        }
-    };
+    const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
 
     // Cart
     const [cart, setCart] = useState<InvoiceItem[]>([]);
 
     // Computed
     const subtotal = useMemo(() => {
-        return cart.reduce((acc, item) => acc.plus(toDecimal(item.quantity).times(toDecimal(item.unitCost))), new Decimal(0)).toNumber();
+        return cart.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unitCost)), 0);
     }, [cart]);
 
     const totalAmount = useMemo(() => {
-        return toDecimal(subtotal).plus(toDecimal(deliveryCharge)).toNumber();
+        const del = parseFloat(deliveryCharge) || 0;
+        return subtotal + del;
     }, [subtotal, deliveryCharge]);
 
     // Ensure paid amount does not exceed total amount when items/delivery change
     useEffect(() => {
-        const pDec = toDecimal(paidAmount);
-        const tDec = toDecimal(totalAmount);
-        if (pDec.gt(tDec)) {
-            setPaidAmount(tDec.toString());
+        const pAmount = parseFloat(paidAmount);
+        if (!isNaN(pAmount) && pAmount > totalAmount) {
+            setPaidAmount(totalAmount.toString());
         }
     }, [totalAmount, paidAmount]);
 
     // --- Persistence Logic ---
-    const STORAGE_KEY = 'purchase_form_draft_v2';
-    const [isLoaded, setIsLoaded] = useState(false);
+    const STORAGE_KEY = 'purchase_form_draft';
 
     // Load from storage on mount
     useEffect(() => {
-        if (editingInvoiceId) return;
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             try {
@@ -170,6 +160,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 if (data.walkinName) setWalkinName(data.walkinName);
                 if (data.walkinPhone) setWalkinPhone(data.walkinPhone);
                 if (data.walkinNationalId) setWalkinNationalId(data.walkinNationalId);
+                if (data.attachmentUrl) setAttachmentUrl(data.attachmentUrl);
 
                 // Only open if we have significant data
                 if (data.selectedSupplierId || (data.cart && data.cart.length > 0)) {
@@ -179,13 +170,12 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 console.error("Failed to load draft", e);
             }
         }
-        setIsLoaded(true);
-    }, [editingInvoiceId]);
+    }, []);
 
     // Save to storage on change
     useEffect(() => {
-        // Don't save if editing an existing invoice or not fully loaded
-        if (editingInvoiceId || !isLoaded) return;
+        // Don't save if editing an existing invoice
+        if (editingInvoiceId) return;
 
         const draft = {
             selectedSupplierId,
@@ -199,7 +189,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             isWalkin,
             walkinName,
             walkinPhone,
-            walkinNationalId
+            walkinNationalId,
+            attachmentUrl
         };
 
         // Debounce slightly or just save
@@ -217,8 +208,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         walkinName,
         walkinPhone,
         walkinNationalId,
-        editingInvoiceId,
-        isLoaded
+        attachmentUrl,
+        editingInvoiceId
     ]);
 
     // Reset Form
@@ -300,9 +291,9 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             return;
         }
 
-        const cost = toDecimal(newItemCost).toNumber();
-        const qty = newItemIsDevice ? 1 : toDecimal(newItemQty).toNumber();
-        const price = toDecimal(newItemSellPrice).toNumber();
+        const cost = parseFloat(newItemCost);
+        const qty = newItemIsDevice ? 1 : parseFloat(newItemQty);
+        const price = parseFloat(newItemSellPrice);
 
         if (cost > price) {
             toast.error(t('validation.costError', { names: newItemName }));
@@ -322,8 +313,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             unitCost: cost,
             quantity: qty,
             sellPrice: price,
-            sellPrice2: newItemSellPrice2 ? toDecimal(newItemSellPrice2).toNumber() : undefined,
-            sellPrice3: newItemSellPrice3 ? toDecimal(newItemSellPrice3).toNumber() : undefined,
+            sellPrice2: parseFloat(newItemSellPrice2) || undefined,
+            sellPrice3: parseFloat(newItemSellPrice3) || undefined,
             isDevice: newItemIsDevice,
             deviceType: newItemDeviceType,
             condition: newItemIsDevice ? newItemCondition : undefined,
@@ -358,19 +349,17 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 // Price Variance Check (Only for existing products)
                 if (updates.unitCost !== undefined && item.productId) {
                     const originalProduct = products.find(p => p.id === item.productId);
-                    if (originalProduct) {
-                        const oldPrice = toDecimal(originalProduct.costPrice);
-                        if (oldPrice.gt(0)) {
-                            const newPrice = toDecimal(updates.unitCost);
-                            const variance = newPrice.minus(oldPrice).div(oldPrice).times(100);
+                    if (originalProduct && originalProduct.costPrice > 0) {
+                        const oldPrice = originalProduct.costPrice;
+                        const newPrice = Number(updates.unitCost);
+                        const variance = ((newPrice - oldPrice) / oldPrice) * 100;
 
-                            if (variance.gt(5)) {
-                                toast.warning(t('validation.priceVarianceWarning', {
-                                    name: item.name,
-                                    percentage: variance.toFixed(1),
-                                    oldPrice: oldPrice.toFixed(2)
-                                }), { duration: 5000 });
-                            }
+                        if (variance > 5) {
+                            toast.warning(t('validation.priceVarianceWarning', {
+                                name: item.name,
+                                percentage: variance.toFixed(1),
+                                oldPrice: oldPrice.toFixed(2)
+                            }), { duration: 5000 });
                         }
                     }
                 }
@@ -422,20 +411,6 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
 
         setLoading(true);
 
-        let finalAttachmentUrl: string | undefined = undefined;
-        if (isWalkin) {
-            if (attachmentFileRef.current) {
-                try {
-                    finalAttachmentUrl = await compressImage(attachmentFileRef.current, 1000, 1000, 0.7);
-                } catch (err) {
-                    console.error("Failed to compress image:", err);
-                    toast.error("فشل في معالجة وضغط الصورة، سيتم الحفظ بدونها");
-                }
-            } else if (attachmentUrl && !attachmentUrl.startsWith("blob:")) {
-                finalAttachmentUrl = attachmentUrl;
-            }
-        }
-
         let result;
         const payload = {
             supplierId: isWalkin ? "WALKIN" : selectedSupplierId,
@@ -443,7 +418,7 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
             walkinName: isWalkin ? walkinName : undefined,
             walkinPhone: isWalkin ? walkinPhone : undefined,
             walkinNationalId: isWalkin ? walkinNationalId : undefined,
-            attachmentUrl: finalAttachmentUrl,
+            attachmentUrl: (isWalkin && attachmentUrl) ? attachmentUrl : undefined,
             warehouseId: selectedWarehouseId || undefined,
             items: cart.map(i => ({
                 productId: i.productId,
@@ -452,21 +427,20 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
                 categoryId: i.categoryId,
                 modelId: i.modelId,
                 attributeId: i.attributeId,
-                sellPrice: toDecimal(i.sellPrice).toNumber(),
-                sellPrice2: toDecimal(i.sellPrice2).toNumber(),
-                sellPrice3: toDecimal(i.sellPrice3).toNumber(),
+                sellPrice: Number(i.sellPrice || 0),
+                sellPrice2: Number(i.sellPrice2 || 0),
+                sellPrice3: Number(i.sellPrice3 || 0),
                 quantity: Number(i.quantity),
-                unitCost: toDecimal(i.unitCost).toFixed(4),
+                unitCost: Number(i.unitCost),
                 isDevice: i.isDevice,
                 deviceType: i.deviceType,
                 condition: i.condition,
                 imei: i.imei,
-                description: i.description,
                 unitOfMeasureId: i.unitOfMeasureId,
                 conversionFactor: Number(i.conversionFactor || 1)
             })),
-            paidAmount: toDecimal(paidAmount).toNumber(),
-            deliveryCharge: toDecimal(deliveryCharge).toNumber(),
+            paidAmount: parseFloat(paidAmount) || 0,
+            deliveryCharge: parseFloat(deliveryCharge) || 0,
             paymentMethod,
             treasuryId: treasuryId || undefined,
             csrfToken: internalCsrfToken
@@ -496,10 +470,8 @@ export function usePurchaseForm({ products, isHQUser, userBranchId, branches, wa
         isNewPurchaseOpen, setIsNewPurchaseOpen,
         loading, setLoading,
         csrfLoading, // CSRF token loading state
-        csrfError,
         errorResult, setErrorResult,
         editingInvoiceId, setEditingInvoiceId,
-        isDraftLoaded,
 
         // Form Data
         selectedSupplierId, setSelectedSupplierId,

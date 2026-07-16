@@ -13,7 +13,6 @@ const PAYMENT_METHOD = z.enum([
 
 export const OfflineSaleSchema = z.object({
     id: z.string().uuid().optional(),
-    tenantId: z.string().optional(),
     idempotencyKey: z.string().optional(),
     customerName: z.string().nullable().optional(),
     customerPhone: z.string().nullable().optional(),
@@ -29,7 +28,6 @@ export const OfflineSaleSchema = z.object({
     discountPercentage: z.number().min(0).max(100).default(0),
     shiftId: z.string().uuid().nullable().optional(),
     customerId: z.string().uuid().nullable().optional(),
-    isSupplier: z.boolean().optional(),
     // F-1: IndexedDB stores createdAt as a UNIX ms number; ISO strings also accepted.
     // Both are normalized to ISO string via transform before downstream use.
     createdAt: z.union([
@@ -49,13 +47,11 @@ export const OfflineSaleSchema = z.object({
     })).min(1, { message: 'A sale must contain at least one item' }),
 });
 
-
 /**
  * 🛡️ Offline Return Sync Schema
  */
 export const OfflineReturnSchema = z.object({
     id: z.string().uuid().optional(),
-    tenantId: z.string().optional(),
     idempotencyKey: z.string().optional(),
     originalSaleId: z.string().uuid(),
     // F-6: SPLIT is valid (return of a split-payment sale)
@@ -78,9 +74,7 @@ export const OfflineReturnSchema = z.object({
         z.string().datetime(),
         z.number().int().positive(),
     ]).optional().transform(v => v !== undefined ? new Date(v).toISOString() : undefined),
-    isTimeSuspicious: z.boolean().default(false),
 });
-
 
 export type OfflineSaleInput = z.infer<typeof OfflineSaleSchema>;
 export type OfflineReturnInput = z.infer<typeof OfflineReturnSchema>;

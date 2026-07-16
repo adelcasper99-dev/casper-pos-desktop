@@ -7,9 +7,8 @@ import {
     ArrowUpRight, ArrowDownLeft, Settings,
     ShoppingBag, Wallet, Info, ChevronUp, ChevronDown, ArrowUpDown,
     MoreVertical, Edit2, AlertTriangle, TrendingUp, Clock, Activity, Loader2,
-    MapPin, Mail, Wrench, Check, X, Share2, Copy, ExternalLink, QrCode
+    MapPin, Mail, Wrench, Check, X
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -85,9 +84,6 @@ export default function CustomerAccountsTab() {
     const [showLimitModal, setShowLimitModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
-    const [showPortalModal, setShowPortalModal] = useState(false);
-    const [portalLink, setPortalLink] = useState<string | null>(null);
-    const [isGeneratingPortal, setIsGeneratingPortal] = useState(false);
 
     // Form States
     const [paymentData, setPaymentData] = useState<{ amount: string, method: 'CASH' | 'VISA' | 'WALLET' | 'INSTAPAY', reference: string }>({ amount: '', method: 'CASH', reference: '' });
@@ -161,7 +157,7 @@ export default function CustomerAccountsTab() {
         setLoading(true);
         try {
             const result = await getCustomerDetails(customer.id);
-            if (result.success !== false) {
+            if (result.success && result.id) {
                 setCustomerDetails(result);
             } else if (result.error) {
                 toast.error(result.error);
@@ -255,32 +251,6 @@ export default function CustomerAccountsTab() {
                 toast.error('Failed to update customer');
             }
         });
-    };
-
-    const generatePortalLink = async () => {
-        if (!selectedCustomer) return;
-        setIsGeneratingPortal(true);
-        try {
-            const res = await fetch(`/api/customers/${selectedCustomer.id}/portal-link`);
-            const data = await res.json();
-            if (data.success) {
-                let link = `${window.location.origin}${data.path}`;
-                if ((window as any).ipcRenderer) {
-                    const status = await (window as any).ipcRenderer.invoke('tunnel:status');
-                    if (status.active && status.url) {
-                        link = `${status.url}${data.path}`;
-                    }
-                }
-                setPortalLink(link);
-                setShowPortalModal(true);
-            } else {
-                toast.error(data.error);
-            }
-        } catch (e) {
-            toast.error('Failed to generate portal link');
-        } finally {
-            setIsGeneratingPortal(false);
-        }
     };
 
     // Calculate Totals
@@ -486,7 +456,7 @@ export default function CustomerAccountsTab() {
                                                 customer.balance < 0 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : 
                                                 "bg-zinc-50 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-white/10"
                                             )}>
-                                                {(-Number(customer.balance)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                {Math.abs(customer.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 {customer.balance !== 0 && (
@@ -601,7 +571,7 @@ export default function CustomerAccountsTab() {
                             {t('paymentModal.title')}
                         </DialogTitle>
                         <DialogDescription className="text-zinc-500 font-bold mt-2">
-                            <span className="text-zinc-900 dark:text-white">{selectedCustomer?.name}</span> • {t('table.balance')}: <span className={Number(selectedCustomer?.balance) > 0 ? "text-rose-500" : "text-emerald-500"}>{(-Number(selectedCustomer?.balance)).toFixed(2)} EGP</span>
+                            <span className="text-zinc-900 dark:text-white">{selectedCustomer?.name}</span> • {t('table.balance')}: <span className="text-rose-500">{Number(selectedCustomer?.balance).toFixed(2)} EGP</span>
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-6 border-y border-zinc-100 dark:border-white/5 my-2">
@@ -707,10 +677,6 @@ export default function CustomerAccountsTab() {
                                 </div>
                                 <div>
                                     <DialogTitle className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{selectedCustomer?.name}</DialogTitle>
-                                    <DialogDescription className="sr-only">
-                                        تفاصيل حساب العميل والمعاملات المالية.
-                                    </DialogDescription>
-
                                     <div className="flex items-center gap-4 text-sm text-zinc-500 mt-2 font-bold">
                                         <span className="flex items-center gap-1.5 border border-zinc-200 dark:border-white/10 px-3 py-1 rounded-lg bg-white dark:bg-black/20">
                                             <Phone className="w-3.5 h-3.5" /> {selectedCustomer?.phone}
@@ -721,26 +687,13 @@ export default function CustomerAccountsTab() {
                                             </span>
                                         )}
                                     </div>
-                                    <div className="mt-4">
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            className="h-8 gap-2 bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 font-bold"
-                                            onClick={generatePortalLink}
-                                            disabled={isGeneratingPortal}
-                                        >
-                                            {isGeneratingPortal ? <CasperLoader width={16} /> : <Share2 className="w-3.5 h-3.5" />}
-                                            بوابة العميل
-                                        </Button>
-                                    </div>
                                 </div>
                             </div>
                             <div className="text-left bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-sm min-w-[180px]">
                                 <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-1">{t('details.info.balance')}</p>
-                                <div className={`text-2xl flex items-center justify-end gap-1 font-black tabular-nums font-mono ${(selectedCustomer?.balance ?? 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                    <span dir="ltr">{-Number(selectedCustomer?.balance ?? 0)}</span>
-                                    <span className="text-[10px] text-zinc-400">EGP</span>
-                                </div>
+                                <p className={`text-2xl font-black tabular-nums font-mono ${(selectedCustomer?.balance ?? 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                    {Number(selectedCustomer?.balance).toLocaleString()} <span className="text-xs font-normal opacity-50 italic">EGP</span>
+                                </p>
                             </div>
                         </div>
                     </DialogHeader>
@@ -783,41 +736,27 @@ export default function CustomerAccountsTab() {
                                     <div className="text-center py-24 text-zinc-400 font-bold">{t('details.noTransactions')}</div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {customerDetails.transactions.map((tx: any) => {
-                                            const ticketRef = tx.description?.match(/#(T-\d+)/)?.[1] || tx.reference?.match(/(T-\d+)/)?.[1] || tx.reference;
-                                            const linkedTicket = ticketRef ? customerDetails.tickets?.find((t: any) => t.barcode === ticketRef || t.id === ticketRef) : null;
-                                            
-                                            return (
-                                                <div key={tx.id} className="bg-zinc-50 dark:bg-zinc-900/40 p-3 rounded-xl border border-zinc-200 dark:border-white/5 flex items-center justify-between group hover:bg-white dark:hover:bg-zinc-900 transition-colors">
-                                                    <div className="flex items-center gap-4 min-w-0">
-                                                        <div className={`p-2 rounded-xl shrink-0 ${tx.type === 'DEBIT' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-500' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500'}`}>
-                                                            {tx.type === 'DEBIT' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <p className="font-black text-zinc-900 dark:text-white text-sm truncate">
-                                                                    {tx.description || (tx.type === 'DEBIT' ? t('details.transactionTypes.sale') : t('details.transactionTypes.credit'))}
-                                                                </p>
-                                                                {linkedTicket && (
-                                                                    <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-black border-zinc-200 dark:border-white/10 uppercase tracking-widest bg-white dark:bg-zinc-900 truncate max-w-[200px]">
-                                                                        {linkedTicket.device} {linkedTicket.issueDescription ? `— ${linkedTicket.issueDescription}` : ''}
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-[9px] text-zinc-500 font-bold mt-0.5 tracking-widest uppercase">
-                                                                {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tx.createdAt))}
-                                                            </p>
-                                                        </div>
+                                        {customerDetails.transactions.map((tx: any) => (
+                                            <div key={tx.id} className="bg-zinc-50 dark:bg-zinc-900/40 p-5 rounded-2xl border border-zinc-200 dark:border-white/5 flex items-center justify-between group">
+                                                <div className="flex items-center gap-5">
+                                                    <div className={`p-3 rounded-xl ${tx.type === 'DEBIT' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-500' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500'}`}>
+                                                        {tx.type === 'DEBIT' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownLeft className="w-5 h-5" />}
                                                     </div>
-                                                    <div className="text-right shrink-0 ml-4">
-                                                        <div className={`text-base flex items-center justify-end gap-1 font-black tabular-nums font-mono ${tx.type === 'DEBIT' ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
-                                                            <span dir="ltr">{tx.type === 'DEBIT' ? '-' : '+'}{Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> <span className="text-[9px]">EGP</span>
-                                                        </div>
-                                                        <p className="text-[9px] text-zinc-400 font-bold mt-0.5 uppercase">مرجع: {tx.id.split('-')[0]}</p>
+                                                    <div>
+                                                        <p className="font-black text-zinc-900 dark:text-white text-sm">{tx.description || (tx.type === 'DEBIT' ? t('details.transactionTypes.sale') : t('details.transactionTypes.credit'))}</p>
+                                                        <p className="text-[10px] text-zinc-500 font-bold mt-1 tracking-widest uppercase">
+                                                            {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(tx.createdAt))}
+                                                        </p>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                                <div className="text-right">
+                                                    <p className={`text-lg font-black tabular-nums font-mono ${tx.type === 'DEBIT' ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
+                                                        {tx.type === 'DEBIT' ? '+' : '-'}{Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[10px]">EGP</span>
+                                                    </p>
+                                                    <p className="text-[9px] text-zinc-400 font-bold mt-1 uppercase">Ref: {tx.id.split('-')[0]}</p>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </TabsContent>
@@ -833,12 +772,12 @@ export default function CustomerAccountsTab() {
                                 ) : (
                                     <div className="space-y-6">
                                         {/* Intelligence Summary Bar */}
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-zinc-50 dark:bg-zinc-900/40 p-1 rounded-2xl border border-zinc-200 dark:border-white/5">
-                                            <div className="bg-white dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-white/5 shadow-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-900/40 p-1.5 rounded-3xl border border-zinc-200 dark:border-white/5">
+                                            <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
                                                 <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">{t('intelligence.successRatio')}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg font-black">{customerDetails.intelligence.ticketSuccessRatio}%</span>
-                                                    <div className="h-1 flex-1 bg-zinc-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xl font-black">{customerDetails.intelligence.ticketSuccessRatio}%</span>
+                                                    <div className="h-1.5 flex-1 bg-zinc-100 dark:bg-white/5 rounded-full overflow-hidden">
                                                         <div 
                                                             className={cn(
                                                                 "h-full transition-all duration-1000",
@@ -851,110 +790,89 @@ export default function CustomerAccountsTab() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="bg-white dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-white/5 shadow-sm">
-                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">ديون متأخرة</p>
-                                                <p className="text-lg font-black text-rose-500 font-mono">
-                                                    {customerDetails.intelligence.unpaidMaintenance.toLocaleString()} <span className="text-[9px] font-normal italic">EGP</span>
+                                            <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
+                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Unpaid Dues</p>
+                                                <p className="text-xl font-black text-rose-500 font-mono">
+                                                    {customerDetails.intelligence.unpaidMaintenance.toLocaleString()} <span className="text-[10px] font-normal italic">EGP</span>
                                                 </p>
                                             </div>
-                                            <div className="bg-white dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-white/5 shadow-sm">
-                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">معدل التردد للصيانة</p>
-                                                <p className="text-lg font-black">
-                                                    {customerDetails.intelligence.maintenanceGapDays !== null ? `كل ${customerDetails.intelligence.maintenanceGapDays} يوم` : "—"}
-                                                </p>
-                                            </div>
-                                            <div className="bg-white dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-white/5 shadow-sm">
-                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">إجمالي الأجهزة</p>
-                                                <p className="text-lg font-black">
-                                                    {customerDetails.tickets.length} <span className="text-[9px] font-normal">جهاز</span>
+                                            <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
+                                                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Repair Frequency</p>
+                                                <p className="text-xl font-black">
+                                                    {customerDetails.intelligence.maintenanceGapDays !== null ? `${customerDetails.intelligence.maintenanceGapDays} Days` : "—"}
                                                 </p>
                                             </div>
                                         </div>
 
                                         <div className="space-y-4">
                                             {customerDetails.tickets.map((ticket: any) => (
-                                                <div key={ticket.id} className="group bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-white/5 rounded-2xl p-4 transition-all hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:shadow-zinc-900/5 hover:-translate-y-1">
-                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                        <div className="flex items-center gap-3 md:w-[35%] min-w-0">
-                                                            <div className="w-9 h-9 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black shadow-md shrink-0">
-                                                                <Wrench className="w-4 h-4" />
+                                                <div key={ticket.id} className="group bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-5 transition-all hover:bg-white dark:hover:bg-zinc-900 hover:shadow-xl hover:shadow-zinc-900/5 hover:-translate-y-1">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black shadow-lg">
+                                                                <Wrench className="w-6 h-6" />
                                                             </div>
-                                                            <div className="min-w-0">
-                                                                <div className="flex items-center gap-1.5 min-w-0 mb-0.5">
-                                                                    {ticket.issueDescription && (
-                                                                        <>
-                                                                            <p className="font-black text-zinc-900 dark:text-white uppercase tracking-tighter text-sm truncate">
-                                                                                {ticket.issueDescription}
-                                                                            </p>
-                                                                            <span className="text-zinc-300 dark:text-zinc-600 shrink-0">—</span>
-                                                                        </>
-                                                                    )}
-                                                                    <p className={cn("uppercase tracking-tighter truncate", ticket.issueDescription ? "text-xs font-bold text-zinc-500" : "font-black text-zinc-900 dark:text-white text-sm")}>
-                                                                        {ticket.device}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="flex items-center gap-1.5 mt-0.5">
-                                                                    <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-black border-zinc-200 dark:border-white/10 uppercase tracking-widest truncate">#{ticket.barcode}</Badge>
-                                                                    <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest truncate">
+                                                            <div>
+                                                                <p className="font-black text-zinc-900 dark:text-white uppercase tracking-tighter text-lg">{ticket.device}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <Badge variant="outline" className="text-[9px] h-5 px-2 font-black border-zinc-200 dark:border-white/10 uppercase tracking-widest">#{ticket.barcode}</Badge>
+                                                                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
                                                                         {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(ticket.createdAt))}
                                                                     </span>
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        <div className="text-right">
+                                                            <Badge className={cn(
+                                                                "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl",
+                                                                ticket.status === 'COMPLETED' || ticket.status === 'DELIVERED' ? "bg-emerald-500 text-white" :
+                                                                ticket.status === 'CANCELLED' || ticket.status === 'VOIDED' ? "bg-rose-500 text-white" :
+                                                                "bg-orange-500 text-white"
+                                                            )}>
+                                                                {ticket.status}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
 
-                                                        <div className="flex items-center justify-between md:justify-end gap-6 flex-1 min-w-0">
-                                                            <div className="hidden lg:block shrink-0">
-                                                                <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-0.5 text-right">الحالة المالية</p>
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <span className="text-[10px] font-black font-mono">
-                                                                        {ticket.repairPrice.toLocaleString()} <span className="text-[8px] font-normal">التكلفة</span>
-                                                                    </span>
-                                                                    <span className="text-[9px] text-zinc-300">|</span>
-                                                                    <span className="text-[10px] font-black font-mono text-emerald-600">
-                                                                        {ticket.deposit.toLocaleString()} <span className="text-[8px] font-normal">المدفوع</span>
-                                                                    </span>
-                                                                </div>
+                                                    <div className="grid grid-cols-3 gap-6 pt-4 border-t border-zinc-100 dark:border-white/5">
+                                                        <div>
+                                                            <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1">Status Workflow</p>
+                                                            <div className="flex gap-1">
+                                                                {[1, 2, 3, 4].map((step) => (
+                                                                    <div 
+                                                                        key={step} 
+                                                                        className={cn(
+                                                                            "h-1.5 flex-1 rounded-full",
+                                                                            step === 1 ? "bg-emerald-500" :
+                                                                            (step === 2 && ['DIAGNOSING', 'REPAIRING', 'COMPLETED', 'DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
+                                                                            (step === 3 && ['COMPLETED', 'DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
+                                                                            (step === 4 && ['DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
+                                                                            "bg-zinc-200 dark:bg-white/10"
+                                                                        )}
+                                                                    />
+                                                                ))}
                                                             </div>
-
-                                                            <div className="shrink-0 text-end">
-                                                                <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-0.5">المتبقي</p>
-                                                                <p className={cn(
-                                                                    "text-xs font-black font-mono",
-                                                                    ticket.due > 0 ? "text-rose-600" : "text-emerald-600"
-                                                                )}>
-                                                                    {ticket.due.toLocaleString()} <span className="text-[9px]">EGP</span>
-                                                                </p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1">Financial State</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-black font-mono">
+                                                                    {ticket.repairPrice.toLocaleString()} <span className="text-[9px] font-normal">Price</span>
+                                                                </span>
+                                                                <span className="text-[10px] text-zinc-300">|</span>
+                                                                <span className="text-xs font-black font-mono text-emerald-600">
+                                                                    {ticket.deposit.toLocaleString()} <span className="text-[9px] font-normal">Paid</span>
+                                                                </span>
                                                             </div>
-                                                            
-                                                            <div className="shrink-0 w-20 hidden md:block">
-                                                                <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1 text-center">مسار التذكرة</p>
-                                                                <div className="flex gap-0.5">
-                                                                    {[1, 2, 3, 4].map((step) => (
-                                                                        <div 
-                                                                            key={step} 
-                                                                            className={cn(
-                                                                                "h-1 flex-1 rounded-full",
-                                                                                step === 1 ? "bg-emerald-500" :
-                                                                                (step === 2 && ['DIAGNOSING', 'REPAIRING', 'COMPLETED', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
-                                                                                (step === 3 && ['COMPLETED', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
-                                                                                (step === 4 && ['DELIVERED', 'PAID_DELIVERED'].includes(ticket.status)) ? "bg-emerald-500" :
-                                                                                "bg-zinc-200 dark:bg-white/10"
-                                                                            )}
-                                                                        />
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="shrink-0 text-right">
-                                                                <Badge className={cn(
-                                                                    "text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg text-center min-w-[90px]",
-                                                                    ['COMPLETED', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status) ? "bg-emerald-500 text-white" :
-                                                                    ['CANCELLED', 'VOIDED'].includes(ticket.status) ? "bg-rose-500 text-white" :
-                                                                    "bg-orange-500 text-white"
-                                                                )}>
-                                                                    {ticket.status === 'PAID_DELIVERED' ? 'PAID & DELIVERED' : ticket.status}
-                                                                </Badge>
-                                                            </div>
+                                                        </div>
+                                                        <div className="text-end">
+                                                            <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest mb-1">Remaining Due</p>
+                                                            <p className={cn(
+                                                                "text-sm font-black font-mono",
+                                                                ticket.due > 0 ? "text-rose-600" : "text-emerald-600"
+                                                            )}>
+                                                                {ticket.due.toLocaleString()} <span className="text-[9px]">EGP</span>
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -979,7 +897,7 @@ export default function CustomerAccountsTab() {
                                                     <div>
                                                         <p className="font-black text-zinc-900 dark:text-white flex items-center gap-2 text-sm uppercase">
                                                             <ShoppingBag className="w-4 h-4 text-zinc-400" />
-                                                            فاتورة #{sale.id.split('-')[0]}
+                                                            SALE #{sale.id.split('-')[0]}
                                                         </p>
                                                         <p className="text-[10px] text-zinc-500 font-bold mt-1 tracking-widest">
                                                             {new Date(sale.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}
@@ -1094,65 +1012,6 @@ export default function CustomerAccountsTab() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        {/* Portal Link Modal */}
-        <Dialog open={showPortalModal} onOpenChange={setShowPortalModal}>
-            <DialogContent className="sm:max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 shadow-2xl rounded-3xl text-zinc-900 dark:text-white font-cairo overflow-hidden">
-                <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-indigo-500/5 to-slate-900/5 -z-10" />
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">
-                        <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
-                            <Share2 className="w-5 h-5" />
-                        </div>
-                        بوابة العميل
-                    </DialogTitle>
-                    <DialogDescription className="text-zinc-500 dark:text-zinc-400 font-bold">
-                        رابط الدخول المباشر لبوابة العميل. (الرقم السري هو آخر 4 أرقام من الموبايل)
-                    </DialogDescription>
-                </DialogHeader>
-                
-                {portalLink && (
-                    <div className="flex flex-col items-center gap-6 py-6 border-y border-zinc-100 dark:border-white/5 my-2">
-                        <div className="p-4 bg-white rounded-2xl shadow-sm border border-zinc-200">
-                            <QRCodeSVG value={portalLink} size={180} level="M" />
-                        </div>
-                        
-                        <div className="w-full space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Input 
-                                    readOnly 
-                                    value={portalLink} 
-                                    className="font-mono text-xs bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/10 h-12"
-                                    dir="ltr"
-                                />
-                                <Button 
-                                    variant="outline" 
-                                    size="icon"
-                                    className="h-12 w-12 shrink-0 border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5"
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(portalLink);
-                                        toast.success("تم نسخ الرابط");
-                                    }}
-                                >
-                                    <Copy className="w-4 h-4 text-zinc-500" />
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                
-                <DialogFooter>
-                    <Button 
-                        className="w-full rounded-xl font-bold h-12 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100" 
-                        onClick={() => setShowPortalModal(false)}
-                    >
-                        إغلاق
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
         </div>
     );
 }
-
-

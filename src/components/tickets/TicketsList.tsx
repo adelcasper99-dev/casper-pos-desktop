@@ -2,7 +2,7 @@ import { useState, useEffect, useTransition, useMemo } from 'react'
 import {
     Search, User as UserIcon, Plus, Edit2, Trash2, MoreHorizontal,
     Clock, AlertTriangle, AlertCircle, X, Shield, Wrench, Filter, ChevronDown, Download,
-    Printer, Settings as SettingsIcon, StickyNote, Zap, Activity, Coins
+    Printer, Settings as SettingsIcon, StickyNote, Zap, Activity
 } from "lucide-react"
 
 import { Switch } from "@/components/ui/switch"
@@ -10,7 +10,7 @@ import { printService } from "@/lib/print-service"
 import { useRouter } from 'next/navigation'
 import { useDebouncedCallback } from 'use-debounce'
 import { CasperLoader } from "@/components/ui/CasperLoader"
-import { useTranslations, useLocale } from '@/lib/i18n-mock'
+import { useTranslations } from '@/lib/i18n-mock'
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,7 +31,6 @@ import {
 import { DateRange } from "react-day-picker"
 import { cn } from '@/lib/utils'
 import { getTickets as fetchTickets } from "@/actions/ticket-actions"
-import { getAllTechnicians } from "@/actions/engineer-actions"
 import { getEffectiveStoreSettings } from "@/actions/settings"
 import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
@@ -40,7 +39,6 @@ import { toast } from "sonner"
 
 export default function TicketsList() {
     const t = useTranslations('Tickets');
-    const locale = useLocale();
     const [tickets, setTickets] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -69,11 +67,7 @@ export default function TicketsList() {
     const [printTicket, setPrintTicket] = useState<any>(null)
     const [printMode, setPrintMode] = useState<'receipt' | 'label' | 'engineer'>('receipt')
     const [isSilentPrint, setIsSilentPrint] = useState(false)
-    const [enableSpeedPrint, setEnableSpeedPrint] = useState(false)
-
-    // Engineer filter
-    const [technicians, setTechnicians] = useState<{ id: string; name: string }[]>([])
-    const [selectedTechId, setSelectedTechId] = useState<string>('all')
+    const [enableSpeedPrint, setEnableSpeedPrint] = useState(true)
 
     // Helper: check if default printers are configured
     const hasThermalPrinter = () =>
@@ -90,11 +84,8 @@ export default function TicketsList() {
         returns: 0, 
         ratio: '0.0', 
         totalPaid: 0,
-        totalOutstanding: 0,
-        overdueCount: 0,
-        totalReceived: 0,
-        rejectedCount: 0,
-        rejectedSum: 0
+        highRiskCount: 0,
+        overdueCount: 0
     });
 
     const stats = useMemo(() => serverStats, [serverStats]);
@@ -108,25 +99,13 @@ export default function TicketsList() {
 
     useEffect(() => {
         loadData()
-    }, [query, statusFilter, showStale, dateRange, selectedTechId])
-
-    useEffect(() => {
-        async function loadTechnicians() {
-            const res = await getAllTechnicians()
-            if (res.success && (res as any).technicians) {
-                setTechnicians((res as any).technicians)
-            }
-        }
-        loadTechnicians()
-    }, [])
+    }, [query, statusFilter, showStale, dateRange])
 
     useEffect(() => {
         const registry = printService.getRegistry();
-        if (registry && typeof registry.enableSpeedPrint === 'boolean') {
-            // Only apply saved value when explicitly stored; default stays false (opt-in)
-            setEnableSpeedPrint(registry.enableSpeedPrint);
+        if (registry) {
+            setEnableSpeedPrint(registry.enableSpeedPrint !== false);
         }
-        // If registry is null or enableSpeedPrint is unset → stay false (safe default)
     }, [])
 
     const handleSpeedPrintToggle = (val: boolean) => {
@@ -153,8 +132,7 @@ export default function TicketsList() {
             search: query,
             status: showStale ? 'all' : statusFilter,
             startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
-            endDate: dateRange?.to ? dateRange.to.toISOString() : undefined,
-            technicianId: selectedTechId !== 'all' ? selectedTechId : undefined,
+            endDate: dateRange?.to ? dateRange.to.toISOString() : undefined
         }
         if (showStale) {
             filters.minDaysOld = 30
@@ -263,6 +241,14 @@ export default function TicketsList() {
         return { label: 'عادي', color: 'bg-zinc-500/10 text-zinc-400 border-white/5', icon: Wrench };
     }
 
+    const getRiskInfo = (ticket: any) => {
+        const level = ticket.riskLevel || 'low';
+
+        if (level === 'high') return { level: 'high', color: 'text-red-500', icon: AlertCircle };
+        if (level === 'medium') return { level: 'medium', color: 'text-orange-500', icon: AlertTriangle };
+        return { level: 'low', color: 'text-emerald-500', icon: Clock };
+    }
+
     const getWorkflowStage = (status: string) => {
         const stages = [
             ['NEW', 'RETURNED_FOR_REFIX'],
@@ -330,9 +316,10 @@ export default function TicketsList() {
                 } else if (sortConfig.key === 'customerSuccessRatio') {
                     aVal = Number(a.customerSuccessRatio);
                     bVal = Number(b.customerSuccessRatio);
-                } else if (sortConfig.key === 'technician') {
-                    aVal = a.technician?.name || "";
-                    bVal = b.technician?.name || "";
+                } else if (sortConfig.key === 'riskLevel') {
+                    const riskMap: any = { 'high': 3, 'medium': 2, 'low': 1 };
+                    aVal = riskMap[a.riskLevel] || 0;
+                    bVal = riskMap[b.riskLevel] || 0;
                 }
 
                 if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -345,80 +332,10 @@ export default function TicketsList() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-cairo">
-                {/* Card 1: Total Received */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-blue-500/10 border border-blue-500/20" />
-                        <Wrench className="h-7 w-7 text-blue-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">إجمالي الاستلام</p>
-                        <p className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums leading-none">
-                            {stats.totalReceived || 0}
-                        </p>
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold">جهازاً مستلماً في الفترة</span>
-                    </div>
-                </div>
-
-                {/* Card 2: Financial Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-cairo">
+                {/* Card 1: Success Ratio */}
                 <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-emerald-500/10 border border-emerald-500/20" />
-                        <Coins className="h-7 w-7 text-emerald-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-1 w-full">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الملخص المالي</p>
-                        <div className="flex items-center gap-4 mt-0.5">
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-400 font-bold">المدفوع</span>
-                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
-                                    {(stats.totalPaid || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
-                                </span>
-                            </div>
-                            <div className="h-8 w-px bg-zinc-200 dark:bg-white/10" />
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-400 font-bold">المستحق</span>
-                                <span className="text-lg font-black text-rose-600 dark:text-rose-400 tabular-nums leading-none">
-                                    {(stats.totalOutstanding || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Card 3: Total Rejected */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-rose-500/10 border border-rose-500/20" />
-                        <AlertTriangle className="h-7 w-7 text-rose-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-1 w-full">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">إجمالي المرفوض</p>
-                        <div className="flex items-center gap-4 mt-0.5">
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-400 font-bold">الأجهزة</span>
-                                <span className="text-lg font-black text-rose-500 tabular-nums leading-none">
-                                    {stats.rejectedCount || 0} <span className="text-[10px] font-black text-zinc-500">أجهزة</span>
-                                </span>
-                            </div>
-                            <div className="h-8 w-px bg-zinc-200 dark:bg-white/10" />
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-400 font-bold">القيمة التقديرية</span>
-                                <span className="text-lg font-black text-zinc-900 dark:text-white tabular-nums leading-none">
-                                    {(stats.rejectedSum || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Card 4: Success Ratio & Overdue */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     {/* Circular progress chart */}
                     <div className="relative w-16 h-16 flex-shrink-0">
                         <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
@@ -437,24 +354,42 @@ export default function TicketsList() {
                     </div>
                     <div className="flex flex-col gap-0.5">
                         <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.successRatio')}</p>
-                        <p className="text-zinc-900 dark:text-white font-black text-sm">
-                            {stats.delivered} <span className="text-zinc-400 font-normal text-xs">{t('filters.delivered')}</span>
-                        </p>
+                        <p className="text-zinc-900 dark:text-white font-black text-sm">{stats.delivered} <span className="text-zinc-400 font-normal text-xs">{t('filters.delivered')}</span></p>
                         <div className="flex items-center gap-1 mt-0.5">
-                            {stats.overdueCount > 0 ? (
-                                <>
-                                    <div className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
-                                    <span className="text-[10px] text-rose-500 font-black">
-                                        {stats.overdueCount} متأخرة
-                                    </span>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="h-1 w-1 rounded-full bg-emerald-500" />
-                                    <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
-                                </>
-                            )}
+                            <div className="h-1 w-1 rounded-full bg-emerald-500" />
+                            <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
                         </div>
+                    </div>
+                </div>
+
+                {/* Card 2: High Risk */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-rose-500/10 border border-rose-500/20 animate-pulse" />
+                        <AlertTriangle className="h-7 w-7 text-rose-500 relative z-10" />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.risk')}</p>
+                        <p className="text-3xl font-black text-rose-500 tabular-nums leading-none">{stats.highRiskCount}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                            <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>
+                            <span className="text-[10px] text-zinc-400 font-black">حالات تحتاج متابعة عاجلة</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 3: Overdue */}
+                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-cyan-500/10 border border-cyan-500/20" />
+                        <Clock className="h-7 w-7 text-cyan-500 relative z-10" />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الفجوة (Gap/SLO)</p>
+                        <p className="text-3xl font-black text-cyan-500 tabular-nums leading-none">{stats.overdueCount}</p>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-black">تجاوزت الوقت المتوقع للإصلاح</span>
                     </div>
                 </div>
             </div>
@@ -574,57 +509,6 @@ export default function TicketsList() {
                             className="scale-[0.8] ms-1 data-[state=checked]:bg-indigo-500"
                         />
                     </div>
-                    {/* Engineer / Technician filter dropdown */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="outline"
-                                className={cn(
-                                    "border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 font-black transition-all",
-                                    selectedTechId !== 'all'
-                                        ? "border-cyan-500/60 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
-                                        : "text-slate-900 dark:text-white"
-                                )}
-                            >
-                                <UserIcon className="w-4 h-4" />
-                                <span className="max-w-[120px] truncate">
-                                    {selectedTechId === 'all'
-                                        ? 'كل المهندسين'
-                                        : selectedTechId === 'unassigned'
-                                            ? 'غير معين'
-                                            : (technicians.find(t => t.id === selectedTechId)?.name ?? 'مهندس')}
-                                </span>
-                                <ChevronDown className="w-3 h-3 opacity-50" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
-                            <DropdownMenuLabel className="text-xs uppercase tracking-widest text-slate-500 dark:text-zinc-500">المهندس / الفني</DropdownMenuLabel>
-                            <DropdownMenuItem
-                                onClick={() => setSelectedTechId('all')}
-                                className={cn("font-black", selectedTechId === 'all' ? "bg-slate-100 dark:bg-white/10" : "")}
-                            >
-                                كل المهندسين
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onClick={() => setSelectedTechId('unassigned')}
-                                className={cn("font-black text-orange-500", selectedTechId === 'unassigned' ? "bg-slate-100 dark:bg-white/10" : "")}
-                            >
-                                غير معين
-                            </DropdownMenuItem>
-                            {technicians.length > 0 && <DropdownMenuSeparator />}
-                            {technicians.map(tech => (
-                                <DropdownMenuItem
-                                    key={tech.id}
-                                    onClick={() => setSelectedTechId(tech.id)}
-                                    className={cn("font-black", selectedTechId === tech.id ? "bg-slate-100 dark:bg-white/10" : "")}
-                                >
-                                    {tech.name}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {/* Status filter dropdown */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black">
@@ -677,18 +561,17 @@ export default function TicketsList() {
                     <div className="overflow-x-auto custom-scrollbar">
                         <table className="zebra-table w-full text-right text-sm text-zinc-900 dark:text-zinc-200 table-fixed" dir="rtl">
                             <colgroup>
-                                <col className="w-[130px]" /> {/* Status */}
+                                <col className="w-[150px]" /> {/* Status */}
                                 <col className="w-[80px]" />  {/* Gap */}
-                                <col className="w-[90px]" />  {/* Success */}
-                                <col className="w-[110px]" /> {/* Date */}
-                                <col className="w-[110px]" /> {/* Info */}
-                                <col className="w-[110px]" /> {/* Paid */}
-                                <col className="w-[110px]" /> {/* Due */}
-                                <col className="w-[160px]" /> {/* Customer */}
-                                <col className="w-[160px]" /> {/* Device */}
-                                <col className="w-[160px]" /> {/* Fault/Issue */}
-                                <col className="w-[130px]" /> {/* Engineer */}
-                                <col className="w-[90px]" />  {/* Time */}
+                                <col className="w-[80px]" />  {/* Risk */}
+                                <col className="w-[100px]" /> {/* Success */}
+                                <col className="w-[120px]" /> {/* Date */}
+                                <col className="w-[120px]" /> {/* Info */}
+                                <col className="w-[120px]" /> {/* Paid */}
+                                <col className="w-[120px]" /> {/* Due */}
+                                <col className="w-[180px]" /> {/* Customer */}
+                                <col className="w-[180px]" /> {/* Device */}
+                                <col className="w-[100px]" /> {/* Time */}
                                 <col className="w-[50px]" />  {/* Actions */}
                             </colgroup>
                                 <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 uppercase font-black text-[11px] tracking-wider border-b border-zinc-200 dark:border-white/10">
@@ -703,6 +586,12 @@ export default function TicketsList() {
                                              <div className="flex items-center gap-2">
                                                  {getSortIcon('gap')}
                                                  {t('table.gap')}
+                                             </div>
+                                         </th>
+                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('riskLevel')}>
+                                             <div className="flex items-center gap-2">
+                                                 {getSortIcon('riskLevel')}
+                                                 {t('table.risk')}
                                              </div>
                                          </th>
                                          <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerSuccessRatio')}>
@@ -737,17 +626,6 @@ export default function TicketsList() {
                                             </div>
                                         </th>
                                         <th className="px-6 py-4 text-start">{t('table.device')}</th>
-                                        <th className="px-6 py-4 text-start">
-                                             <div className="flex items-center gap-2">
-                                                 {t('table.risk')}
-                                             </div>
-                                         </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('technician')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('technician')}
-                                                {t('table.technician')}
-                                            </div>
-                                        </th>
                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
                                             <div className="flex items-center gap-2">
                                                 {getSortIcon('expectedDuration')}
@@ -760,6 +638,8 @@ export default function TicketsList() {
                             <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                                 {sortedTickets.map((ticket) => {
                                     const urgency = getUrgencyInfo(ticket);
+                                    const risk = getRiskInfo(ticket);
+                                    const RiskIcon = risk.icon;
                                     return (
                                         <tr
                                             key={ticket.id}
@@ -818,6 +698,25 @@ export default function TicketsList() {
                                                 })()}
                                             </td>
 
+                                            {/* 🎯 Risk Column */}
+                                            <td className="px-4 py-4">
+                                                {(() => {
+                                                    const riskStyles = {
+                                                        high: { bg: 'bg-red-500/10 border-red-500/30', text: 'text-red-500', label: 'عالي', pulse: true },
+                                                        medium: { bg: 'bg-orange-500/10 border-orange-500/30', text: 'text-orange-500', label: 'متوسط', pulse: false },
+                                                        low: { bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-500', label: 'منخفض', pulse: false }
+                                                    };
+                                                    const style = riskStyles[risk.level as keyof typeof riskStyles] || riskStyles.low;
+                                                    return (
+                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border ${style.bg}`}>
+                                                            {style.pulse && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>}
+                                                            <RiskIcon className={`w-2.5 h-2.5 ${style.text}`} />
+                                                            <span className={`text-[9px] font-black uppercase tracking-tighter ${style.text}`}>{style.label}</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+
                                             {/* 🏆 Customer Success Ratio */}
                                             <td className="px-4 py-4">
                                                 {(() => {
@@ -846,15 +745,7 @@ export default function TicketsList() {
                                                 })()}
                                             </td>
                                             <td className="px-6 py-4 font-black text-slate-700 dark:text-zinc-400 text-xs tabular-nums">
-                                                <div className="flex flex-col gap-0.5 min-w-[110px]">
-                                                    <span className="text-slate-900 dark:text-zinc-200 font-bold text-xs">
-                                                        {new Date(ticket.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                    </span>
-                                                    <span className="text-[10px] text-zinc-500 dark:text-zinc-500 font-semibold flex items-center gap-1">
-                                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
-                                                        {new Date(ticket.createdAt).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                                    </span>
-                                                </div>
+                                                {new Date(ticket.createdAt).toLocaleDateString()}
                                             </td>
                                             <td className="px-6 py-4 font-black">
                                                 <div className="flex flex-col gap-1">
@@ -901,27 +792,6 @@ export default function TicketsList() {
                                             <td className="px-6 py-4">
                                                 <span className="text-slate-900 dark:text-zinc-200 font-black uppercase truncate block">{ticket.deviceBrand} {ticket.deviceModel}</span>
                                             </td>
-                                            {/* 🎯 Fault Column */}
-                                            <td className="px-4 py-4">
-                                                <div 
-                                                    className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] bg-zinc-100 dark:bg-white/5 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-white/10" 
-                                                    title={ticket.issueDescription}
-                                                >
-                                                    {ticket.issueDescription}
-                                                </div>
-                                            </td>
-                                            {/* 🛠 Engineer Column */}
-                                            <td className="px-4 py-4">
-                                                {ticket.technician?.name ? (
-                                                    <span className="text-xs font-black text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-white/5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 inline-block max-w-[120px] truncate" title={ticket.technician.name}>
-                                                        {ticket.technician.name}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-600 bg-zinc-50 dark:bg-white/[0.02] px-2.5 py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-white/5 inline-block">
-                                                        {t('details.unassigned')}
-                                                    </span>
-                                                )}
-                                            </td>
                                             <td className="px-6 py-4">
                                                 <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
                                                     <Clock className="w-3.5 h-3.5" />
@@ -930,6 +800,7 @@ export default function TicketsList() {
                                                     </span>
                                                 </div>
                                             </td>
+
                                             <td className="px-6 py-4 whitespace-nowrap text-right">                                                <DropdownMenu>
                                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                                         <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200 dark:hover:bg-white/10">

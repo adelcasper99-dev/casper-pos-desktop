@@ -223,11 +223,10 @@ export function generateThermalReceiptHTML({ saleData, settings, mode = 'receipt
         <div style="font-size: 14px; font-weight: bold;">👤 ${customerName}</div>
         ${customerPhone ? `<div style="font-size: 11px; font-weight: bold; margin-top: 1mm;">📞 ${customerPhone}</div>` : ""}
         ${customerBalance !== undefined && customerBalance !== null ? `
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; font-weight: bold; border-top: 1px dashed #000; margin-top: 4px;">
-            <span>الرصيد</span>
-            <span>${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP' }).format(-Number(customerBalance))}</span>
+          <div style="font-size: 12px; font-weight: bold; margin-top: 1mm;">
+            الرصيد: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP' }).format(Number(customerBalance))}
           </div>
-        ` : ''}
+        ` : ""}
       </div>
     ` : ""}
     ${!isOrder && phone ? `<div style="font-size: 11px; margin-top: 2mm;">📞 ${phone}</div>` : ""}
