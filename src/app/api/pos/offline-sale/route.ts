@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         }
 
         body = parseResult.data;
-        if (body.tenantId && body.tenantId !== tenantId) {
+        if ('tenantId' in body && (body as any).tenantId !== tenantId) {
             return NextResponse.json({ success: false, error: 'Tenant mismatch. Unauthorized data write.' }, { status: 403 });
         }
         const {
