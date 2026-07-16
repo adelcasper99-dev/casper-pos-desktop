@@ -106,6 +106,7 @@ export default function InventoryTabs({
                                 initialUnits={units}
                                 models={models}
                                 attributes={attributes}
+                                features={features}
                             />
                         )}
 

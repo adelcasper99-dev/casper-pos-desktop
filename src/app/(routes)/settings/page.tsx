@@ -199,6 +199,14 @@ export default async function SettingsPage() {
                             </TabsTrigger>
                         </>
                     )}
+                    {isAdmin && (
+                        <TabsTrigger 
+                            value="network" 
+                            className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        >
+                            <Wifi className="w-4 h-4 opacity-70" /> شبكة الفرع
+                        </TabsTrigger>
+                    )}
                 </TabsList>
 
                 {/* Main Content Area */}
@@ -331,6 +339,14 @@ export default async function SettingsPage() {
                                 <SyncManagement />
                             </TabsContent>
                         </>
+                    )}
+
+                    {isAdmin && (
+                        <TabsContent value="network" className="outline-none focus-visible:ring-0">
+                            <div className="max-w-2xl">
+                                <NetworkInfoCard />
+                            </div>
+                        </TabsContent>
                     )}
                 </div>
             </Tabs>

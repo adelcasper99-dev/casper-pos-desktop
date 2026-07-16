@@ -31,6 +31,7 @@ export interface GridRow {
     modelName?: string;
     attributeId?: string;
     attributeName?: string;
+    description?: string;
     isNewModel?: boolean;
     isNewAttribute?: boolean;
     unit: string;
@@ -88,6 +89,7 @@ interface PurchaseDataGridProps {
     onQuickCreateAttribute?: (name: string, callback: (id: string, name: string) => void) => void;
     onQuickCreateUnit?: (name: string, callback: (id: string, name: string) => void) => void;
     csrfToken?: string;
+    features?: any;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,6 +110,7 @@ function createEmptyRow(): GridRow {
         categoryId: "",
         modelId: "",
         attributeId: "",
+        description: "",
         unit: "قطعة",
         quantity: 1,
         unitPrice: 0,
@@ -122,7 +125,7 @@ function computeSubTotal(qty: number | string, price: number | string): number {
 }
 
 // Returns the next editable col, skipping categoryId for existing products
-function nextEditableCol(current: EditableCol, isNew: boolean): EditableCol | null {
+function nextEditableCol(current: EditableCol, isNew: boolean, features?: any): EditableCol | null {
     const cols = ALL_EDITABLE_COLS;
     let idx = cols.indexOf(current) + 1;
     while (idx < cols.length) {
@@ -136,7 +139,7 @@ function nextEditableCol(current: EditableCol, isNew: boolean): EditableCol | nu
     return null;
 }
 
-function prevEditableCol(current: EditableCol, isNew: boolean): EditableCol | null {
+function prevEditableCol(current: EditableCol, isNew: boolean, features?: any): EditableCol | null {
     const cols = ALL_EDITABLE_COLS;
     let idx = cols.indexOf(current) - 1;
     while (idx >= 0) {
@@ -1228,7 +1231,8 @@ export function PurchaseDataGrid({
     onQuickCreateAttribute,
     onQuickCreateUnit,
     attributes,
-    csrfToken
+    csrfToken,
+    features
 }: PurchaseDataGridProps) {
     const router = useRouter();
     const t = useTranslations("Inventory.Purchasing");
@@ -1549,10 +1553,12 @@ export function PurchaseDataGrid({
 
             if (e.key === "Tab") {
                 e.preventDefault();
-                const next = nextEditableCol(col, row?.isNew ?? false);
+                const next = e.shiftKey 
+                    ? prevEditableCol(col, row?.isNew ?? false, features) 
+                    : nextEditableCol(col, row?.isNew ?? false, features);
                 if (next) {
                     focusInput(rowIdx, next);
-                } else {
+                } else if (!e.shiftKey) {
                     const targetRowIdx = rowIdx + 1;
                     if (targetRowIdx >= rows.length) {
                         const newRow = createEmptyRow();
@@ -1584,7 +1590,7 @@ export function PurchaseDataGrid({
                     }
                 }
 
-                const next = nextEditableCol(col, row?.isNew ?? false);
+                const next = nextEditableCol(col, row?.isNew ?? false, features);
                 if (!next) {
                     // Validation: Sell price must not be less than cost price
                     if (Number(row.unitPrice) > 0 && (
@@ -1649,13 +1655,13 @@ export function PurchaseDataGrid({
 
             // RTL-aware horizontal navigation
             if (e.key === "ArrowLeft") {
-                const next = nextEditableCol(col, row?.isNew ?? false);
+                const next = nextEditableCol(col, row?.isNew ?? false, features);
                 if (next) { e.preventDefault(); focusInput(rowIdx, next); }
                 else if (rowIdx + 1 < rows.length) { e.preventDefault(); focusInput(rowIdx + 1, "itemCode"); }
                 return;
             }
             if (e.key === "ArrowRight") {
-                const prev = prevEditableCol(col, row?.isNew ?? false);
+                const prev = prevEditableCol(col, row?.isNew ?? false, features);
                 if (prev) { e.preventDefault(); focusInput(rowIdx, prev); }
                 else if (rowIdx - 1 >= 0) { 
                     e.preventDefault(); 
@@ -1851,7 +1857,11 @@ export function PurchaseDataGrid({
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    const gridTemplate = columnWidths.map(w => `${w}px`).join(' ');
+    const visibleWidths = features?.unitVisibility !== false 
+        ? columnWidths 
+        : columnWidths.filter((_, i) => i !== 7 && i !== 8); // Skip Unit and Conversion Factor columns if hidden
+
+    const gridTemplate = visibleWidths.map(w => `${w}px`).join(' ');
 
     return (
         <div 
@@ -1875,17 +1885,17 @@ export function PurchaseDataGrid({
                     <div 
                         key={i} 
                         className={clsx(HEADER_CELL_CLS, i === 0 && "text-center px-1")}
-                        onDoubleClick={() => i > 0 && i < 8 && autoFitColumn(i)}
+                        onDoubleClick={() => col.idx > 0 && col.idx < 15 && autoFitColumn(col.idx)}
                     >
-                        {label}
-                        {i < 8 && (
+                        {col.label}
+                        {col.idx < 15 && (
                             <div 
                                 className={clsx(
                                     "absolute top-0 bottom-0 w-1 cursor-col-resize z-30 transition-colors hover:bg-cyan-500",
-                                    resizingIdx === i ? "bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]" : "bg-transparent group-hover/h:bg-slate-300 dark:group-hover/h:bg-white/10",
+                                    resizingIdx === col.idx ? "bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]" : "bg-transparent group-hover/h:bg-slate-300 dark:group-hover/h:bg-white/10",
                                     "end-0"
                                 )}
-                                onMouseDown={(e) => handleResizeStart(e, i)}
+                                onMouseDown={(e) => handleResizeStart(e, col.idx)}
                             />
                         )}
                     </div>
@@ -2049,6 +2059,19 @@ export function PurchaseDataGrid({
                                      }}
                                      onFocus={() => setFocusCell([rowIdx, "attributeId"])}
                                      onKeyDown={(e) => handleKeyDown(e, rowIdx, "attributeId")}
+                                 />
+                             </div>
+                             {/* ── Description ───────────────────────────────── */}
+                             <div className={clsx(CELL_CLS, "relative flex items-center")}>
+                                 <CellInput
+                                     ref={getInputRef(rowIdx, "description") as (el: HTMLInputElement | null) => void}
+                                     type="text"
+                                     value={row.description || ""}
+                                     placeholder="وصف إضافي..."
+                                     className="font-bold text-slate-500"
+                                     onChange={(e) => updateRow(rowIdx, { description: e.target.value })}
+                                     onFocus={() => setFocusCell([rowIdx, "description"])}
+                                     onKeyDown={(e) => handleKeyDown(e, rowIdx, "description")}
                                  />
                              </div>
 
@@ -2345,6 +2368,7 @@ export function gridRowsToCartItems(rows: GridRow[]): InvoiceItem[] {
             deviceType: r.deviceType,
             condition: r.condition,
             imei: r.imei,
+            description: r.description,
             unitOfMeasureId: r.unitOfMeasureId,
             conversionFactor: r.conversionFactor || 1,
         }));
@@ -2369,6 +2393,7 @@ export function cartItemsToGridRows(items: InvoiceItem[]): GridRow[] {
         sellPrice2: i.sellPrice2,
         sellPrice3: i.sellPrice3,
         isNew: i.isNew ?? false,
+        description: i.description || "",
         isDevice: i.isDevice,
         deviceType: i.deviceType,
         condition: i.condition,

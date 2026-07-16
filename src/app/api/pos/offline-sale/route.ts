@@ -245,6 +245,22 @@ export async function POST(request: NextRequest) {
                 }
             }
 
+            await tx.journalEntry.create({
+                data: {
+                    date: createdAt ? new Date(createdAt) : new Date(),
+                    description: `Sale Sync: ${newSale.id} (${customerName || 'Walk-in'})`,
+                    branchId,
+                    saleId: newSale.id,
+                    idempotencyKey: `journal-sale-${newSale.id}`,
+                    lines: {
+                        create: [
+                            { accountId: cashAccount.id, debit: dTotal.toString(), credit: '0' },
+                            { accountId: salesAccount.id, debit: '0', credit: dTotal.toString() }
+                        ]
+                    }
+                }
+            });
+
             // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
             // 1. Snapshot product metadata for bundle detection
             const pIds = items.map((i: any) => i.productId).filter(Boolean);

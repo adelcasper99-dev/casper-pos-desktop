@@ -12,6 +12,7 @@
         "dist:assets": "node scripts/generate-build-assets.js",
         "compile:bytecode": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/compile-bytecode.js",
         "dist": "npm run dist:assets && npm run compile:bytecode && npm run electron:build && electron-builder",
+        "launcher:dist": "cd casper-launcher && npm install && npm run dist",
         "db:push": "prisma db push",
         "db:studio": "prisma studio",
         "postinstall": "prisma generate && npx @electron/rebuild -f -w better-sqlite3",
@@ -73,7 +74,8 @@
             "installerHeader": "build/installerHeader.bmp",
             "installerSidebar": "build/installerSidebar.bmp",
             "uninstallerSidebar": "build/uninstallerSidebar.bmp",
-            "language": "1025"
+            "language": "1025",
+            "include": "build/installer.nsh"
         }
     },
     "dependencies": {
@@ -103,6 +105,7 @@
         "bcryptjs": "^3.0.3",
         "better-sqlite3": "^12.11.1",
         "bidi-js": "^1.0.3",
+        "bonjour-service": "^1.3.0",
         "bwip-js": "^4.8.0",
         "bytenode": "^1.5.7",
         "class-variance-authority": "^0.7.1",
@@ -132,6 +135,7 @@
         "react-dom": "^18",
         "react-hook-form": "^7.71.1",
         "react-is": "^19.2.4",
+        "react-qr-code": "^2.0.21",
         "react-virtuoso": "^4.18.1",
         "recharts": "^3.7.0",
         "sonner": "^2.0.7",

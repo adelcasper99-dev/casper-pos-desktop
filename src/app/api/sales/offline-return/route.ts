@@ -185,6 +185,22 @@ export async function POST(request: NextRequest) {
                 });
             }
 
+            await tx.journalEntry.create({
+                data: {
+                    date: createdAt ? new Date(createdAt) : new Date(),
+                    description: `Return Sync: ${refundSale.id} (Original: ${originalSaleId})`,
+                    branchId: resolvedBranchId,
+                    saleId: refundSale.id,
+                    idempotencyKey: `journal-return-${refundSale.id}`,
+                    lines: {
+                        create: [
+                            { accountId: salesAccount.id, debit: dAmount.abs().toString(), credit: '0' },
+                            { accountId: cashAccount.id, debit: '0', credit: dAmount.abs().toString() }
+                        ]
+                    }
+                }
+            });
+
             // 3. Increment Stock
             for (const item of items) {
                 if (!item.productId || !item.quantity) continue;

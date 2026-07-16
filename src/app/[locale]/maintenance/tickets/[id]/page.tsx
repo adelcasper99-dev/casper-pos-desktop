@@ -47,6 +47,7 @@ import TicketPrintOptionsModal from "@/components/tickets/TicketPrintOptionsModa
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
+import { printService } from "@/lib/print-service";
 
 // Helper to ensure all Decimal fields are converted to numbers
 function serializeTicket(ticket: any) {
@@ -267,6 +268,12 @@ export default function TicketDetailPage() {
     const clearPrintGuard = () =>
         ticket?.id && sessionStorage.removeItem(`ticket_autoprint_${ticket.id}`);
 
+    const getSpeedPrintEnabled = () => {
+        if (typeof window === 'undefined') return true;
+        const registry = printService.getRegistry();
+        return registry ? registry.enableSpeedPrint !== false : true;
+    };
+
     useEffect(() => {
         if (id) loadData();
     }, [id]);
@@ -298,6 +305,10 @@ export default function TicketDetailPage() {
         const shouldPrint = searchParams.get('print') === 'true';
         console.log('[AutoPrint] shouldPrint:', shouldPrint);
 
+        const speedPrintEnabled = getSpeedPrintEnabled();
+        const autoPrintEnabled = settings?.autoPrintTicket === true;
+        console.log('[AutoPrint] speedPrintEnabled:', speedPrintEnabled, 'autoPrintEnabled:', autoPrintEnabled);
+
         // If print=true in URL, show print options regardless of settings
         // This ensures the print dialog works immediately after ticket creation
         if (shouldPrint && ticket && !hasPrinted) {
@@ -325,7 +336,7 @@ export default function TicketDetailPage() {
 
         if (autoPrintEnabled && ticket && !hasPrinted && !alreadyPrinted) {
             console.log('[AutoPrint] ✓ Triggering from settings');
-            setIsSilentPrint(true);
+            setIsSilentPrint(speedPrintEnabled);
             setShowPrintOptions(true);
             setHasPrinted(true);
         }
@@ -442,7 +453,7 @@ export default function TicketDetailPage() {
         console.log('[TEST] Force opening print modal');
         clearPrintGuard();
         setDefaultPrintMode('label');
-        setIsSilentPrint(hasLabelPrinter());
+        setIsSilentPrint(hasLabelPrinter() && getSpeedPrintEnabled());
         setShowPrintOptions(true);
     };
 
@@ -520,7 +531,7 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter()); setShowPrintOptions(true); }}
+                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('engineer' as any); setIsSilentPrint(hasThermalPrinter() && getSpeedPrintEnabled()); setShowPrintOptions(true); }}
                         className="bg-orange-500/5 border-orange-500/20 text-orange-400 h-10 px-3 flex gap-2 items-center hover:bg-orange-500/10 transition-colors"
                     >
                         <SettingsIcon className="h-4 w-4" />
@@ -528,7 +539,7 @@ export default function TicketDetailPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter()); setShowPrintOptions(true); }}
+                        onClick={() => { clearPrintGuard(); setDefaultPrintMode('receipt'); setIsSilentPrint(hasThermalPrinter() && getSpeedPrintEnabled()); setShowPrintOptions(true); }}
                         className="bg-slate-200/50 dark:bg-zinc-800/50 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-300 h-10 px-3 flex gap-2 items-center hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <Printer className="h-4 w-4" />
@@ -604,10 +615,44 @@ export default function TicketDetailPage() {
                                         <span className="font-mono text-zinc-400 tabular-nums">{ticket.deviceImei || '-'}</span>
                                     </DataRow>
                                     <div className="py-4">
-                                        <span className="text-xs font-black text-slate-600 dark:text-zinc-600 block mb-2 px-1">وصف العطل</span>
-                                        <div className="p-5 bg-slate-100 dark:bg-white/[0.02] rounded-2xl border-2 border-slate-300 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-300 leading-relaxed font-bold shadow-inner">
-                                            "{ticket.issueDescription}"
+                                        <div className="flex items-center justify-between mb-2 px-1">
+                                            <span className="text-xs font-black text-slate-600 dark:text-zinc-600">وصف العطل</span>
+                                            {!['PAID_DELIVERED', 'CANCELLED', 'VOIDED'].includes(ticket.status) && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={() => {
+                                                        setIssueText(ticket.issueDescription);
+                                                        setEditingIssue(true);
+                                                    }}
+                                                    className="h-6 w-6 text-slate-400 hover:text-white"
+                                                >
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            )}
                                         </div>
+                                        {editingIssue ? (
+                                            <div className="space-y-2">
+                                                <Textarea 
+                                                    value={issueText}
+                                                    onChange={(e) => setIssueText(e.target.value)}
+                                                    className="bg-white dark:bg-black border-2 border-slate-300 dark:border-zinc-700 min-h-[100px] text-sm font-bold"
+                                                    placeholder="اكتب وصف العطل هنا..."
+                                                />
+                                                <div className="flex gap-2">
+                                                    <Button size="sm" onClick={handleSaveIssue} className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1">
+                                                        <Save className="w-4 h-4 ml-2" /> حفظ
+                                                    </Button>
+                                                    <Button size="sm" variant="outline" onClick={() => setEditingIssue(false)} className="flex-1 dark:bg-zinc-800 dark:border-zinc-700">
+                                                        إلغاء
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-5 bg-slate-100 dark:bg-white/[0.02] rounded-2xl border-2 border-slate-300 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-300 leading-relaxed font-bold shadow-inner">
+                                                "{ticket.issueDescription}"
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </section>

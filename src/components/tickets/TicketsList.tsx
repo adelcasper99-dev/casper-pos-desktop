@@ -36,6 +36,7 @@ import TicketQuickEditModal from './TicketQuickEditModal'
 import TicketDeleteDialog from './TicketDeleteDialog'
 import TicketPrintOptionsModal from './TicketPrintOptionsModal'
 import { toast } from "sonner"
+import { formatDurationHours } from "@/lib/ticket-print-helpers";
 
 export default function TicketsList() {
     const t = useTranslations('Tickets');
@@ -778,6 +779,26 @@ export default function TicketsList() {
                                                     </span>
                                                 </div>
                                             </td>
+                                            <td className="px-6 py-4">
+                                                 <div className="flex flex-col gap-1">
+                                                     {/* اسم المهندس المسؤول */}
+                                                     {ticket.technician?.name && (
+                                                         <div className="flex items-center gap-1">
+                                                             <UserIcon className="w-3 h-3 text-cyan-500 flex-shrink-0" />
+                                                             <span className="text-[10px] font-black text-cyan-600 dark:text-cyan-400 truncate max-w-[100px]">
+                                                                 {ticket.technician.name}
+                                                             </span>
+                                                         </div>
+                                                     )}
+                                                     {/* الوقت المتبقي / المتوقع */}
+                                                     <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
+                                                         <Clock className="w-3.5 h-3.5" />
+                                                         <span className="text-sm font-black">
+                                                             {urgency ? urgency.label : formatDurationHours(ticket.expectedDuration)}
+                                                         </span>
+                                                     </div>
+                                                 </div>
+                                             </td>
 
                                             <td className="px-6 py-4 whitespace-nowrap text-right">                                                <DropdownMenu>
                                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

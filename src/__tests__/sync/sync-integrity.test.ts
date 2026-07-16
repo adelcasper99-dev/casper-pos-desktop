@@ -5,6 +5,11 @@ import { resetTestDB } from './setup';
 import { NextRequest } from 'next/server';
 import { seedAccounts } from '@/lib/accounting/seed-accounts';
 
+const BRANCH_ID = '11111111-1111-4111-8111-111111111111';
+const WAREHOUSE_ID = '22222222-2222-4222-8222-222222222222';
+const PRODUCT_ID = '33333333-3333-4333-8333-333333333333';
+const CATEGORY_ID = 'cat-1';
+
 describe('Sync Engine: Idempotency & Temporal Integrity', () => {
     const branchId = 'c6d2d480-16cf-448c-8f1a-b68a8677e5bb';
     const warehouseId = 'b7d59b2d-d558-450f-90e6-5838cf38c4ab';

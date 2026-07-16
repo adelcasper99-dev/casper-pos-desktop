@@ -179,6 +179,8 @@ export const updateStoreSettings = secureAction(async (data: any) => {
 
     revalidatePath("/settings");
     revalidatePath("/pos");
+    revalidatePath("/inventory");
+    revalidatePath("/purchasing");
     return { success: true };
 }, { permission: 'MANAGE_SETTINGS', requireCSRF: false });
 

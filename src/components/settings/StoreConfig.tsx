@@ -8,10 +8,12 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useTranslations } from "@/lib/i18n-mock";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export default function StoreConfig({ settings, hideModules = false }: { settings: any, hideModules?: boolean }) {
     const [form, setForm] = useState(settings || {});
     const [saving, setSaving] = useState(false);
+    const { refreshSettings } = useSettings();
     const t = useTranslations('StoreConfig');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +71,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
             const result = await updateStoreSettings(payload);
             if (result?.success) {
                 toast.success(t('success'));
+                await refreshSettings();
             } else {
                 toast.error(result?.error || t('error'));
             }
@@ -313,6 +316,7 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 {[
                                     { id: 'allowNegativeStock', label: t('allowNegativeStock'), desc: t('allowNegativeStockDesc'), val: form.allowNegativeStock || false, fn: (c: boolean) => handleChange('allowNegativeStock', c) },
                                     { id: 'hideLocationsTab', label: t('hideLocationsTab'), desc: t('hideLocationsTabDesc'), val: getFeatureValue('hideLocationsTab') === true, fn: (c: boolean) => handleFeatureToggle('hideLocationsTab', c) },
+                                    { id: 'unitVisibility', label: "إظهار الوحدات", desc: "إظهار أو إخفاء وحدات القياس في النظام (الافتراضي مفعل)", val: getFeatureValue('unitVisibility') !== false, fn: (c: boolean) => handleFeatureToggle('unitVisibility', c) },
                                     { id: 'blindCloseEnabled', label: "Blind Close Shift", desc: "Hide expected cash totals during shift close.", val: form.blindCloseEnabled !== false, fn: (c: boolean) => handleChange('blindCloseEnabled', c) },
                                 ].map((item) => (
                                     <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">

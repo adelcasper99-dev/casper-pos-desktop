@@ -1,4 +1,5 @@
 import { Ticket, ReceiptSettings } from "@/types/tickets";
+import { formatDurationHours } from "@/lib/ticket-print-helpers";
 import Barcode from "react-barcode";
 
 interface EngineerTicketReceiptProps {
@@ -109,16 +110,12 @@ export default function EngineerTicketReceipt({ ticket, settings, translations }
             <div className="font-bold mb-1">[ نسخة المهندس / الاستخدام الداخلي ]</div>
             <div className="space-y-2 mt-2">
                 <div className="flex">
-                    <span className="w-32 italic">التكلفة المبدئية</span>
-                    <span className="font-bold">: {ticket.initialQuote ? `${Number(ticket.initialQuote).toLocaleString()} ${settings.currency}` : '...........'}</span>
+                    <span className="w-32 italic">المهندس المسؤول</span>
+                    <span className="font-bold">: {ticket.technician?.name || '...........'}</span>
                 </div>
                 <div className="flex">
-                    <span className="w-32 italic">وقت الإصلاح الفعلي</span>
-                    <span>: .....................</span>
-                </div>
-                <div className="flex">
-                    <span className="w-32 italic">وقت التسليم للعميل</span>
-                    <span>: .....................</span>
+                    <span className="w-32 italic">الوقت المتوقع</span>
+                    <span className="font-bold">: {formatDurationHours(ticket.expectedDuration)}</span>
                 </div>
                 <div className="flex">
                     <span className="w-32 italic">قطع الغيار المصروفة</span>
