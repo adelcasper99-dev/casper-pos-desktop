@@ -92,13 +92,16 @@ export class LicenseVerifier {
 
         // 4. Hardware Verification
         try {
-            const actualMachineId = await Hardware.getMachineId();
-            if (actualMachineId !== decoded.machine_id) {
-                return {
-                    status: 'HARDWARE_INVALIDATED',
-                    errorCode: 'HWD-01',
-                    message: 'Hardware change detected. License bound to a different machine.'
-                };
+            // If the license was issued for a cloud/web deployment, bypass strict SMBIOS hardware checks
+            if (!decoded.machine_id.startsWith('cloud-')) {
+                const actualMachineId = await Hardware.getMachineId();
+                if (actualMachineId !== decoded.machine_id) {
+                    return {
+                        status: 'HARDWARE_INVALIDATED',
+                        errorCode: 'HWD-01',
+                        message: 'Hardware change detected. License bound to a different machine.'
+                    };
+                }
             }
         } catch (error) {
             return {
