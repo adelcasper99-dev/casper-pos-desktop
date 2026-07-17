@@ -29,13 +29,22 @@ export default function ActivateForm() {
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
-        // Fetch hardware ID as early as possible via Electron IPC bridge
+        // Fetch hardware ID via Electron IPC bridge (desktop) or fall back to
+        // a server-derived node ID for the cloud web deployment.
         if (window.electronAPI?.license?.getMachineId) {
             window.electronAPI.license.getMachineId()
                 .then((id) => setMachineId(id))
                 .catch(() => setMachineIdError('Failed to read hardware ID. Please ensure you are running the desktop app.'));
         } else {
-            setMachineIdError('Hardware ID unavailable — activation requires the Electron desktop app.');
+            // Cloud/web mode: use the server's IP as a stable machine ID
+            fetch('/api/network/ip')
+                .then(r => r.json())
+                .then((data: { ip?: string }) => {
+                    setMachineId(`cloud-${data.ip || window.location.hostname}`);
+                })
+                .catch(() => {
+                    setMachineId(`cloud-${window.location.hostname}`);
+                });
         }
 
         return () => {
