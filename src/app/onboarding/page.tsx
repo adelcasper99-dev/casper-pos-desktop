@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import OnboardingGateway from "@/components/onboarding/OnboardingGateway";
 
@@ -16,8 +16,10 @@ export default async function OnboardingPage() {
     }
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-            <OnboardingGateway />
+        <main className="min-h-screen flex flex-col bg-slate-950 p-4 overflow-y-auto">
+            <div className="m-auto w-full flex justify-center py-8">
+                <OnboardingGateway />
+            </div>
         </main>
     );
 }
