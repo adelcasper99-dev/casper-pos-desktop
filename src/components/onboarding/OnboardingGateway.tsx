@@ -48,13 +48,13 @@ export default function OnboardingGateway() {
     };
 
     return (
-        <div className="w-full max-w-2xl px-4 animate-in fade-in slide-in-from-top-8 duration-500">
+        <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 animate-in fade-in slide-in-from-top-8 duration-500">
             {/* Casper Logo & Branding */}
             <div className="flex flex-col items-center justify-center text-center mb-8 gap-3">
                 <div className="p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 text-cyan-400">
                     <ShieldCheck className="w-12 h-12" />
                 </div>
-                <h1 className="text-3xl font-black tracking-tight text-white uppercase">
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white uppercase">
                     Welcome to <span className="text-cyan-400">Casper POS</span>
                 </h1>
                 <p className="text-slate-400 max-w-md text-sm leading-relaxed">
@@ -81,7 +81,7 @@ export default function OnboardingGateway() {
                 </CardHeader>
                 <CardContent className="pt-8 flex flex-col gap-6 relative z-10">
                     {!showActivation ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                             {/* Option A: Trial */}
                             <div className="flex flex-col p-5 rounded-2xl border border-slate-800 bg-slate-950/40 hover:border-cyan-500/30 transition-all duration-300 group">
                                 <div className="p-3 w-max rounded-xl bg-cyan-500/10 text-cyan-400 mb-4 group-hover:scale-110 transition-transform">
