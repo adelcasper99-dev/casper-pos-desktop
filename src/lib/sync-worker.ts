@@ -1,6 +1,6 @@
 import { SyncService } from './sync-service';
 import { LocalPersistenceService } from './local-persistence';
-import { triggerCustomerReindex } from '@/actions/customer-actions';
+import { CustomerIndexingService } from '@/lib/customer-indexing-service';
 import { logger } from './logger';
 import { CloudConfigManager, CloudConfig } from '@/utils/cloudConfigManager';
 
@@ -53,6 +53,7 @@ export class SyncWorker {
 
         // Mirroring interval (5m) as per Constitution Pillar I
         this.mirrorInterval = setInterval(async () => {
+            if (typeof window === 'undefined') return; // Skip in Node.js environments
             logger.info('[SyncWorker] Triggering periodic filesystem mirroring...');
             await LocalPersistenceService.mirrorToSQLite();
             await LocalPersistenceService.backupToFilesystem();
@@ -62,7 +63,7 @@ export class SyncWorker {
         this.indexerInterval = setInterval(async () => {
             if (typeof navigator !== 'undefined' && !navigator.onLine) return; // don't try if offline
             logger.info('[SyncWorker] Triggering periodic customer re-indexing sweeper...');
-            await triggerCustomerReindex().catch(e => logger.error('[SyncWorker] Error triggering reindex', e));
+            CustomerIndexingService.reindexAll().catch(e => logger.error('[SyncWorker] Error during reindex', e));
         }, 15 * 60 * 1000);
     }
 
