@@ -280,7 +280,7 @@
             <div class="text-2xl md:text-3xl font-black tracking-wider text-white flex items-center gap-3 cursor-pointer" onclick="window.scrollTo({top:0, behavior:'smooth'})">
                 <div class="relative w-10 h-10 flex items-center justify-center">
                     <div class="absolute inset-0 bg-cyan-500/30 blur-md rounded-full"></div>
-                    <img src="casper dark logo.png" alt="Casper Logo" class="relative w-10 h-10 object-contain rounded-full border border-white/10 shadow-lg">
+                    <img src="casper-dark-logo.png" alt="Casper Logo" class="relative w-10 h-10 object-contain rounded-full border border-white/10 shadow-lg">
                 </div>
                 <span>Casper<span class="text-cyan-400 glow-text-cyan">ERP</span></span>
             </div>
@@ -292,9 +292,14 @@
                 <a href="#pricing" class="hover:text-cyan-400 transition-colors duration-200">الأسعار</a>
                 <a href="#faq" class="hover:text-cyan-400 transition-colors duration-200">الأسئلة الشائعة</a>
             </div>
-            <a href="#trial" class="px-6 py-2.5 rounded-full border border-cyan-400/40 text-cyan-300 bg-cyan-500/5 backdrop-blur-md hover:bg-cyan-400 hover:text-slate-950 hover:border-cyan-400 hover:shadow-[0_0_25px_rgba(0,240,255,0.45)] transition-all duration-300 font-bold text-sm hidden sm:block">
-                احجز استشارتك المجانية
-            </a>
+            <div class="flex items-center gap-3">
+                <a href="https://app.casper-erp.com" class="px-5 py-2.5 rounded-full border border-white/10 text-white bg-white/5 hover:bg-white/10 transition-all duration-300 font-bold text-sm hidden sm:block">
+                    دخول السيستم
+                </a>
+                <a href="#trial" class="px-6 py-2.5 rounded-full border border-cyan-400/40 text-cyan-300 bg-cyan-500/5 backdrop-blur-md hover:bg-cyan-400 hover:text-slate-950 hover:border-cyan-400 hover:shadow-[0_0_25px_rgba(0,240,255,0.45)] transition-all duration-300 font-bold text-sm hidden sm:block">
+                    احجز استشارتك
+                </a>
+            </div>
         </nav>
     </div>
 
@@ -1152,7 +1157,7 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
                 <div class="col-span-1 md:col-span-2">
                     <div class="text-2xl font-black text-white flex items-center gap-3 mb-6">
-                        <img src="casper dark logo.png" alt="Casper Logo" class="w-8 h-8 object-contain rounded-full">
+                        <img src="casper-dark-logo.png" alt="Casper Logo" class="w-8 h-8 object-contain rounded-full">
                         <span>Casper<span class="text-cyan-400 glow-text-cyan">ERP</span></span>
                     </div>
                     <p class="text-slate-300 text-sm leading-relaxed max-w-sm">
@@ -1286,12 +1291,11 @@
         // Run calculation once at startup
         calculateROI();
 
-        // 5. Form Submission Handling (Mock API)
+        // 5. Form Submission Handling (WhatsApp Integration)
         const leadForm = document.getElementById('lead-form');
         const submitBtn = document.getElementById('submit-btn');
         const btnText = submitBtn.querySelector('span');
         const spinner = document.getElementById('spinner');
-        const successMsg = document.getElementById('success-msg');
 
         leadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1302,15 +1306,26 @@
             spinner.classList.remove('hidden');
             btnText.classList.add('opacity-40');
             
-            // Mock API delay (Simulate network)
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // Get User Data
+            const name = document.getElementById('name').value;
+            const phone = document.getElementById('phone').value;
+            const centerName = document.getElementById('center_name').value;
             
-            // Success State
-            spinner.classList.add('hidden');
-            leadForm.classList.add('hidden');
-            successMsg.classList.remove('hidden');
+            // Construct WhatsApp Message
+            const message = `أهلاً، أنا ${name} من مركز "${centerName}".\nرقم هاتفي هو ${phone}.\nأريد حجز النسخة التجريبية لنظام Casper ERP وتحديد موعد للتثبيت.`;
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/201000000000?text=${encodedMessage}`;
             
-            // In a real app, you would fetch('/api/leads', { method: 'POST', body: FormData... })
+            // Redirect to WhatsApp
+            window.open(whatsappUrl, '_blank');
+            
+            // Reset Button State
+            setTimeout(() => {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-80', 'cursor-not-allowed');
+                spinner.classList.add('hidden');
+                btnText.classList.remove('opacity-40');
+            }, 1000);
         });
     </script>
 </body>
