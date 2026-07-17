@@ -276,20 +276,7 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             } as any
         });
 
-        // 🆕 S-01 Hardware Audit: Log the action
-        await tx.actionLog.create({
-            data: {
-                action: 'CREATE_SALE',
-                userId: currentUser.id,
-                branchId: currentUser.branchId,
-                details: JSON.stringify({
-                    saleId: sale.id,
-                    totalAmount: totalAmount,
-                    customer: data.customer?.name,
-                    itemsCount: data.items.length
-                })
-            }
-        });
+
 
 
         // 2. Ledger & Deduction Logic
@@ -411,80 +398,110 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         }
 
 
-        // 2b. Deduct Stock — bundles deduct from components, not themselves
+        // 2b. Deduct Stock — bundles deduct from components, not themselves (with lexicographical sorting to prevent deadlocks)
         const productInfoMap = new Map(products.map(p => [p.id, p]));
+        
+        interface POSStockDeduction {
+            productId: string;
+            quantity: number;
+            isBundleComponent: boolean;
+            parentBundleId?: string;
+        }
+        const deductions: POSStockDeduction[] = [];
+
         for (const item of data.items) {
             const productInfo = productInfoMap.get(item.id) as any;
+            if (!productInfo) continue;
 
-            if ((productInfo as any)?.isBundle) {
-                // BUNDLE: deduct from each component
+            if (productInfo.isBundle) {
                 const components = bundleComponentsMap.get(item.id) || [];
                 for (const comp of components) {
                     if (!comp.componentProduct.trackStock) continue;
-                    if (effectiveForce) {
-                        await tx.product.update({
-                            where: { id: comp.componentProductId },
-                            data: { stock: { decrement: item.quantity * comp.quantityIncluded } }
-                        });
-                        await tx.stock.upsert({
-                            where: { productId_warehouseId: { productId: comp.componentProductId, warehouseId: mainWarehouseId } },
-                            update: { quantity: { decrement: item.quantity * comp.quantityIncluded } },
-                            create: { productId: comp.componentProductId, warehouseId: mainWarehouseId, quantity: -(item.quantity * comp.quantityIncluded) }
-                        });
-                        await tx.stockMovement.create({
-                            data: {
-                                type: 'SALE_FORCE',
-                                productId: comp.componentProductId,
-                                fromWarehouseId: mainWarehouseId,
-                                toWarehouseId: null,
-                                quantity: item.quantity * comp.quantityIncluded,
-                                reason: `Bundle Sale (Force) #${sale.id.slice(0, 8)} — component of ${item.id.slice(0, 8)}`,
-                                branchId: currentUser.branchId || null
-                            } as any
-                        });
-                    } else {
-                        await decrementWarehouseStock(tx, comp.componentProductId, mainWarehouseId, item.quantity * comp.quantityIncluded);
-                    }
-                }
-            } else {
-                // REGULAR product: existing logic
-                const product = productInfo;
-                if (product && !(product as any).trackStock) {
-                    logger.info(`[POS] Skipping stock deduction for product: ${item.id} (trackStock=false)`);
-                    continue;
-                }
-
-                if (effectiveForce) {
-                    // FORCE MODE: Blind Decrement (Allowed to go negative)
-                    await tx.product.update({
-                        where: { id: item.id },
-                        data: { stock: { decrement: item.quantity } }
+                    const compQty = item.quantity * comp.quantityIncluded;
+                    deductions.push({
+                        productId: comp.componentProductId,
+                        quantity: compQty,
+                        isBundleComponent: true,
+                        parentBundleId: item.id
                     });
+                }
+            } else if (productInfo.trackStock) {
+                deductions.push({
+                    productId: item.id,
+                    quantity: item.quantity,
+                    isBundleComponent: false
+                });
+            }
+        }
 
-                    // Warehouse (Upsert to ensure record exists, then decrement)
-                    await tx.stock.upsert({
-                        where: { productId_warehouseId: { productId: item.id, warehouseId: mainWarehouseId } },
-                        update: { quantity: { decrement: item.quantity } },
-                        create: { productId: item.id, warehouseId: mainWarehouseId, quantity: -item.quantity }
-                    });
+        // Aggregate deductions by productId
+        const aggregatedDeductionsMap = new Map<string, { quantity: number; deductions: POSStockDeduction[] }>();
+        for (const d of deductions) {
+            const existing = aggregatedDeductionsMap.get(d.productId) || { quantity: 0, deductions: [] };
+            existing.quantity = existing.quantity + d.quantity;
+            existing.deductions.push(d);
+            aggregatedDeductionsMap.set(d.productId, existing);
+        }
 
-                    // Audit Log for Forced Sale
+        // Sort product IDs lexicographically
+        const sortedProductIds = Array.from(aggregatedDeductionsMap.keys()).sort((a, b) => a.localeCompare(b));
+
+        // Sequentially execute
+        for (const pId of sortedProductIds) {
+            const agg = aggregatedDeductionsMap.get(pId)!;
+            
+            if (effectiveForce) {
+                // FORCE MODE: Blind Decrement (Allowed to go negative)
+                await tx.product.update({
+                    where: { id: pId },
+                    data: { stock: { decrement: agg.quantity } }
+                });
+
+                // Warehouse (Upsert to ensure record exists, then decrement)
+                await tx.stock.upsert({
+                    where: { productId_warehouseId: { productId: pId, warehouseId: mainWarehouseId } },
+                    update: { quantity: { decrement: agg.quantity } },
+                    create: { productId: pId, warehouseId: mainWarehouseId, quantity: -agg.quantity }
+                });
+
+                // Create stock movements
+                for (const d of agg.deductions) {
                     await tx.stockMovement.create({
                         data: {
                             type: 'SALE_FORCE',
-                            productId: item.id,
+                            productId: pId,
                             fromWarehouseId: mainWarehouseId,
                             toWarehouseId: null,
-                            quantity: item.quantity,
-                            reason: `Forced Sale #${sale.id.slice(0, 8)} (Override)`,
+                            quantity: d.quantity,
+                            reason: d.isBundleComponent 
+                                ? `Bundle Sale (Force) #${sale.id.slice(0, 8)} — component of ${d.parentBundleId?.slice(0, 8)}`
+                                : `Forced Sale #${sale.id.slice(0, 8)} (Override)`,
                             branchId: currentUser.branchId || null
                         } as any
                     });
-                } else {
-                    await decrementWarehouseStock(tx, item.id, mainWarehouseId, item.quantity);
+                }
+            } else {
+                // Standard mode
+                await decrementWarehouseStock(tx, pId, mainWarehouseId, agg.quantity);
+
+                // Create stock movements
+                for (const d of agg.deductions) {
+                    await tx.stockMovement.create({
+                        data: {
+                            type: d.isBundleComponent ? 'SALE_BUNDLE_COMPONENT' : 'SALE',
+                            productId: pId,
+                            fromWarehouseId: mainWarehouseId,
+                            quantity: d.quantity,
+                            reason: d.isBundleComponent
+                                ? `Bundle Sale #${sale.id.slice(0, 8)} — component of ${d.parentBundleId?.slice(0, 8)}`
+                                : `Sale #${sale.id.slice(0, 8)}`,
+                            branchId: currentUser.branchId || null
+                        } as any
+                    });
                 }
             }
         }
+
 
         // 2b. 🔒 ATOMIC SHIFT UPDATE (Real-time Synchronization)
         // We accumulate totals based on the payments in this specific sale
@@ -613,16 +630,6 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
             tx
         );
 
-        // S-01: Audit Log Injection for Traceability
-        await tx.actionLog.create({
-            data: {
-                action: "POS_SALE_CREATE",
-                details: `Sale #${sale.id.slice(0, 8)}: Total ${totalAmount}, Method: ${data.paymentMethod}`,
-                userId: currentUser.id,
-                branchId: currentUser.branchId || null
-            }
-        });
-
         return sale;
     }, { timeout: 20000 });
 
@@ -645,19 +652,62 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         shiftId: currentShift.id // 🆕 Log shift ID
     });
 
-    revalidatePath("/", 'page');
-    revalidatePath("/inventory", 'page');
-    revalidatePath("/pos", 'page');
-    revalidatePath("/logs", 'page');
-    revalidatePath("/reports", 'page');
-    revalidatePath("/accounting", 'page');
-    revalidateTag("dashboard");
+    // Move revalidations, indexing, and audit logging to the background
+    let unstableAfterFn: any;
+    try {
+        unstableAfterFn = require('next/server').unstable_after;
+    } catch (e) {
+        // unstable_after not available (e.g. testing)
+    }
 
-    // 🆕 Real-time Refresh for Hybrid Indexing Pattern
-    if (result.customerId) {
-        CustomerIndexingService.refreshCustomer(result.customerId).catch(err => 
-            logger.error(`[POS] Failed to refresh customer indexing for ${result.customerId}`, err)
-        );
+    const runBgTasks = async () => {
+        try {
+            // S-01: Audit Log Injection for Traceability
+            await prisma.actionLog.create({
+                data: {
+                    action: 'CREATE_SALE',
+                    userId: currentUser.id,
+                    branchId: currentUser.branchId,
+                    details: JSON.stringify({
+                        saleId: result.id,
+                        totalAmount: result.totalAmount,
+                        customer: data.customer?.name,
+                        itemsCount: data.items.length
+                    })
+                }
+            });
+
+            await prisma.actionLog.create({
+                data: {
+                    action: "POS_SALE_CREATE",
+                    details: `Sale #${result.id.slice(0, 8)}: Total ${result.totalAmount}, Method: ${data.paymentMethod}`,
+                    userId: currentUser.id,
+                    branchId: currentUser.branchId || null
+                }
+            });
+
+            // Reindex customer
+            if (result.customerId) {
+                await CustomerIndexingService.refreshCustomer(result.customerId);
+            }
+
+            // Path revalidation
+            revalidatePath("/", 'page');
+            revalidatePath("/inventory", 'page');
+            revalidatePath("/pos", 'page');
+            revalidatePath("/logs", 'page');
+            revalidatePath("/reports", 'page');
+            revalidatePath("/accounting", 'page');
+            revalidateTag("dashboard");
+        } catch (bgError) {
+            console.error('[POS] Background tasks failed:', bgError);
+        }
+    };
+
+    if (unstableAfterFn) {
+        unstableAfterFn(runBgTasks);
+    } else {
+        setTimeout(runBgTasks, 0);
     }
 
     return { message: "Sale processed successfully", saleId: result.id, sale: result };
