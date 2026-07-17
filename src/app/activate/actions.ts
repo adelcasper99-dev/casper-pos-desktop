@@ -1,61 +1,84 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { CloudConfigManager } from '@/utils/cloudConfigManager';
+import jwt from 'jsonwebtoken';
 
 /**
- * Server action: performs cloud activation.
+ * Server action: performs license activation directly via Prisma.
  *
- * IMPORTANT: machineId MUST be fetched on the client via Electron IPC
- * (window.electronAPI.license.getMachineId) before calling this action.
- * Calling Hardware.getMachineId() server-side would return the *server's*
- * hardware UUID, not the client machine's — breaking the hardware binding.
+ * Inlines the /api/license/activate logic to avoid a self-HTTP-call
+ * that would fail when cloudUrl is not yet configured (bootstrap scenario).
  *
- * NOTE: We persist the JWT in Prisma (StoreSettings), NOT IndexedDB.
- * This action runs on the server where IndexedDB (Dexie) is unavailable.
- * The Electron renderer reads the JWT back from StoreSettings via Prisma
- * on the next page load after redirect.
+ * machineId is fetched client-side (Electron IPC or server IP for cloud mode)
+ * so it identifies the correct machine, not the Next.js process.
  */
 export async function activateLicense(activationCode: string, machineId: string) {
     try {
         if (!machineId) {
-            return { success: false, error: 'Could not determine machine ID. Is this running in Electron?' };
+            return { success: false, error: 'Could not determine machine ID.' };
+        }
+        if (!activationCode) {
+            return { success: false, error: 'Activation code is required.' };
         }
 
-        const config = await CloudConfigManager.getCloudConfig();
-
-        if (!config.cloudUrl) {
-            return { success: false, error: 'Cloud URL not configured in system settings.' };
+        const privateKey = process.env.LICENSE_PRIVATE_KEY;
+        if (!privateKey) {
+            return { success: false, error: 'Server configuration error: missing LICENSE_PRIVATE_KEY.' };
         }
 
-        const res = await fetch(`${config.cloudUrl}/api/license/activate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activationCode, machineId }),
-        });
+        // Atomic single-use activation — prevents double-spend
+        let updatedTenant;
+        try {
+            updatedTenant = await prisma.$transaction(async (tx) => {
+                const tenant = await tx.tenant.findUnique({
+                    where: { activationCode }
+                });
 
-        if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            return { success: false, error: (data as { error?: string }).error || 'Activation failed.' };
+                if (!tenant || tenant.status !== 'active') {
+                    throw new Error('INVALID_CODE');
+                }
+
+                return tx.tenant.update({
+                    where: {
+                        id: tenant.id,
+                        activationCode: activationCode // optimistic guard
+                    },
+                    data: {
+                        activationCode: null, // single-use: burn the code
+                        machineId: machineId,
+                    }
+                });
+            });
+        } catch (txError: unknown) {
+            const err = txError as { message?: string; code?: string };
+            if (err.message === 'INVALID_CODE' || err.code === 'P2025') {
+                return { success: false, error: 'Invalid or already-used activation code.' };
+            }
+            throw txError;
         }
 
-        const data = await res.json() as { token?: string };
+        // Sign JWT
+        const payload = {
+            tenant_id: updatedTenant.id,
+            status: updatedTenant.status,
+            trial_ends_at: updatedTenant.trialEndsAt.toISOString(),
+            server_now: new Date().toISOString(),
+            machine_id: machineId,
+        };
 
-        if (!data.token) {
-            return { success: false, error: 'No token received from server.' };
-        }
+        const token = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), { algorithm: 'RS256' });
 
-        // Persist JWT server-side via Prisma (works in SSR / Server Actions)
+        // Persist JWT so middleware can verify on every request
         await prisma.storeSettings.upsert({
             where:  { id: 'settings' },
             create: {
                 id:            'settings',
                 name:          'Casper Store',
-                licenseJwt:    data.token,
+                licenseJwt:    token,
                 lastServerNow: Date.now(),
             },
             update: {
-                licenseJwt:    data.token,
+                licenseJwt:    token,
                 lastServerNow: Date.now(),
             },
         });
