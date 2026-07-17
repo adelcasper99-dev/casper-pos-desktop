@@ -1,7 +1,3 @@
-const testDbUrl = process.env.DATABASE_URL!;
-
-console.log(`\n[TEST SETUP] Running db push for test database: ${testDbUrl}`);
-
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { setupServer } from 'msw/node';
 import { prisma } from '@/lib/prisma';
@@ -46,46 +42,55 @@ export const server = setupServer(
     http.get('http://10.255.255.255:4040/*', () => passthrough())
 );
 
-// Use a dedicated local test database for Vitest
-const TEST_DB_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/casper_pos_test';
+// Extract absolute path for cleanup
+const dbAbsPath = path.resolve(process.cwd(), 'prisma', process.env.DATABASE_URL!.replace('file:', ''));
 
 export async function resetTestDB() {
     // Faster truncation reset
     const tables = [
-        'SaleItem', 'Sale', 'Branch', 'Ticket', 'TicketNote', 
-        'StockMovement', 'Stock', 'Warehouse', 'Customer', 'Sequence', 
-        'RepairPayment', 'JournalLine', 'JournalEntry', 'Account', 'Treasury',
-        'BundleItem', 'Product', 'Category'
+        'SaleItem', 'Sale', 'Branch', 'Ticket', 'TicketNote', 'StockMovement', 
+        'Stock', 'Warehouse', 'Customer', 'Sequence', 'RepairPayment', 
+        'StaffOverrideLog'
     ];
     
-    try {
-        await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${tables.join('", "')}" CASCADE;`);
-    } catch (e) {
-        console.error('Failed to truncate tables:', e);
+    // Disable FK checks and delete all
+    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF;');
+    for (const table of tables) {
+        try {
+            await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
+        } catch (e) {}
     }
+    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
 }
 
 beforeAll(async () => {
     server.listen({ onUnhandledRequest: 'warn' });
-    process.env.DATABASE_URL = TEST_DB_URL;
     
-    // Initial schema push
-    execSync(`npx prisma db push --skip-generate --accept-data-loss --force-reset`, {
-        env: { ...process.env, DATABASE_URL: TEST_DB_URL },
-        stdio: 'inherit'
-    });
+    try {
+        // Initial schema push (skip-generate because globalSetup already generated the sqlite client)
+        execSync(`npx prisma db push --schema=prisma/schema.test.prisma --skip-generate --accept-data-loss --force-reset`, {
+            env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
+            stdio: 'inherit'
+        });
+    } catch (error) {
+        console.error('Error during prisma db push:', error);
+        throw error;
+    }
 });
 
 afterAll(async () => {
     server.close();
     try {
         await prisma.$disconnect();
+        if (fs.existsSync(dbAbsPath)) fs.unlinkSync(dbAbsPath);
+        if (fs.existsSync(`${dbAbsPath}-journal` )) fs.unlinkSync(`${dbAbsPath}-journal`);
+        if (fs.existsSync(`${dbAbsPath}-wal` )) fs.unlinkSync(`${dbAbsPath}-wal`);
+        if (fs.existsSync(`${dbAbsPath}-shm` )) fs.unlinkSync(`${dbAbsPath}-shm`);
     } catch (e) {}
 });
 
 beforeEach(async () => {
     server.resetHandlers();
-    // We don't reset DB on EVERY test for speed, but only when explicitly called in test files
 });
 
 // Mock browser globals for node testing

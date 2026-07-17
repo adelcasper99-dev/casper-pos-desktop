@@ -55,8 +55,32 @@ describe('Sync Engine: Idempotency & Temporal Integrity', () => {
 
             // Seed default GL accounts needed for sales transactions
             await seedAccounts();
+
+            // Seed default System User and System Shift to prevent foreign key errors during offline sync
+            await prisma.user.upsert({
+                where: { id: 'SYSTEM_USER' },
+                update: {},
+                create: {
+                    id: 'SYSTEM_USER',
+                    username: 'system_user',
+                    password: 'hashedpassword',
+                    roleStr: 'STAFF'
+                }
+            });
+
+            await prisma.shift.upsert({
+                where: { id: 'SYSTEM_SHIFT' },
+                update: {},
+                create: {
+                    id: 'SYSTEM_SHIFT',
+                    userId: 'SYSTEM_USER',
+                    status: 'OPEN',
+                    openedAt: new Date()
+                }
+            });
         });
     });
+
 
     /**
      * TEST: Idempotency (Chaos Test)

@@ -405,13 +405,13 @@
     "semantic_hash": ""
   },
   "src/__tests__/sync/setup.ts": {
-    "mtime": 1784177111.3164248,
-    "ast_hash": "7ca92379d9c6368d85cf01a543697243",
+    "mtime": 1784267250.139266,
+    "ast_hash": "b819af15dd9e8c7470cbd55038a7055d",
     "semantic_hash": ""
   },
   "src/__tests__/sync/sync-integrity.test.ts": {
-    "mtime": 1784178735.372892,
-    "ast_hash": "160c4864d30b4271128639985e8e2596",
+    "mtime": 1784267470.9614408,
+    "ast_hash": "cbd5295fcdc3c32e984c341ce020ec5b",
     "semantic_hash": ""
   },
   "src/__tests__/ticket-modular.test.ts": {
@@ -545,8 +545,8 @@
     "semantic_hash": ""
   },
   "src/actions/pos.ts": {
-    "mtime": 1784175187.8487318,
-    "ast_hash": "963b5c56f73f42a478a58b100376c276",
+    "mtime": 1784268664.8179274,
+    "ast_hash": "deb22a156ec6143a2e9a33f4fb2a9bf5",
     "semantic_hash": ""
   },
   "src/actions/preset-actions.ts": {
@@ -860,8 +860,8 @@
     "semantic_hash": ""
   },
   "src/app/LayoutContent.tsx": {
-    "mtime": 1784177113.1425154,
-    "ast_hash": "e1070e251205de6071b765f9d98216e7",
+    "mtime": 1784264708.620297,
+    "ast_hash": "7c99ab04fa698214e9b48c6f233ed097",
     "semantic_hash": ""
   },
   "src/app/LoginForm.tsx": {
@@ -945,8 +945,8 @@
     "semantic_hash": ""
   },
   "src/app/api/pos/offline-sale/route.ts": {
-    "mtime": 1784177113.160418,
-    "ast_hash": "9aa2417d9208058429d27870824040d2",
+    "mtime": 1784268155.3849187,
+    "ast_hash": "e39da0ccb936b2f9462910afd3c5f9d9",
     "semantic_hash": ""
   },
   "src/app/api/sales/offline-return/route.ts": {
@@ -1425,8 +1425,8 @@
     "semantic_hash": ""
   },
   "src/components/setup/SetupWizard.tsx": {
-    "mtime": 1784243773.5347838,
-    "ast_hash": "0e422b7e940afb251d343980652e9f96",
+    "mtime": 1784244001.5845788,
+    "ast_hash": "1c25f587c9e3a4e44f7684810ef24546",
     "semantic_hash": ""
   },
   "src/components/shift/CashCounter.tsx": {
@@ -2135,8 +2135,8 @@
     "semantic_hash": ""
   },
   "src/lib/ensure-main-branch.ts": {
-    "mtime": 1784243266.4840121,
-    "ast_hash": "657e8bb1f7ae750d0ca408e1955ad490",
+    "mtime": 1784247588.88139,
+    "ast_hash": "bc56a3f744feb179daef61414c5bbab7",
     "semantic_hash": ""
   },
   "src/lib/env.ts": {
@@ -2390,8 +2390,8 @@
     "semantic_hash": ""
   },
   "src/lib/sync-worker.ts": {
-    "mtime": 1784177114.418672,
-    "ast_hash": "45ac8b0197847709a627d71d696e1440",
+    "mtime": 1784246570.5203497,
+    "ast_hash": "b8fc233f1430d0a306fef70f455c646a",
     "semantic_hash": ""
   },
   "src/lib/ticket-print-helpers.ts": {
@@ -2620,8 +2620,8 @@
     "semantic_hash": ""
   },
   "CASPER_PROJECT_MEMORY.md": {
-    "mtime": 1784177110.2729285,
-    "ast_hash": "e0dcccd19bd65d346d624ef27aa19a1b",
+    "mtime": 1784308187.8718534,
+    "ast_hash": "152469333ef78a047d8f1bc0a4bf1007",
     "semantic_hash": ""
   },
   "CODE_SIGNING_AND_UPDATES.md": {
@@ -4870,8 +4870,8 @@
     "semantic_hash": ""
   },
   "src/__tests__/sync/env-setup.ts": {
-    "mtime": 1784177111.3154142,
-    "ast_hash": "46f3901275d6a42be018e48637ddf31f",
+    "mtime": 1784267159.5125792,
+    "ast_hash": "8743aff7b6a7185f041f67c783ac9bd9",
     "semantic_hash": ""
   },
   "src/__tests__/sync/multi-tenant-isolation.test.ts": {
@@ -4950,13 +4950,13 @@
     "semantic_hash": ""
   },
   "src/app/activate/ActivateForm.tsx": {
-    "mtime": 1784177113.14568,
-    "ast_hash": "d8f35d31a792f7d11b180a40c6d5de64",
+    "mtime": 1784248438.0691,
+    "ast_hash": "96f3696c50426fc5da4989ea0617d1cc",
     "semantic_hash": ""
   },
   "src/app/activate/actions.ts": {
-    "mtime": 1784177113.1462138,
-    "ast_hash": "ac6715734fa8768eb5d58d107c6a5de7",
+    "mtime": 1784249609.1135635,
+    "ast_hash": "0433559dde040aca39eba4ee8646b1dd",
     "semantic_hash": ""
   },
   "src/app/activate/page.tsx": {
@@ -5070,8 +5070,8 @@
     "semantic_hash": ""
   },
   "src/app/onboarding/page.tsx": {
-    "mtime": 1784177113.6958404,
-    "ast_hash": "39b06083719cd735bc4d35dc46c7a65a",
+    "mtime": 1784263587.5714474,
+    "ast_hash": "7103a8465dbca980ccbef6c53545ad4f",
     "semantic_hash": ""
   },
   "src/components/SyncStatusBar.tsx": {
@@ -5115,8 +5115,8 @@
     "semantic_hash": ""
   },
   "src/components/onboarding/OnboardingGateway.tsx": {
-    "mtime": 1784177114.0022066,
-    "ast_hash": "92fe65e834ffdb1ac01cb074bd334806",
+    "mtime": 1784264986.6080718,
+    "ast_hash": "c0ef73e58200febf94ea0e19454cebf8",
     "semantic_hash": ""
   },
   "src/components/onboarding/StaffOverrideModal.tsx": {
@@ -5275,8 +5275,8 @@
     "semantic_hash": ""
   },
   "src/lib/license/verify.ts": {
-    "mtime": 1784177114.343346,
-    "ast_hash": "80be4cfd93f2c4e1679adf5bacdbfa3a",
+    "mtime": 1784256737.0192199,
+    "ast_hash": "ce409dc1d1e765320ae7119ad3ed1a77",
     "semantic_hash": ""
   },
   "src/lib/print-guard.ts": {
@@ -5285,7 +5285,7 @@
     "semantic_hash": ""
   },
   "src/lib/prisma-tenant-extension.ts": {
-    "mtime": 1784230682.2506454,
+    "mtime": 1784244529.5155418,
     "ast_hash": "62806841fc811d22ad7b74dc7d9e7602",
     "semantic_hash": ""
   },
@@ -5567,6 +5567,16 @@
   "unstaged_diff.txt": {
     "mtime": 1784177114.436844,
     "ast_hash": "245fa36cfcc86fbe6038c149fd112b6a",
+    "semantic_hash": ""
+  },
+  "landing-page/index.html": {
+    "mtime": 1784261922.8618298,
+    "ast_hash": "9ecd9c6716301d155ca1d36c4520df5c",
+    "semantic_hash": ""
+  },
+  "landing-page/casper-dark-logo.png": {
+    "mtime": 1774815027.664585,
+    "ast_hash": "2aa07bb60ea4c822f40cbc34ca0dcf1e",
     "semantic_hash": ""
   }
 }

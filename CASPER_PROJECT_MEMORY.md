@@ -383,3 +383,24 @@ This document serves as the "Source of Truth" for critical architectural decisio
 *   **Rule**: The main Next.js/Prisma schema MUST be pinned to `provider = "postgresql"` in staging/production to protect exact Decimal field math and ensure proper connection pooling.
 *   **Implementation**:
     -   A git pre-commit hook (`.git/hooks/pre-commit`) blocks commits containing a provider change in `prisma/schema.prisma`. Any deviation from `"postgresql"` (e.g., testing locally with `sqlite`) prevents commit execution with an error diagnostic.
+
+## 🔄 16. POS Sync & Online Checkout Concurrency Optimizations
+
+### 🛡️ [NEW] Environment-Aware Advisory Locks (Sync Safety)
+*   **Rule**: To prevent double-posting of sales during high-latency sync retries, the PostgreSQL endpoint MUST acquire a transaction-level advisory lock using a 64-bit keyspace generated from the idempotency key:
+    `tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('pos_sync'), hashtext(${idempotencyKey}));``
+*   **SQLite Compatibility**: Check the database dialect dynamically before locking. If running SQLite (local offline desktop node or Vitest runner), bypass advisory locks completely to avoid driver errors, since single-user local nodes do not suffer from concurrent sync races.
+
+### 🛡️ [NEW] O(1) Bulk Bundle Unpacking
+*   **Rule**: Carts containing bundle products must resolve component details using a single bulk query:
+    `tx.bundleItem.findMany({ where: { bundleProductId: { in: bundleIds } } })`
+*   **Protocol**: Direct sequential component queries (N+1 bottleneck) are strictly forbidden. Component configurations must be compiled and mapped in-memory.
+
+### 🛡️ [NEW] Lexicographical Sorting Deadlock Prevention
+*   **Rule**: High-concurrency operations modifying multiple product stocks simultaneously (like multi-item checkouts) must sort the product IDs lexicographically ascending before executing updates or acquiring row locks.
+*   **Rationale**: Concurrent transactions locking rows in differing orders (e.g., TxA locks P1 then P2, TxB locks P2 then P1) trigger database deadlocks. Enforcing a strict, deterministic lock order mathematically eliminates deadlock possibilities.
+
+### 🛡️ [NEW] Transaction Decoupling (Background Tasks)
+*   **Rule**: Operations that do not affect the success or failure of the checkout transaction (such as `ActionLog` logging, `CustomerIndexingService` search index updates, and `revalidatePath` page updates) MUST be executed outside the core database transaction block.
+*   **Protocol**: Wrap non-blocking side-effects inside Next.js `unstable_after` hooks to run asynchronously after the response is returned to the client. Ensure proper error handling inside the callback so exceptions do not crash the runtime.
+

@@ -4,7 +4,9 @@ import path from 'path';
 const suiteId = Math.random().toString(36).substring(7);
 const dbPath = path.resolve(process.cwd(), 'prisma', `test-${suiteId}.db`);
 
-// Use an absolute path so both db push and PrismaClient resolve to the EXACT SAME file.
-// Windows absolute paths with file: scheme need forward slashes
-process.env.DATABASE_URL = `file:${dbPath.replace(/\\/g, '/')}`;
+// Use a relative path to avoid absolute path space parsing issues on Windows.
+// Prisma resolves relative SQLite paths relative to the schema file.
+process.env.DATABASE_URL = `file:./test-${suiteId}.db`;
 console.log(`[TEST SETUP] Set DATABASE_URL to: ${process.env.DATABASE_URL}`);
+
+

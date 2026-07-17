@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
         }
 
         body = parseResult.data;
-        if ('tenantId' in body && (body as any).tenantId !== tenantId) {
+        if ('tenantId' in rawBody && (rawBody as any).tenantId !== tenantId) {
             return NextResponse.json({ success: false, error: 'Tenant mismatch. Unauthorized data write.' }, { status: 403 });
         }
+
         const {
             id,
             idempotencyKey,
@@ -70,23 +71,6 @@ export async function POST(request: NextRequest) {
         // Bounded client time check to guarantee temporal integrity
         const { getBoundedTimestamp } = await import('@/lib/sync-time-helper');
         const timeCheck = getBoundedTimestamp(createdAt, isTimeSuspicious);
-
-        // ── Idempotency Guard ──────────────────────────────────────────────────
-        const lookupKey = idempotencyKey || id;
-        if (lookupKey) {
-            const existing = idempotencyKey
-                ? await prisma.sale.findUnique({ where: { idempotencyKey } })
-                : await prisma.sale.findUnique({ where: { id } });
-
-            if (existing) {
-                return NextResponse.json({
-                    success: true,
-                    existing: true,
-                    id: existing.id,
-                    message: 'Sale already processed',
-                });
-            }
-        }
 
         // 📐 Precision Validation (Decimal.js)
         const dTotal = new Decimal(totalAmount);
@@ -118,6 +102,24 @@ export async function POST(request: NextRequest) {
 
         // ── Atomic Sale Creation & Ledger ──────────────────────────────────────
         const sale = await secureTransaction(async (tx) => {
+            // 2. Environment-Aware 64-bit Advisory Lock (Phase 1)
+            const isPostgresEnv = process.env.DATABASE_URL?.startsWith('postgres') || process.env.DATABASE_URL?.startsWith('postgresql');
+            if (isPostgresEnv && idempotencyKey) {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('pos_sync'), hashtext(${idempotencyKey}));`;
+            }
+
+            // 3. Early Return (Idempotency Guard inside transaction)
+            const lookupKey = idempotencyKey || id;
+            if (lookupKey) {
+                const existing = idempotencyKey
+                    ? await tx.sale.findUnique({ where: { idempotencyKey } })
+                    : await tx.sale.findUnique({ where: { id } });
+
+                if (existing) {
+                    return { existing: true, id: existing.id };
+                }
+            }
+
             const newSale = await tx.sale.create({
                 data: {
                     ...(id ? { id } : {}),
@@ -265,31 +267,39 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            await tx.journalEntry.create({
-                data: {
-                    date: createdAt ? new Date(createdAt) : new Date(),
-                    description: `Sale Sync: ${newSale.id} (${customerName || 'Walk-in'})`,
-                    branchId,
-                    saleId: newSale.id,
-                    idempotencyKey: `journal-sale-${newSale.id}`,
-                    lines: {
-                        create: [
-                            { accountId: cashAccount.id, debit: dTotal.toString(), credit: '0' },
-                            { accountId: salesAccount.id, debit: '0', credit: dTotal.toString() }
-                        ]
-                    }
-                }
-            });
-
-            // ── Decrement Stock (Bundle-Aware Logic) ──────────────────────────
+            // ── Decrement Stock (Bundle-Aware O(1) Fetching & Lexicographical Sorting) ──────────────────────────
             // 1. Snapshot product metadata for bundle detection
             const pIds = items.map((i: any) => i.productId).filter(Boolean);
-            const productMetas: any[] = await tx.product.findMany({
+            const productMetas = await tx.product.findMany({
                 where: { id: { in: pIds } },
                 select: { id: true, isBundle: true, trackStock: true }
             });
-
             const metaMap = new Map(productMetas.map(p => [p.id, p]));
+
+            // 2. Fetch components for all bundles in a single O(1) query (Phase 2)
+            const bundleIds = productMetas.filter(p => p.isBundle).map(p => p.id);
+            const allBundleComponents = bundleIds.length > 0
+                ? await tx.bundleItem.findMany({
+                    where: { bundleProductId: { in: bundleIds } },
+                    include: { componentProduct: { select: { id: true, trackStock: true } } }
+                })
+                : [];
+
+            const bundleComponentsMap = new Map<string, typeof allBundleComponents>();
+            for (const comp of allBundleComponents) {
+                const list = bundleComponentsMap.get(comp.bundleProductId) || [];
+                list.push(comp);
+                bundleComponentsMap.set(comp.bundleProductId, list);
+            }
+
+            // 3. Compile all stock deductions in-memory
+            interface StockDeduction {
+                productId: string;
+                quantity: number;
+                isBundleComponent: boolean;
+                parentBundleId?: string;
+            }
+            const deductions: StockDeduction[] = [];
 
             for (const item of items) {
                 if (!item.productId || !item.quantity) continue;
@@ -297,42 +307,56 @@ export async function POST(request: NextRequest) {
                 if (!meta) continue;
 
                 if (meta.isBundle) {
-                    // Fetch components for this bundle
-                    const components = await tx.bundleItem.findMany({
-                        where: { bundleProductId: item.productId },
-                        include: { componentProduct: { select: { id: true, trackStock: true } } }
-                    });
-
+                    const components = bundleComponentsMap.get(item.productId) || [];
                     for (const comp of components) {
                         if (!comp.componentProduct.trackStock) continue;
                         const compQty = new Decimal(item.quantity).mul(new Decimal(comp.quantityIncluded.toString())).toNumber();
-                        
-                        await decrementWarehouseStock(tx, comp.componentProductId, warehouseId, compQty);
-                        
-                        // Log component movement
-                        await tx.stockMovement.create({
-                            data: {
-                                type: 'SALE_BUNDLE_COMPONENT',
-                                productId: comp.componentProductId,
-                                fromWarehouseId: warehouseId,
-                                quantity: compQty,
-                                reason: `Offline sale bundle sync: ${newSale.id} (Member of ${item.productId})`,
-                                branchId,
-                                createdAt: createdAt ? new Date(createdAt) : undefined,
-                            },
+                        deductions.push({
+                            productId: comp.componentProductId,
+                            quantity: compQty,
+                            isBundleComponent: true,
+                            parentBundleId: item.productId
                         });
                     }
                 } else if (meta.trackStock) {
-                    // Regular product decrement
-                    await decrementWarehouseStock(tx, item.productId, warehouseId, Number(item.quantity));
-                    
+                    deductions.push({
+                        productId: item.productId,
+                        quantity: Number(item.quantity),
+                        isBundleComponent: false
+                    });
+                }
+            }
+
+            // 4. Aggregate deductions by productId (ensures each product is updated once)
+            const aggregatedDeductionsMap = new Map<string, { quantity: number; deductions: StockDeduction[] }>();
+            for (const d of deductions) {
+                const existing = aggregatedDeductionsMap.get(d.productId) || { quantity: 0, deductions: [] };
+                existing.quantity = new Decimal(existing.quantity).plus(d.quantity).toNumber();
+                existing.deductions.push(d);
+                aggregatedDeductionsMap.set(d.productId, existing);
+            }
+
+            // 5. Sort product IDs lexicographically to prevent deadlocks (Phase 3)
+            const sortedProductIds = Array.from(aggregatedDeductionsMap.keys()).sort((a, b) => a.localeCompare(b));
+
+            // 6. Execute stock updates and log movements sequentially
+            for (const pId of sortedProductIds) {
+                const agg = aggregatedDeductionsMap.get(pId)!;
+                
+                // Decrement stock using the standard helper (automatically handles Product table sync & validations)
+                await decrementWarehouseStock(tx, pId, warehouseId, agg.quantity);
+
+                // Create stock movements for each origin item contributing to this deduction
+                for (const d of agg.deductions) {
                     await tx.stockMovement.create({
                         data: {
-                            type: 'SALE',
-                            productId: item.productId,
+                            type: d.isBundleComponent ? 'SALE_BUNDLE_COMPONENT' : 'SALE',
+                            productId: pId,
                             fromWarehouseId: warehouseId,
-                            quantity: item.quantity,
-                            reason: `Offline sale sync: ${newSale.id}`,
+                            quantity: d.quantity,
+                            reason: d.isBundleComponent 
+                                ? `Offline sale bundle sync: ${newSale.id} (Member of ${d.parentBundleId})`
+                                : `Offline sale sync: ${newSale.id}`,
                             branchId,
                             createdAt: createdAt ? new Date(createdAt) : undefined,
                         },
@@ -340,10 +364,22 @@ export async function POST(request: NextRequest) {
                 }
             }
 
+
             return newSale;
         }, { timeout: 30000 });
 
+        if ('existing' in sale && sale.existing) {
+
+            return NextResponse.json({
+                success: true,
+                existing: true,
+                id: sale.id,
+                message: 'Sale already processed',
+            });
+        }
+
         return NextResponse.json({ success: true, id: sale.id, existing: false });
+
     } catch (error: any) {
         // 🛡️ Rescue from Idempotency Race
         if ((error.code === 'P2002' || error.code === 'P2028')) {
