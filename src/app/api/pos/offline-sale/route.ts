@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
 
             for (const item of items) {
                 if (!item.productId || !item.quantity) continue;
-                const meta = metaMap.get(item.productId);
+                const meta = metaMap.get(item.productId) as any;
                 if (!meta) continue;
 
                 if (meta.isBundle) {
