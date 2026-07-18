@@ -7,17 +7,27 @@ import { WifiOff, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import StaffOverrideModal from '@/components/onboarding/StaffOverrideModal';
+import { CloudConfigManager } from '@/utils/cloudConfigManager';
+import { toast } from 'sonner';
+
+const ERROR_MESSAGES: Record<string, string> = {
+    INVALID_CODE:   'رمز التفعيل غير صحيح أو تم استخدامه مسبقاً',
+    INVALID_FORMAT: 'صيغة الرمز غير صحيحة. التنسيق المطلوب: CASPER-XXXXXX',
+    RATE_LIMITED:   'محاولات كثيرة جداً. يُرجى الانتظار 15 دقيقة والمحاولة مرة أخرى',
+    SCHEMA_ERROR:   'خطأ في إعداد الخادم. تواصل مع الدعم الفني',
+    default:        'فشل التفعيل. يُرجى المحاولة مجدداً أو التواصل مع الدعم',
+};
 
 export default function ActivateForm() {
     const router = useRouter();
     const [code, setCode] = useState('');
     const [isOnline, setIsOnline] = useState(true);
-    const [loading, setLoading] = useState(false);
+    
+    // 0 = idle, 1 = جاري التحقق, 2 = جاري ربط الجهاز, 3 = تم التفعيل
+    const [loadingPhase, setLoadingPhase] = useState<0 | 1 | 2 | 3>(0);
     const [error, setError] = useState<string | null>(null);
 
-    // 🛡️ P1-10: Fetch machine ID from Electron main process (not server action)
-    // so the UUID is always the client's hardware, not the cloud server's.
+    // 🛡️ P1-10: Fetch machine ID from Electron main process
     const [machineId, setMachineId] = useState<string | null>(null);
     const [machineIdError, setMachineIdError] = useState<string | null>(null);
 
@@ -53,23 +63,9 @@ export default function ActivateForm() {
         };
     }, []);
 
-    // ── V-09: Staff Override Shortcut (Ctrl+Shift+A) ────────────────────────
-    const [showStaffOverride, setShowStaffOverride] = useState(false);
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.shiftKey && (e.code === "KeyA" || e.key === "A" || e.key === "a" || e.key === "ش")) {
-                e.preventDefault();
-                setShowStaffOverride(true);
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, []);
-
     const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        // Auto-format: CASPER-XXXXXX (only insert dash at position 6 if not already present)
+        // Auto-format: CASPER-XXXXXX
         if (val.length >= 7 && val[6] !== '-' && !val.substring(0, 6).includes('-')) {
             val = val.substring(0, 6) + '-' + val.substring(6);
         }
@@ -80,20 +76,52 @@ export default function ActivateForm() {
         e.preventDefault();
         if (!code || !machineId) return;
 
-        setLoading(true);
+        setLoadingPhase(1); // Phase 1: جاري التحقق من الترخيص...
         setError(null);
 
         const result = await activateLicense(code, machineId);
         
-        if (result.success) {
+        if (result.success && result.branchId && result.syncSecret && result.cloudUrl) {
+            setLoadingPhase(2); // Phase 2: جاري ربط الجهاز...
+            
+            // Save cloud config
+            const configSaved = await CloudConfigManager.saveCloudConfig({
+                enabled: true,
+                cloudUrl: result.cloudUrl,
+                branchId: result.branchId,
+                syncSecret: result.syncSecret
+            });
+
+            if (!configSaved.success) {
+                toast.warning('تحذير: تعذّر حفظ إعدادات المزامنة. سيتم المحاولة عند إعادة التشغيل.');
+            }
+
+            // Small delay to show the nice step-by-step progress
+            await new Promise(resolve => setTimeout(resolve, 600));
+            setLoadingPhase(3); // Phase 3: تم التفعيل بنجاح ✓
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            router.refresh();
             router.push('/');
         } else {
-            setError(result.error || 'Activation failed');
-            setLoading(false);
+            const errKey = result.error as keyof typeof ERROR_MESSAGES;
+            const friendlyError = ERROR_MESSAGES[errKey] || ERROR_MESSAGES.default;
+            setError(friendlyError);
+            setLoadingPhase(0);
         }
     };
 
-    const canSubmit = !!code && !!machineId && !loading && isOnline;
+    const isLoading = loadingPhase > 0;
+    const canSubmit = !!code && !!machineId && !isLoading && isOnline;
+
+    const getLoadingLabel = () => {
+        switch (loadingPhase) {
+            case 1: return 'جاري التحقق من الترخيص...';
+            case 2: return 'جاري ربط الجهاز...';
+            case 3: return 'تم التفعيل بنجاح ✓';
+            default: return 'Activating...';
+        }
+    };
 
     return (
         <div className="flex flex-col gap-6 w-full max-w-md mx-auto p-6 bg-card rounded-xl border shadow-lg mt-20">
@@ -133,18 +161,16 @@ export default function ActivateForm() {
                         onChange={handleCodeChange} 
                         placeholder="CASPER-XXXXXX"
                         maxLength={13}
-                        disabled={loading || !isOnline || !!machineIdError}
+                        disabled={isLoading || !isOnline || !!machineIdError}
                         className="text-center font-mono text-lg tracking-widest uppercase"
                     />
                 </div>
 
                 <Button type="submit" disabled={!canSubmit} className="w-full">
-                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    {loading ? 'Activating...' : 'Activate Now'}
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    {isLoading ? getLoadingLabel() : 'Activate Now'}
                 </Button>
             </form>
-
-            <StaffOverrideModal isOpen={showStaffOverride} onClose={() => setShowStaffOverride(false)} />
         </div>
     );
 }
