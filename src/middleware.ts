@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
     const subdomain = parts.length > 2 ? parts[0] : null;
     
     // Ignore common system subdomains
-    const isSystemSubdomain = !subdomain || ['www', 'api', 'localhost', '127', 'admin'].includes(subdomain.toLowerCase());
+    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin'].includes(subdomain.toLowerCase());
     
     let tenantId = request.headers.get('x-tenant-id') || request.cookies.get('tenantId')?.value;
     
