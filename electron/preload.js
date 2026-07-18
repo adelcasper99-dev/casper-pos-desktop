@@ -154,5 +154,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             ipcRenderer.on('whatsapp:qr', handler);
             return () => ipcRenderer.removeListener('whatsapp:qr', handler);
         }
+    },
+    safeStorage: {
+        encryptString: (plaintext) => ipcRenderer.invoke('app:safe-storage-encrypt', plaintext),
+        decryptString: (encryptedBase64) => ipcRenderer.invoke('app:safe-storage-decrypt', encryptedBase64)
     }
 });

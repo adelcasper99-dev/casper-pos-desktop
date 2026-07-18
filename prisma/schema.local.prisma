@@ -20,7 +20,6 @@ model SystemConfig {
 
 model StoreSettings {
   id                    String    @id @default("settings")
-  tenantId              String    @default("default")
   name                  String    @default("Casper Store")
   phone                 String?
   address               String?
@@ -46,8 +45,7 @@ model StoreSettings {
   localUptimeTicks      Float?
   trialStartDate        DateTime?
 
-  @@index([tenantId])
-}
+  }
 
 model StaffOverrideLog {
   id        String   @id @default(uuid())
@@ -58,7 +56,6 @@ model StaffOverrideLog {
 
 model User {
   id                   String                @id @default(uuid())
-  tenantId             String                @default("default")
   username             String                @unique
   password             String
   name                 String?
@@ -92,22 +89,18 @@ model User {
   role                 Role?                 @relation(fields: [roleId], references: [id])
   branch               Branch?               @relation(fields: [branchId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model Role {
   id          String @id @default(uuid())
-  tenantId    String @default("default")
   name        String @unique
   permissions String @default("[]")
   users       User[]
 
-  @@index([tenantId])
-}
+  }
 
 model Session {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   userId    String
   token     String   @unique
   expiresAt DateTime
@@ -115,12 +108,10 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([tenantId])
-}
+  }
 
 model Branch {
   id                   String                @id @default(uuid())
-  tenantId             String                @default("default")
   name                 String
   code                 String                @unique
   address              String?
@@ -153,12 +144,10 @@ model Branch {
   users                User[]
   warehouses           Warehouse[]
 
-  @@index([tenantId])
-}
+  }
 
 model Warehouse {
   id                   String            @id @default(uuid())
-  tenantId             String            @default("default")
   name                 String
   address              String?
   type                 String            @default("SELLABLE")
@@ -179,12 +168,10 @@ model Warehouse {
   branch               Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
   ReorderRule          ReorderRule[]
 
-  @@index([tenantId])
-}
+  }
 
 model Customer {
   id                    String                @id @default(uuid())
-  tenantId              String                @default("default")
   name                  String
   phone                 String                @unique
   email                 String?
@@ -204,12 +191,10 @@ model Customer {
   tickets               Ticket[]
   receivesNotifications Boolean               @default(true)
 
-  @@index([tenantId])
-}
+  }
 
 model CustomerTransaction {
   id             String         @id @default(uuid())
-  tenantId       String         @default("default")
   customerId     String
   type           String
   amount         Decimal
@@ -225,12 +210,10 @@ model CustomerTransaction {
   @@index([customerId])
   @@index([createdAt])
   @@index([branchId])
-  @@index([tenantId])
-}
+  }
 
 model Supplier {
   id               String            @id @default(uuid())
-  tenantId         String            @default("default")
   name             String
   phone            String?           @unique
   email            String?
@@ -243,12 +226,10 @@ model Supplier {
   payments         SupplierPayment[]
   clientTickets    Ticket[]          @relation("ClientSupplier")
 
-  @@index([tenantId])
-}
+  }
 
 model SupplierPayment {
   id             String         @id @default(uuid())
-  tenantId       String         @default("default")
   supplierId     String
   amount         Decimal
   notes          String?
@@ -261,12 +242,10 @@ model SupplierPayment {
 
   @@index([supplierId])
   @@index([branchId])
-  @@index([tenantId])
-}
+  }
 
 model Account {
   id           String        @id @default(uuid())
-  tenantId     String        @default("default")
   code         String        @unique
   name         String
   type         String
@@ -276,12 +255,10 @@ model Account {
   updatedAt    DateTime      @updatedAt
   journalLines JournalLine[]
 
-  @@index([tenantId])
-}
+  }
 
 model JournalEntry {
   id                    String               @id @default(uuid())
-  tenantId              String               @default("default")
   date                  DateTime             @default(now())
   description           String
   reference             String?
@@ -311,12 +288,10 @@ model JournalEntry {
 
   @@index([date])
   @@index([branchId])
-  @@index([tenantId])
-}
+  }
 
 model JournalLine {
   id             String       @id @default(uuid())
-  tenantId       String       @default("default")
   journalEntryId String
   accountId      String
   debit          Decimal      @default(0.00)
@@ -327,12 +302,10 @@ model JournalLine {
 
   @@index([accountId])
   @@index([journalEntryId])
-  @@index([tenantId])
-}
+  }
 
 model Category {
   id            String     @id @default(uuid())
-  tenantId      String     @default("default")
   name          String
   color         String?    @default("#06b6d4")
   isHidden      Boolean    @default(false)
@@ -343,12 +316,10 @@ model Category {
   products      Product[]
   models        Model[]
 
-  @@index([tenantId])
-}
+  }
 
 model Model {
   id         String    @id @default(uuid())
-  tenantId   String    @default("default")
   name       String
   categoryId String
   category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -356,22 +327,18 @@ model Model {
   createdAt  DateTime  @default(now())
 
   @@unique([name, categoryId])
-  @@index([tenantId])
-}
+  }
 
 model Attribute {
   id        String    @id @default(uuid())
-  tenantId  String    @default("default")
   name      String    @unique
   products  Product[]
   createdAt DateTime  @default(now())
 
-  @@index([tenantId])
-}
+  }
 
 model UnitOfMeasure {
   id               String         @id @default(uuid())
-  tenantId         String         @default("default")
   name             String
   code             String         @unique
   category         String
@@ -383,12 +350,10 @@ model UnitOfMeasure {
   purchaseItems    PurchaseItem[]
 
   @@index([category])
-  @@index([tenantId])
-}
+  }
 
 model Product {
   id                String             @id @default(uuid())
-  tenantId          String             @default("default")
   sku               String             @unique
   name              String
   description       String?
@@ -434,7 +399,6 @@ model Product {
 
 model BundleItem {
   id                 String  @id @default(uuid())
-  tenantId           String  @default("default")
   bundleProductId    String
   componentProductId String
   quantityIncluded   Decimal @default(1.00)
@@ -443,12 +407,10 @@ model BundleItem {
 
   @@unique([bundleProductId, componentProductId])
   @@index([bundleProductId])
-  @@index([tenantId])
-}
+  }
 
 model Stock {
   id          String    @id @default(uuid())
-  tenantId    String    @default("default")
   productId   String
   warehouseId String
   quantity    Decimal   @default(0.00)
@@ -457,15 +419,13 @@ model Stock {
   product     Product   @relation(fields: [productId], references: [id])
 
   @@unique([productId, warehouseId])
-  @@index([tenantId])
-}
+  }
 
 model StockMovement {
   // Note: PostgreSQL has a raw DB constraint "chk_stock_movement_warehouse_non_null"
   // ensuring that fromWarehouseId and toWarehouseId cannot both be null.
   // SQLite compatibility is enforced via Prisma middleware in src/lib/prisma.ts.
   id              String     @id @default(uuid())
-  tenantId        String     @default("default")
   type            String
   productId       String
   fromWarehouseId String?
@@ -483,12 +443,10 @@ model StockMovement {
   toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
   idempotencyKey  String?    @unique
 
-  @@index([tenantId])
-}
+  }
 
 model StockRequest {
   id              String             @id @default(uuid())
-  tenantId        String             @default("default")
   requestNumber   Int                @unique
   branchId        String
   warehouseId     String
@@ -510,12 +468,10 @@ model StockRequest {
   @@index([branchId])
   @@index([warehouseId])
   @@index([status])
-  @@index([tenantId])
-}
+  }
 
 model StockRequestItem {
   id             String       @id @default(uuid())
-  tenantId       String       @default("default")
   stockRequestId String
   productId      String
   quantity       Decimal      @default(0.00)
@@ -523,12 +479,10 @@ model StockRequestItem {
   product        Product      @relation(fields: [productId], references: [id])
 
   @@unique([stockRequestId, productId])
-  @@index([tenantId])
-}
+  }
 
 model StockWastage {
   id          String    @id @default(cuid())
-  tenantId    String    @default("default")
   productId   String
   warehouseId String
   quantity    Decimal
@@ -545,12 +499,10 @@ model StockWastage {
   @@index([productId, createdAt])
   @@index([warehouseId, createdAt])
   @@index([branchId])
-  @@index([tenantId])
-}
+  }
 
 model PurchaseInvoice {
   id             String   @id @default(uuid())
-  tenantId       String   @default("default")
   invoiceNumber  String?
   supplierId     String
   warehouseId    String
@@ -581,12 +533,10 @@ model PurchaseInvoice {
   warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
   items          PurchaseItem[]
 
-  @@index([tenantId])
-}
+  }
 
 model PurchaseItem {
   id                String          @id @default(uuid())
-  tenantId          String          @default("default")
   purchaseInvoiceId String
   productId         String
   quantity          Decimal         @default(0.00)
@@ -602,12 +552,10 @@ model PurchaseItem {
   product           Product         @relation(fields: [productId], references: [id])
   unitOfMeasure     UnitOfMeasure?  @relation(fields: [unitOfMeasureId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model Sale {
   id                 String         @id @default(uuid())
-  tenantId           String         @default("default")
   customerName       String?
   customerPhone      String?
   customerAddress    String?
@@ -651,12 +599,10 @@ model Sale {
   @@index([status, createdAt])
   @@index([warehouseId, status])
   @@index([syncStatus])
-  @@index([tenantId])
-}
+  }
 
 model SalePayment {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   saleId    String
   method    String
   amount    Decimal
@@ -664,12 +610,10 @@ model SalePayment {
   createdAt DateTime @default(now())
   sale      Sale     @relation(fields: [saleId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model SaleItem {
   id          String  @id @default(uuid())
-  tenantId    String  @default("default")
   saleId      String
   productId   String
   quantity    Decimal @default(0.00)
@@ -684,12 +628,10 @@ model SaleItem {
   product     Product @relation(fields: [productId], references: [id])
 
   @@index([saleId])
-  @@index([tenantId])
-}
+  }
 
 model Shift {
   id                         String            @id @default(uuid())
-  tenantId                   String            @default("default")
   openedAt                   DateTime          @default(now())
   closedAt                   DateTime?
   startCash                  Decimal           @default(0.00)
@@ -743,12 +685,10 @@ model Shift {
 
   @@index([userId, status])
   @@index([registerId, status])
-  @@index([tenantId])
-}
+  }
 
 model ShiftAdjustment {
   id                   String   @id @default(uuid())
-  tenantId             String   @default("default")
   shiftId              String
   type                 String
   amount               Decimal
@@ -760,12 +700,10 @@ model ShiftAdjustment {
   shift                Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 
   @@index([shiftId])
-  @@index([tenantId])
-}
+  }
 
 model Treasury {
   id            String        @id @default(uuid())
-  tenantId      String        @default("default")
   name          String
   branchId      String
   isDefault     Boolean       @default(false)
@@ -779,12 +717,10 @@ model Treasury {
   branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, name])
-  @@index([tenantId])
-}
+  }
 
 model Transaction {
   id                   String        @id @default(uuid())
-  tenantId             String        @default("default")
   type                 String
   amount               Decimal
   description          String?
@@ -812,12 +748,10 @@ model Transaction {
 
   @@index([treasuryId, createdAt])
   @@index([referenceId, referenceType])
-  @@index([tenantId])
-}
+  }
 
 model Expense {
   id             String         @id @default(uuid())
-  tenantId       String         @default("default")
   description    String
   amount         Decimal
   category       String
@@ -830,12 +764,10 @@ model Expense {
   journalEntries JournalEntry[]
   transactions   Transaction[]
 
-  @@index([tenantId])
-}
+  }
 
 model ActionLog {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   action    String
   details   String?
   userId    String?
@@ -843,12 +775,10 @@ model ActionLog {
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model Technician {
   id                    String                 @id @default(uuid())
-  tenantId              String                 @default("default")
   userId                String                 @unique
   name                  String
   phone                 String?
@@ -870,34 +800,28 @@ model Technician {
   completedTickets      Ticket[]               @relation("CompletedBy")
   collaborations        TicketCollaborator[]
 
-  @@index([tenantId])
-}
+  }
 
 model TicketPreset {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   type      String
   name      String
   createdAt DateTime @default(now())
 
   @@unique([type, name])
-  @@index([tenantId])
-}
+  }
 
 model DevicePreset {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   brand     String
   model     String
   createdAt DateTime @default(now())
 
   @@unique([brand, model])
-  @@index([tenantId])
-}
+  }
 
 model Ticket {
   id                      String               @id @default(uuid())
-  tenantId                String               @default("default")
   barcode                 String               @unique
   customerName            String
   customerPhone           String
@@ -991,12 +915,10 @@ model Ticket {
   @@index([clientUserId])
   @@index([clientSupplierId])
   @@index([parentTicketId])
-  @@index([tenantId])
-}
+  }
 
 model NotificationLog {
   id       String   @id @default(uuid())
-  tenantId String   @default("default")
   ticketId String
   type     String
   status   String
@@ -1004,12 +926,10 @@ model NotificationLog {
   sentAt   DateTime @default(now())
   ticket   Ticket   @relation(fields: [ticketId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model TicketPart {
   id            String     @id @default(uuid())
-  tenantId      String     @default("default")
   ticketId      String
   productId     String?
   name          String?
@@ -1031,12 +951,10 @@ model TicketPart {
   ticket        Ticket     @relation(fields: [ticketId], references: [id])
   product       Product?   @relation(fields: [productId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model TicketCollaborator {
   id               String     @id @default(uuid())
-  tenantId         String     @default("default")
   ticketId         String
   technicianId     String
   role             String     @default("ASSISTANT")
@@ -1047,12 +965,10 @@ model TicketCollaborator {
   ticket           Ticket     @relation(fields: [ticketId], references: [id])
 
   @@unique([ticketId, technicianId])
-  @@index([tenantId])
-}
+  }
 
 model TicketNote {
   id         String   @id @default(uuid())
-  tenantId   String   @default("default")
   ticketId   String
   text       String
   author     String
@@ -1060,8 +976,7 @@ model TicketNote {
   createdAt  DateTime @default(now())
   ticket     Ticket   @relation(fields: [ticketId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model RepairPayment {
   id             String        @id @default(uuid())
@@ -1075,26 +990,21 @@ model RepairPayment {
   journalEntryId String?
   ticket         Ticket        @relation(fields: [ticketId], references: [id])
   journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
-  tenantId       String        @default("default")
 
-  @@index([tenantId])
-}
+  }
 
 model Feedback {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   ticketId  String   @unique
   rating    Int
   comment   String?
   createdAt DateTime @default(now())
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
 
-  @@index([tenantId])
-}
+  }
 
 model DeviceMovement {
   id           String    @id @default(uuid())
-  tenantId     String    @default("default")
   fromBranchId String
   toBranchId   String
   status       String    @default("IN_TRANSIT")
@@ -1108,12 +1018,10 @@ model DeviceMovement {
   fromBranch   Branch    @relation("FromBranch", fields: [fromBranchId], references: [id])
   tickets      Ticket[]
 
-  @@index([tenantId])
-}
+  }
 
 model DailyWorkLog {
   id            String    @id @default(uuid())
-  tenantId      String    @default("default")
   userId        String
   date          DateTime
   status        String    @default("PRESENT")
@@ -1130,12 +1038,10 @@ model DailyWorkLog {
   user          User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, date])
-  @@index([tenantId])
-}
+  }
 
 model EmployeeTransaction {
   id             String         @id @default(uuid())
-  tenantId       String         @default("default")
   userId         String
   type           String
   amount         Decimal
@@ -1155,7 +1061,6 @@ model EmployeeTransaction {
 
 model AuditLog {
   id           String   @id @default(uuid())
-  tenantId     String   @default("default")
   entityType   String
   entityId     String
   action       String
@@ -1169,12 +1074,10 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([createdAt])
-  @@index([tenantId])
-}
+  }
 
 model BackupLog {
   id           String   @id @default(uuid())
-  tenantId     String   @default("default")
   filename     String
   filePath     String
   fileSize     Float
@@ -1186,23 +1089,19 @@ model BackupLog {
   createdAt    DateTime @default(now())
   driveFileId  String?
 
-  @@index([tenantId])
-}
+  }
 
 model Floor {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tables    Table[]
 
-  @@index([tenantId])
-}
+  }
 
 model Table {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
   name      String
   floorId   String
   status    String   @default("AVAILABLE")
@@ -1210,24 +1109,20 @@ model Table {
   updatedAt DateTime @updatedAt
   floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
-}
+  }
 
 model LocalBackup {
   id              Int       @id @default(autoincrement())
-  tenantId        String    @default("default")
   backupPath      String
   createdAt       DateTime  @default(now())
   fileSize        Int
   integrityStatus String    @default("UNCHECKED")
   lastRestoredAt  DateTime?
 
-  @@index([tenantId])
-}
+  }
 
 model SparePart {
   id          String   @id @default(cuid())
-  tenantId    String   @default("default")
   sku         String?
   category    String
   productName String
@@ -1245,12 +1140,10 @@ model SparePart {
   @@index([brand])
   @@index([category])
   @@index([productName])
-  @@index([tenantId])
-}
+  }
 
 model CashCategory {
   id           String        @id @default(uuid())
-  tenantId     String        @default("default")
   name         String        @unique
   type         String // 'IN' or 'OUT'
   isSystem     Boolean       @default(false)
@@ -1260,8 +1153,7 @@ model CashCategory {
   updatedAt    DateTime      @updatedAt
   transactions Transaction[]
 
-  @@index([tenantId])
-}
+  }
 
 model Sequence {
   name  String @id
@@ -1270,7 +1162,6 @@ model Sequence {
 
 model CommissionRule {
   id          String       @id @default(uuid())
-  tenantId    String       @default("default")
   name        String
   type        String // PERCENTAGE | FIXED
   value       Decimal      @default(0.00)
@@ -1278,8 +1169,7 @@ model CommissionRule {
   updatedAt   DateTime     @updatedAt
   technicians Technician[]
 
-  @@index([tenantId])
-}
+  }
 
 // ------------------------------------------------------------------
 // ACCOUNTING: PARTNERS (EQUITY & DRAWINGS)
@@ -1287,7 +1177,6 @@ model CommissionRule {
 
 model Partner {
   id          String  @id @default(uuid())
-  tenantId    String  @default("default")
   name        String
   phone       String?
   profitShare Decimal // Percentage (e.g., 60.0 for 60%)
@@ -1301,12 +1190,10 @@ model Partner {
 
   transactions PartnerTransaction[]
 
-  @@index([tenantId])
-}
+  }
 
 model PartnerTransaction {
   id        String  @id @default(uuid())
-  tenantId  String  @default("default")
   partnerId String
   partner   Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
@@ -1321,8 +1208,7 @@ model PartnerTransaction {
   createdAt DateTime @default(now())
 
   @@index([periodFrom, periodTo])
-  @@index([tenantId])
-}
+  }
 
 model RateLimit {
   key     String   @id
@@ -1332,21 +1218,10 @@ model RateLimit {
   @@index([resetAt])
 }
 
-model Tenant {
-  id             String   @id @default(uuid())
-  clientName     String? // Admin-provided client name for identification
-  planType       String   @default("trial") // trial, basic, premium
-  status         String   @default("active") // active, expired, suspended
-  trialEndsAt    DateTime
-  machineId      String?
-  activationCode String?  @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
+
 
 model ReorderRule {
   id          String    @id @default(uuid())
-  tenantId    String    @default("default")
   warehouseId String
   productId   String
   minQty      Decimal   @default(0)
@@ -1358,8 +1233,7 @@ model ReorderRule {
   product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([warehouseId, productId])
-  @@index([tenantId])
-}
+  }
 
 model MasterDataTombstone {
   id         String   @id @default(uuid())
@@ -1371,4 +1245,10 @@ model MasterDataTombstone {
   @@index([fromId])
   @@index([entityType, fromId])
 }
+
+
+
+
+
+
 

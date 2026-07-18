@@ -16,6 +16,9 @@ import NavigationHotkeys from "@/components/NavigationHotkeys";
 import { getCurrentUser } from "@/actions/auth";
 import { getStoreSettings } from "@/actions/settings";
 import { LicenseVerifier, LicenseCheckResult } from "@/lib/license/verify";
+import { requireActiveTenant } from "@/lib/tenant-guard";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import LayoutContent from "./LayoutContent";
 import { TimeSyncWarning } from "@/components/layout/TimeSyncWarning";
  
@@ -32,6 +35,28 @@ export default async function RootLayout({
     children: React.ReactNode;
 }) {
     // Database and seeding are now handled by src/instrumentation.ts on server startup
+    const reqHeaders = await headers();
+    const tenantId = reqHeaders.get('x-tenant-id');
+    
+    if (tenantId && tenantId !== 'default' && tenantId !== 'SYSTEM') {
+        try {
+            await requireActiveTenant(tenantId);
+        } catch (error: any) {
+            if (error?.code === 'TENANT_SUSPENDED' || error?.code === 'TENANT_NOT_FOUND') {
+                return (
+                    <html lang="en">
+                        <body className="flex items-center justify-center h-screen bg-gray-50 text-gray-900">
+                            <div className="text-center p-8 bg-white shadow-lg rounded-xl max-w-md">
+                                <h1 className="text-2xl font-bold text-red-600 mb-4">Account Suspended</h1>
+                                <p className="mb-4">This tenant account has been deactivated. Please contact support.</p>
+                            </div>
+                        </body>
+                    </html>
+                );
+            }
+        }
+    }
+
     const user = await getCurrentUser();
     const cookieStore = await cookies();
     const csrfToken = cookieStore.get('csrf-token')?.value || null;

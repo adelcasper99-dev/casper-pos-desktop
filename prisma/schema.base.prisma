@@ -1,0 +1,1394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "base"
+  url      = env("DATABASE_URL")
+}
+
+model SystemConfig {
+  id                    String   @id @default("default")
+  warrantyDays          Int      @default(30)
+  returnClawbackEnabled Boolean  @default(true)
+  returnClawbackPercent Int      @default(100)
+  taxEnabled            Boolean  @default(false)
+  taxRate               Decimal  @default(0.00)
+  updatedAt             DateTime @updatedAt
+  backupPath            String?
+}
+
+model StoreSettings {
+  id                    String    @id @default("settings")
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name                  String    @default("Casper Store")
+  phone                 String?
+  address               String?
+  taxRate               Decimal   @default(0.00)
+  currency              String    @default("EGP")
+  receiptFooter         String    @default("Thank you for shopping with us!")
+  vatNumber             String?
+  logoUrl               String?
+  autoPrint             Boolean   @default(false)
+  autoPrintTicket       Boolean   @default(false)
+  autoPrintEngineerCopy Boolean   @default(false)
+  paperSize             String    @default("80mm")
+  features              String    @default("{}")
+  locationLat           Float     @default(24.7136)
+  locationLng           Float     @default(46.6753)
+  locationRadius        Int       @default(500)
+  labelTemplate         String?
+  allowNegativeStock    Boolean   @default(false)
+  googleDriveBackupPath String?
+  blindCloseEnabled     Boolean   @default(true)
+  licenseJwt            String?
+  lastServerNow         Float?
+  localUptimeTicks      Float?
+  trialStartDate        DateTime?
+
+  @@index([tenantId])
+}
+
+model StaffOverrideLog {
+  id        String   @id @default(uuid())
+  jti       String   @unique
+  usedAt    DateTime @default(now())
+  machineId String?
+}
+
+model User {
+  id                   String                @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  username             String                @unique
+  password             String
+  name                 String?
+  roleStr              String                @default("STAFF")
+  createdAt            DateTime              @default(now())
+  branchId             String?
+  deletedAt            DateTime?
+  phone                String?               @unique
+  isFrozen             Boolean               @default(false)
+  isGlobalAdmin        Boolean               @default(false)
+  managedHQIds         String?
+  roleId               String?
+  maxDiscount          Decimal?              @default(0.00)
+  maxDiscountAmount    Decimal?              @default(0.00)
+  salary               Decimal?              @default(0.00)
+  monthlyOffDays       Int?                  @default(4)
+  hireDate             DateTime?
+  actionLogs           ActionLog[]
+  linkedCustomer       Customer?             @relation("CustomerEmployee")
+  dailyLogs            DailyWorkLog[]
+  employeeTransactions EmployeeTransaction[]
+  sales                Sale[]                @relation("SaleOwner")
+  sessions             Session[]
+  shifts               Shift[]               @relation("ShiftOwner")
+  stockMovements       StockMovement[]
+  reportedWastage      StockWastage[]
+  linkedSupplier       Supplier?             @relation("SupplierEmployee")
+  technician           Technician?
+  clientTickets        Ticket[]              @relation("ClientUser")
+  addedTicketParts     TicketPart[]          @relation("PartAddedBy")
+  role                 Role?                 @relation(fields: [roleId], references: [id])
+  branch               Branch?               @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Role {
+  id          String @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name        String @unique
+  permissions String @default("[]")
+  users       User[]
+
+  @@index([tenantId])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model Branch {
+  id                   String                @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name                 String
+  code                 String                @unique
+  address              String?
+  phone                String?
+  type                 String                @default("STORE")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  deletedAt            DateTime?
+  parentBranchId       String?
+  region               String?
+  sortOrder            Int?                  @default(0)
+  territoryCode        String?
+  glCode               String?               @default("1200")
+  parentBranch         Branch?               @relation("BranchHierarchy", fields: [parentBranchId], references: [id])
+  childBranches        Branch[]              @relation("BranchHierarchy")
+  customerTransactions CustomerTransaction[]
+  movementsTo          DeviceMovement[]      @relation("ToBranch")
+  movementsFrom        DeviceMovement[]      @relation("FromBranch")
+  employeeTransactions EmployeeTransaction[]
+  expenses             Expense[]
+  journalEntries       JournalEntry[]
+  purchaseInvoices     PurchaseInvoice[]
+  sales                Sale[]
+  stockMovements       StockMovement[]
+  stockRequests        StockRequest[]        @relation("RequestedByBranch")
+  stockWastages        StockWastage[]
+  supplierPayments     SupplierPayment[]
+  currentTickets       Ticket[]              @relation("CurrentLocation")
+  treasuries           Treasury[]
+  users                User[]
+  warehouses           Warehouse[]
+
+  @@index([tenantId])
+}
+
+model Warehouse {
+  id                   String            @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name                 String
+  address              String?
+  type                 String            @default("SELLABLE")
+  isDefault            Boolean           @default(false)
+  isMaintenanceDefault Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  branchId             String
+  deletedAt            DateTime?
+  purchases            PurchaseInvoice[]
+  sales                Sale[]
+  stocks               Stock[]
+  movementsFrom        StockMovement[]   @relation("FromWarehouse")
+  movementsTo          StockMovement[]   @relation("ToWarehouse")
+  fulfillmentRequests  StockRequest[]    @relation("FulfillingWarehouse")
+  wastages             StockWastage[]
+  technicians          Technician[]
+  ticketParts          TicketPart[]
+  branch               Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  ReorderRule          ReorderRule[]
+
+  @@index([tenantId])
+}
+
+model Customer {
+  id                    String                @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name                  String
+  phone                 String                @unique
+  email                 String?
+  address               String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  balance               Decimal               @default(0.00)
+  walletBalance         Decimal               @default(0.00)
+  totalPurchaseValue    Decimal               @default(0.00)
+  creditLimit           Decimal?
+  linkedEmployeeId      String?               @unique
+  portalToken           String?               @unique
+  portalTokenExpiresAt  DateTime?
+  linkedEmployee        User?                 @relation("CustomerEmployee", fields: [linkedEmployeeId], references: [id])
+  transactions          CustomerTransaction[]
+  sales                 Sale[]
+  tickets               Ticket[]
+  receivesNotifications Boolean               @default(true)
+
+  @@index([tenantId])
+}
+
+model CustomerTransaction {
+  id             String         @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  customerId     String
+  type           String
+  amount         Decimal
+  description    String?
+  reference      String?
+  createdBy      String?
+  createdAt      DateTime       @default(now())
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  journalEntries JournalEntry[]
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@index([branchId])
+  @@index([tenantId])
+}
+
+model Supplier {
+  id               String            @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name             String
+  phone            String?           @unique
+  email            String?
+  address          String?
+  balance          Decimal           @default(0.00)
+  createdAt        DateTime          @default(now())
+  linkedEmployeeId String?           @unique
+  invoices         PurchaseInvoice[]
+  linkedEmployee   User?             @relation("SupplierEmployee", fields: [linkedEmployeeId], references: [id])
+  payments         SupplierPayment[]
+  clientTickets    Ticket[]          @relation("ClientSupplier")
+
+  @@index([tenantId])
+}
+
+model SupplierPayment {
+  id             String         @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  supplierId     String
+  amount         Decimal
+  notes          String?
+  paymentDate    DateTime       @default(now())
+  method         String         @default("CASH")
+  branchId       String?
+  journalEntries JournalEntry[]
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  supplier       Supplier       @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([tenantId])
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  code         String        @unique
+  name         String
+  type         String
+  description  String?
+  isSystem     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  journalLines JournalLine[]
+
+  @@index([tenantId])
+}
+
+model JournalEntry {
+  id                    String               @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  date                  DateTime             @default(now())
+  description           String
+  reference             String?
+  branchId              String?
+  saleId                String?
+  purchaseId            String?
+  expenseId             String?
+  ticketId              String?
+  customerTransactionId String?
+  supplierPaymentId     String?
+  employeeTransactionId String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  idempotencyKey        String?              @unique
+  employeeTransaction   EmployeeTransaction? @relation(fields: [employeeTransactionId], references: [id])
+  supplierPayment       SupplierPayment?     @relation(fields: [supplierPaymentId], references: [id])
+  customerTransaction   CustomerTransaction? @relation(fields: [customerTransactionId], references: [id])
+  ticket                Ticket?              @relation(fields: [ticketId], references: [id])
+  expense               Expense?             @relation(fields: [expenseId], references: [id])
+  purchase              PurchaseInvoice?     @relation(fields: [purchaseId], references: [id])
+  sale                  Sale?                @relation(fields: [saleId], references: [id])
+  branch                Branch?              @relation(fields: [branchId], references: [id])
+  transactionId         String?              @unique
+  transaction           Transaction?         @relation(fields: [transactionId], references: [id])
+  lines                 JournalLine[]
+  repairPayments        RepairPayment[]
+
+  @@index([date])
+  @@index([branchId])
+  @@index([tenantId])
+}
+
+model JournalLine {
+  id             String       @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  journalEntryId String
+  accountId      String
+  debit          Decimal      @default(0.00)
+  credit         Decimal      @default(0.00)
+  description    String?
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account        Account      @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([journalEntryId])
+  @@index([tenantId])
+}
+
+model Category {
+  id            String     @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name          String
+  color         String?    @default("#06b6d4")
+  isHidden      Boolean    @default(false)
+  parentId      String?
+  createdAt     DateTime   @default(now())
+  parent        Category?  @relation("CategoryToSub", fields: [parentId], references: [id], onDelete: Cascade)
+  subCategories Category[] @relation("CategoryToSub")
+  products      Product[]
+  models        Model[]
+
+  @@index([tenantId])
+}
+
+model Model {
+  id         String    @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name       String
+  categoryId String
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+  createdAt  DateTime  @default(now())
+
+  @@unique([name, categoryId])
+  @@index([tenantId])
+}
+
+model Attribute {
+  id        String    @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+model UnitOfMeasure {
+  id               String         @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name             String
+  code             String         @unique
+  category         String
+  abbreviation     String?
+  conversionFactor Decimal        @default(1.00)
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  products         Product[]
+  purchaseItems    PurchaseItem[]
+
+  @@index([category])
+  @@index([tenantId])
+}
+
+model Product {
+  id                String             @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  sku               String             @unique
+  name              String
+  description       String?
+  costPrice         Decimal            @default(0.00)
+  sellPrice         Decimal            @default(0.00)
+  sellPrice2        Decimal            @default(0.00)
+  sellPrice3        Decimal            @default(0.00)
+  stock             Decimal            @default(0.00)
+  minStock          Decimal            @default(5.00)
+  trackStock        Boolean            @default(true)
+  itemType          String             @default("PHYSICAL")
+  isBundle          Boolean            @default(false)
+  isDevice          Boolean            @default(false)
+  deviceType        String?
+  condition         String?
+  color             String?
+  categoryId        String
+  modelId           String?
+  attributeId       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deletedAt         DateTime?
+  version           Int                @default(1)
+  archived          Boolean            @default(false)
+  unitOfMeasureId   String?
+  unitOfMeasure     UnitOfMeasure?     @relation(fields: [unitOfMeasureId], references: [id])
+  componentOf       BundleItem[]       @relation("ComponentProduct")
+  bundleItems       BundleItem[]       @relation("BundleProduct")
+  category          Category           @relation(fields: [categoryId], references: [id], onUpdate: Cascade)
+  model             Model?             @relation(fields: [modelId], references: [id], onUpdate: Cascade)
+  attribute         Attribute?         @relation(fields: [attributeId], references: [id])
+  purchaseItems     PurchaseItem[]
+  saleItems         SaleItem[]
+  stocks            Stock[]
+  stockMovements    StockMovement[]
+  stockRequestItems StockRequestItem[]
+  wastages          StockWastage[]
+  ticketParts       TicketPart[]
+  ReorderRule       ReorderRule[]
+
+  @@index([deletedAt])
+}
+
+model BundleItem {
+  id                 String  @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  bundleProductId    String
+  componentProductId String
+  quantityIncluded   Decimal @default(1.00)
+  componentProduct   Product @relation("ComponentProduct", fields: [componentProductId], references: [id])
+  bundleProduct      Product @relation("BundleProduct", fields: [bundleProductId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleProductId, componentProductId])
+  @@index([bundleProductId])
+  @@index([tenantId])
+}
+
+model Stock {
+  id          String    @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  productId   String
+  warehouseId String
+  quantity    Decimal   @default(0.00)
+  version     Int       @default(1)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@unique([productId, warehouseId])
+  @@index([tenantId])
+}
+
+model StockMovement {
+  // Note: PostgreSQL has a raw DB constraint "chk_stock_movement_warehouse_non_null"
+  // ensuring that fromWarehouseId and toWarehouseId cannot both be null.
+  // SQLite compatibility is enforced via Prisma middleware in src/lib/prisma.ts.
+  id              String     @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  type            String
+  productId       String
+  fromWarehouseId String?
+  toWarehouseId   String?
+  quantity        Decimal
+  condition       String     @default("GOOD")
+  reason          String?
+  createdAt       DateTime   @default(now())
+  performedById   String?
+  branchId        String?
+  fromWarehouse   Warehouse? @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  performedBy     User?      @relation(fields: [performedById], references: [id])
+  product         Product    @relation(fields: [productId], references: [id])
+  branch          Branch?    @relation(fields: [branchId], references: [id])
+  toWarehouse     Warehouse? @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  idempotencyKey  String?    @unique
+
+  @@index([tenantId])
+}
+
+model StockRequest {
+  id              String             @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  requestNumber   Int                @unique
+  branchId        String
+  warehouseId     String
+  status          String             @default("PENDING")
+  notes           String?
+  requestedBy     String
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  fallbackReason  String?
+  routedHQId      String?
+  routingMethod   String             @default("AUTO")
+  warehouse       Warehouse          @relation("FulfillingWarehouse", fields: [warehouseId], references: [id])
+  branch          Branch             @relation("RequestedByBranch", fields: [branchId], references: [id])
+  items           StockRequestItem[]
+
+  @@index([branchId])
+  @@index([warehouseId])
+  @@index([status])
+  @@index([tenantId])
+}
+
+model StockRequestItem {
+  id             String       @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  stockRequestId String
+  productId      String
+  quantity       Decimal      @default(0.00)
+  stockRequest   StockRequest @relation(fields: [stockRequestId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id])
+
+  @@unique([stockRequestId, productId])
+  @@index([tenantId])
+}
+
+model StockWastage {
+  id          String    @id @default(cuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  productId   String
+  warehouseId String
+  quantity    Decimal
+  reason      String
+  notes       String?
+  reportedBy  String
+  branchId    String?
+  createdAt   DateTime  @default(now())
+  product     Product   @relation(fields: [productId], references: [id])
+  user        User      @relation(fields: [reportedBy], references: [id])
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@index([productId, createdAt])
+  @@index([warehouseId, createdAt])
+  @@index([branchId])
+  @@index([tenantId])
+}
+
+model PurchaseInvoice {
+  id             String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  invoiceNumber  String?
+  supplierId     String
+  warehouseId    String
+  totalAmount    Decimal  @default(0.00)
+  paidAmount     Decimal  @default(0.00)
+  status         String   @default("PENDING")
+  paymentMethod  String   @default("CASH")
+  purchaseDate   DateTime @default(now())
+  createdAt      DateTime @default(now())
+  deliveryCharge Decimal  @default(0.00)
+
+  // Walk-in direct purchases
+  isWalkin         Boolean @default(false)
+  walkinName       String?
+  walkinPhone      String?
+  walkinNationalId String?
+  attachmentUrl    String? // Base64 compressed image of Receipt/ID
+
+  voidReason     String?
+  branchId       String?
+  voidedAt       DateTime?
+  voidedBy       String?
+  isReturn       Boolean        @default(false)
+  parentId       String?
+  journalEntries JournalEntry[]
+  supplier       Supplier       @relation(fields: [supplierId], references: [id])
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  items          PurchaseItem[]
+
+  @@index([tenantId])
+}
+
+model PurchaseItem {
+  id                String          @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  purchaseInvoiceId String
+  productId         String
+  quantity          Decimal         @default(0.00)
+  returnedQty       Decimal         @default(0.00)
+  unitCost          Decimal
+  imei              String?
+  condition         String?
+  color             String?
+  deviceType        String?
+  unitOfMeasureId   String?
+  conversionFactor  Decimal         @default(1.00)
+  invoice           PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
+  product           Product         @relation(fields: [productId], references: [id])
+  unitOfMeasure     UnitOfMeasure?  @relation(fields: [unitOfMeasureId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Sale {
+  id                 String         @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  customerName       String?
+  customerPhone      String?
+  customerAddress    String?
+  warehouseId        String
+  totalAmount        Decimal
+  paymentMethod      String
+  status             String         @default("NEW")
+  refundReason       String?
+  taxAmount          Decimal        @default(0.00)
+  subTotal           Decimal        @default(0.00)
+  discountAmount     Decimal        @default(0.00)
+  createdAt          DateTime       @default(now())
+  shiftId            String
+  warrantyDays       Int?
+  warrantyExpiryDate DateTime?
+  customerId         String?
+  tableId            String?
+  tableName          String?
+  userId             String
+  syncStatus         String         @default("PENDING")
+  offlineFlag        Boolean        @default(false)
+  idempotencyKey     String?        @unique
+  discountPercentage Decimal?       @default(0.00)
+  previousStatus     String?
+  isReturn           Boolean        @default(false)
+  parentId           String?
+  branchId           String?
+  relatedSupplierId  String?
+  isTimeSuspicious   Boolean        @default(false)
+  journalEntries     JournalEntry[]
+  customer           Customer?      @relation(fields: [customerId], references: [id])
+  shift              Shift          @relation("ShiftSales", fields: [shiftId], references: [id])
+  warehouse          Warehouse      @relation(fields: [warehouseId], references: [id])
+  branch             Branch?        @relation(fields: [branchId], references: [id])
+  user               User           @relation("SaleOwner", fields: [userId], references: [id])
+  items              SaleItem[]
+  payments           SalePayment[]
+
+  @@index([shiftId])
+  @@index([customerId])
+  @@index([status, createdAt])
+  @@index([warehouseId, status])
+  @@index([syncStatus])
+  @@index([tenantId])
+}
+
+model SalePayment {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  saleId    String
+  method    String
+  amount    Decimal
+  reference String?
+  createdAt DateTime @default(now())
+  sale      Sale     @relation(fields: [saleId], references: [id])
+
+  @@index([tenantId])
+}
+
+model SaleItem {
+  id          String  @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  saleId      String
+  productId   String
+  quantity    Decimal @default(0.00)
+  refundedQty Decimal @default(0.00)
+  unitPrice   Decimal
+  unitCost    Decimal @default(0.00)
+  imei        String?
+  condition   String?
+  color       String?
+  deviceType  String?
+  sale        Sale    @relation(fields: [saleId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([tenantId])
+}
+
+model Shift {
+  id                         String            @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  openedAt                   DateTime          @default(now())
+  closedAt                   DateTime?
+  startCash                  Decimal           @default(0.00)
+  endCash                    Decimal           @default(0.00)
+  actualCash                 Decimal           @default(0.00)
+  status                     String            @default("OPEN")
+  cashierName                String?
+  businessDate               String?
+  cashVariance               Decimal           @default(0.00)
+  createdAt                  DateTime          @default(now())
+  crossShiftRefundsIssued    Decimal           @default(0.00)
+  crossShiftRefundsReceived  Decimal           @default(0.00)
+  forceCloseReason           String?
+  forceClosed                Boolean           @default(false)
+  forceClosedBy              String?
+  hasAdjustments             Boolean           @default(false)
+  isOrphaned                 Boolean           @default(false)
+  lastHeartbeat              DateTime          @default(now())
+  notes                      String?
+  registerId                 String?
+  registerName               String?
+  timezone                   String            @default("UTC")
+  totalCardSales             Decimal           @default(0.00)
+  totalCashSales             Decimal           @default(0.00)
+  totalExpenses              Decimal           @default(0.00)
+  totalInstapay              Decimal           @default(0.00)
+  totalWalletSales           Decimal           @default(0.00)
+  totalAccountSales          Decimal           @default(0.00)
+  totalRefunds               Decimal           @default(0.00)
+  totalCashRefunds           Decimal           @default(0.00)
+  totalAccountRefunds        Decimal           @default(0.00)
+  totalSales                 Int               @default(0)
+  totalSplitPayments         Int               @default(0)
+  totalTickets               Int               @default(0)
+  updatedAt                  DateTime          @updatedAt
+  userId                     String
+  totalTicketRevenueCard     Decimal           @default(0.00)
+  totalTicketRevenueCash     Decimal           @default(0.00)
+  totalTicketRevenueInstapay Decimal           @default(0.00)
+  totalTicketRevenueWallet   Decimal           @default(0.00)
+  cashBreakdown              String?
+  cashDenominationsBreakdown String?
+  cardTerminalSettlement     Decimal           @default(0.00)
+  transitStatus              String            @default("NONE")
+  expenses                   Expense[]         @relation("ShiftExpenses")
+  sales                      Sale[]            @relation("ShiftSales")
+  user                       User              @relation("ShiftOwner", fields: [userId], references: [id])
+  adjustments                ShiftAdjustment[]
+  tickets                    Ticket[]          @relation("ShiftTickets")
+  transactions               Transaction[]
+
+  @@index([userId, status])
+  @@index([registerId, status])
+  @@index([tenantId])
+}
+
+model ShiftAdjustment {
+  id                   String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  shiftId              String
+  type                 String
+  amount               Decimal
+  reason               String
+  approvedBy           String
+  createdBy            String
+  relatedTransactionId String?
+  createdAt            DateTime @default(now())
+  shift                Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@index([shiftId])
+  @@index([tenantId])
+}
+
+model Treasury {
+  id            String        @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name          String
+  branchId      String
+  isDefault     Boolean       @default(false)
+  paymentMethod String?
+  balance       Decimal       @default(0.00)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  glCode        String?       @default("1000")
+  transactions  Transaction[]
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, name])
+  @@index([tenantId])
+}
+
+model Transaction {
+  id                   String        @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  type                 String
+  amount               Decimal
+  description          String?
+  paymentMethod        String        @default("CASH")
+  createdAt            DateTime      @default(now())
+  deletedAt            DateTime?
+  deletedBy            String?
+  deletedReason        String?
+  isTransfer           Boolean       @default(false)
+  relatedTransactionId String?
+  shiftId              String?
+  treasuryId           String?
+  expenseId            String?
+  referenceId          String?
+  referenceType        String?
+  isReversed           Boolean       @default(false)
+  isTimeSuspicious     Boolean       @default(false)
+  categoryId           String?
+  idempotencyKey       String?       @unique
+  category             CashCategory? @relation(fields: [categoryId], references: [id])
+  expense              Expense?      @relation(fields: [expenseId], references: [id])
+  shift                Shift?        @relation(fields: [shiftId], references: [id])
+  treasury             Treasury?     @relation(fields: [treasuryId], references: [id])
+  journalEntry         JournalEntry?
+
+  @@index([treasuryId, createdAt])
+  @@index([referenceId, referenceType])
+  @@index([tenantId])
+}
+
+model Expense {
+  id             String         @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  description    String
+  amount         Decimal
+  category       String
+  date           DateTime       @default(now())
+  paymentMethod  String         @default("CASH")
+  shiftId        String?
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  shift          Shift?         @relation("ShiftExpenses", fields: [shiftId], references: [id])
+  journalEntries JournalEntry[]
+  transactions   Transaction[]
+
+  @@index([tenantId])
+}
+
+model ActionLog {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  action    String
+  details   String?
+  userId    String?
+  branchId  String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Technician {
+  id                    String                 @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  userId                String                 @unique
+  name                  String
+  phone                 String?
+  email                 String?
+  skills                String?
+  commissionRate        Decimal                @default(0.00)
+  commissionRuleId      String?
+  lossRate              Decimal                @default(70.00)
+  lossSharePercentage   Decimal                @default(0.00)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  warehouseId           String?
+  defaultPriceTier      String                 @default("COST")
+  deletedAt             DateTime?
+  user                  User                   @relation(fields: [userId], references: [id])
+  warehouse             Warehouse?             @relation(fields: [warehouseId], references: [id])
+  commissionRule        CommissionRule?        @relation(fields: [commissionRuleId], references: [id])
+  tickets               Ticket[]
+  completedTickets      Ticket[]               @relation("CompletedBy")
+  collaborations        TicketCollaborator[]
+
+  @@index([tenantId])
+}
+
+model TicketPreset {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  type      String
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([type, name])
+  @@index([tenantId])
+}
+
+model DevicePreset {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  brand     String
+  model     String
+  createdAt DateTime @default(now())
+
+  @@unique([brand, model])
+  @@index([tenantId])
+}
+
+model Ticket {
+  id                      String               @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  barcode                 String               @unique
+  customerName            String
+  customerPhone           String
+  customerEmail           String?
+  customerId              String?
+  deviceBrand             String
+  deviceModel             String
+  deviceImei              String?
+  deviceColor             String?
+  securityCode            String?
+  patternData             String?
+  issueDescription        String
+  conditionNotes          String?
+  warrantyExpiry          DateTime?
+  status                  String               @default("NEW")
+  currentBranchId         String
+  movementId              String?
+  technicianId            String?
+  completedById           String?
+  initialQuote            Decimal              @default(0.00)
+  repairPrice             Decimal              @default(0.00)
+  partsCost               Decimal              @default(0.00)
+  deposit                 Decimal              @default(0.00)
+  commissionRate          Decimal              @default(0.00)
+  commissionAmount        Decimal              @default(0.00)
+  netProfit               Decimal              @default(0.00)
+  paymentStatus           String               @default("unpaid")
+  paymentMethod           String?
+  amountPaid              Decimal              @default(0.00)
+  finalCustomerPrice      Decimal              @default(0.00)
+  techBillingPrice        Decimal              @default(0.00)
+  partCostPrice           Decimal              @default(0.00)
+  laborPoolAmount         Decimal              @default(0.00)
+  techCommissionAmount    Decimal              @default(0.00)
+  centerLaborProfit       Decimal              @default(0.00)
+  centerPartProfit        Decimal              @default(0.00)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  version                 Int                  @default(1)
+  completedAt             DateTime?
+  deliveredAt             DateTime?
+  commissionClawback      Decimal              @default(0.00)
+  lastReturnedAt          DateTime?
+  originalTechId          String?
+  returnCount             Int                  @default(0)
+  returnReason            String?
+  rejectionReason         String? // Reason when ticket is rejected
+  rejectedAt              DateTime? // When the ticket was rejected
+  rejectedBy              String? // User ID who rejected the ticket
+  lossResponsibility      String? // NEW: TECH | CENTER | SPLIT
+  excessLossAmount        Decimal              @default(0.00) // NEW: Amount of loss beyond initial profit
+  shiftId                 String?
+  warrantyExpiryDate      DateTime?
+  expectedDuration        Int?
+  startedAt               DateTime?
+  clientUserId            String?
+  clientSupplierId        String?
+  previousStatus          String?
+  parentTicketId          String?
+  isWarrantyReturn        Boolean              @default(false)
+  slaDeadlineAt           DateTime?
+  slaBreachedAt           DateTime?
+  idempotencyKey          String?              @unique
+  isTechCommissionSettled Boolean              @default(false)
+  techCommissionSettledAt DateTime?
+  isPenaltyWaived         Boolean              @default(false)
+  feedback                Feedback?
+  journalEntries          JournalEntry[]
+  logs                    NotificationLog[]
+  payments                RepairPayment[]
+  clientSupplier          Supplier?            @relation("ClientSupplier", fields: [clientSupplierId], references: [id])
+  clientUser              User?                @relation("ClientUser", fields: [clientUserId], references: [id])
+  technician              Technician?          @relation(fields: [technicianId], references: [id])
+  shift                   Shift?               @relation("ShiftTickets", fields: [shiftId], references: [id])
+  movement                DeviceMovement?      @relation(fields: [movementId], references: [id])
+  customer                Customer?            @relation(fields: [customerId], references: [id])
+  currentBranch           Branch               @relation("CurrentLocation", fields: [currentBranchId], references: [id])
+  parentTicket            Ticket?              @relation("TicketReturns", fields: [parentTicketId], references: [id])
+  returnTickets           Ticket[]             @relation("TicketReturns")
+  completedBy             Technician?          @relation("CompletedBy", fields: [completedById], references: [id])
+  collaborators           TicketCollaborator[]
+  notes                   TicketNote[]
+  parts                   TicketPart[]
+
+  @@index([barcode])
+  @@index([status, createdAt])
+  @@index([customerPhone])
+  @@index([currentBranchId])
+  @@index([technicianId])
+  @@index([clientUserId])
+  @@index([clientSupplierId])
+  @@index([parentTicketId])
+  @@index([tenantId])
+}
+
+model NotificationLog {
+  id       String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  ticketId String
+  type     String
+  status   String
+  metadata String?
+  sentAt   DateTime @default(now())
+  ticket   Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([tenantId])
+}
+
+model TicketPart {
+  id            String     @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  ticketId      String
+  productId     String?
+  name          String?
+  quantity      Decimal    @default(1.00)
+  refundedQty   Decimal    @default(0.00)
+  cost          Decimal    @default(0.00)
+  price         Decimal    @default(0.00)
+  baseCostPrice Decimal    @default(0.00)
+  transferPrice Decimal    @default(0.00)
+  createdAt     DateTime   @default(now())
+  status        String     @default("ACTIVE")
+  updatedAt     DateTime   @updatedAt
+  isDamaged     Boolean    @default(false)
+  deletedAt     DateTime?
+  warehouseId   String?
+  addedById     String?
+  addedBy       User?      @relation("PartAddedBy", fields: [addedById], references: [id])
+  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id])
+  ticket        Ticket     @relation(fields: [ticketId], references: [id])
+  product       Product?   @relation(fields: [productId], references: [id])
+
+  @@index([tenantId])
+}
+
+model TicketCollaborator {
+  id               String     @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  ticketId         String
+  technicianId     String
+  role             String     @default("ASSISTANT")
+  commissionRate   Decimal    @default(0.00)
+  commissionAmount Decimal    @default(0.00)
+  createdAt        DateTime   @default(now())
+  technician       Technician @relation(fields: [technicianId], references: [id])
+  ticket           Ticket     @relation(fields: [ticketId], references: [id])
+
+  @@unique([ticketId, technicianId])
+  @@index([tenantId])
+}
+
+model TicketNote {
+  id         String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  ticketId   String
+  text       String
+  author     String
+  isInternal Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([tenantId])
+}
+
+model RepairPayment {
+  id             String        @id @default(uuid())
+  ticketId       String
+  amount         Decimal
+  method         String
+  reference      String?
+  recordedBy     String?
+  recordedAt     DateTime      @default(now())
+  type           String        @default("PAYMENT")
+  journalEntryId String?
+  ticket         Ticket        @relation(fields: [ticketId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  tenantId String @default("default") // MULTITENANT_FIELD
+
+  @@index([tenantId])
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  ticketId  String   @unique
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([tenantId])
+}
+
+model DeviceMovement {
+  id           String    @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  fromBranchId String
+  toBranchId   String
+  status       String    @default("IN_TRANSIT")
+  driverName   String?
+  notes        String?
+  shippedAt    DateTime  @default(now())
+  receivedAt   DateTime?
+  createdById  String
+  receivedById String?
+  toBranch     Branch    @relation("ToBranch", fields: [toBranchId], references: [id])
+  fromBranch   Branch    @relation("FromBranch", fields: [fromBranchId], references: [id])
+  tickets      Ticket[]
+
+  @@index([tenantId])
+}
+
+model DailyWorkLog {
+  id            String    @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  userId        String
+  date          DateTime
+  status        String    @default("PRESENT")
+  deduction     Decimal   @default(0.00)
+  bonus         Decimal   @default(0.00)
+  note          String?
+  shift         String?
+  checkIn       DateTime?
+  checkOut      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  bonusNote     String?
+  deductionNote String?
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@index([tenantId])
+}
+
+model EmployeeTransaction {
+  id             String         @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  userId         String
+  type           String
+  amount         Decimal
+  description    String?
+  referenceId    String?
+  referenceType  String?
+  createdAt      DateTime       @default(now())
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
+  journalEntries JournalEntry[]
+
+  @@index([userId])
+  @@index([branchId])
+  @@unique([userId, referenceId, type], name: "unique_employee_tx_per_entity")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  entityType   String
+  entityId     String
+  action       String
+  newData      String?
+  previousData String?
+  reason       String?
+  user         String?
+  branchId     String?
+  hqId         String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([tenantId])
+}
+
+model BackupLog {
+  id           String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  filename     String
+  filePath     String
+  fileSize     Float
+  checksum     String?
+  compressed   Boolean  @default(false)
+  encrypted    Boolean  @default(false)
+  uploadStatus String   @default("PENDING")
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  driveFileId  String?
+
+  @@index([tenantId])
+}
+
+model Floor {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tables    Table[]
+
+  @@index([tenantId])
+}
+
+model Table {
+  id        String   @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name      String
+  floorId   String
+  status    String   @default("AVAILABLE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model LocalBackup {
+  id              Int       @id @default(autoincrement())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  backupPath      String
+  createdAt       DateTime  @default(now())
+  fileSize        Int
+  integrityStatus String    @default("UNCHECKED")
+  lastRestoredAt  DateTime?
+
+  @@index([tenantId])
+}
+
+model SparePart {
+  id          String   @id @default(cuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  sku         String?
+  category    String
+  productName String
+  brand       String
+  quantity    Decimal  @default(0.00)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  costPrice   Decimal  @default(0.00)
+  sellPrice   Decimal  @default(0.00)
+  price1      Decimal  @default(0.00)
+  price2      Decimal  @default(0.00)
+  price3      Decimal  @default(0.00)
+
+  @@index([sku])
+  @@index([brand])
+  @@index([category])
+  @@index([productName])
+  @@index([tenantId])
+}
+
+model CashCategory {
+  id           String        @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name         String        @unique
+  type         String // 'IN' or 'OUT'
+  isSystem     Boolean       @default(false)
+  glCode       String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+
+  @@index([tenantId])
+}
+
+model Sequence {
+  name  String @id
+  value Int    @default(0)
+}
+
+model CommissionRule {
+  id          String       @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name        String
+  type        String // PERCENTAGE | FIXED
+  value       Decimal      @default(0.00)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  technicians Technician[]
+
+  @@index([tenantId])
+}
+
+// ------------------------------------------------------------------
+// ACCOUNTING: PARTNERS (EQUITY & DRAWINGS)
+// ------------------------------------------------------------------
+
+model Partner {
+  id          String  @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name        String
+  phone       String?
+  profitShare Decimal // Percentage (e.g., 60.0 for 60%)
+
+  // GL Links
+  capitalGlCode String @unique // Auto-generated (e.g., "3001")
+  currentGlCode String @unique // Auto-generated (e.g., "3201" for drawings/current)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions PartnerTransaction[]
+
+  @@index([tenantId])
+}
+
+model PartnerTransaction {
+  id        String  @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  partnerId String
+  partner   Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  type        String // "DEPOSIT", "DRAWING", "DISTRIBUTION"
+  amount      Decimal
+  description String?
+
+  // Used to prevent double-distribution for the same period
+  periodFrom DateTime?
+  periodTo   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([periodFrom, periodTo])
+  @@index([tenantId])
+}
+
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+
+
+model ReorderRule {
+  id          String    @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  warehouseId String
+  productId   String
+  minQty      Decimal   @default(0)
+  maxQty      Decimal   @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, productId])
+  @@index([tenantId])
+}
+
+model MasterDataTombstone {
+  id         String   @id @default(uuid())
+  entityType String
+  fromId     String
+  toId       String
+  createdAt  DateTime @default(now())
+
+  @@index([fromId])
+  @@index([entityType, fromId])
+}
+
+
+// ── Tenant Model ───────────────────────────────────────
+model Tenant {
+  id         String    @id @default(uuid())
+  name       String
+  slug       String    @unique
+  isActive   Boolean   @default(true)
+  licenses   License[]
+  sequences  TenantSequence[]
+  createdAt  DateTime  @default(now())
+}
+
+// ── License Model ──────────────────────────────────────
+model License {
+  id         String    @id @default(uuid())
+  key        String    @unique
+  macAddress String
+  expiresAt  DateTime
+  tenantId   String    // MULTITENANT_FIELD
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+}
+
+// ── Per-Tenant Sequential Numbering ───────────────────
+model TenantSequence {
+  tenantId   String    // MULTITENANT_FIELD
+  prefix     String    
+  lastValue  Int       @default(0)
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  @@unique([tenantId, prefix])
+}

@@ -272,58 +272,82 @@ export class SyncService {
             .and(sale => (sale.syncRetries || 0) < 5)
             .toArray();
 
-        // 🛡️ BATCH CAP: Process max 50 records per cycle to prevent connection bursts
-        const unsyncedSales = allUnsynced.slice(0, SYNC_BATCH_SIZE);
+        // 🛡️ BATCH CAP: Process max records per cycle
+        const batchCap = SYNC_BATCH_SIZE || 50;
+        const unsyncedSales = allUnsynced.slice(0, batchCap);
 
         if (unsyncedSales.length === 0) {
             return { synced: 0, failed: 0 };
         }
 
-        logger.info(`📤 Syncing ${unsyncedSales.length}/${allUnsynced.length} sales (batch cap: ${SYNC_BATCH_SIZE})...`);
+        logger.info(`📤 Syncing ${unsyncedSales.length}/${allUnsynced.length} sales (batch cap: ${batchCap})...`);
 
         let synced = 0;
         let failed = 0;
 
-        for (const sale of unsyncedSales) {
-            try {
-                await this.retryWithBackoff(async () => {
-                    const response = await fetch(`${ctx.cloudUrl}/api/pos/offline-sale`, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret,
-                            'x-license-jwt': ctx.licenseJwt
-                        },
-                        // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
-                        body: JSON.stringify({ ...sale, idempotencyKey: sale.idempotencyKey ?? sale.id, branchId: ctx.branchId })
-                    });
+        try {
+            const response = await fetch(`${ctx.cloudUrl}/api/sync/up`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'authorization': `Bearer ${ctx.licenseJwt}`
+                },
+                body: JSON.stringify({ sales: unsyncedSales })
+            });
 
-                    if (!response.ok) {
-                        const error = await response.text();
-                        throw new Error(`Sync failed: ${error}`);
+            if (response.status === 401 || response.status === 403) {
+                logger.error(`[Sync:Sales] HALT: Received ${response.status} from cloud. Token invalid or tenant suspended.`);
+                throw new Error('AUTH_FAILED');
+            }
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Sync failed: ${error}`);
+            }
+
+            const data = await response.json();
+
+            // Process results
+            if (data.sales) {
+                for (const res of data.sales) {
+                    if (res.error) {
+                        logger.error(`Failed to sync sale ${res.id}`, res.error);
+                        const sale = unsyncedSales.find(s => s.id === res.id);
+                        if (sale) {
+                            const newRetries = (sale.syncRetries || 0) + 1;
+                            await offlineDB.sales.update(res.id, {
+                                syncRetries: newRetries,
+                                syncError: newRetries >= 5 ? 'DEAD_LETTER: ' + res.error : res.error,
+                                syncStatus: newRetries >= 5 ? 'ERROR' : undefined
+                            });
+                        }
+                        failed++;
+                    } else {
+                        // Update local invoiceNumber with canonical ID post-sync
+                        await offlineDB.sales.update(res.id, {
+                            synced: 1,
+                            invoiceNumber: res.canonicalId, // Canonical ID from Cloud
+                            syncError: undefined,
+                            syncStatus: 'SYNCED'
+                        });
+                        synced++;
                     }
-
-                    return response.json();
-                });
-
-                // Mark as synced
-                await offlineDB.sales.update(sale.id, {
-                    synced: 1,
-                    syncError: undefined,
-                    syncStatus: 'SYNCED'
-                });
-                synced++;
-
-            } catch (error: any) {
-                logger.error(`Failed to sync sale ${sale.id}`, error);
-
+                }
+            }
+        } catch (error: any) {
+            if (error.message === 'AUTH_FAILED') {
+                throw error; // Propagate critical halt up
+            }
+            logger.error(`Batch sync request failed`, error);
+            failed += unsyncedSales.length;
+            
+            // Increment retries for the batch
+            for (const sale of unsyncedSales) {
                 const newRetries = (sale.syncRetries || 0) + 1;
-                
                 if (newRetries >= 5) {
-                    logger.error(`⚠️ Dead-lettering sale ${sale.id} after 5 failures`, error);
                     await offlineDB.sales.update(sale.id, {
                         syncRetries: newRetries,
-                        syncError: 'DEAD_LETTER: Requires manual intervention',
+                        syncError: 'DEAD_LETTER: ' + error.message,
                         syncStatus: 'ERROR'
                     });
                 } else {
@@ -332,7 +356,6 @@ export class SyncService {
                         syncError: error.message
                     });
                 }
-                failed++;
             }
         }
 
@@ -350,58 +373,79 @@ export class SyncService {
             .and(ticket => (ticket.syncRetries || 0) < 5)
             .toArray();
 
-        // 🛡️ BATCH CAP: Process max 50 records per cycle
-        const unsyncedTickets = allUnsynced.slice(0, SYNC_BATCH_SIZE);
+        // 🛡️ BATCH CAP: Process max records per cycle
+        const batchCap = SYNC_BATCH_SIZE || 50;
+        const unsyncedTickets = allUnsynced.slice(0, batchCap);
 
         if (unsyncedTickets.length === 0) {
             return { synced: 0, failed: 0 };
         }
 
-        logger.info(`📤 Syncing ${unsyncedTickets.length}/${allUnsynced.length} tickets (batch cap: ${SYNC_BATCH_SIZE})...`);
+        logger.info(`📤 Syncing ${unsyncedTickets.length}/${allUnsynced.length} tickets (batch cap: ${batchCap})...`);
 
         let synced = 0;
         let failed = 0;
 
-        for (const ticket of unsyncedTickets) {
-            try {
-                await this.retryWithBackoff(async () => {
-                    const response = await fetch(`${ctx.cloudUrl}/api/tickets/offline-ticket`, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'x-sync-secret': ctx.secret,
-                            'x-license-jwt': ctx.licenseJwt
-                        },
-                        // 🛡️ Explicit idempotencyKey aligns with server-side @@unique guard
-                        body: JSON.stringify({ ...ticket, idempotencyKey: ticket.idempotencyKey ?? ticket.id, branchId: ctx.branchId })
-                    });
+        try {
+            const response = await fetch(`${ctx.cloudUrl}/api/sync/up`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'authorization': `Bearer ${ctx.licenseJwt}`
+                },
+                body: JSON.stringify({ tickets: unsyncedTickets })
+            });
 
-                    if (!response.ok) {
-                        const error = await response.text();
-                        throw new Error(`Sync failed: ${error}`);
+            if (response.status === 401 || response.status === 403) {
+                logger.error(`[Sync:Tickets] HALT: Received ${response.status} from cloud. Token invalid or tenant suspended.`);
+                throw new Error('AUTH_FAILED');
+            }
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Sync failed: ${error}`);
+            }
+
+            const data = await response.json();
+
+            // Process results
+            if (data.tickets) {
+                for (const res of data.tickets) {
+                    if (res.error) {
+                        logger.error(`Failed to sync ticket ${res.id}`, res.error);
+                        const ticket = unsyncedTickets.find(t => t.id === res.id);
+                        if (ticket) {
+                            const newRetries = (ticket.syncRetries || 0) + 1;
+                            await offlineDB.tickets.update(res.id, {
+                                syncRetries: newRetries,
+                                syncError: newRetries >= 5 ? 'DEAD_LETTER: ' + res.error : res.error,
+                                syncStatus: newRetries >= 5 ? 'ERROR' : undefined
+                            });
+                        }
+                        failed++;
+                    } else {
+                        await offlineDB.tickets.update(res.id, {
+                            synced: 1,
+                            syncError: undefined,
+                            syncStatus: 'SYNCED'
+                        });
+                        synced++;
                     }
-
-                    return response.json();
-                });
-
-                // Mark as synced
-                await offlineDB.tickets.update(ticket.id, {
-                    synced: 1,
-                    syncError: undefined,
-                    syncStatus: 'SYNCED'
-                });
-                synced++;
-
-            } catch (error: any) {
-                logger.error(`Failed to sync ticket ${ticket.id}`, error);
-
+                }
+            }
+        } catch (error: any) {
+            if (error.message === 'AUTH_FAILED') {
+                throw error; // Propagate critical halt up
+            }
+            logger.error(`Batch sync request failed`, error);
+            failed += unsyncedTickets.length;
+            
+            for (const ticket of unsyncedTickets) {
                 const newRetries = (ticket.syncRetries || 0) + 1;
-                
                 if (newRetries >= 5) {
-                    logger.error(`⚠️ Dead-lettering ticket ${ticket.id} after 5 failures`, error);
                     await offlineDB.tickets.update(ticket.id, {
                         syncRetries: newRetries,
-                        syncError: 'DEAD_LETTER: Requires manual intervention',
+                        syncError: 'DEAD_LETTER: ' + error.message,
                         syncStatus: 'ERROR'
                     });
                 } else {
@@ -410,7 +454,6 @@ export class SyncService {
                         syncError: error.message
                     });
                 }
-                failed++;
             }
         }
 

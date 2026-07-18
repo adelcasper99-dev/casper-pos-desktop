@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, session, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -1016,6 +1016,31 @@ ipcMain.handle('app:vacuum-db', async () => {
         });
         return { success: true };
     } catch (err) { return { success: false, error: err.message }; }
+});
+ipcMain.handle('app:safe-storage-encrypt', (event, plaintext) => {
+    try {
+        if (safeStorage.isEncryptionAvailable()) {
+            return { success: true, data: safeStorage.encryptString(plaintext).toString('base64'), encrypted: true };
+        }
+        console.warn('safeStorage is not available. Passing through plaintext.');
+        return { success: true, data: plaintext, encrypted: false };
+    } catch (e) {
+        console.error('Encryption failed', e);
+        return { success: false, error: e.message };
+    }
+});
+
+ipcMain.handle('app:safe-storage-decrypt', (event, encryptedBase64) => {
+    try {
+        if (safeStorage.isEncryptionAvailable()) {
+            const buffer = Buffer.from(encryptedBase64, 'base64');
+            return { success: true, data: safeStorage.decryptString(buffer), encrypted: true };
+        }
+        return { success: true, data: encryptedBase64, encrypted: false };
+    } catch (e) {
+        console.error('Decryption failed', e);
+        return { success: false, error: e.message };
+    }
 });
 
 app.whenReady().then(createWindow);
