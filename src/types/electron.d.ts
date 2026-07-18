@@ -80,7 +80,7 @@ declare global {
 
       /** Encryption API via Electron safeStorage */
       safeStorage?: {
-        encryptString: (plainText: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+        encryptString: (plainText: string) => Promise<{ success: boolean; data?: string; encrypted?: boolean; error?: string }>;
         decryptString: (encryptedBuffer: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       };
 
