@@ -72,7 +72,7 @@ export default function LicenseActivationScreen() {
             if (typeof window !== 'undefined') {
                 try {
                     const existingSettings = await offlineDB.storeSettings.get('settings');
-                    await offlineDB.storeSettings.put({ ...existingSettings, id: 'settings', licenseJwt: finalJwt });
+                    await offlineDB.storeSettings.put({ ...existingSettings, id: 'settings', licenseJwt: finalJwt } as any);
                 } catch (dbErr) {
                     console.error('Failed to save to offlineDB', dbErr);
                 }
