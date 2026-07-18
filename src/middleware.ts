@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { decodeJwt } from 'jose';
 
 export function middleware(request: NextRequest) {
     // 1. Resolve tenant context from Subdomain, custom header, or cookie
@@ -11,6 +12,20 @@ export function middleware(request: NextRequest) {
     const isSystemSubdomain = !subdomain || ['www', 'api', 'localhost', '127', 'admin'].includes(subdomain.toLowerCase());
     
     let tenantId = request.headers.get('x-tenant-id') || request.cookies.get('tenantId')?.value;
+    
+    // Extract tenantId from JWT for Desktop API requests
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+            const decoded = decodeJwt(token);
+            if (decoded && decoded.tenantId) {
+                tenantId = String(decoded.tenantId);
+            }
+        } catch (e) {
+            // Ignore decode errors here; full validation happens in the route handler
+        }
+    }
     
     if (!tenantId && !isSystemSubdomain) {
         tenantId = subdomain;

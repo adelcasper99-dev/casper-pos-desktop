@@ -50,6 +50,13 @@ export default function SyncStatusBar() {
 
         switch (status) {
             case 'ONLINE_SYNCED':
+                if (pendingCount > 0) {
+                    return {
+                        color: 'text-blue-500 bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20 hover:bg-blue-100 animate-pulse',
+                        icon: <Cloud className="w-4 h-4" />,
+                        text: `في الانتظار (${pendingCount})`
+                    };
+                }
                 return {
                     color: 'text-emerald-500 bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 hover:bg-emerald-100',
                     icon: <Cloud className="w-4 h-4" />,
