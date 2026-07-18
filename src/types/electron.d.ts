@@ -78,6 +78,12 @@ declare global {
         onStatusChange: (cb: (status: WhatsAppStatus) => void) => () => void;
       };
 
+      /** Encryption API via Electron safeStorage */
+      safeStorage?: {
+        encryptString: (plainText: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+        decryptString: (encryptedBuffer: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      };
+
       /** License / Hardware binding API */
       license?: {
         /** Returns the hardware machine UUID (Motherboard UUID) for license binding */
