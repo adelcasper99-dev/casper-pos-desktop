@@ -323,10 +323,8 @@ export class SyncService {
                         }
                         failed++;
                     } else {
-                        // Update local invoiceNumber with canonical ID post-sync
                         await offlineDB.sales.update(res.id, {
                             synced: 1,
-                            invoiceNumber: res.canonicalId, // Canonical ID from Cloud
                             syncError: undefined,
                             syncStatus: 'SYNCED'
                         });
