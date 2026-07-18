@@ -3,6 +3,8 @@
 -- syncSecret is a crypto-random hex string generated at row creation.
 -- Both fields are nullable to allow safe backfill of existing rows.
 
+BEGIN;
+
 ALTER TABLE "Tenant"
   ADD COLUMN IF NOT EXISTS "branchId"   TEXT,
   ADD COLUMN IF NOT EXISTS "syncSecret" TEXT;
@@ -15,3 +17,6 @@ WHERE "branchId" IS NULL;
 UPDATE "Tenant"
   SET "syncSecret" = encode(gen_random_bytes(32), 'hex')
 WHERE "syncSecret" IS NULL;
+
+COMMIT;
+

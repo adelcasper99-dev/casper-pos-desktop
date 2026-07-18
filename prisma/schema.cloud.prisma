@@ -1369,6 +1369,8 @@ model Tenant {
   name       String
   slug       String    @unique
   isActive   Boolean   @default(true)
+  branchId   String?   @default(cuid())
+  syncSecret String?   @default(cuid())
   licenses   License[]
   sequences  TenantSequence[]
   createdAt  DateTime  @default(now())

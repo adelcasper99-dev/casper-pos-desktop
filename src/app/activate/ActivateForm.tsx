@@ -101,8 +101,8 @@ export default function ActivateForm() {
             setLoadingPhase(3); // Phase 3: تم التفعيل بنجاح ✓
             await new Promise(resolve => setTimeout(resolve, 400));
 
-            router.refresh();
             router.push('/');
+            router.refresh();
         } else {
             const errKey = result.error as keyof typeof ERROR_MESSAGES;
             const friendlyError = ERROR_MESSAGES[errKey] || ERROR_MESSAGES.default;

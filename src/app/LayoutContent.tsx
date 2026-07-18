@@ -34,35 +34,32 @@ export default function LayoutContent({
         }
     }, []);
 
-    // 🩹 Self-Healing: Re-derive cloud settings from license JWT if they are missing
+    // 🩹 Self-Healing: Re-derive missing branchId from license JWT if cloud sync is enabled
     useEffect(() => {
         if (typeof window !== 'undefined' && settings?.licenseJwt) {
             CloudConfigManager.getCloudConfig().then((config) => {
-                if (config.enabled && (!config.branchId || !config.syncSecret)) {
+                if (config.enabled && !config.branchId) {
                     try {
                         const parts = settings.licenseJwt.split('.');
                         if (parts.length === 3) {
                             const payloadB64 = parts[1];
                             const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
-                            const jsonPayload = decodeURIComponent(
-                                window.atob(base64)
-                                    .split('')
-                                    .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                                    .join('')
+                            const jsonPayload = new TextDecoder().decode(
+                                Uint8Array.from(window.atob(base64), c => c.charCodeAt(0))
                             );
                             const payload = JSON.parse(jsonPayload);
                             
-                            if (payload.branch_id && payload.sync_secret) {
+                            if (payload.branch_id) {
                                 CloudConfigManager.saveCloudConfig({
+                                    ...config,
                                     enabled: true,
                                     cloudUrl: config.cloudUrl || process.env.NEXT_PUBLIC_CLOUD_URL || 'https://api.casper-erp.com',
-                                    branchId: payload.branch_id,
-                                    syncSecret: payload.sync_secret
+                                    branchId: payload.branch_id
                                 }).then((res) => {
                                     if (res.success) {
-                                        console.log('[Self-Healing] Successfully restored cloud config from license JWT.');
+                                        console.log('[Self-Healing] Successfully restored branch ID from license JWT.');
                                     } else {
-                                        console.warn('[Self-Healing] Failed to restore cloud config:', res.error);
+                                        console.warn('[Self-Healing] Failed to restore branch ID:', res.error);
                                     }
                                 });
                             }

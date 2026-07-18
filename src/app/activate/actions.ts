@@ -10,6 +10,13 @@ const attemptMap = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
     const WINDOW_MS = 15 * 60 * 1000;
+
+    if (attemptMap.size > 2048) {
+        attemptMap.forEach((val, key) => {
+            if (now > val.resetAt) attemptMap.delete(key);
+        });
+    }
+
     const entry = attemptMap.get(ip);
     
     if (!entry || now > entry.resetAt) {
@@ -29,14 +36,6 @@ const activateSchema = z.object({
     activationCode: z.string().regex(/^CASPER-[A-Z0-9]{6}$/),
     machineId: z.string().min(1).max(512),
 });
-
-interface DBTenant {
-    id: string;
-    status: string;
-    trialEndsAt: Date;
-    branchId?: string | null;
-    syncSecret?: string | null;
-}
 
 /**
  * Server action: performs license activation directly via Prisma.
@@ -104,7 +103,7 @@ export async function activateLicense(activationCode: string, machineId: string)
             throw txError;
         }
 
-        const tenantObj = updatedTenant as DBTenant;
+        const tenantObj = updatedTenant;
 
         if (!tenantObj.branchId || !tenantObj.syncSecret) {
             return { success: false, error: 'SCHEMA_ERROR' };
@@ -118,7 +117,6 @@ export async function activateLicense(activationCode: string, machineId: string)
             server_now: new Date().toISOString(),
             machine_id: machineId,
             branch_id: tenantObj.branchId,
-            sync_secret: tenantObj.syncSecret,
         };
 
         const token = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), { algorithm: 'RS256' });
