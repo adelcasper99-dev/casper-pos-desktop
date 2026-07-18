@@ -2,6 +2,41 @@
 
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { headers } from 'next/headers';
+import { z } from 'zod';
+
+// In-process rate limiter (5 attempts / 15 minutes per IP)
+const attemptMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const WINDOW_MS = 15 * 60 * 1000;
+    const entry = attemptMap.get(ip);
+    
+    if (!entry || now > entry.resetAt) {
+        attemptMap.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+        return true;
+    }
+    
+    if (entry.count >= 5) {
+        return false;
+    }
+    
+    entry.count++;
+    return true;
+}
+
+const activateSchema = z.object({
+    activationCode: z.string().regex(/^CASPER-[A-Z0-9]{6}$/),
+    machineId: z.string().min(1).max(512),
+});
+
+interface DBTenant {
+    id: string;
+    status: string;
+    trialEndsAt: Date;
+    branchId?: string | null;
+    syncSecret?: string | null;
+}
 
 /**
  * Server action: performs license activation directly via Prisma.
@@ -14,11 +49,23 @@ import jwt from 'jsonwebtoken';
  */
 export async function activateLicense(activationCode: string, machineId: string) {
     try {
-        if (!machineId) {
-            return { success: false, error: 'Could not determine machine ID.' };
+        // 1. Rate Limiting Check
+        let ip = 'unknown';
+        try {
+            const reqHeaders = await headers();
+            ip = reqHeaders.get('x-forwarded-for') ?? reqHeaders.get('x-real-ip') ?? 'unknown';
+        } catch (e) {
+            // fallback if headers() cannot be called
         }
-        if (!activationCode) {
-            return { success: false, error: 'Activation code is required.' };
+
+        if (!checkRateLimit(ip)) {
+            return { success: false, error: 'RATE_LIMITED' };
+        }
+
+        // 2. Zod Validation
+        const validation = activateSchema.safeParse({ activationCode, machineId });
+        if (!validation.success) {
+            return { success: false, error: 'INVALID_FORMAT' };
         }
 
         const privateKey = process.env.LICENSE_PRIVATE_KEY;
@@ -52,18 +99,26 @@ export async function activateLicense(activationCode: string, machineId: string)
         } catch (txError: unknown) {
             const err = txError as { message?: string; code?: string };
             if (err.message === 'INVALID_CODE' || err.code === 'P2025') {
-                return { success: false, error: 'Invalid or already-used activation code.' };
+                return { success: false, error: 'INVALID_CODE' };
             }
             throw txError;
         }
 
+        const tenantObj = updatedTenant as DBTenant;
+
+        if (!tenantObj.branchId || !tenantObj.syncSecret) {
+            return { success: false, error: 'SCHEMA_ERROR' };
+        }
+
         // Sign JWT
         const payload = {
-            tenant_id: updatedTenant.id,
-            status: updatedTenant.status,
-            trial_ends_at: updatedTenant.trialEndsAt.toISOString(),
+            tenant_id: tenantObj.id,
+            status: tenantObj.status,
+            trial_ends_at: tenantObj.trialEndsAt.toISOString(),
             server_now: new Date().toISOString(),
             machine_id: machineId,
+            branch_id: tenantObj.branchId,
+            sync_secret: tenantObj.syncSecret,
         };
 
         const token = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), { algorithm: 'RS256' });
@@ -83,7 +138,12 @@ export async function activateLicense(activationCode: string, machineId: string)
             },
         });
 
-        return { success: true };
+        return { 
+            success: true,
+            branchId: tenantObj.branchId,
+            syncSecret: tenantObj.syncSecret,
+            cloudUrl: process.env.NEXT_PUBLIC_CLOUD_URL ?? 'https://api.casper-erp.com'
+        };
 
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
