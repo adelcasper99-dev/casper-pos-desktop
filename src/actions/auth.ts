@@ -90,7 +90,7 @@ export async function login(formData: FormData) {
                 permissions: ['*'],
                 rememberMe
             }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
-            return { success: true };
+            return { success: true, isGlobalAdmin: true };
         }
     }
 
@@ -131,7 +131,7 @@ export async function login(formData: FormData) {
         rememberMe
     }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
 
-    return { success: true };
+    return { success: true, isGlobalAdmin: user.isGlobalAdmin };
 }
 
 export async function logout() {
