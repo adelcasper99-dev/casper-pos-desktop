@@ -104,14 +104,18 @@ const TENANT_AWARE_MODELS = [
 export const prismaTenantExtension =
     typeof window === 'undefined'
         ? Prisma.defineExtension((client) => {
+              const isPostgres =
+                  process.env.DATABASE_URL?.startsWith('postgres') ||
+                  process.env.DATABASE_URL?.startsWith('postgresql');
+
               return client.$extends({
                   query: {
                       $allModels: {
                           async $allOperations({ model, operation, args, query }) {
                               const tenantId = getTenantId();
 
-                              // If tenant context is missing, or is explicitly set to 'SYSTEM' (Super Admin), bypass RLS-like application filters
-                              if (!tenantId || tenantId === 'SYSTEM') {
+                              // If tenant context is missing, or is explicitly set to 'SYSTEM' (Super Admin), OR if not running on Postgres (e.g. local SQLite), bypass RLS-like filters
+                              if (!tenantId || tenantId === 'SYSTEM' || !isPostgres) {
                                   return query(args);
                               }
 
