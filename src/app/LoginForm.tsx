@@ -158,7 +158,11 @@ export default function LoginForm() {
                 // 🔄 Reset shift prompt gate so it re-evaluates on each new login
                 try { sessionStorage.removeItem('shift_prompt_dismissed'); } catch { /* noop */ }
                 router.refresh();
-                router.push('/dashboard');
+                if ((res as any).isGlobalAdmin) {
+                    router.push('/casper-hq');
+                } else {
+                    router.push('/dashboard');
+                }
             }
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : "An unexpected error occurred");

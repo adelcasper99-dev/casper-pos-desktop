@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { headers } from 'next/headers';
 import { z } from 'zod';
+import { CloudConfigManager } from '@/utils/cloudConfigManager';
 
 // In-process rate limiter (5 attempts / 15 minutes per IP)
 const attemptMap = new Map<string, { count: number; resetAt: number }>();
@@ -128,13 +129,37 @@ export async function activateLicense(activationCode: string, machineId: string)
                 id:            'settings',
                 name:          'Casper Store',
                 licenseJwt:    token,
+                licenseKey:    activationCode,
                 lastServerNow: Date.now(),
             },
             update: {
                 licenseJwt:    token,
+                licenseKey:    activationCode,
                 lastServerNow: Date.now(),
             },
         });
+
+        // Compute and write local SQLite database watermark
+        if (tenantObj.syncSecret && machineId) {
+            const crypto = require('crypto');
+            const watermarkSource = `${tenantObj.id}:${tenantObj.syncSecret}:${machineId}`;
+            const watermark = crypto.createHmac('sha256', tenantObj.syncSecret)
+                .update(watermarkSource)
+                .digest('hex');
+
+            await prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS "_SystemMetadata" (
+                    "key" TEXT PRIMARY KEY,
+                    "value" TEXT NOT NULL
+                );
+            `);
+
+            await prisma.$executeRawUnsafe(`
+                INSERT INTO "_SystemMetadata" ("key", "value") 
+                VALUES ('watermark', '${watermark}')
+                ON CONFLICT("key") DO UPDATE SET "value" = excluded.value;
+            `);
+        }
 
         return { 
             success: true,
@@ -147,5 +172,64 @@ export async function activateLicense(activationCode: string, machineId: string)
         const msg = error instanceof Error ? error.message : 'Unknown error';
         console.error('[activateLicense]', msg);
         return { success: false, error: msg };
+    }
+}
+
+export async function saveEmergencyLicense(token: string) {
+    try {
+        const publicKey = process.env.VITE_LICENSE_PUBLIC_KEY || process.env.LICENSE_PUBLIC_KEY;
+        if (!publicKey) {
+            return { success: false, error: 'KEY_MISSING' };
+        }
+
+        let decoded: any;
+        try {
+            decoded = jwt.verify(token, publicKey.replace(/\\n/g, '\n'), { algorithms: ['RS256'] });
+        } catch (e) {
+            return { success: false, error: 'INVALID_SIGNATURE' };
+        }
+
+        // Persist JWT to SQLite
+        await prisma.storeSettings.upsert({
+            where:  { id: 'settings' },
+            create: {
+                id:            'settings',
+                name:          'Casper Store',
+                licenseJwt:    token,
+                lastServerNow: Date.now(),
+            },
+            update: {
+                licenseJwt:    token,
+                lastServerNow: Date.now(),
+            },
+        });
+
+        // Compute watermark with new MAC
+        const config = await CloudConfigManager.getCloudConfig();
+        if (config.enabled && config.syncSecret && decoded.machine_id) {
+            const crypto = require('crypto');
+            const watermarkSource = `${decoded.tenant_id}:${config.syncSecret}:${decoded.machine_id}`;
+            const watermark = crypto.createHmac('sha256', config.syncSecret)
+                .update(watermarkSource)
+                .digest('hex');
+
+            await prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS "_SystemMetadata" (
+                    "key" TEXT PRIMARY KEY,
+                    "value" TEXT NOT NULL
+                );
+            `);
+
+            await prisma.$executeRawUnsafe(`
+                INSERT INTO "_SystemMetadata" ("key", "value") 
+                VALUES ('watermark', '${watermark}')
+                ON CONFLICT("key") DO UPDATE SET "value" = excluded.value;
+            `);
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        console.error('[saveEmergencyLicense]', error);
+        return { success: false, error: error.message };
     }
 }

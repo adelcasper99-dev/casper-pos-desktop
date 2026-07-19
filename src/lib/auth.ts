@@ -75,13 +75,14 @@ export async function getSession() {
         return {
             user: {
                 id: 'super-admin',
-                username: 'a',
+                username: process.env.SUPER_ADMIN_USER || 'super-admin',
                 name: 'Super Admin',
                 role: 'ADMIN',
                 branchId: mainBranchId || null,
                 permissions: ['*'],
                 maxDiscount: 100,
-                maxDiscountAmount: 9999999
+                maxDiscountAmount: 9999999,
+                isGlobalAdmin: true
             }
         };
     }

@@ -2,8 +2,40 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { SignJWT, importPKCS8 } from 'jose';
 
+// In-process rate limiter (5 attempts / 15 minutes per IP)
+const attemptMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const WINDOW_MS = 15 * 60 * 1000;
+
+    if (attemptMap.size > 2048) {
+        attemptMap.forEach((val, key) => {
+            if (now > val.resetAt) attemptMap.delete(key);
+        });
+    }
+
+    const entry = attemptMap.get(ip);
+    
+    if (!entry || now > entry.resetAt) {
+        attemptMap.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+        return true;
+    }
+    
+    if (entry.count >= 5) {
+        return false;
+    }
+    
+    entry.count++;
+    return true;
+}
+
 export async function POST(request: Request) {
     try {
+        const ip = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown';
+        if (!checkRateLimit(ip)) {
+            return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+        }
+
         const body = await request.json();
         const { licenseKey, macAddress } = body;
 
@@ -29,14 +61,46 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Tenant account is suspended' }, { status: 403 });
         }
 
+        let tokenExpiration = license.expiresAt;
+        let isEmergency = false;
+
         // Check if MAC is bound, if not bind it. If bound, verify it.
         if (!license.macAddress) {
+            if (macAddress.length <= 10) {
+                return NextResponse.json({ error: 'Invalid hardware signature' }, { status: 400 });
+            }
             await prisma.license.update({
                 where: { id: license.id },
                 data: { macAddress }
             });
         } else if (license.macAddress !== macAddress) {
-            return NextResponse.json({ error: 'License is bound to another device' }, { status: 403 });
+            if (macAddress.length <= 10) {
+                return NextResponse.json({ error: 'Invalid hardware signature' }, { status: 400 });
+            }
+
+            const now = new Date();
+            if (license.status === "ACTIVE") {
+                const emergencyModeAt = now;
+                await prisma.license.update({
+                    where: { id: license.id },
+                    data: {
+                        status: "EMERGENCY_MODE",
+                        emergencyModeAt
+                    }
+                });
+                isEmergency = true;
+                tokenExpiration = new Date(emergencyModeAt.getTime() + 24 * 60 * 60 * 1000);
+            } else if (license.status === "EMERGENCY_MODE") {
+                const emergencyModeAt = license.emergencyModeAt || now;
+                const expirationTime = new Date(emergencyModeAt.getTime() + 24 * 60 * 60 * 1000);
+                if (now > expirationTime) {
+                    return NextResponse.json({ error: 'Grace period has expired. Hardware swap requires approval.' }, { status: 403 });
+                }
+                isEmergency = true;
+                tokenExpiration = expirationTime;
+            } else {
+                return NextResponse.json({ error: 'License is bound to another device' }, { status: 403 });
+            }
         }
 
         // Check expiration
@@ -54,16 +118,24 @@ export async function POST(request: Request) {
         const formattedKey = privateKeyEnv.replace(/\\n/g, '\n');
         const privateKey = await importPKCS8(formattedKey, 'RS256');
 
-        const token = await new SignJWT({ tenantId: license.tenantId })
+        const token = await new SignJWT({ 
+            tenant_id: license.tenantId,
+            status: license.tenant.isActive ? 'active' : 'inactive',
+            trial_ends_at: license.expiresAt.toISOString(),
+            server_now: new Date().toISOString(),
+            machine_id: macAddress,
+            emergencyMode: isEmergency
+        })
             .setProtectedHeader({ alg: 'RS256' })
             .setIssuedAt()
-            .setExpirationTime(license.expiresAt)
+            .setExpirationTime(tokenExpiration)
             .sign(privateKey);
 
         return NextResponse.json({ 
             token,
             tenantId: license.tenantId,
-            expiresAt: license.expiresAt 
+            expiresAt: tokenExpiration,
+            emergencyMode: isEmergency
         });
 
     } catch (e) {
