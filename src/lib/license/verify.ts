@@ -1,7 +1,8 @@
 import { TrueTime } from './true-time';
 import { Hardware } from './hardware';
 import { AsarIntegrity } from './asar-integrity';
-import { prisma } from '@/lib/prisma';
+import { prisma, isPostgres } from '@/lib/prisma';
+import { CloudConfigManager } from '@/utils/cloudConfigManager';
 import jwt from 'jsonwebtoken';
 
 export type LicenseStatus = 
@@ -90,11 +91,19 @@ export class LicenseVerifier {
             // Ignore to prevent blocking on write errors
         }
 
-        // 4. Hardware Verification
+        // 4. Hardware Verification & Watermark Validation
         try {
             // If the license was issued for a cloud/web deployment, bypass strict SMBIOS hardware checks
             if (!decoded.machine_id.startsWith('cloud-')) {
                 const actualMachineId = await Hardware.getMachineId();
+                if (!actualMachineId) {
+                    return {
+                        status: 'HARDWARE_INVALIDATED',
+                        errorCode: 'HWD-03',
+                        message: 'Hardware signature could not be resolved. Verification halted.'
+                    };
+                }
+
                 if (actualMachineId !== decoded.machine_id) {
                     return {
                         status: 'HARDWARE_INVALIDATED',
@@ -102,8 +111,47 @@ export class LicenseVerifier {
                         message: 'Hardware change detected. License bound to a different machine.'
                     };
                 }
+
+                // Cryptographic Database Watermark Validation (only on SQLite local nodes)
+                const config = await CloudConfigManager.getCloudConfig();
+                const checkPostgres = typeof isPostgres !== 'undefined' ? isPostgres : false;
+                if (!checkPostgres && config.enabled && config.syncSecret && prisma.$executeRawUnsafe && prisma.$queryRawUnsafe) {
+                    const crypto = require('crypto') as typeof import('crypto');
+                    const watermarkSource = `${decoded.tenant_id}:${config.syncSecret}:${actualMachineId}`;
+                    const expectedWatermark = crypto.createHmac('sha256', config.syncSecret)
+                        .update(watermarkSource)
+                        .digest('hex');
+
+                    // Create watermark table if it does not exist
+                    await prisma.$executeRawUnsafe(`
+                        CREATE TABLE IF NOT EXISTS "_SystemMetadata" (
+                            "key" TEXT PRIMARY KEY,
+                            "value" TEXT NOT NULL
+                        );
+                    `);
+
+                    const metadata: any[] = await prisma.$queryRawUnsafe(`
+                        SELECT "value" FROM "_SystemMetadata" WHERE "key" = 'watermark';
+                    `);
+
+                    const storedWatermark = metadata[0]?.value;
+
+                    if (!storedWatermark) {
+                        // First activation: write the watermark
+                        await prisma.$executeRawUnsafe(`
+                            INSERT INTO "_SystemMetadata" ("key", "value") VALUES ('watermark', '${expectedWatermark}');
+                        `);
+                    } else if (storedWatermark !== expectedWatermark) {
+                        return {
+                            status: 'HARDWARE_INVALIDATED',
+                            errorCode: 'HWD-04',
+                            message: 'Database security validation failed. Unauthorized machine copy detected.'
+                        };
+                    }
+                }
             }
-        } catch (error) {
+        } catch (error: any) {
+            console.error('[Hardware verification error]', error);
             return {
                 status: 'HARDWARE_INVALIDATED',
                 errorCode: 'HWD-02',

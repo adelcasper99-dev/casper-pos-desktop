@@ -11,6 +11,7 @@ import { exec } from 'child_process';
 
 // Mock Prisma client
 vi.mock('@/lib/prisma', () => ({
+    isPostgres: false,
     prisma: {
         storeSettings: {
             findUnique: vi.fn(),

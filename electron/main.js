@@ -772,6 +772,31 @@ ipcMain.handle('app:get-db-path', () => {
     return path.dirname(getDatabasePath());
 });
 
+ipcMain.handle('license:get-machine-id', () => {
+    return new Promise((resolve, reject) => {
+        const platform = os.platform();
+        if (platform === 'win32') {
+            exec('wmic csproduct get uuid', (error, stdout) => {
+                if (error) return reject(error);
+                const lines = stdout.split('\n');
+                resolve(lines[1]?.trim() || '');
+            });
+        } else if (platform === 'darwin') {
+            exec('ioreg -d2 -c IOPlatformExpertDevice | awk -F\\" \'/IOPlatformUUID/{print $(NF-1)}\'', (error, stdout) => {
+                if (error) return reject(error);
+                resolve(stdout.trim());
+            });
+        } else if (platform === 'linux') {
+            exec('cat /var/lib/dbus/machine-id || cat /etc/machine-id', (error, stdout) => {
+                if (error) return reject(error);
+                resolve(stdout.trim());
+            });
+        } else {
+            reject(new Error(`Unsupported platform: ${platform}`));
+        }
+    });
+});
+
 ipcMain.handle('app:save-config-and-restart', async (event, newDbFolder) => {
     try {
         const userDataPath = app.getPath('userData');

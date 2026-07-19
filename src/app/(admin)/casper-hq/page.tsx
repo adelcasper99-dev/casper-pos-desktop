@@ -50,6 +50,11 @@ export default async function HQDashboard() {
                         <div className="flex items-center gap-2">
                           <span className="text-amber-500 font-bold flex items-center gap-1">
                             ⚠️ Hardware Swap Alert (MAC: {lic.macAddress})
+                            {lic.emergencyModeAt && (
+                              <span className="text-xs font-normal text-slate-500 ml-1">
+                                (Expires in: {Math.max(0, Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - new Date(lic.emergencyModeAt).getTime())) / (60 * 60 * 1000)))}h)
+                              </span>
+                            )}
                           </span>
                           <ApproveSwapButton licenseId={lic.id} newMac={lic.macAddress || ''} />
                         </div>

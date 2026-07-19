@@ -46,6 +46,8 @@ export async function getStoreSettings() {
                 locationRadius: settings?.locationRadius || 500,
                 allowNegativeStock: settings?.allowNegativeStock || false,
                 blindCloseEnabled: settings?.blindCloseEnabled ?? true,
+                licenseJwt: settings?.licenseJwt || null,
+                licenseKey: settings?.licenseKey || null,
                 whatsappEnabled: settings?.features ? JSON.parse(settings.features).whatsappEnabled || false : false,
                 whatsappTemplates: settings?.features ? JSON.parse(settings.features).whatsappTemplates || null : null,
             }

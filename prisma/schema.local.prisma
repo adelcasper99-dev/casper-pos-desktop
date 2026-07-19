@@ -41,6 +41,7 @@ model StoreSettings {
   googleDriveBackupPath String?
   blindCloseEnabled     Boolean   @default(true)
   licenseJwt            String?
+  licenseKey            String?
   lastServerNow         Float?
   localUptimeTicks      Float?
   trialStartDate        DateTime?

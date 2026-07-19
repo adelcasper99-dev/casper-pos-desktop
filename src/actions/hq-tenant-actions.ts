@@ -54,10 +54,10 @@ export const provisionNewTenant = secureAction(
         data: {
           id: `lic-${crypto.randomBytes(4).toString("hex")}`,
           tenantId,
-          branchId,
-          licenseKey: activationCode,
-          status: "ACTIVE",
-          validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+          key: activationCode,
+          macAddress: "",
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+          status: "ACTIVE"
         }
       });
 
@@ -122,7 +122,8 @@ export const approveHardwareSwap = secureAction(
       where: { id: licenseId },
       data: { 
         macAddress: newMac,
-        status: "ACTIVE" 
+        status: "ACTIVE",
+        emergencyModeAt: null
       }
     });
 

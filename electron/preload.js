@@ -158,5 +158,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     safeStorage: {
         encryptString: (plaintext) => ipcRenderer.invoke('app:safe-storage-encrypt', plaintext),
         decryptString: (encryptedBase64) => ipcRenderer.invoke('app:safe-storage-decrypt', encryptedBase64)
+    },
+    license: {
+        getMachineId: () => ipcRenderer.invoke('license:get-machine-id')
     }
 });

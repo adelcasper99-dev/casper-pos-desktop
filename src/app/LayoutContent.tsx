@@ -81,6 +81,125 @@ export default function LayoutContent({
         }
     }, [licenseStatus, pathname, router]);
 
+    // 🩹 Auto-Emergency Activation on Hardware Mismatch
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 
+            licenseStatus?.status === 'HARDWARE_INVALIDATED' && 
+            settings?.licenseKey && 
+            navigator.onLine
+        ) {
+            const handleAutoEmergency = async () => {
+                try {
+                    const config = await CloudConfigManager.getCloudConfig();
+                    if (!config.cloudUrl) return;
+
+                    let physicalMac = '';
+                    if (window.electronAPI?.license?.getMachineId) {
+                        physicalMac = await window.electronAPI.license.getMachineId();
+                    } else {
+                        const r = await fetch('/api/network/ip');
+                        const data = await r.json();
+                        physicalMac = `cloud-${data.ip || window.location.hostname}`;
+                    }
+
+                    if (!physicalMac) return;
+
+                    const res = await fetch(`${config.cloudUrl}/api/auth/activate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            licenseKey: settings.licenseKey,
+                            macAddress: physicalMac
+                        })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.token) {
+                            const { saveEmergencyLicense } = await import('@/app/activate/actions');
+                            const saveResult = await saveEmergencyLicense(data.token);
+                            if (saveResult.success) {
+                                console.log('[Emergency Mode] Auto-activated 24-hour grace period.');
+                                router.refresh();
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error('[Emergency Mode] Failed to negotiate auto-emergency activation:', err);
+                }
+            };
+            handleAutoEmergency();
+        }
+    }, [licenseStatus, settings, router]);
+
+    // ⏰ Polling Recovery Loop during Emergency Mode
+    useEffect(() => {
+        if (typeof window !== 'undefined' && settings?.licenseJwt && settings?.licenseKey) {
+            let isEmergency = false;
+            try {
+                const parts = settings.licenseJwt.split('.');
+                if (parts.length === 3) {
+                    const payloadB64 = parts[1];
+                    const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+                    const jsonPayload = new TextDecoder().decode(
+                        Uint8Array.from(window.atob(base64), c => c.charCodeAt(0))
+                    );
+                    const payload = JSON.parse(jsonPayload);
+                    isEmergency = !!payload.emergencyMode;
+                }
+            } catch (e) {
+                console.error('[Polling] Error parsing JWT:', e);
+            }
+
+            if (isEmergency && navigator.onLine) {
+                const checkApproval = async () => {
+                    try {
+                        const config = await CloudConfigManager.getCloudConfig();
+                        if (!config.cloudUrl) return;
+
+                        let physicalMac = '';
+                        if (window.electronAPI?.license?.getMachineId) {
+                            physicalMac = await window.electronAPI.license.getMachineId();
+                        } else {
+                            const r = await fetch('/api/network/ip');
+                            const data = await r.json();
+                            physicalMac = `cloud-${data.ip || window.location.hostname}`;
+                        }
+
+                        if (!physicalMac) return;
+
+                        const res = await fetch(`${config.cloudUrl}/api/auth/activate`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                licenseKey: settings.licenseKey,
+                                macAddress: physicalMac
+                            })
+                        });
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.token && !data.emergencyMode) {
+                                const { saveEmergencyLicense } = await import('@/app/activate/actions');
+                                const saveResult = await saveEmergencyLicense(data.token);
+                                if (saveResult.success) {
+                                    console.log('[Emergency Mode] Hardware swap approved by HQ. Standard license restored.');
+                                    router.refresh();
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[Polling] Emergency check failed:', err);
+                    }
+                };
+
+                checkApproval();
+                const interval = setInterval(checkApproval, 60 * 60 * 1000);
+                return () => clearInterval(interval);
+            }
+        }
+    }, [settings, router]);
+
     const isReadOnly = licenseStatus?.status !== 'VALID' && licenseStatus?.status !== 'MISSING';
 
     if (isStandalonePage) {

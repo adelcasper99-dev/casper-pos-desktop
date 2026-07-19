@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "License" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE "License" ADD COLUMN "emergencyModeAt" TIMESTAMP WITH TIME ZONE;
+ALTER TABLE "StoreSettings" ADD COLUMN "licenseKey" TEXT;
