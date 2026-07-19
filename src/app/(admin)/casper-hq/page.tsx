@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ProvisionTenantModal } from "@/components/hq/ProvisionTenantModal";
+import { ToggleTenantButton } from "@/components/hq/ToggleTenantButton";
+import { ApproveSwapButton } from "@/components/hq/ApproveSwapButton";
 
 export default async function HQDashboard() {
   const tenants = await prisma.tenant.findMany({
@@ -45,9 +47,12 @@ export default async function HQDashboard() {
                   {tenant.licenses.map(lic => (
                     <div key={lic.id} className="text-sm">
                       {lic.status === 'EMERGENCY_MODE' ? (
-                        <span className="text-amber-500 font-bold flex items-center gap-1">
-                          ⚠️ Hardware Swap Alert (MAC: {lic.macAddress})
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-amber-500 font-bold flex items-center gap-1">
+                            ⚠️ Hardware Swap Alert (MAC: {lic.macAddress})
+                          </span>
+                          <ApproveSwapButton licenseId={lic.id} newMac={lic.macAddress || ''} />
+                        </div>
                       ) : (
                         <span className="text-slate-500">MAC: {lic.macAddress || 'Unassigned'}</span>
                       )}
@@ -55,7 +60,7 @@ export default async function HQDashboard() {
                   ))}
                 </td>
                 <td className="p-4 text-right">
-                  <button className="text-sm font-bold text-blue-600 hover:underline">Toggle Status</button>
+                  <ToggleTenantButton tenantId={tenant.id} isActive={tenant.isActive} />
                 </td>
               </tr>
             ))}
