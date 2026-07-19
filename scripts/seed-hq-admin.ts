@@ -4,6 +4,12 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (!process.env.DATABASE_URL?.startsWith('postgres')) {
+    console.error('❌ ERROR: Casper HQ requires a Postgres database. Your DATABASE_URL is pointing to a local SQLite file.');
+    console.error('Please update your .env file with a valid postgres:// URL before seeding HQ.');
+    process.exit(1);
+  }
+
   console.log('Seeding HQ Super Admin...');
 
   // 1. Create or Update the HQ Tenant
@@ -26,13 +32,13 @@ async function main() {
 
   // 3. Create or Update the Super Admin User
   const user = await prisma.user.upsert({
-    where: { email: 'admin@casperhq.local' },
+    where: { username: 'super-admin' },
     update: {
       isGlobalAdmin: true,
       roleStr: 'SUPER_ADMIN'
     },
     create: {
-      email: 'admin@casperhq.local',
+      username: 'super-admin',
       name: 'Super Admin',
       password: hashedPassword,
       tenantId: tenant.id,
@@ -41,7 +47,7 @@ async function main() {
     }
   });
 
-  console.log(`Super Admin verified: ${user.email}`);
+  console.log(`Super Admin verified: ${user.username}`);
   console.log('HQ Seeding complete.');
 }
 
