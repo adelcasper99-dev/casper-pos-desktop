@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { provisionNewTenant } from "@/actions/hq-tenant-actions";
+import { generateCSRFToken } from "@/lib/csrf-client";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -22,7 +23,8 @@ export function ProvisionTenantModal() {
     const domain = formData.get("domain") as string;
 
     try {
-      const res = await provisionNewTenant({ name, domain });
+      const csrfToken = await generateCSRFToken();
+      const res = await provisionNewTenant({ name, domain, csrfToken });
       
       // `res` from safe-action is typed and flattened.
       if (res?.success) {

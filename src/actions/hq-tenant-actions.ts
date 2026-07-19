@@ -8,7 +8,8 @@ import crypto from "crypto";
 
 const provisionSchema = z.object({
   name: z.string().min(2),
-  domain: z.string().min(3)
+  domain: z.string().min(3),
+  csrfToken: z.string().optional()
 });
 
 export const provisionNewTenant = secureAction(
@@ -64,12 +65,12 @@ export const provisionNewTenant = secureAction(
     });
 
     return { activationCode: result.activationCode };
-  },
-  { requireCSRF: false } // Temporary disable CSRF for internal API simplicity
+  }
 );
 
 const toggleSchema = z.object({
-  tenantId: z.string()
+  tenantId: z.string(),
+  csrfToken: z.string().optional()
 });
 
 export const toggleTenantStatus = secureAction(
@@ -93,13 +94,13 @@ export const toggleTenantStatus = secureAction(
     });
 
     return { success: true };
-  },
-  { requireCSRF: false }
+  }
 );
 
 const approveSwapSchema = z.object({
   licenseId: z.string(),
-  newMac: z.string()
+  newMac: z.string(),
+  csrfToken: z.string().optional()
 });
 
 export const approveHardwareSwap = secureAction(
@@ -126,6 +127,5 @@ export const approveHardwareSwap = secureAction(
     });
 
     return { success: true };
-  },
-  { requireCSRF: false }
+  }
 );
