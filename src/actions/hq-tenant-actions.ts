@@ -33,6 +33,7 @@ export const provisionNewTenant = secureAction(
           id: tenantId,
           name,
           domain,
+          slug: domain,
           branchId,
           syncSecret
         }
