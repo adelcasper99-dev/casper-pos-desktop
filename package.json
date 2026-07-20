@@ -6,7 +6,7 @@
         "dev": "concurrently \"npm run dev:next\" \"wait-on tcp:3001 && npm run dev:electron\"",
         "dev:next": "npx kill-port 3001 && npx rimraf .next && npm run generate:dev && next dev -H 0.0.0.0 -p 3001",
         "dev:electron": "cross-env NODE_ENV=development electron .",
-        "build": "next build",
+        "build": "mkdir -p .next/server/pages .next/export && next build",
         "start": "next start -H 0.0.0.0 -p 3000",
         "deploy:hq": "ssh root@109.123.247.119 \"cd /var/www/casper-pos-desktop && git pull && npm run build && pm2 restart all\"",
         "license:bootstrap": "node scripts/bootstrap-license.js",
