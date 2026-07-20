@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { SignJWT, importPKCS8 } from 'jose';
 
+export const dynamic = 'force-dynamic';
+
+
 // In-process rate limiter (5 attempts / 15 minutes per IP)
 const attemptMap = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(ip: string): boolean {

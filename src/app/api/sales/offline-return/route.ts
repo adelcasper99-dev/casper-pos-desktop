@@ -3,6 +3,9 @@ import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 import { OfflineReturnSchema, type OfflineReturnInput } from '@/lib/validations/sync-schemas';
 import { verifyServerLicense } from '@/lib/license/server-verify';
+
+export const dynamic = 'force-dynamic';
+
 import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
 export async function POST(request: NextRequest) {

@@ -7,6 +7,9 @@ import { OfflineSaleSchema, type OfflineSaleInput } from '@/lib/validations/sync
 import { verifyServerLicense } from '@/lib/license/server-verify';
 import { runWithTenant } from '@/lib/prisma-tenant-extension';
 
+export const dynamic = 'force-dynamic';
+
+
 
 export async function POST(request: NextRequest) {
     // 🛡️ Security Handshake

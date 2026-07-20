@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
 
+export const dynamic = 'force-dynamic';
+
+
 import { getFormattedTicketNumber } from '@/lib/id-generator';
 import { verifyServerLicense } from '@/lib/license/server-verify';
 import { runWithTenant } from '@/lib/prisma-tenant-extension';

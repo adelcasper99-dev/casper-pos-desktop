@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeMasterDataName } from '@/shared/utils/string';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(request: NextRequest) {
     const clientSecret = request.headers.get('x-sync-secret');
     if (process.env.SYNC_SECRET && clientSecret !== process.env.SYNC_SECRET) {
