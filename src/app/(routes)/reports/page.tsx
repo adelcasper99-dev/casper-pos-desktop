@@ -322,7 +322,7 @@ export default function UnifiedReportsPage() {
     const [hrData, setHRData] = useState<any>(null);
     const [branches, setBranches] = useState<any[]>([]);
 
-    const activeTab = searchParams.get('tab') || 'financial';
+    const activeTab = searchParams?.get('tab') || 'financial';
 
     // Fetch branches on mount
     useEffect(() => {
