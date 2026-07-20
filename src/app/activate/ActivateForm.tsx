@@ -104,8 +104,8 @@ export default function ActivateForm() {
             router.push('/');
             router.refresh();
         } else {
-            const errKey = result.error as keyof typeof ERROR_MESSAGES;
-            const friendlyError = ERROR_MESSAGES[errKey] || ERROR_MESSAGES.default;
+            const errStr = result.error || 'default';
+            const friendlyError = ERROR_MESSAGES[errStr] || errStr || ERROR_MESSAGES.default;
             setError(friendlyError);
             setLoadingPhase(0);
         }

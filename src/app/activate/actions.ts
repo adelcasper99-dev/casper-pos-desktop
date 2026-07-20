@@ -78,13 +78,33 @@ export async function activateLicense(activationCode: string, machineId: string)
             return { success: false, error: 'Server configuration error: missing LICENSE_PRIVATE_KEY.' };
         }
 
-        // Atomic single-use activation — prevents double-spend
+        // Atomic single-use activation — checks both Tenant.activationCode and License.key
         let updatedTenant;
         try {
             updatedTenant = await prisma.$transaction(async (tx) => {
-                const tenant = await tx.tenant.findUnique({
-                    where: { activationCode }
+                // 1. Check Tenant table
+                let tenant = await tx.tenant.findFirst({
+                    where: {
+                        OR: [
+                            { activationCode: activationCode },
+                            { id: activationCode }
+                        ]
+                    }
                 });
+
+                // 2. Check License table if not found in Tenant directly
+                if (!tenant) {
+                    const licenseRecord = await tx.license.findFirst({
+                        where: {
+                            key: activationCode
+                        },
+                        include: { tenant: true }
+                    });
+
+                    if (licenseRecord && licenseRecord.tenant) {
+                        tenant = licenseRecord.tenant;
+                    }
+                }
 
                 if (!tenant || tenant.status !== 'active') {
                     throw new Error('INVALID_CODE');
@@ -92,11 +112,10 @@ export async function activateLicense(activationCode: string, machineId: string)
 
                 return tx.tenant.update({
                     where: {
-                        id: tenant.id,
-                        activationCode: activationCode // optimistic guard
+                        id: tenant.id
                     },
                     data: {
-                        activationCode: null, // single-use: burn the code
+                        activationCode: null, // single-use: burn the code if present
                         machineId: machineId,
                     }
                 });
