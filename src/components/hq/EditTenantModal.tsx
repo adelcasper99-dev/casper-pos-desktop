@@ -11,14 +11,22 @@ interface EditTenantModalProps {
   initialName: string;
   slug: string;
   initialAdminUsername?: string;
+  initialAdminRole?: string;
 }
 
-export function EditTenantModal({ tenantId, initialName, slug, initialAdminUsername = "" }: EditTenantModalProps) {
+export function EditTenantModal({ 
+  tenantId, 
+  initialName, 
+  slug, 
+  initialAdminUsername = "",
+  initialAdminRole = "ADMIN"
+}: EditTenantModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState(initialName);
   const [adminUsername, setAdminUsername] = useState(initialAdminUsername);
+  const [adminRole, setAdminRole] = useState(initialAdminRole);
   const [newPassword, setNewPassword] = useState("");
   const router = useRouter();
 
@@ -26,9 +34,10 @@ export function EditTenantModal({ tenantId, initialName, slug, initialAdminUsern
     e.preventDefault();
     const nameChanged = name.trim() !== initialName;
     const usernameChanged = adminUsername.trim() !== initialAdminUsername;
+    const roleChanged = adminRole !== initialAdminRole;
     const passwordProvided = newPassword.trim().length >= 6;
 
-    if (!nameChanged && !usernameChanged && !passwordProvided) {
+    if (!nameChanged && !usernameChanged && !roleChanged && !passwordProvided) {
       setIsOpen(false);
       return;
     }
@@ -42,6 +51,7 @@ export function EditTenantModal({ tenantId, initialName, slug, initialAdminUsern
         tenantId, 
         name: name.trim(), 
         adminUsername: adminUsername.trim(),
+        adminRole: adminRole as any,
         newPassword: newPassword.trim(),
         csrfToken 
       });
@@ -136,6 +146,19 @@ export function EditTenantModal({ tenantId, initialName, slug, initialAdminUsern
                         className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none text-left"
                         placeholder="admin@domain.com"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-1">صلاحية المستخدم الأول (Role)</label>
+                      <select
+                        value={adminRole}
+                        onChange={(e) => setAdminRole(e.target.value)}
+                        className="w-full border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none cursor-pointer"
+                      >
+                        <option value="ADMIN">مدير نظام (ADMIN) - صلاحيات كاملة</option>
+                        <option value="MANAGER">مدير فرع (MANAGER) - صلاحيات إدارية</option>
+                        <option value="STAFF">موظف / كاشير (STAFF) - صلاحيات مبيعات فقط</option>
+                      </select>
                     </div>
 
                     <div>

@@ -23,10 +23,11 @@ export function ProvisionTenantModal() {
     const domain = formData.get("domain") as string;
     const adminUsername = formData.get("adminUsername") as string;
     const adminPassword = formData.get("adminPassword") as string;
+    const adminRole = (formData.get("adminRole") as any) || "ADMIN";
 
     try {
       const csrfToken = await generateCSRFToken();
-      const res = await provisionNewTenant({ name, domain, adminUsername, adminPassword, csrfToken });
+      const res = await provisionNewTenant({ name, domain, adminUsername, adminPassword, adminRole, csrfToken });
       
       // `res` from safe-action is typed and flattened.
       if (res?.success) {
@@ -128,7 +129,7 @@ export function ProvisionTenantModal() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold mb-1">كلمة المرور للمسؤول (Admin Password)</label>
+                    <label className="block text-sm font-bold mb-1">كلمة المرور (Password)</label>
                     <input 
                       name="adminPassword" 
                       type="password"
@@ -138,6 +139,18 @@ export function ProvisionTenantModal() {
                       placeholder="الحد الأدنى 6 خانات"
                       dir="ltr"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">صلاحية المستخدم الأول (Role)</label>
+                    <select
+                      name="adminRole"
+                      defaultValue="ADMIN"
+                      className="w-full border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none cursor-pointer"
+                    >
+                      <option value="ADMIN">مدير نظام (ADMIN) - صلاحيات كاملة</option>
+                      <option value="MANAGER">مدير فرع (MANAGER) - صلاحيات إدارية</option>
+                      <option value="STAFF">موظف / كاشير (STAFF) - صلاحيات مبيعات فقط</option>
+                    </select>
                   </div>
 
                   <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-white/5 mt-6">

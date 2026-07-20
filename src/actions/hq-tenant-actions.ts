@@ -11,6 +11,7 @@ const provisionSchema = z.object({
   domain: z.string().min(3),
   adminUsername: z.string().min(3),
   adminPassword: z.string().min(6),
+  adminRole: z.enum(["ADMIN", "MANAGER", "STAFF"]).default("ADMIN"),
   csrfToken: z.string().optional()
 });
 
@@ -21,7 +22,7 @@ export const provisionNewTenant = secureAction(
       throw new Error("Forbidden: Super Admin access required.");
     }
 
-    const { name, domain, adminUsername, adminPassword } = provisionSchema.parse(payload);
+    const { name, domain, adminUsername, adminPassword, adminRole } = provisionSchema.parse(payload);
 
     // Hash admin password
     const bcrypt = require("bcryptjs");
@@ -55,13 +56,13 @@ export const provisionNewTenant = secureAction(
         }
       });
 
-      // 3. Create Admin User
+      // 3. Create User with selected role
       await tx.user.create({
         data: {
           username: adminUsername,
           password: hashedPassword,
-          name: "Admin",
-          roleStr: "ADMIN",
+          name: name,
+          roleStr: adminRole || "ADMIN",
           tenantId,
           branchId,
           isGlobalAdmin: false
@@ -156,6 +157,7 @@ const editTenantSchema = z.object({
   name: z.string().min(2).max(100),
   adminUsername: z.string().min(3).optional(),
   newPassword: z.string().min(6).optional().or(z.literal("")),
+  adminRole: z.enum(["ADMIN", "MANAGER", "STAFF"]).optional(),
   csrfToken: z.string().optional()
 });
 
@@ -166,7 +168,7 @@ export const editTenant = secureAction(
       throw new Error("Forbidden: Super Admin access required.");
     }
 
-    const { tenantId, name, adminUsername, newPassword } = editTenantSchema.parse(payload);
+    const { tenantId, name, adminUsername, newPassword, adminRole } = editTenantSchema.parse(payload);
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId }
@@ -179,15 +181,18 @@ export const editTenant = secureAction(
       data: { name }
     });
 
-    // Update Admin User if password or username changed
+    // Update Primary User if password, username, or role changed
     const adminUser = await prisma.user.findFirst({
-      where: { tenantId, roleStr: "ADMIN" }
+      where: { tenantId }
     });
 
     if (adminUser) {
       const updateData: any = {};
       if (adminUsername && adminUsername.trim() !== "" && adminUsername !== adminUser.username) {
         updateData.username = adminUsername.trim();
+      }
+      if (adminRole && adminRole !== adminUser.roleStr) {
+        updateData.roleStr = adminRole;
       }
       if (newPassword && newPassword.trim().length >= 6) {
         const bcrypt = require("bcryptjs");

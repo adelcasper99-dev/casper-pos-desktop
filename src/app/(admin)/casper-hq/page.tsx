@@ -28,21 +28,22 @@ export default async function HQDashboard() {
   });
 
   const tenantIds = tenants.map(t => t.id);
-  const adminUsers = await prisma.user.findMany({
+  const primaryUsers = await prisma.user.findMany({
     where: {
-      tenantId: { in: tenantIds },
-      roleStr: 'ADMIN'
+      tenantId: { in: tenantIds }
     },
     select: {
       tenantId: true,
-      username: true
-    }
+      username: true,
+      roleStr: true
+    },
+    orderBy: { createdAt: 'asc' }
   });
 
-  const adminMap = new Map<string, string>();
-  adminUsers.forEach(u => {
-    if (u.tenantId && u.username) {
-      adminMap.set(u.tenantId, u.username);
+  const adminMap = new Map<string, { username: string, roleStr: string }>();
+  primaryUsers.forEach(u => {
+    if (u.tenantId && u.username && !adminMap.has(u.tenantId)) {
+      adminMap.set(u.tenantId, { username: u.username, roleStr: u.roleStr || "ADMIN" });
     }
   });
 
@@ -70,14 +71,20 @@ export default async function HQDashboard() {
           <tbody>
             {tenants.map(tenant => {
               const displaySlug = tenant.slug || (tenant as any).domain || "";
-              const adminUsername = adminMap.get(tenant.id) || "";
+              const userMeta = adminMap.get(tenant.id);
+              const adminUsername = userMeta?.username || "";
+              const adminRole = userMeta?.roleStr || "ADMIN";
+
               return (
                 <tr key={tenant.id} className="border-t border-slate-100 dark:border-white/5">
                   <td className="p-4">
                     <div className="font-semibold">{tenant.name}</div>
                     {Boolean(adminUsername) && (
-                      <div className="text-xs text-slate-400 font-mono" dir="ltr">
-                        👤 {String(adminUsername)}
+                      <div className="text-xs text-slate-400 font-mono flex items-center gap-1.5 mt-0.5" dir="ltr">
+                        <span>👤 {String(adminUsername)}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-zinc-300 font-sans font-bold">
+                          {adminRole}
+                        </span>
                       </div>
                     )}
                   </td>
@@ -119,7 +126,13 @@ export default async function HQDashboard() {
                   </td>
                   <td className="p-4 text-left">
                     <div className="flex items-center justify-end gap-2">
-                      <EditTenantModal tenantId={tenant.id} initialName={tenant.name} slug={displaySlug} initialAdminUsername={adminUsername} />
+                      <EditTenantModal 
+                        tenantId={tenant.id} 
+                        initialName={tenant.name} 
+                        slug={displaySlug} 
+                        initialAdminUsername={adminUsername}
+                        initialAdminRole={adminRole}
+                      />
                       <ToggleTenantButton tenantId={tenant.id} isActive={tenant.isActive} />
                     </div>
                   </td>
