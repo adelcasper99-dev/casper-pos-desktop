@@ -56,7 +56,7 @@ export function middleware(request: NextRequest) {
     const subdomain = rawSubdomain ? punycodeToUnicode(rawSubdomain) : null;
     const path = request.nextUrl.pathname;
 
-    const isHqDomain = subdomain === 'hq' || subdomain === 'admin';
+    const isHqDomain = subdomain === 'hq' || subdomain === 'admin' || subdomain === 'casper-hq' || subdomain === 'casper-admin';
 
     // 1. Block regular tenants from accessing HQ control plane
     if (!isHqDomain && path.startsWith('/casper-hq')) {
@@ -67,7 +67,7 @@ export function middleware(request: NextRequest) {
     }
 
     // Ignore common system subdomains
-    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq'].includes(subdomain.toLowerCase());
+    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq', 'casper-hq', 'casper-admin'].includes(subdomain.toLowerCase());
     
     let tenantId = request.headers.get('x-tenant-id') || request.cookies.get('tenantId')?.value;
     
