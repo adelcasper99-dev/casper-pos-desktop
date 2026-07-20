@@ -43,6 +43,7 @@ export const provisionNewTenant = secureAction(
         data: {
           id: branchId,
           name: `${name} Main Branch`,
+          code: `${domain.toUpperCase()}-MAIN`,
           type: "CENTER",
           tenantId
         }
