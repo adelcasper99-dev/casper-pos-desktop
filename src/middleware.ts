@@ -41,7 +41,11 @@ export function middleware(request: NextRequest) {
     if (isHqDomain) {
         tenantId = 'SYSTEM';
     } else if (!tenantId && !isSystemSubdomain) {
-        tenantId = subdomain;
+        try {
+            tenantId = decodeURIComponent(subdomain);
+        } catch (e) {
+            tenantId = subdomain;
+        }
     }
     
     // Fallback to default tenant if not resolved

@@ -42,13 +42,31 @@ export default async function RootLayout({
         try {
             await requireActiveTenant(tenantId);
         } catch (error: any) {
-            if (error?.code === 'TENANT_SUSPENDED' || error?.code === 'TENANT_NOT_FOUND') {
+            if (error?.code === 'TENANT_SUSPENDED') {
                 return (
-                    <html lang="en">
-                        <body className="flex items-center justify-center h-screen bg-gray-50 text-gray-900">
-                            <div className="text-center p-8 bg-white shadow-lg rounded-xl max-w-md">
-                                <h1 className="text-2xl font-bold text-red-600 mb-4">Account Suspended</h1>
-                                <p className="mb-4">This tenant account has been deactivated. Please contact support.</p>
+                    <html lang="ar" dir="rtl">
+                        <body className="flex items-center justify-center h-screen bg-slate-950 text-white font-sans">
+                            <div className="text-center p-8 bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl max-w-md">
+                                <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20 text-2xl">
+                                    ⚠️
+                                </div>
+                                <h1 className="text-2xl font-bold text-red-400 mb-2">الحساب معطل (Account Suspended)</h1>
+                                <p className="text-slate-400 text-sm mb-6">تم إيقاف حساب هذا العميل مؤقتاً. يُرجى التواصل مع الدعم الفني لإعادة التفعيل.</p>
+                            </div>
+                        </body>
+                    </html>
+                );
+            }
+            if (error?.code === 'TENANT_NOT_FOUND') {
+                return (
+                    <html lang="ar" dir="rtl">
+                        <body className="flex items-center justify-center h-screen bg-slate-950 text-white font-sans">
+                            <div className="text-center p-8 bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl max-w-md">
+                                <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/20 text-2xl">
+                                    🔍
+                                </div>
+                                <h1 className="text-2xl font-bold text-amber-400 mb-2">النطاق غير موجود (Tenant Not Found)</h1>
+                                <p className="text-slate-400 text-sm mb-6">هذا النطاق الفرعي غير مسجل في منظومة Casper ERP. تواصل مع الإدارة للتحقق من الرابط.</p>
                             </div>
                         </body>
                     </html>

@@ -14,10 +14,17 @@ function getRedis() {
     return redis;
 }
 
-export async function requireActiveTenant(tenantId: string) {
-    if (!tenantId || tenantId === 'default') return;
+export async function requireActiveTenant(rawTenantId: string) {
+    if (!rawTenantId || rawTenantId === 'default') return;
 
-    const cacheKey = `tenant:active:${tenantId}`;
+    let decodedTenantId = rawTenantId;
+    try {
+        decodedTenantId = decodeURIComponent(rawTenantId);
+    } catch (e) {
+        // fallback
+    }
+
+    const cacheKey = `tenant:active:${decodedTenantId}`;
     const r = getRedis();
     
     try {
@@ -33,8 +40,10 @@ export async function requireActiveTenant(tenantId: string) {
         const tenantRecord = await prisma.tenant.findFirst({
             where: {
                 OR: [
-                    { id: tenantId },
-                    { slug: tenantId }
+                    { id: rawTenantId },
+                    { id: decodedTenantId },
+                    { slug: rawTenantId },
+                    { slug: decodedTenantId }
                 ]
             }
         });
@@ -61,12 +70,19 @@ export async function requireActiveTenant(tenantId: string) {
         const tenantRecord = await prisma.tenant.findFirst({
             where: {
                 OR: [
-                    { id: tenantId },
-                    { slug: tenantId }
+                    { id: rawTenantId },
+                    { id: decodedTenantId },
+                    { slug: rawTenantId },
+                    { slug: decodedTenantId }
                 ]
             }
         });
-        if (!tenantRecord || !tenantRecord.isActive) {
+        if (!tenantRecord) {
+            const err = new Error('TENANT_NOT_FOUND');
+            (err as any).code = 'TENANT_NOT_FOUND';
+            throw err;
+        }
+        if (!tenantRecord.isActive) {
             const err = new Error('TENANT_SUSPENDED');
             (err as any).code = 'TENANT_SUSPENDED';
             throw err;
