@@ -10,18 +10,25 @@ interface EditTenantModalProps {
   tenantId: string;
   initialName: string;
   slug: string;
+  initialAdminUsername?: string;
 }
 
-export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModalProps) {
+export function EditTenantModal({ tenantId, initialName, slug, initialAdminUsername = "" }: EditTenantModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState(initialName);
+  const [adminUsername, setAdminUsername] = useState(initialAdminUsername);
+  const [newPassword, setNewPassword] = useState("");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (name.trim() === initialName) {
+    const nameChanged = name.trim() !== initialName;
+    const usernameChanged = adminUsername.trim() !== initialAdminUsername;
+    const passwordProvided = newPassword.trim().length >= 6;
+
+    if (!nameChanged && !usernameChanged && !passwordProvided) {
       setIsOpen(false);
       return;
     }
@@ -31,16 +38,23 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
 
     try {
       const csrfToken = await generateCSRFToken();
-      const res = await editTenant({ tenantId, name: name.trim(), csrfToken });
+      const res = await editTenant({ 
+        tenantId, 
+        name: name.trim(), 
+        adminUsername: adminUsername.trim(),
+        newPassword: newPassword.trim(),
+        csrfToken 
+      });
 
       if (res?.success) {
         setIsOpen(false);
+        setNewPassword("");
         router.refresh();
       } else {
-        setError(res?.error || "Failed to update tenant name");
+        setError(res?.error || "فشل في تحديث بيانات العميل");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to update tenant");
+      setError(err.message || "فشل في تحديث بيانات العميل");
     } finally {
       setLoading(false);
     }
@@ -58,8 +72,8 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
 
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-white">
-            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-white max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-900 z-10">
               <h3 className="text-xl font-black">تعديل بيانات العميل</h3>
               <button 
                 onClick={() => setIsOpen(false)} 
@@ -108,6 +122,40 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
                   </p>
                 </div>
 
+                <div className="pt-2 border-t border-slate-100 dark:border-white/5">
+                  <h4 className="text-xs font-black uppercase text-slate-400 mb-3 tracking-wider">حساب المسؤول الكلاود (Cloud Admin)</h4>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-bold mb-1">اسم المستخدم للمسؤول (Admin Username)</label>
+                      <input
+                        type="text"
+                        value={adminUsername}
+                        onChange={(e) => setAdminUsername(e.target.value)}
+                        dir="ltr"
+                        className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none text-left"
+                        placeholder="admin@domain.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-1">تعيين كلمة مرور جديدة (New Password)</label>
+                      <input
+                        type="password"
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        dir="ltr"
+                        className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none text-left"
+                        placeholder="اتركه فارغاً للإبقاء على كلمة المرور الحالية"
+                      />
+                      <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
+                        اكتب كلمة مرور جديدة فقط إذا كنت تريد إعادة تعيين كلمة المرور لهذا العميل.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-white/5 mt-6">
                   <button
                     type="button"
@@ -118,7 +166,7 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || name.trim() === initialName}
+                    disabled={loading}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}

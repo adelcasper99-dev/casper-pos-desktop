@@ -154,6 +154,8 @@ export const approveHardwareSwap = secureAction(
 const editTenantSchema = z.object({
   tenantId: z.string(),
   name: z.string().min(2).max(100),
+  adminUsername: z.string().min(3).optional(),
+  newPassword: z.string().min(6).optional().or(z.literal("")),
   csrfToken: z.string().optional()
 });
 
@@ -164,7 +166,7 @@ export const editTenant = secureAction(
       throw new Error("Forbidden: Super Admin access required.");
     }
 
-    const { tenantId, name } = editTenantSchema.parse(payload);
+    const { tenantId, name, adminUsername, newPassword } = editTenantSchema.parse(payload);
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId }
@@ -176,6 +178,28 @@ export const editTenant = secureAction(
       where: { id: tenantId },
       data: { name }
     });
+
+    // Update Admin User if password or username changed
+    const adminUser = await prisma.user.findFirst({
+      where: { tenantId, roleStr: "ADMIN" }
+    });
+
+    if (adminUser) {
+      const updateData: any = {};
+      if (adminUsername && adminUsername.trim() !== "" && adminUsername !== adminUser.username) {
+        updateData.username = adminUsername.trim();
+      }
+      if (newPassword && newPassword.trim().length >= 6) {
+        const bcrypt = require("bcryptjs");
+        updateData.password = await bcrypt.hash(newPassword.trim(), 12);
+      }
+      if (Object.keys(updateData).length > 0) {
+        await prisma.user.update({
+          where: { id: adminUser.id },
+          data: updateData
+        });
+      }
+    }
 
     return { success: true };
   }

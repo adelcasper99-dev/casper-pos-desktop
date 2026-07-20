@@ -27,6 +27,20 @@ export default async function HQDashboard() {
     orderBy: { createdAt: 'desc' }
   });
 
+  const tenantIds = tenants.map(t => t.id);
+  const adminUsers = await prisma.user.findMany({
+    where: {
+      tenantId: { in: tenantIds },
+      roleStr: 'ADMIN'
+    },
+    select: {
+      tenantId: true,
+      username: true
+    }
+  });
+
+  const adminMap = new Map(adminUsers.map(u => [u.tenantId, u.username]));
+
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex justify-between items-center bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-white/10">
@@ -51,9 +65,17 @@ export default async function HQDashboard() {
           <tbody>
             {tenants.map(tenant => {
               const displaySlug = tenant.slug || (tenant as any).domain || "";
+              const adminUsername = adminMap.get(tenant.id) || "";
               return (
                 <tr key={tenant.id} className="border-t border-slate-100 dark:border-white/5">
-                  <td className="p-4 font-semibold">{tenant.name}</td>
+                  <td className="p-4">
+                    <div className="font-semibold">{tenant.name}</div>
+                    {adminUsername && (
+                      <div className="text-xs text-slate-400 font-mono" dir="ltr">
+                        👤 {adminUsername}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-4 text-slate-500 font-mono text-sm" dir="ltr">{displaySlug}</td>
                   <td className="p-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-black ${tenant.isActive ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400'}`}>
@@ -92,7 +114,7 @@ export default async function HQDashboard() {
                   </td>
                   <td className="p-4 text-left">
                     <div className="flex items-center justify-end gap-2">
-                      <EditTenantModal tenantId={tenant.id} initialName={tenant.name} slug={displaySlug} />
+                      <EditTenantModal tenantId={tenant.id} initialName={tenant.name} slug={displaySlug} initialAdminUsername={adminUsername} />
                       <ToggleTenantButton tenantId={tenant.id} isActive={tenant.isActive} />
                     </div>
                   </td>
