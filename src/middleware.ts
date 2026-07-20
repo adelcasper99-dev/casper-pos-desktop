@@ -50,13 +50,15 @@ function punycodeToUnicode(domain: string): string {
 }
 
 export function middleware(request: NextRequest) {
-    const host = request.headers.get('host') || '';
+    const host = request.headers.get('host') || request.nextUrl.host || '';
     const parts = host.split('.');
     const rawSubdomain = parts.length > 2 ? parts[0] : null;
     const subdomain = rawSubdomain ? punycodeToUnicode(rawSubdomain) : null;
     const path = request.nextUrl.pathname;
 
-    const isHqDomain = subdomain === 'hq' || subdomain === 'admin' || subdomain === 'casper-hq' || subdomain === 'casper-admin';
+    const isHqDomain = subdomain === 'hq' || subdomain === 'admin';
+    const sessionToken = request.cookies.get('session')?.value;
+    const terminalSetupRoutes = ['/onboarding', '/setup', '/network-setup'];
 
     // 1. Block regular tenants from accessing HQ control plane
     if (!isHqDomain && path.startsWith('/casper-hq')) {
@@ -66,8 +68,14 @@ export function middleware(request: NextRequest) {
         );
     }
 
+    // 2. Block Terminal Setup Pages on HQ Subdomain
+    if (isHqDomain && terminalSetupRoutes.some(r => path.startsWith(r))) {
+        const destination = sessionToken ? '/casper-hq' : '/login';
+        return NextResponse.redirect(new URL(destination, request.url));
+    }
+
     // Ignore common system subdomains
-    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq', 'casper-hq', 'casper-admin'].includes(subdomain.toLowerCase());
+    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq'].includes(subdomain.toLowerCase());
     
     let tenantId = request.headers.get('x-tenant-id') || request.cookies.get('tenantId')?.value;
     
@@ -143,12 +151,18 @@ export function middleware(request: NextRequest) {
         '/api/license/staff-verify'
     ];
 
+    const isTerminalSetupRoute = terminalSetupRoutes.some(r => path.startsWith(r));
     const isPublic = publicRoutes.includes(path) || 
                      publicApiPrefixes.some(pref => path.startsWith(pref)) ||
                      publicApiWhitelist.includes(path) ||
                      path.startsWith('/c/');
 
-    const isSharedRoute = isPublic || path.startsWith('/api') || path.startsWith('/_next') || path.startsWith('/assets') || path === '/favicon.ico';
+    // Terminal setup routes are client-node specific and NOT shared on HQ domain
+    const isSharedRoute = (isPublic && (!isHqDomain || !isTerminalSetupRoute)) || 
+                         path.startsWith('/api') || 
+                         path.startsWith('/_next') || 
+                         path.startsWith('/assets') || 
+                         path === '/favicon.ico';
 
     // Create response. Rewrite to /casper-hq if accessing HQ control plane
     let response: NextResponse;
@@ -187,9 +201,6 @@ export function middleware(request: NextRequest) {
         response.headers.set('X-Tenant-ID', tenantId);
     }
 
-    // --- Session Verification ---
-    const sessionToken = request.cookies.get('session')?.value;
-
     if (process.env.NODE_ENV === 'development') {
         console.log(`[Middleware] Path: ${path} | Tenant: ${tenantId} | Session: ${sessionToken ? 'Present' : 'MISSING'}`);
     }
@@ -199,11 +210,11 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    // Node Role Enforcement: Redirect to /network-setup if node is not configured
+    // Node Role Enforcement: Redirect to /network-setup if node is not configured (client nodes only, bypass on HQ)
     const isPublicAsset = publicApiPrefixes.some(pref => path.startsWith(pref));
     const isCustomerPortal = path.startsWith('/c/');
     const nodeRole = process.env.NODE_ROLE || request.cookies.get('nodeRole')?.value;
-    if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
+    if (!isHqDomain && (!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
         return NextResponse.redirect(new URL('/network-setup', request.url));
     }
 
