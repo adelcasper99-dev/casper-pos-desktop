@@ -50,8 +50,10 @@ export default async function RootLayout({
                                 <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20 text-2xl">
                                     ⚠️
                                 </div>
-                                <h1 className="text-2xl font-bold text-red-400 mb-2">الحساب معطل (Account Suspended)</h1>
-                                <p className="text-slate-400 text-sm mb-6">تم إيقاف حساب هذا العميل مؤقتاً. يُرجى التواصل مع الدعم الفني لإعادة التفعيل.</p>
+                                <h1 className="text-xl font-bold text-red-400 mb-1">الحساب معطل</h1>
+                                <p className="text-xs text-red-500/80 font-mono mb-4">(Account Suspended)</p>
+                                <p className="text-slate-400 text-sm mb-2">تم إيقاف حساب هذا العميل مؤقتاً.</p>
+                                <p className="text-slate-500 text-xs">يُرجى التواصل مع الدعم الفني لإعادة التفعيل.</p>
                             </div>
                         </body>
                     </html>
@@ -65,8 +67,10 @@ export default async function RootLayout({
                                 <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/20 text-2xl">
                                     🔍
                                 </div>
-                                <h1 className="text-2xl font-bold text-amber-400 mb-2">النطاق غير موجود (Tenant Not Found)</h1>
-                                <p className="text-slate-400 text-sm mb-6">هذا النطاق الفرعي غير مسجل في منظومة Casper ERP. تواصل مع الإدارة للتحقق من الرابط.</p>
+                                <h1 className="text-xl font-bold text-amber-400 mb-1">النطاق غير موجود</h1>
+                                <p className="text-xs text-amber-500/80 font-mono mb-4">(Tenant Not Found)</p>
+                                <p className="text-slate-400 text-sm mb-2">هذا النطاق الفرعي غير مسجل في منظومة Casper ERP.</p>
+                                <p className="text-slate-500 text-xs">تواصل مع الإدارة للتحقق من صحة الرابط.</p>
                             </div>
                         </body>
                     </html>
