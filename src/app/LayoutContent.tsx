@@ -16,7 +16,8 @@ export default function LayoutContent({
     children,
     user,
     settings,
-    licenseStatus
+    licenseStatus,
+    isHq
 }: {
     children: React.ReactNode;
     user: any;
