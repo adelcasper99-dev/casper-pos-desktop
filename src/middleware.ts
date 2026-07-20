@@ -3,13 +3,23 @@ import type { NextRequest } from 'next/server';
 import { decodeJwt } from 'jose';
 
 export function middleware(request: NextRequest) {
-    // 1. Resolve tenant context from Subdomain, custom header, or cookie
     const host = request.headers.get('host') || '';
     const parts = host.split('.');
     const subdomain = parts.length > 2 ? parts[0] : null;
-    
+    const path = request.nextUrl.pathname;
+
+    const isHqDomain = subdomain === 'hq' || subdomain === 'admin';
+
+    // 1. Block regular tenants from accessing HQ control plane
+    if (!isHqDomain && path.startsWith('/casper-hq')) {
+        return new NextResponse(
+            JSON.stringify({ error: '403 Forbidden', message: 'غير مصرح لك بالدخول إلى هذه الصفحة.' }),
+            { status: 403, headers: { 'content-type': 'application/json' } }
+        );
+    }
+
     // Ignore common system subdomains
-    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin'].includes(subdomain.toLowerCase());
+    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq'].includes(subdomain.toLowerCase());
     
     let tenantId = request.headers.get('x-tenant-id') || request.cookies.get('tenantId')?.value;
     
@@ -27,7 +37,10 @@ export function middleware(request: NextRequest) {
         }
     }
     
-    if (!tenantId && !isSystemSubdomain) {
+    // Resolve tenant context
+    if (isHqDomain) {
+        tenantId = 'SYSTEM';
+    } else if (!tenantId && !isSystemSubdomain) {
         tenantId = subdomain;
     }
     
@@ -57,37 +70,6 @@ export function middleware(request: NextRequest) {
         requestHeaders.set('cookie', updatedCookieHeader);
     }
 
-    // Create response with modified request headers so Server Components see them
-    const response = NextResponse.next({
-        request: {
-            headers: requestHeaders,
-        },
-    });
-
-    // Set CSRF cookie on the response if it was newly generated
-    if (!csrfToken && csrfTokenValue) {
-        response.cookies.set({
-            name: 'csrf-token',
-            value: csrfTokenValue,
-            httpOnly: true,
-            secure: false, // Force false for Electron local protocol
-            sameSite: 'lax',
-            path: '/',
-        });
-        response.headers.set('X-CSRF-Token', csrfTokenValue);
-    }
-
-    // Pass the resolved tenant ID back to the client in response headers for verification
-    response.headers.set('X-Tenant-ID', tenantId);
-
-    // --- Session Verification ---
-    const sessionToken = request.cookies.get('session')?.value;
-    const path = request.nextUrl.pathname;
-
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`[Middleware] Path: ${path} | Tenant: ${tenantId} | Session: ${sessionToken ? 'Present' : 'MISSING'}`);
-    }
-
     // Define public routes that don't require session auth
     const publicRoutes = ['/login', '/setup', '/network-setup', '/onboarding', '/onboarding/create-admin'];
     const publicApiPrefixes = ['/assets', '/_next'];
@@ -109,6 +91,48 @@ export function middleware(request: NextRequest) {
                      publicApiWhitelist.includes(path) ||
                      path.startsWith('/c/');
 
+    const isSharedRoute = isPublic || path.startsWith('/api') || path.startsWith('/_next') || path.startsWith('/assets') || path === '/favicon.ico';
+
+    // Create response. Rewrite to /casper-hq if accessing HQ control plane
+    let response: NextResponse;
+    if (isHqDomain && !isSharedRoute && !path.startsWith('/casper-hq')) {
+        const rewriteUrl = new URL(`/casper-hq${path === '/' ? '' : path}`, request.url);
+        response = NextResponse.rewrite(rewriteUrl, {
+            request: {
+                headers: requestHeaders,
+            },
+        });
+    } else {
+        response = NextResponse.next({
+            request: {
+                headers: requestHeaders,
+            },
+        });
+    }
+
+    // Set CSRF cookie on the response if it was newly generated
+    if (!csrfToken && csrfTokenValue) {
+        response.cookies.set({
+            name: 'csrf-token',
+            value: csrfTokenValue,
+            httpOnly: true,
+            secure: false, // Force false for Electron local protocol
+            sameSite: 'lax',
+            path: '/',
+        });
+        response.headers.set('X-CSRF-Token', csrfTokenValue);
+    }
+
+    // Pass the resolved tenant ID back to the client in response headers for verification
+    response.headers.set('X-Tenant-ID', tenantId);
+
+    // --- Session Verification ---
+    const sessionToken = request.cookies.get('session')?.value;
+
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[Middleware] Path: ${path} | Tenant: ${tenantId} | Session: ${sessionToken ? 'Present' : 'MISSING'}`);
+    }
+
     // If no session and trying to access a protected route
     if (!sessionToken && !isPublic) {
         return NextResponse.redirect(new URL('/login', request.url));
@@ -121,9 +145,6 @@ export function middleware(request: NextRequest) {
     if ((!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
         return NextResponse.redirect(new URL('/network-setup', request.url));
     }
-
-    // If session exists, we DO NOT redirect here to avoid infinite loops if the session is invalid in DB.
-    // The redirect logic has been moved to the respective route handlers (/login/layout.tsx and /page.tsx).
 
     // If no session and trying to access root, send to login
     if (!sessionToken && path === '/') {

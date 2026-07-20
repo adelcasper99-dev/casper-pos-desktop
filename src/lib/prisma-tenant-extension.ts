@@ -104,13 +104,17 @@ const TENANT_AWARE_MODELS = [
 export const prismaTenantExtension =
     typeof window === 'undefined'
         ? Prisma.defineExtension((client) => {
+              const isPostgres =
+                  process.env.DATABASE_URL?.startsWith('postgres') ||
+                  process.env.DATABASE_URL?.startsWith('postgresql');
+
               return client.$extends({
                   query: {
                       $allModels: {
                           async $allOperations({ model, operation, args, query }) {
                               const tenantId = getTenantId();
 
-                              // If tenant context is missing, or is explicitly set to 'SYSTEM' (Super Admin), bypass RLS-like application filters
+                              // If tenant context is missing, or is explicitly set to 'SYSTEM' (Super Admin), bypass RLS-like filters
                               if (!tenantId || tenantId === 'SYSTEM') {
                                   return query(args);
                               }
@@ -154,8 +158,9 @@ export const prismaTenantExtension =
                                               }
                                           }
 
+                                          const camelModel = model.charAt(0).toLowerCase() + model.slice(1);
                                           // @ts-ignore
-                                          return client[model][newOperation]({
+                                          return (client as any)[camelModel][newOperation]({
                                               ...args,
                                               where: {
                                                   ...finalWhere,

@@ -1,9 +1,23 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, isPostgres } from "@/lib/prisma";
 import { ProvisionTenantModal } from "@/components/hq/ProvisionTenantModal";
 import { ToggleTenantButton } from "@/components/hq/ToggleTenantButton";
 import { ApproveSwapButton } from "@/components/hq/ApproveSwapButton";
 
 export default async function HQDashboard() {
+  if (!isPostgres) {
+    return (
+      <div className="p-6 bg-amber-50 dark:bg-zinc-900 text-amber-800 dark:text-amber-500 rounded-2xl border border-amber-200 dark:border-white/10 space-y-2">
+        <h2 className="text-xl font-black">Casper Control Plane Unavailable</h2>
+        <p className="text-sm">
+          The Casper Control Plane (HQ Dashboard) manages global SaaS tenants and requires a PostgreSQL connection (Cloud Core).
+        </p>
+        <p className="text-xs opacity-75">
+          Local SQLite nodes operate in single-tenant offline mode and do not support control plane features.
+        </p>
+      </div>
+    );
+  }
+
   const tenants = await prisma.tenant.findMany({
     include: {
       branches: true,
