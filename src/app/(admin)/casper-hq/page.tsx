@@ -88,7 +88,19 @@ export default async function HQDashboard() {
                       </div>
                     )}
                   </td>
-                  <td className="p-4 text-slate-500 font-mono text-sm" dir="ltr">{displaySlug}</td>
+                  <td className="p-4" dir="ltr">
+                    <div className="font-mono text-sm font-semibold">{displaySlug}</div>
+                    {displaySlug && (
+                      <a 
+                        href={`https://${displaySlug}.casper-erp.com/login`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-sans font-bold text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+                      >
+                        🔗 رابط الدخول المباشر
+                      </a>
+                    )}
+                  </td>
                   <td className="p-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-black ${tenant.isActive ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400'}`}>
                       {tenant.isActive ? 'نشط' : 'معطل'}

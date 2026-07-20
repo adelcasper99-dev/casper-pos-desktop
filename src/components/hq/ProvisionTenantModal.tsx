@@ -11,6 +11,7 @@ export function ProvisionTenantModal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activationCode, setActivationCode] = useState("");
+  const [createdDomain, setCreatedDomain] = useState("");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -32,6 +33,7 @@ export function ProvisionTenantModal() {
       // `res` from safe-action is typed and flattened.
       if (res?.success) {
         setActivationCode(res.activationCode || "");
+        setCreatedDomain(domain);
         router.refresh(); // Refresh table
       } else {
         setError(res?.error || "Unknown error occurred");
@@ -42,6 +44,15 @@ export function ProvisionTenantModal() {
       setLoading(false);
     }
   }
+
+  const getLoginUrl = () => {
+    if (!createdDomain) return "";
+    if (typeof window !== "undefined") {
+      const host = window.location.host.replace(/^hq\./, "");
+      return `${window.location.protocol}//${createdDomain}.${host}/login`;
+    }
+    return `https://${createdDomain}.casper-erp.com/login`;
+  };
 
   return (
     <>
@@ -68,29 +79,57 @@ export function ProvisionTenantModal() {
             <div className="p-6">
               {activationCode ? (
                 <div className="space-y-4">
-                  <div className="bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 p-4 rounded-xl">
-                    <p className="font-bold mb-2">تم إنشاء العميل وتوليد الترخيص بنجاح! 🎉</p>
-                    <p className="text-sm opacity-90 mb-4">يرجى نسخ كود التفعيل أدناه وتزويد العميل به. لن يتم عرضه بهذا الشكل مرة أخرى.</p>
-                    <div className="flex gap-2" dir="ltr">
-                      <input 
-                        readOnly 
-                        value={activationCode}
-                        className="flex-1 bg-white dark:bg-zinc-950 border border-green-200 dark:border-green-500/20 rounded-lg px-3 py-2 font-mono text-center font-bold"
-                      />
-                      <button 
-                        onClick={() => navigator.clipboard.writeText(activationCode)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 transition-colors"
-                      >
-                        نسخ
-                      </button>
+                  <div className="bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 p-4 rounded-xl space-y-4">
+                    <p className="font-bold">تم إنشاء العميل وتوليد الترخيص بنجاح! 🎉</p>
+                    
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-600 dark:text-zinc-400">🔑 كود التفعيل (لتطبيق الـ Desktop):</label>
+                      <div className="flex gap-2" dir="ltr">
+                        <input 
+                          readOnly 
+                          value={activationCode}
+                          className="flex-1 bg-white dark:bg-zinc-950 border border-green-200 dark:border-green-500/20 rounded-lg px-3 py-2 font-mono text-center font-bold text-sm"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(activationCode);
+                          }}
+                          className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-green-700 transition-colors"
+                        >
+                          نسخ الكود
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-600 dark:text-zinc-400">🌐 رابط تسجيل الدخول المباشر (للكلاود):</label>
+                      <div className="flex gap-2" dir="ltr">
+                        <input 
+                          readOnly 
+                          value={getLoginUrl()}
+                          className="flex-1 bg-white dark:bg-zinc-950 border border-green-200 dark:border-green-500/20 rounded-lg px-3 py-2 font-mono text-xs font-bold text-slate-700 dark:text-zinc-300"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(getLoginUrl());
+                          }}
+                          className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors"
+                        >
+                          نسخ الرابط
+                        </button>
+                      </div>
                     </div>
                   </div>
+
                   <button 
                     onClick={() => {
                       setIsOpen(false);
                       setActivationCode("");
+                      setCreatedDomain("");
                     }}
-                    className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors"
+                    className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors text-slate-900 dark:text-white"
                   >
                     تم
                   </button>
