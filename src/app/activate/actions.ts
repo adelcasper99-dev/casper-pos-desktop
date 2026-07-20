@@ -38,7 +38,7 @@ const activateSchema = z.object({
         const clean = val.trim().toUpperCase();
         return clean.startsWith("CASPER-") ? clean : `CASPER-${clean}`;
     }).pipe(
-        z.string().regex(/^CASPER-[A-Z0-9-]{6,16}$/)
+        z.string().min(6).max(64)
     ),
     machineId: z.string().min(1).max(512),
 });

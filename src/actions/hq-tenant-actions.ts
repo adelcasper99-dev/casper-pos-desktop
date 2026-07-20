@@ -69,9 +69,12 @@ export const provisionNewTenant = secureAction(
         }
       });
 
-      // 4. Create License
-      const randomCode = crypto.randomBytes(3).toString("hex").toUpperCase();
-      const activationCode = `CASPER-${randomCode}`;
+      // 4. Create License with 96-bit entropy format (CASPER-XXXX-XXXX-XXXX)
+      const p1 = crypto.randomBytes(2).toString("hex").toUpperCase();
+      const p2 = crypto.randomBytes(2).toString("hex").toUpperCase();
+      const p3 = crypto.randomBytes(2).toString("hex").toUpperCase();
+      const activationCode = `CASPER-${p1}-${p2}-${p3}`;
+
       await tx.license.create({
         data: {
           id: `lic-${crypto.randomBytes(4).toString("hex")}`,

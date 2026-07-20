@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 const ERROR_MESSAGES: Record<string, string> = {
     INVALID_CODE:   'رمز التفعيل غير صحيح أو تم استخدامه مسبقاً',
-    INVALID_FORMAT: 'صيغة الرمز غير صحيحة. التنسيق المطلوب: CASPER-XXXXXX',
+    INVALID_FORMAT: 'صيغة الرمز غير صحيحة. التنسيق المطلوب: CASPER-XXXX-XXXX-XXXX',
     RATE_LIMITED:   'محاولات كثيرة جداً. يُرجى الانتظار 15 دقيقة والمحاولة مرة أخرى',
     SCHEMA_ERROR:   'خطأ في إعداد الخادم. تواصل مع الدعم الفني',
     default:        'فشل التفعيل. يُرجى المحاولة مجدداً أو التواصل مع الدعم',
