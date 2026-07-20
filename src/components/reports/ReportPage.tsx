@@ -105,7 +105,8 @@ interface ReportPageProps {
 export default function ReportPage({ initialData, branches, categories = [], products = [], shifts = [], salesByProduct = [], salesByCategory = [], filters }: ReportPageProps) {
     const router = useRouter()
     const pathname = usePathname()
-    const searchParams = useSearchParams()
+    const rawSearchParams = useSearchParams()
+    const searchParams = rawSearchParams || new URLSearchParams()
 
     const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '')
     const [swipeState, setSwipeState] = useState<{ id: string, startX: number }>({ id: '', startX: 0 })

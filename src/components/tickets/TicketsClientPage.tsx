@@ -24,7 +24,7 @@ export default function TicketsClientPage({ user }: { user?: any }) {
     const searchParams = useSearchParams();
     
     // Tab state controlled by URL
-    const currentTab = searchParams.get('tab') || 'tickets';
+    const currentTab = searchParams?.get('tab') || 'tickets';
     
     const canViewEngineers = hasPermission(user?.permissions, PERMISSIONS.ENGINEER_VIEW);
     const canViewProfitReport = hasPermission(user?.permissions, PERMISSIONS.REPORTS_VIEW) || canViewEngineers;
@@ -35,7 +35,7 @@ export default function TicketsClientPage({ user }: { user?: any }) {
     }, []);
 
     const handleTabChange = (value: string) => {
-        const params = new URLSearchParams(searchParams.toString());
+        const params = new URLSearchParams(searchParams?.toString() || '');
         params.set('tab', value);
         router.replace(`/${locale}/maintenance/tickets?${params.toString()}`, { scroll: false });
     };
