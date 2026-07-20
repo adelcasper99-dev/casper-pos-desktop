@@ -180,8 +180,12 @@ export function middleware(request: NextRequest) {
         response.headers.set('X-CSRF-Token', csrfTokenValue);
     }
 
-    // Pass the resolved tenant ID back to the client in response headers for verification
-    response.headers.set('X-Tenant-ID', tenantId);
+    // Pass the resolved tenant ID back to the client in response headers for verification (ASCII Safe)
+    try {
+        response.headers.set('X-Tenant-ID', encodeURIComponent(tenantId));
+    } catch (e) {
+        response.headers.set('X-Tenant-ID', tenantId);
+    }
 
     // --- Session Verification ---
     const sessionToken = request.cookies.get('session')?.value;
