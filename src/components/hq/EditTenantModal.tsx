@@ -53,14 +53,14 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-bold text-xs flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10"
       >
         <Edit2 className="w-3.5 h-3.5" />
-        Edit
+        تعديل
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-white">
             <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
-              <h3 className="text-xl font-black">Edit Tenant</h3>
+              <h3 className="text-xl font-black">تعديل بيانات العميل</h3>
               <button 
                 onClick={() => setIsOpen(false)} 
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
@@ -78,7 +78,7 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
                 )}
 
                 <div>
-                  <label className="block text-sm font-bold mb-1">Tenant Name</label>
+                  <label className="block text-sm font-bold mb-1">اسم العميل (Tenant Name)</label>
                   <input
                     type="text"
                     required
@@ -87,23 +87,24 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                    placeholder="e.g. KFC Branch 1"
+                    placeholder="مثال: مطعم كاسبر - فرع 1"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold mb-1 flex items-center gap-1.5">
-                    Subdomain / Identifier
+                    النطاق الفرعي / المعرف (Subdomain)
                     <Lock className="w-3.5 h-3.5 text-slate-400" />
                   </label>
                   <input
                     disabled
                     readOnly
                     value={slug}
-                    className="w-full border-2 border-slate-100 dark:border-white/5 bg-slate-100 dark:bg-zinc-800/50 text-slate-500 dark:text-zinc-400 rounded-xl px-4 py-3 font-mono font-semibold cursor-not-allowed outline-none select-none"
+                    dir="ltr"
+                    className="w-full border-2 border-slate-100 dark:border-white/5 bg-slate-100 dark:bg-zinc-800/50 text-slate-500 dark:text-zinc-400 rounded-xl px-4 py-3 font-mono font-semibold cursor-not-allowed outline-none select-none text-left"
                   />
                   <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-                    Subdomains are immutable identifiers for offline sync integrity and cannot be changed.
+                    النطاق الفرعي عبارة عن معرف ثابت لا يمكن تغييره لضمان استقرار المزامنة الأوفلاين.
                   </p>
                 </div>
 
@@ -113,7 +114,7 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
                     onClick={() => setIsOpen(false)}
                     className="flex-1 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors text-slate-700 dark:text-zinc-300"
                   >
-                    Cancel
+                    إلغاء
                   </button>
                   <button
                     type="submit"
@@ -121,7 +122,7 @@ export function EditTenantModal({ tenantId, initialName, slug }: EditTenantModal
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Save Changes
+                    حفظ التغييرات
                   </button>
                 </div>
               </form>

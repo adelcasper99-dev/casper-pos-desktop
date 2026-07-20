@@ -28,7 +28,7 @@ export function CopyLicenseButton({ licenseKey }: CopyLicenseButtonProps) {
       <button
         type="button"
         onClick={handleCopy}
-        title="Copy License Key"
+        title="نسخ كود التفعيل"
         className="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded transition-colors text-slate-500 dark:text-zinc-400"
       >
         {copied ? (

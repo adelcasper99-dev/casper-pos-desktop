@@ -46,25 +46,31 @@ export function ProvisionTenantModal() {
     <>
       <button 
         onClick={() => setIsOpen(true)}
-        className="bg-slate-900 dark:bg-white text-white dark:text-zinc-900 font-bold px-4 py-2 rounded-xl text-sm"
+        className="bg-slate-900 dark:bg-white text-white dark:text-zinc-900 font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition-opacity"
       >
-        + Provision Tenant
+        + إضافة عميل جديد
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 dark:border-white/5">
-              <h3 className="text-xl font-black">Provision New Tenant</h3>
+            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
+              <h3 className="text-xl font-black">إضافة عميل جديد (Tenant)</h3>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
+              >
+                ✕
+              </button>
             </div>
             
             <div className="p-6">
               {activationCode ? (
                 <div className="space-y-4">
                   <div className="bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 p-4 rounded-xl">
-                    <p className="font-bold mb-2">Tenant Provisioned Successfully!</p>
-                    <p className="text-sm opacity-90 mb-4">Please copy the activation code below. It will not be shown again.</p>
-                    <div className="flex gap-2">
+                    <p className="font-bold mb-2">تم إنشاء العميل وتوليد الترخيص بنجاح! 🎉</p>
+                    <p className="text-sm opacity-90 mb-4">يرجى نسخ كود التفعيل أدناه وتزويد العميل به. لن يتم عرضه بهذا الشكل مرة أخرى.</p>
+                    <div className="flex gap-2" dir="ltr">
                       <input 
                         readOnly 
                         value={activationCode}
@@ -72,9 +78,9 @@ export function ProvisionTenantModal() {
                       />
                       <button 
                         onClick={() => navigator.clipboard.writeText(activationCode)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 transition-colors"
                       >
-                        Copy
+                        نسخ
                       </button>
                     </div>
                   </div>
@@ -85,7 +91,7 @@ export function ProvisionTenantModal() {
                     }}
                     className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors"
                   >
-                    Done
+                    تم
                   </button>
                 </div>
               ) : (
@@ -93,41 +99,44 @@ export function ProvisionTenantModal() {
                   {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold">{error}</div>}
                   
                   <div>
-                    <label className="block text-sm font-bold mb-1">Tenant Name</label>
+                    <label className="block text-sm font-bold mb-1">اسم العميل (Tenant Name)</label>
                     <input 
                       name="name" 
                       required 
                       className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                      placeholder="e.g. KFC Branch 1"
+                      placeholder="مثال: مطعم كاسبر - فرع 1"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold mb-1">Subdomain / Identifier</label>
+                    <label className="block text-sm font-bold mb-1">النطاق الفرعي / المعرف (Subdomain)</label>
                     <input 
                       name="domain" 
                       required 
                       className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                      placeholder="e.g. kfc-01"
+                      placeholder="مثال: kfc-01"
+                      dir="ltr"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold mb-1">Admin Username</label>
+                    <label className="block text-sm font-bold mb-1">اسم المستخدم للمسؤول (Admin Username)</label>
                     <input 
                       name="adminUsername" 
                       required 
                       className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                      placeholder="e.g. admin@kfc.com"
+                      placeholder="مثال: admin@kfc.com"
+                      dir="ltr"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold mb-1">Admin Password</label>
+                    <label className="block text-sm font-bold mb-1">كلمة المرور للمسؤول (Admin Password)</label>
                     <input 
                       name="adminPassword" 
                       type="password"
                       required 
                       minLength={6}
                       className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                      placeholder="Minimum 6 characters"
+                      placeholder="الحد الأدنى 6 خانات"
+                      dir="ltr"
                     />
                   </div>
 
@@ -135,9 +144,9 @@ export function ProvisionTenantModal() {
                     <button 
                       type="button" 
                       onClick={() => setIsOpen(false)}
-                      className="flex-1 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors"
+                      className="flex-1 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors text-slate-700 dark:text-zinc-300"
                     >
-                      Cancel
+                      إلغاء
                     </button>
                     <button 
                       type="submit" 
@@ -145,7 +154,7 @@ export function ProvisionTenantModal() {
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                     >
                       {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      Provision
+                      إنشاء العميل
                     </button>
                   </div>
                 </form>
