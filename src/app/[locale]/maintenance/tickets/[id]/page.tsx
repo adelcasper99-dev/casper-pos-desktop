@@ -225,7 +225,7 @@ export default function TicketDetailPage() {
     const { token: csrfToken } = useCSRF();
     const params = useParams<{ id: string }>();
     const searchParams = useSearchParams();
-    const id = params.id;
+    const id = params?.id;
     const router = useRouter();
 
     const [ticket, setTicket] = useState<any>(null);
