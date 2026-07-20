@@ -164,10 +164,16 @@ export function middleware(request: NextRequest) {
                          path.startsWith('/assets') || 
                          path === '/favicon.ico';
 
-    // Create response. Rewrite to /casper-hq if accessing HQ control plane
+    // Early session guard: HQ domain requires authentication for all non-public paths
+    if (isHqDomain && !sessionToken && path !== '/login' && !path.startsWith('/api') && !path.startsWith('/_next') && !path.startsWith('/assets')) {
+        return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // Create response. Rewrite ALL HQ domain requests to /casper-hq root
+    // (HQ control plane is a single page — no sub-routes like /casper-hq/dashboard exist)
     let response: NextResponse;
     if (isHqDomain && !isSharedRoute && !path.startsWith('/casper-hq')) {
-        const rewriteUrl = new URL(`/casper-hq${path === '/' ? '' : path}`, request.url);
+        const rewriteUrl = new URL('/casper-hq', request.url);
         response = NextResponse.rewrite(rewriteUrl, {
             request: {
                 headers: requestHeaders,
