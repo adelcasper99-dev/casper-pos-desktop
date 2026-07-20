@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 export default function PinVerificationPage() {
     const params = useParams();
     const router = useRouter();
-    const token = params.token as string;
+    const token = params?.token as string;
     
     const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
