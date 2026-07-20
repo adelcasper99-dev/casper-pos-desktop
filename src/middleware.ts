@@ -102,9 +102,13 @@ export function middleware(request: NextRequest) {
         tenantId = 'default';
     }
 
-    // Initialize request headers
+    // Initialize request headers (SEC: Header values must be ByteStrings / ASCII)
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-tenant-id', tenantId);
+    try {
+        requestHeaders.set('x-tenant-id', encodeURIComponent(tenantId));
+    } catch (e) {
+        requestHeaders.set('x-tenant-id', tenantId);
+    }
 
     // Check for CSRF token in cookies
     const csrfToken = request.cookies.get('csrf-token')?.value;

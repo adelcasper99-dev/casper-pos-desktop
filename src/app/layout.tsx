@@ -36,7 +36,15 @@ export default async function RootLayout({
 }) {
     // Database and seeding are now handled by src/instrumentation.ts on server startup
     const reqHeaders = await headers();
-    const tenantId = reqHeaders.get('x-tenant-id');
+    const rawTenantId = reqHeaders.get('x-tenant-id');
+    let tenantId = rawTenantId;
+    if (rawTenantId) {
+        try {
+            tenantId = decodeURIComponent(rawTenantId);
+        } catch (e) {
+            tenantId = rawTenantId;
+        }
+    }
     
     if (tenantId && tenantId !== 'default' && tenantId !== 'SYSTEM') {
         try {

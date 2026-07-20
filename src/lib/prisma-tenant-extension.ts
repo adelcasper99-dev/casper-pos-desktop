@@ -26,7 +26,13 @@ export function getTenantId(): string | undefined {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { headers } = require('next/headers');
         const reqHeaders = headers();
-        return reqHeaders.get('x-tenant-id') || undefined;
+        const raw = reqHeaders.get('x-tenant-id');
+        if (!raw) return undefined;
+        try {
+            return decodeURIComponent(raw);
+        } catch (e) {
+            return raw;
+        }
     } catch (e) {
         // Bypassed outside Next.js request contexts (e.g. Electron background threads, tests)
         return undefined;
