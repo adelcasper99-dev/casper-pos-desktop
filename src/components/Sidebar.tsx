@@ -175,7 +175,8 @@ function BridgeStatusBadge({ isExpanded, locale, router }: BridgeStatusBadgeProp
 function Sidebar({ user, settings }: { user: any, settings?: any }) {
     const t = useTranslations('Sidebar');
     const [isExpanded, setIsExpanded] = useState(false);
-    const pathname = usePathname();
+    const rawPathname = usePathname();
+    const pathname = rawPathname || '';
     const searchParams = useSearchParams();
     const router = useRouter();
     const locale = useLocale();
