@@ -272,7 +272,7 @@ export default function TicketDetailPage() {
         // 🛡️ FIX: Log state changes for debugging
         console.log('[AutoPrint] ========== USE EFFECT RUNNING =========='); 
         console.log('[AutoPrint] State:', { 
-            printParam: searchParams.get('print'), 
+            printParam: searchParams?.get('print'), 
             ticketExists: !!ticket, 
             loading, 
             hasPrinted, 
@@ -292,7 +292,7 @@ export default function TicketDetailPage() {
             return;
         }
 
-        const shouldPrint = searchParams.get('print') === 'true';
+        const shouldPrint = searchParams?.get('print') === 'true';
         console.log('[AutoPrint] shouldPrint:', shouldPrint, 'speedPrintEnabled:', isSpeedPrintEnabled);
 
         // Clean URL if we have print=true
