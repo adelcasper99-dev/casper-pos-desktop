@@ -32,7 +32,6 @@ export const provisionNewTenant = secureAction(
         data: {
           id: tenantId,
           name,
-          domain,
           slug: domain,
           branchId,
           syncSecret
