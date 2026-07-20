@@ -70,7 +70,8 @@ export const provisionNewTenant = secureAction(
       });
 
       // 4. Create License
-      const activationCode = crypto.randomBytes(6).toString("hex").toUpperCase();
+      const randomCode = crypto.randomBytes(3).toString("hex").toUpperCase();
+      const activationCode = `CASPER-${randomCode}`;
       await tx.license.create({
         data: {
           id: `lic-${crypto.randomBytes(4).toString("hex")}`,

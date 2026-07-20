@@ -34,7 +34,12 @@ function checkRateLimit(ip: string): boolean {
 }
 
 const activateSchema = z.object({
-    activationCode: z.string().regex(/^CASPER-[A-Z0-9]{6}$/),
+    activationCode: z.string().transform(val => {
+        const clean = val.trim().toUpperCase();
+        return clean.startsWith("CASPER-") ? clean : `CASPER-${clean}`;
+    }).pipe(
+        z.string().regex(/^CASPER-[A-Z0-9-]{6,16}$/)
+    ),
     machineId: z.string().min(1).max(512),
 });
 
