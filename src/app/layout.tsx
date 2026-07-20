@@ -78,7 +78,7 @@ export default async function RootLayout({
                 <Providers initialToken={csrfToken} initialSettings={settings}>
                     <TimeSyncWarning />
                     <NavigationHotkeys />
-                    <LayoutWrapper user={user} settings={settings} licenseStatus={licenseStatus}>
+                    <LayoutWrapper user={user} settings={settings} licenseStatus={licenseStatus} isHq={tenantId === 'SYSTEM'}>
                         {children}
                     </LayoutWrapper>
                     <Toaster richColors position="top-center" expand={true} style={{ zIndex: 10000 }} />
@@ -90,9 +90,9 @@ export default async function RootLayout({
 
 // Client-side wrapper to handle conditional sidebar
 
-function LayoutWrapper({ children, user, settings, licenseStatus }: { children: React.ReactNode, user: any, settings: any, licenseStatus: any }) {
+function LayoutWrapper({ children, user, settings, licenseStatus, isHq }: { children: React.ReactNode, user: any, settings: any, licenseStatus: any, isHq: boolean }) {
     return (
-        <LayoutContent user={user} settings={settings} licenseStatus={licenseStatus}>
+        <LayoutContent user={user} settings={settings} licenseStatus={licenseStatus} isHq={isHq}>
             {children}
         </LayoutContent>
     );

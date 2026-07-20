@@ -22,6 +22,7 @@ export default function LayoutContent({
     user: any;
     settings: any;
     licenseStatus?: any;
+    isHq?: boolean;
 }) {
     const pathname = usePathname();
     const isStandalonePage = pathname === "/" || pathname === "/login" || pathname === "/setup" || pathname === "/network-setup" || pathname === "/onboarding" || pathname === "/activate";
@@ -76,10 +77,10 @@ export default function LayoutContent({
     useEffect(() => {
         // Allow cloud URL config pages through — user may need them to complete activation
         const activationAllowlist = ['/activate', '/login', '/setup', '/network-setup', '/onboarding'];
-        if (licenseStatus?.status === 'MISSING' && !activationAllowlist.includes(pathname)) {
+        if (!isHq && licenseStatus?.status === 'MISSING' && !activationAllowlist.includes(pathname)) {
             router.push('/activate');
         }
-    }, [licenseStatus, pathname, router]);
+    }, [licenseStatus, pathname, router, isHq]);
 
     // 🩹 Auto-Emergency Activation on Hardware Mismatch
     useEffect(() => {
@@ -200,7 +201,7 @@ export default function LayoutContent({
         }
     }, [settings, router]);
 
-    const isReadOnly = licenseStatus?.status !== 'VALID' && licenseStatus?.status !== 'MISSING';
+    const isReadOnly = !isHq && licenseStatus?.status !== 'VALID' && licenseStatus?.status !== 'MISSING';
 
     if (isStandalonePage) {
         return (
