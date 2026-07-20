@@ -65,9 +65,9 @@ export default function ActivateForm() {
 
     const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        // Auto-format: CASPER-XXXXXX
-        if (val.length >= 7 && val[6] !== '-' && !val.substring(0, 6).includes('-')) {
-            val = val.substring(0, 6) + '-' + val.substring(6);
+        // Auto-prepend CASPER- prefix if missing when typing/pasting raw segments
+        if (val.length >= 6 && !val.startsWith('CASPER-') && !val.includes('-')) {
+            val = `CASPER-${val}`;
         }
         setCode(val);
     };
@@ -159,8 +159,8 @@ export default function ActivateForm() {
                     <Input 
                         value={code} 
                         onChange={handleCodeChange} 
-                        placeholder="CASPER-XXXXXX"
-                        maxLength={13}
+                        placeholder="CASPER-XXXX-XXXX-XXXX"
+                        maxLength={64}
                         disabled={isLoading || !isOnline || !!machineIdError}
                         className="text-center font-mono text-lg tracking-widest uppercase"
                     />
