@@ -33,12 +33,12 @@ function punycodeToUnicode(domain: string): string {
             let delta = i - oldi;
             delta = Math.floor(delta / (oldi === 0 ? 700 : 2));
             delta += Math.floor(delta / outLen);
-            let k = 0;
+            let damp = 0;
             while (delta > 455) {
                 delta = Math.floor(delta / 35);
-                k += 36;
+                damp += 36;
             }
-            bias = Math.floor(k + (36 * delta) / (delta + 38));
+            bias = Math.floor(damp + (36 * delta) / (delta + 38));
             n += Math.floor(i / outLen);
             i %= outLen;
             output.splice(i++, 0, n);
