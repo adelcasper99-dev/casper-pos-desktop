@@ -150,3 +150,33 @@ export const approveHardwareSwap = secureAction(
     return { success: true };
   }
 );
+
+const editTenantSchema = z.object({
+  tenantId: z.string(),
+  name: z.string().min(2).max(100),
+  csrfToken: z.string().optional()
+});
+
+export const editTenant = secureAction(
+  async (payload: z.infer<typeof editTenantSchema>) => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const { tenantId, name } = editTenantSchema.parse(payload);
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId }
+    });
+
+    if (!tenant) throw new Error("Tenant not found");
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { name }
+    });
+
+    return { success: true };
+  }
+);

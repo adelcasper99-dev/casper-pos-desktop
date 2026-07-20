@@ -2,6 +2,8 @@ import { prisma, isPostgres } from "@/lib/prisma";
 import { ProvisionTenantModal } from "@/components/hq/ProvisionTenantModal";
 import { ToggleTenantButton } from "@/components/hq/ToggleTenantButton";
 import { ApproveSwapButton } from "@/components/hq/ApproveSwapButton";
+import { CopyLicenseButton } from "@/components/hq/CopyLicenseButton";
+import { EditTenantModal } from "@/components/hq/EditTenantModal";
 
 export default async function HQDashboard() {
   if (!isPostgres) {
@@ -42,46 +44,61 @@ export default async function HQDashboard() {
               <th className="p-4 font-bold">Tenant</th>
               <th className="p-4 font-bold">Domain</th>
               <th className="p-4 font-bold">Status</th>
-              <th className="p-4 font-bold">Licenses</th>
+              <th className="p-4 font-bold">Licenses / Activation Code</th>
               <th className="p-4 font-bold text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {tenants.map(tenant => (
-              <tr key={tenant.id} className="border-t border-slate-100 dark:border-white/5">
-                <td className="p-4 font-semibold">{tenant.name}</td>
-                <td className="p-4 text-slate-500">{tenant.domain}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-black ${tenant.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    {tenant.isActive ? 'ACTIVE' : 'SUSPENDED'}
-                  </span>
-                </td>
-                <td className="p-4">
-                  {tenant.licenses.map(lic => (
-                    <div key={lic.id} className="text-sm">
-                      {lic.status === 'EMERGENCY_MODE' ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-amber-500 font-bold flex items-center gap-1">
-                            ⚠️ Hardware Swap Alert (MAC: {lic.macAddress})
-                            {lic.emergencyModeAt && (
-                              <span className="text-xs font-normal text-slate-500 ml-1">
-                                (Expires in: {Math.max(0, Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - new Date(lic.emergencyModeAt).getTime())) / (60 * 60 * 1000)))}h)
+            {tenants.map(tenant => {
+              const displaySlug = tenant.slug || (tenant as any).domain || "";
+              return (
+                <tr key={tenant.id} className="border-t border-slate-100 dark:border-white/5">
+                  <td className="p-4 font-semibold">{tenant.name}</td>
+                  <td className="p-4 text-slate-500 font-mono text-sm">{displaySlug}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-black ${tenant.isActive ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400'}`}>
+                      {tenant.isActive ? 'ACTIVE' : 'SUSPENDED'}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="space-y-2">
+                      {tenant.licenses.map(lic => (
+                        <div key={lic.id} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <CopyLicenseButton licenseKey={lic.key} />
+                            <span className="text-xs text-slate-400 font-medium">
+                              {lic.macAddress ? `(MAC: ${lic.macAddress})` : "(Unassigned)"}
+                            </span>
+                          </div>
+                          {lic.status === 'EMERGENCY_MODE' && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-amber-500 font-bold flex items-center gap-1 text-xs">
+                                ⚠️ Hardware Swap Alert (MAC: {lic.macAddress})
+                                {lic.emergencyModeAt && (
+                                  <span className="text-xs font-normal text-slate-500 ml-1">
+                                    (Expires in: {Math.max(0, Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - new Date(lic.emergencyModeAt).getTime())) / (60 * 60 * 1000)))}h)
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </span>
-                          <ApproveSwapButton licenseId={lic.id} newMac={lic.macAddress || ''} />
+                              <ApproveSwapButton licenseId={lic.id} newMac={lic.macAddress || ''} />
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-slate-500">MAC: {lic.macAddress || 'Unassigned'}</span>
+                      ))}
+                      {tenant.licenses.length === 0 && (
+                        <span className="text-slate-400 text-xs italic">No license issued</span>
                       )}
                     </div>
-                  ))}
-                </td>
-                <td className="p-4 text-right">
-                  <ToggleTenantButton tenantId={tenant.id} isActive={tenant.isActive} />
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <EditTenantModal tenantId={tenant.id} initialName={tenant.name} slug={displaySlug} />
+                      <ToggleTenantButton tenantId={tenant.id} isActive={tenant.isActive} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {tenants.length === 0 && (
               <tr>
                 <td colSpan={5} className="p-8 text-center text-slate-500">No tenants found.</td>
