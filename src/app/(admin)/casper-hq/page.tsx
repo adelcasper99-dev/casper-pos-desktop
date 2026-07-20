@@ -20,7 +20,6 @@ export default async function HQDashboard() {
 
   const tenants = await prisma.tenant.findMany({
     include: {
-      branches: true,
       licenses: true
     },
     orderBy: { createdAt: 'desc' }
