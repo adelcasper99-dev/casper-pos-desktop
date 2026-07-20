@@ -21,10 +21,12 @@ export function ProvisionTenantModal() {
     const formData = new FormData(e.currentTarget);
     const name = formData.get("name") as string;
     const domain = formData.get("domain") as string;
+    const adminUsername = formData.get("adminUsername") as string;
+    const adminPassword = formData.get("adminPassword") as string;
 
     try {
       const csrfToken = await generateCSRFToken();
-      const res = await provisionNewTenant({ name, domain, csrfToken });
+      const res = await provisionNewTenant({ name, domain, adminUsername, adminPassword, csrfToken });
       
       // `res` from safe-action is typed and flattened.
       if (res?.success) {
@@ -106,6 +108,26 @@ export function ProvisionTenantModal() {
                       required 
                       className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
                       placeholder="e.g. kfc-01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Admin Username</label>
+                    <input 
+                      name="adminUsername" 
+                      required 
+                      className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
+                      placeholder="e.g. admin@kfc.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Admin Password</label>
+                    <input 
+                      name="adminPassword" 
+                      type="password"
+                      required 
+                      minLength={6}
+                      className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
+                      placeholder="Minimum 6 characters"
                     />
                   </div>
 

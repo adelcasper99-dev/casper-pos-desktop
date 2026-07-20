@@ -9,6 +9,8 @@ import crypto from "crypto";
 const provisionSchema = z.object({
   name: z.string().min(2),
   domain: z.string().min(3),
+  adminUsername: z.string().min(3),
+  adminPassword: z.string().min(6),
   csrfToken: z.string().optional()
 });
 
@@ -19,7 +21,11 @@ export const provisionNewTenant = secureAction(
       throw new Error("Forbidden: Super Admin access required.");
     }
 
-    const { name, domain } = provisionSchema.parse(payload);
+    const { name, domain, adminUsername, adminPassword } = provisionSchema.parse(payload);
+
+    // Hash admin password
+    const bcrypt = require("bcryptjs");
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
     // Use a transaction to prevent partial provisioning
     const result = await prisma.$transaction(async (tx) => {
@@ -49,7 +55,20 @@ export const provisionNewTenant = secureAction(
         }
       });
 
-      // 3. Create License
+      // 3. Create Admin User
+      await tx.user.create({
+        data: {
+          username: adminUsername,
+          password: hashedPassword,
+          name: "Admin",
+          roleStr: "ADMIN",
+          tenantId,
+          branchId,
+          isGlobalAdmin: false
+        }
+      });
+
+      // 4. Create License
       const activationCode = crypto.randomBytes(6).toString("hex").toUpperCase();
       await tx.license.create({
         data: {
