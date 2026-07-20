@@ -78,57 +78,41 @@ export async function activateLicense(activationCode: string, machineId: string)
             return { success: false, error: 'Server configuration error: missing LICENSE_PRIVATE_KEY.' };
         }
 
-        // Atomic single-use activation — checks both Tenant.activationCode and License.key
-        let updatedTenant;
+        // Atomic license activation — queries License table by key
+        let tenantObj: any = null;
+        let licenseRecord: any = null;
+
         try {
-            updatedTenant = await prisma.$transaction(async (tx) => {
-                // 1. Check Tenant table
-                let tenant = await tx.tenant.findFirst({
-                    where: {
-                        OR: [
-                            { activationCode: activationCode },
-                            { id: activationCode }
-                        ]
-                    }
-                });
-
-                // 2. Check License table if not found in Tenant directly
-                if (!tenant) {
-                    const licenseRecord = await tx.license.findFirst({
-                        where: {
-                            key: activationCode
-                        },
-                        include: { tenant: true }
-                    });
-
-                    if (licenseRecord && licenseRecord.tenant) {
-                        tenant = licenseRecord.tenant;
-                    }
-                }
-
-                if (!tenant || tenant.status !== 'active') {
-                    throw new Error('INVALID_CODE');
-                }
-
-                return tx.tenant.update({
-                    where: {
-                        id: tenant.id
-                    },
-                    data: {
-                        activationCode: null, // single-use: burn the code if present
-                        machineId: machineId,
-                    }
-                });
+            // 1. Look up key in License table
+            licenseRecord = await prisma.license.findUnique({
+                where: { key: activationCode },
+                include: { tenant: true }
             });
-        } catch (txError: unknown) {
-            const err = txError as { message?: string; code?: string };
-            if (err.message === 'INVALID_CODE' || err.code === 'P2025') {
+
+            if (licenseRecord && licenseRecord.tenant) {
+                tenantObj = licenseRecord.tenant;
+            } else {
+                // 2. Fallback: check if tenant ID matches directly
+                tenantObj = await prisma.tenant.findUnique({
+                    where: { id: activationCode }
+                });
+            }
+
+            if (!tenantObj || tenantObj.isActive === false) {
                 return { success: false, error: 'INVALID_CODE' };
             }
-            throw txError;
-        }
 
-        const tenantObj = updatedTenant;
+            // Update License macAddress with machineId if found
+            if (licenseRecord) {
+                await prisma.license.update({
+                    where: { id: licenseRecord.id },
+                    data: { macAddress: machineId, status: 'ACTIVE' }
+                });
+            }
+        } catch (dbError: any) {
+            console.error('[Activate] DB lookup error:', dbError);
+            return { success: false, error: 'INVALID_CODE' };
+        }
 
         if (!tenantObj.branchId || !tenantObj.syncSecret) {
             return { success: false, error: 'SCHEMA_ERROR' };
