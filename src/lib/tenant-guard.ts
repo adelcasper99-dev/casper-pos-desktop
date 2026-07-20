@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import Redis from 'ioredis';
 import { AsyncLocalStorage } from 'async_hooks';
+import { domainToUnicode, domainToASCII } from 'url';
 
 // AsyncLocalStorage for passing tenant context
 export const tenantContext = new AsyncLocalStorage<{ tenantId: string }>();
@@ -24,7 +25,10 @@ export async function requireActiveTenant(rawTenantId: string) {
         // fallback
     }
 
-    const cacheKey = `tenant:active:${decodedTenantId}`;
+    const unicodeSlug = domainToUnicode(decodedTenantId);
+    const asciiSlug = domainToASCII(unicodeSlug);
+
+    const cacheKey = `tenant:active:${unicodeSlug}`;
     const r = getRedis();
     
     try {
@@ -43,7 +47,9 @@ export async function requireActiveTenant(rawTenantId: string) {
                     { id: rawTenantId },
                     { id: decodedTenantId },
                     { slug: rawTenantId },
-                    { slug: decodedTenantId }
+                    { slug: decodedTenantId },
+                    { slug: unicodeSlug },
+                    { slug: asciiSlug }
                 ]
             }
         });
@@ -73,7 +79,9 @@ export async function requireActiveTenant(rawTenantId: string) {
                     { id: rawTenantId },
                     { id: decodedTenantId },
                     { slug: rawTenantId },
-                    { slug: decodedTenantId }
+                    { slug: decodedTenantId },
+                    { slug: unicodeSlug },
+                    { slug: asciiSlug }
                 ]
             }
         });

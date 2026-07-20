@@ -35,11 +35,15 @@ export const provisionNewTenant = secureAction(
       const syncSecret = crypto.randomBytes(32).toString("hex");
       const branchId = `branch-${crypto.randomBytes(4).toString("hex")}`;
       
+      const cleanSlug = domain.replace(/\.casper-erp\.com$/i, "").trim();
+      const { domainToUnicode } = require("url");
+      const normalizedSlug = domainToUnicode(cleanSlug);
+
       const tenant = await tx.tenant.create({
         data: {
           id: tenantId,
           name,
-          slug: domain,
+          slug: normalizedSlug,
           branchId,
           syncSecret
         }

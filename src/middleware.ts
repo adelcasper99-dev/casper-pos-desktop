@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { decodeJwt } from 'jose';
+import { domainToUnicode } from 'url';
 
 export function middleware(request: NextRequest) {
     const host = request.headers.get('host') || '';
@@ -37,14 +38,15 @@ export function middleware(request: NextRequest) {
         }
     }
     
-    // Resolve tenant context
+    // Resolve tenant context with Punycode IDN conversion
     if (isHqDomain) {
         tenantId = 'SYSTEM';
-    } else if (!tenantId && !isSystemSubdomain) {
+    } else if (!tenantId && !isSystemSubdomain && subdomain) {
         try {
-            tenantId = decodeURIComponent(subdomain);
+            const decoded = decodeURIComponent(subdomain);
+            tenantId = domainToUnicode(decoded);
         } catch (e) {
-            tenantId = subdomain;
+            tenantId = domainToUnicode(subdomain);
         }
     }
     
