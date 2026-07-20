@@ -21,7 +21,8 @@ async function main() {
       name: 'Casper HQ',
       domain: 'hq.casper.local',
       branchId: 'hq-branch-01',
-      syncSecret: 'hq-super-secret-sync-key'
+      syncSecret: 'hq-super-secret-sync-key',
+      slug: 'casper-hq'
     }
   });
 
