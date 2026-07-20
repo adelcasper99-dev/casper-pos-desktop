@@ -78,7 +78,7 @@ export default function LayoutContent({
     useEffect(() => {
         // Allow cloud URL config pages through — user may need them to complete activation
         const activationAllowlist = ['/activate', '/login', '/setup', '/network-setup', '/onboarding'];
-        if (!isHq && licenseStatus?.status === 'MISSING' && !activationAllowlist.includes(pathname)) {
+        if (!isHq && licenseStatus?.status === 'MISSING' && pathname && !activationAllowlist.includes(pathname)) {
             router.push('/activate');
         }
     }, [licenseStatus, pathname, router, isHq]);
