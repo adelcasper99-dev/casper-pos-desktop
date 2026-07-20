@@ -19,7 +19,6 @@ async function main() {
     create: {
       id: 'casper-hq',
       name: 'Casper HQ',
-      domain: 'hq.casper.local',
       branchId: 'hq-branch-01',
       syncSecret: 'hq-super-secret-sync-key',
       slug: 'casper-hq'
