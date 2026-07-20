@@ -138,7 +138,8 @@ export function SparePartsSearch({
 }: Props) {
     const t = useTranslations('SpareParts');
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const rawSearchParams = useSearchParams();
+    const searchParams = rawSearchParams ? rawSearchParams.toString() : '';
     const [isPending, startTransition] = useTransition();
 
     const [search, setSearch] = useState(initialSearch);
