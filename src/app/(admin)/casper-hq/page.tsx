@@ -39,7 +39,12 @@ export default async function HQDashboard() {
     }
   });
 
-  const adminMap = new Map(adminUsers.map(u => [u.tenantId, u.username]));
+  const adminMap = new Map<string, string>();
+  adminUsers.forEach(u => {
+    if (u.tenantId && u.username) {
+      adminMap.set(u.tenantId, u.username);
+    }
+  });
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -70,9 +75,9 @@ export default async function HQDashboard() {
                 <tr key={tenant.id} className="border-t border-slate-100 dark:border-white/5">
                   <td className="p-4">
                     <div className="font-semibold">{tenant.name}</div>
-                    {adminUsername && (
+                    {Boolean(adminUsername) && (
                       <div className="text-xs text-slate-400 font-mono" dir="ltr">
-                        👤 {adminUsername}
+                        👤 {String(adminUsername)}
                       </div>
                     )}
                   </td>
