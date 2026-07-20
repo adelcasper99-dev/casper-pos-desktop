@@ -1,12 +1,59 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { decodeJwt } from 'jose';
-import { domainToUnicode } from 'url';
+
+// Lightweight pure-JS Punycode decoder for Next.js Edge Runtime
+function punycodeToUnicode(domain: string): string {
+    if (!domain.startsWith('xn--')) return domain;
+    try {
+        const punycode = domain.substring(4).toLowerCase();
+        let n = 128, i = 0, bias = 72;
+        let output: number[] = [];
+        let delim = punycode.lastIndexOf('-');
+        if (delim > 0) {
+            for (let j = 0; j < delim; j++) {
+                output.push(punycode.charCodeAt(j));
+            }
+            delim++;
+        } else {
+            delim = 0;
+        }
+        while (delim < punycode.length) {
+            let oldi = i, w = 1, k = 36;
+            for (;; k += 36) {
+                if (delim >= punycode.length) break;
+                let digit = punycode.charCodeAt(delim++);
+                digit = digit - 48 < 10 ? digit - 22 : digit - 65 < 26 ? digit - 65 : digit - 97 < 26 ? digit - 97 : 36;
+                i += digit * w;
+                let t = k <= bias ? 1 : k >= bias + 26 ? 26 : k - bias;
+                if (digit < t) break;
+                w *= 36 - t;
+            }
+            let outLen = output.length + 1;
+            let delta = i - oldi;
+            delta = Math.floor(delta / (oldi === 0 ? 700 : 2));
+            delta += Math.floor(delta / outLen);
+            let k = 0;
+            while (delta > 455) {
+                delta = Math.floor(delta / 35);
+                k += 36;
+            }
+            bias = Math.floor(k + (36 * delta) / (delta + 38));
+            n += Math.floor(i / outLen);
+            i %= outLen;
+            output.splice(i++, 0, n);
+        }
+        return String.fromCodePoint(...output);
+    } catch (e) {
+        return domain;
+    }
+}
 
 export function middleware(request: NextRequest) {
     const host = request.headers.get('host') || '';
     const parts = host.split('.');
-    const subdomain = parts.length > 2 ? parts[0] : null;
+    const rawSubdomain = parts.length > 2 ? parts[0] : null;
+    const subdomain = rawSubdomain ? punycodeToUnicode(rawSubdomain) : null;
     const path = request.nextUrl.pathname;
 
     const isHqDomain = subdomain === 'hq' || subdomain === 'admin';
@@ -44,9 +91,9 @@ export function middleware(request: NextRequest) {
     } else if (!tenantId && !isSystemSubdomain && subdomain) {
         try {
             const decoded = decodeURIComponent(subdomain);
-            tenantId = domainToUnicode(decoded);
+            tenantId = punycodeToUnicode(decoded);
         } catch (e) {
-            tenantId = domainToUnicode(subdomain);
+            tenantId = punycodeToUnicode(subdomain);
         }
     }
     
