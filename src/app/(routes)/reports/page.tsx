@@ -383,7 +383,7 @@ export default function UnifiedReportsPage() {
     };
 
     const handleTabChange = (tab: string) => {
-        const params = new URLSearchParams(searchParams.toString());
+        const params = new URLSearchParams(searchParams?.toString() || '');
         params.set('tab', tab);
         router.push(`/reports?${params.toString()}`);
     };
