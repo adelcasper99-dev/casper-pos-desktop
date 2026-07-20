@@ -320,6 +320,7 @@ export default function TicketDetailPage() {
     }, [searchParams, ticket, loading, hasPrinted, settings, showPrintOptions]);
 
     async function loadData() {
+        if (!id) return;
         if (!ticket) setLoading(true);
         try {
             const [ticketRes, techRes, userRes, settingsRes, whRes] = await Promise.all([
