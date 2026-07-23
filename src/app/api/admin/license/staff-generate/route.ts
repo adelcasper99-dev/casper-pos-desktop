@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -37,6 +37,15 @@ export async function POST(req: Request) {
         };
 
         const token = jwt.sign(payload, privateKey.replace(/\\n/g, '\n'), { algorithm: 'RS256' });
+
+        console.info("[STAFF_OVERRIDE_ISSUED]", {
+            adminId: session.user.id,
+            adminUsername: session.user.username,
+            machineId: machineId.toUpperCase(),
+            challenge: challenge.toUpperCase(),
+            jti,
+            issuedAt: new Date().toISOString()
+        });
 
         return NextResponse.json({
             success: true,

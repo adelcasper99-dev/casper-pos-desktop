@@ -16,25 +16,22 @@ export default async function HQDashboard() {
     );
   }
 
-  const tenants = await prisma.tenant.findMany({
-    include: {
-      licenses: true
-    },
-    orderBy: { createdAt: 'desc' }
-  });
-
-  const tenantIds = tenants.map(t => t.id);
-  const primaryUsers = await prisma.user.findMany({
-    where: {
-      tenantId: { in: tenantIds }
-    },
-    select: {
-      tenantId: true,
-      username: true,
-      roleStr: true
-    },
-    orderBy: { createdAt: 'asc' }
-  });
+  const [tenants, primaryUsers] = await Promise.all([
+    prisma.tenant.findMany({
+      include: {
+        licenses: true
+      },
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.user.findMany({
+      select: {
+        tenantId: true,
+        username: true,
+        roleStr: true
+      },
+      orderBy: { createdAt: 'asc' }
+    })
+  ]);
 
   const adminMap = new Map<string, { username: string, roleStr: string }>();
   primaryUsers.forEach(u => {

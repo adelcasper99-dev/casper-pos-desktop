@@ -1,26 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Search, ShieldAlert, KeyRound, ExternalLink, User } from "lucide-react";
 import { CopyLicenseButton } from "@/components/hq/CopyLicenseButton";
 import { ApproveSwapButton } from "@/components/hq/ApproveSwapButton";
 import { LicenseQuickActions } from "@/components/hq/LicenseQuickActions";
-
-interface TenantWithLicense {
-  id: string;
-  name: string;
-  slug: string;
-  isActive: boolean;
-  createdAt: string | Date;
-  licenses: {
-    id: string;
-    key: string;
-    macAddress: string;
-    expiresAt: string | Date;
-    status: string;
-    emergencyModeAt?: string | Date | null;
-  }[];
-}
+import { classifyTenant, LIFETIME_YEAR_THRESHOLD, TenantWithLicense } from "@/lib/hq-metrics";
 
 interface TenantsManagementTabProps {
   tenants: TenantWithLicense[];
@@ -36,6 +21,11 @@ export function TenantsManagementTab({
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>(initialFilter);
 
+  // Sync activeFilter when initialFilter prop changes (e.g. from KPI card click)
+  useEffect(() => {
+    setActiveFilter(initialFilter);
+  }, [initialFilter]);
+
   // UTC-safe date countdown helper
   const getExpirationBadge = (expiresAtDate: string | Date, status: string) => {
     if (status === "REVOKED") {
@@ -48,7 +38,7 @@ export function TenantsManagementTab({
 
     const expiresAt = new Date(expiresAtDate).getTime();
     const now = Date.now();
-    const isLifetime = new Date(expiresAtDate).getFullYear() > 2090;
+    const isLifetime = new Date(expiresAtDate).getFullYear() > LIFETIME_YEAR_THRESHOLD;
 
     if (isLifetime) {
       return (
@@ -84,6 +74,7 @@ export function TenantsManagementTab({
   };
 
   const filteredTenants = useMemo(() => {
+    const now = Date.now();
     return tenants.filter((tenant) => {
       const displaySlug = tenant.slug || "";
       const primaryLic = tenant.licenses[0];
@@ -101,23 +92,13 @@ export function TenantsManagementTab({
 
       if (!matchesSearch) return false;
 
-      // Filter category match
-      const now = Date.now();
-      const expiresAt = primaryLic ? new Date(primaryLic.expiresAt).getTime() : 0;
-      const daysRemaining = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
-      const createdDaysAgo = Math.ceil((now - new Date(tenant.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-
-      if (activeFilter === "active") {
-        return tenant.isActive && daysRemaining > 7;
-      }
-      if (activeFilter === "trial") {
-        return createdDaysAgo <= 14 && (!primaryLic || daysRemaining <= 14);
-      }
-      if (activeFilter === "expiring") {
-        return tenant.isActive && daysRemaining > 0 && daysRemaining <= 7;
-      }
-      if (activeFilter === "expired") {
-        return !tenant.isActive || daysRemaining <= 0 || primaryLic?.status === "REVOKED";
+      // Filter category match via pure utility
+      if (activeFilter !== "all") {
+        const stage = classifyTenant(tenant, now);
+        if (activeFilter === "expired" && stage !== "expired") return false;
+        if (activeFilter === "trial" && stage !== "trial") return false;
+        if (activeFilter === "expiring" && stage !== "expiring") return false;
+        if (activeFilter === "active" && stage !== "active") return false;
       }
 
       return true;

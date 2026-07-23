@@ -5,6 +5,8 @@ import { Server, KeyRound, Copy, Check, Loader2, AlertTriangle, ShieldCheck, Cpu
 import { toast } from "sonner";
 import { ApproveSwapButton } from "@/components/hq/ApproveSwapButton";
 
+import { generateCSRFToken } from "@/lib/csrf-client";
+
 interface EmergencyLicense {
   id: string;
   key: string;
@@ -36,12 +38,14 @@ export function TechSupportTab({ emergencyLicenses = [] }: TechSupportTabProps) 
     setOverrideToken(null);
 
     try {
+      const csrfToken = await generateCSRFToken();
       const res = await fetch("/api/admin/license/staff-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           challenge: challengeCode.trim().toUpperCase(),
-          machineId: machineId.trim().toUpperCase()
+          machineId: machineId.trim().toUpperCase(),
+          csrfToken
         })
       });
 

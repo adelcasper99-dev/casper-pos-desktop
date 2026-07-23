@@ -5,6 +5,7 @@ import { secureAction } from "@/lib/safe-action";
 import { getSession } from "@/lib/auth";
 import { z } from "zod";
 import crypto from "crypto";
+import { LIFETIME_YEAR_THRESHOLD } from "@/lib/hq-metrics";
 
 const provisionSchema = z.object({
   name: z.string().min(2),
@@ -246,9 +247,10 @@ export const editTenant = secureAction(
   }
 );
 
+
 const renewLicenseSchema = z.object({
   licenseId: z.string(),
-  durationDays: z.number().positive(),
+  durationDays: z.number().int().positive().max(3650),
   csrfToken: z.string().optional()
 });
 
@@ -266,6 +268,11 @@ export const renewLicense = secureAction(
     });
 
     if (!license) throw new Error("License not found");
+
+    // Lifetime License Guard
+    if (new Date(license.expiresAt).getFullYear() > LIFETIME_YEAR_THRESHOLD) {
+      return { success: true, newExpiresAt: new Date(license.expiresAt).toISOString() };
+    }
 
     const currentExpiry = new Date(license.expiresAt).getTime();
     const baseTime = Math.max(Date.now(), currentExpiry);
@@ -298,6 +305,20 @@ export const revokeLicense = secureAction(
 
     const { licenseId, tenantId } = revokeLicenseSchema.parse(payload);
 
+    const license = await prisma.license.findUnique({
+      where: { id: licenseId },
+      select: { id: true, tenantId: true }
+    });
+
+    if (!license) {
+      throw new Error("License not found");
+    }
+
+    // IDOR Protection: Verify license belongs to the specified tenantId
+    if (license.tenantId !== tenantId) {
+      throw new Error("License does not belong to the specified tenant.");
+    }
+
     await prisma.$transaction([
       prisma.license.update({
         where: { id: licenseId },
@@ -312,4 +333,5 @@ export const revokeLicense = secureAction(
     return { success: true };
   }
 );
+
 

@@ -104,7 +104,8 @@ if (process.argv.includes('--generate')) {
     const targetSchemaPath = isPostgres ? CLOUD_SCHEMA : LOCAL_SCHEMA;
     const targetSchemaName = isPostgres ? 'prisma/schema.cloud.prisma' : 'prisma/schema.local.prisma';
 
-    console.log(`[generate-schemas] 🟢 Auto-detected DB protocol provider: "${detectedProvider}" (URL: ${rawDbUrl})`);
+    const safeUrl = rawDbUrl.replace(/:\/\/[^@]+@/, '://***:***@');
+    console.log(`[generate-schemas] 🟢 Auto-detected DB protocol provider: "${detectedProvider}" (URL: ${safeUrl})`);
     console.log(`[generate-schemas] Running "npx prisma generate --schema ${targetSchemaName}"...`);
 
     try {

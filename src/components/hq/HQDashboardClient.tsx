@@ -7,21 +7,7 @@ import { SalesPipelineTab, PipelineMetrics } from "@/components/hq/SalesPipeline
 import { TenantsManagementTab } from "@/components/hq/TenantsManagementTab";
 import { TechSupportTab } from "@/components/hq/TechSupportTab";
 
-interface TenantWithLicense {
-  id: string;
-  name: string;
-  slug: string;
-  isActive: boolean;
-  createdAt: string | Date;
-  licenses: {
-    id: string;
-    key: string;
-    macAddress: string;
-    expiresAt: string | Date;
-    status: string;
-    emergencyModeAt?: string | Date | null;
-  }[];
-}
+import { computePipelineMetrics, TenantWithLicense } from "@/lib/hq-metrics";
 
 interface HQDashboardClientProps {
   tenants: TenantWithLicense[];
@@ -32,33 +18,9 @@ export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps)
   const [activeTab, setActiveTab] = useState<"pipeline" | "tenants" | "support">("pipeline");
   const [tenantsTabFilter, setTenantsTabFilter] = useState<string>("all");
 
-  // Calculate Pipeline Metrics
+  // Calculate Pipeline Metrics via pure utility
   const metrics: PipelineMetrics = useMemo(() => {
-    const now = Date.now();
-    let total = tenants.length;
-    let active = 0;
-    let trial = 0;
-    let expiringSoon = 0;
-    let expiredOrSuspended = 0;
-
-    tenants.forEach((t) => {
-      const primaryLic = t.licenses[0];
-      const createdDaysAgo = Math.ceil((now - new Date(t.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-      const expiresAt = primaryLic ? new Date(primaryLic.expiresAt).getTime() : 0;
-      const daysRemaining = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
-
-      if (!t.isActive || daysRemaining <= 0 || primaryLic?.status === "REVOKED") {
-        expiredOrSuspended++;
-      } else if (createdDaysAgo <= 14 && (!primaryLic || daysRemaining <= 14)) {
-        trial++;
-      } else if (daysRemaining <= 7) {
-        expiringSoon++;
-      } else {
-        active++;
-      }
-    });
-
-    return { total, active, trial, expiringSoon, expiredOrSuspended };
+    return computePipelineMetrics(tenants);
   }, [tenants]);
 
   // Collect emergency swap licenses

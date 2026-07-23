@@ -1,16 +1,16 @@
 # Graph Report - casper-pos-desktop  (2026-07-23)
 
 ## Corpus Check
-- 788 files · ~1,417,844 words
+- 789 files · ~1,418,584 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4919 nodes · 9777 edges · 362 communities (277 shown, 85 thin omitted)
+- 4934 nodes · 9791 edges · 366 communities (283 shown, 83 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 227 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7810329f`
+- Built from commit: `0c21f46b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -350,6 +350,10 @@
 - [[_COMMUNITY_useSessionMonitor|useSessionMonitor]]
 - [[_COMMUNITY_useSessionSync.ts|useSessionSync.ts]]
 - [[_COMMUNITY_test.ts|test.ts]]
+- [[_COMMUNITY_KPICards.tsx|KPICards.tsx]]
+- [[_COMMUNITY_MaintenanceDashboardClient|MaintenanceDashboardClient]]
+- [[_COMMUNITY_page.tsx|page.tsx]]
+- [[_COMMUNITY_jspdf|jspdf]]
 - [[_COMMUNITY_feat Multi-PC LAN Network Architecture|feat: Multi-PC LAN Network Architecture]]
 - [[_COMMUNITY_Proposed Changes|Proposed Changes]]
 
@@ -366,89 +370,89 @@
 10. `getCurrentUser()` - 46 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `resetAllData()` --indirect_call--> `error()`  [INFERRED]
-  src/actions/system.ts → electron/main.js
-- `POST()` --indirect_call--> `error()`  [INFERRED]
-  src/app/api/csrf/generate/route.ts → electron/main.js
-- `POST()` --indirect_call--> `error()`  [INFERRED]
-  src/app/api/license/activate/route.ts → electron/main.js
-- `useSessionSync()` --indirect_call--> `error()`  [INFERRED]
-  src/hooks/useSessionSync.ts → electron/main.js
 - `deleteBackup()` --indirect_call--> `error()`  [INFERRED]
   src/lib/backup/core.ts → electron/main.js
+- `createLabel()` --indirect_call--> `error()`  [INFERRED]
+  _temp_repo/app/app.js → electron/main.js
+- `main()` --indirect_call--> `error()`  [INFERRED]
+  prisma/seed.ts → electron/main.js
+- `setOpeningBalances()` --indirect_call--> `error()`  [INFERRED]
+  src/actions/accounting-setup.ts → electron/main.js
+- `updateOpeningBalances()` --indirect_call--> `error()`  [INFERRED]
+  src/actions/accounting-setup.ts → electron/main.js
 
 ## Import Cycles
 - 2-file cycle: `src/lib/sync-service.ts -> src/lib/sync-worker.ts -> src/lib/sync-service.ts`
 
-## Communities (362 total, 85 thin omitted)
+## Communities (366 total, 83 thin omitted)
 
 ### Community 0 - "inventory.ts"
-Cohesion: 0.05
-Nodes (61): main(), prisma, repairAccounting, setOpeningBalances(), updateOpeningBalances(), addTreasuryTransaction(), createTreasury(), deleteTreasury() (+53 more)
+Cohesion: 0.07
+Nodes (40): main(), prisma, repairAccounting, setOpeningBalances(), updateOpeningBalances(), getPurchase, PartialPurchaseReturnResult, PurchaseFilters (+32 more)
 
 ### Community 1 - "returns-fetchers.ts"
-Cohesion: 0.15
-Nodes (15): FetchedSale, FetchedTicket, getPurchaseById(), getSaleById(), getTicketById(), SearchResult, searchReturns(), ReturnCart() (+7 more)
+Cohesion: 0.13
+Nodes (21): FetchedPurchase, FetchedSale, FetchedTicket, getPurchaseById(), getSaleById(), getTicketById(), issueStoreCredit, PurchaseLineItem (+13 more)
 
 ### Community 2 - "CheckoutModal.tsx"
-Cohesion: 0.11
-Nodes (23): addSparePart, deleteSparePart, getAllBrands, getSparePart, getSpareParts, importPartsSchema, importSpareParts, sparePartSchema (+15 more)
+Cohesion: 0.14
+Nodes (19): deleteSparePart, getAllBrands, getSparePart, getSpareParts, importPartsSchema, importSpareParts, sparePartSchema, SparePartsPage() (+11 more)
 
 ### Community 3 - "sales-actions.ts"
-Cohesion: 0.13
-Nodes (20): getPurchase, getPurchasesHistory, PartialPurchaseReturnResult, PurchaseFilters, getSalesHistory(), SalesHistoryFilters, LogsPage(), createCustomerTransactionJournal() (+12 more)
+Cohesion: 0.12
+Nodes (20): getPurchasesHistory, getSalesHistory(), SalesHistoryFilters, DashboardLayout(), LogsPage(), CashCategoriesPage(), createCustomerTransactionJournal(), createEmployeeTransactionJournal() (+12 more)
 
 ### Community 4 - "prisma.ts"
 Cohesion: 0.14
-Nodes (25): POST(), POST(), POST(), getNextTicketNumberInsideTx(), POST(), POST(), getFormattedTicketNumber(), getNextAtomicId() (+17 more)
+Nodes (26): getNextTicketNumber(), POST(), POST(), POST(), getNextTicketNumberInsideTx(), POST(), POST(), getFormattedTicketNumber() (+18 more)
 
 ### Community 5 - "WarehouseSettings.tsx"
 Cohesion: 0.05
 Nodes (42): Automated, fix: Architecture Audit Hardening — 33 Findings Resolution, Manual QA Checkpoints, Open Questions, P0.1 — Confirm `closeShift` File Location, P0.2 — Audit `JournalEntry` FK Columns in Schema, P0.3 — Verify GL 5300 in `DEFAULT_ACCOUNTS`, P0.4 — `[NEW]` Create `src/lib/rate-limit.ts` (+34 more)
 
 ### Community 6 - "PurchaseLog.tsx"
-Cohesion: 0.08
-Nodes (44): DrillDownFilters, DrillDownType, getHQDrilldownData, CustomersPage(), AgingAnalysisProps, BranchMatrixItem, BranchPerformanceMatrix(), MatrixProps (+36 more)
+Cohesion: 0.10
+Nodes (32): DrillDownFilters, DrillDownType, AgingAnalysisProps, BranchMatrixItem, BranchPerformanceMatrix(), MatrixProps, DrillDownModal(), LiveStatusBoard() (+24 more)
 
 ### Community 7 - "SupplierHistoryTable.tsx"
-Cohesion: 0.25
-Nodes (10): processWalletTransaction, QUICK_AMOUNTS, WalletTransactionModal(), WalletTransactionModalProps, generateIdempotencyKey(), isOnline(), saveInventoryMovementOffline(), saveReturnOffline() (+2 more)
+Cohesion: 0.11
+Nodes (28): addTreasuryTransaction(), deleteTreasury(), getCashCategories(), getTreasuryData(), updateTreasuryTransaction(), processWalletTransaction, TreasuryPage(), CashCategory (+20 more)
 
 ### Community 8 - "page.tsx"
-Cohesion: 0.11
-Nodes (27): getMonthlyLogs, db, getAllTreasuries, getBranchesAndRoles(), getHRDashboardSummary, getUsersForAttendancePage(), payEmployeeSalary, getEmployeeProfileData() (+19 more)
+Cohesion: 0.08
+Nodes (33): { calculateNetDue }, { Decimal }, testSalaryLogic(), getMonthlyLogs, db, getAllTreasuries, getBranchesAndRoles(), getHRDashboardSummary (+25 more)
 
 ### Community 9 - "AutoJournalService"
 Cohesion: 0.06
 Nodes (35): Affected Files, Automated, 🔴 Critical, Current State — Operator Experience Gaps, Decision Log, Design Consistency Check, Execution Workflow, fix: Purchase Return Workflow — UI Hardening & Gap Closure (+27 more)
 
 ### Community 10 - "AccountingEngine"
-Cohesion: 0.09
-Nodes (32): deleteEngineer, getBranches(), getEngineersStats, getEngineerStock, upsertEngineer, bulkUpdateSparePartPrices, overrideProfitDistribution, NetworkGuideModalProps (+24 more)
+Cohesion: 0.11
+Nodes (21): getWarehousesByBranch, deleteEngineer, DONE_STATUSES, getBranches(), getEngineerConsumption, getEngineerDetails, getEngineerHistory, getEngineersStats (+13 more)
 
 ### Community 11 - "check-gl.js"
 Cohesion: 0.07
-Nodes (71): transferPartToTechnicianQuick, addTicketPart, getProductsForSelector, getReturnedTickets, getWarrantyTickets, removeTicketPart, DrillDownProps, PurchaseHeader() (+63 more)
+Nodes (61): bulkUpdateSparePartPrices, getReturnedTickets, getWarrantyTickets, DrillDownProps, PurchaseHeader(), PurchaseHeaderProps, PartialReturnPurchaseDialog(), PurchaseLogProps (+53 more)
 
 ### Community 12 - "CashFlowDashboard.tsx"
-Cohesion: 0.05
-Nodes (51): upsertDailyLog, getAllWarehouses, getWarehousesByBranch, getEngineerConsumption, getEngineerHistory, getStockRequests, transitionStockRequest, getTechniciansForCustody (+43 more)
+Cohesion: 0.07
+Nodes (38): reportWastage, updateSparePart, getStockRequests, transitionStockRequest, CustomersPage(), InventoryTabs(), PurchasingClient(), AgingAnalysis() (+30 more)
 
 ### Community 13 - "getBundleComponents"
-Cohesion: 0.29
-Nodes (8): arabic-reshaper, ZReportReceipt(), ZReportReceiptProps, generateZReportA4HTML(), generateZReportThermalHTML(), ZReportTemplateProps, bidi, formatArabicPrintText()
+Cohesion: 0.14
+Nodes (19): react, createCustomer, getEmployeesForLink, searchCustomers, getBundleAvailability(), getBundleComponents(), POSClientAPI(), CustomerSearch() (+11 more)
 
 ### Community 14 - "db"
-Cohesion: 0.12
-Nodes (21): react, BarcodePrintDialog(), BarcodePrintDialogProps, Product, ProductToPrint, ThermalPrintLabel(), ThermalPrintLabelProps, ESC_POS_COMMANDS (+13 more)
+Cohesion: 0.15
+Nodes (14): ProductToPrint, ESC_POS_COMMANDS, generateDefaultLegacyCommands(), generateLabelCommands(), generateLabelHTML(), generateMultipleLabelCommands(), generateTestLabel(), LabelDimensions (+6 more)
 
 ### Community 15 - "PurchaseDataGrid.tsx"
 Cohesion: 0.07
-Nodes (35): createPurchase, deleteAttribute, deleteModel, deleteUnitOfMeasure, generateNextSku, updateAttribute, updateModel, updatePurchase (+27 more)
+Nodes (35): createCategory, deleteAttribute, deleteCategory, deleteModel, deleteUnitOfMeasure, getAllCategories, updateAttribute, updateCategory (+27 more)
 
 ### Community 16 - "profit-loss.ts"
-Cohesion: 0.06
-Nodes (37): getBackupSchedule, getSchedulerStatus, scheduleSchema, updateBackupSchedule, CreateDeductionSchema, createEmployeeDeduction, getEmployeeTransactions, TransactionType (+29 more)
+Cohesion: 0.05
+Nodes (55): getBackupSchedule, getSchedulerStatus, scheduleSchema, updateBackupSchedule, CreateDeductionSchema, createEmployeeDeduction, getEmployeeTransactions, TransactionType (+47 more)
 
 ### Community 17 - "Sidebar.tsx"
 Cohesion: 0.06
@@ -459,44 +463,44 @@ Cohesion: 0.25
 Nodes (8): MovementStatus, MovementStatusType, PAPER_SIZES, TicketStatus, TicketStatusType, canTransition(), TICKET_TRANSITIONS, TransitionRule
 
 ### Community 19 - "SyncService"
-Cohesion: 0.07
-Nodes (32): error(), createManualBackup(), DB_FILE, DEFAULT_BACKUP_DIR, downloadBackup(), getBackupPath(), getBackups(), getBackupStats() (+24 more)
+Cohesion: 0.06
+Nodes (34): error(), getPublicTicketStatus(), getSystemConfig(), updateSystemConfig(), resetAllData(), createFloor(), createTable(), deleteFloor() (+26 more)
 
 ### Community 20 - "backfill-floating-records.mjs"
-Cohesion: 0.17
-Nodes (7): DesktopStatus(), SyncManagement(), SyncStatusBar(), useOfflineQueueStatus(), SyncStatusState, useSyncStatus(), SyncService
+Cohesion: 0.20
+Nodes (5): SyncManagement(), SyncStatusBar(), SyncStatusState, useSyncStatus(), SyncService
 
 ### Community 21 - "CASPER_PROJECT_MEMORY.md"
 Cohesion: 0.20
 Nodes (10): 🛡️ 8. System Hardening & Data Integrity Guardrails, 🛡️ [NEW] Destructive Read Protection, 🛡️ [NEW] High-Success Batch Ingestion, 🛡️ [NEW] Resilient Stock Reversals, 🛡️ [NEW] Strict Schema Fallbacks for Offline Sync, 🛡️ [NEW] System Maintenance & Safety, 🛡️ [NEW] Unified Accounting Core, 🛡️ [NEW] Unified Status Convention (Purchases) (+2 more)
 
 ### Community 22 - "🛡️ 8. System Hardening & Data Integrity Guardrails"
-Cohesion: 0.09
-Nodes (28): createCashCategory, deleteCashCategory, getArchivedCashCategories, getCashCategories, restoreCashCategory, updateCashCategory, closeShift, openShift (+20 more)
+Cohesion: 0.10
+Nodes (27): createCashCategory, deleteCashCategory, getArchivedCashCategories, getCashCategories, restoreCashCategory, updateCashCategory, closeShift, openShift (+19 more)
 
 ### Community 23 - "ticket-actions.ts"
 Cohesion: 0.07
 Nodes (27): Confirmed Facts (Pre-Implementation Verification), fix: HR Employees Module — Hardening & Correctness, Implementation Sequencing, [MODIFY] `src/actions/hr.ts`, [MODIFY] `src/actions/hr.ts`, [MODIFY] `src/app/(routes)/hr/HRClient.tsx`, [MODIFY] `src/components/hr/DailyAttendance.tsx`, [MODIFY] `src/components/hr/EmployeeDirectory.tsx` (+19 more)
 
 ### Community 25 - "reports-actions.ts"
-Cohesion: 0.09
-Nodes (31): publish, jspdf, provider, url, fetchCashFlowData(), metadata, calculateKPIs(), CASH_ACCOUNTS (+23 more)
+Cohesion: 0.33
+Nodes (8): fetchCashFlowData(), calculateKPIs(), CASH_ACCOUNTS, CATEGORY_MAP, getCashFlowReport(), CategoryGroup, ReportData, ReportTransaction
 
 ### Community 26 - "🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)"
-Cohesion: 0.05
-Nodes (76): searchEmployeeByPhone, getAllTechnicians, getEffectiveStoreSettings, addCollaborator, addTicketNote, applyCustomerCredit, assignTechnician, checkTicketLock() (+68 more)
+Cohesion: 0.04
+Nodes (97): searchEmployeeByPhone, getAllTechnicians, createSupplier, getEffectiveStoreSettings, transferPartToTechnicianQuick, addCollaborator, addTicketNote, addTicketPart (+89 more)
 
 ### Community 27 - "💰 1. Financial Integrity & Payroll Protocols"
-Cohesion: 0.14
-Nodes (27): seedBundleCategory, AddProductModal(), AddProductModalProps, BundleItemRow, EMPTY_FORM, BarcodeListener(), BarcodeListenerProps, BulkUploadDialogProps (+19 more)
+Cohesion: 0.15
+Nodes (24): seedBundleCategory, AddProductModalProps, BundleItemRow, EMPTY_FORM, BarcodeListener(), BarcodeListenerProps, BulkUploadDialogProps, NewPurchaseOverlayProps (+16 more)
 
 ### Community 28 - "offline-sync-concurrency-fixes.md"
-Cohesion: 0.12
-Nodes (18): OfflineCategory, offlineDB, OfflineInventoryMovement, OfflineModel, OfflineProduct, OfflineReturn, OfflineSale, OfflineStoreSettings (+10 more)
+Cohesion: 0.17
+Nodes (11): OfflineCategory, offlineDB, OfflineInventoryMovement, OfflineModel, OfflineProduct, OfflineReturn, OfflineStoreSettings, OfflineSystemConfig (+3 more)
 
 ### Community 29 - "button.tsx"
-Cohesion: 0.11
-Nodes (39): logout(), reportWastage, getBranchTreasuriesForDropdown(), TransactionModalProps, SalaryPaymentModalProps, WastageDialog(), WastageDialogProps, PartialRefundDialog() (+31 more)
+Cohesion: 0.09
+Nodes (52): addSparePart, CustomerWithBalance, IntelligenceStats, DailyAttendance(), DailyLog, User, TransactionModalProps, SalaryPaymentModalProps (+44 more)
 
 ### Community 30 - "error"
 Cohesion: 0.07
@@ -504,11 +508,11 @@ Nodes (26): Architecture: ENV Bridge (Solves Context Gap), Critical Pre-Conditio
 
 ### Community 31 - "dependencies"
 Cohesion: 0.03
-Nodes (66): dependencies, app-builder-bin, bcryptjs, better-sqlite3, bidi-js, bonjour-service, bwip-js, bytenode (+58 more)
+Nodes (67): dependencies, app-builder-bin, arabic-reshaper, bcryptjs, better-sqlite3, bidi-js, bonjour-service, bwip-js (+59 more)
 
 ### Community 32 - "hasPermission"
 Cohesion: 0.08
-Nodes (35): db, getMonthlyLogsForPage(), getAuditLogs(), resetDatabase(), deleteAttendanceEntry(), deleteEmployeeTransaction(), TransactionSchema, updateAttendanceEntry() (+27 more)
+Nodes (38): db, getMonthlyLogsForPage(), getAuditLogs(), login(), logout(), resetDatabase(), deleteAttendanceEntry(), deleteEmployeeTransaction() (+30 more)
 
 ### Community 33 - "mcp"
 Cohesion: 0.04
@@ -538,6 +542,10 @@ Nodes (41): 1. Initial Merge (Commit 3336d84), 1. `.roo/mcp.json` (Modified, Not
 Cohesion: 0.05
 Nodes (41): 1.1 Critical Gaps, 1.2 Medium Priority Gaps, 1. Gap Analysis, 2.1 Risk Matrix, 2.2 Pre-Implementation Checks, 2. Risk Assessment, 3.1 Success Metrics, 3.2 Validation Checklist (+33 more)
 
+### Community 40 - "auth.ts"
+Cohesion: 0.17
+Nodes (14): adjustAccountBalance, authenticatePortal(), getCustomerDetails, getCustomerIntelligenceStats, getCustomersWithBalance, getCustomerTransactions, getOrGeneratePortalToken, recordCustomerPayment (+6 more)
+
 ### Community 41 - "ShiftStatusIndicator.tsx"
 Cohesion: 0.21
 Nodes (12): adjustStock, createWarehouse, deleteWarehouse, getWarehouseStock, updateWarehouse, StockItem, Warehouse, WarehouseManager() (+4 more)
@@ -547,20 +555,24 @@ Cohesion: 0.08
 Nodes (21): getCachedDailyRevenue(), getCachedProductById(), getCachedProductBySku(), getCachedProducts(), getCachedWarehouseStock(), getCachedTicketById(), safeLocalStorage, useIdleTimeout() (+13 more)
 
 ### Community 43 - "QZTrayService"
-Cohesion: 0.10
-Nodes (10): PrintConfig, Printer, QZStatus, QZTrayService, loadQZ(), PrintConfig, Printer, QZInstance (+2 more)
+Cohesion: 0.20
+Nodes (6): loadQZ(), PrintConfig, Printer, QZInstance, QZStatus, QZTrayService
 
 ### Community 44 - "A. Detailed Audit Findings by Functional Area"
 Cohesion: 0.05
 Nodes (36): A1. User Interface (UI), A2. Performance, A3. Security, A4. Data Integrity, A5. Integration Capabilities, A6. Scalability, A7. Compliance, A8. Usability (+28 more)
 
 ### Community 45 - "fix: Purchase Return Workflow — UI Hardening & Gap Closure"
-Cohesion: 0.22
-Nodes (9): updateStoreSettings, MessagingSettings(), MessagingSettingsProps, StoreConfig(), checkPrinterAndRedirect(), TicketsList(), Switch, SwitchProps (+1 more)
+Cohesion: 0.15
+Nodes (18): createAttribute, createModel, createPurchase, createUnitOfMeasure, generateNextSku, getPurchase, getPurchaseInvoices, updatePurchase (+10 more)
 
 ### Community 46 - "❌ Missing Features & Gaps"
 Cohesion: 0.06
 Nodes (35): 10. Asset Management, 11. Project/Job Costing, 12. Advanced Pricing, 13. Document Management, 14. POS Hardware Integration, 15. Multi-language & Localization, 16. API & Integrations, 17. Advanced Security (+27 more)
+
+### Community 47 - "hr.ts"
+Cohesion: 0.16
+Nodes (7): getMaintenanceProfitReport, getTechnicians(), MaintenanceProfitPage(), NetworkGuideModal(), DesktopStatus(), MaintenanceProfitReport(), CasperClock
 
 ### Community 48 - "fix: Purchasing Module Hardening"
 Cohesion: 0.08
@@ -568,35 +580,39 @@ Nodes (23): Context & Research, Deferred to Implementation, Documentation / Oper
 
 ### Community 49 - "roles.ts"
 Cohesion: 0.11
-Nodes (30): checkRolePrivilegeEscalation(), createRole(), DEFAULT_ROLES, deleteRole(), ensureDefaultRoles(), getRoles(), updateRole(), Role (+22 more)
+Nodes (22): checkRolePrivilegeEscalation(), createRole(), DEFAULT_ROLES, deleteRole(), ensureDefaultRoles(), getRoles(), updateRole(), Role (+14 more)
 
 ### Community 50 - "customer-actions.ts"
 Cohesion: 0.13
-Nodes (19): paySupplier, voidSupplierPayment, voidPurchase, getStoreSettings(), generateA4PurchaseHTML(), TemplateProps, generateA4StatementHTML(), TemplateProps (+11 more)
+Nodes (14): xlsx, getAgedDebts(), getSalesAnalysis(), GroupByOption, getZReports(), AgedReceivablesReport(), GroupByOption, SalesAnalysisReport() (+6 more)
 
 ### Community 51 - "GlassModal.tsx"
 Cohesion: 0.09
-Nodes (17): LoginForm(), ModeToggle(), EGP_DENOMINATIONS, MoneyCounterProps, USD_DENOMINATIONS, BridgeStatusBadge(), BridgeStatusBadgeProps, MENU_ITEMS (+9 more)
+Nodes (16): LoginForm(), ModeToggle(), EGP_DENOMINATIONS, MoneyCounterProps, USD_DENOMINATIONS, BridgeStatusBadgeProps, MENU_ITEMS, Sidebar() (+8 more)
 
 ### Community 52 - "TreasuryDashboard.tsx"
-Cohesion: 0.36
-Nodes (8): createCategory, deleteCategory, getAllCategories, updateCategory, CategoryModal(), CategoryModalProps, PRESET_COLORS, CategoryModal()
+Cohesion: 0.23
+Nodes (13): createManualBackup(), DB_FILE, DEFAULT_BACKUP_DIR, downloadBackup(), getBackupPath(), getBackups(), getBackupStats(), listServerDirectory() (+5 more)
 
 ### Community 53 - "prisma.ts"
-Cohesion: 0.13
-Nodes (10): resetAllData(), POST(), POST(), NetworkStatus, register(), CSRFMetric, metrics, globalForDbInit (+2 more)
+Cohesion: 0.21
+Nodes (10): PrintContext, shouldAutoPrint(), CloudConfigSchema, CoercedBoolean, KickDrawerSchema, NodeConfigSchema, PrintSettings, PrintSettingsSchema (+2 more)
 
 ### Community 54 - "3.2 Modified Files (Key Changes)"
 Cohesion: 0.06
 Nodes (30): 1.1 SQLite Database Files Conflict, 1.2 `.gitignore` Update ✅ PASSED, 1. Conflict Resolution ✅ PASSED, 2.1 No Leftover Conflict Markers, 2.2 TypeScript Compilation ✅ PASSED, 2.3 Build Status, 2. Code Quality & Integrity ✅ PASSED, 3.1 New Files Added (+22 more)
 
 ### Community 55 - "layout.tsx"
-Cohesion: 0.20
-Nodes (8): AsarIntegrity, Hardware, TrueTime, LicenseCheckResult, LicensePayload, LicenseStatus, LicenseVerifier, { publicKey, privateKey }
+Cohesion: 0.11
+Nodes (12): CSRFMetric, metrics, globalForDbInit, AsarIntegrity, Hardware, TrueTime, LicenseCheckResult, LicensePayload (+4 more)
 
 ### Community 56 - "Automated Safeguards Implementation Plan"
 Cohesion: 0.07
 Nodes (29): 1.1 Pre-commit Hook, 1.2 Pre-merge Hook, 2.1 Node.js Validation Script, 3.1 GitHub Actions Workflow, 5.1 Update README.md, 5.2 Create Developer Guide, Automated Safeguards Implementation Plan, Current State Assessment (+21 more)
+
+### Community 57 - "PrintService"
+Cohesion: 0.14
+Nodes (5): BridgeConnectionState, BridgeStatus, useBridgeStatus(), PrintService, PrinterRegistry
 
 ### Community 58 - "Accounting Module Audit Report"
 Cohesion: 0.07
@@ -636,7 +652,7 @@ Nodes (22): Automated Tests, Client Component Data Completeness, Estimated Succe
 
 ### Community 67 - "useKeyboardNavigation"
 Cohesion: 0.16
-Nodes (13): getCurrentShiftInternal(), processTicketPayment, refundTicket, createTicket, softDeleteTicket, updateTicketDetails, TicketCreateData, TicketUpdateData (+5 more)
+Nodes (11): createTicket, softDeleteTicket, updateTicketDetails, TicketCreateData, TicketUpdateData, getNextTicketNumber(), settingsSchema, CreateTicketInput (+3 more)
 
 ### Community 68 - "Financial & Operational Audit Execution Plan"
 Cohesion: 0.08
@@ -655,8 +671,8 @@ Cohesion: 0.10
 Nodes (18): addTransaction, createExpense, CreateExpenseSchema, deleteExpense, deleteTransaction, EXPENSE_RATE_LIMIT, getExpenses, getGlRoutingStats() (+10 more)
 
 ### Community 72 - "TechnicianCustodyTab.tsx"
-Cohesion: 0.11
-Nodes (25): adjustAccountBalance, getCustomerDetails, getCustomerIntelligenceStats, getCustomersWithBalance, getCustomerTransactions, recordCustomerPayment, searchCustomers, triggerCustomerReindex (+17 more)
+Cohesion: 0.19
+Nodes (12): LogsPageClientProps, ProfileData, LanguageSwitcher(), TicketsClientPage(), TicketsList(), Avatar, AvatarFallback, AvatarImage (+4 more)
 
 ### Community 73 - "fix: Harden Deployment Data Safety for `feat/arch-hardening-performance`"
 Cohesion: 0.08
@@ -664,7 +680,7 @@ Nodes (23): Deferred Questions, Dependencies and Sequencing, fix: Harden Deploym
 
 ### Community 74 - "fix: Purchasing Module — Full Review Hardening"
 Cohesion: 0.05
-Nodes (51): xlsx, createCustomer, getEmployeesForLink, getBundleAvailability(), getBundleComponents(), processSale, getSalesAnalysis(), GroupByOption (+43 more)
+Nodes (61): paySupplier, voidSupplierPayment, voidPurchase, refundSale, getStoreSettings(), updateStoreSettings, getBranchTreasuriesForDropdown(), generateA4PurchaseHTML() (+53 more)
 
 ### Community 75 - "fix: Restore Engineer Column to Tickets List"
 Cohesion: 0.09
@@ -682,10 +698,6 @@ Nodes (20): Context & Research, Deferred to Implementation, Deferred to Separate
 Cohesion: 0.09
 Nodes (22): 1. Check Database Settings, 1. **Settings Race Condition (PRIMARY ISSUE)**, 2. Check Browser/Console Logs, 2. **Printer Name Resolution Issue**, 3. **Electron IPC Bridge Availability**, 3. Verify Electron API, 4. **Database Settings Default to False**, 4. Verify Printer Configuration (+14 more)
 
-### Community 79 - "seed-units.ts"
-Cohesion: 0.14
-Nodes (12): ProcessSaleData, updateShiftHeartbeat, getTechniciansPayrollSummary(), settleTechnicianPayroll(), TechPayrollSummary, getTreasuries(), SettlementConfirmationModalProps, TechniciansPayrollDashboard() (+4 more)
-
 ### Community 80 - "app.js"
 Cohesion: 0.10
 Nodes (15): appPath, config, createLabel(), createPDF(), electron, fs, generateBarcode(), JsBarcode (+7 more)
@@ -699,8 +711,8 @@ Cohesion: 0.09
 Nodes (6): QZ, qz-tray, QZAPI, QZConfig, QZPrint, QZPrinters
 
 ### Community 83 - "scripts"
-Cohesion: 0.08
-Nodes (26): scripts, build, compile:bytecode, db:push, db:studio, dev, dev:electron, dev:next (+18 more)
+Cohesion: 0.07
+Nodes (30): scripts, build, compile:bytecode, db:push, db:studio, deploy:hq, dev, dev:electron (+22 more)
 
 ### Community 84 - "Cash Control Implementation - Changes Summary"
 Cohesion: 0.10
@@ -731,8 +743,8 @@ Cohesion: 0.22
 Nodes (16): { app }, destroyClient(), forceDeleteDirectory(), fs, getBaileys(), initialize(), lastDayReset, log() (+8 more)
 
 ### Community 91 - "logger.ts"
-Cohesion: 0.19
-Nodes (12): getProductPriceHistory, PriceHistoryPopover(), PriceHistoryPopover(), PurchaseItemsTable(), PurchaseItemsTableProps, BranchOption, CartItem, PriceHistoryEntry (+4 more)
+Cohesion: 0.21
+Nodes (11): getProductPriceHistory, PriceHistoryPopover(), PriceHistoryPopover(), PurchaseItemsTable(), PurchaseItemsTableProps, BranchOption, CartItem, PriceHistoryEntry (+3 more)
 
 ### Community 92 - "users.ts"
 Cohesion: 0.12
@@ -747,8 +759,8 @@ Cohesion: 0.12
 Nodes (16): Automated Tests, Bridge IP Security Migration, Execution Sequencing, feat: Full Print System Hardening & Hardware Integration Completion, Implementation Units, Manual Verification, Problem Frame, Research Findings (+8 more)
 
 ### Community 95 - "NewTicketPage"
-Cohesion: 0.23
-Nodes (7): getMaintenanceProfitReport, getTechnicians(), MaintenanceProfitPage(), MaintenanceProfitReport(), CustomerIndexingService, SyncWorker, CloudConfig
+Cohesion: 0.25
+Nodes (4): register(), CustomerIndexingService, SyncWorker, CloudConfig
 
 ### Community 96 - "Refund Ticket Feature - Comprehensive Analysis"
 Cohesion: 0.12
@@ -760,11 +772,11 @@ Nodes (15): 1. تقرير الأرباح والخسائر (P&L), 2. تقرير �
 
 ### Community 98 - "BulkUploadDialog.tsx"
 Cohesion: 0.19
-Nodes (8): performSetup(), ResetOptions, DEFAULT_UNITS, DefaultUnit, UNIT_CATEGORIES, UnitCategory, seedUnits(), UNIT_CATEGORY_LABELS
+Nodes (9): performSetup(), resetForSetup(), ResetOptions, DEFAULT_UNITS, DefaultUnit, UNIT_CATEGORIES, UnitCategory, seedUnits() (+1 more)
 
 ### Community 99 - "pos.ts"
-Cohesion: 0.12
-Nodes (16): getBranchesForFilter(), getCategoriesForFilter(), getProductsForFilter(), getReportData(), getSalesByProductAndCategory(), ReportFilters, getBranchesForHR(), getHRReport() (+8 more)
+Cohesion: 0.10
+Nodes (25): getBranchesForFilter(), getCategoriesForFilter(), getProductsForFilter(), getReportData(), getSalesByProductAndCategory(), ReportFilters, getBranchesForHR(), getHRReport() (+17 more)
 
 ### Community 100 - "print-service.ts"
 Cohesion: 0.12
@@ -819,8 +831,8 @@ Cohesion: 0.15
 Nodes (13): 1.1 Scope, 1.2 Overall Assessment, 1. Executive Summary, 4. Module: HR & Employee Management, 5. Module: Shift Management, 6. Module: Security, 8. Appendix: File Inventory, Actions (~55 files) (+5 more)
 
 ### Community 113 - "ensure-main-branch.ts"
-Cohesion: 0.11
-Nodes (16): changePasswordSchema, changeSuperAdminPassword, checkPhoneLink, checkPrivilegeEscalation(), createUser, deleteUser, getUsers, getUsersByBranch (+8 more)
+Cohesion: 0.13
+Nodes (15): changePasswordSchema, changeSuperAdminPassword, checkPhoneLink, checkPrivilegeEscalation(), createUser, deleteUser, getUsers, getUsersByBranch (+7 more)
 
 ### Community 114 - "generate-build-assets.js"
 Cohesion: 0.22
@@ -830,13 +842,9 @@ Nodes (12): assetsDir, buildDir, fs, generateBitmaps(), generateIcons(), { Jimp 
 Cohesion: 0.13
 Nodes (5): Database, fs, path, PrintQueue, PrintQueue
 
-### Community 116 - "PurchasesTab"
-Cohesion: 0.19
-Nodes (3): generateLabelHTML(), ElectronPrintChannel, getQZService()
-
 ### Community 117 - "CategoryModal.tsx"
-Cohesion: 0.07
-Nodes (42): main(), prisma, createAttribute, createModel, createProduct, createSupplier, createUnitOfMeasure, deleteProduct (+34 more)
+Cohesion: 0.12
+Nodes (25): createProduct, deleteProduct, deletePurchase, fixDuplicateWarehouses, getAllAttributes, getAllModels, getAllUnits, getProducts (+17 more)
 
 ### Community 118 - "toDecimal"
 Cohesion: 0.11
@@ -855,8 +863,8 @@ Cohesion: 0.21
 Nodes (11): DEFAULT_MINIMUM_TOKENS, npx, @modelcontextprotocol/server-memory, @modelcontextprotocol/server-sequential-thinking, @playwright/mcp, @upstash/context7-mcp, context7, memory (+3 more)
 
 ### Community 122 - "build"
-Cohesion: 0.15
-Nodes (13): build, appId, asar, asarUnpack, copyright, directories, extraResources, files (+5 more)
+Cohesion: 0.12
+Nodes (16): build, appId, asar, asarUnpack, copyright, directories, extraResources, files (+8 more)
 
 ### Community 123 - "Auto Print Fix Implementation Plan"
 Cohesion: 0.17
@@ -867,12 +875,12 @@ Cohesion: 0.17
 Nodes (11): Edge Cases, Feature Specification: [FEATURE NAME], Functional Requirements, Key Entities *(include if feature involves data)*, Measurable Outcomes, Requirements *(mandatory)*, Success Criteria *(mandatory)*, User Scenarios & Testing *(mandatory)* (+3 more)
 
 ### Community 125 - "TableSelectionModal.tsx"
-Cohesion: 0.19
-Nodes (17): bulkImportPurchases, BulkUploadDialog(), downloadWorkbook(), generateInventoryTemplate(), generatePurchaseTemplate(), checkDuplicateSKUs(), CSVInvoiceRow, groupIntoInvoices() (+9 more)
+Cohesion: 0.24
+Nodes (14): bulkImportPurchases, BulkUploadDialog(), checkDuplicateSKUs(), CSVInvoiceRow, groupIntoInvoices(), InvoiceItem, parseCSV(), parseCSVLine() (+6 more)
 
 ### Community 126 - "ReceiptModal.tsx"
-Cohesion: 0.22
-Nodes (10): fetchBalanceSheetData(), fetchNetProfitData(), BalanceSheetPage(), BalanceSheetItem, BalanceSheetResult, BalanceSheetSection, getBalanceSheet(), getNetProfit() (+2 more)
+Cohesion: 0.12
+Nodes (20): fetchBalanceSheetData(), fetchNetProfitData(), BalanceSheetPage(), PartnersPage(), AddPartnerDialog(), DistributeProfitDialog(), PartnerTransactionDialog(), PartnerTransactionDialogProps (+12 more)
 
 ### Community 127 - "Casper POS Desktop — Production Audit & Security Report"
 Cohesion: 0.18
@@ -883,8 +891,8 @@ Cohesion: 0.18
 Nodes (10): 1. `context7` - Library/Framework Documentation, 2. `microsoft-learn` - Microsoft Technologies, 3. `microsoft-learn_microsoft_code_sample_search` - Code Examples, 4. `sequentialthinking` - Complex Problem Solving, 5. `memory` - Knowledge Graph, 6. `playwright` - Browser Testing, Auto-Detection Logic, Kilo Configuration (+2 more)
 
 ### Community 129 - "permission-cache.ts"
-Cohesion: 0.13
-Nodes (11): partialReturnPurchase, partialRefundSale, partialRefundTicket, MaintenanceReturnCart(), PurchaseCartState, PurchaseReturnCart(), RefundMethod, ReturnCartProps (+3 more)
+Cohesion: 0.12
+Nodes (12): partialReturnPurchase, TicketLineItem, partialRefundSale, partialRefundTicket, MaintenanceReturnCart(), PurchaseCartState, PurchaseReturnCart(), RefundMethod (+4 more)
 
 ### Community 130 - "prepare-standalone.js"
 Cohesion: 0.18
@@ -943,16 +951,16 @@ Cohesion: 0.20
 Nodes (9): 1. Offline Mode, 2. Auto-Backup, 3. Background Auto-Updates, 4. Data Integrity, Environment Setup, Quickstart: Baseline Casper POS Desktop, Running the Baseline, Troubleshooting (+1 more)
 
 ### Community 145 - "TicketPrintTemplate.tsx"
-Cohesion: 0.35
-Nodes (10): createFloor(), createTable(), deleteFloor(), deleteTable(), updateFloor(), updateTable(), Floor, Table (+2 more)
+Cohesion: 0.18
+Nodes (10): 1. Executive Summary & Problem Framing, 2. Implementation Units, 3. High-Level Logic Diagram, 4. Error Handling Matrix, 5. Test & Verification Scenarios, Problem, Solution, Technical Implementation Plan: Auto-Detect Database Schema Provider & Harden Setup (+2 more)
 
 ### Community 146 - "fix: Radix Dialog Accessibility — Full Remediation"
 Cohesion: 0.22
 Nodes (8): Current State Inventory, fix: Radix Dialog Accessibility — Full Remediation, Implementation Units, Problem Frame, Scope, ✅ Unit 1 — `dialog.tsx` global safety net (DONE), Unit 2 — `sr-only` descriptions on 13 call sites, Unit 3 — Verification
 
 ### Community 147 - "page.tsx"
-Cohesion: 0.12
-Nodes (24): getCurrentUser(), login(), branchSchema, createBranch, deleteBranch, getVisibleBranches, updateBranch, getOrGeneratePortalToken (+16 more)
+Cohesion: 0.14
+Nodes (19): getCurrentUser(), branchSchema, createBranch, deleteBranch, getVisibleBranches, updateBranch, DashboardFilters, getHQMaintenanceStats (+11 more)
 
 ### Community 148 - "bootstrap-license.js"
 Cohesion: 0.17
@@ -1071,8 +1079,8 @@ Cohesion: 0.18
 Nodes (10): 1. Prerequisites (Master Node Only), 2. Bootstrapping the System, 3. CI/CD & Auto-Updater, 4. Hardware Bridge Printing, Architecture Overview, Casper ERP: Multi-Node Network Setup & PostgreSQL Guide, Firewall Configuration, Initial Startup (Setup Wizard) (+2 more)
 
 ### Community 177 - "validate-schema-provider.js"
-Cohesion: 0.18
-Nodes (10): args, datasourceBlockMatch, dbUrlLower, fs, path, providerMatch, schemaArgIndex, schemaContent (+2 more)
+Cohesion: 0.20
+Nodes (9): args, datasourceBlockMatch, dbUrlLower, fs, path, providerMatch, schemaArgIndex, schemaContent (+1 more)
 
 ### Community 178 - "package.json"
 Cohesion: 0.33
@@ -1095,16 +1103,16 @@ Cohesion: 0.33
 Nodes (5): Decision: Electron IPC for "Speed Print", Decision: IndexedDB with SQLite Mirroring, Decision: Native RTL with HSL Color System, Decision: PRAGMA integrity_check for Data Safety, Research: Baseline Casper POS Desktop
 
 ### Community 183 - "ActivateForm.tsx"
-Cohesion: 0.20
-Nodes (8): FetchedPurchase, issueStoreCredit, PurchaseLineItem, ReworkPrefill, SaleLineItem, TicketLineItem, TicketPartItem, TicketServiceItem
+Cohesion: 0.27
+Nodes (9): TransactionReportFilters, ACCOUNT_NAME_TRANSLATIONS, CashFlowDashboard(), translateAccountName(), translateDescription(), CATEGORIES, METHODS, ReportFilterBar() (+1 more)
 
 ### Community 184 - "🛸 Casper ERP & POS: Project Architecture & Financial Memory"
 Cohesion: 0.17
 Nodes (11): 🌐 10. Multi-Device Connectivity, 📦 2. Inventory & Stock Reliability, 🎨 4. Modern UI & UX Standards, 🔄 9. Formalized Workflows, 🛸 Casper ERP & POS: Project Architecture & Financial Memory, 🌐 Dynamic IP Detection, Enterprise Aesthetic, 🛸 Purchase Return Workflow (+3 more)
 
 ### Community 185 - "ZReportReceipt.tsx"
-Cohesion: 0.50
-Nodes (3): getStaffDirectory, EmployeeDirectory(), StaffMember
+Cohesion: 0.25
+Nodes (7): upsertDailyLog, AttendanceGrid(), AttendanceUser, getDaysInMonth(), DailyLog, EmployeeAttendanceDetail(), User
 
 ### Community 186 - "Implementation Order"
 Cohesion: 0.40
@@ -1167,16 +1175,16 @@ Cohesion: 0.22
 Nodes (8): 1. Update `createPurchaseInvoice` (Landed Cost Allocation), 2. Update `createPurchaseReturn` (Accounting for Sunk Delivery Costs), 3. Create Dedicated Expense Account, Landed Cost Allocation & Return Handling, Manual Verification, Problem Context, Proposed Changes, Verification Plan
 
 ### Community 201 - "sync-schemas.js"
-Cohesion: 0.06
-Nodes (12): main(), verifySync(), resetForSetup(), GET(), serializeBigInt(), ensureMainBranch(), _ensureMainBranchInternal(), initializeOrUpdateMainBranch() (+4 more)
+Cohesion: 0.05
+Nodes (21): main(), verifySync(), getTechniciansPayrollSummary(), settleTechnicianPayroll(), TechPayrollSummary, createTreasury(), getTreasuries(), GET() (+13 more)
 
 ### Community 202 - "ImportCSVModal.tsx"
-Cohesion: 0.08
-Nodes (25): getDevicePresets(), upsertDevice(), addPreset(), DEFAULT_CONDITIONS, DEFAULT_ISSUES, deletePreset(), getPresets(), PRESET_TRANSLATIONS (+17 more)
+Cohesion: 0.21
+Nodes (13): getDevicePresets(), upsertDevice(), addPreset(), DEFAULT_CONDITIONS, DEFAULT_ISSUES, deletePreset(), getPresets(), PRESET_TRANSLATIONS (+5 more)
 
 ### Community 203 - "ProductCacheService"
 Cohesion: 0.13
-Nodes (9): BackupManager(), SetupWizard(), TitleBar(), expectIpcOk(), extractIpcData(), LocalPersistenceService, initializeOfflineMode(), setupOfflineMode() (+1 more)
+Nodes (11): BackupManager(), SetupWizard(), TitleBar(), expectIpcOk(), extractIpcData(), LocalPersistenceService, db, OfflineSale (+3 more)
 
 ### Community 204 - "Sync-Aware Master Data (Models & Categories)"
 Cohesion: 0.25
@@ -1211,8 +1219,8 @@ Cohesion: 0.50
 Nodes (3): Casperdesktop, 🛸 Cross-Atmosphere Architecture (Hybrid Web & Desktop), Instructions
 
 ### Community 214 - "stock-request-actions.ts"
-Cohesion: 0.09
-Nodes (25): getDefaultWarehouses, getTransferHistory(), TransferHistoryFilterSchema, TransferItemSchema, transferStock, TransferStockSchema, CloseShiftResult, createShiftAdjustment (+17 more)
+Cohesion: 0.10
+Nodes (21): getDefaultWarehouses, processSale, ProcessSaleData, CloseShiftResult, createShiftAdjustment, detectOrphanedShifts, forceCloseShift, getCurrentShift (+13 more)
 
 ### Community 219 - "fix-production-db.js"
 Cohesion: 0.50
@@ -1227,7 +1235,7 @@ Cohesion: 0.29
 Nodes (7): 💰 1. Financial Integrity & Payroll Protocols, Decimal-Only Financial Math & Precision Hardrails, 💰 Decimal-Only Financial Math & Precision Hardrails, 💰 Ledger Transparency (No Masking), 💰 [NEW] Financial Integrity: Separate Accounting & Reversals, 🛸 [NEW] Sequential Invoice & Ticket Protection, 🕰️ [NEW] Temporal Integrity (Backdating Protocols)
 
 ### Community 222 - "FinancialSummaryTable.tsx"
-Cohesion: 0.42
+Cohesion: 0.33
 Nodes (6): Dashboard(), getFinancialDashboardMetrics(), DashboardFilterParams, FinancialDashboardMetrics, FinancialKPICards(), FinancialKPICardsProps
 
 ### Community 224 - "auth-config.ts"
@@ -1247,11 +1255,11 @@ Cohesion: 0.29
 Nodes (6): Financial Variance and Sync Hardening, Prevention, Problem, Solution, Symptoms, Why This Works
 
 ### Community 231 - "normalizeMasterDataName"
-Cohesion: 0.32
-Nodes (5): getCategoriesForInventory(), getInventoryReport(), getWarehousesForFilter(), InventoryReportFilters, InventoryReportDetail()
+Cohesion: 0.33
+Nodes (8): getAllWarehouses, getTechniciansForCustody, searchProductsForCustody, transferCustodyToTech, CartItem, ProductItem, TechnicianCustodyTab(), TransferEntity
 
 ### Community 232 - "qz-actions.ts"
-Cohesion: 0.28
+Cohesion: 0.26
 Nodes (11): cn(), KPIWidget(), TreasuryLogPage(), getTreasuryLog(), TreasuryDirection, TreasuryLogEntry, TreasuryLogFilters, TreasurySummary (+3 more)
 
 ### Community 233 - "label-template-presets.ts"
@@ -1265,6 +1273,10 @@ Nodes (3): 3. Module: Inventory Module, Files Analyzed, Findings
 ### Community 237 - "7. Priority Action Items"
 Cohesion: 0.67
 Nodes (3): 7. Priority Action Items, Immediate (Sprint 1-2), Short-Term (Sprint 3-4)
+
+### Community 238 - "RejectTicketModal.tsx"
+Cohesion: 0.48
+Nodes (4): main(), prisma, POST(), normalizeMasterDataName()
 
 ### Community 239 - "A.5 Shift Management - Detailed Findings"
 Cohesion: 0.67
@@ -1331,7 +1343,7 @@ Cohesion: 0.40
 Nodes (5): 🔄 16. POS Sync & Online Checkout Concurrency Optimizations, 🛡️ [NEW] Environment-Aware Advisory Locks (Sync Safety), 🛡️ [NEW] Lexicographical Sorting Deadlock Prevention, 🛡️ [NEW] O(1) Bulk Bundle Unpacking, 🛡️ [NEW] Transaction Decoupling (Background Tasks)
 
 ### Community 288 - "ticket.ts"
-Cohesion: 0.18
+Cohesion: 0.17
 Nodes (10): BASE_SCHEMA, baseContent, CLOUD_SCHEMA, cloudContent, __dirname, EXTENSION_PATH, __filename, LOCAL_SCHEMA (+2 more)
 
 ### Community 289 - "🛡️ 12. Advanced Performance & Financial Hardening"
@@ -1367,20 +1379,36 @@ Cohesion: 0.29
 Nodes (8): logTicketNotification, WhatsAppQuickButton(), WhatsAppQuickButtonProps, DEFAULT_QUICK_TEMPLATES, formatWhatsAppNumber(), generateWhatsAppLink(), isPhoneValid(), WHATSAPP_TEMPLATES
 
 ### Community 336 - "prisma-accounting-middleware.ts"
-Cohesion: 0.26
-Nodes (10): main(), seedAccounts(), DEFAULT_CASH_CATEGORIES, seedCashCategories(), initDatabase(), createAccountingMiddleware(), createCustomerTransactionJournal(), createEmployeeTransactionJournal() (+2 more)
+Cohesion: 0.16
+Nodes (16): main(), seedAccounts(), DEFAULT_CASH_CATEGORIES, seedCashCategories(), initDatabase(), createAccountingMiddleware(), createCustomerTransactionJournal(), createEmployeeTransactionJournal() (+8 more)
 
 ### Community 337 - "async-creatable-select.tsx"
-Cohesion: 0.40
-Nodes (4): Ticket, TicketNote, TicketNotificationLog, TicketPart
+Cohesion: 0.29
+Nodes (6): WorkflowActionsProps, Ticket, TicketNote, TicketNotificationLog, TicketPart, WorkflowTicket
+
+### Community 343 - "CasperOfflineDB"
+Cohesion: 0.50
+Nodes (4): setDefaultWarehouse, Warehouse, WarehouseCard(), WarehouseSettings()
 
 ### Community 344 - "tenant-guard.ts"
 Cohesion: 0.67
 Nodes (3): getRedis(), requireActiveTenant(), tenantContext
 
 ### Community 348 - "route.ts"
+Cohesion: 0.40
+Nodes (4): appleModels, oppoModels, samsungModels, xiaomiModels
+
+### Community 351 - "useSessionMonitor"
+Cohesion: 0.40
+Nodes (3): PrintConfig, Printer, QZStatus
+
+### Community 353 - "useSessionSync.ts"
 Cohesion: 0.50
-Nodes (3): { calculateNetDue }, { Decimal }, testSalaryLogic()
+Nodes (3): FinancialSummaryItem, FinancialSummaryTable(), FinancialSummaryTableProps
+
+### Community 360 - "KPICards.tsx"
+Cohesion: 0.67
+Nodes (3): ReportKPIs, KPICards(), KPICardsProps
 
 ### Community 460 - "feat: Multi-PC LAN Network Architecture"
 Cohesion: 0.12
@@ -1391,24 +1419,24 @@ Cohesion: 0.22
 Nodes (8): 1. Environment Variables, 2. Authentication Logic, Manual Verification, [MODIFY] `.env`, [MODIFY] `src/lib/auth.ts`, Proposed Changes, Update Super Admin Credentials, Verification Plan
 
 ## Knowledge Gaps
-- **2237 isolated node(s):** `provisionSchema`, `toggleSchema`, `toggleTenantStatus`, `approveSwapSchema`, `approveHardwareSwap` (+2232 more)
+- **2247 isolated node(s):** `Problem`, `Solution`, `Unit 1: Hardened Auto-Detection Engine in Schema Generator`, `Unit 2: Script Integration & Environment Guard`, `3. High-Level Logic Diagram` (+2242 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **85 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **83 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `error()` connect `SyncService` to `inventory.ts`, `CheckoutModal.tsx`, `sales-actions.ts`, `prisma.ts`, `PurchaseLog.tsx`, `TablesManagement.tsx`, `page.tsx`, `SupplierHistoryTable.tsx`, `AccountingEngine`, `check-gl.js`, `CashFlowDashboard.tsx`, `getBundleComponents`, `db`, `profit-loss.ts`, `TicketPrintTemplate.tsx`, `page.tsx`, `backfill-floating-records.mjs`, `🛡️ 8. System Hardening & Data Integrity Guardrails`, `reports-actions.ts`, `🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)`, `button.tsx`, `hasPermission`, `main.js`, `verify-salary.js`, `inventory-cache.ts`, `QZTrayService`, `NewTicketPage`, `whatsapp-templates.ts`, `hr.ts`, `customer-actions.ts`, `TreasuryDashboard.tsx`, `prisma.ts`, `layout.tsx`, `ZReportReceipt.tsx`, `PrintService`, `WhatsAppQuickButton.tsx`, `ImportCSVModal.tsx`, `fix: Purchasing Module — Full Review Hardening`, `ProductCacheService`, `seed-units.ts`, `prisma-accounting-middleware.ts`, `app.js`, `route.ts`, `staff-override.test.ts`, `stock-request-actions.ts`, `CasperOfflineDB`, `FinancialSummaryTable.tsx`, `NewTicketPage`, `useSessionMonitor`, `useSessionSync.ts`, `BulkUploadDialog.tsx`, `pos.ts`, `whatsapp-templates.ts`, `normalizeMasterDataName`, `qz-actions.ts`, `core.ts`, `CategoryModal.tsx`, `ReceiptModal.tsx`?**
+- **Why does `error()` connect `SyncService` to `inventory.ts`, `CheckoutModal.tsx`, `sales-actions.ts`, `prisma.ts`, `SupplierHistoryTable.tsx`, `page.tsx`, `TablesManagement.tsx`, `AccountingEngine`, `check-gl.js`, `CashFlowDashboard.tsx`, `getBundleComponents`, `PurchaseDataGrid.tsx`, `profit-loss.ts`, `page.tsx`, `backfill-floating-records.mjs`, `🛡️ 8. System Hardening & Data Integrity Guardrails`, `reports-actions.ts`, `🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)`, `button.tsx`, `hasPermission`, `main.js`, `verify-salary.js`, `inventory-cache.ts`, `QZTrayService`, `NewTicketPage`, `whatsapp-templates.ts`, `hr.ts`, `customer-actions.ts`, `GlassModal.tsx`, `TreasuryDashboard.tsx`, `layout.tsx`, `PrintService`, `WhatsAppQuickButton.tsx`, `sync-schemas.js`, `ImportCSVModal.tsx`, `fix: Purchasing Module — Full Review Hardening`, `ProductCacheService`, `prisma-accounting-middleware.ts`, `app.js`, `route.ts`, `staff-override.test.ts`, `stock-request-actions.ts`, `CasperOfflineDB`, `FinancialSummaryTable.tsx`, `NewTicketPage`, `BulkUploadDialog.tsx`, `pos.ts`, `whatsapp-templates.ts`, `qz-actions.ts`, `MaintenanceDashboardClient`, `core.ts`, `ReceiptModal.tsx`?**
+  _High betweenness centrality (0.038) - this node is a cross-community bridge._
+- **Why does `cn()` connect `check-gl.js` to `returns-fetchers.ts`, `CheckoutModal.tsx`, `PurchaseLog.tsx`, `SupplierHistoryTable.tsx`, `page.tsx`, `CashFlowDashboard.tsx`, `backfill-floating-records.mjs`, `🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)`, `💰 1. Financial Integrity & Payroll Protocols`, `PrinterStatusBadge.tsx`, `button.tsx`, `auth.ts`, `fix: Purchase Return Workflow — UI Hardening & Gap Closure`, `NewTicketPage`, `hr.ts`, `roles.ts`, `customer-actions.ts`, `GlassModal.tsx`, `WhatsAppQuickButton.tsx`, `TechnicianCustodyTab.tsx`, `sync-schemas.js`, `ImportCSVModal.tsx`, `fix: Purchasing Module — Full Review Hardening`, `ProductCacheService`, `CasperOfflineDB`, `Decimal`, `pos.ts`, `MaintenanceDashboardClient`, `CategoryModal.tsx`?**
   _High betweenness centrality (0.037) - this node is a cross-community bridge._
-- **Why does `cn()` connect `check-gl.js` to `inventory.ts`, `returns-fetchers.ts`, `permission-cache.ts`, `CheckoutModal.tsx`, `PurchaseLog.tsx`, `SupplierHistoryTable.tsx`, `page.tsx`, `AccountingEngine`, `CashFlowDashboard.tsx`, `backfill-floating-records.mjs`, `🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)`, `💰 1. Financial Integrity & Payroll Protocols`, `PrinterStatusBadge.tsx`, `button.tsx`, `fix: Purchase Return Workflow — UI Hardening & Gap Closure`, `NewTicketPage`, `roles.ts`, `customer-actions.ts`, `GlassModal.tsx`, `WhatsAppQuickButton.tsx`, `TechnicianCustodyTab.tsx`, `ImportCSVModal.tsx`, `fix: Purchasing Module — Full Review Hardening`, `ProductCacheService`, `seed-units.ts`, `Decimal`, `NewTicketPage`, `pos.ts`, `normalizeMasterDataName`, `CategoryModal.tsx`?**
-  _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Why does `useTranslations()` connect `CashFlowDashboard.tsx` to `inventory.ts`, `permission-cache.ts`, `CheckoutModal.tsx`, `PurchaseLog.tsx`, `TablesManagement.tsx`, `page.tsx`, `AccountingEngine`, `check-gl.js`, `db`, `PurchaseDataGrid.tsx`, `profit-loss.ts`, `SyncService`, `🛡️ 8. System Hardening & Data Integrity Guardrails`, `🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)`, `💰 1. Financial Integrity & Payroll Protocols`, `button.tsx`, `hasPermission`, `ShiftStatusIndicator.tsx`, `fix: Purchase Return Workflow — UI Hardening & Gap Closure`, `roles.ts`, `customer-actions.ts`, `GlassModal.tsx`, `TreasuryDashboard.tsx`, `ZReportReceipt.tsx`, `TechnicianCustodyTab.tsx`, `ImportCSVModal.tsx`, `fix: Purchasing Module — Full Review Hardening`, `ProductCacheService`, `logger.ts`, `FinancialSummaryTable.tsx`, `whatsapp-templates.ts`, `CategoryModal.tsx`, `TableSelectionModal.tsx`?**
-  _High betweenness centrality (0.030) - this node is a cross-community bridge._
+- **Why does `useTranslations()` connect `CashFlowDashboard.tsx` to `permission-cache.ts`, `CheckoutModal.tsx`, `sales-actions.ts`, `PurchaseLog.tsx`, `SupplierHistoryTable.tsx`, `page.tsx`, `TablesManagement.tsx`, `AccountingEngine`, `check-gl.js`, `getBundleComponents`, `PurchaseDataGrid.tsx`, `profit-loss.ts`, `🛡️ 8. System Hardening & Data Integrity Guardrails`, `🔄 11. Bi-directional Synchronization (V2 - Pull Mechanism)`, `💰 1. Financial Integrity & Payroll Protocols`, `button.tsx`, `hasPermission`, `auth.ts`, `ShiftStatusIndicator.tsx`, `fix: Purchase Return Workflow — UI Hardening & Gap Closure`, `roles.ts`, `GlassModal.tsx`, `ZReportReceipt.tsx`, `TechnicianCustodyTab.tsx`, `sync-schemas.js`, `ImportCSVModal.tsx`, `fix: Purchasing Module — Full Review Hardening`, `ProductCacheService`, `stock-request-actions.ts`, `logger.ts`, `FinancialSummaryTable.tsx`, `whatsapp-templates.ts`, `normalizeMasterDataName`, `MaintenanceDashboardClient`, `CategoryModal.tsx`, `TableSelectionModal.tsx`?**
+  _High betweenness centrality (0.033) - this node is a cross-community bridge._
 - **Are the 162 inferred relationships involving `error()` (e.g. with `main()` and `setOpeningBalances()`) actually correct?**
   _`error()` has 162 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `provisionSchema`, `toggleSchema`, `toggleTenantStatus` to the rest of the system?**
-  _2237 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Problem`, `Solution`, `Unit 1: Hardened Auto-Detection Engine in Schema Generator` to the rest of the system?**
+  _2247 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `inventory.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.04838278535151029 - nodes in this community are weakly interconnected._
-- **Should `CheckoutModal.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.10846560846560846 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06502732240437159 - nodes in this community are weakly interconnected._
+- **Should `returns-fetchers.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.13043478260869565 - nodes in this community are weakly interconnected._
