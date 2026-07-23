@@ -116,6 +116,10 @@ export default async function HQDashboard() {
                               {lic.macAddress ? `(MAC: ${lic.macAddress})` : "(غير معين)"}
                             </span>
                           </div>
+                          <div className="text-[10px] text-slate-500 font-bold mt-1">
+                            ينتهي في: {new Date(lic.expiresAt).toLocaleDateString('ar-EG')} 
+                            {new Date(lic.expiresAt).getFullYear() > 2090 ? " (مدى الحياة)" : ""}
+                          </div>
                           {lic.status === 'EMERGENCY_MODE' && (
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-amber-500 font-bold flex items-center gap-1 text-xs">

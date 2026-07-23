@@ -2,11 +2,21 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LoginForm from "./LoginForm";
 import { getSession } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export default async function LoginPageServer() {
+    const reqHeaders = await headers();
+    const host = reqHeaders.get('host') || '';
+    const isHq = host.startsWith('hq.') || host.startsWith('admin.');
+
     const session = await getSession();
     if (session) {
-        redirect("/dashboard");
+        redirect(isHq ? "/casper-hq" : "/dashboard");
+    }
+
+    if (isHq) {
+        // HQ never shows onboarding, just login
+        return <LoginForm />;
     }
     // 1. Check license / trial
     const settings = await prisma.storeSettings.findUnique({

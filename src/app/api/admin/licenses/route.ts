@@ -12,6 +12,7 @@ export async function GET(req: Request) {
         }
 
         const tenants = await prisma.tenant.findMany({
+            include: { licenses: true },
             orderBy: { createdAt: 'desc' }
         });
 

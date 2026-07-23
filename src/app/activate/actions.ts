@@ -121,8 +121,8 @@ export async function activateLicense(activationCode: string, machineId: string)
         // Sign JWT
         const payload = {
             tenant_id: tenantObj.id,
-            status: tenantObj.status,
-            trial_ends_at: tenantObj.trialEndsAt.toISOString(),
+            status: tenantObj.status || 'ACTIVE',
+            trial_ends_at: licenseRecord ? licenseRecord.expiresAt.toISOString() : new Date('2099-12-31').toISOString(),
             server_now: new Date().toISOString(),
             machine_id: machineId,
             branch_id: tenantObj.branchId,

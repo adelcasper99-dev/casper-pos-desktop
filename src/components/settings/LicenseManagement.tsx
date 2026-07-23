@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -127,14 +127,15 @@ export default function LicenseManagement() {
                         </TableHeader>
                         <TableBody>
                             {licenses.map((tenant) => {
-                                const isExpired = new Date(tenant.trialEndsAt) < new Date();
-                                const isSuspended = tenant.status === 'suspended';
+                                const primaryLicense = tenant.licenses?.[0];
+                                const isExpired = primaryLicense ? new Date(primaryLicense.expiresAt) < new Date() : false;
+                                const isSuspended = !tenant.isActive;
                                 const isActive = !isExpired && !isSuspended;
 
                                 return (
                                     <TableRow key={tenant.id}>
-                                        <TableCell className="font-medium">{tenant.clientName || 'Unknown'}</TableCell>
-                                        <TableCell className="capitalize">{tenant.planType}</TableCell>
+                                        <TableCell className="font-medium">{tenant.name || 'Unknown'}</TableCell>
+                                        <TableCell className="capitalize">Pro</TableCell>
                                         <TableCell>
                                             {isSuspended ? (
                                                 <Badge variant="destructive" className="flex w-max items-center gap-1">
@@ -153,19 +154,19 @@ export default function LicenseManagement() {
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Clock className="w-3 h-3 text-muted-foreground" />
-                                                {format(new Date(tenant.trialEndsAt), 'PP')}
+                                                {primaryLicense ? format(new Date(primaryLicense.expiresAt), 'PP') : "N/A"}
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px] block" title={tenant.machineId || 'Not activated yet'}>
-                                                {tenant.machineId || 'Pending Activation...'}
+                                            <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px] block" title={primaryLicense?.macAddress || 'Not activated yet'}>
+                                                {primaryLicense?.macAddress || 'Pending Activation...'}
                                             </span>
-                                            {tenant.activationCode && !tenant.machineId && (
+                                            {primaryLicense?.key && !primaryLicense?.macAddress && (
                                                 <Button 
                                                     variant="ghost" 
                                                     size="sm" 
                                                     className="h-6 mt-1 text-[10px] px-2 text-violet-500 hover:text-violet-600"
-                                                    onClick={() => handleCopy(tenant.activationCode, tenant.id)}
+                                                    onClick={() => handleCopy(primaryLicense.key, tenant.id)}
                                                 >
                                                     {copiedId === tenant.id ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
                                                     Copy Code

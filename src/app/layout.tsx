@@ -36,9 +36,20 @@ export default async function RootLayout({
 }) {
     // Database and seeding are now handled by src/instrumentation.ts on server startup
     const reqHeaders = await headers();
-    const rawTenantId = reqHeaders.get('x-tenant-id');
+    let rawTenantId = reqHeaders.get('x-tenant-id');
+    const host = reqHeaders.get('host') || '';
+    
+    // Fallback if middleware is bypassed: derive tenantId from Host header
+    if (!rawTenantId && host) {
+        const parts = host.split('.');
+        const subdomain = parts.length > 2 ? parts[0] : null;
+        if (subdomain === 'hq' || subdomain === 'admin') {
+            rawTenantId = 'SYSTEM';
+        }
+    }
+
     let tenantId = rawTenantId;
-    if (rawTenantId) {
+    if (rawTenantId && rawTenantId !== 'SYSTEM') {
         try {
             tenantId = decodeURIComponent(rawTenantId);
         } catch (e) {

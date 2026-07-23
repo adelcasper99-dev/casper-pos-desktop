@@ -10,19 +10,20 @@ export async function POST(req: Request) {
             return NextResponse.json({ valid: false, reason: "missing_machine_id" }, { status: 400 });
         }
 
-        const tenant = await prisma.tenant.findFirst({
-            where: { machineId }
+        const license = await prisma.license.findFirst({
+            where: { macAddress: machineId },
+            include: { tenant: true }
         });
 
-        if (!tenant) {
+        if (!license || !license.tenant) {
             return NextResponse.json({ valid: false, reason: "not_found" });
         }
 
-        if (tenant.status === 'suspended') {
+        if (!license.tenant.isActive) {
             return NextResponse.json({ valid: false, reason: "suspended" });
         }
 
-        if (tenant.trialEndsAt && new Date() > tenant.trialEndsAt) {
+        if (license.expiresAt && new Date() > license.expiresAt) {
             return NextResponse.json({ valid: false, reason: "expired" });
         }
 

@@ -10,32 +10,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const body = await req.json();
-        const { clientName, durationDays = 14, planType = 'trial' } = body;
-
-        // Generate cryptographically secure activation code (e.g., CASPER-XXXXXX)
-        const randomString = crypto.randomBytes(3).toString('hex').toUpperCase(); // 6 hex chars = 48 bits entropy
-        const activationCode = `CASPER-${randomString}`;
-
-        const trialEndsAt = new Date();
-        trialEndsAt.setDate(trialEndsAt.getDate() + durationDays);
-
-        const tenant = await prisma.tenant.create({
-            data: {
-                planType,
-                status: 'active',
-                trialEndsAt,
-                activationCode,
-                clientName,
-            }
-        });
-
-        return NextResponse.json({
-            success: true,
-            activationCode,
-            tenantId: tenant.id,
-            trialEndsAt
-        });
+        return NextResponse.json({ error: "Deprecated. Use /api/hq/provision-tenant instead." }, { status: 400 });
 
     } catch (error: any) {
         console.error("[ADMIN_LICENSE_GENERATE] Error:", error);

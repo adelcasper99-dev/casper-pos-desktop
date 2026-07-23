@@ -25,10 +25,11 @@ export function ProvisionTenantModal() {
     const adminUsername = formData.get("adminUsername") as string;
     const adminPassword = formData.get("adminPassword") as string;
     const adminRole = (formData.get("adminRole") as any) || "ADMIN";
+    const duration = (formData.get("duration") as any) || "14_DAYS";
 
     try {
       const csrfToken = await generateCSRFToken();
-      const res = await provisionNewTenant({ name, domain, adminUsername, adminPassword, adminRole, csrfToken });
+      const res = await provisionNewTenant({ name, domain, adminUsername, adminPassword, adminRole, duration, csrfToken });
       
       // `res` from safe-action is typed and flattened.
       if (res?.success) {
@@ -189,6 +190,20 @@ export function ProvisionTenantModal() {
                       <option value="ADMIN">مدير نظام (ADMIN) - صلاحيات كاملة</option>
                       <option value="MANAGER">مدير فرع (MANAGER) - صلاحيات إدارية</option>
                       <option value="STAFF">موظف / كاشير (STAFF) - صلاحيات مبيعات فقط</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">مدة الترخيص (License Duration)</label>
+                    <select
+                      name="duration"
+                      defaultValue="14_DAYS"
+                      className="w-full border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none cursor-pointer"
+                    >
+                      <option value="14_DAYS">14 يوم (تجريبي)</option>
+                      <option value="1_MONTH">شهر واحد</option>
+                      <option value="6_MONTHS">6 أشهر</option>
+                      <option value="1_YEAR">سنة واحدة</option>
+                      <option value="LIFETIME">مدى الحياة</option>
                     </select>
                   </div>
 

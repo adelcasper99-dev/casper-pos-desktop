@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -406,13 +406,14 @@ export default function LicenseManagerPage() {
                             </TableHeader>
                             <TableBody>
                                 {filteredLicenses.map((tenant) => {
-                                    const isExpired = new Date(tenant.trialEndsAt) < new Date();
-                                    const isSuspended = tenant.status === "suspended";
+                                    const primaryLicense = tenant.licenses?.[0];
+                                    const isExpired = primaryLicense ? new Date(primaryLicense.expiresAt) < new Date() : false;
+                                    const isSuspended = !tenant.isActive;
 
                                     return (
                                         <TableRow key={tenant.id} className="border-slate-800/50 hover:bg-slate-900/10">
-                                            <TableCell className="font-semibold text-slate-200">{tenant.clientName || "Unknown"}</TableCell>
-                                            <TableCell className="capitalize text-slate-400">{tenant.planType}</TableCell>
+                                            <TableCell className="font-semibold text-slate-200">{tenant.name || "Unknown"}</TableCell>
+                                            <TableCell className="capitalize text-slate-400">Pro</TableCell>
                                             <TableCell>
                                                 {isSuspended ? (
                                                     <Badge variant="destructive" className="flex w-max items-center gap-1">
@@ -431,22 +432,22 @@ export default function LicenseManagerPage() {
                                             <TableCell className="text-slate-300">
                                                 <div className="flex items-center gap-2">
                                                     <Clock className="w-3.5 h-3.5 text-slate-500" />
-                                                    {format(new Date(tenant.trialEndsAt), "PP")}
+                                                    {primaryLicense ? format(new Date(primaryLicense.expiresAt), "PP") : "N/A"}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="max-w-[150px]">
-                                                <span className="text-xs font-mono text-slate-500 truncate block" title={tenant.machineId || "Not bound yet"}>
-                                                    {tenant.machineId || "Pending Activation..."}
+                                                <span className="text-xs font-mono text-slate-500 truncate block" title={primaryLicense?.macAddress || "Not bound yet"}>
+                                                    {primaryLicense?.macAddress || "Pending Activation..."}
                                                 </span>
-                                                {tenant.activationCode && !tenant.machineId && (
+                                                {primaryLicense?.key && !primaryLicense?.macAddress && (
                                                     <Button 
                                                         variant="ghost" 
                                                         size="sm" 
                                                         className="h-6 mt-1 text-[10px] px-2 text-cyan-400 hover:text-cyan-300"
-                                                        onClick={() => handleCopy(tenant.activationCode, tenant.id)}
+                                                        onClick={() => handleCopy(primaryLicense.key, tenant.id)}
                                                     >
                                                         {copiedId === tenant.id ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
-                                                        {tenant.activationCode}
+                                                        {primaryLicense.key}
                                                     </Button>
                                                 )}
                                             </TableCell>

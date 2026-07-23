@@ -14,34 +14,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const body = await req.json();
-        const parsed = renewSchema.safeParse(body);
-        
-        if (!parsed.success) {
-            return NextResponse.json({ error: "Invalid duration provided." }, { status: 400 });
-        }
-
-        const { durationDays } = parsed.data;
-        const tenantId = params.id;
-        
-        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-        if (!tenant) {
-            return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-        }
-
-        const oldEndsAtTime = tenant.trialEndsAt ? tenant.trialEndsAt.getTime() : Date.now();
-        const baseTime = Math.max(Date.now(), oldEndsAtTime);
-        const newEndsAt = new Date(baseTime + durationDays * 86400000);
-
-        await prisma.tenant.update({
-            where: { id: tenantId },
-            data: { 
-                status: 'active',
-                trialEndsAt: newEndsAt
-            }
-        });
-
-        return NextResponse.json({ success: true, message: "License renewed successfully.", trialEndsAt: newEndsAt });
+        return NextResponse.json({ error: "Deprecated. Please manage licenses from /casper-hq control plane." }, { status: 400 });
 
     } catch (error: any) {
         console.error("[ADMIN_LICENSE_RENEW] Error:", error);
