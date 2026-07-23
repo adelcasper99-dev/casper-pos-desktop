@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,5 +73,48 @@ if (fs.existsSync(EXTENSION_PATH)) {
         const newExtContent = extContent.substring(0, startIndex) + newBlock + extContent.substring(endIndex);
         fs.writeFileSync(EXTENSION_PATH, newExtContent);
         console.log(`[generate-schemas] Synced ${tenantAwareModels.length} models to prisma-tenant-extension.ts`);
+    }
+}
+
+// 4. Auto-detect DATABASE_URL protocol & generate matching Prisma Client if requested
+function getDatabaseUrl() {
+    if (process.env.DATABASE_URL) {
+        return process.env.DATABASE_URL;
+    }
+    const envPath = path.resolve(__dirname, '../.env');
+    if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        const envMatch = envContent.match(/^\s*DATABASE_URL\s*=\s*["']?([^"'\r\n]+)["']?/m);
+        if (envMatch && envMatch[1]) {
+            return envMatch[1];
+        }
+    }
+    return null;
+}
+
+if (process.argv.includes('--generate')) {
+    let rawDbUrl = getDatabaseUrl();
+    if (!rawDbUrl) {
+        console.warn('⚠️ [generate-schemas] WARNING: DATABASE_URL not found in environment or .env file. Defaulting to "file:./local.db".');
+        rawDbUrl = 'file:./local.db';
+    }
+
+    const isPostgres = /^postgres(ql)?:\/\//i.test(rawDbUrl);
+    const detectedProvider = isPostgres ? 'postgresql' : 'sqlite';
+    const targetSchemaPath = isPostgres ? CLOUD_SCHEMA : LOCAL_SCHEMA;
+    const targetSchemaName = isPostgres ? 'prisma/schema.cloud.prisma' : 'prisma/schema.local.prisma';
+
+    console.log(`[generate-schemas] 🟢 Auto-detected DB protocol provider: "${detectedProvider}" (URL: ${rawDbUrl})`);
+    console.log(`[generate-schemas] Running "npx prisma generate --schema ${targetSchemaName}"...`);
+
+    try {
+        execSync(`npx prisma generate --schema "${targetSchemaPath}"`, {
+            stdio: 'inherit',
+            cwd: path.resolve(__dirname, '..')
+        });
+        console.log(`[generate-schemas] ✅ Prisma client generated successfully using ${targetSchemaName}`);
+    } catch (error) {
+        console.error(`❌ [generate-schemas] ERROR: Failed to generate Prisma client with ${targetSchemaName}:`, error.message);
+        process.exit(1);
     }
 }

@@ -12,15 +12,6 @@ const fs = require('fs');
 const path = require('path');
 
 const args = process.argv.slice(2);
-let schemaPath = path.resolve(__dirname, '../prisma/schema.prisma');
-
-const schemaArgIndex = args.indexOf('--schema');
-if (schemaArgIndex !== -1 && args[schemaArgIndex + 1]) {
-    schemaPath = path.resolve(process.cwd(), args[schemaArgIndex + 1]);
-} else if (args.includes('postgres')) {
-    // Convenience shortcut
-    schemaPath = path.resolve(__dirname, '../prisma/schema.postgres.prisma');
-}
 
 // 1. Get DATABASE_URL
 let dbUrl = process.env.DATABASE_URL;
@@ -41,7 +32,27 @@ if (!dbUrl) {
     process.exit(1);
 }
 
-// 2. Read schema provider
+// 2. Determine default schema path based on DATABASE_URL protocol if --schema is not passed
+let schemaPath = null;
+
+const schemaArgIndex = args.indexOf('--schema');
+if (schemaArgIndex !== -1 && args[schemaArgIndex + 1]) {
+    schemaPath = path.resolve(process.cwd(), args[schemaArgIndex + 1]);
+} else if (args.includes('postgres')) {
+    schemaPath = path.resolve(__dirname, '../prisma/schema.postgres.prisma');
+} else {
+    const isPostgres = /^postgres(ql)?:\/\//i.test(dbUrl);
+    if (isPostgres) {
+        const cloudPath = path.resolve(__dirname, '../prisma/schema.cloud.prisma');
+        const pgPath = path.resolve(__dirname, '../prisma/schema.postgres.prisma');
+        schemaPath = fs.existsSync(cloudPath) ? cloudPath : (fs.existsSync(pgPath) ? pgPath : path.resolve(__dirname, '../prisma/schema.prisma'));
+    } else {
+        const localPath = path.resolve(__dirname, '../prisma/schema.local.prisma');
+        schemaPath = fs.existsSync(localPath) ? localPath : path.resolve(__dirname, '../prisma/schema.prisma');
+    }
+}
+
+// 3. Read schema provider
 if (!fs.existsSync(schemaPath)) {
     console.error(`❌ [validate-schema-provider] ERROR: Schema file not found at: ${schemaPath}`);
     process.exit(1);
@@ -63,7 +74,7 @@ if (!providerMatch) {
 
 const schemaProvider = providerMatch[1].toLowerCase();
 
-// 3. Determine expected provider based on URL protocol
+// 4. Determine expected provider based on URL protocol
 let expectedProvider = '';
 const dbUrlLower = dbUrl.toLowerCase();
 
@@ -76,7 +87,7 @@ if (dbUrlLower.startsWith('postgresql://') || dbUrlLower.startsWith('postgres://
     process.exit(0);
 }
 
-// 4. Validate
+// 5. Validate
 if (schemaProvider !== expectedProvider) {
     console.error('\n❌ =======================================================================');
     console.error('❌ PRISMA PROVIDER AND DATABASE PROTOCOL MISMATCH DETECTED');
@@ -87,12 +98,9 @@ if (schemaProvider !== expectedProvider) {
     console.error(`   Expected Provider: "${expectedProvider}"`);
     console.error('   =======================================================================');
     if (expectedProvider === 'sqlite') {
-        console.error('   👉 FIX FOR LOCAL DEV: datasource provider in prisma/schema.prisma must be "sqlite".');
-        console.error('      Verify prisma/schema.prisma is set to "sqlite".');
-        console.error('      If it is set to "postgresql", run: node scripts/sync-schemas.js --sqlite');
+        console.error('   👉 FIX FOR LOCAL DEV: datasource provider in schema must be "sqlite".');
     } else {
-        console.error('   👉 FIX FOR CLOUD: datasource provider in schema.postgres.prisma must be "postgresql".');
-        console.error('      Run: node scripts/sync-schemas.js (to sync and generate the postgres schema).');
+        console.error('   👉 FIX FOR CLOUD: datasource provider in schema must be "postgresql".');
     }
     console.error('===========================================================================\n');
     process.exit(1);

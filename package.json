@@ -20,7 +20,7 @@
         "seed:hq": "npm run generate:prod && npx tsx scripts/seed-hq-admin.ts && npm run generate:dev",
         "db:push": "prisma db push",
         "db:studio": "prisma studio",
-        "generate:dev": "node scripts/generate-schemas.mjs && prisma generate --schema prisma/schema.local.prisma",
+        "generate:dev": "node scripts/generate-schemas.mjs --generate && node scripts/validate-schema-provider.js",
         "generate:prod": "node scripts/generate-schemas.mjs && prisma generate --schema prisma/schema.cloud.prisma",
         "postinstall": "npm run generate:dev && npx @electron/rebuild -f -w better-sqlite3",
         "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
