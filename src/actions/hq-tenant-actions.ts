@@ -245,3 +245,71 @@ export const editTenant = secureAction(
     return { success: true };
   }
 );
+
+const renewLicenseSchema = z.object({
+  licenseId: z.string(),
+  durationDays: z.number().positive(),
+  csrfToken: z.string().optional()
+});
+
+export const renewLicense = secureAction(
+  async (payload: z.infer<typeof renewLicenseSchema>) => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const { licenseId, durationDays } = renewLicenseSchema.parse(payload);
+
+    const license = await prisma.license.findUnique({
+      where: { id: licenseId }
+    });
+
+    if (!license) throw new Error("License not found");
+
+    const currentExpiry = new Date(license.expiresAt).getTime();
+    const baseTime = Math.max(Date.now(), currentExpiry);
+    const newExpiresAt = new Date(baseTime + durationDays * 24 * 60 * 60 * 1000);
+
+    await prisma.license.update({
+      where: { id: licenseId },
+      data: {
+        expiresAt: newExpiresAt,
+        status: "ACTIVE"
+      }
+    });
+
+    return { success: true, newExpiresAt: newExpiresAt.toISOString() };
+  }
+);
+
+const revokeLicenseSchema = z.object({
+  licenseId: z.string(),
+  tenantId: z.string(),
+  csrfToken: z.string().optional()
+});
+
+export const revokeLicense = secureAction(
+  async (payload: z.infer<typeof revokeLicenseSchema>) => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const { licenseId, tenantId } = revokeLicenseSchema.parse(payload);
+
+    await prisma.$transaction([
+      prisma.license.update({
+        where: { id: licenseId },
+        data: { status: "REVOKED" }
+      }),
+      prisma.tenant.update({
+        where: { id: tenantId },
+        data: { isActive: false }
+      })
+    ]);
+
+    return { success: true };
+  }
+);
+
