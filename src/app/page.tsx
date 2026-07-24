@@ -14,8 +14,10 @@ export default async function LoginPageServer() {
         redirect(isHq ? "/casper-hq" : "/dashboard");
     }
 
-    if (isHq) {
-        // HQ never shows onboarding, just login
+    const isCloud = process.env.DATABASE_URL?.startsWith('postgres') || process.env.DATABASE_URL?.startsWith('postgresql');
+
+    if (isHq || isCloud) {
+        // HQ and Cloud nodes never show local terminal onboarding/setup, just login
         return <LoginForm />;
     }
     // 1. Check license / trial

@@ -8,6 +8,7 @@ export type UserSession = {
     username: string;
     name: string | null;
     role: string;
+    tenantId?: string | null;
     branchId: string | null;
     branchName?: string | null;
     branchType?: string | null;
@@ -53,6 +54,18 @@ export async function createUserSession(userData: UserSession, maxAge: number = 
         path: "/",
     });
 
+    if (userData.tenantId) {
+        cookieStore.set({
+            name: "tenantId",
+            value: userData.tenantId,
+            httpOnly: true,
+            secure: false,
+            sameSite: "lax",
+            maxAge: maxAge,
+            path: "/",
+        });
+    }
+
     return token;
 }
 
@@ -82,6 +95,7 @@ export async function getSession() {
                 username: process.env.SUPER_ADMIN_USER || 'super-admin',
                 name: 'Super Admin',
                 role: 'ADMIN',
+                tenantId: 'SYSTEM',
                 branchId: mainBranchId || null,
                 permissions: ['*'],
                 maxDiscount: 100,
@@ -102,19 +116,28 @@ export async function getSession() {
 
         if (!session) {
             console.warn(`[AUTH DEBUG] Session token found in cookie but not in DB. This usually happens after a DB push/reset.`);
-            try { cookies().delete("session"); } catch (e) {}
+            try { 
+                cookies().delete("session");
+                cookies().delete("tenantId");
+            } catch (e) {}
             return null;
         }
 
         if (session.expiresAt < new Date()) {
-            console.warn(`[AUTH DEBUG] Session expired. Deleting cookie.`);
-            try { cookies().delete("session"); } catch (e) {}
+            console.warn(`[AUTH DEBUG] Session expired. Deleting cookies.`);
+            try { 
+                cookies().delete("session");
+                cookies().delete("tenantId");
+            } catch (e) {}
             return null;
         }
 
         if (session.user.isFrozen) {
-            console.warn(`[AUTH DEBUG] User is frozen. Deleting cookie.`);
-            try { cookies().delete("session"); } catch (e) {}
+            console.warn(`[AUTH DEBUG] User is frozen. Deleting cookies.`);
+            try { 
+                cookies().delete("session");
+                cookies().delete("tenantId");
+            } catch (e) {}
             return null;
         }
     } catch (dbError) {
@@ -125,6 +148,26 @@ export async function getSession() {
 
     // Construct UserSession object
     const user = session.user;
+
+    // Cross-validate & auto-correct tenantId cookie if mismatched or missing
+    if (user.tenantId) {
+        try {
+            const currentTenantCookie = cookieStore.get("tenantId")?.value;
+            if (currentTenantCookie !== user.tenantId) {
+                cookieStore.set({
+                    name: "tenantId",
+                    value: user.tenantId,
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: "lax",
+                    maxAge: 31536000,
+                    path: "/",
+                });
+            }
+        } catch {
+            // Read-only context guard in certain server rendering paths
+        }
+    }
 
     // Parse Permissions
     let permissions: string[] = [];
@@ -148,6 +191,7 @@ export async function getSession() {
             username: user.username,
             name: user.name,
             role: user.roleStr,
+            tenantId: user.tenantId || null,
             branchId: user.branchId,
             permissions: permissions,
             isGlobalAdmin: (user as any).isGlobalAdmin || false,
@@ -172,6 +216,7 @@ export async function destroySession() {
     }
 
     cookieStore.delete("session");
+    cookieStore.delete("tenantId");
 }
 
 export async function logout() {

@@ -55,9 +55,8 @@ export async function requireActiveTenant(rawTenantId: string) {
         });
 
         if (!tenantRecord) {
-            const err = new Error('TENANT_NOT_FOUND');
-            (err as any).code = 'TENANT_NOT_FOUND';
-            throw err;
+            // Non-existent tenant or main domain host (e.g. ozza); allow graceful fallthrough
+            return;
         }
 
         if (!tenantRecord.isActive) {
@@ -69,7 +68,7 @@ export async function requireActiveTenant(rawTenantId: string) {
 
         await r.setex(cacheKey, 60, 'true');
     } catch (error) {
-        if (error instanceof Error && ((error as any).code === 'TENANT_SUSPENDED' || (error as any).code === 'TENANT_NOT_FOUND')) {
+        if (error instanceof Error && (error as any).code === 'TENANT_SUSPENDED') {
             throw error;
         }
         // Fallback if Redis fails
@@ -85,12 +84,7 @@ export async function requireActiveTenant(rawTenantId: string) {
                 ]
             }
         });
-        if (!tenantRecord) {
-            const err = new Error('TENANT_NOT_FOUND');
-            (err as any).code = 'TENANT_NOT_FOUND';
-            throw err;
-        }
-        if (!tenantRecord.isActive) {
+        if (tenantRecord && !tenantRecord.isActive) {
             const err = new Error('TENANT_SUSPENDED');
             (err as any).code = 'TENANT_SUSPENDED';
             throw err;

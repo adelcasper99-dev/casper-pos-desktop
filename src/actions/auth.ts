@@ -130,6 +130,7 @@ export async function login(formData: FormData) {
         username: user.username,
         name: user.name,
         role: user.roleStr,
+        tenantId: user.tenantId || null,
         branchId: effectiveBranchId,
         branchType: user.branch?.type ?? 'CENTER',
         permissions: permissions,
