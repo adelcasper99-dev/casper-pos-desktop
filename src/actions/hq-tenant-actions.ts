@@ -70,7 +70,6 @@ export async function provisionTenantCore(params: {
         username: adminUsername,
         password: hashedPassword,
         name: name,
-        email: email || null,
         phone: phone || null,
         roleStr: adminRole,
         tenantId,
