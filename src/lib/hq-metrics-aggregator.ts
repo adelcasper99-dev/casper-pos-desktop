@@ -23,6 +23,8 @@ export class HQMetricsAggregator {
       console.log(`[HQMetricsAggregator] Starting metric snapshot for ${tenants.length} tenants...`);
 
       for (const tenant of tenants) {
+        let timerId: NodeJS.Timeout | undefined = undefined;
+
         try {
           // Construct database URL for tenant
           const baseUrl = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/casper_db";
@@ -34,23 +36,37 @@ export class HQMetricsAggregator {
           // Connect to tenant DB safely
           const tenantPrisma = await TenantConnectionManager.getTenantPrisma(tenant.id, dbUrl);
 
-          // Execute fast read-only query (max 5s timeout)
-          const salesAgg = await tenantPrisma.sale.aggregate({
-            _sum: { totalAmount: true },
-            _count: { _all: true },
-            where: { status: "COMPLETED" }
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timerId = setTimeout(() => reject(new Error("TENANT_QUERY_TIMEOUT")), 5000);
           });
+
+          // Execute fast read-only query (max 5s timeout)
+          const salesAgg = await Promise.race([
+            tenantPrisma.sale.aggregate({
+              _sum: { totalAmount: true },
+              _count: { _all: true },
+              where: { status: "COMPLETED" }
+            }),
+            timeoutPromise
+          ]);
 
           const totalSales = salesAgg._sum?.totalAmount || new Prisma.Decimal("0.00");
           const totalInvoices = salesAgg._count?._all || 0;
 
-          // Record snapshot in HQ metric table if HQ Prisma model exists
           console.log(`[HQMetricsAggregator] Tenant ${tenant.slug}: Total Sales = ${totalSales.toString()}, Invoices = ${totalInvoices}`);
-
           processed++;
-        } catch (tenantErr) {
-          console.error(`[HQMetricsAggregator] Error collecting metrics for tenant ${tenant.slug}:`, tenantErr);
+        } catch (tenantErr: any) {
+          if (tenantErr?.message === "TENANT_QUERY_TIMEOUT") {
+            console.warn(`[HQMetricsAggregator] Tenant ${tenant.slug} query timed out (5s). Force closing connection pool...`);
+            await TenantConnectionManager.removePool(tenant.id);
+          } else {
+            console.error(`[HQMetricsAggregator] Error collecting metrics for tenant ${tenant.slug}:`, tenantErr);
+          }
           errors++;
+        } finally {
+          if (timerId) {
+            clearTimeout(timerId);
+          }
         }
       }
     } catch (err) {

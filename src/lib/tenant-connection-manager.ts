@@ -12,6 +12,7 @@ export class TenantConnectionManager {
   private static MAX_POOLS = 20;
   private static IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
   private static cleanupInterval: NodeJS.Timeout | null = null;
+  private static connectionLock: Promise<void> = Promise.resolve();
 
   /**
    * Resolves or instantiates a cached PrismaClient for the specified tenant database URL.
@@ -21,6 +22,21 @@ export class TenantConnectionManager {
       throw new Error("TenantConnectionManager cannot be instantiated in browser environment.");
     }
 
+    const currentLock = this.connectionLock;
+    let resolver: () => void;
+    this.connectionLock = new Promise((res) => {
+      resolver = res;
+    });
+
+    try {
+      await currentLock;
+      return await this._internalGetTenantPrisma(tenantId, dbUrl);
+    } finally {
+      resolver!();
+    }
+  }
+
+  private static async _internalGetTenantPrisma(tenantId: string, dbUrl: string): Promise<PrismaClient> {
     this.startIdleCleanup();
 
     const existing = this.pools.get(tenantId);
@@ -121,6 +137,10 @@ export class TenantConnectionManager {
         await this.removePool(tenantId);
       }
     }, 60 * 1000); // Check every minute
+
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
   }
 
   /**
