@@ -241,3 +241,89 @@ export async function saveEmergencyLicense(token: string) {
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * Server Action for One-Click Cloud Login Activation on Desktop Terminals.
+ * Authenticates user credentials with Cloud HQ server, retrieves JWT license & syncSecret,
+ * and initializes local SQLite settings.
+ */
+export async function activateByCloudLogin(cloudUrl: string, username: string, pass: string, machineId: string) {
+    try {
+        const cleanUrl = cloudUrl.replace(/\/$/, "");
+        const response = await fetch(`${cleanUrl}/api/license/staff-verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, pass, machineId })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            try {
+                const parsedErr = JSON.parse(errText);
+                return { success: false, error: parsedErr.error || "فشل التحقق من بيانات الكلاود" };
+            } catch {
+                return { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة على الكلاود" };
+            }
+        }
+
+        const data = await response.json();
+        const { licenseJwt, branchId, syncSecret, tenantId } = data;
+
+        if (!licenseJwt || !branchId || !syncSecret) {
+            return { success: false, error: "استجابة الكلاود غير مكتملة. تحقق من ترخيص الحساب." };
+        }
+
+        // Persist Settings locally
+        await prisma.storeSettings.upsert({
+            where: { id: "settings" },
+            create: {
+                id: "settings",
+                name: "Casper POS Terminal",
+                licenseJwt,
+                lastServerNow: Date.now()
+            },
+            update: {
+                licenseJwt,
+                lastServerNow: Date.now()
+            }
+        });
+
+        // Persist Cloud Configuration
+        await CloudConfigManager.saveCloudConfig({
+            enabled: true,
+            cloudUrl: cleanUrl,
+            syncSecret,
+            branchId
+        });
+
+        // Write Watermark for Offline Safety
+        if (syncSecret && machineId) {
+            const crypto = require("crypto");
+            const watermarkSource = `${tenantId}:${syncSecret}:${machineId}`;
+            const watermark = crypto.createHmac("sha256", syncSecret).update(watermarkSource).digest("hex");
+
+            await prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS "_SystemMetadata" (
+                    "key" TEXT PRIMARY KEY,
+                    "value" TEXT NOT NULL
+                );
+            `);
+
+            await prisma.$executeRawUnsafe(`
+                INSERT INTO "_SystemMetadata" ("key", "value") 
+                VALUES ('watermark', '${watermark}')
+                ON CONFLICT("key") DO UPDATE SET "value" = excluded.value;
+            `);
+        }
+
+        return {
+            success: true,
+            branchId,
+            syncSecret,
+            cloudUrl: cleanUrl
+        };
+    } catch (error: any) {
+        console.error("[activateByCloudLogin]", error);
+        return { success: false, error: error.message || "حدث خطأ أثناء الاتصال بسيرفر الكلاود" };
+    }
+}

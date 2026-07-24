@@ -17,6 +17,154 @@ const provisionSchema = z.object({
   csrfToken: z.string().optional()
 });
 
+export async function provisionTenantCore(params: {
+  name: string;
+  domain: string;
+  adminUsername: string;
+  adminPassword: string;
+  adminRole?: "ADMIN" | "MANAGER" | "STAFF";
+  duration?: '14_DAYS' | '1_MONTH' | '6_MONTHS' | '1_YEAR' | 'LIFETIME';
+  email?: string;
+  phone?: string;
+}) {
+  const { name, domain, adminUsername, adminPassword, adminRole = "ADMIN", duration = '14_DAYS', email, phone } = params;
+
+  const bcrypt = require("bcryptjs");
+  const { Prisma } = require("@prisma/client");
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
+
+  const cleanSlug = domain.replace(/\.casper-erp\.com$/i, "").trim().toLowerCase();
+  const { domainToUnicode } = require("url");
+  const normalizedSlug = domainToUnicode(cleanSlug);
+
+  return await prisma.$transaction(async (tx) => {
+    const tenantId = `tenant-${crypto.randomBytes(4).toString("hex")}`;
+    const syncSecret = crypto.randomBytes(32).toString("hex");
+    const branchId = `branch-${crypto.randomBytes(4).toString("hex")}`;
+
+    // 1. Create Tenant
+    const tenant = await tx.tenant.create({
+      data: {
+        id: tenantId,
+        name,
+        slug: normalizedSlug,
+        branchId,
+        syncSecret
+      }
+    });
+
+    // 2. Create Branch
+    await tx.branch.create({
+      data: {
+        id: branchId,
+        name: `${name} Main Branch`,
+        code: `${cleanSlug.toUpperCase()}-MAIN`,
+        type: "CENTER",
+        tenantId
+      }
+    });
+
+    // 3. Create User
+    const user = await tx.user.create({
+      data: {
+        username: adminUsername,
+        password: hashedPassword,
+        name: name,
+        email: email || null,
+        phone: phone || null,
+        roleStr: adminRole,
+        tenantId,
+        branchId,
+        isGlobalAdmin: false
+      }
+    });
+
+    // 4. Create Main Cash Treasury
+    await tx.treasury.create({
+      data: {
+        id: `treasury-${crypto.randomBytes(4).toString("hex")}`,
+        name: "الخزنة النقدية الرئيسية",
+        type: "CASH",
+        branchId,
+        tenantId,
+        balance: new Prisma.Decimal(0.00)
+      }
+    });
+
+    // 5. Create Default Store Settings
+    await tx.storeSettings.create({
+      data: {
+        id: "settings",
+        name: name,
+        currency: "EGP",
+        taxRate: new Prisma.Decimal(0.00),
+        tenantId,
+        trialStartDate: new Date()
+      }
+    });
+
+    // 6. Create Standard Double-Entry Chart of Accounts
+    const defaultAccounts = [
+      { code: "1110", name: "النقدية بالخزينة", type: "ASSET" },
+      { code: "1120", name: "العملاء والحسابات المدينة", type: "ASSET" },
+      { code: "1200", name: "المخزون السلعي", type: "ASSET" },
+      { code: "2110", name: "الموردون والحسابات الدائنة", type: "LIABILITY" },
+      { code: "4100", name: "إيرادات المبيعات", type: "REVENUE" },
+      { code: "5100", name: "تكلفة البضاعة المباعة", type: "EXPENSE" },
+    ];
+    for (const acc of defaultAccounts) {
+      await tx.account.create({
+        data: {
+          id: `acc-${acc.code}-${crypto.randomBytes(3).toString("hex")}`,
+          code: acc.code,
+          name: acc.name,
+          type: acc.type,
+          balance: new Prisma.Decimal(0.00),
+          tenantId
+        }
+      });
+    }
+
+    // 7. Generate Activation Code & License
+    const p1 = crypto.randomBytes(2).toString("hex").toUpperCase();
+    const p2 = crypto.randomBytes(2).toString("hex").toUpperCase();
+    const p3 = crypto.randomBytes(2).toString("hex").toUpperCase();
+    const activationCode = `CASPER-${p1}-${p2}-${p3}`;
+
+    let expiresAt = new Date();
+    switch (duration) {
+      case '14_DAYS':
+        expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+        break;
+      case '1_MONTH':
+        expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '6_MONTHS':
+        expiresAt = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+        break;
+      case '1_YEAR':
+        expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        break;
+      case 'LIFETIME':
+        expiresAt = new Date('2099-12-31T23:59:59Z');
+        break;
+    }
+
+    await tx.license.create({
+      data: {
+        id: `lic-${crypto.randomBytes(4).toString("hex")}`,
+        tenantId,
+        key: activationCode,
+        macAddress: "",
+        expiresAt,
+        status: "ACTIVE"
+      }
+    });
+
+    return { tenant, user, branchId, activationCode };
+  });
+}
+
 export const provisionNewTenant = secureAction(
   async (payload: z.infer<typeof provisionSchema>) => {
     const session = await getSession();
@@ -26,94 +174,14 @@ export const provisionNewTenant = secureAction(
 
     const { name, domain, adminUsername, adminPassword, adminRole, duration } = provisionSchema.parse(payload);
 
-    // Hash admin password
-    const bcrypt = require("bcryptjs");
-    const hashedPassword = await bcrypt.hash(adminPassword, 12);
-
     try {
-      // Use a transaction to prevent partial provisioning
-      const result = await prisma.$transaction(async (tx) => {
-        // 1. Create Tenant
-        const tenantId = `tenant-${crypto.randomBytes(4).toString("hex")}`;
-        const syncSecret = crypto.randomBytes(32).toString("hex");
-        const branchId = `branch-${crypto.randomBytes(4).toString("hex")}`;
-        
-        const cleanSlug = domain.replace(/\.casper-erp\.com$/i, "").trim();
-        const { domainToUnicode } = require("url");
-        const normalizedSlug = domainToUnicode(cleanSlug);
-
-        const tenant = await tx.tenant.create({
-          data: {
-            id: tenantId,
-            name,
-            slug: normalizedSlug,
-            branchId,
-            syncSecret
-          }
-        });
-
-        // 2. Create Branch
-        await tx.branch.create({
-          data: {
-            id: branchId,
-            name: `${name} Main Branch`,
-            code: `${domain.toUpperCase()}-MAIN`,
-            type: "CENTER",
-            tenantId
-          }
-        });
-
-        // 3. Create User with selected role
-        await tx.user.create({
-          data: {
-            username: adminUsername,
-            password: hashedPassword,
-            name: name,
-            roleStr: adminRole || "ADMIN",
-            tenantId,
-            branchId,
-            isGlobalAdmin: false
-          }
-        });
-
-        // 4. Create License with 96-bit entropy format (CASPER-XXXX-XXXX-XXXX)
-        const p1 = crypto.randomBytes(2).toString("hex").toUpperCase();
-        const p2 = crypto.randomBytes(2).toString("hex").toUpperCase();
-        const p3 = crypto.randomBytes(2).toString("hex").toUpperCase();
-        const activationCode = `CASPER-${p1}-${p2}-${p3}`;
-
-        // Calculate expiration date
-        let expiresAt = new Date();
-        switch (duration) {
-          case '14_DAYS':
-            expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-            break;
-          case '1_MONTH':
-            expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-            break;
-          case '6_MONTHS':
-            expiresAt = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
-            break;
-          case '1_YEAR':
-            expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-            break;
-          case 'LIFETIME':
-            expiresAt = new Date('2099-12-31T23:59:59Z');
-            break;
-        }
-
-        await tx.license.create({
-          data: {
-            id: `lic-${crypto.randomBytes(4).toString("hex")}`,
-            tenantId,
-            key: activationCode,
-            macAddress: "",
-            expiresAt,
-            status: "ACTIVE"
-          }
-        });
-
-        return { tenant, activationCode };
+      const result = await provisionTenantCore({
+        name,
+        domain,
+        adminUsername,
+        adminPassword,
+        adminRole,
+        duration
       });
 
       return { activationCode: result.activationCode };

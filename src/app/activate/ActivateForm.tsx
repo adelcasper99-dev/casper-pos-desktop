@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { activateLicense } from './actions';
-import { WifiOff, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { activateLicense, activateByCloudLogin } from './actions';
+import { WifiOff, ShieldCheck, Loader2, AlertTriangle, Cloud, KeyRound, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,14 +20,21 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export default function ActivateForm() {
     const router = useRouter();
+    const [mode, setMode] = useState<'cloud_login' | 'key'>('cloud_login');
     const [code, setCode] = useState('');
+
+    // Cloud login state
+    const [cloudUrl, setCloudUrl] = useState('https://ozza.casper-erp.com');
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
     const [isOnline, setIsOnline] = useState(true);
     
     // 0 = idle, 1 = جاري التحقق, 2 = جاري ربط الجهاز, 3 = تم التفعيل
     const [loadingPhase, setLoadingPhase] = useState<0 | 1 | 2 | 3>(0);
     const [error, setError] = useState<string | null>(null);
 
-    // 🛡️ P1-10: Fetch machine ID from Electron main process
+    // 🛡️ Fetch machine ID
     const [machineId, setMachineId] = useState<string | null>(null);
     const [machineIdError, setMachineIdError] = useState<string | null>(null);
 
@@ -39,14 +46,11 @@ export default function ActivateForm() {
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
-        // Fetch hardware ID via Electron IPC bridge (desktop) or fall back to
-        // a server-derived node ID for the cloud web deployment.
         if (window.electronAPI?.license?.getMachineId) {
             window.electronAPI.license.getMachineId()
                 .then((id) => setMachineId(id))
-                .catch(() => setMachineIdError('Failed to read hardware ID. Please ensure you are running the desktop app.'));
+                .catch(() => setMachineIdError('فشل قراءة معرف الهاردوير المحلي.'));
         } else {
-            // Cloud/web mode: use the server's IP as a stable machine ID
             fetch('/api/network/ip')
                 .then(r => r.json())
                 .then((data: { ip?: string }) => {
@@ -65,26 +69,46 @@ export default function ActivateForm() {
 
     const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        // Auto-prepend CASPER- prefix if missing when typing/pasting raw segments
         if (val.length >= 6 && !val.startsWith('CASPER-') && !val.includes('-')) {
             val = `CASPER-${val}`;
         }
         setCode(val);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleCloudSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!username || !password || !cloudUrl || !machineId) return;
+
+        setLoadingPhase(1);
+        setError(null);
+
+        const result = await activateByCloudLogin(cloudUrl, username, password, machineId);
+
+        if (result.success && result.branchId && result.syncSecret && result.cloudUrl) {
+            setLoadingPhase(2);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            setLoadingPhase(3);
+            await new Promise(resolve => setTimeout(resolve, 400));
+            router.push('/');
+            router.refresh();
+        } else {
+            setError(result.error || ERROR_MESSAGES.default);
+            setLoadingPhase(0);
+        }
+    };
+
+    const handleKeySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!code || !machineId) return;
 
-        setLoadingPhase(1); // Phase 1: جاري التحقق من الترخيص...
+        setLoadingPhase(1);
         setError(null);
 
         const result = await activateLicense(code, machineId);
         
         if (result.success && result.branchId && result.syncSecret && result.cloudUrl) {
-            setLoadingPhase(2); // Phase 2: جاري ربط الجهاز...
+            setLoadingPhase(2);
             
-            // Save cloud config
             const configSaved = await CloudConfigManager.saveCloudConfig({
                 enabled: true,
                 cloudUrl: result.cloudUrl,
@@ -93,12 +117,11 @@ export default function ActivateForm() {
             });
 
             if (!configSaved.success) {
-                toast.warning('تحذير: تعذّر حفظ إعدادات المزامنة. سيتم المحاولة عند إعادة التشغيل.');
+                toast.warning('تحذير: تعذّر حفظ إعدادات المزامنة.');
             }
 
-            // Small delay to show the nice step-by-step progress
-            await new Promise(resolve => setTimeout(resolve, 600));
-            setLoadingPhase(3); // Phase 3: تم التفعيل بنجاح ✓
+            await new Promise(resolve => setTimeout(resolve, 500));
+            setLoadingPhase(3);
             await new Promise(resolve => setTimeout(resolve, 400));
 
             router.push('/');
@@ -112,37 +135,66 @@ export default function ActivateForm() {
     };
 
     const isLoading = loadingPhase > 0;
-    const canSubmit = !!code && !!machineId && !isLoading && isOnline;
 
     const getLoadingLabel = () => {
         switch (loadingPhase) {
-            case 1: return 'جاري التحقق من الترخيص...';
-            case 2: return 'جاري ربط الجهاز...';
+            case 1: return 'جاري التحقق والتراخيص...';
+            case 2: return 'جاري ربط الفرع وقاعدة البيانات...';
             case 3: return 'تم التفعيل بنجاح ✓';
-            default: return 'Activating...';
+            default: return 'جاري التفعيل...';
         }
     };
 
     return (
-        <div className="flex flex-col gap-6 w-full max-w-md mx-auto p-6 bg-card rounded-xl border shadow-lg mt-20">
+        <div className="flex flex-col gap-6 w-full max-w-lg mx-auto p-6 md:p-8 bg-card rounded-2xl border shadow-2xl mt-12 font-cairo" dir="rtl">
             <div className="flex flex-col items-center justify-center text-center gap-2">
-                <ShieldCheck className="w-12 h-12 text-primary" />
-                <h1 className="text-2xl font-bold">Activate License</h1>
-                <p className="text-muted-foreground text-sm">Enter your activation code to unlock Casper POS</p>
+                <div className="p-3 bg-primary/10 rounded-2xl text-primary mb-1">
+                    <ShieldCheck className="w-10 h-10" />
+                </div>
+                <h1 className="text-2xl font-black text-foreground">تفعيل ترخيص Casper POS</h1>
+                <p className="text-muted-foreground text-xs font-bold">ربط الجهاز المحلي بحسابك التجاري وتفعيل البيع والمزامنة</p>
+            </div>
+
+            {/* Tabs for Activation Mode */}
+            <div className="grid grid-cols-2 gap-2 bg-muted p-1 rounded-xl">
+                <button
+                    type="button"
+                    onClick={() => setMode('cloud_login')}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        mode === 'cloud_login' 
+                            ? 'bg-background text-foreground shadow-sm' 
+                            : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                    <Cloud className="w-4 h-4" />
+                    <span>التفعيل بحساب الكلاود</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setMode('key')}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        mode === 'key' 
+                            ? 'bg-background text-foreground shadow-sm' 
+                            : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                    <KeyRound className="w-4 h-4" />
+                    <span>كود التفعيل (CASPER-XXXX)</span>
+                </button>
             </div>
 
             {!isOnline && (
                 <Alert variant="destructive">
                     <WifiOff className="h-4 w-4" />
-                    <AlertTitle>Offline</AlertTitle>
-                    <AlertDescription>Internet connection required for activation.</AlertDescription>
+                    <AlertTitle>لا يوجد اتصال بالإنترنت</AlertTitle>
+                    <AlertDescription>يتطلب التفعيل الاتصال بالشبكة لربط الترخيص بالم ختزن المحلي.</AlertDescription>
                 </Alert>
             )}
 
             {machineIdError && (
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Hardware ID Error</AlertTitle>
+                    <AlertTitle>خطأ في معرف الهاردوير</AlertTitle>
                     <AlertDescription>{machineIdError}</AlertDescription>
                 </Alert>
             )}
@@ -153,24 +205,73 @@ export default function ActivateForm() {
                 </Alert>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">Activation Code</label>
-                    <Input 
-                        value={code} 
-                        onChange={handleCodeChange} 
-                        placeholder="CASPER-XXXX-XXXX-XXXX"
-                        maxLength={64}
-                        disabled={isLoading || !isOnline || !!machineIdError}
-                        className="text-center font-mono text-lg tracking-widest uppercase"
-                    />
-                </div>
+            {/* Cloud Login Tab Form */}
+            {mode === 'cloud_login' ? (
+                <form onSubmit={handleCloudSubmit} className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-muted-foreground">رابط سيرفر الكلاود (Cloud Domain)</label>
+                        <Input 
+                            value={cloudUrl} 
+                            onChange={(e) => setCloudUrl(e.target.value)} 
+                            placeholder="https://ozza.casper-erp.com"
+                            disabled={isLoading || !isOnline}
+                            className="font-mono text-sm"
+                            required
+                        />
+                    </div>
 
-                <Button type="submit" disabled={!canSubmit} className="w-full">
-                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    {isLoading ? getLoadingLabel() : 'Activate Now'}
-                </Button>
-            </form>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-muted-foreground">اسم المستخدم</label>
+                            <Input 
+                                value={username} 
+                                onChange={(e) => setUsername(e.target.value)} 
+                                placeholder="admin"
+                                disabled={isLoading || !isOnline}
+                                required
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-muted-foreground">كلمة المرور</label>
+                            <Input 
+                                type="password"
+                                value={password} 
+                                onChange={(e) => setPassword(e.target.value)} 
+                                placeholder="••••••••"
+                                disabled={isLoading || !isOnline}
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <Button type="submit" disabled={isLoading || !isOnline || !username || !password} className="w-full mt-2 font-black py-6">
+                        {isLoading ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <ArrowRight className="w-4 h-4 ml-2" />}
+                        {isLoading ? getLoadingLabel() : 'تفعيل وتدشين الديسك توب فوراً'}
+                    </Button>
+                </form>
+            ) : (
+                /* Key Code Tab Form */
+                <form onSubmit={handleKeySubmit} className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-muted-foreground">رمز التفعيل (Activation Code)</label>
+                        <Input 
+                            value={code} 
+                            onChange={handleCodeChange} 
+                            placeholder="CASPER-XXXX-XXXX-XXXX"
+                            maxLength={64}
+                            disabled={isLoading || !isOnline || !!machineIdError}
+                            className="text-center font-mono text-lg tracking-widest uppercase dir-ltr"
+                            required
+                        />
+                    </div>
+
+                    <Button type="submit" disabled={isLoading || !isOnline || !code} className="w-full mt-2 font-black py-6">
+                        {isLoading ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : null}
+                        {isLoading ? getLoadingLabel() : 'تفعيل الرمز الآن'}
+                    </Button>
+                </form>
+            )}
         </div>
     );
 }
