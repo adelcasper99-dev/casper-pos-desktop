@@ -8,7 +8,7 @@
         "dev:electron": "cross-env NODE_ENV=development electron .",
         "build": "cross-env NODE_OPTIONS=\"--require ./scripts/patch-next-build.js\" next build",
         "start": "next start -H 0.0.0.0 -p 3000",
-        "deploy:hq": "ssh root@109.123.247.119 \"cd /var/www/casper-pos-desktop && rm -f .git/refs/remotes/origin/main && git fetch origin && git reset --hard origin/main && (pm2 stop all || true) && rm -rf .next && NODE_OPTIONS='--max-old-space-size=4096 --require ./scripts/patch-next-build.js' npm run build && pm2 restart all\"",
+        "deploy:hq": "ssh root@109.123.247.119 \"cd /var/www/casper-pos-desktop && rm -rf .git/refs/remotes/origin .git/packed-refs && git fetch origin && git reset --hard origin/main && (pm2 stop all || true) && rm -rf .next && NODE_OPTIONS='--max-old-space-size=4096 --require ./scripts/patch-next-build.js' npm run build && pm2 restart all\"",
         "license:bootstrap": "node scripts/bootstrap-license.js",
         "electron:build": "node scripts/build-license.js && npm run build && node scripts/prepare-standalone.js",
         "dist:assets": "node scripts/generate-build-assets.js",
