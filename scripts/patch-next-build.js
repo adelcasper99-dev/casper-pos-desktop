@@ -1,16 +1,20 @@
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 
 function ensureDir(targetPath) {
   try {
-    const dir = path.dirname(targetPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (typeof targetPath === 'string') {
+      const dir = path.dirname(targetPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
     }
   } catch (e) {}
 }
 
 function wrapAsyncRename(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
   return async function (oldPath, newPath) {
     ensureDir(newPath);
     return originalFn.call(this, oldPath, newPath);
@@ -18,20 +22,31 @@ function wrapAsyncRename(originalFn) {
 }
 
 function wrapSyncRename(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
   return function (oldPath, newPath) {
     ensureDir(newPath);
     return originalFn.call(this, oldPath, newPath);
   };
 }
 
+const noop = () => {};
+
 function wrapCallbackRename(originalFn) {
-  return function (oldPath, newPath, callback) {
+  if (typeof originalFn !== 'function') return originalFn;
+  const wrapped = function (oldPath, newPath, callback) {
     ensureDir(newPath);
-    if (typeof callback === 'function') {
-      return originalFn.call(this, oldPath, newPath, callback);
-    }
-    return originalFn.call(this, oldPath, newPath);
+    const cb = typeof callback === 'function' ? callback : noop;
+    return originalFn.call(this, oldPath, newPath, cb);
   };
+
+  // Preserve util.promisify custom implementation symbol
+  if (originalFn[util.promisify.custom]) {
+    wrapped[util.promisify.custom] = wrapAsyncRename(originalFn[util.promisify.custom]);
+  } else if (fs.promises && fs.promises.rename) {
+    wrapped[util.promisify.custom] = wrapAsyncRename(fs.promises.rename);
+  }
+
+  return wrapped;
 }
 
 // 1. Patch main 'fs' module
@@ -39,7 +54,7 @@ if (fs.rename) fs.rename = wrapCallbackRename(fs.rename);
 if (fs.renameSync) fs.renameSync = wrapSyncRename(fs.renameSync);
 if (fs.promises && fs.promises.rename) fs.promises.rename = wrapAsyncRename(fs.promises.rename);
 
-// 2. Intercept Module.prototype.require for 'fs/promises' & 'node:fs/promises'
+// 2. Intercept Module.prototype.require for 'fs/promises' & 'node:fs/promises' & 'fs'
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 
@@ -75,4 +90,4 @@ Module.prototype.require = function (moduleName) {
   } catch (e) {}
 });
 
-console.log('[patch-next-build] Next.js build fs.rename patch (all modules) active.');
+console.log('[patch-next-build] Next.js build fs.rename patch (promisify aware) active.');
