@@ -4,29 +4,29 @@ import { logger } from '@/lib/logger';
 
 const CSRF_COOKIE_NAME = 'csrf-token';
 
-export async function POST() {
+export async function handleCSRF() {
     try {
         const cookieStore = await cookies();
         let token = cookieStore.get(CSRF_COOKIE_NAME)?.value;
 
-        // If no token exists in cookies, generate one (fallback if middleware missed it)
+        // Always ensure a valid token is present
         if (!token) {
             token = crypto.randomUUID();
-            
-            // Set cookie on response
-            const response = NextResponse.json({ success: true, token });
-            response.cookies.set({
-                name: CSRF_COOKIE_NAME,
-                value: token,
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-                path: '/',
-            });
-            return response;
         }
 
-        return NextResponse.json({ success: true, token });
+        const response = NextResponse.json({ success: true, token });
+        
+        // Ensure cookie is set/refreshed on response
+        response.cookies.set({
+            name: CSRF_COOKIE_NAME,
+            value: token,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+        });
+
+        return response;
     } catch (error) {
         logger.error('[CSRF API] Failed to handle token request', error);
         return NextResponse.json(
@@ -34,4 +34,12 @@ export async function POST() {
             { status: 500 }
         );
     }
+}
+
+export async function GET() {
+    return handleCSRF();
+}
+
+export async function POST() {
+    return handleCSRF();
 }

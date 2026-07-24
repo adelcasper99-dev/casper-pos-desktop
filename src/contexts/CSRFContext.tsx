@@ -27,13 +27,21 @@ export function CSRFProvider({
             setIsLoading(true);
             setError(null);
 
-            const response = await fetch('/api/csrf/generate', {
+            let response = await fetch('/api/csrf/generate', {
                 method: 'POST',
                 credentials: 'same-origin', // IMPORTANT: Include cookies
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
+
+            if (!response.ok) {
+                // Fallback to GET if POST was blocked or failed
+                response = await fetch('/api/csrf/generate', {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                });
+            }
 
             if (!response.ok) {
                 throw new Error(`Failed to generate CSRF token: ${response.status}`);
