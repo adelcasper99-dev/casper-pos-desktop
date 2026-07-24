@@ -5,19 +5,26 @@
  */
 
 export async function generateCSRFToken(): Promise<string> {
-    // Call the API route to generate and set the cookie
-    // ✅ PRODUCTION FIX: Use relative path (works in all environments)
-    const response = await fetch('/api/csrf/generate', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
+    try {
+        let response = await fetch('/api/csrf/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            response = await fetch('/api/csrf/generate', {
+                method: 'GET'
+            });
         }
-    });
 
-    if (!response.ok) {
-        throw new Error('Failed to generate CSRF token');
+        if (response.ok) {
+            const data = await response.json();
+            return data.token || '';
+        }
+    } catch (err) {
+        console.warn('[CSRF] Token generation fetch failed, proceeding with fallback:', err);
     }
-
-    const data = await response.json();
-    return data.token;
+    return '';
 }
