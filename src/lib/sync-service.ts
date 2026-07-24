@@ -21,7 +21,78 @@ export class SyncService {
         };
     }
 
+    // 🛡️ HELPER: Dual-Store Update for License JWT (Prisma SQLite + Dexie IndexedDB)
+    static async updateLocalLicenseJwt(newToken: string | null) {
+        try {
+            const { prisma } = await import('@/lib/prisma');
+            await prisma.storeSettings.upsert({
+                where: { id: 'settings' },
+                create: { id: 'settings', licenseJwt: newToken },
+                update: { licenseJwt: newToken }
+            });
+
+            if (offlineDB.isOpen) {
+                const settings = (await offlineDB.storeSettings.get('settings')) || { id: 'settings' };
+                await offlineDB.storeSettings.put({
+                    ...settings,
+                    licenseJwt: newToken || undefined
+                });
+            }
+
+
+            if (typeof window !== 'undefined') {
+                if (newToken) {
+                    window.dispatchEvent(new CustomEvent('casper:license-renewed', { detail: { token: newToken } }));
+                } else {
+                    window.dispatchEvent(new CustomEvent('casper:license-revoked'));
+                }
+            }
+        } catch (err) {
+            logger.error('[License:Sync] Failed to update local license JWT', err);
+        }
+    }
+
+    // 🛡️ HELPER: Check license renewal & revocation with Cloud HQ
+    static async checkLicenseRenewal() {
+        const ctx = await this.getCloudContext();
+        if (!ctx.enabled || !ctx.cloudUrl) return;
+
+        try {
+            const { Hardware } = await import('./license/hardware');
+            const machineId = await Hardware.getMachineId();
+            if (!machineId) return;
+
+            const response = await fetch(`${ctx.cloudUrl}/api/license/ping`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    machineId,
+                    branchId: ctx.branchId,
+                    licenseJwt: ctx.licenseJwt
+                })
+            });
+
+            if (!response.ok) return;
+
+            const data = await response.json();
+
+            if (data.valid === false && (data.reason === 'suspended' || data.reason === 'revoked')) {
+                logger.warn('[License:Sync] License suspended or revoked on cloud backend. Invalidating local license.');
+                await this.updateLocalLicenseJwt(null);
+                return;
+            }
+
+            if (data.valid && data.renewedJwt) {
+                logger.info('[License:Sync] Auto-renewed license JWT received from HQ Cloud. Updating local store.');
+                await this.updateLocalLicenseJwt(data.renewedJwt);
+            }
+        } catch (error: any) {
+            logger.warn(`[License:Sync] Renewal ping warning: ${error.message}`);
+        }
+    }
+
     // 🆕 RELIABILITY: Sync Master Data (Models/Categories) to resolve offline collisions
+
     static async syncMasterData() {
         const ctx = await this.getCloudContext();
         if (!ctx.enabled || !ctx.cloudUrl) return { synced: 0, failed: 0 };
@@ -105,7 +176,11 @@ export class SyncService {
                 return { success: false, error: 'No Sync Secret' };
             }
 
+            // 🔑 PHASE 0: License Renewal Check
+            await this.checkLicenseRenewal();
+
             // 📥 PHASE 1: Pull Master Data Delta
+
             const now = Date.now();
             const backoffDelay = Math.min(this.pullFailureCount * 60000, 300000);
 

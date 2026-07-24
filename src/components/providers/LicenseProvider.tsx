@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { clearLocalLicenseJwt } from '@/actions/settings';
@@ -65,11 +65,24 @@ export function LicenseProvider({ children }: { children: React.ReactNode }) {
         // Check on mount
         checkLicenseStatus();
 
+        // Listen for background auto-renewal or revocation events
+        const handleRenewed = () => {
+            if (isMounted) setIsReadOnlyMode(false);
+        };
+        const handleRevoked = () => {
+            if (isMounted) setIsReadOnlyMode(true);
+        };
+
+        window.addEventListener('casper:license-renewed', handleRenewed);
+        window.addEventListener('casper:license-revoked', handleRevoked);
+
         // Check every 6 hours (21600000 ms)
         const interval = setInterval(checkLicenseStatus, 21600000);
 
         return () => {
             isMounted = false;
+            window.removeEventListener('casper:license-renewed', handleRenewed);
+            window.removeEventListener('casper:license-revoked', handleRevoked);
             clearInterval(interval);
         };
     }, []);
