@@ -98,12 +98,13 @@ model User {
 }
 
 model Role {
-  id          String @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
-  name        String @unique
-  permissions String @default("[]")
+  id          String   @id @default(uuid())
+  tenantId    String   @default("default") // MULTITENANT_FIELD
+  name        String
+  permissions String   @default("[]")
   users       User[]
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
@@ -122,9 +123,9 @@ model Session {
 
 model Branch {
   id                   String                @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
+  tenantId             String                @default("default") // MULTITENANT_FIELD
   name                 String
-  code                 String                @unique
+  code                 String
   address              String?
   phone                String?
   type                 String                @default("STORE")
@@ -186,9 +187,9 @@ model Warehouse {
 
 model Customer {
   id                    String                @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
+  tenantId              String                @default("default") // MULTITENANT_FIELD
   name                  String
-  phone                 String                @unique
+  phone                 String
   email                 String?
   address               String?
   createdAt             DateTime              @default(now())
@@ -206,6 +207,7 @@ model Customer {
   tickets               Ticket[]
   receivesNotifications Boolean               @default(true)
 
+  @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
@@ -232,9 +234,9 @@ model CustomerTransaction {
 
 model Supplier {
   id               String            @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
+  tenantId         String            @default("default") // MULTITENANT_FIELD
   name             String
-  phone            String?           @unique
+  phone            String?
   email            String?
   address          String?
   balance          Decimal           @default(0.00)
@@ -245,6 +247,7 @@ model Supplier {
   payments         SupplierPayment[]
   clientTickets    Ticket[]          @relation("ClientSupplier")
 
+  @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
@@ -268,8 +271,8 @@ model SupplierPayment {
 
 model Account {
   id           String        @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
-  code         String        @unique
+  tenantId     String        @default("default") // MULTITENANT_FIELD
+  code         String
   name         String
   type         String
   description  String?
@@ -278,6 +281,7 @@ model Account {
   updatedAt    DateTime      @updatedAt
   journalLines JournalLine[]
 
+  @@unique([tenantId, code])
   @@index([tenantId])
 }
 
@@ -363,19 +367,20 @@ model Model {
 
 model Attribute {
   id        String    @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
-  name      String    @unique
+  tenantId  String    @default("default") // MULTITENANT_FIELD
+  name      String
   products  Product[]
   createdAt DateTime  @default(now())
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model UnitOfMeasure {
   id               String         @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
+  tenantId         String         @default("default") // MULTITENANT_FIELD
   name             String
-  code             String         @unique
+  code             String
   category         String
   abbreviation     String?
   conversionFactor Decimal        @default(1.00)
@@ -384,14 +389,15 @@ model UnitOfMeasure {
   products         Product[]
   purchaseItems    PurchaseItem[]
 
+  @@unique([tenantId, code])
   @@index([category])
   @@index([tenantId])
 }
 
 model Product {
   id                String             @id @default(uuid())
-  tenantId String @default("default") // MULTITENANT_FIELD
-  sku               String             @unique
+  tenantId          String             @default("default") // MULTITENANT_FIELD
+  sku               String
   name              String
   description       String?
   costPrice         Decimal            @default(0.00)
@@ -431,7 +437,9 @@ model Product {
   ticketParts       TicketPart[]
   ReorderRule       ReorderRule[]
 
+  @@unique([tenantId, sku])
   @@index([deletedAt])
+  @@index([tenantId])
 }
 
 model BundleItem {
