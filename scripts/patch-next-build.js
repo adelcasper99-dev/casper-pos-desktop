@@ -17,7 +17,16 @@ function wrapAsyncRename(originalFn) {
   if (typeof originalFn !== 'function') return originalFn;
   return async function (oldPath, newPath) {
     ensureDir(newPath);
-    return originalFn.call(this, oldPath, newPath);
+    try {
+      // originalFn might not return a promise if it's somehow synchronous, but typically it does.
+      return await originalFn.call(this, oldPath, newPath);
+    } catch (e) {
+      if (e.code === 'ENOENT' && !fs.existsSync(oldPath)) {
+        console.warn(`[patch-next-build] Ignored ENOENT on missing source: ${oldPath}`);
+        return;
+      }
+      throw e;
+    }
   };
 }
 
@@ -25,7 +34,15 @@ function wrapSyncRename(originalFn) {
   if (typeof originalFn !== 'function') return originalFn;
   return function (oldPath, newPath) {
     ensureDir(newPath);
-    return originalFn.call(this, oldPath, newPath);
+    try {
+      return originalFn.call(this, oldPath, newPath);
+    } catch (e) {
+      if (e.code === 'ENOENT' && !fs.existsSync(oldPath)) {
+        console.warn(`[patch-next-build] Ignored ENOENT on missing source: ${oldPath}`);
+        return;
+      }
+      throw e;
+    }
   };
 }
 
@@ -36,6 +53,13 @@ function wrapCallbackRename(originalFn) {
   const wrapped = function (oldPath, newPath, callback) {
     ensureDir(newPath);
     const cb = typeof callback === 'function' ? callback : noop;
+    
+    // Check existense synchronously to prevent ENOENT if oldPath is missing
+    if (typeof oldPath === 'string' && !fs.existsSync(oldPath)) {
+       console.warn(`[patch-next-build] Ignored ENOENT on missing source: ${oldPath}`);
+       return cb(null);
+    }
+
     return originalFn.call(this, oldPath, newPath, cb);
   };
 
@@ -60,11 +84,17 @@ const originalRequire = Module.prototype.require;
 
 Module.prototype.require = function (moduleName) {
   const mod = originalRequire.apply(this, arguments);
-  if (moduleName === 'fs/promises' || moduleName === 'node:fs/promises' || moduleName === 'fs' || moduleName === 'node:fs') {
+  
+  if (moduleName === 'fs/promises' || moduleName === 'node:fs/promises') {
+    if (mod && mod.rename && !mod.__patchedAsync) {
+      mod.rename = wrapAsyncRename(mod.rename);
+      mod.__patchedAsync = true;
+    }
+  } else if (moduleName === 'fs' || moduleName === 'node:fs') {
     if (mod) {
-      if (mod.rename && !mod.__patchedAsync) {
-        mod.rename = wrapAsyncRename(mod.rename);
-        mod.__patchedAsync = true;
+      if (mod.rename && !mod.__patchedCallback) {
+        mod.rename = wrapCallbackRename(mod.rename);
+        mod.__patchedCallback = true;
       }
       if (mod.renameSync && !mod.__patchedSync) {
         mod.renameSync = wrapSyncRename(mod.renameSync);
@@ -76,6 +106,7 @@ Module.prototype.require = function (moduleName) {
       }
     }
   }
+  
   return mod;
 };
 
@@ -90,4 +121,4 @@ Module.prototype.require = function (moduleName) {
   } catch (e) {}
 });
 
-console.log('[patch-next-build] Next.js build fs.rename patch (promisify aware) active.');
+console.log('[patch-next-build] Next.js build fs.rename patch (missing-source tolerant) active.');
