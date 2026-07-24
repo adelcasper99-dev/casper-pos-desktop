@@ -134,11 +134,36 @@ export function secureAction<T, A extends any[]>(
                 return { success: false, error: message, code: ErrorCodes.VALIDATION_ERROR } as ActionResponse<T>;
             }
 
-            // Handle Prisma Unique Constraint
+            // Handle Prisma Unique Constraint with specific field names
             if (error.code === 'P2002') {
-                const { getTranslations } = await import('@/lib/i18n-mock');
-                const t = await getTranslations('SystemMessages.Validation');
-                return { success: false, error: t('unique'), code: ErrorCodes.VALIDATION_ERROR } as ActionResponse<T>;
+                const targetList = Array.isArray(error.meta?.target)
+                    ? error.meta.target
+                    : typeof error.meta?.target === 'string'
+                        ? [error.meta.target]
+                        : [];
+
+                const fieldMap: Record<string, string> = {
+                    username: 'اسم المستخدم (Admin Username)',
+                    slug: 'النطاق الفرعي (Subdomain)',
+                    phone: 'رقم الهاتف (Phone)',
+                    email: 'البريد الإلكتروني (Email)',
+                    name: 'الاسم (Name)',
+                    code: 'الكود (Code)',
+                    barcode: 'الباركود (Barcode)',
+                    sku: 'رمز المنتج (SKU)',
+                    key: 'مفتاح الترخيص (License Key)'
+                };
+
+                const fieldNames = targetList
+                    .map((f: string) => fieldMap[f] || f)
+                    .filter(Boolean)
+                    .join(' ، ');
+
+                const detailMsg = fieldNames
+                    ? `القيمة مستخدمة بالفعل في حقل: (${fieldNames})`
+                    : "القيمة مستخدمة بالفعل";
+
+                return { success: false, error: detailMsg, code: ErrorCodes.VALIDATION_ERROR } as ActionResponse<T>;
             }
 
             // Default Generic Error
