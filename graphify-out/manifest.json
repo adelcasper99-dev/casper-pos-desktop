@@ -440,8 +440,8 @@
     "semantic_hash": ""
   },
   "src/actions/auth.ts": {
-    "mtime": 1784855518.7234845,
-    "ast_hash": "326c235883c7a6dd5dc60672011bc356",
+    "mtime": 1784855804.4522665,
+    "ast_hash": "23c200da1e596233f4a5238d01e1f780",
     "semantic_hash": ""
   },
   "src/actions/backup-schedule.ts": {
