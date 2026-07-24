@@ -31,13 +31,14 @@ export class SyncService {
                 update: { licenseJwt: newToken }
             });
 
-            if (offlineDB.isOpen) {
+            if (offlineDB.isOpen()) {
                 const settings = (await offlineDB.storeSettings.get('settings')) || { id: 'settings' };
                 await offlineDB.storeSettings.put({
                     ...settings,
                     licenseJwt: newToken || undefined
                 });
             }
+
 
 
             if (typeof window !== 'undefined') {
@@ -157,10 +158,11 @@ export class SyncService {
         }
         
         // 🛡️ GUARD: DB State Gating
-        if (!offlineDB.isOpen) {
+        if (!offlineDB.isOpen()) {
             logger.warn('[Sync:All] IndexedDB is not open. Sync aborted to prevent state corruption.');
             return { success: false, error: 'Database Closed' };
         }
+
 
         this.isSyncing = true;
         try {

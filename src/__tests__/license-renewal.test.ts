@@ -22,12 +22,13 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('../lib/offline-db', () => ({
     offlineDB: {
-        isOpen: true,
+        isOpen: vi.fn().mockReturnValue(true),
         storeSettings: {
             get: vi.fn().mockResolvedValue({ id: 'settings', licenseJwt: 'old' }),
             put: vi.fn(),
         }
     }
+
 }));
 
 vi.mock('@/utils/cloudConfigManager', () => ({
