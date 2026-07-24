@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1784871479.4182014,
-    "ast_hash": "2e603c2b31098b11c2b89f2f2287c081",
+    "mtime": 1784873577.7028868,
+    "ast_hash": "1400604413a4fb5a0cba8bc04c009ee7",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -5625,8 +5625,8 @@
     "semantic_hash": ""
   },
   "src/actions/hq-tenant-actions.ts": {
-    "mtime": 1784872670.9034717,
-    "ast_hash": "67963f57079456c25225214ce4ad34c8",
+    "mtime": 1784876554.7223182,
+    "ast_hash": "a53234f41110e6e26287f3cfdad9f48c",
     "semantic_hash": ""
   },
   "src/app/(admin)/casper-hq/layout.tsx": {
@@ -5802,6 +5802,21 @@
   "src/lib/tenant-db-provisioner.ts": {
     "mtime": 1784862633.2770348,
     "ast_hash": "8a5fd39b28f041ff3bc94a7a6aae46af",
+    "semantic_hash": ""
+  },
+  "scripts/check-db.ts": {
+    "mtime": 1784876508.7011786,
+    "ast_hash": "1ec8cc20e133f2d888cb51b71250db70",
+    "semantic_hash": ""
+  },
+  "scripts/test-provision.ts": {
+    "mtime": 1784876524.6472285,
+    "ast_hash": "6e49885aae0f2108c8bed807fcf41c95",
+    "semantic_hash": ""
+  },
+  "scripts/verify-full-tenant-workflow.ts": {
+    "mtime": 1784876820.7216966,
+    "ast_hash": "36b88928892666dc6f184e8c6bf8c12f",
     "semantic_hash": ""
   }
 }
