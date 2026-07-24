@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 
 const CSRF_COOKIE_NAME = 'csrf-token';
 
-export async function handleCSRF() {
+async function handleCSRF() {
     try {
         const cookieStore = await cookies();
         let token = cookieStore.get(CSRF_COOKIE_NAME)?.value;
