@@ -20,10 +20,7 @@ const BACKUP_FEATURES_KEY = 'backupSchedule';
  */
 export const getBackupSchedule = secureAction(
   async () => {
-    const settings = await prisma.storeSettings.findUnique({
-      where: { id: "settings" },
-      select: { features: true }
-    });
+    const settings = await prisma.storeSettings.findFirst({ select: { features: true } });
     
     // Parse stored config or return defaults
     let config = {
@@ -71,10 +68,7 @@ export const updateBackupSchedule = secureAction(
     };
     
     // Fetch current features, update backup schedule, persist back
-    const settings = await prisma.storeSettings.findUnique({
-      where: { id: "settings" },
-      select: { features: true }
-    });
+    const settings = await prisma.storeSettings.findFirst({ select: { features: true } });
     
     let allFeatures: Record<string, unknown> = {};
     if (settings?.features) {
@@ -87,9 +81,7 @@ export const updateBackupSchedule = secureAction(
     
     allFeatures[BACKUP_FEATURES_KEY] = backupConfig;
     
-    await prisma.storeSettings.update({
-      where: { id: "settings" },
-      data: { features: JSON.stringify(allFeatures) }
+    await prisma.storeSettings.updateMany({ where: {}, data: { features: JSON.stringify(allFeatures) }
     });
     
     console.log('📅 Backup schedule persisted:', backupConfig);
@@ -138,10 +130,7 @@ function calculateNextRun(from: Date, frequency: string): Date {
 export const getSchedulerStatus = secureAction(
   async () => {
     // Fetch next scheduled run from StoreSettings.features
-    const settings = await prisma.storeSettings.findUnique({
-      where: { id: "settings" },
-      select: { features: true }
-    });
+    const settings = await prisma.storeSettings.findFirst({ select: { features: true } });
     
     let nextBackup: string | null = null;
     let workerRunning = false;
@@ -187,10 +176,7 @@ export async function logBackupResult(data: {
   
   try {
     // Fetch current features
-    const settings = await prisma.storeSettings.findUnique({
-      where: { id: "settings" },
-      select: { features: true }
-    });
+    const settings = await prisma.storeSettings.findFirst({ select: { features: true } });
     
     let allFeatures: Record<string, unknown> = {};
     if (settings?.features) {
@@ -211,9 +197,7 @@ export async function logBackupResult(data: {
       lastFilesBackedUp: data.filesBackedUp,
     };
     
-    await prisma.storeSettings.update({
-      where: { id: "settings" },
-      data: { features: JSON.stringify(allFeatures) }
+    await prisma.storeSettings.updateMany({ where: {}, data: { features: JSON.stringify(allFeatures) }
     });
     
     console.log(`📦 Backup logged: ${data.success ? 'SUCCESS' : 'FAILED'} - ${data.filesBackedUp || 0} files`);

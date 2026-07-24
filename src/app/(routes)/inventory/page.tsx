@@ -104,7 +104,8 @@ export default async function InventoryPage() {
 
     const stockRequests: any[] = [];
 
-    const settingsRaw = await prisma.storeSettings.findUnique({ where: { id: "settings" } });
+    const settingsRaw = await prisma.storeSettings.findFirst({});
+
     const currency = settingsRaw?.currency || "EGP";
     let features = {};
     try {

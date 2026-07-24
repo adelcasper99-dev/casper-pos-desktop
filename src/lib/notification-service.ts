@@ -50,7 +50,8 @@ export class NotificationService {
             }
 
             // 3. Fetch Store Environment Context
-            const settings = await prisma.storeSettings.findUnique({ where: { id: 'settings' } });
+            const settings = await prisma.storeSettings.findFirst({});
+
             const storeName = settings?.name || "Casper Store";
 
             // 4. Intelligence Metrics snapshots (Snapshots Gaps & Risks at notify-time)

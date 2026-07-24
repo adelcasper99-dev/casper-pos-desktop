@@ -27,9 +27,7 @@ export const changeSuperAdminPassword = secureAction(async (data: any) => {
     const validated = changePasswordSchema.parse(data);
 
     // 3. Retrieve store settings for current super admin password verification
-    const settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
+    const settings = await prisma.storeSettings.findFirst({});
 
     let isCurrentValid = false;
     const defaultPass = process.env.SUPER_ADMIN_PASS || 'GenuineWise@92';
@@ -48,12 +46,12 @@ export const changeSuperAdminPassword = secureAction(async (data: any) => {
     const newHash = await bcrypt.hash(validated.newPassword, 12);
 
     await prisma.storeSettings.upsert({
-        where: { id: "settings" },
+        where: { tenantId: "default" },
         update: {
             superAdminHash: newHash
         },
         create: {
-            id: "settings",
+            tenantId: "default",
             superAdminHash: newHash,
             name: "Casper Store",
             currency: "EGP",

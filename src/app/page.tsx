@@ -21,9 +21,7 @@ export default async function LoginPageServer() {
         return <LoginForm />;
     }
     // 1. Check license / trial
-    const settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
+    const settings = await prisma.storeSettings.findFirst({});
 
     const hasLicense = !!settings?.licenseJwt;
     const hasTrial = !!settings?.trialStartDate;

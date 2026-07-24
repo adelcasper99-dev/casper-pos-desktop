@@ -116,7 +116,8 @@ export const processSale = secureAction(async (rawData: ProcessSaleData) => {
         const mainWarehouseId = mainWarehouseRaw.id;
 
         // 0b. Fetch Settings for Tax & Stock Policy
-        const settings = await tx.storeSettings.findUnique({ where: { id: "settings" } });
+        const settings = await tx.storeSettings.findFirst({});
+
         const taxRate = Number(settings?.taxRate || 0);
         const globalAllowNegative = (settings as any)?.allowNegativeStock ?? false;
         const effectiveForce = force || globalAllowNegative;

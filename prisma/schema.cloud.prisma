@@ -19,8 +19,8 @@ model SystemConfig {
 }
 
 model StoreSettings {
-  id                    String    @id @default("settings")
-  tenantId String @default("default") // MULTITENANT_FIELD
+  id                    String    @id @default(uuid())
+  tenantId              String    @unique @default("default") // MULTITENANT_FIELD — @@unique enforces 1 settings per tenant
   name                  String    @default("Casper Store")
   phone                 String?
   address               String?
@@ -46,6 +46,7 @@ model StoreSettings {
   lastServerNow         Float?
   localUptimeTicks      Float?
   trialStartDate        DateTime?
+  superAdminHash        String?   // Hashed super-admin password (seeded on first login)
 
   @@index([tenantId])
 }

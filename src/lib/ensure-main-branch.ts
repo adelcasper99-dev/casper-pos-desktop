@@ -101,8 +101,7 @@ async function _ensureMainBranchInternal(): Promise<string> {
 
     // ── V-08: Regular Fast Path (DB Check) ───────────────────────────────────────
     // Get store info from settings
-    const settings = await prisma.storeSettings.findUnique({
-        where: { id: 'settings' },
+    const settings = await prisma.storeSettings.findFirst({
         select: { name: true, phone: true, address: true }
     });
 

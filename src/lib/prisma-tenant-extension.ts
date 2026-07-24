@@ -197,6 +197,8 @@ export const prismaTenantExtension =
                                   }
 
                                   if (operation === 'upsert') {
+                                      (args as any).where = (args as any).where || {};
+                                      (args as any).where.tenantId = tenantId; // scope the upsert to the current tenant
                                       (args as any).create = (args as any).create || {};
                                       (args as any).create.tenantId = tenantId;
                                       (args as any).update = (args as any).update || {};

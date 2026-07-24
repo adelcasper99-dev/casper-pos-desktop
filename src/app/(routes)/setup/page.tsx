@@ -5,9 +5,7 @@ import SetupWizard from "@/components/setup/SetupWizard";
 
 export default async function SetupPage() {
     // 0. License guard: must have active license or trial first
-    const settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
+    const settings = await prisma.storeSettings.findFirst({});
     if (!settings?.licenseJwt && !settings?.trialStartDate) {
         redirect("/onboarding");
     }

@@ -10,9 +10,7 @@ export type SubscriptionStatus = {
 
 export async function getSubscriptionStatus(tenantId?: string): Promise<SubscriptionStatus> {
   try {
-    const settings = await prisma.storeSettings.findUnique({
-      where: { id: "settings" }
-    });
+    const settings = await prisma.storeSettings.findFirst({});
 
     if (!settings?.licenseJwt) {
       return {

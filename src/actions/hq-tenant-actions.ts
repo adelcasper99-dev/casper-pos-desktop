@@ -92,9 +92,9 @@ export async function provisionTenantCore(params: {
     });
 
     // 5. Create Default Store Settings
+    // Use upsert keyed on tenantId (now @@unique) — safe for re-runs and avoids P2002
     await tx.storeSettings.create({
       data: {
-        id: "settings",
         name: name,
         currency: "EGP",
         taxRate: new Prisma.Decimal(0.00),

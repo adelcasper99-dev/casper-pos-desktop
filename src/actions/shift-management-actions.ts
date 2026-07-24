@@ -52,8 +52,7 @@ async function getBranchTimezone(userId?: string): Promise<string> {
     }
     
     // Fallback to StoreSettings features JSON for timezone preference
-    const settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" },
+    const settings = await prisma.storeSettings.findFirst({
         select: { features: true }
     });
     
@@ -233,9 +232,7 @@ export const closeShift = secureAction(async (data: {
         throw new Error(t('shiftCloseError', { status: shift.status }));
     }
 
-    const config = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
+    const config = await prisma.storeSettings.findFirst({});
     const blindCloseEnabled = config?.blindCloseEnabled ?? true;
 
 

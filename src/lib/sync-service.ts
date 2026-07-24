@@ -26,8 +26,8 @@ export class SyncService {
         try {
             const { prisma } = await import('@/lib/prisma');
             await prisma.storeSettings.upsert({
-                where: { id: 'settings' },
-                create: { id: 'settings', licenseJwt: newToken },
+                where: { tenantId: 'default' },
+                create: { tenantId: 'default', licenseJwt: newToken },
                 update: { licenseJwt: newToken }
             });
 

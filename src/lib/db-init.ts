@@ -67,11 +67,11 @@ export async function initDatabase(): Promise<void> {
 
         // ── Ensure Store Settings (Crucial for production render safety)
         logger.info('[DB] Ensuring default store settings exist...');
-        let settings = await prisma.storeSettings.findUnique({ where: { id: 'settings' } });
+        let settings = await prisma.storeSettings.findFirst({});
         if (!settings) {
             settings = await prisma.storeSettings.create({
                 data: {
-                    id: "settings",
+                    tenantId: "default",
                     name: "Casper Store",
                     currency: "EGP",
                     taxRate: 0.0

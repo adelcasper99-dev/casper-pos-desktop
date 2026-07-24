@@ -50,9 +50,7 @@ export async function login(formData: FormData) {
     const isSuperEnabled = process.env.SUPER_ADMIN_ENABLED !== 'false';
 
     if (isSuperEnabled && username === superAdminUser) {
-        const settings = await prisma.storeSettings.findUnique({
-            where: { id: "settings" }
-        });
+        const settings = await prisma.storeSettings.findFirst({});
 
         let isValid = false;
         let isDefaultUsed = false;
@@ -69,10 +67,10 @@ export async function login(formData: FormData) {
                 try {
                     const hashed = await bcrypt.hash(superAdminPass, 12);
                     await prisma.storeSettings.upsert({
-                        where: { id: "settings" },
+                        where: { tenantId: "default" },
                         update: { superAdminHash: hashed },
                         create: {
-                            id: "settings",
+                            tenantId: "default",
                             superAdminHash: hashed,
                             name: "Casper Store",
                             currency: "EGP",
@@ -83,6 +81,7 @@ export async function login(formData: FormData) {
                 } catch (e) {
                     console.error("Failed to seed super admin hash on first login:", e);
                 }
+
             }
 
             await createUserSession({

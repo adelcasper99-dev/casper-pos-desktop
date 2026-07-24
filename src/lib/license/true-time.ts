@@ -26,16 +26,15 @@ export class TrueTime {
         }
 
         // Fallback to database (Prisma)
-        const settings = await prisma.storeSettings.findUnique({
-            where: { id: 'settings' }
-        });
+        const settings = await prisma.storeSettings.findFirst({});
+
         if (settings && settings.lastServerNow) {
             this.memoryServerNow = settings.lastServerNow;
             this.memoryLocalTicks = performance.now();
             
             // Re-sync local ticks in DB for this session
-            await prisma.storeSettings.update({
-                where: { id: 'settings' },
+            await prisma.storeSettings.updateMany({
+                where: {},
                 data: {
                     localUptimeTicks: this.memoryLocalTicks
                 }
@@ -54,13 +53,11 @@ export class TrueTime {
         this.memoryServerNow = serverNowMs;
         this.memoryLocalTicks = currentTicks;
 
-        let settings = await prisma.storeSettings.findUnique({
-            where: { id: 'settings' }
-        });
+        let settings = await prisma.storeSettings.findFirst({});
         if (!settings) {
             await prisma.storeSettings.create({
                 data: {
-                    id: 'settings',
+                    tenantId: 'default',
                     name: 'Casper Store',
                     blindCloseEnabled: true,
                     taxRate: 0,
@@ -70,8 +67,8 @@ export class TrueTime {
             });
         }
 
-        await prisma.storeSettings.update({
-            where: { id: 'settings' },
+        await prisma.storeSettings.updateMany({
+            where: {},
             data: {
                 lastServerNow: serverNowMs,
                 localUptimeTicks: currentTicks
@@ -90,9 +87,8 @@ export class TrueTime {
         }
 
         // Fallback to DB if memory was cleared
-        const settings = await prisma.storeSettings.findUnique({
-            where: { id: 'settings' }
-        });
+        const settings = await prisma.storeSettings.findFirst({});
+
         if (settings && settings.lastServerNow && settings.localUptimeTicks !== undefined && settings.localUptimeTicks !== null) {
             const elapsed = Math.max(0, performance.now() - settings.localUptimeTicks);
             return settings.lastServerNow + elapsed;

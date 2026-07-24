@@ -3,9 +3,7 @@ import { prisma } from "@/lib/prisma";
 import OnboardingGateway from "@/components/onboarding/OnboardingGateway";
 
 export default async function OnboardingPage() {
-    const settings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
+    const settings = await prisma.storeSettings.findFirst({});
 
     const hasLicense = !!settings?.licenseJwt;
     const hasTrial = !!settings?.trialStartDate;

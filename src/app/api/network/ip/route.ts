@@ -8,9 +8,7 @@ export async function GET() {
     try {
         // 1. Check if there is a manual static IP configured in the database settings features JSON
         try {
-            const settings = await prisma.storeSettings.findUnique({
-                where: { id: 'settings' }
-            });
+            const settings = await prisma.storeSettings.findFirst({});
             if (settings?.features) {
                 const features = JSON.parse(settings.features);
                 if (features.staticIp && typeof features.staticIp === 'string' && features.staticIp.trim() !== '') {

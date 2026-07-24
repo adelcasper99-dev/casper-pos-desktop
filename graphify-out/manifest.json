@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1784853486.8010218,
-    "ast_hash": "ff01b9d1256d79d1a8625a6fe52499e7",
+    "mtime": 1784867053.8127768,
+    "ast_hash": "b44acb567d8e1cccb3534dd2d4da5fa0",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -440,8 +440,8 @@
     "semantic_hash": ""
   },
   "src/actions/auth.ts": {
-    "mtime": 1784855804.4522665,
-    "ast_hash": "23c200da1e596233f4a5238d01e1f780",
+    "mtime": 1784857043.8008096,
+    "ast_hash": "fbdfba5714d65809bb33b25c738b1bda",
     "semantic_hash": ""
   },
   "src/actions/backup-schedule.ts": {
@@ -975,8 +975,8 @@
     "semantic_hash": ""
   },
   "src/app/login/layout.tsx": {
-    "mtime": 1784514423.8365946,
-    "ast_hash": "6a7a24cf01f59ca8cee9a4c6b80148b3",
+    "mtime": 1784857060.9655101,
+    "ast_hash": "2b7eddfce9699136597b3892e20e5b34",
     "semantic_hash": ""
   },
   "src/app/login/page.tsx": {
@@ -985,8 +985,8 @@
     "semantic_hash": ""
   },
   "src/app/page.tsx": {
-    "mtime": 1784577614.3306339,
-    "ast_hash": "effc458d659603e194a4a772afd38de7",
+    "mtime": 1784857055.288667,
+    "ast_hash": "0184bfe23757bbe90b7b84aafcccd8ab",
     "semantic_hash": ""
   },
   "src/app/unauthorized/page.tsx": {
@@ -2050,8 +2050,8 @@
     "semantic_hash": ""
   },
   "src/lib/auth.ts": {
-    "mtime": 1784855528.7963295,
-    "ast_hash": "78d92ede21f776ff1bf201e269e2e2eb",
+    "mtime": 1784857039.4876103,
+    "ast_hash": "307ea6b546c5089f1984658f21250623",
     "semantic_hash": ""
   },
   "src/lib/backup/core.ts": {
@@ -2385,8 +2385,8 @@
     "semantic_hash": ""
   },
   "src/lib/sync-service.ts": {
-    "mtime": 1784337251.3221745,
-    "ast_hash": "12c1139b55d40e9c279e69679ffeb2eb",
+    "mtime": 1784870714.279876,
+    "ast_hash": "58bf6730e8dfe516cb797522669cc07c",
     "semantic_hash": ""
   },
   "src/lib/sync-worker.ts": {
@@ -4945,13 +4945,13 @@
     "semantic_hash": ""
   },
   "src/app/activate/ActivateForm.tsx": {
-    "mtime": 1784537890.8586822,
-    "ast_hash": "627ced23a6c253b4e3f2429ddc822c20",
+    "mtime": 1784859856.3192565,
+    "ast_hash": "9f16a937dbf7947e8010298314fd7b8b",
     "semantic_hash": ""
   },
   "src/app/activate/actions.ts": {
-    "mtime": 1784577325.0978475,
-    "ast_hash": "b02704fffdafd93bf7b461e50f829bfc",
+    "mtime": 1784859897.1155887,
+    "ast_hash": "8a0e825fc7a37f32179f1cd0669b776a",
     "semantic_hash": ""
   },
   "src/app/activate/page.tsx": {
@@ -5005,8 +5005,8 @@
     "semantic_hash": ""
   },
   "src/app/api/license/ping/route.ts": {
-    "mtime": 1784577751.86392,
-    "ast_hash": "64690849b091e694f63a71dc1131abb9",
+    "mtime": 1784867896.4008193,
+    "ast_hash": "70bcfcb332524de7f648ee7023031b5c",
     "semantic_hash": ""
   },
   "src/app/api/license/staff-verify/route.ts": {
@@ -5135,8 +5135,8 @@
     "semantic_hash": ""
   },
   "src/components/providers/LicenseProvider.tsx": {
-    "mtime": 1784177114.0136075,
-    "ast_hash": "3e7c722f34c3829ea5bbc59fff531202",
+    "mtime": 1784867919.776545,
+    "ast_hash": "d4af7e090ef74cef9cffcaa29e187967",
     "semantic_hash": ""
   },
   "src/components/reports/AgedReceivablesReport.tsx": {
@@ -5595,8 +5595,8 @@
     "semantic_hash": ""
   },
   "src/lib/tenant-guard.ts": {
-    "mtime": 1784534072.0012918,
-    "ast_hash": "cf6eb0e8d68ac4c1e21ab3b7d0155fe0",
+    "mtime": 1784857074.0662277,
+    "ast_hash": "681a044f23f3d1520152ba181143ec50",
     "semantic_hash": ""
   },
   "docs/plans/2026-07-18-001-fix-code-review-findings-plan.md": {
@@ -5625,8 +5625,8 @@
     "semantic_hash": ""
   },
   "src/actions/hq-tenant-actions.ts": {
-    "mtime": 1784779551.090092,
-    "ast_hash": "7f572f4427f9ee339a06a6c912a103d2",
+    "mtime": 1784859682.6669059,
+    "ast_hash": "b1bf7288b94c5e6ffe2cb0084b46ef77",
     "semantic_hash": ""
   },
   "src/app/(admin)/casper-hq/layout.tsx": {
@@ -5680,8 +5680,8 @@
     "semantic_hash": ""
   },
   "src/pages/500.tsx": {
-    "mtime": 1784538239.7718966,
-    "ast_hash": "d4f864b33d51bc5c2565ad6f6263e2e7",
+    "mtime": 1784867522.453644,
+    "ast_hash": "ba9a60da12f11ce64958d23aa5414d5b",
     "semantic_hash": ""
   },
   "test-context.js": {
@@ -5742,6 +5742,66 @@
   "docs/plans/2026-07-23-003-fix-hq-dashboard-code-review-plan.md": {
     "mtime": 1784779551.0559595,
     "ast_hash": "9fcac800fe8b90532820dde229a101cd",
+    "semantic_hash": ""
+  },
+  "src/__tests__/license-renewal.test.ts": {
+    "mtime": 1784869329.150956,
+    "ast_hash": "d31b9ba6ae5e6933f8d5dcc5f05c40cf",
+    "semantic_hash": ""
+  },
+  "src/app/api/auth/signup/route.ts": {
+    "mtime": 1784859907.0948904,
+    "ast_hash": "97e113772751dc401ffa2d5c700669bf",
+    "semantic_hash": ""
+  },
+  "src/app/api/settings/backup/download/route.ts": {
+    "mtime": 1784867517.4625154,
+    "ast_hash": "84dfa8e2825634e129f0dbf8045b0e57",
+    "semantic_hash": ""
+  },
+  "src/app/api/tenant/check-slug/route.ts": {
+    "mtime": 1784859703.0832362,
+    "ast_hash": "4aa7a2526c1a2dc477d2c66cd16d75f5",
+    "semantic_hash": ""
+  },
+  "src/app/global-error.tsx": {
+    "mtime": 1784860373.9117386,
+    "ast_hash": "7e85f953e360ff878f6448136411e8fa",
+    "semantic_hash": ""
+  },
+  "src/app/signup/SignupForm.tsx": {
+    "mtime": 1784859727.5294852,
+    "ast_hash": "a70deea624a3db1ae7b09af8ac4929a5",
+    "semantic_hash": ""
+  },
+  "src/app/signup/page.tsx": {
+    "mtime": 1784859738.2496133,
+    "ast_hash": "650d31f79538c3d8b5be9ab27a446cda",
+    "semantic_hash": ""
+  },
+  "src/components/layout/SubscriptionWarningBanner.tsx": {
+    "mtime": 1784859815.2851944,
+    "ast_hash": "520209c42529f68c6bbabdbb2eb902c2",
+    "semantic_hash": ""
+  },
+  "src/lib/hq-metrics-aggregator.ts": {
+    "mtime": 1784866714.7818544,
+    "ast_hash": "f26609da2912c273e0469feeeb41128b",
+    "semantic_hash": ""
+  },
+  "src/lib/subscription-guard.ts": {
+    "mtime": 1784859804.4928598,
+    "ast_hash": "bfdb8c308ec729d42f50da21618d484c",
+    "semantic_hash": ""
+  },
+  "src/lib/tenant-connection-manager.ts": {
+    "mtime": 1784866686.3374064,
+    "ast_hash": "a0cae9604b34c14a52c318c44ea84a0d",
+    "semantic_hash": ""
+  },
+  "src/lib/tenant-db-provisioner.ts": {
+    "mtime": 1784862633.2770348,
+    "ast_hash": "8a5fd39b28f041ff3bc94a7a6aae46af",
     "semantic_hash": ""
   }
 }

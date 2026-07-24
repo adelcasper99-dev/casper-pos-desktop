@@ -16,9 +16,7 @@ import { getSession } from "@/lib/auth";
  */
 export async function getStoreSettings() {
     try {
-        let settings = await prisma.storeSettings.findUnique({
-            where: { id: "settings" }
-        });
+        let settings = await prisma.storeSettings.findFirst({});
 
         // Ensure one main branch exists (single-branch mode)
         await ensureMainBranch();
@@ -103,9 +101,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
     const validated = settingsSchema.parse(data);
 
     // Fetch current settings to handle JSON merging for features
-    const currentSettings = await prisma.storeSettings.findUnique({
-        where: { id: "settings" }
-    });
+    const currentSettings = await prisma.storeSettings.findFirst({});
 
     let featuresString = validated.features;
 
@@ -126,7 +122,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
     }
 
     await prisma.storeSettings.upsert({
-        where: { id: "settings" },
+        where: { tenantId: "default" },
         update: {
             name: validated.name ?? undefined,
             phone: validated.phone ?? undefined,
@@ -149,7 +145,7 @@ export const updateStoreSettings = secureAction(async (data: any) => {
             blindCloseEnabled: validated.blindCloseEnabled ?? undefined,
         },
         create: {
-            id: "settings",
+            tenantId: "default",
             name: validated.name || "Casper Store",
             phone: validated.phone || null,
             address: validated.address || null,
@@ -189,8 +185,8 @@ export const updateStoreSettings = secureAction(async (data: any) => {
 
 export const clearLocalLicenseJwt = secureAction(async () => {
     try {
-        await prisma.storeSettings.update({
-            where: { id: "settings" },
+        await prisma.storeSettings.updateMany({
+            where: {},
             data: { licenseJwt: null }
         });
         revalidatePath('/', 'layout');
