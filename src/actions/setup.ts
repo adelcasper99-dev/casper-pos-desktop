@@ -31,11 +31,22 @@ async function resetForSetup(options: ResetOptions = {}): Promise<void> {
     const { resetBranchCache } = await import('@/lib/ensure-main-branch');
     resetBranchCache();
 
-    try {
-        await prisma.$executeRawUnsafe(`SET session_replication_role = 'replica';`);
-    } catch (e) {
-        await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = OFF;`);
+    const isPostgres = Boolean(process.env.DATABASE_URL?.startsWith('postgres'));
+
+    if (isPostgres) {
+        try {
+            await prisma.$executeRawUnsafe(`SET session_replication_role = 'replica';`);
+        } catch {
+            // Non-superuser in cloud/managed Postgres - safe to ignore as deletion order is topological
+        }
+    } else {
+        try {
+            await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = OFF;`);
+        } catch {
+            // SQLite foreign keys fallback
+        }
     }
+
     try {
         // ALWAYS WIPE (Sensitive/Session Data)
         await prisma.actionLog.deleteMany({});
@@ -106,10 +117,18 @@ async function resetForSetup(options: ResetOptions = {}): Promise<void> {
         }
 
     } finally {
-        try {
-            await prisma.$executeRawUnsafe(`SET session_replication_role = 'origin';`);
-        } catch (e) {
-            await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = ON;`);
+        if (isPostgres) {
+            try {
+                await prisma.$executeRawUnsafe(`SET session_replication_role = 'origin';`);
+            } catch {
+                // Non-superuser in cloud/managed Postgres
+            }
+        } else {
+            try {
+                await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = ON;`);
+            } catch {
+                // SQLite foreign keys fallback
+            }
         }
     }
 }
@@ -130,99 +149,104 @@ export async function performSetup(data: {
     },
     options?: ResetOptions
 }) {
-    // Perform selective reset
-    await resetForSetup(data.options || {});
+    try {
+        // Perform selective reset
+        await resetForSetup(data.options || {});
 
-    // Ensure core settings exist (Upsert logic to avoid duplication if kept)
-    await prisma.storeSettings.upsert({
-        where: { id: "settings" },
-        update: {
-            name: data.branch.name,
-            taxRate: data.settings.taxRate,
-            currency: data.settings.currency,
-        },
-        create: {
-            id: "settings",
-            name: data.branch.name,
-            taxRate: data.settings.taxRate,
-            currency: data.settings.currency,
-        }
-    });
-
-    // We use a transaction for the core structural creation
-    const result = await prisma.$transaction(async (tx) => {
-        // 1. Branch (Upsert to prevent duplication)
-        const branch = await tx.branch.upsert({
-            where: { code: "MAIN" },
+        // Ensure core settings exist (Upsert logic to avoid duplication if kept)
+        await prisma.storeSettings.upsert({
+            where: { id: "settings" },
             update: {
                 name: data.branch.name,
-                type: data.branch.type,
+                taxRate: data.settings.taxRate,
+                currency: data.settings.currency,
             },
             create: {
+                id: "settings",
                 name: data.branch.name,
-                code: "MAIN",
-                type: data.branch.type,
+                taxRate: data.settings.taxRate,
+                currency: data.settings.currency,
             }
         });
 
-        // 2. Default Warehouse
-        const existingWarehouse = await tx.warehouse.findFirst({
-            where: { branchId: branch.id, isDefault: true }
-        });
-        if (!existingWarehouse) {
-            await tx.warehouse.create({
-                data: {
+        // We use a transaction for the core structural creation
+        const result = await prisma.$transaction(async (tx) => {
+            // 1. Branch (Upsert to prevent duplication)
+            const branch = await tx.branch.upsert({
+                where: { code: "MAIN" },
+                update: {
                     name: data.branch.name,
-                    branchId: branch.id,
-                    isDefault: true,
+                    type: data.branch.type,
+                },
+                create: {
+                    name: data.branch.name,
+                    code: "MAIN",
+                    type: data.branch.type,
                 }
             });
-        }
 
-        // 3. Default CASH Treasury
-        const existingTreasury = await tx.treasury.findFirst({
-            where: { branchId: branch.id, paymentMethod: 'CASH' }
-        });
-        if (!existingTreasury) {
-            await tx.treasury.create({
-                data: {
-                    name: 'الخزنة النقدية',
-                    paymentMethod: 'CASH',
-                    branchId: branch.id,
-                    isDefault: true,
-                    balance: 0,
-                }
+            // 2. Default Warehouse
+            const existingWarehouse = await tx.warehouse.findFirst({
+                where: { branchId: branch.id, isDefault: true }
             });
-        }
-
-        // 4. Admin User (Upsert)
-        const hashedPassword = await bcrypt.hash(data.admin.password, 10);
-        await tx.user.upsert({
-            where: { username: data.admin.username },
-            update: {
-                password: hashedPassword,
-                name: data.admin.name,
-                roleStr: "ADMIN",
-            },
-            create: {
-                username: data.admin.username,
-                password: hashedPassword,
-                name: data.admin.name,
-                roleStr: "ADMIN",
-                branchId: branch.id
+            if (!existingWarehouse) {
+                await tx.warehouse.create({
+                    data: {
+                        name: data.branch.name,
+                        branchId: branch.id,
+                        isDefault: true,
+                    }
+                });
             }
+
+            // 3. Default CASH Treasury
+            const existingTreasury = await tx.treasury.findFirst({
+                where: { branchId: branch.id, paymentMethod: 'CASH' }
+            });
+            if (!existingTreasury) {
+                await tx.treasury.create({
+                    data: {
+                        name: 'الخزنة النقدية',
+                        paymentMethod: 'CASH',
+                        branchId: branch.id,
+                        isDefault: true,
+                        balance: 0,
+                    }
+                });
+            }
+
+            // 4. Admin User (Upsert)
+            const hashedPassword = await bcrypt.hash(data.admin.password, 10);
+            await tx.user.upsert({
+                where: { username: data.admin.username },
+                update: {
+                    password: hashedPassword,
+                    name: data.admin.name,
+                    roleStr: "ADMIN",
+                },
+                create: {
+                    username: data.admin.username,
+                    password: hashedPassword,
+                    name: data.admin.name,
+                    roleStr: "ADMIN",
+                    branchId: branch.id
+                }
+            });
+
+            return { branchId: branch.id };
         });
 
-        return { branchId: branch.id };
-    });
+        // Seed Chart of Accounts if missing
+        const { seedAccounts } = await import('@/lib/accounting/seed-accounts');
+        await seedAccounts();
 
-    // Seed Chart of Accounts if missing
-    const { seedAccounts } = await import('@/lib/accounting/seed-accounts');
-    await seedAccounts();
+        // Seed default units if missing
+        const { seedUnits } = await import('@/lib/inventory/seed-units');
+        await seedUnits();
 
-    // Seed default units if missing
-    const { seedUnits } = await import('@/lib/inventory/seed-units');
-    await seedUnits();
-
-    return { success: true };
+        return { success: true };
+    } catch (err: any) {
+        console.error('[SETUP ERROR] Setup failed:', err);
+        return { success: false, error: err?.message || 'Failed to complete system setup.' };
+    }
 }
