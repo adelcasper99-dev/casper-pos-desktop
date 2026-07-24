@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-hq"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("HQ_DATABASE_URL")
+}
+
+model HQTenant {
+  id           String               @id @default(uuid())
+  name         String
+  slug         String               @unique
+  dbName       String
+  dbUrl        String
+  status       String               @default("ACTIVE")
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  licenses     HQLicense[]
+  metricSnapshots HQMetricSnapshot[]
+
+  @@map("hq_tenants")
+}
+
+model HQLicense {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  tenantId    String
+  tenant      HQTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status      String   @default("ACTIVE")
+  expiresAt   DateTime
+  macAddress  String?
+  createdAt   DateTime @default(now())
+
+  @@map("hq_licenses")
+}
+
+model HQUser {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         String   @default("SUPER_ADMIN")
+  createdAt    DateTime @default(now())
+
+  @@map("hq_users")
+}
+
+model HQMetricSnapshot {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        HQTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  totalSales    Decimal  @default(0.00)
+  totalInvoices Int      @default(0)
+  activeUsers   Int      @default(1)
+  snapshotAt    DateTime @default(now())
+
+  @@map("hq_metric_snapshots")
+}
