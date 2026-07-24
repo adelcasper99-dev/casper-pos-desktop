@@ -83,7 +83,7 @@ export async function provisionTenantCore(params: {
       data: {
         id: `treasury-${crypto.randomBytes(4).toString("hex")}`,
         name: "الخزنة النقدية الرئيسية",
-        type: "CASH",
+        isDefault: true,
         branchId,
         tenantId,
         balance: new Prisma.Decimal(0.00)
