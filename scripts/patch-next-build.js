@@ -27,7 +27,10 @@ function wrapSyncRename(originalFn) {
 function wrapCallbackRename(originalFn) {
   return function (oldPath, newPath, callback) {
     ensureDir(newPath);
-    return originalFn.call(this, oldPath, newPath, callback);
+    if (typeof callback === 'function') {
+      return originalFn.call(this, oldPath, newPath, callback);
+    }
+    return originalFn.call(this, oldPath, newPath);
   };
 }
 
