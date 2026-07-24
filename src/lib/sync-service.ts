@@ -32,12 +32,25 @@ export class SyncService {
             });
 
             if (offlineDB.isOpen()) {
-                const settings = (await offlineDB.storeSettings.get('settings')) || { id: 'settings' };
-                await offlineDB.storeSettings.put({
-                    ...settings,
-                    licenseJwt: newToken || undefined
-                });
+                const settings = await offlineDB.storeSettings.get('settings');
+                if (settings) {
+                    await offlineDB.storeSettings.put({
+                        ...settings,
+                        licenseJwt: newToken || undefined
+                    });
+                } else {
+                    await offlineDB.storeSettings.put({
+                        id: 'settings',
+                        name: 'Casper Store',
+                        taxRate: 14,
+                        currency: 'EGP',
+                        receiptFooter: 'Thank you',
+                        updatedAt: new Date().toISOString(),
+                        licenseJwt: newToken || undefined
+                    });
+                }
             }
+
 
 
 
