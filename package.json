@@ -8,8 +8,7 @@
         "dev:electron": "cross-env NODE_ENV=development electron .",
         "build": "next build",
         "start": "next start -H 0.0.0.0 -p 3000",
-        "deploy:hq": "ssh root@109.123.247.119 \"cd /var/www/casper-pos-desktop && rm -f .git/refs/remotes/origin/main && git fetch origin && git reset --hard origin/main && (pm2 stop all || true) && rm -rf .next && NODE_OPTIONS='--max-old-space-size=4096' npm run build && pm2 restart all\"",
-
+        "deploy:hq": "ssh root@109.123.247.119 \"cd /var/www/casper-pos-desktop && rm -f .git/refs/remotes/origin/main && git fetch origin && git reset --hard origin/main && (pm2 stop all || true) && rm -rf .next && mkdir -p .next/server/pages && NODE_OPTIONS='--max-old-space-size=4096' npm run build && pm2 restart all\"",
         "license:bootstrap": "node scripts/bootstrap-license.js",
         "electron:build": "node scripts/build-license.js && npm run build && node scripts/prepare-standalone.js",
         "dist:assets": "node scripts/generate-build-assets.js",
@@ -26,7 +25,8 @@
         "postinstall": "npm run generate:dev && npx @electron/rebuild -f -w better-sqlite3",
         "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
         "validate:db": "node scripts/validate-database-files.js",
-        "prebuild": "npm run generate:prod && npm run validate:db && node scripts/download-postgres.js",
+        "prebuild": "node -e \"require('fs').mkdirSync('.next/server/pages', { recursive: true })\" && npm run generate:prod && npm run validate:db && node scripts/download-postgres.js",
+
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
