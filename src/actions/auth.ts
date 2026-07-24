@@ -28,11 +28,14 @@ export async function login(formData: FormData) {
     }
 
     // ── V-08: Parallelize User Lookup & Branch Sync ───────────────────────────
+    const { runWithTenant } = await import('@/lib/prisma-tenant-extension');
     const [user, mainBranchId] = await Promise.all([
-        prisma.user.findUnique({
-            where: { username },
-            include: { role: true, branch: { select: { type: true } } }
-        }),
+        runWithTenant('SYSTEM', () =>
+            prisma.user.findUnique({
+                where: { username },
+                include: { role: true, branch: { select: { type: true } } }
+            })
+        ),
         ensureMainBranch()
     ]);
 

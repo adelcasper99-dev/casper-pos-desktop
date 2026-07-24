@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1784774993.8506157,
-    "ast_hash": "8002be30c7565d2ca66a35d2f9039d20",
+    "mtime": 1784780673.7441373,
+    "ast_hash": "d6b8afa8bf26dec8a349881c0bd90747",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -620,8 +620,8 @@
     "semantic_hash": ""
   },
   "src/actions/setup.ts": {
-    "mtime": 1784177111.7814398,
-    "ast_hash": "156e988c1d6d11e238c642e782f383c8",
+    "mtime": 1784852574.2958963,
+    "ast_hash": "bd8a9425c2c9dc338559fa83c3157a6f",
     "semantic_hash": ""
   },
   "src/actions/shift-management-actions.ts": {
@@ -4965,8 +4965,8 @@
     "semantic_hash": ""
   },
   "src/app/api/admin/license/staff-generate/route.ts": {
-    "mtime": 1784177113.1480353,
-    "ast_hash": "c25218ef1cabd0f1574952b3c89f4651",
+    "mtime": 1784779551.0910916,
+    "ast_hash": "633c583d1cd87b7d928dbdc6fe977b84",
     "semantic_hash": ""
   },
   "src/app/api/admin/licenses/[id]/renew/route.ts": {
@@ -5280,7 +5280,7 @@
     "semantic_hash": ""
   },
   "src/lib/prisma-tenant-extension.ts": {
-    "mtime": 1784775040.6313734,
+    "mtime": 1784780683.1838012,
     "ast_hash": "5e174c8db7bf19d56bef90146da73d14",
     "semantic_hash": ""
   },
@@ -5575,8 +5575,8 @@
     "semantic_hash": ""
   },
   "scripts/generate-schemas.mjs": {
-    "mtime": 1784774982.9308667,
-    "ast_hash": "13ca940203eae40a7b2196b6d1a3a5df",
+    "mtime": 1784779551.0890937,
+    "ast_hash": "e155a8aff9f8d7fbfa4ecc84010d7d1d",
     "semantic_hash": ""
   },
   "scripts/provision-tenant.ts": {
@@ -5625,8 +5625,8 @@
     "semantic_hash": ""
   },
   "src/actions/hq-tenant-actions.ts": {
-    "mtime": 1784582619.1707644,
-    "ast_hash": "a2912d1dba76b5c690a84a08d900065e",
+    "mtime": 1784779551.090092,
+    "ast_hash": "7f572f4427f9ee339a06a6c912a103d2",
     "semantic_hash": ""
   },
   "src/app/(admin)/casper-hq/layout.tsx": {
@@ -5635,8 +5635,8 @@
     "semantic_hash": ""
   },
   "src/app/(admin)/casper-hq/page.tsx": {
-    "mtime": 1784583645.4296696,
-    "ast_hash": "5919f63d8c80afbb7cdb49cd0d7f3020",
+    "mtime": 1784779551.0910916,
+    "ast_hash": "e7ea09a0b642f23f34e2d7cba77a4cd4",
     "semantic_hash": ""
   },
   "src/components/hq/ApproveSwapButton.tsx": {
@@ -5652,16 +5652,6 @@
   "src/components/hq/ToggleTenantButton.tsx": {
     "mtime": 1784514423.4189918,
     "ast_hash": "e8cd01041c95c9488423ad477461c316",
-    "semantic_hash": ""
-  },
-  "pages/404.tsx": {
-    "mtime": 1784569186.7911968,
-    "ast_hash": "7a3d41238b720723703a5e794b27cdd1",
-    "semantic_hash": ""
-  },
-  "pages/500.tsx": {
-    "mtime": 1784569181.385585,
-    "ast_hash": "be9d01524a78e218e14a3215b3a93f1b",
     "semantic_hash": ""
   },
   "scripts/check-tenants.js": {
@@ -5700,13 +5690,58 @@
     "semantic_hash": ""
   },
   "test.ts": {
-    "mtime": 1784579836.826556,
-    "ast_hash": "583e1b46ed9107ab8047fd0114ef0f9c",
+    "mtime": 1784779551.094091,
+    "ast_hash": "81058cc17eae1a2770c7f3c86ccdb2ca",
     "semantic_hash": ""
   },
   "docs/plans/2026-07-23-001-fix-auto-detect-db-schema-provider-plan.md": {
     "mtime": 1784774919.294984,
     "ast_hash": "fd1b44520fe6180f44d97c86f0a6315a",
+    "semantic_hash": ""
+  },
+  "src/__tests__/hq-tenant-actions.test.ts": {
+    "mtime": 1784779551.0890937,
+    "ast_hash": "8ab4d2a4ae5238517f22c3d3c17bd168",
+    "semantic_hash": ""
+  },
+  "src/components/hq/HQDashboardClient.tsx": {
+    "mtime": 1784779551.0920901,
+    "ast_hash": "44e1bd011c228bd214cdab590b5e7245",
+    "semantic_hash": ""
+  },
+  "src/components/hq/LicenseQuickActions.tsx": {
+    "mtime": 1784779551.0920901,
+    "ast_hash": "227cf91ab8c0c7402a80757b52d4d0fd",
+    "semantic_hash": ""
+  },
+  "src/components/hq/SalesPipelineTab.tsx": {
+    "mtime": 1784779551.0920901,
+    "ast_hash": "c037061de444f32ac8b6073df7ce03c4",
+    "semantic_hash": ""
+  },
+  "src/components/hq/TechSupportTab.tsx": {
+    "mtime": 1784779551.093092,
+    "ast_hash": "3887ab14a37ec5491b511acf18b73787",
+    "semantic_hash": ""
+  },
+  "src/components/hq/TenantsManagementTab.tsx": {
+    "mtime": 1784779551.093092,
+    "ast_hash": "b15842d76b466e7b15645bf72b915243",
+    "semantic_hash": ""
+  },
+  "src/lib/hq-metrics.ts": {
+    "mtime": 1784779551.094091,
+    "ast_hash": "3352df8ee328ad7b4f4125e7a73638cf",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-07-23-002-feat-casper-hq-license-enhancements-plan.md": {
+    "mtime": 1784779551.055434,
+    "ast_hash": "2f03b7dac3066733f2a1fcdb3a0a3cc8",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-07-23-003-fix-hq-dashboard-code-review-plan.md": {
+    "mtime": 1784779551.0559595,
+    "ast_hash": "9fcac800fe8b90532820dde229a101cd",
     "semantic_hash": ""
   }
 }

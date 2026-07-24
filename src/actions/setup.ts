@@ -199,13 +199,31 @@ export async function performSetup(data: {
                 });
             }
 
-            // 3. Default CASH Treasury
+            // 3. Default CASH Treasury (Self-heal to prevent P2002 on branchId + name)
             const existingTreasury = await tx.treasury.findFirst({
-                where: { branchId: branch.id, paymentMethod: 'CASH' }
+                where: {
+                    branchId: branch.id,
+                    OR: [
+                        { paymentMethod: 'CASH' },
+                        { name: 'الخزنة النقدية' },
+                        { id: 'treasury-cash-main' }
+                    ]
+                }
             });
-            if (!existingTreasury) {
+            if (existingTreasury) {
+                await tx.treasury.update({
+                    where: { id: existingTreasury.id },
+                    data: {
+                        name: 'الخزنة النقدية',
+                        paymentMethod: 'CASH',
+                        isDefault: true,
+                        deletedAt: null,
+                    }
+                });
+            } else {
                 await tx.treasury.create({
                     data: {
+                        id: 'treasury-cash-main',
                         name: 'الخزنة النقدية',
                         paymentMethod: 'CASH',
                         branchId: branch.id,

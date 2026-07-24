@@ -19,22 +19,26 @@ export type UserSession = {
     maxDiscountAmount?: number | null;
 };
 
+import { runWithTenant } from "@/lib/prisma-tenant-extension";
+
 export async function createUserSession(userData: UserSession, maxAge: number = 31536000): Promise<string> {
     const token = userData.id === 'super-admin' ? `super-admin-token-${crypto.randomUUID()}` : crypto.randomUUID();
     const expiresAt = new Date(Date.now() + maxAge * 1000);
 
     // Clean up old sessions for this user to prevent bloat
     if (userData.id !== 'super-admin') {
-        await prisma.session.deleteMany({
-            where: { userId: userData.id }
-        });
+        await runWithTenant('SYSTEM', async () => {
+            await prisma.session.deleteMany({
+                where: { userId: userData.id }
+            });
 
-        await prisma.session.create({
-            data: {
-                userId: userData.id,
-                token,
-                expiresAt
-            }
+            await prisma.session.create({
+                data: {
+                    userId: userData.id,
+                    token,
+                    expiresAt
+                }
+            });
         });
     }
 
@@ -89,10 +93,12 @@ export async function getSession() {
 
     let session: any = null;
     try {
-        session = await prisma.session.findUnique({
-            where: { token },
-            include: { user: { include: { role: true } } },
-        });
+        session = await runWithTenant('SYSTEM', () =>
+            prisma.session.findUnique({
+                where: { token },
+                include: { user: { include: { role: true } } },
+            })
+        );
 
         if (!session) {
             console.warn(`[AUTH DEBUG] Session token found in cookie but not in DB. This usually happens after a DB push/reset.`);
@@ -160,7 +166,9 @@ export async function destroySession() {
     }
 
     if (token) {
-        await prisma.session.deleteMany({ where: { token } });
+        await runWithTenant('SYSTEM', () =>
+            prisma.session.deleteMany({ where: { token } })
+        );
     }
 
     cookieStore.delete("session");
@@ -172,9 +180,11 @@ export async function logout() {
 }
 
 export async function invalidateUserSessions(userId: string) {
-    await prisma.session.deleteMany({
-        where: { userId }
-    });
+    await runWithTenant('SYSTEM', () =>
+        prisma.session.deleteMany({
+            where: { userId }
+        })
+    );
 }
 
 /**
