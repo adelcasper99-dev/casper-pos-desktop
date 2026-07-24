@@ -407,6 +407,7 @@
             left: 50%;
             transform: translateX(-50%);
             width: 1100px;
+            max-width: 100vw;
             height: 520px;
             background: radial-gradient(circle at 50% 50%, 
                 rgba(128, 82, 255, 0.45) 0%, 
@@ -815,6 +816,20 @@
         html:not(.dark) #comparison table .text-slate-400 {
             color: #475569 !important; /* Slate 600 */
         }
+
+        /* Mobile Drawer Light Mode High Contrast Styling */
+        html:not(.dark) #mobile-menu-drawer {
+            background: rgba(241, 243, 248, 0.98) !important;
+            border-color: rgba(203, 213, 225, 0.9) !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) #mobile-menu-drawer .mobile-nav-link {
+            color: #0f172a !important;
+            border-color: rgba(203, 213, 225, 0.8) !important;
+        }
+        html:not(.dark) #mobile-menu-drawer .mobile-nav-link:hover {
+            color: #5824e6 !important;
+        }
     </style>
 </head>
 <body class="antialiased selection:bg-brand-500 selection:text-white relative pb-20 lg:pb-0">
@@ -874,12 +889,39 @@
                     <svg id="theme-moon-icon" class="w-5 h-5 text-brand-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
                 </button>
 
+                <!-- Mobile Hamburger Toggle Button -->
+                <button id="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer" class="lg:hidden p-2.5 rounded-full border border-brand-500/30 bg-brand-500/10 hover:bg-brand-500/20 text-white transition-all duration-300 backdrop-blur-md hover:scale-105 active:scale-95 shadow-md flex items-center justify-center cursor-pointer" title="القائمة الرئيسية">
+                    <svg id="hamburger-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <svg id="close-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+
                 <a href="https://wa.me/201501490010?text=أهلاً،%20أريد%20استشارة%20مجانية%20بخصوص%20نظام%20Casper%20ERP" target="_blank" rel="noopener" class="px-6 py-2.5 rounded-full border border-brand-500/40 text-white bg-brand-500 hover:bg-brand-600 hover:border-brand-400 hover:shadow-[0_0_25px_rgba(128,82,255,0.55)] transition-all duration-300 font-bold text-sm hidden sm:flex items-center gap-2 keep-white">
                     <svg class="w-4 h-4 text-emerald-400 keep-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.099.824zm-3.423-14.416c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm.029 18.88c-1.161 0-2.305-.292-3.318-.844l-3.677.964.984-3.595c-.607-1.052-.927-2.246-.926-3.468.001-5.824 4.74-10.563 10.573-10.564 5.824.001 10.566 4.746 10.566 10.564 0 5.825-4.745 10.563-10.571 10.563z"/></svg>
                     <span>استشارة واتساب مجانية</span>
                 </a>
             </div>
         </nav>
+
+        <!-- Mobile Navigation Glass Drawer Overlay -->
+        <div id="mobile-menu-drawer" class="fixed inset-0 min-h-[100dvh] bg-black/95 backdrop-blur-2xl z-40 lg:hidden transition-all duration-300 opacity-0 pointer-events-none flex flex-col justify-between p-6 pt-24" dir="rtl">
+            <div class="flex flex-col space-y-3 text-base font-extrabold text-slate-200">
+                <a href="#features" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">المميزات</a>
+                <a href="#showcase" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">معاينة النظام</a>
+                <a href="#comparison" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">مقارنة الحلول</a>
+                <a href="#testimonials" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">آراء العملاء</a>
+                <a href="#customer-portal" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">بوابة العميل</a>
+                <a href="#roi-calculator" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">حاسبة الوفر</a>
+                <a href="#pricing" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">الأسعار</a>
+                <a href="#faq" class="mobile-nav-link hover:text-brand-400 py-2.5 border-b border-white/10 transition">الأسئلة الشائعة</a>
+            </div>
+            <div class="pt-4 border-t border-white/10 flex flex-col gap-3">
+                <a href="https://wa.me/201501490010?text=أهلاً،%20أريد%20استشارة%20مجانية%20بخصوص%20نظام%20Casper%20ERP" target="_blank" rel="noopener" class="w-full py-3.5 rounded-full border border-brand-500/40 text-white bg-brand-500 hover:bg-brand-600 font-bold text-center flex items-center justify-center gap-2 shadow-lg keep-white">
+                    <svg class="w-5 h-5 text-emerald-400 keep-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.099.824zm-3.423-14.416c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm.029 18.88c-1.161 0-2.305-.292-3.318-.844l-3.677.964.984-3.595c-.607-1.052-.927-2.246-.926-3.468.001-5.824 4.74-10.563 10.573-10.564 5.824.001 10.566 4.746 10.566 10.564 0 5.825-4.745 10.563-10.571 10.563z"/></svg>
+                    <span>استشارة واتساب مجانية</span>
+                </a>
+            </div>
+        </div>
+    </div>
     </div>
 
     <!-- Reflect-Style Centered Hero Section with Ambient Cosmic Portal Glow & Eclipse Arc -->
@@ -2249,6 +2291,54 @@
                     syncThemeUI();
                 });
             }
+        })();
+
+        // 11. Mobile Navigation Drawer Handler
+        (function initMobileMenu() {
+            const toggleBtn = document.getElementById('mobile-menu-toggle');
+            const drawer = document.getElementById('mobile-menu-drawer');
+            const hamburgerIcon = document.getElementById('hamburger-icon');
+            const closeIcon = document.getElementById('close-icon');
+            const navLinks = document.querySelectorAll('.mobile-nav-link');
+
+            if (!toggleBtn || !drawer) return;
+
+            function openDrawer() {
+                drawer.classList.remove('opacity-0', 'pointer-events-none');
+                drawer.classList.add('opacity-100', 'pointer-events-auto');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                if (hamburgerIcon) hamburgerIcon.classList.add('hidden');
+                if (closeIcon) closeIcon.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+
+            function closeDrawer() {
+                drawer.classList.remove('opacity-100', 'pointer-events-auto');
+                drawer.classList.add('opacity-0', 'pointer-events-none');
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                if (hamburgerIcon) hamburgerIcon.classList.remove('hidden');
+                if (closeIcon) closeIcon.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = toggleBtn.getAttribute('aria-expanded') === 'true';
+                if (isOpen) closeDrawer(); else openDrawer();
+            });
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', () => closeDrawer());
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeDrawer();
+            });
+
+            document.addEventListener('click', (e) => {
+                if (drawer.contains(e.target) || toggleBtn.contains(e.target)) return;
+                closeDrawer();
+            });
         })();
     </script>
 </body>
