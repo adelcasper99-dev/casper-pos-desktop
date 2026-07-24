@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1784780673.7441373,
-    "ast_hash": "d6b8afa8bf26dec8a349881c0bd90747",
+    "mtime": 1784853486.8010218,
+    "ast_hash": "ff01b9d1256d79d1a8625a6fe52499e7",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -440,8 +440,8 @@
     "semantic_hash": ""
   },
   "src/actions/auth.ts": {
-    "mtime": 1784514423.4149907,
-    "ast_hash": "828f785a2d393da2d82c0fd2dccac78f",
+    "mtime": 1784855518.7234845,
+    "ast_hash": "326c235883c7a6dd5dc60672011bc356",
     "semantic_hash": ""
   },
   "src/actions/backup-schedule.ts": {
@@ -620,8 +620,8 @@
     "semantic_hash": ""
   },
   "src/actions/setup.ts": {
-    "mtime": 1784852574.2958963,
-    "ast_hash": "bd8a9425c2c9dc338559fa83c3157a6f",
+    "mtime": 1784853904.407476,
+    "ast_hash": "819c1f6edd3a342d48726e70b2c36d8d",
     "semantic_hash": ""
   },
   "src/actions/shift-management-actions.ts": {
@@ -2050,8 +2050,8 @@
     "semantic_hash": ""
   },
   "src/lib/auth.ts": {
-    "mtime": 1784514423.4189918,
-    "ast_hash": "1914af451dabeb877deebb5ac08df1ef",
+    "mtime": 1784855528.7963295,
+    "ast_hash": "78d92ede21f776ff1bf201e269e2e2eb",
     "semantic_hash": ""
   },
   "src/lib/backup/core.ts": {
