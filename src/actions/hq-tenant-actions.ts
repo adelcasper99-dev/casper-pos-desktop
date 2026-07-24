@@ -118,7 +118,6 @@ export async function provisionTenantCore(params: {
           code: acc.code,
           name: acc.name,
           type: acc.type,
-          balance: new Prisma.Decimal(0.00),
           tenantId
         }
       });
