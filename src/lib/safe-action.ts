@@ -151,7 +151,8 @@ export function secureAction<T, A extends any[]>(
                     code: 'الكود (Code)',
                     barcode: 'الباركود (Barcode)',
                     sku: 'رمز المنتج (SKU)',
-                    key: 'مفتاح الترخيص (License Key)'
+                    key: 'مفتاح الترخيص (License Key)',
+                    id: 'الرمز التعريفي (ID)'
                 };
 
                 const fieldNames = targetList
