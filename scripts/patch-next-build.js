@@ -73,15 +73,33 @@ function wrapCallbackRename(originalFn) {
 // -------------------------------------------------------------
 // ReadFile patch for missing .nft.json trace files in Next.js
 // -------------------------------------------------------------
+function shouldFallbackMissingFile(filePath) {
+  if (typeof filePath !== 'string') return null;
+  if (filePath.endsWith('.nft.json')) {
+    return '{"version":1,"files":[]}';
+  }
+  if (
+    filePath.endsWith('pages-manifest.json') ||
+    filePath.endsWith('app-build-manifest.json') ||
+    filePath.endsWith('app-paths-manifest.json')
+  ) {
+    return '{}';
+  }
+  return null;
+}
+
 function wrapAsyncReadFile(originalFn) {
   if (typeof originalFn !== 'function') return originalFn;
   return async function (filePath, ...args) {
     try {
       return await originalFn.call(this, filePath, ...args);
     } catch (e) {
-      if (e.code === 'ENOENT' && typeof filePath === 'string' && filePath.endsWith('.nft.json')) {
-        console.warn(`[patch-next-build] Ignored ENOENT on missing nft trace: ${filePath}`);
-        return '{"version":1,"files":[]}';
+      if (e.code === 'ENOENT') {
+        const fallback = shouldFallbackMissingFile(filePath);
+        if (fallback !== null) {
+          console.warn(`[patch-next-build] Ignored ENOENT on missing file: ${filePath}`);
+          return fallback;
+        }
       }
       throw e;
     }
@@ -94,9 +112,12 @@ function wrapSyncReadFile(originalFn) {
     try {
       return originalFn.call(this, filePath, ...args);
     } catch (e) {
-      if (e.code === 'ENOENT' && typeof filePath === 'string' && filePath.endsWith('.nft.json')) {
-        console.warn(`[patch-next-build] Ignored ENOENT on missing nft trace: ${filePath}`);
-        return '{"version":1,"files":[]}';
+      if (e.code === 'ENOENT') {
+        const fallback = shouldFallbackMissingFile(filePath);
+        if (fallback !== null) {
+          console.warn(`[patch-next-build] Ignored ENOENT on missing file: ${filePath}`);
+          return fallback;
+        }
       }
       throw e;
     }
@@ -107,9 +128,12 @@ function wrapCallbackReadFile(originalFn) {
   if (typeof originalFn !== 'function') return originalFn;
   const wrapped = function (filePath, ...args) {
     const callback = args[args.length - 1];
-    if (typeof callback === 'function' && typeof filePath === 'string' && filePath.endsWith('.nft.json') && !fs.existsSync(filePath)) {
-      console.warn(`[patch-next-build] Ignored ENOENT on missing nft trace: ${filePath}`);
-      return callback(null, '{"version":1,"files":[]}');
+    if (typeof callback === 'function' && !fs.existsSync(filePath)) {
+      const fallback = shouldFallbackMissingFile(filePath);
+      if (fallback !== null) {
+        console.warn(`[patch-next-build] Ignored ENOENT on missing file: ${filePath}`);
+        return callback(null, fallback);
+      }
     }
     return originalFn.call(this, filePath, ...args);
   };
