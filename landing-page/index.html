@@ -1010,17 +1010,28 @@
             <div>بيزنس مع <span class="text-gradient-indigo">كاسبر</span></div>
         </h1>
 
-        <!-- Canva Seamless Organic Hero Motion graphic -->
+        <!-- Native 60fps Automatic Hero Motion Loop Card -->
         <div class="w-full max-w-3xl my-6 reveal-scale">
-            <div class="relative w-full rounded-3xl p-1 bg-gradient-to-b from-brand-500/30 via-white/10 to-transparent shadow-[0_0_50px_rgba(128,82,255,0.2)]">
-                <div class="relative w-full aspect-[16/9] overflow-hidden rounded-[1.4rem] bg-black">
-                    <!-- Scaled iframe to crop out Canva player toolbar seamlessly -->
-                    <iframe loading="lazy" class="absolute -top-[2.5%] -bottom-[2.5%] -left-[2.5%] -right-[2.5%] w-[105%] h-[105%] border-0 pointer-events-none select-none"
-                        src="https://www.canva.com/design/DAHQW-yvwM4/PhyH3tBKcO79lYo0wyYneg/watch?embed&autoplay=1&loop=1&muted=1" 
-                        allow="autoplay; fullscreen">
-                    </iframe>
-                    <!-- Dark Vignette Overlay for Seamless Theme Blending -->
-                    <div class="absolute inset-0 pointer-events-none rounded-[1.4rem] shadow-[inset_0_0_50px_rgba(0,0,0,0.9)] ring-1 ring-white/10"></div>
+            <div class="relative w-full rounded-3xl p-1 bg-gradient-to-b from-brand-500/40 via-white/10 to-transparent shadow-[0_0_50px_rgba(128,82,255,0.25)]">
+                <div class="relative w-full min-h-[160px] sm:min-h-[200px] overflow-hidden rounded-[1.4rem] bg-gradient-to-br from-black via-slate-950 to-brand-950/40 p-6 sm:p-8 flex flex-col justify-between items-center text-center border border-white/10">
+                    
+                    <!-- Top Status Badge -->
+                    <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-300 text-xs font-bold">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>معادلة كاسبر الذهبية ⚡</span>
+                    </div>
+
+                    <!-- Dynamic Looping Text Frame -->
+                    <div class="my-4 min-h-[60px] sm:min-h-[75px] flex items-center justify-center relative overflow-hidden w-full">
+                        <div id="hero-native-loop-text" class="text-2xl sm:text-4xl md:text-5xl font-black text-saffron-spark tracking-tight transition-all duration-500 transform translate-y-0 opacity-100">
+                            وقّف الخسارة.. تكسب ⚡
+                        </div>
+                    </div>
+
+                    <!-- Bottom Smooth Progress Indicator -->
+                    <div class="w-full max-w-md bg-white/10 h-1 rounded-full overflow-hidden">
+                        <div id="hero-loop-progress" class="h-full bg-gradient-to-r from-brand-500 via-saffron-spark to-accent-cyan w-0"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2086,35 +2097,51 @@
     <!-- Scripts: Ambient Motion Canvas, Scroll Progress, Carousel Engine & Real WhatsApp Funnel -->
     <script>
         // 0. Dynamic Word Flipper Engine for Hero Headline
-        function initDynamicTypewriter() {
-            const wordEl = document.getElementById('dynamic-headline-word');
-            if (!wordEl) return;
+        // 0. Native 60fps Hero Motion Loop Engine with Progress Bar
+        function initNativeHeroLoop() {
+            const textEl = document.getElementById('hero-native-loop-text');
+            const progressEl = document.getElementById('hero-loop-progress');
+            if (!textEl || !progressEl) return;
 
-            const phrases = [
-                "وقّف الخسارة.. تكسب",
-                "زوّد المبيعات.. تكسب",
-                "بيزنس مع كاسبر.. يكسب",
-                "صفر تسريب.. راحة بال"
+            const items = [
+                "وقّف الخسارة.. تكسب ⚡",
+                "زوّد المبيعات.. تكسب 📈",
+                "بيزنس مع كاسبر.. يكسب 🚀",
+                "صفر تسريب.. راحة بال 🛡️"
             ];
-            let index = 0;
+            let current = 0;
+            const cycleDuration = 2800;
 
-            setInterval(() => {
-                wordEl.style.transform = 'translateY(-36px)';
-                wordEl.style.opacity = '0';
+            function runLoop() {
+                progressEl.style.transition = 'none';
+                progressEl.style.width = '0%';
+                
+                requestAnimationFrame(() => {
+                    progressEl.style.transition = `width ${cycleDuration}ms linear`;
+                    progressEl.style.width = '100%';
+                });
 
                 setTimeout(() => {
-                    index = (index + 1) % phrases.length;
-                    wordEl.textContent = phrases[index];
-                    wordEl.style.transform = 'translateY(36px)';
+                    textEl.style.transform = 'translateY(-24px) scale(0.96)';
+                    textEl.style.opacity = '0';
 
-                    requestAnimationFrame(() => {
-                        wordEl.style.transform = 'translateY(0)';
-                        wordEl.style.opacity = '1';
-                    });
-                }, 400);
-            }, 2600);
+                    setTimeout(() => {
+                        current = (current + 1) % items.length;
+                        textEl.textContent = items[current];
+                        textEl.style.transform = 'translateY(24px) scale(1.04)';
+
+                        requestAnimationFrame(() => {
+                            textEl.style.transform = 'translateY(0) scale(1)';
+                            textEl.style.opacity = '1';
+                        });
+                    }, 400);
+                }, cycleDuration - 400);
+            }
+
+            runLoop();
+            setInterval(runLoop, cycleDuration);
         }
-        initDynamicTypewriter();
+        initNativeHeroLoop();
 
         // 1. Top Scroll Progress Indicator & Smart Auto-Hiding Navbar
         const navbar = document.getElementById('navbar');
