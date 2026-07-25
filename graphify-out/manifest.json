@@ -2380,8 +2380,8 @@
     "semantic_hash": ""
   },
   "src/lib/stock-helpers.ts": {
-    "mtime": 1774195642.1021528,
-    "ast_hash": "d0a1c0c3fef731edd61fa122aa84c556",
+    "mtime": 1784964685.9796855,
+    "ast_hash": "42279f00a32aa6bb3e325bfb1637553d",
     "semantic_hash": ""
   },
   "src/lib/sync-service.ts": {
@@ -5565,8 +5565,8 @@
     "semantic_hash": ""
   },
   "landing-page/index.html": {
-    "mtime": 1784958850.113898,
-    "ast_hash": "8b5239073fa46e4acd8f82d39ba05d9e",
+    "mtime": 1784959522.9635768,
+    "ast_hash": "c8f71d3cec0a9e8eda1da01e4b2e0429",
     "semantic_hash": ""
   },
   "scripts/generate-schemas.mjs": {
@@ -5820,32 +5820,32 @@
     "semantic_hash": ""
   },
   "src/components/ui/number-ticker.tsx": {
-    "mtime": 1784950544.7824328,
+    "mtime": 1784959522.9635768,
     "ast_hash": "87eaa26cd38282d237e2d7e00640dd4d",
     "semantic_hash": ""
   },
   "src/components/ui/sparkles-text.tsx": {
-    "mtime": 1784950550.3569772,
+    "mtime": 1784959522.9635768,
     "ast_hash": "de4f10e7cf4d6c33f1cc8211df68dd95",
     "semantic_hash": ""
   },
   "src/components/ui/text-animate.tsx": {
-    "mtime": 1784950300.8255785,
+    "mtime": 1784959522.9635768,
     "ast_hash": "8ffa061ddf72150ad1c345a8d496278e",
     "semantic_hash": ""
   },
   "src/components/ui/typing-animation.tsx": {
-    "mtime": 1784950539.350871,
+    "mtime": 1784959522.9635768,
     "ast_hash": "423fa5aaef3aecd3dc2226a37c9ce1f4",
     "semantic_hash": ""
   },
   "src/components/ui/word-rotate.tsx": {
-    "mtime": 1784950534.272349,
+    "mtime": 1784959522.9715889,
     "ast_hash": "8bb969b08c50d25428c9dd2edd4ecf03",
     "semantic_hash": ""
   },
   "DESIGN.md": {
-    "mtime": 1784950861.9394014,
+    "mtime": 1784959522.9481535,
     "ast_hash": "50f387574151baa2d70dea143bc2c1a1",
     "semantic_hash": ""
   },
@@ -5855,33 +5855,78 @@
     "semantic_hash": ""
   },
   "landing-page/stitch-landing-refactor.html": {
-    "mtime": 1784953361.6923268,
+    "mtime": 1784959522.9635768,
     "ast_hash": "bf7b68904d453e597b10ffe852eff168",
     "semantic_hash": ""
   },
   "landing-page/stitch-maintenance-preview.html": {
-    "mtime": 1784953129.3992562,
+    "mtime": 1784959522.9635768,
     "ast_hash": "751dfc4d292fa9114419a5312facded0",
     "semantic_hash": ""
   },
   "landing-page/stitch-pos-preview.html": {
-    "mtime": 1784953126.1458654,
+    "mtime": 1784959522.9635768,
     "ast_hash": "054d6f5c25b05ac613b2b99100efa490",
     "semantic_hash": ""
   },
   "landing-page/casper dark logo.png": {
-    "mtime": 1784946317.5210783,
+    "mtime": 1784959522.9635768,
     "ast_hash": "121ec6149f3d411ea744bc0d4bc9b43e",
     "semantic_hash": ""
   },
   "landing-page/casper-logo.png": {
-    "mtime": 1784946205.1977317,
+    "mtime": 1784959522.9635768,
     "ast_hash": "121ec6149f3d411ea744bc0d4bc9b43e",
     "semantic_hash": ""
   },
   ".vscode/mcp.json": {
     "mtime": 1784957871.9631004,
     "ast_hash": "8bc7ce60d5e877fede1d24452301575f",
+    "semantic_hash": ""
+  },
+  "run-ce-agent-pipeline.sh": {
+    "mtime": 1784962715.25282,
+    "ast_hash": "fb40b9e21436d86cb2f8fcfd9ad5f4ed",
+    "semantic_hash": ""
+  },
+  "scripts/check-casper-rules.js": {
+    "mtime": 1784964302.452175,
+    "ast_hash": "cd89a1cad4e3cbee08a436a8a9d055f3",
+    "semantic_hash": ""
+  },
+  "scripts/run-ce-agent-pipeline.sh": {
+    "mtime": 1784973339.779831,
+    "ast_hash": "274e7f5b936d973ed44880c8eeabb217",
+    "semantic_hash": ""
+  },
+  "src/__tests__/bundle-stock.test.ts": {
+    "mtime": 1784964613.222851,
+    "ast_hash": "122cd3c33e97d713361d67bbd28e0432",
+    "semantic_hash": ""
+  },
+  "src/__tests__/stock-alerts.test.ts": {
+    "mtime": 1784965162.4000735,
+    "ast_hash": "dc3b56eb309f19649f87561d546b72da",
+    "semantic_hash": ""
+  },
+  "src/lib/stock-alerts.ts": {
+    "mtime": 1784965158.2525637,
+    "ast_hash": "51341ead9e262e29c140131835b8b288",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-07-25-001-feat-ironclad-review-skill-edit-plan.md": {
+    "mtime": 1784972619.800823,
+    "ast_hash": "0a139a8c45a460abcd49910b03dfe560",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-07-25-002-feat-pipeline-doc-workflows-hardening-plan.md": {
+    "mtime": 1784973084.339681,
+    "ast_hash": "c242b40033b3ff2d7e9abe6485de6667",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-07-25-003-feat-ui-design-pipeline-skill-plan.md": {
+    "mtime": 1784973531.0282788,
+    "ast_hash": "8fe3c5801106a714733d4c8bc7c817ac",
     "semantic_hash": ""
   }
 }

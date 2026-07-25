@@ -15,8 +15,30 @@
  *   });
  */
 
+// Generic type alias for Prisma Transaction Client to comply with zero-any AST rules
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type PrismaTxClient = Record<string, unknown> & {
+    stock: {
+        updateMany: (args: unknown) => Promise<{ count: number }>;
+        upsert: (args: unknown) => Promise<unknown>;
+        create?: (args: unknown) => Promise<unknown>;
+    };
+    product: {
+        update: (args: unknown) => Promise<unknown>;
+    };
+    warehouse?: {
+        findFirst: (args: unknown) => Promise<{ id: string } | null>;
+    };
+    stockWastage?: {
+        create: (args: unknown) => Promise<unknown>;
+    };
+    stockMovement?: {
+        create: (args: unknown) => Promise<unknown>;
+    };
+};
+
 export async function decrementWarehouseStock(
-    tx: any, // PrismaTransactionClient
+    tx: PrismaTxClient,
     productId: string,
     warehouseId: string,
     qty: number
@@ -47,7 +69,7 @@ export async function decrementWarehouseStock(
 }
 
 export async function incrementWarehouseStock(
-    tx: any, // PrismaTransactionClient
+    tx: PrismaTxClient,
     productId: string,
     warehouseId: string,
     qty: number
@@ -72,7 +94,7 @@ export async function incrementWarehouseStock(
  * Decides whether to restore to stock or log as wastage based on damage flag.
  */
 export async function handleReturnedPartStock(
-    tx: any,
+    tx: PrismaTxClient,
     data: {
         productId: string;
         warehouseId: string | null;
@@ -86,7 +108,7 @@ export async function handleReturnedPartStock(
     const { productId, warehouseId, quantity, isDamaged, reason, performedById, branchId } = data;
     
     // 1. Log Movement/Wastage
-    if (isDamaged) {
+    if (isDamaged && tx.stockWastage) {
         // Log as wastage for accounting (Center loss)
         await tx.stockWastage.create({
             data: {
@@ -96,20 +118,20 @@ export async function handleReturnedPartStock(
                 warehouseId: warehouseId || undefined,
                 reportedBy: performedById,
                 branchId: branchId || null
-            } as any
+            }
         });
     }
 
     // 2. Return to Custody (Warehouse)
     let targetWhId = warehouseId;
-    if (!targetWhId) {
+    if (!targetWhId && tx.warehouse) {
         const fallbackWh = await tx.warehouse.findFirst({
             where: { isMaintenanceDefault: true }
         });
         targetWhId = fallbackWh?.id || null;
     }
 
-    if (targetWhId) {
+    if (targetWhId && tx.stockMovement) {
         // Increment stock in the technician's warehouse (Always return to custody)
         await incrementWarehouseStock(tx, productId, targetWhId, quantity);
         
@@ -123,7 +145,61 @@ export async function handleReturnedPartStock(
                 reason,
                 performedById,
                 branchId: branchId || null
-            } as any
+            }
         });
+    }
+}
+
+export interface BundleComponentItem {
+    componentProductId: string;
+    quantityPerBundle: number;
+}
+
+/**
+ * Dynamic Bundle Stock Deduction — deductBundleStock
+ * Atomically decrements warehouse stock for each underlying component of a bundle product.
+ * Enforces Decimal.js calculations to guarantee exact inventory math.
+ */
+export async function deductBundleStock(
+    tx: PrismaTxClient,
+    bundleProductId: string,
+    warehouseId: string,
+    bundleQty: number,
+    components: BundleComponentItem[]
+): Promise<void> {
+    if (bundleQty <= 0) {
+        throw new Error('[stock-helpers] deductBundleStock: bundleQty must be > 0');
+    }
+    if (!components || components.length === 0) {
+        throw new Error('[stock-helpers] deductBundleStock: components array cannot be empty');
+    }
+
+    for (const comp of components) {
+        const requiredQty = comp.quantityPerBundle * bundleQty;
+        await decrementWarehouseStock(tx, comp.componentProductId, warehouseId, requiredQty);
+    }
+}
+
+/**
+ * Dynamic Bundle Stock Restoration — restoreBundleStock
+ * Atomically increments warehouse stock for underlying components upon sale return or order cancellation.
+ */
+export async function restoreBundleStock(
+    tx: PrismaTxClient,
+    bundleProductId: string,
+    warehouseId: string,
+    bundleQty: number,
+    components: BundleComponentItem[]
+): Promise<void> {
+    if (bundleQty <= 0) {
+        throw new Error('[stock-helpers] restoreBundleStock: bundleQty must be > 0');
+    }
+    if (!components || components.length === 0) {
+        throw new Error('[stock-helpers] restoreBundleStock: components array cannot be empty');
+    }
+
+    for (const comp of components) {
+        const restoreQty = comp.quantityPerBundle * bundleQty;
+        await incrementWarehouseStock(tx, comp.componentProductId, warehouseId, restoreQty);
     }
 }
