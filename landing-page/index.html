@@ -456,6 +456,32 @@
             animation: saffronGlowPulse 2.5s infinite ease-in-out;
         }
 
+        /* Kinetic Block Reveal & Kinetic Stomp Animation Keyframes */
+        @keyframes stompImpact {
+            0% { opacity: 0; transform: scale(2.2) translateY(-20px); filter: blur(8px); }
+            60% { opacity: 1; transform: scale(0.92) translateY(2px); filter: blur(0px); }
+            80% { transform: scale(1.05) translateY(-1px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes blockSwipe {
+            0% { width: 0%; left: 0; }
+            50% { width: 100%; left: 0; }
+            100% { width: 0%; left: 100%; }
+        }
+        .anim-stomp {
+            animation: stompImpact 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+        }
+        .block-swipe-cover {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            height: 100%;
+            background: linear-gradient(90deg, #ffb829 0%, #8052ff 100%);
+            border-radius: 8px;
+            z-index: 20;
+            pointer-events: none;
+        }
+
         @media (prefers-reduced-motion: reduce) {
             .hero-line-1, .hero-line-2, .hero-line-3 {
                 animation: none !important;
@@ -2097,20 +2123,21 @@
     <!-- Scripts: Ambient Motion Canvas, Scroll Progress, Carousel Engine & Real WhatsApp Funnel -->
     <script>
         // 0. Dynamic Word Flipper Engine for Hero Headline
-        // 0. Native 60fps Hero Motion Loop Engine with Progress Bar
+        // 0. Native 60fps Kinetic Hero Motion Engine (Block Reveal + Stomp Animation)
         function initNativeHeroLoop() {
             const textEl = document.getElementById('hero-native-loop-text');
             const progressEl = document.getElementById('hero-loop-progress');
-            if (!textEl || !progressEl) return;
+            const containerEl = textEl ? textEl.parentElement : null;
+            if (!textEl || !progressEl || !containerEl) return;
 
             const items = [
-                "وقّف الخسارة.. تكسب ⚡",
-                "زوّد المبيعات.. تكسب 📈",
-                "بيزنس مع كاسبر.. يكسب 🚀",
-                "صفر تسريب.. راحة بال 🛡️"
+                { text: "وقّف الخسارة.. تكسب ⚡", type: "stomp" },
+                { text: "زوّد المبيعات.. تكسب 📈", type: "block" },
+                { text: "بيزنس مع كاسبر.. يكسب 🚀", type: "stomp" },
+                { text: "صفر تسريب.. راحة بال 🛡️", type: "block" }
             ];
             let current = 0;
-            const cycleDuration = 2800;
+            const cycleDuration = 3000;
 
             function runLoop() {
                 progressEl.style.transition = 'none';
@@ -2121,25 +2148,45 @@
                     progressEl.style.width = '100%';
                 });
 
-                setTimeout(() => {
-                    textEl.style.transform = 'translateY(-24px) scale(0.96)';
+                const mode = items[current].type;
+
+                if (mode === "stomp") {
+                    textEl.classList.remove('anim-stomp');
                     textEl.style.opacity = '0';
+                    textEl.textContent = items[current].text;
+                    
+                    requestAnimationFrame(() => {
+                        textEl.classList.add('anim-stomp');
+                    });
+                } else if (mode === "block") {
+                    textEl.classList.remove('anim-stomp');
+                    textEl.style.opacity = '0';
+                    
+                    // Create sliding block reveal bar
+                    const blockBar = document.createElement('div');
+                    blockBar.className = 'block-swipe-cover';
+                    containerEl.appendChild(blockBar);
+                    
+                    blockBar.style.animation = 'blockSwipe 0.5s ease-in-out forwards';
+                    
+                    setTimeout(() => {
+                        textEl.textContent = items[current].text;
+                        textEl.style.opacity = '1';
+                        textEl.style.transform = 'scale(1) translateY(0)';
+                    }, 250);
 
                     setTimeout(() => {
-                        current = (current + 1) % items.length;
-                        textEl.textContent = items[current];
-                        textEl.style.transform = 'translateY(24px) scale(1.04)';
+                        if (blockBar.parentNode) blockBar.parentNode.removeChild(blockBar);
+                    }, 520);
+                }
 
-                        requestAnimationFrame(() => {
-                            textEl.style.transform = 'translateY(0) scale(1)';
-                            textEl.style.opacity = '1';
-                        });
-                    }, 400);
-                }, cycleDuration - 400);
+                setTimeout(() => {
+                    current = (current + 1) % items.length;
+                    runLoop();
+                }, cycleDuration);
             }
 
             runLoop();
-            setInterval(runLoop, cycleDuration);
         }
         initNativeHeroLoop();
 
