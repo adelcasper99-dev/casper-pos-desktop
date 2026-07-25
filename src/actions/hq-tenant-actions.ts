@@ -38,7 +38,7 @@ export async function provisionTenantCore(params: {
   const normalizedSlug = domainToUnicode(cleanSlug);
 
   return await prisma.$transaction(async (tx) => {
-    const tenantId = `tenant-${crypto.randomBytes(4).toString("hex")}`;
+    const tenantId = normalizedSlug;
     const syncSecret = crypto.randomBytes(32).toString("hex");
     const branchId = `branch-${crypto.randomBytes(4).toString("hex")}`;
 
