@@ -5925,8 +5925,18 @@
     "semantic_hash": ""
   },
   "docs/plans/2026-07-25-003-feat-ui-design-pipeline-skill-plan.md": {
-    "mtime": 1784973531.0282788,
-    "ast_hash": "8fe3c5801106a714733d4c8bc7c817ac",
+    "mtime": 1784973633.0375218,
+    "ast_hash": "79955d772124d3c47f51b3314433df65",
+    "semantic_hash": ""
+  },
+  "docs/brainstorms/2026-07-25-landing-page-updates-requirements.md": {
+    "mtime": 1784974008.6904454,
+    "ast_hash": "833654b21963c1a1bb420d7caaf9ffdb",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-07-25-004-feat-internal-skills-hardening-plan.md": {
+    "mtime": 1784973812.3248014,
+    "ast_hash": "d286a8ad6b31052d3b909ebb7d34b763",
     "semantic_hash": ""
   }
 }
