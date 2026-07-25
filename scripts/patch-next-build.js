@@ -147,6 +147,72 @@ function wrapCallbackReadFile(originalFn) {
   return wrapped;
 }
 
+// -------------------------------------------------------------
+// Rmdir patch for ENOTEMPTY errors in Next.js build cleanup
+// -------------------------------------------------------------
+function wrapAsyncRmdir(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
+  return async function (dirPath, ...args) {
+    try {
+      return await originalFn.call(this, dirPath, ...args);
+    } catch (e) {
+      if ((e.code === 'ENOTEMPTY' || e.code === 'EEXIST') && typeof dirPath === 'string') {
+        console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdir with recursive rm: ${dirPath}`);
+        if (fs.promises && fs.promises.rm) {
+          return await fs.promises.rm(dirPath, { recursive: true, force: true });
+        }
+      }
+      throw e;
+    }
+  };
+}
+
+function wrapSyncRmdir(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
+  return function (dirPath, ...args) {
+    try {
+      return originalFn.call(this, dirPath, ...args);
+    } catch (e) {
+      if ((e.code === 'ENOTEMPTY' || e.code === 'EEXIST') && typeof dirPath === 'string') {
+        console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdirSync with recursive rmSync: ${dirPath}`);
+        if (fs.rmSync) {
+          return fs.rmSync(dirPath, { recursive: true, force: true });
+        }
+      }
+      throw e;
+    }
+  };
+}
+
+function wrapCallbackRmdir(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
+  const wrapped = function (dirPath, ...args) {
+    const callback = args[args.length - 1];
+    const cb = typeof callback === 'function' ? callback : noop;
+    
+    return originalFn.call(this, dirPath, ...args.slice(0, args.length - 1), (err, ...res) => {
+      if (err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST') && typeof dirPath === 'string') {
+        console.warn(`[patch-next-build] Handling ENOTEMPTY callback on rmdir with recursive rmSync: ${dirPath}`);
+        try {
+          if (fs.rmSync) fs.rmSync(dirPath, { recursive: true, force: true });
+          return cb(null);
+        } catch (rmErr) {
+          return cb(rmErr);
+        }
+      }
+      return cb(err, ...res);
+    });
+  };
+
+  if (originalFn[util.promisify.custom]) {
+    wrapped[util.promisify.custom] = wrapAsyncRmdir(originalFn[util.promisify.custom]);
+  } else if (fs.promises && fs.promises.rmdir) {
+    wrapped[util.promisify.custom] = wrapAsyncRmdir(fs.promises.rmdir);
+  }
+
+  return wrapped;
+}
+
 // 1. Patch main 'fs' module
 if (fs.rename) fs.rename = wrapCallbackRename(fs.rename);
 if (fs.renameSync) fs.renameSync = wrapSyncRename(fs.renameSync);
@@ -155,6 +221,10 @@ if (fs.promises && fs.promises.rename) fs.promises.rename = wrapAsyncRename(fs.p
 if (fs.readFile) fs.readFile = wrapCallbackReadFile(fs.readFile);
 if (fs.readFileSync) fs.readFileSync = wrapSyncReadFile(fs.readFileSync);
 if (fs.promises && fs.promises.readFile) fs.promises.readFile = wrapAsyncReadFile(fs.promises.readFile);
+
+if (fs.rmdir) fs.rmdir = wrapCallbackRmdir(fs.rmdir);
+if (fs.rmdirSync) fs.rmdirSync = wrapSyncRmdir(fs.rmdirSync);
+if (fs.promises && fs.promises.rmdir) fs.promises.rmdir = wrapAsyncRmdir(fs.promises.rmdir);
 
 // 2. Intercept Module.prototype.require for 'fs/promises' & 'node:fs/promises' & 'fs'
 const Module = require('module');
@@ -172,6 +242,10 @@ Module.prototype.require = function (moduleName) {
       if (mod.readFile && !mod.__patchedReadFileAsync) {
         mod.readFile = wrapAsyncReadFile(mod.readFile);
         mod.__patchedReadFileAsync = true;
+      }
+      if (mod.rmdir && !mod.__patchedRmdirAsync) {
+        mod.rmdir = wrapAsyncRmdir(mod.rmdir);
+        mod.__patchedRmdirAsync = true;
       }
     }
   } else if (moduleName === 'fs' || moduleName === 'node:fs') {
@@ -200,6 +274,18 @@ Module.prototype.require = function (moduleName) {
         mod.promises.readFile = wrapAsyncReadFile(mod.promises.readFile);
         mod.promises.__patchedReadFileAsync = true;
       }
+      if (mod.rmdir && !mod.__patchedRmdirCallback) {
+        mod.rmdir = wrapCallbackRmdir(mod.rmdir);
+        mod.__patchedRmdirCallback = true;
+      }
+      if (mod.rmdirSync && !mod.__patchedRmdirSync) {
+        mod.rmdirSync = wrapSyncRmdir(mod.rmdirSync);
+        mod.__patchedRmdirSync = true;
+      }
+      if (mod.promises && mod.promises.rmdir && !mod.promises.__patchedRmdirAsync) {
+        mod.promises.rmdir = wrapAsyncRmdir(mod.promises.rmdir);
+        mod.promises.__patchedRmdirAsync = true;
+      }
     }
   }
   
@@ -219,8 +305,12 @@ Module.prototype.require = function (moduleName) {
         mod.readFile = wrapAsyncReadFile(mod.readFile);
         mod.__patchedReadFileAsync = true;
       }
+      if (mod.rmdir && !mod.__patchedRmdirAsync) {
+        mod.rmdir = wrapAsyncRmdir(mod.rmdir);
+        mod.__patchedRmdirAsync = true;
+      }
     }
   } catch (e) {}
 });
 
-console.log('[patch-next-build] Next.js build fs.rename & nft.json patch active.');
+console.log('[patch-next-build] Next.js build fs.rename & nft.json & rmdir patch active.');
