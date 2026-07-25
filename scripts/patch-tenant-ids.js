@@ -10,13 +10,24 @@ async function main() {
       const oldId = t.id;
       const newId = t.slug;
 
+      // 1. Create temporary duplicate Tenant record with newId first so FKs pass
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "Tenant" ("id", "name", "slug", "branchId", "syncSecret", "isActive", "createdAt", "updatedAt")
+        SELECT '${newId}', "name", "slug", "branchId", "syncSecret", "isActive", "createdAt", "updatedAt"
+        FROM "Tenant" WHERE "id" = '${oldId}'
+        ON CONFLICT ("id") DO NOTHING;
+      `);
+
+      // 2. Re-point all child foreign keys to newId
       await prisma.$executeRawUnsafe(`UPDATE "User" SET "tenantId" = '${newId}' WHERE "tenantId" = '${oldId}'`);
       await prisma.$executeRawUnsafe(`UPDATE "Branch" SET "tenantId" = '${newId}' WHERE "tenantId" = '${oldId}'`);
       await prisma.$executeRawUnsafe(`UPDATE "StoreSettings" SET "tenantId" = '${newId}' WHERE "tenantId" = '${oldId}'`);
       await prisma.$executeRawUnsafe(`UPDATE "Account" SET "tenantId" = '${newId}' WHERE "tenantId" = '${oldId}'`);
       await prisma.$executeRawUnsafe(`UPDATE "Treasury" SET "tenantId" = '${newId}' WHERE "tenantId" = '${oldId}'`);
       await prisma.$executeRawUnsafe(`UPDATE "License" SET "tenantId" = '${newId}' WHERE "tenantId" = '${oldId}'`);
-      await prisma.$executeRawUnsafe(`UPDATE "Tenant" SET id = '${newId}' WHERE id = '${oldId}'`);
+
+      // 3. Delete old Tenant record
+      await prisma.$executeRawUnsafe(`DELETE FROM "Tenant" WHERE "id" = '${oldId}'`);
       console.log(`[PatchTenantIDs] Successfully updated '${t.slug}' to '${newId}'`);
     }
   }
