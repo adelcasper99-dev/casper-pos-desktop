@@ -5565,8 +5565,8 @@
     "semantic_hash": ""
   },
   "landing-page/index.html": {
-    "mtime": 1784959522.9635768,
-    "ast_hash": "c8f71d3cec0a9e8eda1da01e4b2e0429",
+    "mtime": 1784994316.1124341,
+    "ast_hash": "671c37aa5e9f258316eb95c94340b97b",
     "semantic_hash": ""
   },
   "scripts/generate-schemas.mjs": {
@@ -5850,8 +5850,8 @@
     "semantic_hash": ""
   },
   "landing-page/casper Erp.html": {
-    "mtime": 1784915291.6469982,
-    "ast_hash": "616e4ba86b1722182b12a9c471bebd7f",
+    "mtime": 1784994324.2965982,
+    "ast_hash": "feca0c8f6a521984d7bf0eee5945c940",
     "semantic_hash": ""
   },
   "landing-page/stitch-landing-refactor.html": {

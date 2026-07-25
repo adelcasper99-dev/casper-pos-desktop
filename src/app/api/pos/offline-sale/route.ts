@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, secureTransaction } from '@/lib/prisma';
 import { Decimal } from 'decimal.js';
-import { decrementWarehouseStock } from '@/lib/stock-helpers';
+import { decrementWarehouseStock, type PrismaTxClient } from '@/lib/stock-helpers';
 import { logger } from '@/lib/logger';
 import { OfflineSaleSchema, type OfflineSaleInput } from '@/lib/validations/sync-schemas';
 import { verifyServerLicense } from '@/lib/license/server-verify';
@@ -347,7 +347,7 @@ export async function POST(request: NextRequest) {
                 const agg = aggregatedDeductionsMap.get(pId)!;
                 
                 // Decrement stock using the standard helper (automatically handles Product table sync & validations)
-                await decrementWarehouseStock(tx, pId, warehouseId, agg.quantity);
+                await decrementWarehouseStock(tx as unknown as PrismaTxClient, pId, warehouseId, agg.quantity);
 
                 // Create stock movements for each origin item contributing to this deduction
                 for (const d of agg.deductions) {
