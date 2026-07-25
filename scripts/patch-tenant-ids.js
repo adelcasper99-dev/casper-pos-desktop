@@ -12,8 +12,8 @@ async function main() {
 
       // 1. Create temporary duplicate Tenant record with newId first so FKs pass
       await prisma.$executeRawUnsafe(`
-        INSERT INTO "Tenant" ("id", "name", "slug", "branchId", "syncSecret", "isActive", "createdAt", "updatedAt")
-        SELECT '${newId}', "name", "slug", "branchId", "syncSecret", "isActive", "createdAt", "updatedAt"
+        INSERT INTO "Tenant" ("id", "name", "slug", "branchId", "syncSecret", "isActive", "createdAt")
+        SELECT '${newId}', "name", "slug", "branchId", "syncSecret", "isActive", "createdAt"
         FROM "Tenant" WHERE "id" = '${oldId}'
         ON CONFLICT ("id") DO NOTHING;
       `);
