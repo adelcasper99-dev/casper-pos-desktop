@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+
+<html class="dark" dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>كاسبر POS - لوحة تحكم الصيانة</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-highest": "#353535",
+                    "surface-dim": "#131313",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "error": "#ffb4ab",
+                    "tertiary": "#c8c6c5",
+                    "on-primary-fixed": "#20005f",
+                    "on-error-container": "#ffdad6",
+                    "inverse-on-surface": "#303030",
+                    "on-surface": "#e2e2e2",
+                    "surface-container-low": "#1b1b1b",
+                    "on-tertiary-container": "#fbfeff",
+                    "on-error": "#690005",
+                    "primary-container": "#8052ff",
+                    "primary-fixed": "#e8deff",
+                    "primary": "#cdbdff",
+                    "on-primary-container": "#fffdff",
+                    "on-secondary-fixed": "#281900",
+                    "on-background": "#e2e2e2",
+                    "on-surface-variant": "#cbc3d8",
+                    "surface-container-high": "#2a2a2a",
+                    "surface-container": "#1f1f1f",
+                    "secondary": "#ffba35",
+                    "secondary-container": "#e19f00",
+                    "surface-variant": "#353535",
+                    "surface": "#131313",
+                    "error-container": "#93000a",
+                    "on-primary-fixed-variant": "#5001cf",
+                    "secondary-fixed": "#ffdeac",
+                    "inverse-surface": "#e2e2e2",
+                    "on-primary": "#370095",
+                    "surface-bright": "#393939",
+                    "on-secondary-fixed-variant": "#5f4100",
+                    "on-secondary-container": "#563a00",
+                    "surface-container-lowest": "#0e0e0e",
+                    "on-secondary": "#422c00",
+                    "outline-variant": "#494455",
+                    "secondary-fixed-dim": "#ffba35",
+                    "background": "#131313",
+                    "on-tertiary": "#313030",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "primary-fixed-dim": "#cdbdff",
+                    "on-tertiary-fixed": "#1c1b1b",
+                    "tertiary-container": "#767575",
+                    "surface-tint": "#cdbdff",
+                    "outline": "#948ea1",
+                    "tertiary-fixed": "#e5e2e1",
+                    "inverse-primary": "#6835e7"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "24px",
+                    "xl": "32px",
+                    "margin-safe": "24px",
+                    "gutter": "20px",
+                    "xs": "4px",
+                    "sm": "8px",
+                    "unit": "4px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "display-lg": ["Cairo"],
+                    "label-lg": ["Cairo"],
+                    "headline-lg-mobile": ["Cairo"],
+                    "body-lg": ["Cairo"],
+                    "body-md": ["Cairo"],
+                    "headline-lg": ["Cairo"],
+                    "headline-md": ["Cairo"],
+                    "label-sm": ["Cairo"]
+            },
+            "fontSize": {
+                    "display-lg": ["40px", {"lineHeight": "1.2", "letterSpacing": "0px", "fontWeight": "700"}],
+                    "label-lg": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.3", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "0px", "fontWeight": "400"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "letterSpacing": "0px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.3", "letterSpacing": "0px", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "1.4", "letterSpacing": "0px", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #000000;
+            color: #e2e2e2;
+            font-family: 'Cairo', sans-serif;
+            overflow-x: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-card {
+            background: rgba(22, 22, 22, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .neon-glow-primary {
+            box-shadow: 0 0 15px rgba(128, 82, 255, 0.3);
+        }
+        .neon-glow-secondary {
+            box-shadow: 0 0 15px rgba(255, 186, 53, 0.3);
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #353535;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="antialiased">
+<!-- Sidebar (Shared Component Identity) -->
+<aside class="fixed right-0 h-full w-[280px] bg-surface-container-lowest border-l border-white/10 flex flex-col py-xl px-md z-50 hidden md:flex">
+<div class="mb-xl px-sm">
+<h1 class="font-display-lg text-display-lg font-bold text-primary mb-xs">كاسبر POS</h1>
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-full overflow-hidden border border-primary/30">
+<img class="w-full h-full object-cover" data-alt="A professional male store manager with a neat beard and professional attire, standing in a high-tech retail environment with soft neon lighting. The image style is sharp, modern, and cinematic, using deep blacks and electric iris accents to match the techno-sophisticate brand identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC397Wb8FUtvtqIxQb7ixW2oTiNVy2BPOKHGs8IPlXV6laoHSBqS440RAzatlWXdB9b_6gGD6CVoB4NOq2XBLclYjwsmeWwvLZDV-ZrCLVbuV8p6UcOBD03X32vbsmi2TrvDEyiPPuPKWgnTOltaZfLpWhzJ9eDELHP5AcBBCwZuOV_tIFmdY3_OFdew0Ba62I09dk4cn47qnXdLuC_t7NFe0a0x3l7mJ81C5GG9bNgSwzlCmJjfoceQxcLUN4gTbi7U9lEXJZiaaE"/>
+</div>
+<div>
+<p class="font-body-md text-on-surface font-bold leading-tight">مدير المتجر</p>
+<p class="font-label-sm text-on-surface-variant">عمر خالد</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-unit">
+<!-- Navigation Items Mapping from JSON -->
+<a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant font-medium hover:bg-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-lg text-label-lg">لوحة التحكم</span>
+</a>
+<a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant font-medium hover:bg-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">point_of_sale</span>
+<span class="font-label-lg text-label-lg">نقطة البيع</span>
+</a>
+<!-- Active State: Maintenance -->
+<a class="flex items-center gap-md p-md rounded-lg text-primary font-bold border-r-4 border-primary bg-surface-container-high/50 transition-all scale-98" href="#">
+<span class="material-symbols-outlined">build</span>
+<span class="font-label-lg text-label-lg">الصيانة</span>
+</a>
+<a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant font-medium hover:bg-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-lg text-label-lg">المخزون</span>
+</a>
+<a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant font-medium hover:bg-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-lg text-label-lg">التقارير</span>
+</a>
+</nav>
+<button class="mb-xl w-full py-md bg-primary-container text-on-primary-container rounded-xl font-bold flex items-center justify-center gap-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined">lock_open</span>
+<span class="font-label-lg text-label-lg">فتح الدرج</span>
+</button>
+<div class="space-y-unit border-t border-white/5 pt-md">
+<a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant font-medium hover:bg-surface-variant transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-lg text-label-lg">الإعدادات</span>
+</a>
+<a class="flex items-center gap-md p-md rounded-lg text-error font-medium hover:bg-error-container/20 transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-lg text-label-lg">تسجيل الخروج</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation (Mobile/Tablet) -->
+<header class="fixed top-0 left-0 right-0 h-20 bg-black/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-lg z-40 md:mr-[280px]">
+<div class="flex items-center gap-md">
+<button class="md:hidden text-on-surface">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h2 class="font-headline-md text-headline-md font-black text-primary">لوحة الصيانة</h2>
+</div>
+<div class="flex-1 max-w-md mx-xl hidden lg:block">
+<div class="relative">
+<span class="material-symbols-outlined absolute right-md top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-sm pr-12 pl-md text-on-surface focus:ring-2 focus:ring-primary/50 placeholder:text-on-surface-variant" placeholder="البحث عن تذكرة، عميل أو جهاز..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex gap-md text-on-surface-variant">
+<button class="hover:text-secondary transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
+</button>
+<button class="hover:text-secondary transition-colors">
+<span class="material-symbols-outlined">sync</span>
+</button>
+<button class="hover:text-secondary transition-colors">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+</button>
+</div>
+<button class="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg font-bold hidden sm:block active:opacity-80 active:scale-98 transition-all">
+                تذكرة صيانة جديدة
+            </button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-20 md:mr-[280px] min-h-screen p-lg lg:p-xl space-y-xl">
+<!-- KPI Dashboard Section -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-lg">
+<!-- KPI 1 -->
+<div class="glass-card p-lg rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-primary/10"></div>
+<div class="flex justify-between items-start mb-md">
+<span class="p-sm bg-primary/20 text-primary rounded-lg material-symbols-outlined">construction</span>
+<span class="text-on-surface-variant font-label-sm">+12% من أمس</span>
+</div>
+<p class="font-label-lg text-on-surface-variant mb-xs">تذاكر اليوم</p>
+<h3 class="font-display-lg text-display-lg text-primary">24</h3>
+</div>
+<!-- KPI 2 -->
+<div class="glass-card p-lg rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-secondary/10"></div>
+<div class="flex justify-between items-start mb-md">
+<span class="p-sm bg-secondary/20 text-secondary rounded-lg material-symbols-outlined">timer</span>
+<span class="text-on-surface-variant font-label-sm">-5 دقائق</span>
+</div>
+<p class="font-label-lg text-on-surface-variant mb-xs">متوسط وقت الإصلاح</p>
+<h3 class="font-display-lg text-display-lg text-secondary">1.4 <span class="text-headline-md">ساعة</span></h3>
+</div>
+<!-- KPI 3 -->
+<div class="glass-card p-lg rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-error/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-error/10"></div>
+<div class="flex justify-between items-start mb-md">
+<span class="p-sm bg-error/20 text-error rounded-lg material-symbols-outlined">warning</span>
+<span class="text-on-surface-variant font-label-sm">عاجل</span>
+</div>
+<p class="font-label-lg text-on-surface-variant mb-xs">في انتظار قطع الغيار</p>
+<h3 class="font-display-lg text-display-lg text-error">7</h3>
+</div>
+<!-- KPI 4 -->
+<div class="glass-card p-lg rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-on-surface-variant/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-on-surface-variant/10"></div>
+<div class="flex justify-between items-start mb-md">
+<span class="p-sm bg-surface-variant text-on-surface rounded-lg material-symbols-outlined">check_circle</span>
+<span class="text-on-surface-variant font-label-sm">88% اكتملت</span>
+</div>
+<p class="font-label-lg text-on-surface-variant mb-xs">تذاكر جاهزة للاستلام</p>
+<h3 class="font-display-lg text-display-lg text-on-surface">15</h3>
+</div>
+</section>
+<!-- Main Workspace: Active Tickets -->
+<section class="space-y-lg">
+<div class="flex justify-between items-center">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">تذاكر الصيانة النشطة</h2>
+<p class="text-on-surface-variant font-body-md">إجمالي 46 تذكرة تحت المعالجة حالياً</p>
+</div>
+<div class="flex gap-md">
+<button class="bg-surface-container-high p-sm rounded-lg text-on-surface hover:bg-surface-container-highest transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined">filter_list</span>
+<span class="font-label-lg">تصفية</span>
+</button>
+<button class="bg-surface-container-high p-sm rounded-lg text-on-surface hover:bg-surface-container-highest transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined">sort</span>
+<span class="font-label-lg">ترتيب</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-lg">
+<!-- Ticket Card 1: Urgent (Saffron) -->
+<div class="glass-card rounded-xl overflow-hidden border-t-4 border-secondary neon-glow-secondary group">
+<div class="p-lg flex flex-col md:flex-row gap-lg">
+<div class="w-full md:w-48 h-48 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A close-up shot of a disassembled high-end smartphone with internal circuits exposed. The lighting is dramatic and warm, emphasizing the intricate golden and metallic components against a dark, matte background. The aesthetic is ultra-modern and professional, aligning with a high-end electronic repair service." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3Bv3Fy9jBDy_PJT_RgCSaOjRO4ioDn2bsaLgXTojfcF7oG8ogSP7myDCyq-ZkRmIh6XkI9LYzxLSPyx-lBn9gH2Vm7kFG-UL8L1YPShxOmuvhgwVtSU_xzV_71SEalB_-jwIcZnVK3Mcre6iGkUpFIqGEEktf2l2g0o2chKCBLb7TggwAAwcuT_d7k31fBjbeo3_jF7l7DneegDSkKLrCWLZy177tLVshx6MeAkPEg-YHICh5XzRBeJ1WIkqEaM8yp0D8OTfvU-4"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-sm">
+<div>
+<span class="text-secondary font-bold font-label-sm bg-secondary/10 px-sm py-xs rounded border border-secondary/20">#TK-8842</span>
+<h4 class="font-headline-md text-headline-md text-on-surface mt-xs">محمد العتيبي</h4>
+</div>
+<span class="flex items-center gap-xs text-secondary font-bold font-label-sm">
+<span class="w-2 h-2 rounded-full bg-secondary pulse-dot"></span>
+                                        في انتظار قطع الغيار
+                                    </span>
+</div>
+<div class="space-y-xs">
+<p class="text-on-surface font-bold">iPhone 15 Pro Max</p>
+<p class="text-on-surface-variant text-body-md">المشكلة: استبدال شاشة وبطارية. تم طلب القطع من المورد.</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-md mt-lg">
+<button class="flex-1 bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/30 py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">call</span>
+<span>اتصال</span>
+</button>
+<button class="flex-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">chat</span>
+<span>واتساب</span>
+</button>
+<button class="p-sm bg-surface-container-low text-on-surface-variant hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Ticket Card 2: In Progress (Electric Iris) -->
+<div class="glass-card rounded-xl overflow-hidden border-t-4 border-primary neon-glow-primary group">
+<div class="p-lg flex flex-col md:flex-row gap-lg">
+<div class="w-full md:w-48 h-48 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A professional technician's workbench featuring a modern laptop with its bottom panel removed. Precision tools are neatly organized around it. The scene is bathed in cool, electric iris neon light, creating a high-tech techno-sophisticate atmosphere. Deep obsidian shadows add depth and focus to the workspace." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3A2NXW1KwoP-bsd6D58szTA3gOLAspZh0-VqLOWdzysj_CQQRmSYO9eFk27g80wuA00QdSg2XiHRkXoZccLGLxjbTslPtatbK8hvQVryBgCtDojn3ecQ0c5Lg8NoHb3BkEHpNQg7VannYEL05hC82xWdP_6XyxR_b0vpAYbESqV4CV7u3YJgXB60Lt7aSEHOhVV2TvwXImhvhZDAy5SPGHG_vWIO3eShKcoXPQ2ZFwxDSw2J8TPAN5QXxotSgRGwWi165BgFAlqI"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-sm">
+<div>
+<span class="text-primary font-bold font-label-sm bg-primary/10 px-sm py-xs rounded border border-primary/20">#TK-8850</span>
+<h4 class="font-headline-md text-headline-md text-on-surface mt-xs">سارة الأحمد</h4>
+</div>
+<span class="flex items-center gap-xs text-primary font-bold font-label-sm">
+<span class="w-2 h-2 rounded-full bg-primary pulse-dot"></span>
+                                        قيد الإصلاح
+                                    </span>
+</div>
+<div class="space-y-xs">
+<p class="text-on-surface font-bold">MacBook Pro M3</p>
+<p class="text-on-surface-variant text-body-md">المشكلة: تنظيف داخلي وتغيير المعجون الحراري. جاري العمل.</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-md mt-lg">
+<button class="flex-1 bg-primary-container text-on-primary-container py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all hover:brightness-110">
+<span class="material-symbols-outlined">call</span>
+<span>اتصال</span>
+</button>
+<button class="flex-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">chat</span>
+<span>واتساب</span>
+</button>
+<button class="p-sm bg-surface-container-low text-on-surface-variant hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Ticket Card 3: Ready (Glass) -->
+<div class="glass-card rounded-xl overflow-hidden border-t-4 border-white/10 group">
+<div class="p-lg flex flex-col md:flex-row gap-lg">
+<div class="w-full md:w-48 h-48 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A perfectly polished and boxed gaming console sitting on a minimalist black glass table. The lighting is soft and neutral with subtle light-mode accents. The image conveys completion and readiness, with sharp focus on the product's sleek design. Cinematic depth of field isolates the subject against a dark background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1vcRBq_HHNDDLbHPTeO4bEilPJkAy3kVnkrRzmh1sxWxqngoT2xwmaZYS32h0yPUXSo3tUOZSRyGbUGvyUKsUe6IoJLBgDLAJ15ahhxVO90Pw4u4-jsK_ZIL_mUKe5BOpzAEqjPuUUto87W6r9RlPvg_Ha1w8kG8c7aVI0SEsWBY1vXvskXxt-NEBFePSPyO7gFgwmiiBso7RhZdDRogrSEWNOlQw3oUDrGvRwH6wN1jovi4kq6u2JwJuAgz95T_mYE93wl1eaHg"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-sm">
+<div>
+<span class="text-on-surface-variant font-bold font-label-sm bg-surface-variant px-sm py-xs rounded">#TK-8835</span>
+<h4 class="font-headline-md text-headline-md text-on-surface mt-xs">خالد منصور</h4>
+</div>
+<span class="flex items-center gap-xs text-on-surface font-bold font-label-sm">
+<span class="w-2 h-2 rounded-full bg-on-surface"></span>
+                                        جاهز للاستلام
+                                    </span>
+</div>
+<div class="space-y-xs">
+<p class="text-on-surface font-bold">PlayStation 5 Slim</p>
+<p class="text-on-surface-variant text-body-md">المشكلة: تغيير مدخل HDMI. تم الفحص النهائي والجهاز يعمل بكفاءة.</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-md mt-lg">
+<button class="flex-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">call</span>
+<span>اتصال</span>
+</button>
+<button class="flex-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">chat</span>
+<span>واتساب</span>
+</button>
+<button class="p-sm bg-surface-container-low text-on-surface-variant hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Ticket Card 4: New (Saffron Hint) -->
+<div class="glass-card rounded-xl overflow-hidden border-t-4 border-error/50 group">
+<div class="p-lg flex flex-col md:flex-row gap-lg">
+<div class="w-full md:w-48 h-48 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A close-up of a shattered tablet screen on a dark workbench. The cracks are intricate and catch a single focused beam of cold white light. The overall mood is serious and professional, highlighting a critical repair task. The palette is dominated by deep blacks and cool greys with high contrast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwvWKoNFGoVKSOX2KHyxVq0mUJfy3nB7qyU5lRyOZ9LKSxE0FGx0qLDaqS9AhY0513aIsle5fI8AkX1ainFhXjWVwIkCVcyRq0sjz5V5c6MkhrC2m4lTo0O_XEMrQSUXiPZfJ0cnVzWJ6F-CgVPTJZPqcWiMQ0uVuMOrVnEnGdDprziKU_MthbNtIwn6d4AbYVD14RQ2vsxndem8B9FIlnSWpV4dic5j7fQ4xVl8suV7p2gQVBlHqRUkXbI5PN4WIJb9xXJg3gT3I"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-sm">
+<div>
+<span class="text-error font-bold font-label-sm bg-error/10 px-sm py-xs rounded border border-error/20">#TK-8855</span>
+<h4 class="font-headline-md text-headline-md text-on-surface mt-xs">نورة القحطاني</h4>
+</div>
+<span class="flex items-center gap-xs text-error font-bold font-label-sm">
+<span class="w-2 h-2 rounded-full bg-error pulse-dot"></span>
+                                        بانتظار الفحص
+                                    </span>
+</div>
+<div class="space-y-xs">
+<p class="text-on-surface font-bold">iPad Air 5th Gen</p>
+<p class="text-on-surface-variant text-body-md">المشكلة: عطل في الشاشة بعد السقوط. يجب تقدير تكلفة الإصلاح.</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-md mt-lg">
+<button class="flex-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">call</span>
+<span>اتصال</span>
+</button>
+<button class="flex-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface py-sm rounded-lg font-bold flex items-center justify-center gap-sm transition-all">
+<span class="material-symbols-outlined">chat</span>
+<span>واتساب</span>
+</button>
+<button class="p-sm bg-surface-container-low text-on-surface-variant hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Capacity & Trends (Asymmetric Layout) -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<div class="lg:col-span-2 glass-card p-lg rounded-xl">
+<div class="flex justify-between items-center mb-xl">
+<h3 class="font-headline-md text-headline-md text-on-surface">نشاط ورشة العمل</h3>
+<select class="bg-surface-container-low border-none rounded-lg text-on-surface-variant font-label-sm px-md py-xs">
+<option>آخر 7 أيام</option>
+<option>آخر 30 يوم</option>
+</select>
+</div>
+<div class="h-64 flex items-end justify-between gap-md px-md">
+<!-- Simple Bar Chart Simulation -->
+<div class="w-full bg-surface-container-high rounded-t-lg relative group">
+<div class="absolute bottom-0 w-full bg-primary-container/40 group-hover:bg-primary-container transition-all" style="height: 60%"></div>
+<span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-on-surface-variant font-label-sm">السبت</span>
+</div>
+<div class="w-full bg-surface-container-high rounded-t-lg relative group">
+<div class="absolute bottom-0 w-full bg-primary-container/40 group-hover:bg-primary-container transition-all" style="height: 45%"></div>
+<span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-on-surface-variant font-label-sm">الأحد</span>
+</div>
+<div class="w-full bg-surface-container-high rounded-t-lg relative group">
+<div class="absolute bottom-0 w-full bg-primary-container/40 group-hover:bg-primary-container transition-all" style="height: 85%"></div>
+<span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-on-surface-variant font-label-sm">الاثنين</span>
+</div>
+<div class="w-full bg-surface-container-high rounded-t-lg relative group">
+<div class="absolute bottom-0 w-full bg-primary-container/40 group-hover:bg-primary-container transition-all" style="height: 70%"></div>
+<span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-on-surface-variant font-label-sm">الثلاثاء</span>
+</div>
+<div class="w-full bg-surface-container-high rounded-t-lg relative group border-2 border-primary">
+<div class="absolute bottom-0 w-full bg-primary-container transition-all" style="height: 95%"></div>
+<span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-primary font-bold font-label-sm">اليوم</span>
+</div>
+<div class="w-full bg-surface-container-low rounded-t-lg relative opacity-30">
+<span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-on-surface-variant font-label-sm">الخميس</span>
+</div>
+</div>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col justify-between">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-md">توزيع الحالة</h3>
+<div class="space-y-md">
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-sm text-on-surface-variant">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+                                قيد الإصلاح
+                            </span>
+<span class="text-on-surface font-bold">18 تذكرة</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-sm text-on-surface-variant">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+                                بانتظار قطع غيار
+                            </span>
+<span class="text-on-surface font-bold">7 تذاكر</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-sm text-on-surface-variant">
+<span class="w-3 h-3 rounded-full bg-on-surface"></span>
+                                جاهز للاستلام
+                            </span>
+<span class="text-on-surface font-bold">15 تذكرة</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="flex items-center gap-sm text-on-surface-variant">
+<span class="w-3 h-3 rounded-full bg-surface-variant"></span>
+                                بانتظار الفحص
+                            </span>
+<span class="text-on-surface font-bold">6 تذاكر</span>
+</div>
+</div>
+</div>
+<button class="mt-xl w-full py-md border border-white/10 rounded-xl text-on-surface font-bold hover:bg-surface-variant transition-colors">
+                    سجل الصيانة الكامل
+                </button>
+</div>
+</section>
+</main>
+<!-- FAB for New Ticket -->
+<button class="fixed bottom-lg left-lg w-16 h-16 bg-primary-container text-on-primary-container rounded-full flex items-center justify-center shadow-xl z-50 active:scale-90 transition-transform md:hidden">
+<span class="material-symbols-outlined text-4xl">add</span>
+</button>
+<script>
+        // Micro-interactions for ticket cards
+        document.querySelectorAll('.glass-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-4px)';
+                card.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Simple dashboard notification mock
+        setTimeout(() => {
+            console.log("System Synced: Maintenance logs updated.");
+        }, 2000);
+    </script>
+</body></html>

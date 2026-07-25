@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+
+<html class="dark" dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>كاسبر POS &amp; ERP | النظام الأقوى لإدارة الأعمال في مصر</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-highest": "#353535",
+                    "on-tertiary-fixed": "#301400",
+                    "inverse-primary": "#6835e7",
+                    "on-primary-container": "#fffdff",
+                    "secondary-fixed": "#ffdeac",
+                    "inverse-on-surface": "#313030",
+                    "on-surface-variant": "#cbc3d8",
+                    "on-tertiary-fixed-variant": "#703800",
+                    "surface-container-lowest": "#0e0e0e",
+                    "on-primary-fixed-variant": "#5001cf",
+                    "surface-dim": "#131313",
+                    "background": "#000000",
+                    "on-tertiary": "#4f2500",
+                    "inverse-surface": "#e5e2e1",
+                    "surface-bright": "#393939",
+                    "on-error-container": "#ffdad6",
+                    "on-primary": "#370095",
+                    "surface-variant": "#353535",
+                    "on-secondary-container": "#563a00",
+                    "on-secondary": "#422c00",
+                    "error": "#ffb4ab",
+                    "on-primary-fixed": "#20005f",
+                    "primary-fixed": "#e8deff",
+                    "on-background": "#e5e2e1",
+                    "surface-container-low": "#1c1b1b",
+                    "primary": "#cdbdff",
+                    "secondary": "#ffba35",
+                    "surface-container-high": "#2a2a2a",
+                    "secondary-container": "#e19f00",
+                    "secondary-fixed-dim": "#ffba35",
+                    "tertiary-fixed": "#ffdcc5",
+                    "on-error": "#690005",
+                    "on-surface": "#e5e2e1",
+                    "on-tertiary-container": "#fffdff",
+                    "primary-container": "#8052ff",
+                    "outline-variant": "#494455",
+                    "tertiary-container": "#b55e00",
+                    "surface-tint": "#cdbdff",
+                    "surface": "#131313",
+                    "outline": "#948ea1",
+                    "on-secondary-fixed-variant": "#5f4100",
+                    "error-container": "#93000a",
+                    "primary-fixed-dim": "#cdbdff",
+                    "tertiary": "#ffb782",
+                    "on-secondary-fixed": "#281900",
+                    "surface-container": "#20201f",
+                    "tertiary-fixed-dim": "#ffb782"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "container-max": "1280px",
+                    "unit": "8px",
+                    "gutter": "24px",
+                    "margin-desktop": "64px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Cairo"],
+                    "body-md": ["Cairo"],
+                    "body-lg": ["Cairo"],
+                    "label-bold": ["Cairo"],
+                    "display-lg-mobile": ["Cairo"],
+                    "display-lg": ["Cairo"],
+                    "headline-sm": ["Cairo"],
+                    "caption": ["Cairo"]
+            },
+            "fontSize": {
+                    "headline-md": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "label-bold": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "display-lg-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "800"}],
+                    "display-lg": ["48px", {"lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "headline-sm": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "caption": ["12px", {"lineHeight": "16px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Cairo', sans-serif; background-color: #000000; color: #e5e2e1; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(128, 82, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .neon-glow-primary {
+            box-shadow: 0 0 20px rgba(128, 82, 255, 0.15);
+        }
+        .neon-text-saffron {
+            text-shadow: 0 0 10px rgba(255, 186, 53, 0.3);
+        }
+        .bento-item {
+            position: relative;
+            overflow: hidden;
+        }
+        .bento-item::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(128, 82, 255, 0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .bento-item:hover::after {
+            opacity: 1;
+        }
+        .custom-slider::-webkit-slider-runnable-track {
+            background: rgba(255, 255, 255, 0.1);
+            height: 6px;
+            border-radius: 3px;
+        }
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            background: #8052ff;
+            border-radius: 50%;
+            margin-top: -6px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(128, 82, 255, 0.5);
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+<!-- Top Navigation -->
+<header class="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl border-b border-white/10 h-20">
+<nav class="flex flex-row-reverse justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto h-full">
+<div class="flex items-center gap-4">
+<span class="font-display-lg-mobile text-display-lg-mobile text-primary tracking-tighter">كاسبر POS &amp; ERP</span>
+</div>
+<div class="hidden md:flex flex-row-reverse gap-8 items-center">
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-body-md text-body-md transition-colors duration-300" href="#">الرئيسية</a>
+<a class="text-on-surface-variant font-medium font-body-md text-body-md hover:text-primary transition-colors duration-300" href="#">المميزات</a>
+<a class="text-on-surface-variant font-medium font-body-md text-body-md hover:text-primary transition-colors duration-300" href="#">الأسعار</a>
+<a class="text-on-surface-variant font-medium font-body-md text-body-md hover:text-primary transition-colors duration-300" href="#">التقييمات</a>
+</div>
+<button class="bg-primary-container text-on-primary-container px-6 py-2.5 rounded-full font-label-bold text-label-bold active:scale-95 transition-all hover:brightness-110 neon-glow-primary">
+                ابدأ مجاناً
+            </button>
+</nav>
+</header>
+<main class="pt-20">
+<!-- Hero Section -->
+<section class="relative min-h-[921px] flex flex-col items-center justify-center px-margin-mobile text-center overflow-hidden">
+
+<div class="relative z-10 max-w-4xl mx-auto">
+<span class="inline-block px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary font-label-bold text-caption mb-6">
+                    الجيل القادم من أنظمة ERP في مصر
+                </span>
+<h1 class="font-display-lg text-display-lg-mobile md:text-display-lg text-white mb-6 leading-tight">
+                    بيزنس مع <span class="text-primary">كاسبر</span> يكسب
+                </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-2xl mx-auto">
+                    نظام متكامل يجمع بين القوة وسهولة الاستخدام. أدر مخزونك، مبيعاتك، وحساباتك بدقة متناهية ومن أي مكان، حتى بدون إنترنت.
+                </p>
+<div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+<button class="w-full sm:w-auto bg-primary-container text-on-primary-container px-10 py-4 rounded-xl font-headline-sm text-headline-sm active:scale-95 transition-all hover:shadow-[0_0_30px_rgba(128,82,255,0.4)]">
+                        ابدأ التجربة المجانية الآن
+                    </button>
+<button class="w-full sm:w-auto glass-card text-white px-10 py-4 rounded-xl font-headline-sm text-headline-sm active:scale-95 transition-all">
+                        مشاهدة العرض التجريبي
+                    </button>
+</div>
+</div>
+<!-- Dashboard Preview -->
+<div class="relative mt-20 w-full max-w-5xl mx-auto px-4 float-animation">
+<div class="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+<img class="w-full h-auto" data-alt="A sophisticated dark-themed ERP dashboard interface showing financial charts with Electric Iris purple lines, modern data tables, and sleek sidebar navigation. The UI is clean and professional, displayed on a high-end monitor in a minimalist office setting with soft neon purple atmospheric lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHQCh9-EFj6BGQK-yfKW26_zISXlFGibpq6HyF0DRKP8sdrShTuBC9V20mR6-YBcnnKPjEV6CAHkcOEnvE2VFURffJCm5ba1Y2x1khxLeZsWH-tRu4zH22ZwNtenoUYtg0orB5riUESVGYJ-astr6300iSBhxIZ-oS7Px2SY3E5C7Ehs6hZKKj2AF9CAe_ADxMbHXtETOaK_9M6cd8lcoAgnnZAAumZoTRjNpoO8Ii_TMwnwj20CLIqAJpANO2Y1ARrw_3-YAkvA8"/>
+</div>
+<!-- Floating Elements -->
+<div class="absolute -top-10 -right-5 md:-right-10 glass-card p-4 rounded-xl border-secondary/30 hidden md:block">
+<div class="flex items-center gap-3">
+<div class="bg-secondary/20 p-2 rounded-lg">
+<span class="material-symbols-outlined text-secondary">trending_up</span>
+</div>
+<div class="text-right">
+<p class="text-caption text-on-surface-variant">نمو المبيعات</p>
+<p class="text-headline-sm text-secondary font-bold">+٤٥٪</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Bento Grid Features -->
+<section class="py-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<div class="text-center mb-16">
+<h2 class="font-display-lg text-display-lg-mobile md:text-headline-md mb-4 text-white">مميزات صممت للسوق المصري</h2>
+<div class="w-24 h-1 bg-primary mx-auto rounded-full"></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Large Feature -->
+<div class="md:col-span-8 glass-card rounded-3xl p-8 bento-item flex flex-col md:flex-row gap-8 items-center">
+<div class="flex-1 text-right">
+<span class="material-symbols-outlined text-primary text-5xl mb-4">cloud_off</span>
+<h3 class="font-headline-md text-headline-md text-white mb-4">مزامنة SQLite دون إنترنت</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            لا تقلق من انقطاع الإنترنت. كاسبر يعمل بكامل طاقته محلياً ويقوم بمزامنة البيانات تلقائياً مع السحابة فور عودة الاتصال. أمان تام لبياناتك واستمرارية لعملك.
+                        </p>
+</div>
+<div class="flex-1 w-full h-64 bg-surface-container-low rounded-2xl relative overflow-hidden flex items-center justify-center">
+
+</div>
+</div>
+<!-- Small Feature 1 -->
+<div class="md:col-span-4 glass-card rounded-3xl p-8 bento-item">
+<span class="material-symbols-outlined text-secondary text-5xl mb-4">print</span>
+<h3 class="font-headline-sm text-headline-sm text-white mb-4">طباعة حرارية ESC/POS</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        دعم كامل لجميع الطابعات الحرارية وإصدار فواتير متوافقة مع متطلبات الفاتورة الإلكترونية.
+                    </p>
+</div>
+<!-- Small Feature 2 -->
+<div class="md:col-span-4 glass-card rounded-3xl p-8 bento-item">
+<span class="material-symbols-outlined text-primary text-5xl mb-4">account_balance</span>
+<h3 class="font-headline-sm text-headline-sm text-white mb-4">محاسبة القيد المزدوج</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        نظام محاسبي احترافي يقوم بتسجيل القيود تلقائياً لضمان دقة ميزانيتك وتقارير الأرباح والخسائر.
+                    </p>
+</div>
+<!-- Medium Feature -->
+<div class="md:col-span-8 glass-card rounded-3xl p-8 bento-item flex flex-col justify-between">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="font-headline-md text-headline-md text-white mb-2">تقارير ذكية لحظية</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">حلل أداء فروعك وموظفيك بضغطة زر واحدة.</p>
+</div>
+<span class="material-symbols-outlined text-secondary text-5xl">insights</span>
+</div>
+<div class="grid grid-cols-3 gap-4">
+<div class="h-20 bg-primary/20 rounded-xl border border-primary/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">pie_chart</span>
+</div>
+<div class="h-20 bg-secondary/20 rounded-xl border border-secondary/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">bar_chart</span>
+</div>
+<div class="h-20 bg-primary/20 rounded-xl border border-primary/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">show_chart</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ROI Calculator -->
+<section class="py-24 bg-surface-container-lowest">
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+<div class="glass-card rounded-[40px] p-8 md:p-16 border-white/5 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
+
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
+<div class="text-right">
+<h2 class="font-display-lg text-display-lg-mobile md:text-headline-md text-white mb-6">احسب العائد على استثمارك</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-12">
+                                اكتشف كيف يساعدك كاسبر في تقليل الهادر وزيادة أرباحك السنوية من خلال الأتمتة والرقابة الدقيقة.
+                            </p>
+<div class="space-y-10">
+<div>
+<div class="flex justify-between items-center mb-4">
+<label class="font-label-bold text-body-md text-white">حجم المبيعات الشهري (جنيه)</label>
+<span class="text-primary font-bold" id="sales-value">٥٠,٠٠٠</span>
+</div>
+<input class="w-full custom-slider appearance-none bg-transparent" id="sales-slider" max="1000000" min="10000" type="range" value="50000"/>
+</div>
+<div>
+<div class="flex justify-between items-center mb-4">
+<label class="font-label-bold text-body-md text-white">نسبة الفاقد الحالية (٪)</label>
+<span class="text-secondary font-bold" id="loss-value">١٠٪</span>
+</div>
+<input class="w-full custom-slider appearance-none bg-transparent" id="loss-slider" max="30" min="1" type="range" value="10"/>
+</div>
+</div>
+</div>
+<div class="bg-black/40 backdrop-blur-2xl rounded-3xl p-10 border border-white/10 text-center">
+<p class="font-headline-sm text-headline-sm text-on-surface-variant mb-4">التوفير السنوي المتوقع</p>
+<div class="flex items-center justify-center gap-4 mb-6">
+<span class="font-display-lg text-display-lg text-secondary neon-text-saffron" id="roi-result">٦٠,٠٠٠</span>
+<span class="font-headline-sm text-headline-sm text-secondary">ج.م</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8">
+                                هذا المبلغ يمثل فقط تقليل الفاقد، دون احتساب زيادة المبيعات الناتجة عن التقارير الذكية.
+                            </p>
+<button class="w-full bg-primary text-on-primary-fixed font-headline-sm py-4 rounded-xl hover:scale-[1.02] transition-transform">
+                                احصل على تحليل كامل لمشروعك
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing Section -->
+<section class="py-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<div class="text-center mb-16">
+<h2 class="font-display-lg text-display-lg-mobile md:text-headline-md text-white mb-4">خطط تناسب حجم أعمالك</h2>
+<p class="font-body-lg text-on-surface-variant">استثمر في نمو بيزنسك مع أسعار شفافة وبدون تكاليف خفية</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Basic Plan -->
+<div class="glass-card rounded-3xl p-8 flex flex-col h-full border-white/5">
+<h3 class="font-headline-sm text-headline-sm text-white mb-2">الباقة الأساسية</h3>
+<p class="font-body-md text-on-surface-variant mb-6">للمحلات والأنشطة الصغيرة</p>
+<div class="flex items-baseline gap-1 mb-8">
+<span class="text-display-lg font-bold text-white">٢٩٩</span>
+<span class="text-body-md text-on-surface-variant">ج.م / شهرياً</span>
+</div>
+<ul class="space-y-4 mb-10 flex-1">
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+                            نقطة بيع واحدة
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+                            إدارة المخزون الأساسية
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+                            تقارير مبيعات يومية
+                        </li>
+</ul>
+<button class="w-full py-3 rounded-xl border border-white/20 text-white font-label-bold hover:bg-white/5 transition-colors">اختر الباقة</button>
+</div>
+<!-- Cloud Sync (Featured) -->
+<div class="glass-card rounded-3xl p-8 flex flex-col h-full border-primary/40 relative shadow-[0_0_40px_rgba(128,82,255,0.15)] bg-primary-container/5">
+<div class="absolute -top-4 right-8 bg-primary text-on-primary-fixed px-4 py-1 rounded-full font-label-bold text-caption">الأكثر طلباً</div>
+<h3 class="font-headline-sm text-headline-sm text-white mb-2">المزامنة السحابية</h3>
+<p class="font-body-md text-on-surface-variant mb-6">للشركات المتوسطة والمتطورة</p>
+<div class="flex items-baseline gap-1 mb-8">
+<span class="text-display-lg font-bold text-white">٥٩٩</span>
+<span class="text-body-md text-on-surface-variant">ج.م / شهرياً</span>
+</div>
+<ul class="space-y-4 mb-10 flex-1">
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            نقاط بيع غير محدودة
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            مزامنة سحابية فورية
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            نظام محاسبة متكامل
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            تطبيق متابعة للمدير
+                        </li>
+</ul>
+<button class="w-full py-3 rounded-xl bg-primary text-on-primary-fixed font-label-bold shadow-lg shadow-primary/20 hover:brightness-110 transition-all">ابدأ الآن</button>
+</div>
+<!-- Enterprise -->
+<div class="glass-card rounded-3xl p-8 flex flex-col h-full border-white/5">
+<h3 class="font-headline-sm text-headline-sm text-white mb-2">حلول الشركات</h3>
+<p class="font-body-md text-on-surface-variant mb-6">للمؤسسات الكبرى والسلاسل</p>
+<div class="flex items-baseline gap-1 mb-8">
+<span class="text-headline-md font-bold text-white">تواصل معنا</span>
+</div>
+<ul class="space-y-4 mb-10 flex-1">
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+                            استضافة خاصة (On-premise)
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+                            ربط API مخصص
+                        </li>
+<li class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+                            دعم فني مخصص ٢٤/٧
+                        </li>
+</ul>
+<button class="w-full py-3 rounded-xl border border-white/20 text-white font-label-bold hover:bg-white/5 transition-colors">تحدث مع خبير</button>
+</div>
+</div>
+</section>
+<!-- Social Proof & Support -->
+<section class="py-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-16">
+<div>
+<h2 class="font-headline-md text-headline-md text-white mb-8">شركاء النجاح</h2>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-8 opacity-60">
+<div class="h-16 flex items-center justify-center grayscale hover:grayscale-0 transition-all">
+<img class="h-10" data-alt="A minimalist tech logo for a fictional Egyptian retail chain, professional and corporate style, white vector on transparent background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQ1UA7EVU7Awp2gSFiRGriGTHDUBJ-HDITjQxhhpEOybbQIjrB0xtOBdR-65xOXUH4Pn_T40_-LKMN72p92IM_jRJ8Vc6DsWEQ0RFFW0R6a2bhqJfD6YeuXTy83OngOXJ30TOYt27dnkqYGgYLPaeu1wQksNvzIQmNb_mUDOaOc7EaLS6AFpacWQN4J3eERTpLxC-tQd-q8LtRYEVHyUMb64asjL1-CvH5FOQFGkh2bGMTM8U42pCZFE25FAw2cKXEYnbN8DTgazw"/>
+</div>
+<div class="h-16 flex items-center justify-center grayscale hover:grayscale-0 transition-all">
+<img class="h-10" data-alt="Modern logo for an Egyptian logistics company, clean lines, corporate branding, white on dark." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTh8qx3yTWUHtAvcdCxowclrLZBC0gi6o4BpUq4ND4OH107T11YpOxbg2ZFw4Kedz3M5p2no2N0PqzxjLO2shoJdqMfRReFnAMIDE-0R2H5s402P92SwwHq_AL2q3Ib4d7g_zo3vIWW2igIZCADjag9m5Oe4sSIE03n1kYUHk3ilQdZdEgji6a5Rjiw_H9RJA1yk9pWxj6PZhUn3Ujh9oXH1g9iu7tGsl9i2J2YSIHMWu9LBWNuzAF68Oot8ARQfVcVPbUARgJcqw"/>
+</div>
+<div class="h-16 flex items-center justify-center grayscale hover:grayscale-0 transition-all">
+<img class="h-10" data-alt="Minimalist pharmaceutical company logo, professional emblem, white silhouette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARA16_2jJqnTDnUx7lSIc9PRTMzZVkxjQnGNB1OylTUqmA2EIjn0fT5F1SNKDjA7c9Vxzwk5LWkDkcsdnPRSV--Guiyprzf_Mss124wUbSy4La-OmgMCojH-kkTeoEyfI2109j6iNE2STOik2AyiQW9eZaCmyJKkaEQqaoGhMUbnhqw_s1epEoOB-7uyIoprFJQQDZ97iT9r2wXvDmgoOJ2D-mEGj_3b-cJvpGOCTK-o3EpllRzXxygxfpu8czZQ1V3f8c01HHnvo"/>
+</div>
+</div>
+<div class="mt-16 space-y-6">
+<div class="glass-card p-6 rounded-2xl border-white/5">
+<p class="font-body-md text-on-surface italic mb-4">"نظام كاسبر غير مفهوم الإدارة في محلاتنا تماماً. سهولة الاستخدام والدقة في التقارير وفرت علينا مجهود كبير."</p>
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container-high"></div>
+<div>
+<p class="font-label-bold text-white">م. أحمد علي</p>
+<p class="text-caption text-on-surface-variant">مدير سلسلة محلات ريتيل</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col justify-center items-center lg:items-end text-center lg:text-right">
+<div class="glass-card p-10 rounded-3xl border-primary/20 bg-primary/5 max-w-md w-full">
+<div class="bg-[#25D366]/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto lg:ml-0 lg:mr-auto mb-6">
+<svg class="w-12 h-12 fill-[#25D366]" viewbox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793 0-.853.448-1.273.607-1.446.159-.174.347-.217.463-.217l.332.006c.106.005.249-.04.39.298l.541 1.316c.05.122.085.242.005.403-.08.16-.12.259-.24.398-.119.139-.251.312-.358.419-.122.122-.249.255-.107.501.142.246.632 1.042 1.356 1.687.933.832 1.721 1.091 1.968 1.213.247.122.391.102.535-.061.144-.163.621-.722.787-.968.166-.246.332-.206.563-.122l1.785.84c.231.11.383.184.441.285.059.101.059.585-.085.99z"></path></svg>
+</div>
+<h3 class="font-headline-md text-headline-md text-white mb-4">دعم فني متواصل</h3>
+<p class="font-body-md text-on-surface-variant mb-8">فريقنا متاح دائماً لمساعدتك في إعداد النظام وتدريب موظفيك.</p>
+<button class="w-full flex items-center justify-center gap-3 bg-[#25D366] text-white py-4 rounded-xl font-headline-sm hover:brightness-110 transition-all">
+<span>تواصل عبر واتساب</span>
+<span class="material-symbols-outlined">forum</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full mt-20 bg-surface-container-lowest border-t border-white/5">
+<div class="flex flex-col md:flex-row-reverse justify-between items-center gap-unit py-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<div class="flex flex-col items-center md:items-end gap-4">
+<span class="font-headline-sm text-headline-sm text-primary">كاسبر POS &amp; ERP</span>
+<p class="text-on-surface-variant text-body-md">نظام الإدارة الأذكى للمستقبل</p>
+</div>
+<div class="flex flex-wrap justify-center gap-8 my-8 md:my-0">
+<a class="text-on-surface-variant hover:text-secondary transition-all font-body-md" href="#">واتساب الدعم</a>
+<a class="text-on-surface-variant hover:text-secondary transition-all font-body-md" href="#">سياسة الخصوصية</a>
+<a class="text-on-surface-variant hover:text-secondary transition-all font-body-md" href="#">الشروط والأحكام</a>
+<a class="text-on-surface-variant hover:text-secondary transition-all font-body-md" href="#">تواصل معنا</a>
+</div>
+<div class="text-on-surface-variant text-caption">
+                © 2024 كاسبر مصر. جميع الحقوق محفوظة.
+            </div>
+</div>
+</footer>
+<script>
+        // ROI Calculator Logic
+        const salesSlider = document.getElementById('sales-slider');
+        const lossSlider = document.getElementById('loss-slider');
+        const salesValue = document.getElementById('sales-value');
+        const lossValue = document.getElementById('loss-value');
+        const roiResult = document.getElementById('roi-result');
+
+        function updateROI() {
+            const sales = parseInt(salesSlider.value);
+            const lossPercent = parseInt(lossSlider.value);
+            
+            salesValue.textContent = sales.toLocaleString('ar-EG');
+            lossValue.textContent = lossPercent.toLocaleString('ar-EG') + '٪';
+            
+            // Assume Casper can reduce loss by 50%
+            const annualSavings = (sales * (lossPercent / 100) * 0.5) * 12;
+            roiResult.textContent = Math.round(annualSavings).toLocaleString('ar-EG');
+        }
+
+        salesSlider.addEventListener('input', updateROI);
+        lossSlider.addEventListener('input', updateROI);
+        
+        // Initial call
+        updateROI();
+
+        // Reveal animations on scroll
+        const observerOptions = {
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('opacity-100', 'translate-y-0');
+                    entry.target.classList.remove('opacity-0', 'translate-y-10');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.glass-card').forEach(card => {
+            card.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-10');
+            observer.observe(card);
+        });
+    </script>
+</body></html>

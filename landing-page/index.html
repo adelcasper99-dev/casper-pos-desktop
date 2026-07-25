@@ -13,7 +13,8 @@
     <!-- Font Preconnect & Stylesheets -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;400;600;700;800;900&family=Plus+Jakarta+Sans:wght@200;400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Cairo: only weights actually used in the UI (200 & PJS dropped; 500 added for font-medium) -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Suppress Tailwind CDN production warning in browser console -->
     <script>
@@ -69,8 +70,8 @@
                         }
                     },
                     fontFamily: {
-                        sans: ['Cairo', 'Plus Jakarta Sans', 'sans-serif'],
-                        mono: ['Plus Jakarta Sans', 'monospace']
+                        sans: ['Cairo', 'system-ui', 'sans-serif'],
+                        mono: ['SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', 'monospace']
                     },
                     animation: {
                         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -106,6 +107,7 @@
     <style>
         
         :root {
+            /* ── Color Tokens ───────────────────────────────────── */
             --color-void: #000000;
             --color-bone-white: #ffffff;
             --color-ash-gray: #9a9a9a;
@@ -119,6 +121,45 @@
             --glass-border-hover: rgba(128, 82, 255, 0.5);
             --glass-glow: rgba(128, 82, 255, 0.25);
             --emerald-glow: rgba(21, 132, 110, 0.25);
+
+            /* ── Type System ─────────────────────────────────────── */
+            /* Single typeface – Cairo covers Arabic + Latin natively */
+            --font-primary: 'Cairo', system-ui, sans-serif;
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+            /* Size scale (mirrors Tailwind defaults for interop) */
+            --text-xs:   0.75rem;   /* 12px */
+            --text-sm:   0.875rem;  /* 14px */
+            --text-base: 1rem;      /* 16px */
+            --text-lg:   1.125rem;  /* 18px */
+            --text-xl:   1.25rem;   /* 20px */
+            --text-2xl:  1.5rem;    /* 24px */
+            --text-3xl:  1.875rem;  /* 30px */
+            --text-4xl:  2.25rem;   /* 36px */
+            --text-5xl:  3rem;      /* 48px */
+            --text-6xl:  3.75rem;   /* 60px */
+
+            /* Semantic roles → map to scale tokens */
+            --text-display:    var(--text-6xl);
+            --text-heading:    var(--text-4xl);
+            --text-subheading: var(--text-2xl);
+            --text-body:       var(--text-lg);  /* 18px for Arabic readability */
+            --text-caption:    var(--text-sm);
+            --text-badge:      var(--text-xs);
+
+            /* Line heights */
+            --leading-tight:   1.25;
+            --leading-snug:    1.35;
+            --leading-normal:  1.5;
+            --leading-relaxed: 1.625;
+
+            /* Weight tokens (only loaded weights: 400 500 600 700 800 900) */
+            --weight-normal:    400;
+            --weight-medium:    500;
+            --weight-semibold:  600;
+            --weight-bold:      700;
+            --weight-extrabold: 800;
+            --weight-black:     900;
         }
 
         /* Accessibility: Respect Reduced Motion Preferences */
@@ -132,35 +173,36 @@
         }
 
         body {
-            font-family: 'Cairo', 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-primary);
+            font-size: var(--text-body);
+            font-weight: var(--weight-normal);
+            line-height: var(--leading-relaxed);
             background: #000000;
             color: #ffffff;
             overflow-x: hidden;
+            width: 100%;
+            /* Subpixel rendering: sharper Arabic glyphs on all platforms */
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        /* Natural 85% Density Scaling on Desktop Displays */
-        @media (min-width: 1024px) {
-            html {
-                zoom: 0.85;
-            }
-        }
-        @media (min-width: 1600px) {
-            html {
-                zoom: 0.82;
-            }
+        html {
+            overflow-x: hidden;
+            width: 100%;
         }
 
         p, .body-copy {
-            font-weight: 400;
-            font-size: 18px;
+            font-weight: var(--weight-normal);
+            font-size: var(--text-body); /* 18px – optimal Arabic readability */
             color: #e5e5e5;
-            line-height: 1.6;
+            line-height: var(--leading-relaxed);
         }
 
         h1, h2, h3, h4 {
-            font-weight: 800;
-            letter-spacing: 0;
-            line-height: 1.35;
+            font-weight: var(--weight-black);
+            letter-spacing: 0; /* no tracking for Arabic script */
+            line-height: var(--leading-snug);
         }
 
         /* Ambient Background Canvas */
@@ -198,6 +240,15 @@
             border-radius: 24px;
         }
 
+        /* Mobile GPU Optimization: Reduce heavy blur filters on small screens for smooth scrolling */
+        @media (max-width: 767px) {
+            .bento-card, .bento-card-emerald, .app-shell-reflect {
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                background: rgba(10, 10, 15, 0.95) !important;
+            }
+        }
+
         .bento-card:hover {
             border-color: var(--glass-border-hover);
             box-shadow: 0 30px 60px -20px var(--glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
@@ -217,19 +268,31 @@
             box-shadow: 0 30px 60px -20px rgba(16, 185, 129, 0.3);
         }
 
-        /* Gradient Text highlights */
+        /* Modern 2026 CSS @property Gradient Text Shimmer */
+        @property --grad-angle {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 135deg;
+        }
+
         .text-gradient-indigo {
-            background: linear-gradient(135deg, #ffffff 20%, #8052ff 100%);
+            --grad-angle: 135deg;
+            background: linear-gradient(var(--grad-angle), #ffffff 20%, #a78bfa 60%, #8052ff 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
+            animation: gradientRotate 6s linear infinite;
+        }
+
+        @keyframes gradientRotate {
+            to { --grad-angle: 495deg; }
         }
 
         .glow-indigo {
-            text-shadow: 0 0 25px rgba(128, 82, 255, 0.5);
+            filter: drop-shadow(0 0 15px rgba(128, 82, 255, 0.6));
         }
         .glow-saffron {
-            text-shadow: 0 0 25px rgba(255, 184, 41, 0.65);
+            filter: drop-shadow(0 0 15px rgba(255, 184, 41, 0.7));
         }
 
         /* Dala Electric Iris Pill Buttons */
@@ -263,11 +326,12 @@
             transform: translateY(-2px);
         }
 
-        /* Form Controls */
+        /* Form Controls - 16px min font-size prevents iOS Safari Auto-Zoom on Input Focus */
         .glass-input {
             background: rgba(15, 23, 42, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(12px);
+            font-size: 16px !important;
             transition: all 0.3s ease;
         }
         .glass-input:focus {
@@ -443,12 +507,11 @@
         }
         @keyframes saffronShimmer {
             0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
         }
         @keyframes saffronGlowPulse {
-            0%, 100% { text-shadow: 0 0 15px rgba(255, 184, 41, 0.4), 0 0 30px rgba(255, 184, 41, 0.2); }
-            50% { text-shadow: 0 0 35px rgba(255, 184, 41, 0.9), 0 0 60px rgba(255, 184, 41, 0.5); }
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 184, 41, 0.4)); }
+            50% { filter: drop-shadow(0 0 22px rgba(255, 184, 41, 0.85)); }
         }
         .hero-line-1 {
             animation: heroLineFadeUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
@@ -460,23 +523,24 @@
             animation: heroLineFadeUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
         }
         .text-shimmer-saffron {
-            background: linear-gradient(90deg, #ffb829 0%, #ffffff 40%, #ffb829 70%, #ffd700 100%);
+            background: linear-gradient(90deg, #ffb829 0%, #ffffff 50%, #ffb829 100%);
             background-size: 200% auto;
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
             animation: saffronShimmer 3s infinite linear;
+            will-change: background-position;
             display: inline-block;
         }
         .glow-pulse-saffron {
             animation: saffronGlowPulse 2.5s infinite ease-in-out;
         }
 
-        /* Kinetic Block Reveal & Kinetic Stomp Animation Keyframes */
+        /* Kinetic Block Reveal & Kinetic Stomp Animation Keyframes (GPU Optimized, No Blur) */
         @keyframes stompImpact {
-            0% { opacity: 0; transform: scale(2.2) translateY(-20px); filter: blur(8px); }
-            60% { opacity: 1; transform: scale(0.92) translateY(2px); filter: blur(0px); }
-            80% { transform: scale(1.05) translateY(-1px); }
+            0% { opacity: 0; transform: scale(1.18) translateY(-12px); }
+            60% { opacity: 1; transform: scale(0.94) translateY(2px); }
+            80% { transform: scale(1.03) translateY(-1px); }
             100% { opacity: 1; transform: scale(1) translateY(0); }
         }
         @keyframes blockSwipe {
@@ -515,8 +579,8 @@
             top: 220px;
             left: 50%;
             transform: translateX(-50%);
-            width: 900px;
-            max-width: 100vw;
+            width: min(900px, 100%);
+            max-width: 100%;
             height: 400px;
             background: radial-gradient(circle at 50% 50%, 
                 rgba(128, 82, 255, 0.12) 0%, 
@@ -1031,7 +1095,7 @@
 
     <main>
     <!-- Reflect-Style Centered Hero Section with Ambient Cosmic Portal Glow & Eclipse Arc -->
-    <header class="relative pt-44 pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col items-center text-center z-10">
+    <header class="relative pt-28 sm:pt-44 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col items-center text-center z-10 min-h-[100dvh]">
         
         <!-- Ambient Cosmic Portal Glow Behind Section -->
         <div class="glow-portal-bg animate-pulse-glow"></div>
@@ -1063,9 +1127,9 @@
                         <span>معادلة كاسبر الذهبية ⚡</span>
                     </div>
 
-                    <!-- Dynamic Looping Text Frame -->
+                    <!-- Dynamic Looping Text Frame (Accessible ARIA Live Region) -->
                     <div class="my-4 min-h-[60px] sm:min-h-[75px] flex items-center justify-center relative overflow-hidden w-full">
-                        <div id="hero-native-loop-text" class="text-2xl sm:text-4xl md:text-5xl font-black text-saffron-spark tracking-tight transition-all duration-500 transform translate-y-0 opacity-100">
+                        <div id="hero-native-loop-text" aria-live="polite" aria-atomic="true" role="status" class="text-2xl sm:text-4xl md:text-5xl font-black text-saffron-spark tracking-tight transition-all duration-500 transform translate-y-0 opacity-100">
                             وقّف الخسارة.. تكسب ⚡
                         </div>
                     </div>
@@ -1267,7 +1331,7 @@
     <section id="showcase" class="section-scroll-block container mx-auto px-6 py-28 relative z-10 max-w-7xl">
         <div class="text-center mb-16 reveal-scale">
             <span class="px-4 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-300 text-xs font-bold mb-4 inline-flex items-center gap-2">
-                <img src="casper-logo.png" alt="Casper Logo" class="w-4 h-4 object-cover rounded-full">
+                <img src="casper-logo.png" alt="Casper Logo" loading="lazy" class="w-4 h-4 object-cover rounded-full">
                 <span>معاينة حية لشاشات المنظومة</span>
             </span>
             <h2 class="text-3xl md:text-5xl font-black text-white mb-4">واجهة تشغيل احترافية وتفاعلية</h2>
@@ -1284,9 +1348,9 @@
                 </div>
 
                 <!-- Carousel Control Buttons (Shadcn Tab Switcher) -->
-                <div class="flex flex-wrap md:flex-nowrap justify-between items-center gap-4">
-                    <div class="flex flex-wrap md:flex-nowrap justify-center gap-3 w-full md:w-auto">
-                        <button onclick="goToSlide(0)" id="tab-nav-0" class="tab-nav-btn px-5 py-3 rounded-xl font-bold text-xs md:text-sm border border-brand-500/40 text-brand-300 bg-brand-500/15 shadow-[0_0_15px_rgba(128,82,255,0.2)] transition-all flex items-center gap-2">
+                <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="flex overflow-x-auto pb-2 sm:pb-0 gap-3 w-full sm:w-auto shrink-0 snap-x justify-start sm:justify-center">
+                        <button onclick="goToSlide(0)" id="tab-nav-0" class="tab-nav-btn px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm border border-brand-500/40 text-brand-300 bg-brand-500/15 shadow-[0_0_15px_rgba(128,82,255,0.2)] transition-all flex items-center gap-2 shrink-0 snap-start whitespace-nowrap">
                             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                                 <line x1="8" y1="21" x2="16" y2="21"></line>
@@ -1295,14 +1359,14 @@
                             <span>1. شاشة الكاشير والـ POS</span>
                         </button>
                         
-                        <button onclick="goToSlide(1)" id="tab-nav-1" class="tab-nav-btn px-5 py-3 rounded-xl font-bold text-xs md:text-sm border border-white/10 text-slate-300 bg-white/5 hover:border-white/20 transition-all flex items-center gap-2">
+                        <button onclick="goToSlide(1)" id="tab-nav-1" class="tab-nav-btn px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm border border-white/10 text-slate-300 bg-white/5 hover:border-white/20 transition-all flex items-center gap-2 shrink-0 snap-start whitespace-nowrap">
                             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
                             </svg>
                             <span>2. لوحة الفني والتالف</span>
                         </button>
                         
-                        <button onclick="goToSlide(2)" id="tab-nav-2" class="tab-nav-btn px-5 py-3 rounded-xl font-bold text-xs md:text-sm border border-white/10 text-slate-300 bg-white/5 hover:border-white/20 transition-all flex items-center gap-2">
+                        <button onclick="goToSlide(2)" id="tab-nav-2" class="tab-nav-btn px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm border border-white/10 text-slate-300 bg-white/5 hover:border-white/20 transition-all flex items-center gap-2 shrink-0 snap-start whitespace-nowrap">
                             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                                 <line x1="18" y1="20" x2="18" y2="10"></line>
                                 <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -1475,43 +1539,46 @@
             <p class="text-slate-300 text-lg max-w-2xl mx-auto">شاهد الفرق الحقيقي بين Casper والأنظمة التقليدية أو ملفات Excel.</p>
         </div>
 
-        <div class="bento-card rounded-3xl p-6 md:p-10 reveal-up overflow-x-auto">
-            <table class="w-full text-right border-collapse min-w-[650px]">
+        <div class="bento-card rounded-3xl p-4 sm:p-6 md:p-10 reveal-up overflow-x-auto">
+            <div class="text-xs text-brand-300 bg-brand-500/10 border border-brand-500/20 px-3 py-1.5 rounded-full text-center mb-4 md:hidden inline-flex items-center justify-center gap-2 w-full font-bold">
+                <span>⟵ اسحب الجدول أفقياً لمشاهدة المقارنة الكاملة ⟶</span>
+            </div>
+            <table class="w-full text-right border-collapse min-w-[620px]">
                 <thead>
-                    <tr class="border-b border-white/10 text-white text-base">
-                        <th class="pb-6 pt-2 font-black w-1/3">المعيار والميزة التشغيلية</th>
+                    <tr class="border-b border-white/10 text-white text-sm sm:text-base">
+                        <th class="pb-6 pt-2 font-black w-1/3 sticky right-0 z-10 bg-obsidian-950/95 backdrop-blur-md pr-2">المعيار والميزة التشغيلية</th>
                         <th class="pb-6 pt-2 font-bold text-slate-400 text-center w-1/5">Excel / الدفاتر</th>
                         <th class="pb-6 pt-2 font-bold text-slate-400 text-center w-1/5">البرامج العادية</th>
                         <th class="pb-6 pt-2 font-black text-brand-400 text-center w-1/4 bg-brand-500/10 rounded-t-2xl">Casper ERP 🚀</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-white/5 text-sm">
+                <tbody class="divide-y divide-white/5 text-xs sm:text-sm">
                     <tr>
-                        <td class="py-5 font-bold text-white">خصم التالف آلياً من عمولة الفني</td>
+                        <td class="py-5 font-bold text-white sticky right-0 z-10 bg-obsidian-950/95 backdrop-blur-md pr-2">خصم التالف آلياً من عمولة الفني</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ مستحيل</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ يدوي ومعقد</td>
                         <td class="py-5 text-center text-emerald-400 font-black bg-brand-500/5">✅ أوتوماتيك 100%</td>
                     </tr>
                     <tr>
-                        <td class="py-5 font-bold text-white">العمل بدون إنترنت 100% (من غير نت تماماً)</td>
+                        <td class="py-5 font-bold text-white sticky right-0 z-10 bg-obsidian-950/95 backdrop-blur-md pr-2">العمل بدون إنترنت 100% (من غير نت تماماً)</td>
                         <td class="py-5 text-center text-slate-400">⚠️ محلي غير مؤمن</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ يتوقف مع النت</td>
                         <td class="py-5 text-center text-emerald-400 font-black bg-brand-500/5">✅ شغال بدون إنترنت 100%</td>
                     </tr>
                     <tr>
-                        <td class="py-5 font-bold text-white">قيود مزدوجة تمنع سرقة وتلاعب الخزينة</td>
+                        <td class="py-5 font-bold text-white sticky right-0 z-10 bg-obsidian-950/95 backdrop-blur-md pr-2">قيود مزدوجة تمنع سرقة وتلاعب الخزينة</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ لا يوجد</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ قيود بسيطة</td>
                         <td class="py-5 text-center text-emerald-400 font-black bg-brand-500/5">✅ دفتر قيود يمنع العجز 100%</td>
                     </tr>
                     <tr>
-                        <td class="py-5 font-bold text-white">إشعار واتساب تلقائي وبوابة تتبع للعميل</td>
+                        <td class="py-5 font-bold text-white sticky right-0 z-10 bg-obsidian-950/95 backdrop-blur-md pr-2">إشعار واتساب تلقائي وبوابة تتبع للعميل</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ لا يوجد</td>
                         <td class="py-5 text-center text-slate-400">⚠️ رسائل SMS مكلفة</td>
                         <td class="py-5 text-center text-emerald-400 font-black bg-brand-500/5">✅ واتساب مجاني مدمج</td>
                     </tr>
                     <tr>
-                        <td class="py-5 font-bold text-white">طباعة ستيكر الباركود وإيصالات الحرارية</td>
+                        <td class="py-5 font-bold text-white sticky right-0 z-10 bg-obsidian-950/95 backdrop-blur-md pr-2">طباعة ستيكر الباركود وإيصالات الحرارية</td>
                         <td class="py-5 text-center text-red-400 font-bold">❌ غير متاح</td>
                         <td class="py-5 text-center text-slate-400">⚠️ تعريفات معقدة</td>
                         <td class="py-5 text-center text-emerald-400 font-black bg-brand-500/5">✅ طباعة فورية بضغطة واحدة</td>
@@ -2129,7 +2196,7 @@
     <!-- Scripts: Ambient Motion Canvas, Scroll Progress, Carousel Engine & Real WhatsApp Funnel -->
     <script>
         // 0. Dynamic Word Flipper Engine for Hero Headline
-        // 0. Native 60fps Kinetic Hero Motion Engine (Block Reveal + Stomp Animation)
+        // 0. Native 60fps Kinetic Hero Motion Engine (Drift-Free + Accessibility Aware)
         function initNativeHeroLoop() {
             const textEl = document.getElementById('hero-native-loop-text');
             const progressEl = document.getElementById('hero-loop-progress');
@@ -2154,8 +2221,17 @@
                     type: "block" 
                 }
             ];
+
+            // Reduced motion accessibility check
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                textEl.innerHTML = items[0].html;
+                progressEl.style.width = '100%';
+                return;
+            }
+
             let current = 0;
             const cycleDuration = 3000;
+            let nextCycleTime = performance.now() + cycleDuration;
 
             function runLoop() {
                 progressEl.style.transition = 'none';
@@ -2180,7 +2256,6 @@
                     textEl.classList.remove('anim-stomp');
                     textEl.style.opacity = '0';
                     
-                    // Create sliding block reveal bar
                     const blockBar = document.createElement('div');
                     blockBar.className = 'block-swipe-cover';
                     containerEl.appendChild(blockBar);
@@ -2198,10 +2273,15 @@
                     }, 520);
                 }
 
+                // Drift-compensated scheduling
+                const now = performance.now();
+                const delay = Math.max(0, nextCycleTime - now);
+                nextCycleTime += cycleDuration;
+
                 setTimeout(() => {
                     current = (current + 1) % items.length;
                     runLoop();
-                }, cycleDuration);
+                }, delay);
             }
 
             runLoop();
@@ -2499,9 +2579,10 @@
             setInterval(showSocialToast, 10000);
         }, 3000);
 
-        // Interactive Parallax Scroll Motion (Throttled + Passive)
+        // Interactive Parallax Scroll Motion (Throttled + Passive - Desktop Only)
         let ticking = false;
         window.addEventListener('scroll', () => {
+            if (window.innerWidth < 768) return; // Skip heavy parallax math on mobile devices
             if (!ticking) {
                 window.requestAnimationFrame(() => {
                     const scrolled = window.pageYOffset;
