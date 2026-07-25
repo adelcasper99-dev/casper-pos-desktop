@@ -150,16 +150,25 @@ function wrapCallbackReadFile(originalFn) {
 // -------------------------------------------------------------
 // Rmdir patch for ENOTEMPTY errors in Next.js build cleanup
 // -------------------------------------------------------------
+let inAsyncRmdirPatch = false;
+let inSyncRmdirPatch = false;
+let inCallbackRmdirPatch = false;
+
 function wrapAsyncRmdir(originalFn) {
   if (typeof originalFn !== 'function') return originalFn;
   return async function (dirPath, ...args) {
     try {
       return await originalFn.call(this, dirPath, ...args);
     } catch (e) {
-      if ((e.code === 'ENOTEMPTY' || e.code === 'EEXIST') && typeof dirPath === 'string') {
-        console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdir with recursive rm: ${dirPath}`);
-        if (fs.promises && fs.promises.rm) {
-          return await fs.promises.rm(dirPath, { recursive: true, force: true });
+      if (!inAsyncRmdirPatch && (e.code === 'ENOTEMPTY' || e.code === 'EEXIST') && typeof dirPath === 'string') {
+        inAsyncRmdirPatch = true;
+        try {
+          console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdir with recursive rm: ${dirPath}`);
+          if (fs.promises && fs.promises.rm) {
+            return await fs.promises.rm(dirPath, { recursive: true, force: true });
+          }
+        } finally {
+          inAsyncRmdirPatch = false;
         }
       }
       throw e;
@@ -173,10 +182,15 @@ function wrapSyncRmdir(originalFn) {
     try {
       return originalFn.call(this, dirPath, ...args);
     } catch (e) {
-      if ((e.code === 'ENOTEMPTY' || e.code === 'EEXIST') && typeof dirPath === 'string') {
-        console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdirSync with recursive rmSync: ${dirPath}`);
-        if (fs.rmSync) {
-          return fs.rmSync(dirPath, { recursive: true, force: true });
+      if (!inSyncRmdirPatch && (e.code === 'ENOTEMPTY' || e.code === 'EEXIST') && typeof dirPath === 'string') {
+        inSyncRmdirPatch = true;
+        try {
+          console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdirSync with recursive rmSync: ${dirPath}`);
+          if (fs.rmSync) {
+            return fs.rmSync(dirPath, { recursive: true, force: true });
+          }
+        } finally {
+          inSyncRmdirPatch = false;
         }
       }
       throw e;
@@ -191,13 +205,16 @@ function wrapCallbackRmdir(originalFn) {
     const cb = typeof callback === 'function' ? callback : noop;
     
     return originalFn.call(this, dirPath, ...args.slice(0, args.length - 1), (err, ...res) => {
-      if (err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST') && typeof dirPath === 'string') {
-        console.warn(`[patch-next-build] Handling ENOTEMPTY callback on rmdir with recursive rmSync: ${dirPath}`);
+      if (err && !inCallbackRmdirPatch && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST') && typeof dirPath === 'string') {
+        inCallbackRmdirPatch = true;
         try {
+          console.warn(`[patch-next-build] Handling ENOTEMPTY callback on rmdir with recursive rmSync: ${dirPath}`);
           if (fs.rmSync) fs.rmSync(dirPath, { recursive: true, force: true });
           return cb(null);
         } catch (rmErr) {
           return cb(rmErr);
+        } finally {
+          inCallbackRmdirPatch = false;
         }
       }
       return cb(err, ...res);
