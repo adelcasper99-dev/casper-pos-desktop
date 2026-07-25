@@ -2090,8 +2090,8 @@
     "semantic_hash": ""
   },
   "src/lib/csrf-client.ts": {
-    "mtime": 1777603479.7949314,
-    "ast_hash": "9b790096d2932f51090d2cd28ec08994",
+    "mtime": 1784915872.0836232,
+    "ast_hash": "f2cff8a010269cb3c0585cbb01d0a003",
     "semantic_hash": ""
   },
   "src/lib/csrf-metrics.ts": {
@@ -2360,8 +2360,8 @@
     "semantic_hash": ""
   },
   "src/lib/safe-action.ts": {
-    "mtime": 1777930032.2528145,
-    "ast_hash": "1e142d435dc73fabeb4efe470cc7deb2",
+    "mtime": 1784937800.8650556,
+    "ast_hash": "64661e9e48aba531df7e529917cc3f3d",
     "semantic_hash": ""
   },
   "src/lib/salary-utils.ts": {
@@ -5565,13 +5565,8 @@
     "semantic_hash": ""
   },
   "landing-page/index.html": {
-    "mtime": 1784261922.8618298,
-    "ast_hash": "9ecd9c6716301d155ca1d36c4520df5c",
-    "semantic_hash": ""
-  },
-  "landing-page/casper-dark-logo.png": {
-    "mtime": 1774815027.664585,
-    "ast_hash": "2aa07bb60ea4c822f40cbc34ca0dcf1e",
+    "mtime": 1784958850.113898,
+    "ast_hash": "8b5239073fa46e4acd8f82d39ba05d9e",
     "semantic_hash": ""
   },
   "scripts/generate-schemas.mjs": {
@@ -5625,8 +5620,8 @@
     "semantic_hash": ""
   },
   "src/actions/hq-tenant-actions.ts": {
-    "mtime": 1784876554.7223182,
-    "ast_hash": "a53234f41110e6e26287f3cfdad9f48c",
+    "mtime": 1784938833.896915,
+    "ast_hash": "9d0c57290797c8ca15d1f5ad140d605d",
     "semantic_hash": ""
   },
   "src/app/(admin)/casper-hq/layout.tsx": {
@@ -5815,8 +5810,78 @@
     "semantic_hash": ""
   },
   "scripts/patch-next-build.js": {
-    "mtime": 1784914512.1414857,
-    "ast_hash": "050de4873bcee7944dca12468d726ab7",
+    "mtime": 1784915906.249342,
+    "ast_hash": "a1cad0f982124dfe622f88ecd5345440",
+    "semantic_hash": ""
+  },
+  "scripts/patch-tenant-ids.js": {
+    "mtime": 1784939273.661605,
+    "ast_hash": "e6f5c64229c3980fd6c086d4e7caeafc",
+    "semantic_hash": ""
+  },
+  "src/components/ui/number-ticker.tsx": {
+    "mtime": 1784950544.7824328,
+    "ast_hash": "87eaa26cd38282d237e2d7e00640dd4d",
+    "semantic_hash": ""
+  },
+  "src/components/ui/sparkles-text.tsx": {
+    "mtime": 1784950550.3569772,
+    "ast_hash": "de4f10e7cf4d6c33f1cc8211df68dd95",
+    "semantic_hash": ""
+  },
+  "src/components/ui/text-animate.tsx": {
+    "mtime": 1784950300.8255785,
+    "ast_hash": "8ffa061ddf72150ad1c345a8d496278e",
+    "semantic_hash": ""
+  },
+  "src/components/ui/typing-animation.tsx": {
+    "mtime": 1784950539.350871,
+    "ast_hash": "423fa5aaef3aecd3dc2226a37c9ce1f4",
+    "semantic_hash": ""
+  },
+  "src/components/ui/word-rotate.tsx": {
+    "mtime": 1784950534.272349,
+    "ast_hash": "8bb969b08c50d25428c9dd2edd4ecf03",
+    "semantic_hash": ""
+  },
+  "DESIGN.md": {
+    "mtime": 1784950861.9394014,
+    "ast_hash": "50f387574151baa2d70dea143bc2c1a1",
+    "semantic_hash": ""
+  },
+  "landing-page/casper Erp.html": {
+    "mtime": 1784915291.6469982,
+    "ast_hash": "616e4ba86b1722182b12a9c471bebd7f",
+    "semantic_hash": ""
+  },
+  "landing-page/stitch-landing-refactor.html": {
+    "mtime": 1784953361.6923268,
+    "ast_hash": "bf7b68904d453e597b10ffe852eff168",
+    "semantic_hash": ""
+  },
+  "landing-page/stitch-maintenance-preview.html": {
+    "mtime": 1784953129.3992562,
+    "ast_hash": "751dfc4d292fa9114419a5312facded0",
+    "semantic_hash": ""
+  },
+  "landing-page/stitch-pos-preview.html": {
+    "mtime": 1784953126.1458654,
+    "ast_hash": "054d6f5c25b05ac613b2b99100efa490",
+    "semantic_hash": ""
+  },
+  "landing-page/casper dark logo.png": {
+    "mtime": 1784946317.5210783,
+    "ast_hash": "121ec6149f3d411ea744bc0d4bc9b43e",
+    "semantic_hash": ""
+  },
+  "landing-page/casper-logo.png": {
+    "mtime": 1784946205.1977317,
+    "ast_hash": "121ec6149f3d411ea744bc0d4bc9b43e",
+    "semantic_hash": ""
+  },
+  ".vscode/mcp.json": {
+    "mtime": 1784957871.9631004,
+    "ast_hash": "8bc7ce60d5e877fede1d24452301575f",
     "semantic_hash": ""
   }
 }
