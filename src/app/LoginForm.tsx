@@ -157,11 +157,10 @@ export default function LoginForm() {
             } else {
                 // 🔄 Reset shift prompt gate so it re-evaluates on each new login
                 try { sessionStorage.removeItem('shift_prompt_dismissed'); } catch { /* noop */ }
-                router.refresh();
                 if ((res as any).isGlobalAdmin) {
-                    router.push('/casper-hq');
+                    window.location.href = '/casper-hq';
                 } else {
-                    router.push('/dashboard');
+                    window.location.href = '/dashboard';
                 }
             }
         } catch (err: unknown) {

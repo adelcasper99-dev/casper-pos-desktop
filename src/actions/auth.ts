@@ -67,9 +67,10 @@ export async function login(formData: FormData) {
                 try {
                     const hashed = await bcrypt.hash(superAdminPass, 12);
                     await prisma.storeSettings.upsert({
-                        where: { tenantId: "default" },
+                        where: { id: "settings" },
                         update: { superAdminHash: hashed },
                         create: {
+                            id: "settings",
                             tenantId: "default",
                             superAdminHash: hashed,
                             name: "Casper Store",
