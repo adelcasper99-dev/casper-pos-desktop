@@ -33,6 +33,15 @@ export interface LicenseCheckResult {
 
 export class LicenseVerifier {
     static async verify(): Promise<LicenseCheckResult> {
+        // On Cloud (PostgreSQL / Multi-tenant), tenants are managed via tenant subscriptions & tenant guards.
+        // Local hardware ASAR/SMBIOS license checks apply only to offline Desktop (SQLite) terminals.
+        if (isPostgres) {
+            return {
+                status: 'VALID',
+                message: 'Cloud Multi-Tenant Active'
+            };
+        }
+
         // 1. ASAR Integrity Check
         const isIntact = await AsarIntegrity.checkIntegrity();
         if (!isIntact) {

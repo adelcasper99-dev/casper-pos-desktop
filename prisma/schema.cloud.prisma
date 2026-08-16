@@ -19,8 +19,8 @@ model SystemConfig {
 }
 
 model StoreSettings {
-  id                    String    @id @default(uuid())
-  tenantId              String    @unique @default("default") // MULTITENANT_FIELD — @@unique enforces 1 settings per tenant
+  id                    String    @id @default("settings")
+  tenantId String @default("default") // MULTITENANT_FIELD
   name                  String    @default("Casper Store")
   phone                 String?
   address               String?
@@ -46,7 +46,6 @@ model StoreSettings {
   lastServerNow         Float?
   localUptimeTicks      Float?
   trialStartDate        DateTime?
-  superAdminHash        String?   // Hashed super-admin password (seeded on first login)
 
   @@index([tenantId])
 }
@@ -98,13 +97,12 @@ model User {
 }
 
 model Role {
-  id          String   @id @default(uuid())
-  tenantId    String   @default("default") // MULTITENANT_FIELD
-  name        String
-  permissions String   @default("[]")
+  id          String @id @default(uuid())
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name        String @unique
+  permissions String @default("[]")
   users       User[]
 
-  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
@@ -123,9 +121,9 @@ model Session {
 
 model Branch {
   id                   String                @id @default(uuid())
-  tenantId             String                @default("default") // MULTITENANT_FIELD
+  tenantId String @default("default") // MULTITENANT_FIELD
   name                 String
-  code                 String
+  code                 String                @unique
   address              String?
   phone                String?
   type                 String                @default("STORE")
@@ -187,9 +185,9 @@ model Warehouse {
 
 model Customer {
   id                    String                @id @default(uuid())
-  tenantId              String                @default("default") // MULTITENANT_FIELD
+  tenantId String @default("default") // MULTITENANT_FIELD
   name                  String
-  phone                 String
+  phone                 String                @unique
   email                 String?
   address               String?
   createdAt             DateTime              @default(now())
@@ -207,7 +205,6 @@ model Customer {
   tickets               Ticket[]
   receivesNotifications Boolean               @default(true)
 
-  @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
@@ -234,9 +231,9 @@ model CustomerTransaction {
 
 model Supplier {
   id               String            @id @default(uuid())
-  tenantId         String            @default("default") // MULTITENANT_FIELD
+  tenantId String @default("default") // MULTITENANT_FIELD
   name             String
-  phone            String?
+  phone            String?           @unique
   email            String?
   address          String?
   balance          Decimal           @default(0.00)
@@ -247,7 +244,6 @@ model Supplier {
   payments         SupplierPayment[]
   clientTickets    Ticket[]          @relation("ClientSupplier")
 
-  @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
@@ -271,8 +267,8 @@ model SupplierPayment {
 
 model Account {
   id           String        @id @default(uuid())
-  tenantId     String        @default("default") // MULTITENANT_FIELD
-  code         String
+  tenantId String @default("default") // MULTITENANT_FIELD
+  code         String        @unique
   name         String
   type         String
   description  String?
@@ -281,7 +277,6 @@ model Account {
   updatedAt    DateTime      @updatedAt
   journalLines JournalLine[]
 
-  @@unique([tenantId, code])
   @@index([tenantId])
 }
 
@@ -367,20 +362,19 @@ model Model {
 
 model Attribute {
   id        String    @id @default(uuid())
-  tenantId  String    @default("default") // MULTITENANT_FIELD
-  name      String
+  tenantId String @default("default") // MULTITENANT_FIELD
+  name      String    @unique
   products  Product[]
   createdAt DateTime  @default(now())
 
-  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model UnitOfMeasure {
   id               String         @id @default(uuid())
-  tenantId         String         @default("default") // MULTITENANT_FIELD
+  tenantId String @default("default") // MULTITENANT_FIELD
   name             String
-  code             String
+  code             String         @unique
   category         String
   abbreviation     String?
   conversionFactor Decimal        @default(1.00)
@@ -389,15 +383,14 @@ model UnitOfMeasure {
   products         Product[]
   purchaseItems    PurchaseItem[]
 
-  @@unique([tenantId, code])
   @@index([category])
   @@index([tenantId])
 }
 
 model Product {
   id                String             @id @default(uuid())
-  tenantId          String             @default("default") // MULTITENANT_FIELD
-  sku               String
+  tenantId String @default("default") // MULTITENANT_FIELD
+  sku               String             @unique
   name              String
   description       String?
   costPrice         Decimal            @default(0.00)
@@ -437,9 +430,7 @@ model Product {
   ticketParts       TicketPart[]
   ReorderRule       ReorderRule[]
 
-  @@unique([tenantId, sku])
   @@index([deletedAt])
-  @@index([tenantId])
 }
 
 model BundleItem {

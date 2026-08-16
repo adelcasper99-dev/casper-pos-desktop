@@ -121,7 +121,8 @@ export const prismaTenantExtension =
                               const tenantId = getTenantId();
 
                               // If tenant context is missing, or is explicitly set to 'SYSTEM' (Super Admin), bypass RLS-like filters
-                              if (!tenantId || tenantId === 'SYSTEM') {
+                              // Also bypass if running locally (SQLite/not Postgres) because local schema has no tenantId fields
+                              if (!tenantId || tenantId === 'SYSTEM' || !isPostgres) {
                                   return query(args);
                               }
 
@@ -197,8 +198,9 @@ export const prismaTenantExtension =
                                   }
 
                                   if (operation === 'upsert') {
-                                      (args as any).where = (args as any).where || {};
-                                      (args as any).where.tenantId = tenantId; // scope the upsert to the current tenant
+                                      // Note: Do NOT inject tenantId into args.where for upsert, because Prisma translates
+                                      // args.where fields directly into PostgreSQL ON CONFLICT target columns, which causes 42P10
+                                      // if no compound unique constraint exists on (unique_field, tenantId).
                                       (args as any).create = (args as any).create || {};
                                       (args as any).create.tenantId = tenantId;
                                       (args as any).update = (args as any).update || {};
