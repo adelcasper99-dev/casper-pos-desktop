@@ -137,23 +137,28 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
     let branch = existingBranch;
 
     if (!branch) {
-        branch = await prisma.branch.upsert({
-            where: { code: MAIN_BRANCH_CODE },
-            create: {
-                name: storeInfo.name,
-                code: MAIN_BRANCH_CODE,
-                type: 'CENTER',
-                phone: storeInfo.phone,
-                address: storeInfo.address,
-                sortOrder: 0
-            },
-            update: {
-                name: storeInfo.name,
-                phone: storeInfo.phone,
-                address: storeInfo.address,
-                type: 'CENTER'
-            }
+        branch = await prisma.branch.findFirst({
+            where: { code: MAIN_BRANCH_CODE }
         });
+        if (!branch) {
+            try {
+                branch = await prisma.branch.create({
+                    data: {
+                        name: storeInfo.name,
+                        code: MAIN_BRANCH_CODE,
+                        type: 'CENTER',
+                        phone: storeInfo.phone,
+                        address: storeInfo.address,
+                        sortOrder: 0
+                    }
+                });
+            } catch (e) {
+                branch = await prisma.branch.findFirst({
+                    where: { code: MAIN_BRANCH_CODE }
+                });
+                if (!branch) throw e;
+            }
+        }
     } else if (branch.name !== storeInfo.name || branch.phone !== storeInfo.phone || branch.address !== storeInfo.address || branch.type !== 'CENTER') {
         branch = await prisma.branch.update({
             where: { code: MAIN_BRANCH_CODE },
@@ -257,27 +262,36 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
                 console.warn(`[INIT] Archived duplicate treasury id=${d.id} to name="${archivedName}" to prevent P2002`);
             }
 
-            // No row with this static ID — use upsert to guarantee idempotency even under
-            // concurrent startup pressure (the DB's unique index is the true authority).
-            await prisma.treasury.upsert({
-                where: { id: t.id },
-                create: {
-                    id: t.id,
-                    name: t.name,
-                    branchId: branch.id,
-                    isDefault: t.isDefault,
-                    paymentMethod: t.paymentMethod,
-                    balance: 0
-                },
-                update: {
-                    // Already exists under this ID — ensure it's live and correctly named
-                    deletedAt: null,
-                    name: t.name,
-                    paymentMethod: t.paymentMethod,
-                    branchId: branch.id,
-                }
+            const existingTreasury = await prisma.treasury.findUnique({
+                where: { id: t.id }
             });
-            console.log(`[INIT] Upserted static treasury: ${t.name}`);
+            if (!existingTreasury) {
+                try {
+                    await prisma.treasury.create({
+                        data: {
+                            id: t.id,
+                            name: t.name,
+                            branchId: branch.id,
+                            isDefault: t.isDefault,
+                            paymentMethod: t.paymentMethod,
+                            balance: 0
+                        }
+                    });
+                } catch {
+                    // Handled if created concurrently
+                }
+            } else {
+                await prisma.treasury.update({
+                    where: { id: t.id },
+                    data: {
+                        deletedAt: null,
+                        name: t.name,
+                        paymentMethod: t.paymentMethod,
+                        branchId: branch.id,
+                    }
+                });
+            }
+            console.log(`[INIT] Initialized static treasury: ${t.name}`);
         }
     }
 
