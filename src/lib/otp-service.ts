@@ -2,6 +2,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { logger } from "./logger";
+import { sendTelegramMessage } from "./telegram-service";
 
 const OTP_JWT_SECRET = process.env.OTP_JWT_SECRET || (process.env.JWT_SECRET && !process.env.JWT_SECRET.includes("BEGIN RSA"))
     ? (process.env.OTP_JWT_SECRET || process.env.JWT_SECRET || "casper-otp-symmetric-hmac-key-2026")
@@ -93,11 +94,21 @@ export function verifyVerificationToken(token: string): VerificationPayload | nu
 }
 
 /**
- * Dispatches the OTP message via WhatsApp Gateway or fallback provider
+ * Dispatches the OTP message via WhatsApp Gateway, Telegram Bot, or fallback provider
  */
 export async function dispatchOtpWhatsApp(phone: string, otp: string): Promise<{ success: boolean; provider: string; error?: string }> {
     const normalized = normalizePhone(phone);
     const message = `رمز التحقق الخاص بك في Casper ERP هو: [ ${otp} ]\nصالح لمدة ${OTP_EXPIRY_MINUTES} دقائق.\nلا تشارك هذا الرمز مع أي شخص.`;
+
+    // 1. Dual Dispatch: If Telegram Bot is configured, notify Telegram Admin Channel
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_CHAT_ID) {
+        sendTelegramMessage({
+            text: `🔐 <b>كود تحقق جديد (Casper OTP)</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
+            parseMode: "HTML"
+        }).catch((err) => {
+            logger.warn(`[OTP Service] Telegram dual-dispatch non-blocking warning: ${err}`);
+        });
+    }
 
     const providerUrl = process.env.WHATSAPP_PROVIDER_URL;
     const providerApiKey = process.env.WHATSAPP_API_KEY;

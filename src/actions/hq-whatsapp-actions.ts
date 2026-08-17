@@ -113,3 +113,63 @@ export const sendWhatsAppTestMessage = secureAction(
     }
   }
 );
+
+import { sendTelegramMessage, testTelegramBot } from "@/lib/telegram-service";
+
+const telegramTestSchema = z.object({
+  botToken: z.string().optional(),
+  chatId: z.string().min(1, "Chat ID مطلوب"),
+  message: z.string().min(1, "نص الرسالة مطلوب")
+});
+
+export const sendTelegramTestMessageAction = secureAction(
+  async (payload: z.infer<typeof telegramTestSchema>): Promise<{ success: boolean; message?: string; error?: string }> => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const { botToken, chatId, message } = telegramTestSchema.parse(payload);
+    const res = await sendTelegramMessage({
+      botToken: botToken?.trim() || undefined,
+      chatId: chatId.trim(),
+      text: message.trim(),
+      parseMode: "HTML"
+    });
+
+    if (!res.success) {
+      return { success: false, error: res.error || "فشل إرسال رسالة تليجرام" };
+    }
+
+    return { success: true, message: `تم تسليم رسالة تليجرام بنجاح (Message ID: ${res.messageId})` };
+  },
+  { requireCSRF: false }
+);
+
+export const testTelegramBotAction = secureAction(
+  async (botToken?: string): Promise<{ success: boolean; botName?: string; username?: string; error?: string }> => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const res = await testTelegramBot(botToken?.trim() || undefined);
+    return res;
+  },
+  { requireCSRF: false }
+);
+
+export const getTelegramConfigAction = secureAction(
+  async (): Promise<{ hasToken: boolean; configuredChatId: string | null }> => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    return {
+      hasToken: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+      configuredChatId: process.env.TELEGRAM_ADMIN_CHAT_ID || null
+    };
+  },
+  { requireCSRF: false }
+);
