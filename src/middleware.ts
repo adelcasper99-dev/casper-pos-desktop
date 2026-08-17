@@ -145,6 +145,7 @@ export function middleware(request: NextRequest) {
         '/api/auth/verify-otp',
         '/api/auth/signup',
         '/api/tenant/check-slug',
+        '/api/telegram/webhook',        // Telegram Bot Webhook endpoint
         '/api/tickets/offline-ticket', // Uses x-sync-secret auth
         '/api/pos/offline-sale',        // Uses x-sync-secret auth
         '/api/auth/session',            // Next-auth session endpoint
