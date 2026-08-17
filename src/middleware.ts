@@ -136,11 +136,15 @@ export function middleware(request: NextRequest) {
     }
 
     // Define public routes that don't require session auth
-    const publicRoutes = ['/login', '/setup', '/network-setup', '/onboarding', '/onboarding/create-admin'];
+    const publicRoutes = ['/login', '/signup', '/setup', '/network-setup', '/onboarding', '/onboarding/create-admin'];
     const publicApiPrefixes = ['/assets', '/_next'];
     
     // Explicit public API whitelist (Hardened: only allow known-safe endpoints with their own auth)
     const publicApiWhitelist = [
+        '/api/auth/send-otp',
+        '/api/auth/verify-otp',
+        '/api/auth/signup',
+        '/api/tenant/check-slug',
         '/api/tickets/offline-ticket', // Uses x-sync-secret auth
         '/api/pos/offline-sale',        // Uses x-sync-secret auth
         '/api/auth/session',            // Next-auth session endpoint
