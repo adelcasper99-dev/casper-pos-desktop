@@ -183,8 +183,9 @@ export const provisionNewTenant = secureAction(
       });
 
       return { activationCode: result.activationCode };
-    } catch (error: any) {
-      if (error.code === 'P2002' && error.meta?.target?.includes('slug')) {
+    } catch (error: unknown) {
+      const prismaErr = error as { code?: string; meta?: { target?: string[] } } | null;
+      if (prismaErr?.code === 'P2002' && prismaErr?.meta?.target?.includes('slug')) {
         throw new Error("هذا المعرف (Subdomain) مستخدم بالفعل، يرجى اختيار اسم آخر.");
       }
       throw error;
@@ -258,9 +259,9 @@ export const approveHardwareSwap = secureAction(
 const editTenantSchema = z.object({
   tenantId: z.string(),
   name: z.string().min(2).max(100),
-  adminUsername: z.string().min(3).optional(),
+  adminUsername: z.string().min(3).optional().or(z.literal("")),
   newPassword: z.string().min(6).optional().or(z.literal("")),
-  adminRole: z.enum(["ADMIN", "MANAGER", "STAFF"]).optional(),
+  adminRole: z.enum(["ADMIN", "MANAGER", "STAFF", "SUPER_ADMIN"]).optional().or(z.literal("")),
   csrfToken: z.string().optional()
 });
 
@@ -290,11 +291,11 @@ export const editTenant = secureAction(
     });
 
     if (adminUser) {
-      const updateData: any = {};
+      const updateData: { username?: string; roleStr?: string; password?: string } = {};
       if (adminUsername && adminUsername.trim() !== "" && adminUsername !== adminUser.username) {
         updateData.username = adminUsername.trim();
       }
-      if (adminRole && adminRole !== adminUser.roleStr) {
+      if (adminRole && adminRole !== "" && adminRole !== adminUser.roleStr) {
         updateData.roleStr = adminRole;
       }
       if (newPassword && newPassword.trim().length >= 6) {

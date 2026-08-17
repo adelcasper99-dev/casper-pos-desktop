@@ -6,6 +6,8 @@ import { generateCSRFToken } from "@/lib/csrf-client";
 import { Loader2, Lock, Edit2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+type TenantAdminRole = "ADMIN" | "MANAGER" | "STAFF" | "SUPER_ADMIN";
+
 interface EditTenantModalProps {
   tenantId: string;
   initialName: string;
@@ -26,7 +28,7 @@ export function EditTenantModal({
   const [error, setError] = useState("");
   const [name, setName] = useState(initialName);
   const [adminUsername, setAdminUsername] = useState(initialAdminUsername);
-  const [adminRole, setAdminRole] = useState(initialAdminRole);
+  const [adminRole, setAdminRole] = useState(initialAdminRole || "ADMIN");
   const [newPassword, setNewPassword] = useState("");
   const router = useRouter();
 
@@ -51,7 +53,7 @@ export function EditTenantModal({
         tenantId, 
         name: name.trim(), 
         adminUsername: adminUsername.trim(),
-        adminRole: adminRole as any,
+        adminRole: (adminRole as TenantAdminRole) || "ADMIN",
         newPassword: newPassword.trim(),
         csrfToken 
       });
@@ -63,8 +65,9 @@ export function EditTenantModal({
       } else {
         setError(res?.error || "فشل في تحديث بيانات العميل");
       }
-    } catch (err: any) {
-      setError(err.message || "فشل في تحديث بيانات العميل");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "فشل في تحديث بيانات العميل");
     } finally {
       setLoading(false);
     }
@@ -155,6 +158,9 @@ export function EditTenantModal({
                         onChange={(e) => setAdminRole(e.target.value)}
                         className="w-full border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none cursor-pointer"
                       >
+                        {adminRole === "SUPER_ADMIN" && (
+                          <option value="SUPER_ADMIN">سوبر أدمن (SUPER_ADMIN) - تحكم كلي</option>
+                        )}
                         <option value="ADMIN">مدير نظام (ADMIN) - صلاحيات كاملة</option>
                         <option value="MANAGER">مدير فرع (MANAGER) - صلاحيات إدارية</option>
                         <option value="STAFF">موظف / كاشير (STAFF) - صلاحيات مبيعات فقط</option>
