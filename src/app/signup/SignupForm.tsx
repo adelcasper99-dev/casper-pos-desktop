@@ -2,7 +2,25 @@
 
 import { useState, useEffect } from "react";
 import { CasperLogo } from "@/components/ui/CasperLogo";
-import { Loader2, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Sparkles, Building2, User, Lock, Mail, Phone, KeyRound, ShieldCheck, RefreshCw } from "lucide-react";
+import { 
+  Loader2, 
+  CheckCircle2, 
+  AlertCircle, 
+  ArrowLeft, 
+  ArrowRight, 
+  Sparkles, 
+  Building2, 
+  User, 
+  Lock, 
+  Mail, 
+  Phone, 
+  KeyRound, 
+  ShieldCheck, 
+  RefreshCw,
+  MessageSquare,
+  Send,
+  Bot
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function SignupForm() {
@@ -21,6 +39,7 @@ export default function SignupForm() {
   const [slugReason, setSlugReason] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [channel, setChannel] = useState<"whatsapp" | "telegram">("whatsapp");
 
   // Step 2 State
   const [otpCode, setOtpCode] = useState("");
@@ -103,7 +122,7 @@ export default function SignupForm() {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone })
+        body: JSON.stringify({ phone, channel })
       });
 
       const data = await res.json();
@@ -111,7 +130,7 @@ export default function SignupForm() {
       if (!res.ok || data.error) {
         setError(data.error || "فشل إرسال رمز التحقق");
       } else {
-        setSuccessMessage("تم إرسال رمز التحقق (OTP) إلى هاتفك عبر الواتساب");
+        setSuccessMessage(data.message || (channel === "telegram" ? "تم إرسال رمز التحقق عبر تليجرام" : "تم إرسال رمز التحقق عبر الواتساب"));
         setStep(2);
         setResendCooldown(60);
       }
@@ -132,7 +151,7 @@ export default function SignupForm() {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone })
+        body: JSON.stringify({ phone, channel })
       });
       const data = await res.json();
       if (!res.ok || data.error) {
@@ -341,15 +360,49 @@ export default function SignupForm() {
               </div>
             </div>
 
+            {/* Channel Selector */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-xs font-bold text-slate-300 block">
+                طريقة استلام رمز التحقق (OTP Channel)
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setChannel("whatsapp")}
+                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl border font-bold text-xs transition-all ${
+                    channel === "whatsapp"
+                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-md shadow-emerald-500/10"
+                      : "bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900"
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <span>عبر واتساب</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChannel("telegram")}
+                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl border font-bold text-xs transition-all ${
+                    channel === "telegram"
+                      ? "bg-blue-500/20 border-blue-500 text-blue-400 shadow-md shadow-blue-500/10"
+                      : "bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900"
+                  }`}
+                >
+                  <Send className="w-4 h-4 text-blue-400" />
+                  <span>عبر تليجرام</span>
+                </button>
+              </div>
+            </div>
+
             {/* Phone Number (Mandatory for OTP) */}
             <div className="space-y-1.5 pt-1">
               <label className="text-xs font-bold text-slate-300 block flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-emerald-400" />
-                  <span>رقم الهاتف / الواتساب (إلزامي للتحقق)</span>
+                  <span>رقم الهاتف / {channel === "telegram" ? "التليجرام" : "الواتساب"}</span>
                 </span>
                 <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-bold">
-                  يصلك كود التفعيل عليه
+                  {channel === "telegram" ? "يصلك الكود عبر تليجرام" : "يصلك كود التفعيل عليه"}
                 </span>
               </label>
               <input
@@ -387,7 +440,7 @@ export default function SignupForm() {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <span>إرسال رمز التحقق للموبايل</span>
+                  <span>إرسال رمز التحقق ({channel === "telegram" ? "تليجرام" : "واتساب"})</span>
                   <ArrowLeft className="w-5 h-5" />
                 </>
               )}
@@ -405,11 +458,11 @@ export default function SignupForm() {
         {step === 2 && (
           <form onSubmit={handleCompleteSignup} className="space-y-4 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 p-6 md:p-8 rounded-2xl shadow-2xl animate-in fade-in">
             
-            {/* Phone Info Pill */}
+            {/* Channel & Phone Info Pill */}
             <div className="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
               <div className="flex items-center gap-2 text-xs">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-slate-400">إرسال الرمز إلى:</span>
+                <span className="text-slate-400">إرسال الرمز ({channel === "telegram" ? "تليجرام" : "واتساب"}):</span>
                 <span className="text-white font-mono font-bold">{phone}</span>
               </div>
               <button
@@ -417,9 +470,20 @@ export default function SignupForm() {
                 onClick={() => setStep(1)}
                 className="text-xs font-bold text-cyan-400 hover:underline"
               >
-                تعديل الرقم
+                تعديل الرقم والقناة
               </button>
             </div>
+
+            {/* Telegram Direct Bot Helper Link if channel is telegram */}
+            {channel === "telegram" && (
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs text-blue-300 font-bold">
+                  <Bot className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <span>تم إرسال الكود عبر بوت تليجرام</span>
+                </div>
+                <span className="text-[11px] text-blue-400 font-mono">Telegram Ready</span>
+              </div>
+            )}
 
             {/* OTP Code Input */}
             <div className="space-y-1.5">

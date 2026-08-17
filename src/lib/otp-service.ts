@@ -96,18 +96,26 @@ export function verifyVerificationToken(token: string): VerificationPayload | nu
 /**
  * Dispatches the OTP message via WhatsApp Gateway, Telegram Bot, or fallback provider
  */
-export async function dispatchOtpWhatsApp(phone: string, otp: string): Promise<{ success: boolean; provider: string; error?: string }> {
+export async function dispatchOtpWhatsApp(
+    phone: string, 
+    otp: string,
+    channel: "whatsapp" | "telegram" = "whatsapp"
+): Promise<{ success: boolean; provider: string; error?: string }> {
     const normalized = normalizePhone(phone);
     const message = `رمز التحقق الخاص بك في Casper ERP هو: [ ${otp} ]\nصالح لمدة ${OTP_EXPIRY_MINUTES} دقائق.\nلا تشارك هذا الرمز مع أي شخص.`;
 
     // 1. Dual Dispatch: If Telegram Bot is configured, notify Telegram Admin Channel
     if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_CHAT_ID) {
         sendTelegramMessage({
-            text: `🔐 <b>كود تحقق جديد (Casper OTP)</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
+            text: `🔐 <b>كود تحقق جديد (${channel === "telegram" ? "تليجرام" : "واتساب"})</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
             parseMode: "HTML"
         }).catch((err) => {
             logger.warn(`[OTP Service] Telegram dual-dispatch non-blocking warning: ${err}`);
         });
+    }
+
+    if (channel === "telegram") {
+        return { success: true, provider: "TELEGRAM_BOT" };
     }
 
     const providerUrl = process.env.WHATSAPP_PROVIDER_URL;

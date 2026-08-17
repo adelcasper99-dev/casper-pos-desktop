@@ -6,7 +6,8 @@ import { generateOtpCode, hashOtp, normalizePhone, dispatchOtpWhatsApp } from "@
 import { logger } from "@/lib/logger";
 
 const sendOtpSchema = z.object({
-    phone: z.string().min(8, "رقم الهاتف غير صحيح").max(20, "رقم الهاتف غير صحيح")
+    phone: z.string().min(8, "رقم الهاتف غير صحيح").max(20, "رقم الهاتف غير صحيح"),
+    channel: z.enum(["whatsapp", "telegram"]).optional().default("whatsapp")
 });
 
 export async function POST(request: Request) {
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
         const body = await request.json();
         const parsed = sendOtpSchema.parse(body);
         const normalizedPhone = normalizePhone(parsed.phone);
+        const selectedChannel = parsed.channel || "whatsapp";
 
         if (!normalizedPhone || normalizedPhone.length < 8) {
             return NextResponse.json({ error: "رقم الهاتف غير صالح" }, { status: 400 });
@@ -77,14 +79,19 @@ export async function POST(request: Request) {
             });
         });
 
-        // 6. Dispatch via WhatsApp Gateway (Non-blocking failure safety)
-        const dispatchResult = await dispatchOtpWhatsApp(normalizedPhone, otpCode);
+        // 6. Dispatch via Selected Gateway (Non-blocking failure safety)
+        const dispatchResult = await dispatchOtpWhatsApp(normalizedPhone, otpCode, selectedChannel);
 
-        logger.info(`[API send-otp] OTP generated for ${normalizedPhone} (Provider: ${dispatchResult.provider})`);
+        logger.info(`[API send-otp] OTP generated for ${normalizedPhone} (Channel: ${selectedChannel}, Provider: ${dispatchResult.provider})`);
+
+        const channelMessage = selectedChannel === "telegram"
+            ? "تم إرسال رمز التحقق عبر تليجرام بنجاح"
+            : "تم إرسال رمز التحقق إلى رقم الواتساب بنجاح";
 
         return NextResponse.json({
             success: true,
-            message: "تم إرسال رمز التحقق إلى رقم الواتساب بنجاح",
+            message: channelMessage,
+            channel: selectedChannel,
             expiresInSeconds: 300
         });
 
