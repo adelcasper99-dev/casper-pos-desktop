@@ -16,11 +16,11 @@ export function registerTelegramOtpSession(phone: string, otpCode: string): { to
 
     // Clean expired entries
     const now = Date.now();
-    for (const [key, val] of telegramOtpSessions.entries()) {
+    telegramOtpSessions.forEach((val, key) => {
         if (val.expiresAt < now) {
             telegramOtpSessions.delete(key);
         }
-    }
+    });
 
     telegramOtpSessions.set(token, { phone, otpCode, expiresAt });
 
