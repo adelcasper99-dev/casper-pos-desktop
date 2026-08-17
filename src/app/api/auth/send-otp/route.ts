@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { generateOtpCode, hashOtp, normalizePhone, dispatchOtpWhatsApp } from "@/lib/otp-service";
+import { registerTelegramOtpSession } from "@/lib/telegram-otp-store";
 import { logger } from "@/lib/logger";
 
 const sendOtpSchema = z.object({
@@ -84,14 +85,21 @@ export async function POST(request: Request) {
 
         logger.info(`[API send-otp] OTP generated for ${normalizedPhone} (Channel: ${selectedChannel}, Provider: ${dispatchResult.provider})`);
 
+        let deepLink: string | undefined = undefined;
+        if (selectedChannel === "telegram") {
+            const session = registerTelegramOtpSession(normalizedPhone, otpCode);
+            deepLink = session.deepLink;
+        }
+
         const channelMessage = selectedChannel === "telegram"
-            ? "تم إرسال رمز التحقق عبر تليجرام بنجاح"
+            ? "تم تجهيز رمز التحقق، اضغط على الزر أدناه لاستلامه في تليجرام فوراً"
             : "تم إرسال رمز التحقق إلى رقم الواتساب بنجاح";
 
         return NextResponse.json({
             success: true,
             message: channelMessage,
             channel: selectedChannel,
+            deepLink,
             expiresInSeconds: 300
         });
 

@@ -40,6 +40,7 @@ export default function SignupForm() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [channel, setChannel] = useState<"whatsapp" | "telegram">("whatsapp");
+  const [telegramDeepLink, setTelegramDeepLink] = useState<string | null>(null);
 
   // Step 2 State
   const [otpCode, setOtpCode] = useState("");
@@ -130,7 +131,10 @@ export default function SignupForm() {
       if (!res.ok || data.error) {
         setError(data.error || "فشل إرسال رمز التحقق");
       } else {
-        setSuccessMessage(data.message || (channel === "telegram" ? "تم إرسال رمز التحقق عبر تليجرام" : "تم إرسال رمز التحقق عبر الواتساب"));
+        if (data.deepLink) {
+          setTelegramDeepLink(data.deepLink);
+        }
+        setSuccessMessage(data.message || (channel === "telegram" ? "تم تجهيز رمز التحقق عبر تليجرام" : "تم إرسال رمز التحقق عبر الواتساب"));
         setStep(2);
         setResendCooldown(60);
       }
@@ -157,7 +161,10 @@ export default function SignupForm() {
       if (!res.ok || data.error) {
         setError(data.error || "فشل إعادة إرسال الرمز");
       } else {
-        setSuccessMessage("تمت إعادة إرسال رمز جديد بنجاح");
+        if (data.deepLink) {
+          setTelegramDeepLink(data.deepLink);
+        }
+        setSuccessMessage("تمت إعادة تجهيز الرمز بنجاح");
         setResendCooldown(60);
       }
     } catch {
@@ -474,14 +481,21 @@ export default function SignupForm() {
               </button>
             </div>
 
-            {/* Telegram Direct Bot Helper Link if channel is telegram */}
-            {channel === "telegram" && (
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs text-blue-300 font-bold">
-                  <Bot className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                  <span>تم إرسال الكود عبر بوت تليجرام</span>
-                </div>
-                <span className="text-[11px] text-blue-400 font-mono">Telegram Ready</span>
+            {/* Telegram 1-Click Action Button */}
+            {channel === "telegram" && telegramDeepLink && (
+              <div className="space-y-2">
+                <a
+                  href={telegramDeepLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2.5 p-4 bg-gradient-to-r from-blue-600 via-sky-500 to-blue-600 hover:from-blue-500 hover:to-sky-400 text-white rounded-xl font-black text-sm shadow-xl shadow-blue-600/30 transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-blue-400/30"
+                >
+                  <Send className="w-5 h-5 animate-pulse" />
+                  <span>📲 اضغط هنا لفتح تليجرام واستلام رمز التحقق فوراً</span>
+                </a>
+                <p className="text-[11px] text-center text-slate-400">
+                  سيفتح التطبيق ويظهر لك كود التحقق في رسالة تلقائية بنقرة واحدة
+                </p>
               </div>
             )}
 
