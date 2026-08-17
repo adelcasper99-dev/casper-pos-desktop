@@ -1253,3 +1253,17 @@ model MasterDataTombstone {
 
 
 
+
+// ── Self-Service Signup OTP Verification ──────────────
+model SignupOtp {
+  id         String   @id @default(uuid())
+  phone      String
+  otpHash    String
+  attempts   Int      @default(0)
+  verified   Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}

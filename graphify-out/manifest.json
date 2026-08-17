@@ -440,8 +440,8 @@
     "semantic_hash": ""
   },
   "src/actions/auth.ts": {
-    "mtime": 1784872723.9758208,
-    "ast_hash": "7624934397f45ea3513bc57acd268ea9",
+    "mtime": 1786905583.0895524,
+    "ast_hash": "e750580214e74cc77c7431a55e9d6bd2",
     "semantic_hash": ""
   },
   "src/actions/backup-schedule.ts": {
@@ -865,8 +865,8 @@
     "semantic_hash": ""
   },
   "src/app/LoginForm.tsx": {
-    "mtime": 1784514423.4169915,
-    "ast_hash": "5c2742930da8506e2b136575854c6ad3",
+    "mtime": 1786905590.5394793,
+    "ast_hash": "df82a6fc3bde96cea435e0651a23cc29",
     "semantic_hash": ""
   },
   "src/app/[locale]/maintenance/dashboard/page.tsx": {
@@ -945,8 +945,8 @@
     "semantic_hash": ""
   },
   "src/app/api/pos/offline-sale/route.ts": {
-    "mtime": 1784573240.929555,
-    "ast_hash": "c4864d0c82ead564a63237b63847c809",
+    "mtime": 1784994553.4482412,
+    "ast_hash": "a36f95a0608114ca1db0ee9163aa7d7f",
     "semantic_hash": ""
   },
   "src/app/api/sales/offline-return/route.ts": {
@@ -2050,8 +2050,8 @@
     "semantic_hash": ""
   },
   "src/lib/auth.ts": {
-    "mtime": 1784857039.4876103,
-    "ast_hash": "307ea6b546c5089f1984658f21250623",
+    "mtime": 1786956782.565854,
+    "ast_hash": "cc2a6f399aac72df8eede1205dee8c71",
     "semantic_hash": ""
   },
   "src/lib/backup/core.ts": {
@@ -2135,8 +2135,8 @@
     "semantic_hash": ""
   },
   "src/lib/ensure-main-branch.ts": {
-    "mtime": 1784872710.8312702,
-    "ast_hash": "94f67acef7fd7ff704101d7bb579cc4b",
+    "mtime": 1786904611.8611565,
+    "ast_hash": "59c3bb6303e18e48c0504d4a41000337",
     "semantic_hash": ""
   },
   "src/lib/env.ts": {
@@ -2380,7 +2380,7 @@
     "semantic_hash": ""
   },
   "src/lib/stock-helpers.ts": {
-    "mtime": 1784964685.9796855,
+    "mtime": 1784994553.4482412,
     "ast_hash": "42279f00a32aa6bb3e325bfb1637553d",
     "semantic_hash": ""
   },
@@ -2460,8 +2460,8 @@
     "semantic_hash": ""
   },
   "src/middleware.ts": {
-    "mtime": 1784572939.39578,
-    "ast_hash": "12cc9de8540fdec54b5b4269fc4b51b0",
+    "mtime": 1786955982.0331213,
+    "ast_hash": "bb0f693377f7f4efdd2886c7bd017c9b",
     "semantic_hash": ""
   },
   "src/shared/constants/accounting-mappings.ts": {
@@ -5270,8 +5270,8 @@
     "semantic_hash": ""
   },
   "src/lib/license/verify.ts": {
-    "mtime": 1784872730.5501657,
-    "ast_hash": "87320e789ca318dac7779d834360b751",
+    "mtime": 1786899160.6623402,
+    "ast_hash": "34b07ff4d1d0b7f32181cfe1b3207817",
     "semantic_hash": ""
   },
   "src/lib/print-guard.ts": {
@@ -5280,8 +5280,8 @@
     "semantic_hash": ""
   },
   "src/lib/prisma-tenant-extension.ts": {
-    "mtime": 1784873171.1774647,
-    "ast_hash": "58cf21b1926d831f467e9b5b0ffa63c9",
+    "mtime": 1786959044.04368,
+    "ast_hash": "09dc51b5bc67b5640292220e490b5679",
     "semantic_hash": ""
   },
   "src/lib/prisma.browser.stub.ts": {
@@ -5565,7 +5565,7 @@
     "semantic_hash": ""
   },
   "landing-page/index.html": {
-    "mtime": 1784994316.1124341,
+    "mtime": 1784994553.4458086,
     "ast_hash": "671c37aa5e9f258316eb95c94340b97b",
     "semantic_hash": ""
   },
@@ -5740,8 +5740,8 @@
     "semantic_hash": ""
   },
   "src/app/api/auth/signup/route.ts": {
-    "mtime": 1784859907.0948904,
-    "ast_hash": "97e113772751dc401ffa2d5c700669bf",
+    "mtime": 1786959222.3041584,
+    "ast_hash": "3e8fae9585eae60a2d10287dff2a52c9",
     "semantic_hash": ""
   },
   "src/app/api/settings/backup/download/route.ts": {
@@ -5760,8 +5760,8 @@
     "semantic_hash": ""
   },
   "src/app/signup/SignupForm.tsx": {
-    "mtime": 1784859727.5294852,
-    "ast_hash": "a70deea624a3db1ae7b09af8ac4929a5",
+    "mtime": 1786959245.6081145,
+    "ast_hash": "dfc9db7385d8e9891e58ffb46d73583f",
     "semantic_hash": ""
   },
   "src/app/signup/page.tsx": {
@@ -5810,8 +5810,8 @@
     "semantic_hash": ""
   },
   "scripts/patch-next-build.js": {
-    "mtime": 1784915906.249342,
-    "ast_hash": "a1cad0f982124dfe622f88ecd5345440",
+    "mtime": 1784995327.9450867,
+    "ast_hash": "4c5b0bd599ef2334a432a9032d34ef31",
     "semantic_hash": ""
   },
   "scripts/patch-tenant-ids.js": {
@@ -5850,8 +5850,8 @@
     "semantic_hash": ""
   },
   "landing-page/casper Erp.html": {
-    "mtime": 1784994324.2965982,
-    "ast_hash": "feca0c8f6a521984d7bf0eee5945c940",
+    "mtime": 1784994553.3531268,
+    "ast_hash": "59d34010044234b481c95b16d31d520e",
     "semantic_hash": ""
   },
   "landing-page/stitch-landing-refactor.html": {
@@ -5885,58 +5885,93 @@
     "semantic_hash": ""
   },
   "run-ce-agent-pipeline.sh": {
-    "mtime": 1784962715.25282,
+    "mtime": 1784994553.4458086,
     "ast_hash": "fb40b9e21436d86cb2f8fcfd9ad5f4ed",
     "semantic_hash": ""
   },
   "scripts/check-casper-rules.js": {
-    "mtime": 1784964302.452175,
+    "mtime": 1784994553.446809,
     "ast_hash": "cd89a1cad4e3cbee08a436a8a9d055f3",
     "semantic_hash": ""
   },
   "scripts/run-ce-agent-pipeline.sh": {
-    "mtime": 1784973339.779831,
+    "mtime": 1784994553.446809,
     "ast_hash": "274e7f5b936d973ed44880c8eeabb217",
     "semantic_hash": ""
   },
   "src/__tests__/bundle-stock.test.ts": {
-    "mtime": 1784964613.222851,
+    "mtime": 1784994553.4478085,
     "ast_hash": "122cd3c33e97d713361d67bbd28e0432",
     "semantic_hash": ""
   },
   "src/__tests__/stock-alerts.test.ts": {
-    "mtime": 1784965162.4000735,
+    "mtime": 1784994553.4478085,
     "ast_hash": "dc3b56eb309f19649f87561d546b72da",
     "semantic_hash": ""
   },
   "src/lib/stock-alerts.ts": {
-    "mtime": 1784965158.2525637,
+    "mtime": 1784994553.4482412,
     "ast_hash": "51341ead9e262e29c140131835b8b288",
     "semantic_hash": ""
   },
   "docs/plans/2026-07-25-001-feat-ironclad-review-skill-edit-plan.md": {
-    "mtime": 1784972619.800823,
+    "mtime": 1784994553.3375359,
     "ast_hash": "0a139a8c45a460abcd49910b03dfe560",
     "semantic_hash": ""
   },
   "docs/plans/2026-07-25-002-feat-pipeline-doc-workflows-hardening-plan.md": {
-    "mtime": 1784973084.339681,
+    "mtime": 1784994553.3380618,
     "ast_hash": "c242b40033b3ff2d7e9abe6485de6667",
     "semantic_hash": ""
   },
   "docs/plans/2026-07-25-003-feat-ui-design-pipeline-skill-plan.md": {
-    "mtime": 1784973633.0375218,
+    "mtime": 1784994553.3380618,
     "ast_hash": "79955d772124d3c47f51b3314433df65",
     "semantic_hash": ""
   },
   "docs/brainstorms/2026-07-25-landing-page-updates-requirements.md": {
-    "mtime": 1784974008.6904454,
+    "mtime": 1784994553.337007,
     "ast_hash": "833654b21963c1a1bb420d7caaf9ffdb",
     "semantic_hash": ""
   },
   "docs/plans/2026-07-25-004-feat-internal-skills-hardening-plan.md": {
-    "mtime": 1784973812.3248014,
+    "mtime": 1784994553.3385913,
     "ast_hash": "d286a8ad6b31052d3b909ebb7d34b763",
+    "semantic_hash": ""
+  },
+  "scripts/mem0_engine.py": {
+    "mtime": 1785395886.1950326,
+    "ast_hash": "72ba8c448ba23b22c1c1adc41289f404",
+    "semantic_hash": ""
+  },
+  "src/__tests__/auth-otp.test.ts": {
+    "mtime": 1786959127.2705736,
+    "ast_hash": "7022e62f84f317232db7e70ef19b16ad",
+    "semantic_hash": ""
+  },
+  "src/app/api/auth/send-otp/route.ts": {
+    "mtime": 1786959229.1417122,
+    "ast_hash": "43c7cc794a7d3f626bebc4edb60c4acd",
+    "semantic_hash": ""
+  },
+  "src/app/api/auth/verify-otp/route.ts": {
+    "mtime": 1786959236.4191012,
+    "ast_hash": "cf8cf583b58a3cbde30cbd4777adc1dd",
+    "semantic_hash": ""
+  },
+  "src/lib/otp-service.ts": {
+    "mtime": 1786959215.051622,
+    "ast_hash": "43976609a3d349de77992d466f0b58ea",
+    "semantic_hash": ""
+  },
+  ".antigravity/condense-state.yaml": {
+    "mtime": 1786957483.031703,
+    "ast_hash": "83e81735a7d6a8a30ad95f17ceba8711",
+    "semantic_hash": ""
+  },
+  "cookie.txt": {
+    "mtime": 1786956677.8954818,
+    "ast_hash": "f7960c034b3dec5d72593f057e240884",
     "semantic_hash": ""
   }
 }

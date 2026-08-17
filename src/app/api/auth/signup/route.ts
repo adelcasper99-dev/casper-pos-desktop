@@ -3,6 +3,7 @@ import { z } from "zod";
 import { provisionTenantCore } from "@/actions/hq-tenant-actions";
 import { rateLimit } from "@/lib/rate-limit";
 import { createUserSession } from "@/lib/auth";
+import { normalizePhone, verifyVerificationToken } from "@/lib/otp-service";
 
 const signupSchema = z.object({
   storeName: z.string().min(2, "اسم المتجر يجب أن يكون حرفين على الأقل"),
@@ -10,7 +11,8 @@ const signupSchema = z.object({
   adminUsername: z.string().min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"),
   adminPassword: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
   email: z.string().email("البريد الإلكتروني غير صحيح").optional().or(z.literal("")),
-  phone: z.string().optional()
+  phone: z.string().min(8, "رقم الهاتف إلزامي للتسجيل"),
+  verificationToken: z.string().min(10, "رمز التحقق من الهاتف مفقود أو غير صالح")
 });
 
 export async function POST(request: Request) {
@@ -34,8 +36,18 @@ export async function POST(request: Request) {
     // 2. Validate Body
     const body = await request.json();
     const parsed = signupSchema.parse(body);
+    const normalizedPhone = normalizePhone(parsed.phone);
 
-    // 3. Provision Tenant Core (Turnkey Seeding)
+    // 3. Verify OTP Proof Token
+    const verifiedProof = verifyVerificationToken(parsed.verificationToken);
+    if (!verifiedProof || verifiedProof.phone !== normalizedPhone) {
+      return NextResponse.json(
+        { error: "رمز توثيق الهاتف غير صالح أو منتهي الصلاحية. يرجى إعادة التحقق من هاتفك." },
+        { status: 403 }
+      );
+    }
+
+    // 4. Provision Tenant Core (Turnkey Seeding)
     const result = await provisionTenantCore({
       name: parsed.storeName,
       domain: parsed.slug,
@@ -44,7 +56,7 @@ export async function POST(request: Request) {
       adminRole: "ADMIN",
       duration: "14_DAYS",
       email: parsed.email || undefined,
-      phone: parsed.phone || undefined
+      phone: normalizedPhone
     });
 
     // 4. Create Session for new Admin User
@@ -64,7 +76,7 @@ export async function POST(request: Request) {
       subdomain: result.tenant.slug,
       redirectUrl: "/dashboard"
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.issues[0]?.message || "بيانات الإدخال غير صحيحة" },
@@ -72,7 +84,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (error?.code === "P2002" || error?.message?.includes("مستخدم بالفعل")) {
+    const errObj = error as { code?: string; message?: string };
+    if (errObj?.code === "P2002" || errObj?.message?.includes("مستخدم بالفعل")) {
       return NextResponse.json(
         { error: "هذا المعرف الفرعي (Subdomain) مستخدم بالفعل، يرجى اختيار اسم آخر." },
         { status: 409 }
@@ -81,7 +94,7 @@ export async function POST(request: Request) {
 
     console.error("Signup error:", error);
     return NextResponse.json(
-      { error: error.message || "حدث خطأ غير متوقع أثناء إنشاء الحساب" },
+      { error: errObj?.message || "حدث خطأ غير متوقع أثناء إنشاء الحساب" },
       { status: 500 }
     );
   }
