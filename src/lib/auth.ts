@@ -29,17 +29,19 @@ export async function createUserSession(userData: UserSession, maxAge: number = 
     // Clean up old sessions for this user to prevent bloat
     if (userData.id !== 'super-admin') {
         await runWithTenant('SYSTEM', async () => {
-            await prisma.session.deleteMany({
+            const deleted = await prisma.session.deleteMany({
                 where: { userId: userData.id }
             });
+            console.log(`[AUTH TRACE] Deleted ${deleted.count} old sessions for user=${userData.id}`);
 
-            await prisma.session.create({
+            const created = await prisma.session.create({
                 data: {
                     userId: userData.id,
                     token,
                     expiresAt
                 }
             });
+            console.log(`[AUTH TRACE] Created session id=${created.id}, token=${token.slice(0,8)}..., tenantId=${(created as any).tenantId}, userId=${created.userId}`);
         });
     }
 
@@ -73,9 +75,7 @@ export async function getSession() {
     const cookieStore = cookies();
     const token = cookieStore.get("session")?.value;
 
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`[AUTH DEBUG] getSession() - Token in cookie: ${token ? 'Found' : 'MISSING'}`);
-    }
+    console.log(`[AUTH TRACE] getSession() - Token: ${token ? token.slice(0,8) + '...' : 'MISSING'}`);
 
     if (!token) return null;
 
@@ -114,8 +114,12 @@ export async function getSession() {
             })
         );
 
+        console.log(`[AUTH TRACE] findUnique result: ${session ? `id=${session.id}, userId=${session.userId}, tenantId=${session.tenantId}, user=${session.user ? session.user.username : 'NULL'}` : 'NULL (no session row)'}`);
+
         if (!session) {
-            console.warn(`[AUTH DEBUG] Session token found in cookie but not in DB. This usually happens after a DB push/reset.`);
+            // Also do a raw count to check if ANY sessions exist
+            const totalSessions = await runWithTenant('SYSTEM', () => prisma.session.count());
+            console.warn(`[AUTH TRACE] Session NOT found. Token=${token.slice(0,8)}... Total sessions in DB: ${totalSessions}`);
             try { 
                 cookies().delete("session");
                 cookies().delete("tenantId");
