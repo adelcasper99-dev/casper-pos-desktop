@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { TrendingUp, KeyRound, Wrench, Building2 } from "lucide-react";
+import { TrendingUp, KeyRound, Wrench, Building2, MessageSquare } from "lucide-react";
 import { ProvisionTenantModal } from "@/components/hq/ProvisionTenantModal";
 import { SalesPipelineTab, PipelineMetrics } from "@/components/hq/SalesPipelineTab";
 import { TenantsManagementTab } from "@/components/hq/TenantsManagementTab";
 import { TechSupportTab } from "@/components/hq/TechSupportTab";
+import { WhatsAppGatewayTab } from "@/components/hq/WhatsAppGatewayTab";
 
 import { computePipelineMetrics, TenantWithLicense } from "@/lib/hq-metrics";
 
@@ -15,7 +16,7 @@ interface HQDashboardClientProps {
 }
 
 export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps) {
-  const [activeTab, setActiveTab] = useState<"pipeline" | "tenants" | "support">("pipeline");
+  const [activeTab, setActiveTab] = useState<"pipeline" | "tenants" | "support" | "whatsapp">("pipeline");
   const [tenantsTabFilter, setTenantsTabFilter] = useState<string>("all");
 
   // Calculate Pipeline Metrics via pure utility
@@ -105,6 +106,18 @@ export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps)
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => setActiveTab("whatsapp")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-sm transition-all whitespace-nowrap ${
+            activeTab === "whatsapp"
+              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+              : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-white/5 border border-slate-200 dark:border-white/10"
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          بوابة واتساب والرسائل
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -123,6 +136,10 @@ export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps)
 
         {activeTab === "support" && (
           <TechSupportTab emergencyLicenses={emergencyLicenses} />
+        )}
+
+        {activeTab === "whatsapp" && (
+          <WhatsAppGatewayTab />
         )}
       </div>
     </div>
