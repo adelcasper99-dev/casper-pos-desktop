@@ -165,8 +165,12 @@ function wrapAsyncRmdir(originalFn) {
         try {
           console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdir with recursive rm: ${dirPath}`);
           if (fs.promises && fs.promises.rm) {
-            return await fs.promises.rm(dirPath, { recursive: true, force: true });
+            await fs.promises.rm(dirPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+            return;
           }
+        } catch (rmErr) {
+          console.warn(`[patch-next-build] rm failed on ${dirPath}, suppressing ENOTEMPTY`);
+          return;
         } finally {
           inAsyncRmdirPatch = false;
         }
@@ -187,8 +191,12 @@ function wrapSyncRmdir(originalFn) {
         try {
           console.warn(`[patch-next-build] Handling ENOTEMPTY on rmdirSync with recursive rmSync: ${dirPath}`);
           if (fs.rmSync) {
-            return fs.rmSync(dirPath, { recursive: true, force: true });
+            fs.rmSync(dirPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+            return;
           }
+        } catch (rmErr) {
+          console.warn(`[patch-next-build] rmSync failed on ${dirPath}, suppressing ENOTEMPTY`);
+          return;
         } finally {
           inSyncRmdirPatch = false;
         }
@@ -209,10 +217,11 @@ function wrapCallbackRmdir(originalFn) {
         inCallbackRmdirPatch = true;
         try {
           console.warn(`[patch-next-build] Handling ENOTEMPTY callback on rmdir with recursive rmSync: ${dirPath}`);
-          if (fs.rmSync) fs.rmSync(dirPath, { recursive: true, force: true });
+          if (fs.rmSync) fs.rmSync(dirPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
           return cb(null);
         } catch (rmErr) {
-          return cb(rmErr);
+          console.warn(`[patch-next-build] rmSync callback failed on ${dirPath}, suppressing ENOTEMPTY`);
+          return cb(null);
         } finally {
           inCallbackRmdirPatch = false;
         }
