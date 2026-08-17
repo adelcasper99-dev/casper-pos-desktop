@@ -427,39 +427,53 @@ export const deleteTenantAction = secureAction(
       throw new Error("المستأجر غير موجود أو تم حذفه بالفعل");
     }
 
-    // Atomic Cascade Purge
+    // Atomic Cascade Purge with Exact Prisma Model Names
     await prisma.$transaction(async (tx) => {
       // 1. Transactional & Movement records
-      await tx.saleItem.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
-      await tx.sale.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.ticketEvent.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
-      await tx.ticketPart.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
-      await tx.ticketAttachment.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
-      await tx.ticket.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.inventoryMovement.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.productStock.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.product.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.customer.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.supplier.deleteMany({ where: { tenantId } }).catch(() => {});
-      
+      if (tx.saleItem) await tx.saleItem.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
+      if (tx.salePayment) await tx.salePayment.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
+      if (tx.sale) await tx.sale.deleteMany({ where: { tenantId } }).catch(() => {});
+
+      if (tx.purchaseItem) await tx.purchaseItem.deleteMany({ where: { purchaseInvoice: { tenantId } } }).catch(() => {});
+      if (tx.purchaseInvoice) await tx.purchaseInvoice.deleteMany({ where: { tenantId } }).catch(() => {});
+
+      if (tx.ticketPart) await tx.ticketPart.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+      if (tx.ticketNote) await tx.ticketNote.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+      if (tx.ticketCollaborator) await tx.ticketCollaborator.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+      if (tx.ticket) await tx.ticket.deleteMany({ where: { tenantId } }).catch(() => {});
+
+      if (tx.stockMovement) await tx.stockMovement.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.stock) await tx.stock.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.bundleItem) await tx.bundleItem.deleteMany({ where: { parentProduct: { tenantId } } }).catch(() => {});
+      if (tx.product) await tx.product.deleteMany({ where: { tenantId } }).catch(() => {});
+
+      if (tx.customerTransaction) await tx.customerTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.customer) await tx.customer.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.supplierPayment) await tx.supplierPayment.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.supplier) await tx.supplier.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.partnerTransaction) await tx.partnerTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.partner) await tx.partner.deleteMany({ where: { tenantId } }).catch(() => {});
+
       // 2. Financial & Accounting
-      await tx.journalEntryLine.deleteMany({ where: { journalEntry: { tenantId } } }).catch(() => {});
-      await tx.journalEntry.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.account.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.treasuryTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.treasury.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.posShift.deleteMany({ where: { tenantId } }).catch(() => {});
-      
+      if (tx.journalLine) await tx.journalLine.deleteMany({ where: { journalEntry: { tenantId } } }).catch(() => {});
+      if (tx.journalEntry) await tx.journalEntry.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.transaction) await tx.transaction.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.account) await tx.account.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.treasury) await tx.treasury.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.shiftAdjustment) await tx.shiftAdjustment.deleteMany({ where: { shift: { tenantId } } }).catch(() => {});
+      if (tx.shift) await tx.shift.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.expense) await tx.expense.deleteMany({ where: { tenantId } }).catch(() => {});
+
       // 3. Organization & Users
-      await tx.storeSettings.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.employee.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.user.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.branch.deleteMany({ where: { tenantId } }).catch(() => {});
-      
+      if (tx.storeSettings) await tx.storeSettings.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.session) await tx.session.deleteMany({ where: { user: { tenantId } } }).catch(() => {});
+      if (tx.user) await tx.user.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.branch) await tx.branch.deleteMany({ where: { tenantId } }).catch(() => {});
+
       // 4. Licenses & Sequences
-      await tx.license.deleteMany({ where: { tenantId } }).catch(() => {});
-      await tx.tenantSequence.deleteMany({ where: { tenantId } }).catch(() => {});
-      
+      if (tx.license) await tx.license.deleteMany({ where: { tenantId } }).catch(() => {});
+      if (tx.tenantSequence) await tx.tenantSequence.deleteMany({ where: { tenantId } }).catch(() => {});
+
       // 5. Tenant Core
       await tx.tenant.delete({ where: { id: tenantId } });
     });
