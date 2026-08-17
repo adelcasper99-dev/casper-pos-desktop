@@ -12,6 +12,7 @@ export interface WhatsAppGatewayStatusResponse {
   success: boolean;
   status: "CONNECTED" | "SCAN_QR" | "DISCONNECTED" | "UNKNOWN";
   qrCode?: string | null;
+  phoneNumber?: string | null;
   error?: string;
 }
 
@@ -30,7 +31,7 @@ export const getWhatsAppGatewayStatus = secureAction(
       if (!res.ok) {
         return { success: false, status: "DISCONNECTED", error: `HTTP ${res.status}` };
       }
-      const data = (await res.json()) as { status?: string; qrCode?: string | null };
+      const data = (await res.json()) as { status?: string; qrCode?: string | null; phoneNumber?: string | null };
       const rawStatus = data.status || "UNKNOWN";
       const normalizedStatus: "CONNECTED" | "SCAN_QR" | "DISCONNECTED" | "UNKNOWN" =
         rawStatus === "CONNECTED"
@@ -42,7 +43,8 @@ export const getWhatsAppGatewayStatus = secureAction(
       return {
         success: true,
         status: normalizedStatus,
-        qrCode: data.qrCode || null
+        qrCode: data.qrCode || null,
+        phoneNumber: data.phoneNumber || null
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
