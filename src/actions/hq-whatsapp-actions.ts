@@ -50,7 +50,8 @@ export const getWhatsAppGatewayStatus = secureAction(
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, status: "DISCONNECTED", error: msg };
     }
-  }
+  },
+  { requireCSRF: false }
 );
 
 export const resetWhatsAppGateway = secureAction(
@@ -75,7 +76,8 @@ export const resetWhatsAppGateway = secureAction(
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: msg };
     }
-  }
+  },
+  { requireCSRF: false }
 );
 
 const testMessageSchema = z.object({
