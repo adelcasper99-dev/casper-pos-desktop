@@ -56,7 +56,7 @@ export function middleware(request: NextRequest) {
     const subdomain = rawSubdomain ? punycodeToUnicode(rawSubdomain) : null;
     const path = request.nextUrl.pathname;
 
-    const isHqDomain = subdomain === 'hq' || subdomain === 'admin';
+    const isHqDomain = subdomain === 'hq' || subdomain === 'admin' || subdomain === 'casper-hq';
     const sessionToken = request.cookies.get('session')?.value;
     const terminalSetupRoutes = ['/onboarding', '/setup', '/network-setup'];
 
@@ -75,7 +75,7 @@ export function middleware(request: NextRequest) {
     }
 
     // Ignore common system subdomains
-    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq'].includes(subdomain.toLowerCase());
+    const isSystemSubdomain = !subdomain || ['www', 'api', 'app', 'cloud', 'pos', 'localhost', '127', 'admin', 'hq', 'casper-hq'].includes(subdomain.toLowerCase());
     
     let tenantId = request.headers.get('x-tenant-id') || request.cookies.get('tenantId')?.value;
     
