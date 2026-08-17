@@ -2,10 +2,10 @@
 
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { renewLicense, revokeLicense } from "@/actions/hq-tenant-actions";
+import { renewLicense, revokeLicense, deleteTenantAction } from "@/actions/hq-tenant-actions";
 import { generateCSRFToken } from "@/lib/csrf-client";
 import { toast } from "sonner";
-import { Loader2, PlusCircle, ShieldOff, Copy, Check } from "lucide-react";
+import { Loader2, PlusCircle, ShieldOff, Copy, Check, Trash2 } from "lucide-react";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { EditTenantModal } from "@/components/hq/EditTenantModal";
 import { ToggleTenantButton } from "@/components/hq/ToggleTenantButton";
@@ -36,6 +36,7 @@ export function LicenseQuickActions({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokeModalOpen, setRevokeModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   const handleRenew = async (days: number) => {
     if (!licenseId) {
@@ -56,8 +57,9 @@ export function LicenseQuickActions({
       } else {
         toast.error("تعذر تمديد الترخيص");
       }
-    } catch (err: any) {
-      toast.error(err.message || "حدث خطأ أثناء التمديد");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "حدث خطأ أثناء التمديد";
+      toast.error(msg);
     } finally {
       setActionLoading(null);
     }
@@ -80,8 +82,32 @@ export function LicenseQuickActions({
       } else {
         toast.error("تعذر إلغاء الترخيص");
       }
-    } catch (err: any) {
-      toast.error(err.message || "حدث خطأ أثناء الإلغاء");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "حدث خطأ أثناء الإلغاء";
+      toast.error(msg);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    setActionLoading("delete");
+    try {
+      const csrfToken = await generateCSRFToken();
+      const res = await deleteTenantAction({ tenantId, csrfToken });
+
+      if (res?.success) {
+        toast.success(res.message || "تم حذف المستأجر بنجاح");
+        setDeleteModalOpen(false);
+        startTransition(() => {
+          router.refresh();
+        });
+      } else {
+        toast.error("تعذر حذف المستأجر");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "حدث خطأ أثناء حذف المستأجر";
+      toast.error(msg);
     } finally {
       setActionLoading(null);
     }
@@ -166,16 +192,43 @@ export function LicenseQuickActions({
         </button>
       )}
 
+      {/* Delete Tenant Button */}
+      <button
+        onClick={() => setDeleteModalOpen(true)}
+        disabled={Boolean(actionLoading) || isPending}
+        title="حذف المستأجر وبياناته بالكامل (نهائي)"
+        className="p-1.5 rounded-lg border border-red-600/40 bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1"
+      >
+        {actionLoading === "delete" ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+        ) : (
+          <Trash2 className="w-3.5 h-3.5 text-red-500 hover:text-red-400" />
+        )}
+      </button>
+
       {/* Revoke Confirmation Modal */}
       <ConfirmationModal
         isOpen={revokeModalOpen}
         onClose={() => setRevokeModalOpen(false)}
         onConfirm={handleRevokeConfirm}
         title="إلغاء الترخيص وإيقاف العميل"
-        message={`هل أنت أكتد من إلغاء ترخيص العميل (${tenantName})؟ سيؤدي هذا الإلغاء إلى تعطيل العميل وتوقف أجهزة POS المرتبطة به خلال 6 ساعات.`}
+        message={`هل أنت متأكد من إلغاء ترخيص العميل (${tenantName})؟ سيؤدي هذا الإلغاء إلى تعطيل العميل وتوقف أجهزة POS المرتبطة به خلال 6 ساعات.`}
         confirmText="نعم، إلغاء الترخيص"
         cancelText="تراجع"
         loading={actionLoading === "revoke"}
+        variant="danger"
+      />
+
+      {/* Permanent Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="حذف المستأجر وبياناته بالكامل (حذف نهائي)"
+        message={`تحذير أمني شديد الخطورة: هل أنت متأكد تماماً من حذف العميل (${tenantName})؟ هذا الإجراء سيقوم بمسح كافة بيانات المستأجر وحسابات المستخدمين والفروع والمبيعات والمخزون والتراخيص نهائياً من السيرفر ولا يمكن التراجع عنه مطلقاً.`}
+        confirmText="نعم، حذف المستأجر نهائياً"
+        cancelText="إلغاء"
+        loading={actionLoading === "delete"}
         variant="danger"
       />
     </div>

@@ -401,4 +401,71 @@ export const revokeLicense = secureAction(
   }
 );
 
+const deleteTenantSchema = z.object({
+  tenantId: z.string().min(1, "Tenant ID مطلوب"),
+  csrfToken: z.string().optional()
+});
+
+export const deleteTenantAction = secureAction(
+  async (payload: z.infer<typeof deleteTenantSchema>) => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const { tenantId } = deleteTenantSchema.parse(payload);
+
+    if (tenantId.toUpperCase() === "SYSTEM" || tenantId.toLowerCase() === "default") {
+      throw new Error("لا يمكن حذف المستأجر الأساسي للنظام (SYSTEM/default)");
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId }
+    });
+
+    if (!tenant) {
+      throw new Error("المستأجر غير موجود أو تم حذفه بالفعل");
+    }
+
+    // Atomic Cascade Purge
+    await prisma.$transaction(async (tx) => {
+      // 1. Transactional & Movement records
+      await tx.saleItem.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
+      await tx.sale.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.ticketEvent.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+      await tx.ticketPart.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+      await tx.ticketAttachment.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+      await tx.ticket.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.inventoryMovement.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.productStock.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.product.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.customer.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.supplier.deleteMany({ where: { tenantId } }).catch(() => {});
+      
+      // 2. Financial & Accounting
+      await tx.journalEntryLine.deleteMany({ where: { journalEntry: { tenantId } } }).catch(() => {});
+      await tx.journalEntry.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.account.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.treasuryTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.treasury.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.posShift.deleteMany({ where: { tenantId } }).catch(() => {});
+      
+      // 3. Organization & Users
+      await tx.storeSettings.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.employee.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.user.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.branch.deleteMany({ where: { tenantId } }).catch(() => {});
+      
+      // 4. Licenses & Sequences
+      await tx.license.deleteMany({ where: { tenantId } }).catch(() => {});
+      await tx.tenantSequence.deleteMany({ where: { tenantId } }).catch(() => {});
+      
+      // 5. Tenant Core
+      await tx.tenant.delete({ where: { id: tenantId } });
+    });
+
+    return { success: true, message: `تم حذف المستأجر (${tenant.name}) وبياناته بالكامل بنجاح` };
+  }
+);
+
 
