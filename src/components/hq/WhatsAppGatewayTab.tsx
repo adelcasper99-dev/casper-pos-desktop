@@ -39,7 +39,7 @@ export function WhatsAppGatewayTab() {
     if (!isSilent) setRefreshing(true);
     try {
       const res = await getWhatsAppGatewayStatus();
-      if (res.success) {
+      if (res.success && res.status) {
         setStatus(res.status);
         setQrCode(res.qrCode || null);
         setLastCheck(new Date());
