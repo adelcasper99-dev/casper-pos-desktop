@@ -295,7 +295,7 @@ export const editTenant = secureAction(
       if (adminUsername && adminUsername.trim() !== "" && adminUsername !== adminUser.username) {
         updateData.username = adminUsername.trim();
       }
-      if (adminRole && adminRole !== "" && adminRole !== adminUser.roleStr) {
+      if (adminRole && adminRole !== adminUser.roleStr) {
         updateData.roleStr = adminRole;
       }
       if (newPassword && newPassword.trim().length >= 6) {
