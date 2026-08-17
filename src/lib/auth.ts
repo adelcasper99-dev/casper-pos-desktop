@@ -38,7 +38,8 @@ export async function createUserSession(userData: UserSession, maxAge: number = 
                 data: {
                     userId: userData.id,
                     token,
-                    expiresAt
+                    expiresAt,
+                    tenantId: userData.tenantId || 'default'
                 }
             });
             console.log(`[AUTH TRACE] Created session id=${created.id}, token=${token.slice(0,8)}..., tenantId=${(created as any).tenantId}, userId=${created.userId}`);
