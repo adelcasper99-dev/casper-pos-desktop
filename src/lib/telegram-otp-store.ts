@@ -24,7 +24,8 @@ export function registerTelegramOtpSession(phone: string, otpCode: string): { to
 
     telegramOtpSessions.set(token, { phone, otpCode, expiresAt });
 
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || "casper_erp_bot";
+    const rawBotUsername = process.env.TELEGRAM_BOT_USERNAME || "CasperERPbot";
+    const botUsername = rawBotUsername.replace(/^@/, "");
     const deepLink = `https://t.me/${botUsername}?start=otp_${token}`;
 
     return { token, deepLink };
