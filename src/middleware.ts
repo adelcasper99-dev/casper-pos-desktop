@@ -217,10 +217,12 @@ export function middleware(request: NextRequest) {
     }
 
     // Node Role Enforcement: Redirect to /network-setup if node is not configured (client nodes only, bypass on HQ)
+    // Cloud tenant subdomains are never desktop terminals — skip NODE_ROLE check
+    const isCloudTenant = !isSystemSubdomain && subdomain && subdomain !== 'hq' && subdomain !== 'admin';
     const isPublicAsset = publicApiPrefixes.some(pref => path.startsWith(pref));
     const isCustomerPortal = path.startsWith('/c/');
     const nodeRole = process.env.NODE_ROLE || request.cookies.get('nodeRole')?.value;
-    if (!isHqDomain && (!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
+    if (!isHqDomain && !isCloudTenant && (!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
         return NextResponse.redirect(new URL('/network-setup', request.url));
     }
 
