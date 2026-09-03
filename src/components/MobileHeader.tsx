@@ -28,7 +28,7 @@ export default function MobileHeader({ user, settings }: MobileHeaderProps) {
     const isAdminLicensesActive = pathname === "/admin/licenses" || pathname.startsWith("/admin/licenses/");
 
     return (
-        <header className="flex md:hidden items-center justify-between px-3 h-14 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-white/10 shrink-0 z-40 select-none">
+        <header data-testid="mobile-header" className="flex md:hidden items-center justify-between px-3 h-14 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-white/10 shrink-0 z-40 select-none">
             {/* Left: Brand & Menu Trigger */}
             <div className="flex items-center gap-2">
                 <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
