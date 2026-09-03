@@ -9,7 +9,7 @@ import { LIFETIME_YEAR_THRESHOLD } from "@/lib/hq-metrics";
 
 const provisionSchema = z.object({
   name: z.string().min(2),
-  domain: z.string().min(3),
+  domain: z.string().min(3).regex(/^[a-zA-Z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي على أحرف وأرقام وشرطة (-) فقط دون نقاط أو مسافات"),
   adminUsername: z.string().min(3),
   adminPassword: z.string().min(6),
   adminRole: z.enum(["ADMIN", "MANAGER", "STAFF"]).default("ADMIN"),
@@ -33,7 +33,8 @@ export async function provisionTenantCore(params: {
   const { Prisma } = require("@prisma/client");
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
-  const cleanSlug = domain.replace(/\.casper-erp\.com$/i, "").trim().toLowerCase();
+  const cleanSlug = domain.replace(/\.casper-erp\.com$/i, "").trim().toLowerCase().replace(/\./g, "-");
+  const cleanUsername = adminUsername.trim().toLowerCase();
   const { domainToUnicode } = require("url");
   const normalizedSlug = domainToUnicode(cleanSlug);
 
@@ -67,7 +68,7 @@ export async function provisionTenantCore(params: {
     // 3. Create User
     const user = await tx.user.create({
       data: {
-        username: adminUsername,
+        username: cleanUsername,
         password: hashedPassword,
         name: name,
         phone: phone || null,

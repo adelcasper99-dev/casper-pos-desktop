@@ -153,10 +153,13 @@ export function ProvisionTenantModal() {
                     <input 
                       name="domain" 
                       required 
+                      pattern="^[a-zA-Z0-9-]+$"
+                      title="يسمح فقط بالأحرف الإنجليزية والأرقام والشرطة (-) دون نقاط أو مسافات"
                       className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                      placeholder="مثال: kfc-01"
+                      placeholder="مثال: kfc-01 (بدون نقاط أو مسافات)"
                       dir="ltr"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">يسمح فقط بالأحرف الإنجليزية والأرقام والشرطة (-) لضمان عمل شهادة الأمان SSL.</p>
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">اسم المستخدم للمسؤول (Admin Username)</label>

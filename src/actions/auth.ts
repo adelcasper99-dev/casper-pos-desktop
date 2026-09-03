@@ -30,11 +30,25 @@ export async function login(formData: FormData) {
         };
     }
 
-    // ── V-08: Parallelize User Lookup & Branch Sync ───────────────────────────
+    // ── V-08: Parallelize User Lookup & Branch Sync (Flexible Identifier: username / name / phone) ───
+    const cleanUsername = username.trim();
+    const isPostgres = process.env.DATABASE_URL?.startsWith('postgres') || process.env.DATABASE_URL?.startsWith('postgresql');
+
     const { runWithTenant } = await import('@/lib/prisma-tenant-extension');
     const userPromise = runWithTenant('SYSTEM', () =>
-        prisma.user.findUnique({
-            where: { username },
+        prisma.user.findFirst({
+            where: {
+                OR: [
+                    isPostgres 
+                        ? { username: { equals: cleanUsername, mode: 'insensitive' } } 
+                        : { username: cleanUsername },
+                    isPostgres 
+                        ? { name: { equals: cleanUsername, mode: 'insensitive' } } 
+                        : { name: cleanUsername },
+                    { phone: cleanUsername }
+                ],
+                deletedAt: null
+            },
             include: { role: true, branch: { select: { type: true } } }
         })
     ) as Promise<any>;
