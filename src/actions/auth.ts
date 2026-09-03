@@ -8,7 +8,7 @@ import { ensureMainBranch } from "@/lib/ensure-main-branch";
 import bcrypt from "bcryptjs";
 
 // ── V-06: In-memory login rate limiting ──────────────────────────────────────
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clearRateLimit } from "@/lib/rate-limit";
 
 export async function login(formData: FormData) {
     const username = (formData.get("username") as string) || "unknown";
@@ -24,7 +24,10 @@ export async function login(formData: FormData) {
 
     if (!limit.success) {
         const mins = Math.ceil((limit.reset - Date.now()) / 60000);
-        return { success: false, message: `Account locked. Try again in ${mins} minute(s).` };
+        return { 
+            success: false, 
+            message: `تم قفل الحساب مؤقتاً لكثرة المحاولات الخاطئة. يرجى المحاولة بعد ${mins} دقيقة.` 
+        };
     }
 
     // ── V-08: Parallelize User Lookup & Branch Sync ───────────────────────────
@@ -95,17 +98,18 @@ export async function login(formData: FormData) {
                 permissions: ['*'],
                 rememberMe
             }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
+            await clearRateLimit(username, 'login');
             return { success: true, isGlobalAdmin: true };
         }
     }
 
     if (!user) {
-        return { success: false, message: t('error') };
+        return { success: false, message: "اسم المستخدم غير مسجل أو غير صحيح" };
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-        return { success: false, message: t('error') };
+        return { success: false, message: "كلمة المرور غير صحيحة" };
     }
 
     // Parse Permissions
@@ -136,6 +140,9 @@ export async function login(formData: FormData) {
         permissions: permissions,
         rememberMe
     }, rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
+
+    // Clear rate limit on successful authentication
+    await clearRateLimit(username, 'login');
 
     return { success: true, isGlobalAdmin: user.isGlobalAdmin };
 }

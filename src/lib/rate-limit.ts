@@ -83,3 +83,19 @@ export async function rateLimit(identifier: string, options: RateLimitOptions) {
         };
     }
 }
+
+/**
+ * Resets or clears the rate limit entry for an identifier.
+ * Used after successful authentication to clear failure streaks.
+ */
+export async function clearRateLimit(identifier: string, keyPrefix: string = 'login'): Promise<void> {
+    const key = `${keyPrefix}:${identifier}`;
+    try {
+        await prisma.rateLimit.deleteMany({
+            where: { key }
+        });
+    } catch (error) {
+        console.warn("[RateLimit Clear] Error clearing key:", error);
+    }
+}
+

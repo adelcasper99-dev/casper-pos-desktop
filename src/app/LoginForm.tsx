@@ -263,12 +263,13 @@ export default function LoginForm() {
 
                         {/* Username */}
                         <div className="space-y-1.5 overflow-visible">
-                            <label className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block px-1">
+                            <label htmlFor="login-username" className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block px-1">
                                 {t('username')}
                             </label>
                             
                              <div className="relative" ref={dropdownRef}>
                                 <input
+                                    id="login-username"
                                     ref={usernameRef}
                                     name="username"
                                     value={username}
@@ -277,7 +278,7 @@ export default function LoginForm() {
                                     onKeyDown={handleUsernameKeyDown}
                                     className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
                                     required
-                                    autoComplete="off"
+                                    autoComplete="username"
                                     placeholder={t('username') + "..."}
                                 />
                                 
@@ -318,17 +319,18 @@ export default function LoginForm() {
                         {/* Password */}
                         <div className="space-y-1.5">
                             <div className="flex justify-between items-end px-1">
-                                <label className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block">
+                                <label htmlFor="login-password" className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-black tracking-[0.25em] block">
                                     {t('password')}
                                 </label>
                             </div>
                             <input
+                                id="login-password"
                                 ref={passwordRef}
                                 type="password"
                                 name="password"
                                 className="w-full bg-slate-50 dark:bg-zinc-900/60 border-2 border-slate-100 dark:border-white/5 h-14 text-base font-black px-5 focus:bg-white dark:focus:bg-zinc-900 focus:border-[var(--primary)] dark:focus:border-[var(--primary)] outline-none transition-all rounded-xl text-slate-900 dark:text-white"
                                 required
-                                autoComplete="off"
+                                autoComplete="current-password"
                                 placeholder={t('password') + "..."}
                             />
                         </div>
