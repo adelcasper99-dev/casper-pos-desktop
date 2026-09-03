@@ -5,8 +5,14 @@ import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
-export function ModeToggle() {
+interface ModeToggleProps {
+    compact?: boolean;
+    className?: string;
+}
+
+export function ModeToggle({ compact = false, className }: ModeToggleProps) {
     const { theme, setTheme } = useTheme()
 
     const toggleTheme = () => {
@@ -14,16 +20,20 @@ export function ModeToggle() {
     }
 
     return (
-        <Button
-            variant="ghost"
-            size="sm"
+        <button
+            type="button"
             onClick={toggleTheme}
-            className="flex-1 h-9 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+            title={theme === "dark" ? "Light Mode" : "Dark Mode"}
+            className={cn(
+                "flex items-center justify-center rounded-md transition-all text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 shrink-0",
+                compact ? "h-7 w-7 p-0" : "h-8 w-8 p-0",
+                className
+            )}
         >
-            <div className="relative w-4 h-4">
-                <Sun className="absolute h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <div className="relative w-3.5 h-3.5">
+                <Sun className="absolute h-3.5 w-3.5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </div>
-        </Button>
+        </button>
     )
 }

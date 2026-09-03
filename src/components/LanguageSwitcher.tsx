@@ -4,8 +4,14 @@ import { useTranslations, useLocale } from '@/lib/i18n-mock';
 import { Button } from '@/components/ui/button';
 import { Globe } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
-export default function LanguageSwitcher() {
+interface LanguageSwitcherProps {
+    compact?: boolean;
+    className?: string;
+}
+
+export default function LanguageSwitcher({ compact = false, className }: LanguageSwitcherProps) {
     const router = useRouter();
     const pathname = usePathname();
 
@@ -13,22 +19,25 @@ export default function LanguageSwitcher() {
 
     const toggleLanguage = () => {
         const nextLocale = locale === 'ar' ? 'en' : 'ar';
-        // Mock: just refresh or do nothing if no backend support for locale switching yet
         console.log(`Switching to ${nextLocale}`);
         router.refresh();
     };
 
     return (
-        <Button
-            variant="ghost"
-            size="sm"
+        <button
+            type="button"
             onClick={toggleLanguage}
-            className="flex-1 justify-center gap-2 text-muted-foreground hover:text-foreground h-9 bg-muted/50 hover:bg-muted"
+            title={locale === 'ar' ? 'English' : 'العربية'}
+            className={cn(
+                "flex items-center justify-center gap-1 rounded-md transition-all text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 shrink-0",
+                compact ? "h-7 px-1.5 text-[10px] font-black" : "h-8 px-2.5 text-xs font-bold",
+                className
+            )}
         >
-            <Globe className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase">
+            <Globe className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} />
+            <span className="uppercase tracking-wider font-mono">
                 {locale === 'ar' ? 'EN' : 'AR'}
             </span>
-        </Button>
+        </button>
     );
 }

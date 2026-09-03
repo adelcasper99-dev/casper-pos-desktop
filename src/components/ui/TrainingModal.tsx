@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import GlassModal from "./GlassModal";
 import { Button } from "./button";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
@@ -84,6 +84,12 @@ export default function TrainingModal() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener("open-training-modal", handleOpen);
+    return () => window.removeEventListener("open-training-modal", handleOpen);
+  }, []);
+
   const totalSteps = TRAINING_STEPS_AR.length;
 
   const goToStep = (step: number) => {
@@ -113,14 +119,6 @@ export default function TrainingModal() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50"
-        aria-label="فتح التدريب"
-      >
-        <Info className="w-5 h-5" />
-      </button>
-
       <GlassModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

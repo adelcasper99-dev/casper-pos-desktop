@@ -18,6 +18,9 @@ import SyncManagement from "@/components/settings/SyncManagement";
 import SuperAdminSecurity from "@/components/settings/SuperAdminSecurity";
 import CloudSettings from "@/components/settings/CloudSettings";
 import NetworkInfoCard from "@/components/settings/NetworkInfoCard";
+import LicenseManagement from "@/components/settings/LicenseManagement";
+import TrainingGuideTab from "@/components/settings/TrainingGuideTab";
+import { ShieldCheck, GraduationCap } from "lucide-react";
 import { getStoreSettings } from "@/actions/settings";
 import { getUsersForPage } from "@/actions/users";
 import { getRoles } from "@/actions/roles";
@@ -218,8 +221,20 @@ export default async function SettingsPage() {
                             >
                                 <Wifi className="w-4 h-4 opacity-70" /> شبكة الفرع
                             </TabsTrigger>
+                            <TabsTrigger 
+                                value="licenses" 
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            >
+                                <ShieldCheck className="w-4 h-4 opacity-70 text-cyan-500" /> التراخيص
+                            </TabsTrigger>
                         </>
                     )}
+                    <TabsTrigger 
+                        value="training" 
+                        className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:border-amber-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                    >
+                        <GraduationCap className="w-4 h-4 opacity-70 text-amber-500" /> دليل التدريب
+                    </TabsTrigger>
                     {isSuperAdmin && (
                         <TabsTrigger 
                             value="security" 
@@ -370,8 +385,14 @@ export default async function SettingsPage() {
                                     <NetworkInfoCard />
                                 </div>
                             </TabsContent>
+                            <TabsContent value="licenses" className="outline-none focus-visible:ring-0">
+                                <LicenseManagement />
+                            </TabsContent>
                         </>
                     )}
+                    <TabsContent value="training" className="outline-none focus-visible:ring-0">
+                        <TrainingGuideTab />
+                    </TabsContent>
                     {isSuperAdmin && (
                         <TabsContent value="security" className="outline-none focus-visible:ring-0">
                             <SuperAdminSecurity />

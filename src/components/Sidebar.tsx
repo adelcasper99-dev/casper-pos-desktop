@@ -303,25 +303,24 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
             onMouseLeave={() => setIsExpanded(false)}
         >
             <div
-                className="p-4 flex items-center justify-between overflow-hidden border-b-2 border-dashed border-zinc-300 dark:border-b dark:border-solid dark:border-white/5 transition-all duration-300"
-                style={{ height: isExpanded ? '112px' : '80px' }}
+                className="px-3 py-2 flex items-center justify-between overflow-hidden border-b border-zinc-200/60 dark:border-white/5 transition-all duration-300 h-14"
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 mx-auto">
                     <CasperLogo
-                        width={isExpanded ? 80 : 40}
-                        height={isExpanded ? 80 : 40}
+                        width={isExpanded ? 30 : 26}
+                        height={isExpanded ? 30 : 26}
                         className="shrink-0 transition-all duration-300"
                     />
                     <span className={cn(
-                        "font-bold text-lg tracking-tight whitespace-nowrap transition-all duration-300",
-                        isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none"
+                        "font-black text-xs tracking-[0.25em] whitespace-nowrap text-foreground transition-all duration-300 uppercase",
+                        isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-3 w-0 hidden pointer-events-none"
                     )}>
                         CASPER
                     </span>
                 </div>
             </div>
 
-            <nav className="flex-1 px-3 py-6 space-y-3 overflow-y-auto no-scrollbar">
+            <nav className="flex-1 px-2 py-2 space-y-1 overflow-y-auto no-scrollbar">
                 {mounted ? (
                     <DndContext
                         sensors={sensors}
@@ -369,20 +368,22 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                             <Link
                                 key={item.key}
                                 href={item.href.startsWith('/maintenance') || item.href.startsWith('/returns') ? `/${locale}${item.href}` : item.href}
+                                title={!isExpanded ? t(item.key) : undefined}
                                 className={cn(
-                                    "relative flex items-center gap-4 p-3 rounded-lg transition-all duration-200 group overflow-hidden",
+                                    "relative flex items-center rounded-xl transition-all duration-200 group overflow-hidden",
+                                    isExpanded ? "w-full gap-3 px-3 py-2 h-10" : "w-10 h-10 justify-center p-0 mx-auto",
                                     isActive
-                                        ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
+                                        ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.35)]"
+                                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
                                 )}
                             >
                                 {isActive && (
-                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
+                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-pink-400 dark:hidden" />
                                 )}
-                                <item.icon strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10")} />
+                                <item.icon strokeWidth={1.5} className={cn("w-5 h-5 shrink-0 relative z-10 transition-transform duration-200 group-hover:scale-105")} />
                                 <span className={cn(
-                                    "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
-                                    isExpanded ? "opacity-100" : "opacity-0 w-0"
+                                    "text-xs font-bold transition-all duration-200 whitespace-nowrap relative z-10 tracking-tight",
+                                    isExpanded ? "opacity-100" : "opacity-0 w-0 hidden"
                                 )}>
                                     {t(item.key)}
                                 </span>
@@ -392,22 +393,24 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                 )}
             </nav>
 
-            <div className="p-3 border-t-2 border-dashed border-zinc-300 dark:border-t dark:border-solid dark:border-white/5 space-y-2">
-                <div className={cn("flex gap-2 transition-all duration-300", isExpanded ? "flex-row" : "flex-col items-center")}>
-                    <LanguageSwitcher />
-                    <ModeToggle />
+            <div className="p-2 border-t border-zinc-200/60 dark:border-white/5 space-y-1.5 shrink-0">
+                {/* Ultra-compact Language & Theme & Money Counter Row */}
+                <div className={cn(
+                    "flex items-center justify-center rounded-xl bg-slate-100/70 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 p-1 transition-all duration-200",
+                    isExpanded ? "gap-1.5 px-2" : "gap-1"
+                )}>
+                    <LanguageSwitcher compact={true} />
+                    <div className="w-[1px] h-3.5 bg-slate-300/60 dark:bg-white/10 shrink-0" />
+                    <ModeToggle compact={true} />
                     
                     {/* Money Counter Popover */}
                     <Popover>
                         <PopoverTrigger asChild>
                             <button
-                                className={cn(
-                                    "flex items-center justify-center rounded-md transition-all duration-300 h-9 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
-                                    isExpanded ? "flex-1" : "w-10"
-                                )}
+                                className="flex items-center justify-center rounded-md transition-all h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
                                 title="Money Counter"
                             >
-                                <Calculator className="w-4 h-4" />
+                                <Calculator className="w-3.5 h-3.5" />
                             </button>
                         </PopoverTrigger>
                         <PopoverContent 
@@ -424,110 +427,65 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                             </div>
                         </PopoverContent>
                     </Popover>
-                    
-                    {/* Offline Sync Badge */}
-                    {(total > 0 || !isOnline) && (
-                        <button
-                            onClick={() => manualSync()}
-                            className={cn(
-                                "relative flex items-center justify-center rounded-xl transition-all duration-300 group overflow-hidden border-2",
-                                !isOnline 
-                                    ? "bg-red-500/10 border-red-500/50 text-red-500" 
-                                    : "bg-orange-500/10 border-orange-500/50 text-orange-500",
-                                isExpanded ? "flex-1 px-3 py-2 gap-2" : "w-10 h-10 p-0"
-                            )}
-                            title={isOnline ? `${total} pending syncs` : "Offline"}
-                        >
-                            {isOnline ? (
-                                <RefreshCw className={cn("w-5 h-5", total > 0 && "animate-spin-slow")} />
-                            ) : (
-                                <Unplug className="w-5 h-5" />
-                            )}
-                            
-                            {isExpanded && (
-                                <div className="flex flex-col items-start leading-none gap-1">
-                                    <span className="text-[10px] font-black uppercase tracking-tighter">
-                                        {!isOnline ? "Offline" : "Syncing"}
-                                    </span>
-                                    {total > 0 && (
-                                        <span className="text-[12px] font-black">{total} pending</span>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Notification Dot */}
-                            {total > 0 && !isExpanded && (
-                                <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900 animate-pulse" />
-                            )}
-                        </button>
-                    )}
                 </div>
+
+                {/* Offline Sync Badge */}
+                {(total > 0 || !isOnline) && (
+                    <button
+                        onClick={() => manualSync()}
+                        className={cn(
+                            "relative flex items-center justify-center rounded-xl transition-all duration-200 group overflow-hidden border",
+                            !isOnline 
+                                ? "bg-red-500/10 border-red-500/30 text-red-500" 
+                                : "bg-orange-500/10 border-orange-500/30 text-orange-500",
+                            isExpanded ? "w-full px-2.5 py-1.5 gap-2 h-9" : "w-10 h-8 p-0 mx-auto"
+                        )}
+                        title={isOnline ? `${total} pending syncs` : "Offline"}
+                    >
+                        {isOnline ? (
+                            <RefreshCw className={cn("w-4 h-4", total > 0 && "animate-spin-slow")} />
+                        ) : (
+                            <Unplug className="w-4 h-4" />
+                        )}
+                        
+                        {isExpanded && (
+                            <div className="flex items-center gap-1.5 text-xs font-black">
+                                <span>{!isOnline ? "Offline" : "Syncing"}</span>
+                                {total > 0 && <span className="text-[10px] opacity-75">({total})</span>}
+                            </div>
+                        )}
+
+                        {total > 0 && !isExpanded && (
+                            <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        )}
+                    </button>
+                )}
 
                 {/* Hardware Bridge Connection Badge */}
                 {mounted && !window.electronAPI?.isElectron && (
                     <BridgeStatusBadge isExpanded={isExpanded} locale={locale} router={router} />
                 )}
 
-                {/* Training Button */}
-                <button
-                    onClick={() => {
-                        // Trigger the fixed button in TrainingModal component
-                        // The TrainingModal already has a fixed button that opens the modal
-                    }}
-                    className={cn(
-                        "relative flex items-center gap-4 p-3 rounded-lg w-full transition-all duration-200 group overflow-hidden",
-                        "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
-                    )}
-                >
-                    <Info strokeWidth={1.25} className={cn("w-5 h-5 shrink-0 relative z-10")} />
-                    <span className={cn(
-                        "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
-                        isExpanded ? "opacity-100" : "opacity-0 w-0"
-                    )}>
-                        التدريب
-                    </span>
-                </button>
-
-                {isAdmin && (
-                    <Link
-                        href={`/admin/licenses`}
-                        className={cn(
-                            "relative flex items-center gap-4 p-3 rounded-lg w-full transition-all duration-200 group overflow-hidden",
-                            isAdminLicensesActive
-                                ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
-                        )}
-                    >
-                        {isAdminLicensesActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
-                        )}
-                        <ShieldCheck strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10 text-cyan-500")} />
-                        <span className={cn(
-                            "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
-                            isExpanded ? "opacity-100" : "opacity-0 w-0"
-                        )}>
-                            Client Licenses
-                        </span>
-                    </Link>
-                )}
-
+                {/* Settings Link */}
                 {(isAdmin || hasPermission(user?.permissions, PERMISSION_REGISTRY.ADMIN.MANAGE_SETTINGS) || hasPermission(user?.permissions, PERMISSION_REGISTRY.ADMIN.MANAGE_USERS)) && (
                     <Link
                         href={`/settings`}
+                        title={!isExpanded ? t('settings') : undefined}
                         className={cn(
-                            "relative flex items-center gap-4 p-3 rounded-lg w-full transition-all duration-200 group overflow-hidden",
+                            "relative flex items-center rounded-xl transition-all duration-200 group overflow-hidden",
+                            isExpanded ? "w-full gap-3 px-3 py-2 h-10" : "w-10 h-10 justify-center p-0 mx-auto",
                             isSettingsActive
-                                ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
+                                ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.35)]"
+                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
                         )}
                     >
                         {isSettingsActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-pink-400 dark:hidden" />
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-pink-400 dark:hidden" />
                         )}
-                        <Settings strokeWidth={1.25} className={cn("w-6 h-6 shrink-0 relative z-10")} />
+                        <Settings strokeWidth={1.5} className={cn("w-5 h-5 shrink-0 relative z-10 transition-transform duration-200 group-hover:rotate-45")} />
                         <span className={cn(
-                            "text-sm font-semibold transition-opacity duration-200 whitespace-nowrap relative z-10 tracking-wide",
-                            isExpanded ? "opacity-100" : "opacity-0 w-0"
+                            "text-xs font-bold transition-all duration-200 whitespace-nowrap relative z-10 tracking-tight",
+                            isExpanded ? "opacity-100" : "opacity-0 w-0 hidden"
                         )}>
                             {t('settings')}
                         </span>
