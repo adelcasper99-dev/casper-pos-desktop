@@ -14,7 +14,16 @@ const nextConfig = {
         serverComponentsExternalPackages: ["@prisma/client", "prisma", "bcryptjs"],
         instrumentationHook: true,
         serverActions: {
-            allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
+            allowedOrigins: [
+                "localhost:3000",
+                "127.0.0.1:3000",
+                "casper-erp.com",
+                "*.casper-erp.com",
+                "casper-hq.casper-erp.com",
+                "hq.casper-erp.com",
+                "109.123.247.119",
+                "109.123.247.119:3000"
+            ],
             bodySizeLimit: '10mb',
         }
     },
