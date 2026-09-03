@@ -26,7 +26,7 @@ export function ModeToggle({ compact = false, className }: ModeToggleProps) {
             title={theme === "dark" ? "Light Mode" : "Dark Mode"}
             className={cn(
                 "flex items-center justify-center rounded-md transition-all text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 shrink-0",
-                compact ? "h-7 w-7 p-0" : "h-8 w-8 p-0",
+                compact ? "h-6 w-6 p-0" : "h-8 w-8 p-0",
                 className
             )}
         >

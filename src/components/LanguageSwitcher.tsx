@@ -30,12 +30,12 @@ export default function LanguageSwitcher({ compact = false, className }: Languag
             title={locale === 'ar' ? 'English' : 'العربية'}
             className={cn(
                 "flex items-center justify-center gap-1 rounded-md transition-all text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 shrink-0",
-                compact ? "h-7 px-1.5 text-[10px] font-black" : "h-8 px-2.5 text-xs font-bold",
+                compact ? "h-6 px-1 text-[10px] font-black" : "h-8 px-2.5 text-xs font-bold",
                 className
             )}
         >
-            <Globe className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="uppercase tracking-wider font-mono">
+            {!compact && <Globe className="w-3.5 h-3.5" />}
+            <span className={cn("uppercase tracking-wider font-mono font-bold", compact ? "text-[11px]" : "text-xs")}>
                 {locale === 'ar' ? 'EN' : 'AR'}
             </span>
         </button>

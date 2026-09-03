@@ -55,7 +55,7 @@ export function SortableSidebarItem({
                 title={!isExpanded ? label : undefined}
                 className={cn(
                     "relative flex items-center rounded-xl transition-all duration-200 group overflow-hidden",
-                    isExpanded ? "w-full gap-3 px-3 py-2 h-10" : "w-10 h-10 justify-center p-0",
+                    isExpanded ? "w-full gap-3 px-3 py-1.5 h-9" : "w-9 h-9 justify-center p-0",
                     isActive
                         ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.35)]"
                         : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"

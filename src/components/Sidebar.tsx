@@ -371,7 +371,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                                 title={!isExpanded ? t(item.key) : undefined}
                                 className={cn(
                                     "relative flex items-center rounded-xl transition-all duration-200 group overflow-hidden",
-                                    isExpanded ? "w-full gap-3 px-3 py-2 h-10" : "w-10 h-10 justify-center p-0 mx-auto",
+                                    isExpanded ? "w-full gap-3 px-3 py-1.5 h-9" : "w-9 h-9 justify-center p-0 mx-auto",
                                     isActive
                                         ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.35)]"
                                         : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
@@ -394,40 +394,50 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
             </nav>
 
             <div className="p-2 border-t border-zinc-200/60 dark:border-white/5 space-y-1.5 shrink-0">
-                {/* Ultra-compact Language & Theme & Money Counter Row */}
+                {/* Ultra-compact Language & Theme Row */}
                 <div className={cn(
-                    "flex items-center justify-center rounded-xl bg-slate-100/70 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 p-1 transition-all duration-200",
-                    isExpanded ? "gap-1.5 px-2" : "gap-1"
+                    "flex items-center justify-center rounded-xl bg-slate-100/70 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 transition-all duration-200 mx-auto",
+                    isExpanded ? "w-full gap-2 px-2 py-1 h-8" : "w-[56px] gap-1 p-0.5 h-7"
                 )}>
-                    <LanguageSwitcher compact={true} />
-                    <div className="w-[1px] h-3.5 bg-slate-300/60 dark:bg-white/10 shrink-0" />
                     <ModeToggle compact={true} />
-                    
-                    {/* Money Counter Popover */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <button
-                                className="flex items-center justify-center rounded-md transition-all h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
-                                title="Money Counter"
-                            >
-                                <Calculator className="w-3.5 h-3.5" />
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent 
-                            side={isExpanded ? "top" : "right"} 
-                            align="center" 
-                            className="w-80 p-0 border-none bg-transparent shadow-none"
-                        >
-                            <div className="glass-card bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-1 shadow-2xl rounded-2xl overflow-hidden">
-                                <MoneyCounter 
-                                    showToggle={false} 
-                                    defaultExpanded={true} 
-                                    currency="EGP" 
-                                />
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                    <div className="w-[1px] h-3 bg-slate-300/60 dark:bg-white/10 shrink-0" />
+                    <LanguageSwitcher compact={true} />
                 </div>
+
+                {/* Money Counter Popover */}
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <button
+                            title="عداد النقدية"
+                            className={cn(
+                                "relative flex items-center rounded-xl transition-all duration-200 group overflow-hidden",
+                                isExpanded ? "w-full gap-3 px-3 py-1.5 h-9" : "w-9 h-9 justify-center p-0 mx-auto",
+                                "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+                            )}
+                        >
+                            <Calculator strokeWidth={1.5} className="w-5 h-5 shrink-0 relative z-10" />
+                            <span className={cn(
+                                "text-xs font-bold transition-all duration-200 whitespace-nowrap relative z-10 tracking-tight",
+                                isExpanded ? "opacity-100" : "opacity-0 w-0 hidden"
+                            )}>
+                                عداد النقدية
+                            </span>
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                        side={isExpanded ? "top" : "right"} 
+                        align="center" 
+                        className="w-80 p-0 border-none bg-transparent shadow-none"
+                    >
+                        <div className="glass-card bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-1 shadow-2xl rounded-2xl overflow-hidden">
+                            <MoneyCounter 
+                                showToggle={false} 
+                                defaultExpanded={true} 
+                                currency="EGP" 
+                            />
+                        </div>
+                    </PopoverContent>
+                </Popover>
 
                 {/* Offline Sync Badge */}
                 {(total > 0 || !isOnline) && (
@@ -473,7 +483,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                         title={!isExpanded ? t('settings') : undefined}
                         className={cn(
                             "relative flex items-center rounded-xl transition-all duration-200 group overflow-hidden",
-                            isExpanded ? "w-full gap-3 px-3 py-2 h-10" : "w-10 h-10 justify-center p-0 mx-auto",
+                            isExpanded ? "w-full gap-3 px-3 py-1.5 h-9" : "w-9 h-9 justify-center p-0 mx-auto",
                             isSettingsActive
                                 ? "bg-slate-900 text-white shadow-sm dark:bg-cyan-500 dark:text-black dark:shadow-[0_0_15px_rgba(6,182,212,0.35)]"
                                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
