@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { searchCustomers } from '@/actions/customer-actions';
 import { Search, User, Phone, Loader2, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Customer {
     id: string;
@@ -16,10 +17,12 @@ interface Customer {
 
 interface CustomerAutocompleteProps {
     onSelect: (customer: Customer) => void;
+    onNewCustomer?: (phoneOrName: string) => void;
     placeholder?: string;
+    className?: string;
 }
 
-export function CustomerAutocomplete({ onSelect, placeholder = "Search existing customers..." }: CustomerAutocompleteProps) {
+export function CustomerAutocomplete({ onSelect, onNewCustomer, placeholder = "Search existing customers...", className }: CustomerAutocompleteProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<Customer[]>([]);
     const [open, setOpen] = useState(false);
@@ -48,101 +51,136 @@ export function CustomerAutocomplete({ onSelect, placeholder = "Search existing 
                         linkedEmployeeId: c.linkedEmployeeId
                     }));
                 setResults(validCustomers);
-                setOpen(validCustomers.length > 0);
+                setOpen(true);
             }
             setLoading(false);
         };
 
-        const debounce = setTimeout(search, 300);
+        const debounce = setTimeout(search, 250);
         return () => clearTimeout(debounce);
     }, [query]);
 
+    const handleQuickNew = (val: string) => {
+        if (onNewCustomer) {
+            onNewCustomer(val);
+        }
+        setQuery('');
+        setOpen(false);
+    };
+
     return (
-        <div className="relative group/autocomplete">
+        <div className="relative group/autocomplete w-full">
             <div className="relative">
-                <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-black dark:text-white group-focus-within/autocomplete:text-slate-600 dark:group-focus-within/autocomplete:text-zinc-300 transition-all pointer-events-none z-10" />
+                <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within/autocomplete:text-cyan-500 transition-colors pointer-events-none z-10" />
                 <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => {
-                        if (results.length > 0) setOpen(true);
+                        if (query.length >= 2) setOpen(true);
                     }}
-                    onBlur={() => setTimeout(() => setOpen(false), 200)}
+                    onBlur={() => setTimeout(() => setOpen(false), 250)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && query.trim()) {
+                            e.preventDefault();
+                            if (results.length > 0) {
+                                onSelect(results[0]);
+                                setQuery('');
+                                setOpen(false);
+                            } else if (onNewCustomer) {
+                                handleQuickNew(query.trim());
+                            }
+                        }
+                    }}
                     placeholder={placeholder}
-                    className="ps-12 h-14 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white text-base placeholder:text-slate-400 focus:border-black dark:focus:border-white transition-all font-black rounded-xl shadow-inner"
+                    className={cn(
+                        "ps-9 pe-9 h-10 bg-white/70 dark:bg-zinc-950/60 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:border-cyan-500/50 dark:focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all font-medium rounded-xl shadow-sm",
+                        className
+                    )}
                 />
                 {loading ? (
-                    <div className="absolute end-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <Loader2 className="h-5 w-5 text-cyan-500 animate-spin" />
+                    <div className="absolute end-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <Loader2 className="h-4 w-4 text-cyan-500 animate-spin" />
                     </div>
-                ) : query && (
+                ) : query ? (
                     <button
+                        type="button"
                         onClick={() => { setQuery(''); setResults([]); setOpen(false); }}
-                        className="absolute end-4 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all active:scale-90"
+                        className="absolute end-3 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md hover:bg-slate-200/50 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all"
                     >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                     </button>
-                )}
+                ) : null}
             </div>
 
-            {open && results.length > 0 && (
-                <div className="absolute top-full mt-3 w-full z-[100] bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 shadow-2xl rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300">
-                    <div className="p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-                        <div className="px-4 py-3 border-b-2 border-slate-100 dark:border-white/5 mb-1">
-                            <p className="text-[11px] font-black text-black dark:text-white uppercase tracking-[0.3em]">
-                                تم العثور على {results.length} تطابق
-                            </p>
-                        </div>
-                        <div className="space-y-1.5">
-                            {results.map((customer) => (
-                                <button
-                                    key={customer.id}
-                                    type="button"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault(); // Prevents input from losing focus before selection
-                                        onSelect(customer);
-                                        setQuery('');
-                                        setOpen(false);
-                                    }}
-                                    className="w-full group/item cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 p-4 min-h-[64px] flex items-center gap-4 rounded-xl transition-all text-start border border-transparent hover:border-black/10 dark:hover:border-white/10"
-                                >
-                                    <div className="h-12 w-12 rounded-xl bg-black/10 dark:bg-white/10 flex items-center justify-center text-black dark:text-white group-hover/item:bg-black group-hover/item:text-white dark:group-hover/item:bg-white dark:group-hover/item:text-black transition-all shadow-lg group-hover/item:shadow-black/20">
-                                        <User className="h-6 w-6" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2 mb-0.5">
-                                            <p className="font-black text-base text-slate-900 dark:text-white group-hover/item:text-black dark:group-hover/item:text-white transition-colors truncate">
-                                                {customer.name}
-                                            </p>
-                                            {customer.balance !== undefined && customer.balance > 0 && (
-                                                <span className="text-[10px] bg-slate-900 dark:bg-white text-white dark:text-black px-2 py-1 rounded-md border border-slate-900 dark:border-white font-mono font-bold shadow-lg shadow-black/10">
-                                                    {-Number(customer.balance)}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-3 text-sm text-zinc-400">
-                                            <div className="flex items-center gap-2">
-                                                <Phone className="h-3.5 w-3.5 text-black dark:text-white opacity-60" />
-                                                <span className="font-mono tracking-wider">{customer.phone}</span>
-                                            </div>
-                                            {customer.email && (
-                                                <div className="hidden sm:flex items-center gap-2 truncate">
-                                                    <span className="text-zinc-700">•</span>
-                                                    <span className="truncate opacity-50">{customer.email}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {customer.linkedEmployeeId && (
-                                            <div className="mt-1">
-                                                <span className="text-[10px] bg-slate-900 dark:bg-zinc-800 text-white dark:text-zinc-200 border border-slate-900 dark:border-zinc-700 px-2 py-0.5 rounded-full font-bold">
-                                                    موظف داخلي
-                                                </span>
-                                            </div>
+            {open && (results.length > 0 || (onNewCustomer && query.length >= 2)) && (
+                <div className="absolute top-full mt-2 w-full z-[100] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-2xl rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-2 max-h-[340px] overflow-y-auto custom-scrollbar space-y-1">
+                        {results.length > 0 && (
+                            <div className="px-3 py-1.5 border-b border-slate-100 dark:border-white/5 mb-1 flex items-center justify-between">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    نتائج العملاء المسجلين ({results.length})
+                                </p>
+                                <span className="text-[10px] text-zinc-400 font-mono">اضغط Enter للاختيار</span>
+                            </div>
+                        )}
+
+                        {results.map((customer) => (
+                            <button
+                                key={customer.id}
+                                type="button"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    onSelect(customer);
+                                    setQuery('');
+                                    setOpen(false);
+                                }}
+                                className="w-full group/item cursor-pointer hover:bg-slate-100/80 dark:hover:bg-white/5 p-2.5 flex items-center gap-3 rounded-xl transition-all text-start border border-transparent hover:border-slate-200/60 dark:hover:border-white/5"
+                            >
+                                <div className="h-9 w-9 rounded-lg bg-cyan-500/10 dark:bg-cyan-500/15 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover/item:scale-105 transition-transform shrink-0">
+                                    <User className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="font-bold text-sm text-slate-900 dark:text-white group-hover/item:text-cyan-600 dark:group-hover/item:text-cyan-400 transition-colors truncate">
+                                            {customer.name}
+                                        </p>
+                                        {customer.balance !== undefined && customer.balance > 0 && (
+                                            <span className="text-[10px] bg-red-500/10 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 font-mono font-bold">
+                                                عليه: {Number(customer.balance)}
+                                            </span>
                                         )}
                                     </div>
-                                </button>
-                            ))}
-                        </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <Phone className="h-3 w-3 opacity-60" />
+                                        <span className="font-mono">{customer.phone}</span>
+                                        {customer.linkedEmployeeId && (
+                                            <span className="text-[9px] bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 px-1.5 py-0.2 rounded">
+                                                موظف
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+
+                        {onNewCustomer && query.trim().length >= 2 && (
+                            <button
+                                type="button"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleQuickNew(query.trim());
+                                }}
+                                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 transition-all font-bold text-xs group/new"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <User className="w-3.5 h-3.5 text-cyan-500" />
+                                    <span>تسجيل كعميل جديد: <span className="font-mono font-black underline">{query}</span></span>
+                                </div>
+                                <span className="text-[10px] bg-cyan-500/20 px-2 py-0.5 rounded-md font-semibold group-hover/new:scale-105 transition-transform">
+                                    تعبئة فورية ↵
+                                </span>
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

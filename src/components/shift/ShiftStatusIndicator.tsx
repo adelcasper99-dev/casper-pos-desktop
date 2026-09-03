@@ -323,67 +323,80 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
 
     return (
         <>
-            <header className="w-full h-16 border-b border-slate-100 dark:border-white/5 bg-white dark:bg-black/40 dark:backdrop-blur-3xl px-6 flex items-center justify-between sticky top-0 z-[60] shadow-sm dark:shadow-2xl transition-all duration-500">
-                {/* RIGHT SECTION: Identity & Status */}
-                <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-end">
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">{shift.cashierName}</span>
-                            <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse"></div>
-                        </div>
-                        <span className="text-[10px] font-bold text-pink-400 tracking-wider uppercase leading-none mt-0.5">{isMounted && `${hours}س ${mins}د`}</span>
+            <header className="w-full h-11 border-b border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between sticky top-0 z-[60] shadow-sm transition-all">
+                {/* RIGHT SECTION: Identity & Status (in RTL, this appears on the right) */}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <span className="text-[11px] font-black text-slate-700 dark:text-zinc-200 uppercase">{shift.cashierName}</span>
                     </div>
+                    <span className="text-[10px] font-bold font-mono bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-white/5">
+                        {isMounted && `${hours}س ${mins}د`}
+                    </span>
                 </div>
 
-                {/* CENTER SECTION: Horizontal Counters */}
-                <div className="flex items-center gap-8 divide-x divide-x-reverse divide-slate-100 dark:divide-white/5 h-full py-3">
-                    {/* Opening Cash */}
-                    <div className="flex flex-col items-center px-6">
-                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">افتتاحي</span>
-                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${new Decimal(shift.startCash || 0).toNumber().toFixed(2)}</span>
+                {/* CENTER SECTION: Distinct Shift Metric Cards */}
+                <div className="flex items-center gap-2 h-full py-1">
+                    {/* Opening Cash Card */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100/90 dark:bg-zinc-900 border border-slate-200/80 dark:border-white/10 rounded-lg shadow-sm">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-zinc-400">افتتاحي:</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-zinc-100 tabular-nums font-mono">
+                            {new Decimal(shift.startCash || 0).toNumber().toFixed(2)}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500">ج.م</span>
                     </div>
 
-                    {/* Cash Sales */}
-                    <div className="flex flex-col items-center px-6">
-                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">كاش</span>
-                        <span className="text-sm font-semibold dark:font-black text-emerald-600 tabular-nums">${new Decimal(shift.totalCashSales || 0).toNumber().toFixed(2)}</span>
+                    {/* Cash Sales Card */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 dark:bg-emerald-500/[0.08] border border-emerald-500/20 dark:border-emerald-500/25 rounded-lg shadow-sm">
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">كاش:</span>
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums font-mono">
+                            {new Decimal(shift.totalCashSales || 0).toNumber().toFixed(2)}
+                        </span>
+                        <span className="text-[9px] font-bold text-emerald-600/70 dark:text-emerald-400/70">ج.م</span>
                     </div>
 
-                    {/* Visa/Network */}
-                    <div className="flex flex-col items-center px-6">
-                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">فيزا/شبكة</span>
-                        <span className="text-sm font-semibold dark:font-black text-slate-600 dark:text-zinc-300 tabular-nums">${new Decimal(shift.totalCardSales || 0).toNumber().toFixed(2)}</span>
+                    {/* Visa/Network Card */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-cyan-500/10 dark:bg-cyan-500/[0.08] border border-cyan-500/20 dark:border-cyan-500/25 rounded-lg shadow-sm">
+                        <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400">فيزا/شبكة:</span>
+                        <span className="text-xs font-black text-cyan-600 dark:text-cyan-400 tabular-nums font-mono">
+                            {new Decimal(shift.totalCardSales || 0).toNumber().toFixed(2)}
+                        </span>
+                        <span className="text-[9px] font-bold text-cyan-600/70 dark:text-cyan-400/70">ج.م</span>
                     </div>
 
-                    {/* Credit/Ajel */}
-                    <div className="flex flex-col items-center px-6">
-                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">آجل</span>
-                        <span className="text-sm font-semibold dark:font-black text-amber-500 tabular-nums">${totalAccountSales.toFixed(2)}</span>
+                    {/* Credit/Ajel Card */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 dark:bg-amber-500/[0.08] border border-amber-500/20 dark:border-amber-500/25 rounded-lg shadow-sm">
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">آجل:</span>
+                        <span className="text-xs font-black text-amber-600 dark:text-amber-400 tabular-nums font-mono">
+                            {totalAccountSales.toFixed(2)}
+                        </span>
+                        <span className="text-[9px] font-bold text-amber-600/70 dark:text-amber-400/70">ج.م</span>
                     </div>
 
-                    {/* Returns */}
-                    <div className="flex flex-col items-center px-6">
-                        <span className="text-xs font-semibold dark:font-bold text-slate-500 dark:text-zinc-400 uppercase mb-1">مرتجع</span>
-                        <span className="text-sm font-semibold dark:font-black text-rose-500 tabular-nums">-${(totalCashRefunds + totalAccountRefunds).toFixed(2)}</span>
+                    {/* Returns Card */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 dark:bg-rose-500/[0.08] border border-rose-500/20 dark:border-rose-500/25 rounded-lg shadow-sm">
+                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">مرتجع:</span>
+                        <span className="text-xs font-black text-rose-600 dark:text-rose-400 tabular-nums font-mono">
+                            -{(totalCashRefunds + totalAccountRefunds).toFixed(2)}
+                        </span>
+                        <span className="text-[9px] font-bold text-rose-600/70 dark:text-rose-400/70">ج.م</span>
                     </div>
                 </div>
 
                 {/* LEFT SECTION: Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowCashInOutModal(true)}
-                        className="h-10 px-4 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-medium dark:font-bold transition-all"
+                        className="h-7.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-200 rounded-lg border border-slate-200/80 dark:border-white/10 text-[11px] font-bold transition-all"
                     >
                         سحب / إيداع
                     </button>
                     <button
                         onClick={() => setShowCloseModal(true)}
-                        className="h-10 px-6 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl border border-red-500/20 text-xs font-bold dark:font-black transition-all relative group overflow-hidden"
+                        className="h-7.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 rounded-lg border border-red-500/20 text-[11px] font-bold transition-all flex items-center gap-1.5"
                     >
-                        <div className="relative z-10 flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                            إغلاق الوردية
-                        </div>
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                        <span>إغلاق الوردية</span>
                     </button>
                 </div>
             </header>

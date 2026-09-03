@@ -79,3 +79,4 @@ graphify-out/
 # workspace files
 *.code-workspace
 .vscode/mcp.json
+/.antigravity/

@@ -184,23 +184,23 @@ export default function CustomerSearch() {
             <div className="flex gap-2">
                 {/* Search Input */}
                 <div className={clsx(
-                    "flex items-center gap-3 h-14 px-4 flex-1 border transition-all relative group/search rounded-2xl",
+                    "flex items-center gap-2.5 h-10 px-3 flex-1 border transition-all relative group/search rounded-xl",
                     isCustomerSelected
-                        ? "border-zinc-400 bg-zinc-100 dark:border-white/30 dark:bg-zinc-800 shadow-sm"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 focus-within:border-zinc-400 dark:focus-within:border-white/40"
+                        ? "border-cyan-500/50 bg-cyan-500/5 dark:bg-cyan-500/10 shadow-sm"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 focus-within:border-zinc-400 dark:focus-within:border-white/30"
                 )}>
                     <User className={clsx(
-                        "w-5 h-5 transition-colors pointer-events-none shrink-0",
-                        isCustomerSelected ? "text-cyan-400" : "text-cyan-500/50 group-focus-within/search:text-cyan-400"
+                        "w-4 h-4 transition-colors pointer-events-none shrink-0",
+                        isCustomerSelected ? "text-cyan-500" : "text-slate-400 dark:text-zinc-500 group-focus-within/search:text-cyan-500"
                     )} />
                     <div className="flex-1 overflow-hidden relative">
                         {isCustomerSelected && linkedEmployeeId && (
-                            <span className="absolute end-0 top-1/2 -translate-y-1/2 text-[10px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold shadow-lg shadow-cyan-900/20 whitespace-nowrap z-10">
+                            <span className="absolute end-0 top-1/2 -translate-y-1/2 text-[9px] bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded-md font-bold whitespace-nowrap z-10">
                                 موظف داخلي
                             </span>
                         )}
                         {isCustomerSelected && isSupplier && (
-                            <span className="absolute end-0 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold shadow-lg shadow-emerald-900/20 whitespace-nowrap z-10 transition-all">
+                            <span className="absolute end-0 top-1/2 -translate-y-1/2 text-[9px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-md font-bold whitespace-nowrap z-10 transition-all">
                                 مورد
                             </span>
                         )}
@@ -217,23 +217,23 @@ export default function CustomerSearch() {
                                 setShowAddForm(false);
                             }}
                             placeholder={t('searchCustomer') || "ابحث عن عميل (اسم / هاتف)..."}
-                            className="bg-transparent outline-none w-full placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-base text-zinc-900 dark:text-white font-bold pr-16"
+                            className="bg-transparent outline-none w-full placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-xs text-zinc-900 dark:text-white font-bold pr-14"
                         />
                     </div>
 
                     {loading ? (
-                        <div className="absolute end-12 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                        <div className="absolute end-10 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
                         </div>
                     ) : (customerName || query) && (
                         <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleClear();
-                        }}
-                            className="absolute end-3 h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 text-zinc-500 hover:text-red-400 transition-all active:scale-90"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleClear();
+                            }}
+                            className="absolute end-2 h-7 w-7 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-zinc-400 hover:text-red-500 transition-all active:scale-90"
                         >
-                            <X className="w-5 h-5" />
+                            <X className="w-3.5 h-3.5" />
                         </button>
                     )}
                 </div>
@@ -248,13 +248,13 @@ export default function CustomerSearch() {
                         }}
                         title={t('addNewCustomer') || "إضافة عميل جديد"}
                         className={clsx(
-                            "w-14 h-14 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shrink-0 shadow-sm",
+                            "w-10 h-10 rounded-xl flex items-center justify-center border transition-all active:scale-95 shrink-0 shadow-sm",
                             showAddForm
                                 ? "bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-black dark:border-white"
                                 : "bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/30 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                         )}
                     >
-                        <UserPlus className={clsx("w-5 h-5", showAddForm ? "animate-pulse" : "")} />
+                        <UserPlus className={clsx("w-4 h-4", showAddForm ? "animate-pulse" : "")} />
                     </button>
                 )}
             </div>

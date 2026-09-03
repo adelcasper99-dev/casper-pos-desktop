@@ -10,6 +10,9 @@ import { WhatsAppGatewayTab } from "@/components/hq/WhatsAppGatewayTab";
 
 import { computePipelineMetrics, TenantWithLicense } from "@/lib/hq-metrics";
 
+import { MobileLicenseModal } from "@/components/hq/MobileLicenseModal";
+import { Smartphone } from "lucide-react";
+
 interface HQDashboardClientProps {
   tenants: TenantWithLicense[];
   adminMap: Map<string, { username: string; roleStr: string }>;
@@ -18,6 +21,7 @@ interface HQDashboardClientProps {
 export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps) {
   const [activeTab, setActiveTab] = useState<"pipeline" | "tenants" | "support" | "whatsapp">("pipeline");
   const [tenantsTabFilter, setTenantsTabFilter] = useState<string>("all");
+  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
   // Calculate Pipeline Metrics via pure utility
   const metrics: PipelineMetrics = useMemo(() => {
@@ -58,11 +62,25 @@ export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps)
             لوحة تحكم كاسبر الرئيسية (Control Plane)
           </h2>
           <p className="text-slate-500 dark:text-zinc-400 text-sm mt-0.5">
-            إدارة المستأجرين (Tenants)، تتبع أنبوب المبيعات، وتوليد مفاتيح التجاوز للدعم الفني.
+            إدارة المستأجرين (Tenants)، تتبع أنبوب المبيعات، وتوليد مفاتيح التجاوز وتراخيص الموبايل.
           </p>
         </div>
-        <ProvisionTenantModal />
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => setIsMobileModalOpen(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-black px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+          >
+            <Smartphone className="w-4 h-4" />
+            📱 كود تفعيل الموبايل
+          </button>
+          <ProvisionTenantModal />
+        </div>
       </div>
+
+      <MobileLicenseModal
+        isOpen={isMobileModalOpen}
+        onClose={() => setIsMobileModalOpen(false)}
+      />
 
       {/* Navigation Tabs Bar */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-2 overflow-x-auto">

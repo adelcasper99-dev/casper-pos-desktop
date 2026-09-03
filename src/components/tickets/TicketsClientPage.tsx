@@ -46,53 +46,43 @@ export default function TicketsClientPage({ user }: { user?: any }) {
 
     return (
         <ErrorBoundary>
-            <div className="p-8 w-full space-y-8 animate-in fade-in duration-500 font-cairo" dir="rtl">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-zinc-200 dark:border-white/5">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-3xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
-                            <div className="p-2.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20">
-                                <Wrench className="w-6 h-6" />
-                            </div>
-                            {t('title')}
-                        </h1>
-                        <p className="text-zinc-500 dark:text-zinc-400 font-bold text-sm tracking-wide mt-1">{t('subtitle')}</p>
+            <div className="p-4 md:p-6 w-full max-w-[1600px] mx-auto space-y-4 animate-in fade-in duration-500 font-cairo" dir="rtl">
+                {/* Header Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm">
+                            <Wrench className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                {t('title')}
+                            </h1>
+                            <p className="text-slate-500 dark:text-zinc-400 font-medium text-xs mt-0.5">{t('subtitle')}</p>
+                        </div>
                     </div>
-
-
                 </div>
 
-                <div className="flex flex-col gap-6">
+                {/* Tabs & Action Bar */}
+                <div className="flex flex-col gap-4">
                     <Tabs 
                         value={currentTab} 
                         onValueChange={handleTabChange}
                         className="w-full flex flex-col items-start"
                     >
-                        <div className="relative flex w-full justify-center items-center py-2">
-                            <div className="absolute right-0">
-                                <Button 
-                                    asChild 
-                                    size="lg" 
-                                    className="h-12 px-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black border-0 rounded-xl shadow-lg shadow-zinc-900/10 transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-95 group uppercase tracking-widest text-xs"
-                                >
-                                    <Link href={`/${locale}/maintenance/tickets/new`} className="flex items-center gap-2">
-                                        <Plus className="h-5 w-5 transition-transform group-hover:rotate-90" />
-                                        {t('newTicket')}
-                                    </Link>
-                                </Button>
-                            </div>
-
-                            <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 w-full sm:w-fit shadow-inner overflow-x-auto custom-scrollbar relative mx-auto">
-                                <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex-nowrap w-max">
+                        <div className="flex flex-col md:flex-row w-full justify-between items-stretch md:items-center gap-3">
+                            {/* Navigation Tabs Pill Bar */}
+                            <div className="p-1 bg-slate-100 dark:bg-zinc-900/60 rounded-xl border border-slate-200/80 dark:border-white/10 w-full md:w-auto shadow-inner overflow-x-auto no-scrollbar">
+                                <TabsList className="bg-transparent border-none p-0 h-auto gap-1 flex-nowrap w-max">
                                     <TabsTrigger 
                                         value="tickets" 
-                                        className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                        className="h-8 px-3.5 rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:text-slate-950 dark:data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
                                     >
                                         {t('tabs.allTickets')}
                                     </TabsTrigger>
                                     {canViewEngineers && (
                                         <TabsTrigger 
                                             value="engineers" 
-                                            className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                            className="h-8 px-3.5 rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:text-slate-950 dark:data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
                                         >
                                             {t('tabs.engineers')}
                                         </TabsTrigger>
@@ -100,7 +90,7 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                                     {canViewEngineers && (
                                         <TabsTrigger 
                                             value="custody" 
-                                            className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                            className="h-8 px-3.5 rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:text-slate-950 dark:data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
                                         >
                                             {t('tabs.custody')}
                                         </TabsTrigger>
@@ -108,28 +98,40 @@ export default function TicketsClientPage({ user }: { user?: any }) {
                                     {canViewProfitReport && (
                                         <TabsTrigger 
                                             value="profit-report" 
-                                            className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                            className="h-8 px-3.5 rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:text-slate-950 dark:data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
                                         >
                                             {t('tabs.maintenanceProfit')}
                                         </TabsTrigger>
                                     )}
                                     <TabsTrigger 
                                         value="returns" 
-                                        className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                        className="h-8 px-3.5 rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:text-slate-950 dark:data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
                                     >
                                         {t('tabs.returns')}
                                     </TabsTrigger>
                                     <TabsTrigger 
                                         value="warranty" 
-                                        className="h-12 px-6 rounded-xl text-sm font-black transition-all tracking-wide uppercase data-[state=active]:bg-zinc-900 dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-zinc-900 data-[state=active]:shadow-xl text-zinc-500 dark:text-zinc-400 data-[state=inactive]:hover:bg-zinc-200 dark:data-[state=inactive]:hover:bg-white/5"
+                                        className="h-8 px-3.5 rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:text-slate-950 dark:data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
                                     >
                                         {t('tabs.warranty')}
                                     </TabsTrigger>
                                 </TabsList>
                             </div>
+
+                            {/* Create Ticket Action Button */}
+                            <Button 
+                                asChild 
+                                size="sm" 
+                                className="h-9 px-4 bg-slate-900 dark:bg-white text-white dark:text-zinc-900 font-bold border-0 rounded-xl shadow-sm transition-all hover:bg-slate-800 dark:hover:bg-zinc-100 active:scale-95 group text-xs shrink-0"
+                            >
+                                <Link href={`/${locale}/maintenance/tickets/new`} className="flex items-center gap-1.5">
+                                    <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
+                                    <span>{t('newTicket')}</span>
+                                </Link>
+                            </Button>
                         </div>
 
-                        <div className="w-full mt-8">
+                        <div className="w-full mt-4">
                             <TabsContent value="tickets" className="mt-0 outline-none">
                                 <TicketsList />
                             </TabsContent>

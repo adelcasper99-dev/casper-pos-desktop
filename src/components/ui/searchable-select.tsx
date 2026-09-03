@@ -16,6 +16,7 @@ interface SearchableSelectProps {
     onChange: (value: string) => void;
     placeholder?: string;
     className?: string;
+    inputClassName?: string;
     onAdd?: (newValue: string) => void;
     onSearch?: (query: string) => void;
     disabled?: boolean;
@@ -27,6 +28,7 @@ export function SearchableSelect({
     onChange,
     placeholder,
     className,
+    inputClassName,
     onAdd,
     onSearch,
     disabled = false
@@ -100,6 +102,7 @@ export function SearchableSelect({
                     type="text"
                     className={cn(
                         "w-full pr-10 bg-white dark:bg-black border-2 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner h-12 text-base font-black rounded-xl transition-all",
+                        inputClassName,
                         disabled && "opacity-50 cursor-not-allowed"
                     )}
                     placeholder={resolvedPlaceholder}

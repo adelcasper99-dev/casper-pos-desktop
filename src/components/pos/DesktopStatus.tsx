@@ -203,7 +203,7 @@ export const DesktopStatus: React.FC = () => {
     };
 
     return (
-        <div className="flex items-center gap-3 glass-card bg-black/40 px-3 py-1.5 border border-white/5 shadow-sm">
+        <div className="flex items-center gap-2 bg-slate-100/80 dark:bg-white/[0.04] px-2.5 py-0.5 rounded-lg border border-slate-200/80 dark:border-white/10 shadow-sm">
             {/* Network Status */}
             <div className="flex items-center gap-1.5 px-1 shrink-0">
                 {isOnline ? (

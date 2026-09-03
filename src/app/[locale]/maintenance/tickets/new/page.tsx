@@ -24,9 +24,26 @@ import { getEffectiveStoreSettings } from "@/actions/settings";
 
 import { getPresets, addPreset, deletePreset } from "@/actions/preset-actions";
 import { getDevicePresets, upsertDevice } from "@/actions/device-actions";
-import { Edit, Trash2, PlusCircle } from "lucide-react";
+import { Edit, Trash2, PlusCircle, Sparkles, Zap } from "lucide-react";
+import { searchCustomers } from "@/actions/customer-actions";
 import GlassModal from "@/components/ui/GlassModal";
 import { shouldAutoPrint } from "@/lib/print-guard";
+
+const POPULAR_BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Realme', 'Huawei', 'Infinix', 'Vivo'];
+const POPULAR_ISSUES = [
+    'تغيير شاشة',
+    'تغيير باغة',
+    'تغيير بطارية',
+    'سوكت شحن',
+    'فاصل باور',
+    'كاميرا خلفية',
+    'كاميرا أمامية',
+    'سماعة / صوت',
+    'مايك',
+    'صيانة ماذربورد',
+    'سوفت وير',
+    'فحص وصيانة شاملة'
+];
 
 export default function NewTicketPage() {
     const t = useTranslations('Tickets.details');
@@ -164,6 +181,37 @@ export default function NewTicketPage() {
 
     const [isExistingCustomer, setIsExistingCustomer] = useState(false);
     const [showPattern, setShowPattern] = useState(false);
+    const [phoneSearching, setPhoneSearching] = useState(false);
+    const [phoneDetectedCustomer, setPhoneDetectedCustomer] = useState<{ id: string; name: string; phone: string; email?: string } | null>(null);
+
+    const handlePhoneChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+        setFormData(prev => ({ ...prev, customerPhone: val }));
+        setIsExistingCustomer(false);
+        setPhoneDetectedCustomer(null);
+
+        if (val.length === 11) {
+            setPhoneSearching(true);
+            try {
+                const res = await searchCustomers(val);
+                if (res.success && res.customers && res.customers.length > 0) {
+                    const exact = res.customers.find(c => c.phone === val) || res.customers[0];
+                    if (exact && exact.name) {
+                        setPhoneDetectedCustomer({
+                            id: exact.id as string,
+                            name: exact.name,
+                            phone: exact.phone,
+                            email: exact.email || undefined
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Phone auto-detect error", err);
+            } finally {
+                setPhoneSearching(false);
+            }
+        }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
@@ -345,29 +393,38 @@ export default function NewTicketPage() {
     };
 
     return (
-        <div className="h-[calc(100vh-100px)] overflow-hidden animate-fly-in bg-slate-50 dark:bg-black p-4 md:p-6 rounded-2xl border border-slate-300 dark:border-white/5">
-            <form id="ticket-form" onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+        <div className="h-[calc(100vh-70px)] bg-slate-50/60 dark:bg-black p-2 md:p-3 rounded-2xl border border-slate-200/80 dark:border-white/5 flex flex-col overflow-hidden">
+            <form id="ticket-form" onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 flex-1 min-h-0">
 
-                {/* LEFT COLUMN: SCROLLABLE INPUTS */}
-                <div className="lg:col-span-2 overflow-y-auto pr-1 space-y-3 pb-10 scrollbar-hide">
+                {/* LEFT COLUMN: 2 COLS */}
+                <div className="lg:col-span-2 flex flex-col justify-between gap-2 h-full min-h-0 overflow-hidden">
 
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                            <Button variant="ghost" type="button" onClick={() => router.back()} className="h-11 px-5 text-slate-600 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 flex items-center gap-2 rounded-xl transition-all border border-slate-300 dark:border-white/10">
-                                <ArrowLeft className="h-5 w-5" /> <span className="text-sm font-black">عودة</span>
+                    {/* Header Bar */}
+                    <div className="flex items-center justify-between shrink-0 h-8 pb-1 border-b border-slate-200/60 dark:border-white/5">
+                        <div className="flex items-center gap-2.5">
+                            <Button 
+                                variant="ghost" 
+                                type="button" 
+                                onClick={() => router.back()} 
+                                className="h-7 px-2.5 text-slate-600 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 flex items-center gap-1.5 rounded-lg transition-all border border-slate-200 dark:border-white/10 text-xs font-bold"
+                            >
+                                <ArrowLeft className="h-3.5 w-3.5" /> 
+                                <span>عودة</span>
                             </Button>
-                            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white flex items-center justify-center shadow-xl shadow-black/20">
-                                <Wrench className="w-6 h-6 text-white dark:text-black" />
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-lg bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
+                                    <Wrench className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                                </div>
+                                <h1 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                                    تسجيل جهاز جديد
+                                </h1>
                             </div>
-                                تسجيل جهاز جديد
-                            </h1>
                         </div>
+
                         <Button 
-                            variant="destructive" 
+                            variant="ghost" 
                             type="button" 
-                            className="h-11 rounded-xl font-black gap-2 shadow-xl bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white border border-red-200 dark:border-red-900/50"
+                            className="h-7 px-2.5 rounded-lg text-xs font-bold gap-1 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white border border-red-200 dark:border-red-900/40 transition-colors"
                             onClick={() => {
                                 if (window.confirm("هل أنت متأكد من مسح جميع بيانات التذكرة؟")) {
                                     localStorage.removeItem(STORAGE_KEY);
@@ -375,129 +432,200 @@ export default function NewTicketPage() {
                                 }
                             }}
                         >
-                            <Trash2 className="w-4 h-4" /> مسح البيانات
+                            <Trash2 className="w-3 h-3" /> مسح النموذج
                         </Button>
                     </div>
 
-                    {/* Customer Info */}
-                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl">
-                        <CardHeader className="py-3 px-5 bg-slate-50 dark:bg-zinc-800 border-b-2 border-slate-200 dark:border-zinc-700">
-                            <CardTitle className="flex items-center justify-between text-slate-900 dark:text-white text-base font-black uppercase tracking-tighter">
-                                <div className="flex items-center gap-3">
-                                    <User className="h-5 w-5 text-black dark:text-white" />
-                                    بيانات العميل
+                    {/* Step 1: Customer Card */}
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 shrink-0">
+                        <div className="rounded-[0.9rem] bg-white/95 dark:bg-zinc-900/90 p-2.5 space-y-2 backdrop-blur-md">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-md bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 text-[11px] font-black flex items-center justify-center font-mono">
+                                        01
+                                    </span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <User className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
+                                        بيانات العميل
+                                    </span>
                                 </div>
-                                {isExistingCustomer && (
-                                    <div className="flex items-center gap-1 text-[11px] bg-black dark:bg-white text-white dark:text-black px-3 py-1 rounded-full border border-black dark:border-white font-black shadow-lg shadow-black/20">
-                                        <Check className="h-3 w-3" /> سجل موجود
+
+                                {isExistingCustomer ? (
+                                    <div className="flex items-center gap-1.5 text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 font-bold">
+                                        <Check className="h-3 w-3" />
+                                        <span>مسجل: {formData.customerName}</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setFormData(prev => ({ ...prev, customerName: '', customerPhone: '', customerEmail: '' }));
+                                                setIsExistingCustomer(false);
+                                                setPhoneDetectedCustomer(null);
+                                            }}
+                                            className="hover:text-red-500 font-mono ml-0.5"
+                                        >
+                                            ×
+                                        </button>
                                     </div>
+                                ) : (
+                                    <span className="text-[10px] text-muted-foreground bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">
+                                        تسجيل فوري أو بحث
+                                    </span>
                                 )}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-5 space-y-5">
-                            <div className="p-4 bg-slate-100 dark:bg-zinc-800 border-2 border-slate-200 dark:border-zinc-700 rounded-2xl space-y-2">
-                                <div className="flex items-center justify-between px-1">
-                                    <label className="text-[11px] font-black text-slate-700 dark:text-zinc-400 uppercase tracking-widest leading-none">بحث سريع برقم الهاتف أو الاسم</label>
-                                    <Search className="h-4 w-4 text-black dark:text-white" />
-                                </div>
-                                <CustomerAutocomplete
-                                    onSelect={(customer) => {
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            customerName: customer.name,
-                                            customerPhone: customer.phone,
-                                            customerEmail: customer.email || ''
-                                        }));
-                                        setIsExistingCustomer(true);
-                                        toast.success(`تم تحميل بيانات العميل: ${customer.name}`);
-                                    }}
-                                    placeholder="ابحث عن العميل..."
-                                />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-800 dark:text-zinc-100 ml-1">اسم العميل <span className="text-red-500">*</span></label>
+                            {/* Autocomplete Search */}
+                            <CustomerAutocomplete
+                                onSelect={(customer) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        customerName: customer.name,
+                                        customerPhone: customer.phone,
+                                        customerEmail: customer.email || ''
+                                    }));
+                                    setIsExistingCustomer(true);
+                                    setPhoneDetectedCustomer(null);
+                                    toast.success(`تم تحميل بيانات: ${customer.name}`);
+                                }}
+                                onNewCustomer={(val) => {
+                                    const isPhone = /^\d+$/.test(val);
+                                    if (isPhone) {
+                                        setFormData(prev => ({ ...prev, customerPhone: val.slice(0, 11) }));
+                                    } else {
+                                        setFormData(prev => ({ ...prev, customerName: val }));
+                                    }
+                                    setIsExistingCustomer(false);
+                                    toast.info(`تم تعبئة: ${val}`);
+                                }}
+                                placeholder="بحث برقم الهاتف أو الاسم... أو اضغط Enter للتسجيل الفوري"
+                                className="h-8.5 text-xs rounded-xl"
+                            />
+
+                            {phoneDetectedCustomer && !isExistingCustomer && (
+                                <div className="flex items-center justify-between p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs">
+                                    <div className="flex items-center gap-1.5">
+                                        <Zap className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                                        <span>عميل معروف بالرقم: <strong>{phoneDetectedCustomer.name}</strong></span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                customerName: phoneDetectedCustomer.name,
+                                                customerEmail: phoneDetectedCustomer.email || ''
+                                            }));
+                                            setIsExistingCustomer(true);
+                                            setPhoneDetectedCustomer(null);
+                                            toast.success(`تم تحميل بيانات: ${phoneDetectedCustomer.name}`);
+                                        }}
+                                        className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold hover:bg-emerald-700 text-[11px]"
+                                    >
+                                        تحميل ↵
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* 3 Inputs */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
+                                        الاسم <span className="text-red-500">*</span>
+                                    </label>
                                     <Input
-                                        className="h-12 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner text-base font-black rounded-xl"
+                                        className="h-8.5 bg-slate-50/70 dark:bg-black/40 border-slate-200 dark:border-white/10 text-xs font-bold rounded-lg"
                                         name="customerName"
                                         required
                                         value={formData.customerName}
                                         onChange={handleChange}
-                                        placeholder="الاسم"
+                                        placeholder="اسم العميل"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-800 dark:text-zinc-100 ml-1">رقم الهاتف <span className="text-red-500">*</span></label>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 flex items-center justify-between mb-0.5">
+                                        <span>الهاتف <span className="text-red-500">*</span></span>
+                                        {phoneSearching && <span className="text-[9px] text-cyan-500">فحص...</span>}
+                                    </label>
                                     <Input
-                                        className="h-12 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner text-base font-black rounded-xl tracking-widest"
+                                        className="h-8.5 bg-slate-50/70 dark:bg-black/40 border-slate-200 dark:border-white/10 text-xs font-bold font-mono tracking-wider rounded-lg"
                                         name="customerPhone"
                                         required
                                         value={formData.customerPhone}
-                                        onChange={(e) => {
-                                            const val = e.target.value.replace(/\D/g, '').slice(0, 11);
-                                            setFormData(prev => ({ ...prev, customerPhone: val }));
-                                            setIsExistingCustomer(false);
-                                        }}
+                                        onChange={handlePhoneChange}
                                         placeholder="01xxxxxxxxx"
                                         maxLength={11}
-                                        minLength={11}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between ml-1">
-                                        <label className="text-xs font-black text-slate-800 dark:text-zinc-100">كود الأمان / الباسورد</label>
+                                <div>
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">الباسورد / PIN</label>
                                         <button
                                             type="button"
                                             onClick={() => setShowPattern(!showPattern)}
-                                            className={cn(
-                                                "text-[10px] uppercase font-black tracking-widest transition-colors",
-                                                showPattern ? "text-black dark:text-white" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                            )}
+                                            className="text-[9px] text-cyan-600 dark:text-cyan-400 font-bold"
                                         >
-                                            {showPattern ? "إخفاء النمط" : "استخدام نمط"}
+                                            {showPattern ? "إخفاء النمط" : "نمط"}
                                         </button>
                                     </div>
                                     <Input
-                                        className="h-12 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner text-base font-black rounded-xl tracking-widest"
+                                        className="h-8.5 bg-slate-50/70 dark:bg-black/40 border-slate-200 dark:border-white/10 text-xs font-mono rounded-lg"
                                         name="securityCode"
                                         value={formData.securityCode}
                                         onChange={handleChange}
-                                        placeholder="PIN / باسوورد"
-                                        maxLength={20}
+                                        placeholder="PIN / باسورد"
                                     />
                                 </div>
                             </div>
 
                             {showPattern && (
-                                <div className="mt-3 p-3 bg-slate-900/5 dark:bg-white/5 border border-slate-900/10 dark:border-white/10 rounded-xl flex items-center justify-center animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <label className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{t('pattern')}</label>
-                                        <div className="bg-black/40 p-2 rounded-lg border border-slate-900/10 dark:border-white/10">
-                                            <PatternLockCanvas
-                                                value={formData.patternData}
-                                                onChange={(pattern) => setFormData(prev => ({ ...prev, patternData: pattern }))}
-                                                size={140}
-                                            />
-                                        </div>
-                                    </div>
+                                <div className="p-2 bg-slate-100/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10 rounded-xl flex items-center justify-center">
+                                    <PatternLockCanvas
+                                        value={formData.patternData}
+                                        onChange={(pattern) => setFormData(prev => ({ ...prev, patternData: pattern }))}
+                                        size={100}
+                                    />
                                 </div>
                             )}
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    {/* Device Info */}
-                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl">
-                        <CardHeader className="py-3 px-5 bg-slate-50 dark:bg-zinc-800 border-b-2 border-slate-200 dark:border-zinc-700">
-                            <CardTitle className="flex items-center gap-3 text-slate-900 dark:text-white text-base font-black uppercase tracking-tighter">
-                                <Smartphone className="h-5 w-5 text-black dark:text-white" />
-                                تفاصيل الجهاز
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-5 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-800 dark:text-zinc-100 ml-1">البراند <span className="text-red-500">*</span></label>
+                    {/* Step 2: Device Details Card */}
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 shrink-0">
+                        <div className="rounded-[0.9rem] bg-white/95 dark:bg-zinc-900/90 p-2.5 space-y-2 backdrop-blur-md">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-md bg-teal-500/15 text-teal-600 dark:text-teal-400 text-[11px] font-black flex items-center justify-center font-mono">
+                                        02
+                                    </span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <Smartphone className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                                        تفاصيل الجهاز
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-1 overflow-x-auto max-w-[65%] pb-0.5 scrollbar-none">
+                                    {POPULAR_BRANDS.map(brand => (
+                                        <button
+                                            key={brand}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, deviceBrand: brand, deviceModel: '' }))}
+                                            className={cn(
+                                                "h-6 px-2 rounded-md text-[10px] font-bold transition-all shrink-0 border",
+                                                formData.deviceBrand === brand
+                                                    ? "bg-slate-900 text-white dark:bg-white dark:text-black border-slate-900 dark:border-white"
+                                                    : "bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border-slate-200/60 dark:border-white/5 hover:bg-slate-200 dark:hover:bg-white/10"
+                                            )}
+                                        >
+                                            {brand}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
+                                        البراند <span className="text-red-500">*</span>
+                                    </label>
                                     <SearchableSelect
                                         options={uniqueBrands}
                                         value={formData.deviceBrand}
@@ -507,288 +635,292 @@ export default function NewTicketPage() {
                                             }
                                         }}
                                         onAdd={(val) => setFormData(prev => ({ ...prev, deviceBrand: val }))}
-                                        placeholder="اختر أو اكتب الماركة"
+                                        placeholder="الماركة"
+                                        inputClassName="h-8.5 text-xs rounded-lg border"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-slate-800 dark:text-zinc-200 uppercase tracking-widest ml-1">الموديل <span className="text-red-500">*</span></label>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
+                                        الموديل <span className="text-red-500">*</span>
+                                    </label>
                                     <SearchableSelect
                                         options={modelsForSelectedBrand}
                                         value={formData.deviceModel}
                                         onChange={(val) => setFormData(prev => ({ ...prev, deviceModel: val }))}
                                         onAdd={(val) => setFormData(prev => ({ ...prev, deviceModel: val }))}
-                                        placeholder={formData.deviceBrand ? `اختر أو اكتب موديل ${formData.deviceBrand}` : "اختر الموديل"}
+                                        placeholder={formData.deviceBrand ? `موديل ${formData.deviceBrand}` : "الموديل"}
                                         disabled={!formData.deviceBrand}
+                                        inputClassName="h-8.5 text-xs rounded-lg border"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-800 dark:text-zinc-100 ml-1">IMEI / السيريال</label>
-                                    <Input className="h-12 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner text-base font-black rounded-xl transition-all" name="deviceImei" value={formData.deviceImei} onChange={handleChange} placeholder="352..." />
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
+                                        IMEI / السيريال
+                                    </label>
+                                    <Input 
+                                        className="h-8.5 bg-slate-50/70 dark:bg-black/40 border-slate-200 dark:border-white/10 text-xs font-mono rounded-lg" 
+                                        name="deviceImei" 
+                                        value={formData.deviceImei} 
+                                        onChange={handleChange} 
+                                        placeholder="السيريال..." 
+                                    />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-800 dark:text-zinc-100 ml-1">اللون</label>
-                                    <Input className="h-12 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-black dark:focus:border-white shadow-inner text-base font-black rounded-xl transition-all" name="deviceColor" value={formData.deviceColor} onChange={handleChange} placeholder="اللون" />
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
+                                        اللون
+                                    </label>
+                                    <Input 
+                                        className="h-8.5 bg-slate-50/70 dark:bg-black/40 border-slate-200 dark:border-white/10 text-xs rounded-lg" 
+                                        name="deviceColor" 
+                                        value={formData.deviceColor} 
+                                        onChange={handleChange} 
+                                        placeholder="اللون..." 
+                                    />
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    {/* Issue & Condition */}
-                    <Card className="shadow-xl bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-zinc-700 mb-4 rounded-2xl">
-                        <CardHeader className="py-3 px-5 bg-slate-50 dark:bg-zinc-800 border-b-2 border-slate-200 dark:border-zinc-700">
-                            <CardTitle className="flex items-center gap-3 text-slate-900 dark:text-white text-base font-black uppercase tracking-tighter">
-                                <Wrench className="h-5 w-5 text-black dark:text-white" />
-                                المشاكل والوصف
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-5 space-y-4">
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <button type="button" onClick={() => setIsEditingPresets("ISSUE")} className="h-11 px-4 flex items-center gap-2 text-[11px] text-black dark:text-white hover:text-slate-600 dark:hover:text-zinc-300 uppercase font-black tracking-widest bg-slate-100 dark:bg-zinc-800 border-2 border-slate-200 dark:border-zinc-700 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95">
-                                        <Edit className="w-3 h-3" /> تعديل الاختصارات
-                                    </button>
-                                    <div className="flex-1">
-                                        <SearchableSelect
-                                            options={issuesList.map(i => i.name).filter(name => !formData.selectedIssues.includes(name))}
-                                            value=""
-                                            onChange={(val) => {
-                                                if (val && !formData.selectedIssues.includes(val)) {
-                                                    const newIssues = [...formData.selectedIssues, val];
-                                                    setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
-                                                }
-                                            }}
-                                            onAdd={(newIssue) => {
-                                                const newIssues = [...formData.selectedIssues, newIssue];
-                                                setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
-                                            }}
-                                            placeholder="ابحث عن مشكلة.."
-                                        />
-                                    </div>
+                    {/* Step 3: Issues & Diagnosis Card */}
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 flex-1 min-h-0 flex flex-col">
+                        <div className="rounded-[0.9rem] bg-white/95 dark:bg-zinc-900/90 p-2.5 space-y-1.5 backdrop-blur-md flex-1 min-h-0 flex flex-col justify-between">
+                            <div className="flex items-center justify-between shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-black flex items-center justify-center font-mono">
+                                        03
+                                    </span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <Wrench className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        المشاكل والوصف
+                                    </span>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 mb-2 min-h-0">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsEditingPresets("ISSUE")} 
+                                    className="h-6 px-2 flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground bg-slate-100 dark:bg-white/5 rounded-md border border-slate-200/60 dark:border-white/5"
+                                >
+                                    <Edit className="w-2.5 h-2.5" /> تعديل الاختصارات
+                                </button>
+                            </div>
+
+                            {/* Direct Search / Write Issue Input */}
+                            <div className="shrink-0">
+                                <SearchableSelect
+                                    options={Array.from(new Set([...issuesList.map(i => i.name), ...POPULAR_ISSUES])).filter(name => !formData.selectedIssues.includes(name))}
+                                    value=""
+                                    onChange={(val) => {
+                                        if (val && !formData.selectedIssues.includes(val)) {
+                                            const newIssues = [...formData.selectedIssues, val];
+                                            setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
+                                        }
+                                    }}
+                                    onAdd={(newIssue) => {
+                                        const newIssues = [...formData.selectedIssues, newIssue];
+                                        setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
+                                    }}
+                                    placeholder="اكتب العطل أو ابحث مباشرة واضغط Enter للإضافة..."
+                                    inputClassName="h-8 text-xs rounded-lg border bg-white dark:bg-zinc-900 shadow-none"
+                                />
+                            </div>
+
+                            {/* Quick Popular Issue Pills */}
+                            <div className="flex flex-wrap gap-1 shrink-0">
+                                {Array.from(new Set([...issuesList.map(i => i.name), ...POPULAR_ISSUES])).slice(0, 10).map(issue => {
+                                    const isSelected = formData.selectedIssues.includes(issue);
+                                    return (
+                                        <button
+                                            key={issue}
+                                            type="button"
+                                            onClick={() => {
+                                                let nextIssues: string[];
+                                                if (isSelected) {
+                                                    nextIssues = formData.selectedIssues.filter(i => i !== issue);
+                                                } else {
+                                                    nextIssues = [...formData.selectedIssues, issue];
+                                                }
+                                                setFormData(prev => ({ 
+                                                    ...prev, 
+                                                    selectedIssues: nextIssues, 
+                                                    issueDescription: nextIssues.join(", ") 
+                                                }));
+                                            }}
+                                            className={cn(
+                                                "h-5.5 px-2 rounded-md text-[10px] font-bold transition-all border",
+                                                isSelected
+                                                    ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                                                    : "bg-slate-100/80 dark:bg-white/5 text-slate-700 dark:text-zinc-300 border-slate-200/60 dark:border-white/5 hover:bg-slate-200 dark:hover:bg-white/10"
+                                            )}
+                                        >
+                                            {issue} {isSelected ? "✓" : "+"}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Selected Active Badges */}
+                            {formData.selectedIssues.length > 0 && (
+                                <div className="flex flex-wrap gap-1 shrink-0">
                                     {formData.selectedIssues.map((issue, idx) => (
-                                        <div key={idx} className="flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black border-2 border-black dark:border-white px-3 py-2 rounded-xl text-xs font-black shadow-lg animate-in zoom-in-95 duration-200">
-                                            <span>{issue}</span>
+                                        <span 
+                                            key={idx} 
+                                            className="inline-flex items-center gap-1 bg-slate-900 dark:bg-white text-white dark:text-black px-2 py-0.5 rounded-md text-[10px] font-bold animate-in zoom-in-95"
+                                        >
+                                            {issue}
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const newIssues = formData.selectedIssues.filter((_, i) => i !== idx);
-                                                    setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
+                                                    const nextIssues = formData.selectedIssues.filter((_, i) => i !== idx);
+                                                    setFormData(prev => ({ 
+                                                        ...prev, 
+                                                        selectedIssues: nextIssues, 
+                                                        issueDescription: nextIssues.join(", ") 
+                                                    }));
                                                 }}
-                                                className="hover:text-slate-300 transition-colors"
+                                                className="hover:opacity-70 ml-0.5"
                                             >
-                                                <X className="h-4 w-4" />
+                                                ×
                                             </button>
-                                        </div>
+                                        </span>
                                     ))}
                                 </div>
+                            )}
 
-                                <div className="flex flex-wrap gap-2">
-                                    {issuesList.map(issue => (
-                                        <button
-                                            key={issue.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (!formData.selectedIssues.includes(issue.name)) {
-                                                    const newIssues = [...formData.selectedIssues, issue.name];
-                                                    setFormData(prev => ({ ...prev, selectedIssues: newIssues, issueDescription: newIssues.join(", ") }));
-                                                }
-                                            }}
-                                            className={cn(
-                                                "px-4 py-2 rounded-xl text-xs font-black transition-all border-2",
-                                                formData.selectedIssues.includes(issue.name)
-                                                    ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white shadow-lg"
-                                                    : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700"
-                                            )}
-                                        >
-                                            {issue.name}
-                                        </button>
-                                    ))}
-                                </div>
-
+                            {/* Compact Notes Textarea */}
+                            <div className="shrink-0">
                                 <Textarea
                                     name="issueDescription"
                                     value={formData.issueDescription}
                                     onChange={(e) => setFormData(prev => ({ ...prev, issueDescription: e.target.value }))}
-                                    placeholder="أى ملاحظات إضافية على الجهاز..."
-                                    rows={3}
-                                    className="resize-none h-24 bg-slate-50 dark:bg-black/40 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white mt-4 font-black text-base shadow-inner rounded-2xl"
+                                    placeholder="ملاحظات إضافية وفحص العطل..."
+                                    rows={2}
+                                    className="resize-none h-11 bg-slate-50/70 dark:bg-black/40 border-slate-200 dark:border-white/10 text-xs rounded-lg p-1.5 leading-tight"
                                 />
                             </div>
+                        </div>
+                    </div>
+                </div>
 
-                            <div className="space-y-4 pt-4 border-t-2 border-slate-200 dark:border-white/5">
-                                <div className="flex items-center gap-3">
-                                    <button type="button" onClick={() => setIsEditingPresets("CONDITION")} className="h-11 px-4 flex items-center gap-2 text-[11px] text-black dark:text-white hover:text-slate-600 dark:hover:text-zinc-300 uppercase font-black tracking-widest bg-slate-100 dark:bg-zinc-800 border-2 border-slate-200 dark:border-zinc-700 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95">
-                                        <Edit className="w-3 h-3" /> تعديل الاختصارات
-                                    </button>
-                                    <div className="flex-1">
-                                        <SearchableSelect
-                                            options={conditionsList.map(c => c.name).filter(name => !formData.selectedConditions.includes(name))}
-                                            value=""
-                                            onChange={(val) => {
-                                                if (val && !formData.selectedConditions.includes(val)) {
-                                                    setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, val] }));
-                                                }
-                                            }}
-                                            onAdd={(newCond) => {
-                                                setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, newCond] }));
-                                            }}
-                                            placeholder="ابحث عن ملاحظة.."
+                {/* RIGHT COLUMN: 1 COL */}
+                <div className="lg:col-span-1 h-full min-h-0 flex flex-col">
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 h-full flex flex-col shadow-sm">
+                        <div className="rounded-[0.9rem] bg-white dark:bg-zinc-950 p-3 flex flex-col justify-between h-full overflow-hidden space-y-2">
+                            
+                            {/* Card Header */}
+                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-white/5 shrink-0">
+                                <div className="flex items-center gap-1.5 text-xs font-black text-slate-900 dark:text-white">
+                                    <FileText className="h-3.5 w-3.5 text-cyan-500" />
+                                    <span>ملخص التذكرة</span>
+                                </div>
+                                <span className="text-[9px] font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">
+                                    Live
+                                </span>
+                            </div>
+
+                            {/* Mini Previews */}
+                            <div className="space-y-1.5 shrink-0">
+                                <div className="p-2 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5">
+                                    <div className="text-[9px] text-muted-foreground uppercase font-black">العميل</div>
+                                    <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                        {formData.customerName || <span className="text-slate-400 font-normal">لم يحدد بعد</span>}
+                                    </div>
+                                    <div className="text-[11px] font-mono text-cyan-600 dark:text-cyan-400">
+                                        {formData.customerPhone || '01xxxxxxxxx'}
+                                    </div>
+                                </div>
+
+                                <div className="p-2 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5">
+                                    <div className="text-[9px] text-muted-foreground uppercase font-black">الجهاز</div>
+                                    <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                        {formData.deviceBrand || formData.deviceModel 
+                                            ? `${formData.deviceBrand} ${formData.deviceModel}` 
+                                            : <span className="text-slate-400 font-normal">الماركة والموديل</span>}
+                                    </div>
+                                    {formData.deviceImei && (
+                                        <div className="text-[10px] font-mono text-muted-foreground truncate">
+                                            IMEI: {formData.deviceImei}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Price & Duration */}
+                            <div className="space-y-2 shrink-0">
+                                <div className="p-2 bg-slate-100/70 dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/5">
+                                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                                        التكلفة المتوقعة
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black font-mono text-muted-foreground">
+                                            EGP
+                                        </span>
+                                        <Input
+                                            type="number"
+                                            name="repairPrice"
+                                            className="h-9 pl-10 text-base font-black bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 rounded-lg shadow-inner"
+                                            value={formData.repairPrice}
+                                            onChange={handleChange}
+                                            placeholder="0.00"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 mb-2 min-h-0">
-                                    {formData.selectedConditions.map((cond, idx) => (
-                                        <div key={idx} className="flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black border-2 border-black dark:border-white px-3 py-2 rounded-xl text-xs font-black shadow-lg animate-in zoom-in-95 duration-200">
-                                            <span>{cond}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newConds = formData.selectedConditions.filter((_, i) => i !== idx);
-                                                    setFormData(prev => ({ ...prev, selectedConditions: newConds }));
-                                                }}
-                                                className="hover:text-slate-300 transition-colors"
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                    {conditionsList.map(cond => (
-                                        <button
-                                            key={cond.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (!formData.selectedConditions.includes(cond.name)) {
-                                                    setFormData(prev => ({ ...prev, selectedConditions: [...prev.selectedConditions, cond.name] }));
-                                                }
-                                            }}
-                                            className={cn(
-                                                "px-4 py-2 rounded-xl text-xs font-black transition-all border-2",
-                                                formData.selectedConditions.includes(cond.name)
-                                                    ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white shadow-lg"
-                                                    : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700"
-                                            )}
-                                        >
-                                            {cond.name}
-                                        </button>
-                                    ))}
-                                </div>
-
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                </div>
-
-                {/* RIGHT COLUMN: STICKY SUMMARY */}
-                <div className="lg:col-span-1 h-full flex flex-col">
-                    <Card className="flex-1 flex flex-col bg-white dark:bg-zinc-950 border-2 border-slate-300 dark:border-white/10 shadow-2xl rounded-2xl overflow-hidden">
-                        <CardHeader className="py-3 px-4 bg-white/5 border-b border-white/10">
-                            <CardTitle className="flex items-center gap-2 text-black dark:text-white text-base font-black uppercase tracking-tighter">
-                                <FileText className="h-4 w-4" />
-                                {t('ticketSummary')}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-1 p-3 space-y-3 overflow-y-auto">
-
-                            {/* Customer Summary */}
-                            <div className="space-y-0.5">
-                                <div className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">{t('customerLabel')}</div>
-                                <div className="font-bold text-black dark:text-white leading-tight">{formData.customerName || '-'}</div>
-                                <div className="text-xs text-zinc-500 font-mono">{formData.customerPhone || '-'}</div>
-                            </div>
-
-                            <div className="border-t border-slate-200 dark:border-white/5" />
-
-                            {/* Device Summary */}
-                            <div className="space-y-0.5">
-                                <div className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">{t('deviceLabel')}</div>
-                                <div className="font-bold text-black dark:text-white leading-tight">{formData.deviceBrand} {formData.deviceModel}</div>
-                                <div className="text-[10px] text-zinc-500 font-mono opacity-60">{formData.deviceImei}</div>
-                            </div>
-
-                            <div className="border-t border-slate-200 dark:border-white/5" />
-
-                            {/* Issue Summary */}
-                            <div className="space-y-0.5">
-                                <div className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">{t('issueLabel')}</div>
-                                <div className="text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">{formData.issueDescription || '-'}</div>
-                            </div>
-
-                            <div className="border-t border-slate-200 dark:border-white/5" />
-
-                            <div className="space-y-2 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-2 border-slate-200 dark:border-white/5">
-                                <label className="text-xs font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest leading-none block px-1">إجمالى التكلفة</label>
-                                <div className="relative">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                                        <ArrowLeft className="w-5 h-5 text-slate-400" />
+                                <div className="p-2 bg-slate-100/70 dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/5 space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-bold text-muted-foreground">الوقت المتوقع (دقيقة)</label>
+                                        <Clock className="w-3 h-3 text-muted-foreground" />
                                     </div>
                                     <Input
                                         type="number"
-                                        name="repairPrice"
-                                        className="h-14 pl-12 text-2xl font-black bg-white dark:bg-black border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:border-black dark:focus:border-white shadow-inner rounded-xl"
-                                        value={formData.repairPrice}
-                                        onChange={handleChange}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-2 border-slate-200 dark:border-white/5">
-                                <label className="text-xs font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest leading-none block px-1">الوقت المتوقع (بالدقيقة)</label>
-                                <div className="relative">
-                                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                                    <Input
-                                        type="number"
                                         name="expectedDuration"
-                                        className="h-14 pl-12 text-2xl font-black bg-white dark:bg-black border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:border-black dark:focus:border-white shadow-inner rounded-xl"
+                                        className="h-7 text-xs font-bold bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 rounded-lg"
                                         value={formData.expectedDuration}
                                         onChange={handleChange}
                                         placeholder="60"
                                     />
-                                </div>
-                                <div className="grid grid-cols-5 gap-2 pt-2">
-                                    {[
-                                        { label: '30M', val: '30' },
-                                        { label: '1H', val: '60' },
-                                        { label: '2H', val: '120' },
-                                        { label: '1D', val: '1440' },
-                                        { label: '3D', val: '4320' },
-                                    ].map(d => (
-                                        <Button
-                                            key={d.val}
-                                            type="button"
-                                            variant="outline"
-                                            className={cn(
-                                                "flex-1 h-14 text-sm font-black border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/50 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 transition-all rounded-xl",
-                                                formData.expectedDuration === d.val && "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white scale-[1.05]"
-                                            )}
-                                            onClick={() => setFormData(prev => ({ ...prev, expectedDuration: d.val }))}
-                                        >
-                                            {d.label}
-                                        </Button>
-                                    ))}
+                                    <div className="grid grid-cols-5 gap-1 pt-0.5">
+                                        {[
+                                            { label: '30د', val: '30' },
+                                            { label: '1س', val: '60' },
+                                            { label: '2س', val: '120' },
+                                            { label: '24س', val: '1440' },
+                                            { label: '3أيام', val: '4320' },
+                                        ].map(d => (
+                                            <Button
+                                                key={d.val}
+                                                type="button"
+                                                variant="outline"
+                                                className={cn(
+                                                    "h-6 text-[10px] font-bold border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 rounded p-0",
+                                                    formData.expectedDuration === d.val && "bg-slate-900 text-white dark:bg-white dark:text-black"
+                                                )}
+                                                onClick={() => setFormData(prev => ({ ...prev, expectedDuration: d.val }))}
+                                            >
+                                                {d.label}
+                                            </Button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                        </CardContent>
+                            {/* Submit Button */}
+                            <div className="pt-1 shrink-0">
+                                <Button
+                                    className="w-full h-11 bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                    onClick={handleSubmit}
+                                    disabled={submitting}
+                                >
+                                    {submitting ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Save className="h-4 w-4" />
+                                    )}
+                                    <span>حفظ وطباعة الإيصال</span>
+                                </Button>
+                            </div>
 
-                        <div className="p-4 bg-white/5 border-t border-white/10">
-                            <Button
-                                className="w-full h-20 bg-gradient-to-r from-slate-800 via-black to-slate-800 text-white text-2xl font-black rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.4)] flex items-center justify-center gap-4 transition-all hover:scale-[1.02] active:scale-[0.98] border-t border-white/20"
-                                onClick={handleSubmit}
-                                disabled={submitting}
-                            >
-                                {submitting ? <Loader2 className="h-8 w-8 animate-spin" /> : <Save className="h-8 w-8" />}
-                                {t('saveTicket')}
-                            </Button>
                         </div>
-                    </Card>
+                    </div>
                 </div>
             </form>
 

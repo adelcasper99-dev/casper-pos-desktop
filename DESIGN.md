@@ -1,135 +1,87 @@
 ---
-name: Casper ERP Design System
-description: Ultra-modern glassmorphic void design system for Casper ERP landing page & web app
+name: Casper POS & ERP Design System (Google Material 3 & High-End Glassmorphic Edition)
+description: State-of-the-art enterprise design system uniting Google Design / Material 3 principles with dark glassmorphic tactical aesthetics for POS, ERP, and hybrid desktop applications.
 colors:
-  void: "#000000"
-  bone-white: "#ffffff"
-  electric-iris: "#8052ff"
-  electric-iris-hover: "#6b3bff"
-  electric-iris-deep: "#5824e6"
-  saffron-spark: "#ffb829"
-  saffron-bright-gold: "#ffd700"
-  deep-verdant: "#15846e"
-  emerald-400: "#34d399"
-  emerald-500: "#10b981"
-  emerald-700: "#047857"
-  red-400: "#f87171"
-  red-500: "#ef4444"
-  red-600: "#dc2626"
-  red-700: "#b91c1c"
-  red-800: "#991b1b"
-  red-50: "#fef2f2"
-  indigo-50: "#e0e7ff"
-  amber-600: "#d97706"
-  cyan-accent: "#00f0ff"
-  ash-gray: "#9a9a9a"
-  silver-mist: "#bdbdbd"
-  body-text-dark: "#e5e5e5"
-  slate-obsidian: "#0f172a"
-  light-pearl-bg: "#f1f3f8"
-  slate-50: "#f8fafc"
-  slate-100: "#f1f5f9"
-  slate-200: "#e2e8f0"
-  slate-300: "#cbd5e1"
-  slate-400: "#94a3b8"
-  slate-600: "#475569"
-  slate-700: "#334155"
-  slate-900: "#0f172a"
-  dark-void-surface: "rgba(8, 9, 13, 0.95)"
-  dark-card-surface: "rgba(11, 15, 25, 0.85)"
-  purple-border-highlight: "rgba(192, 132, 252, 0.5)"
+  # Base Voids & Backgrounds
+  void-black: "#05070a"
+  obsidian-surface: "#0b0f19"
+  surface-container-low: "#0e1422"
+  surface-container: "#131b2e"
+  surface-container-high: "#1c263e"
+  surface-container-highest: "#263352"
+  
+  # Light Mode Surfaces (Silk Pearl)
+  light-pearl-bg: "#f8fafc"
+  light-surface-card: "#ffffff"
+  light-surface-muted: "#f1f5f9"
+  light-border: "#e2e8f0"
+  
+  # Google Material 3 Calibrated Brand & Accents
+  electric-iris: "#818cf8"
+  electric-iris-dark: "#6366f1"
+  cyber-cyan: "#00f0ff"
+  cyan-glow: "rgba(0, 240, 255, 0.25)"
+  emerald-teal: "#10b981"
+  emerald-glow: "rgba(16, 185, 129, 0.25)"
+  saffron-amber: "#f59e0b"
+  saffron-glow: "rgba(245, 158, 11, 0.25)"
+  crimson-coral: "#f43f5e"
+  
+  # Text Hierarchy
+  text-primary-dark: "#f8fafc"
+  text-secondary-dark: "#94a3b8"
+  text-muted-dark: "#64748b"
+  text-primary-light: "#0f172a"
+  text-secondary-light: "#475569"
+  
+  # Borders & Double Bezel
+  border-subtle: "rgba(255, 255, 255, 0.08)"
+  border-highlight: "rgba(255, 255, 255, 0.16)"
+  border-active-cyan: "rgba(0, 240, 255, 0.5)"
+  border-active-iris: "rgba(129, 140, 248, 0.5)"
+
 typography:
-  display:
-    fontFamily: "Cairo, Plus Jakarta Sans, sans-serif"
-    fontWeight: 900
-    lineHeight: "1.35"
-  heading:
-    fontFamily: "Cairo, Plus Jakarta Sans, sans-serif"
-    fontWeight: 800
-  body:
-    fontFamily: "Cairo, Plus Jakarta Sans, sans-serif"
-    fontWeight: 400
-    fontSize: "18px"
-    lineHeight: "1.6"
-  code:
-    fontFamily: "Plus Jakarta Sans, monospace"
-rounded:
-  sm: "12px"
-  md: "24px"
-  lg: "40px"
-  full: "9999px"
-spacing:
-  xs: "8px"
-  sm: "16px"
-  md: "24px"
-  lg: "32px"
-  xl: "48px"
-components:
-  button-primary:
-    backgroundColor: "{colors.electric-iris}"
-    textColor: "{colors.bone-white}"
-    rounded: "{rounded.full}"
-    padding: "16px 32px"
-  button-primary-hover:
-    backgroundColor: "{colors.electric-iris-hover}"
-  button-secondary:
-    backgroundColor: "rgba(255, 255, 255, 0.03)"
-    textColor: "{colors.bone-white}"
-    rounded: "{rounded.full}"
-    padding: "16px 32px"
-  glass-input:
-    backgroundColor: "rgba(15, 23, 42, 0.8)"
-    textColor: "{colors.bone-white}"
-    rounded: "{rounded.sm}"
-    padding: "16px 20px"
+  font-primary: "Cairo, Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, sans-serif"
+  font-mono: "JetBrains Mono, SF Mono, Menlo, monospace"
+  scale:
+    display-large: { size: "2.25rem", weight: "900", lineHeight: "1.2" }
+    headline: { size: "1.5rem", weight: "800", lineHeight: "1.3" }
+    title: { size: "1.125rem", weight: "700", lineHeight: "1.4" }
+    body: { size: "0.9375rem", weight: "500", lineHeight: "1.5" }
+    caption: { size: "0.75rem", weight: "700", letterSpacing: "0.05em" }
+    numeric-badge: { size: "0.875rem", weight: "800", font: "mono" }
+
+iconography:
+  strokeWidth: 1.75
+  sizes:
+    xs: "14px"
+    sm: "18px"
+    md: "22px"
+    lg: "28px"
+  containers:
+    pill: "p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+    neutral: "p-2 rounded-xl bg-white/5 text-zinc-400 border border-white/10"
+    danger: "p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20"
+
+motion:
+  spring: "cubic-bezier(0.16, 1, 0.3, 1)"
+  active-scale: "scale-[0.98]"
+  duration: "150ms"
 ---
 
-# Casper ERP Design System
+# Casper ERP & POS: Design System & Taste Guidelines
 
-## Overview
-Casper ERP uses a premium cosmic void & glassmorphic design system tailored for maintenance centers and enterprise resource planning. The system balances high-contrast dark void displays (`#000000`) with silky pearl slate light modes (`#f1f3f8`), illuminated by Electric Iris purple (`#8052ff`), Saffron Spark gold (`#ffb829`), Deep Verdant emerald (`#15846e`), and Cyan (`#00f0ff`) accents.
+## 1. Design Vision & Philosophy
+Casper marries **Google Material 3 tokenized structure** with **Tactile Glassmorphism**:
+* **High-Contrast Dark Void (`#05070a`)**: Optimized for OLED & POS touch monitors to reduce cashier eye strain.
+* **Double-Bezel Surfaces**: Layered container depths (Low -> Normal -> High) separated by 1px subtle borders (`rgba(255,255,255,0.08)`).
+* **Tactile Spring Feedback**: Every interactive target responds with instant active scaling (`scale-[0.98]`) and glowing perimeter rings.
 
-## Colors
-- **Void Obsidian Black (`#000000`)**: Primary background for dark mode and bento cards.
-- **Electric Iris (`#8052ff`)**: Primary brand accent used for action CTAs, halos, and glowing section portal effects.
-- **Saffron Spark & Gold (`#ffb829`, `#ffd700`)**: Warm gold highlight used for key financial gain stats, animated text shimmers, pricing hero tags, and urgent indicators.
-- **Deep Verdant & Emerald (`#15846e`, `#10b981`, `#34d399`)**: Emerald green indicator for verified status, WhatsApp links, and profit-saving cards.
-- **Cyan Accent (`#00f0ff`)**: Secondary futuristic aura accent for inner mockup glows.
-- **Red Loss Indicator (`#ef4444`, `#dc2626`, `#b91c1c`, `#991b1b`)**: Financial loss warnings and debt leakage indicators.
-- **Silky Pearl Slate (`#f1f3f8`)**: Soft off-white theme palette for light mode readability without eye strain.
-- **Body Text Color (`#e5e5e5`)**: High contrast body text for dark void background cards.
-- **Slate Tonal Ramp (`#f8fafc`, `#e2e8f0`, `#cbd5e1`, `#94a3b8`, `#475569`, `#334155`, `#0f172a`)**: Full slate gray scale for borders, light mode card backgrounds, secondary labels, and high-contrast typography.
+## 2. Iconography & Visual Hierarchy
+* **Unified Stroke**: All Lucide / Google Material symbols enforce `strokeWidth={1.75}`.
+* **Pill-Encapsulated Icons**: Primary action icons sit inside dedicated 10% opacity color containers with matching 20% border glow.
+* **Status Badges**: Dual-layer animated pulse dots (`relative flex h-2 w-2`) indicate network connectivity, SQLite sync status, and hardware thermal printing bridges.
 
-## Typography
-- **Primary Font**: `Cairo` (Arabic headings and body text) combined with `Plus Jakarta Sans` (English numbers, code, and UI badges).
-- **Hierarchy**:
-  - `Hero Display`: 3rem to 3.75rem (48-60px), Font Weight 900 (Black), 1.35 line height.
-  - `Section Headings (H2)`: 2.25rem (36px), Font Weight 800.
-  - `Body Copy`: 1.125rem (18px), Font Weight 400, `#e5e5e5` in dark mode, `#334155` in light mode.
-
-## Layout
-- **Container Max-Width**: `1240px` (`max-w-7xl`).
-- **Bento Grid Layout**: Multi-column responsive bento cards with 24px border radius and 24px-32px padding.
-- **Mobile First**: Fluid 1-column mobile stack transitioning to 2 or 3-column desktop layouts (`md:grid-cols-2`, `lg:grid-cols-3`).
-
-## Elevation & Depth
-- **Glassmorphism**: `backdrop-filter: blur(24px) saturate(160%)` on floating navbar and cards.
-- **Card Border Highlights**: `1px solid rgba(255, 255, 255, 0.08)` with subtle `inset 0 1px 0 rgba(255, 255, 255, 0.15)` top edge light reflection.
-- **Electric Iris Glow**: `box-shadow: 0 0 25px rgba(128, 82, 255, 0.45)`.
-
-## Shapes
-- **Bento Cards**: `24px` border radius (`rounded-[24px]` or `rounded-[2.5rem]`).
-- **CTAs & Badges**: Fully rounded pills (`rounded-full` / `9999px`).
-- **Inputs**: Smooth 12px rounded corners (`rounded-xl`).
-
-## Components
-- **Primary Button (`.btn-indigo-primary`)**: Electric Iris background, 24px radius, white text, 30px glow shadow on hover.
-- **Secondary Button (`.btn-glass-secondary`)**: Translucent glass background with 12% white border and subtle hover tint.
-- **Floating Navbar (`.nav-scrolled`)**: Blur 24px glass pill floating 10px from top with subtle scroll shadow.
-- **Social Toast Notification**: Floating fixed bottom-right card with instant entrance slide.
-
-## Do's and Don'ts
-- **DO** use exact `Decimal.js` formatting and `ar-EG` locale numbers for financial figures.
-- **DO** maintain strict high contrast between Electric Iris text and dark void backgrounds.
-- **DON'T** use heavy 100% black shadows in light mode; use soft slate micro-shadows (`rgba(15, 23, 42, 0.05)`).
-- **DON'T** mix generic blue or neon red with Electric Iris; stick to the curated HSL palette.
+## 3. Financial & Monospace Typography
+* All monetary values, quantities, serials, and timestamps **strictly use font-mono** (`JetBrains Mono` / `SF Mono`) with right-alignment and decimal precision.
+* Clear visual distinction between positive revenue (Emerald `#10b981`), discounts (Saffron `#f59e0b`), and debt/losses (Crimson `#f43f5e`).

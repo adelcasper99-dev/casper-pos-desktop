@@ -685,16 +685,45 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
 
                     {/* Quick Change Calculator (Visual Only) */}
                     {(paymentMethod === 'CASH' || paymentMethod === 'WALLET') && (
-                        <div className="mt-4 p-4 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                            <h4 className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center justify-between">
-                                حاسبة الباقي (للمساعدة فقط)
+                        <div className="mt-4 p-4 bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200 dark:border-white/10 rounded-2xl space-y-3 shadow-inner relative overflow-hidden backdrop-blur-md">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                                    <span>💵 {t('changeCalculator') || "حاسبة النقدية والباقي"}</span>
+                                </h4>
                                 {receivedAmount !== '' && (
-                                    <button onClick={() => setReceivedAmount('')} className="text-[10px] text-zinc-500 hover:text-red-400 uppercase transition-colors">مسح</button>
+                                    <button 
+                                        onClick={() => setReceivedAmount('')} 
+                                        className="text-[10px] text-zinc-500 hover:text-red-400 font-bold uppercase transition-colors px-2 py-0.5 rounded-md hover:bg-red-500/10"
+                                    >
+                                        مسح (Clear)
+                                    </button>
                                 )}
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3 items-center">
+                            </div>
+
+                            {/* Quick Denomination Tactile Buttons */}
+                            <div className="grid grid-cols-5 gap-1.5 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setReceivedAmount(finalTotal)}
+                                    className="py-1.5 px-2 bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-black transition-all active:scale-95 text-center whitespace-nowrap shadow-[0_0_10px_rgba(0,240,255,0.1)]"
+                                >
+                                    بالضبط
+                                </button>
+                                {[50, 100, 200, 500].map((amt) => (
+                                    <button
+                                        key={amt}
+                                        type="button"
+                                        onClick={() => setReceivedAmount((prev) => (typeof prev === 'number' ? prev + amt : amt))}
+                                        className="py-1.5 px-2 bg-white/5 hover:bg-white/10 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-300 border border-white/5 hover:border-cyan-500/30 rounded-lg text-xs font-mono font-bold transition-all active:scale-95 text-center"
+                                    >
+                                        +{amt}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 items-center pt-1">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] text-zinc-500 font-bold uppercase italic">المبلغ المستلم</label>
+                                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">المبلغ المستلم</label>
                                     <div className="relative">
                                         <input
                                             {...getNavProps(0)}
@@ -713,16 +742,16 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                                                 }
                                             }}
                                             placeholder="0.00"
-                                            className="h-10 py-1 text-sm w-full pr-8 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl px-3 text-zinc-900 dark:text-white font-mono"
+                                            className="h-11 py-1 text-base w-full pr-8 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/15 focus:border-cyan-500/80 rounded-xl px-3 text-zinc-900 dark:text-white font-mono font-bold shadow-sm outline-none transition-all"
                                             min="0"
                                             step="0.01"
                                         />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[10px] font-bold">ج.م</span>
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs font-bold">ج.م</span>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] text-zinc-500 font-bold uppercase italic">الباقي للعميل</label>
-                                    <div className={`h-9 flex items-center justify-center rounded-lg border font-bold ${typeof receivedAmount === 'number' && receivedAmount < finalTotal ? 'text-xs text-red-400 bg-red-500/10 border-red-500/30' : 'text-lg'} transition-colors ${typeof receivedAmount === 'number' && receivedAmount >= finalTotal ? 'text-green-400 bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]' : typeof receivedAmount === 'number' && receivedAmount < finalTotal ? '' : 'text-zinc-500 bg-white/5 border-white/10'}`}>
+                                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">الباقي للعميل</label>
+                                    <div className={`h-11 flex items-center justify-center rounded-xl border font-mono font-black transition-all ${typeof receivedAmount === 'number' && receivedAmount < finalTotal ? 'text-xs text-red-400 bg-red-500/10 border-red-500/30' : 'text-lg'} ${typeof receivedAmount === 'number' && receivedAmount >= finalTotal ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.2)] scale-[1.01]' : typeof receivedAmount === 'number' && receivedAmount < finalTotal ? '' : 'text-zinc-500 bg-white/5 border-white/10'}`}>
                                         {typeof receivedAmount === 'number' ? (receivedAmount >= finalTotal ? formatCurrency(toNumber(receivedAmount - finalTotal)) : 'مبلغ غير كافٍ') : '0.00'}
                                     </div>
                                 </div>
@@ -768,13 +797,13 @@ export default function CheckoutModal({ isOpen, onClose, settings, csrfToken }: 
                     onClick={() => isDelivery ? (document.getElementById('checkout-form') as HTMLFormElement)?.requestSubmit() : handleCheckout(new FormData())}
                     disabled={loading || (typeof receivedAmount === 'number' && receivedAmount < finalTotal)}
                     className={clsx(
-                        "w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all",
+                        "w-full font-black py-4 rounded-2xl flex items-center justify-center gap-2.5 transition-all text-base tracking-wide active:scale-[0.98]",
                         loading || (typeof receivedAmount === 'number' && receivedAmount < finalTotal)
-                            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                            : "bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,242,255,0.3)]"
+                            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5"
+                            : "bg-gradient-to-r from-cyan-400 to-cyan-500 hover:from-cyan-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_30px_rgba(0,242,255,0.35)] ring-1 ring-cyan-300/60"
                     )}
                 >
-                    {loading ? <Loader2 className="animate-spin" /> : <Banknote />}
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
                     {t('confirmPayment')}
                 </button>
             </div>
@@ -788,27 +817,27 @@ function PaymentMethod({ label, icon: Icon, active, onClick, disabled, warning, 
             onClick={onClick}
             disabled={disabled}
             className={clsx(
-                "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden",
+                "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all duration-200 relative group overflow-hidden active:scale-[0.97]",
                 active
-                    ? "bg-cyan-500/10 border-cyan-500/50 text-cyan-500 dark:text-cyan-400 shadow-[0_0_20px_rgba(0,242,255,0.15)] scale-[1.02]"
+                    ? "bg-cyan-500/15 border-cyan-500/60 text-cyan-400 shadow-[0_0_25px_rgba(0,240,255,0.2)] ring-1 ring-cyan-500/40"
                     : disabled
                         ? "opacity-30 grayscale cursor-not-allowed border-zinc-200 dark:border-white/5"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600"
+                        : "bg-white dark:bg-zinc-900/90 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-cyan-500/30 hover:text-cyan-300 shadow-sm"
             )}
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-black/5 dark:from-white/5 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
             
-            <Icon className={clsx("w-6 h-6 transition-transform duration-300", active && "scale-110")} />
-            <span className="text-[10px] font-bold uppercase text-center tracking-wider">{label}</span>
+            <Icon className={clsx("w-6 h-6 transition-transform duration-200", active ? "scale-110 text-cyan-400" : "group-hover:scale-105")} />
+            <span className="text-[11px] font-bold uppercase text-center tracking-wider">{label}</span>
             {isDefault && (
-                <span className="absolute top-2 right-2 bg-cyan-500/20 text-cyan-300 text-[8px] px-1.5 py-0.5 rounded-full border border-cyan-500/30 font-black uppercase">
+                <span className="absolute top-2 right-2 bg-cyan-500/20 text-cyan-300 text-[8px] px-1.5 py-0.5 rounded-full border border-cyan-500/40 font-black uppercase shadow-[0_0_8px_rgba(0,240,255,0.2)]">
                     Default
                 </span>
             )}
 
             {/* Tooltip for disabled state */}
             {disabled && warning && (
-                <div className="absolute bottom-full mb-2 bg-black/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10">
+                <div className="absolute bottom-full mb-2 bg-black/90 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/15 shadow-xl">
                     {warning}
                 </div>
             )}

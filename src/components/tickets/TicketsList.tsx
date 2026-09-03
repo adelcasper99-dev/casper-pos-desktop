@@ -357,74 +357,79 @@ export default function TicketsList() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-cairo">
+            {/* KPI Cards Row (Cockpit Overview) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-cairo">
                 {/* Card 1: Success Ratio */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {/* Circular progress chart */}
-                    <div className="relative w-16 h-16 flex-shrink-0">
-                        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-zinc-100 dark:text-white/5" />
-                            <circle
-                                cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3"
-                                strokeDasharray={100}
-                                strokeDashoffset={100 - parseFloat(stats.ratio)}
-                                strokeLinecap="round"
-                                className="text-emerald-500 transition-all duration-700"
-                            />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-lg font-black text-zinc-900 dark:text-white tabular-nums leading-none">{stats.ratio}%</span>
+                <div className="relative flex items-center justify-between p-3.5 bg-white dark:bg-zinc-900/80 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden group hover:border-slate-300 dark:hover:border-white/20 transition-all">
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
+                            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-slate-100 dark:text-white/5" />
+                                <circle
+                                    cx="18" cy="18" r="15.9" fill="transparent" stroke="currentColor" strokeWidth="3"
+                                    strokeDasharray={100}
+                                    strokeDashoffset={100 - parseFloat(stats.ratio || '0')}
+                                    strokeLinecap="round"
+                                    className="text-emerald-500 transition-all duration-700"
+                                />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-[11px] font-black text-slate-800 dark:text-zinc-100 tabular-nums">{stats.ratio}%</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-slate-400 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-wider">{t('table.successRatio')}</span>
+                            <span className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
+                                {stats.delivered} <span className="text-slate-400 font-medium text-[11px]">{t('filters.delivered')}</span>
+                            </span>
                         </div>
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.successRatio')}</p>
-                        <p className="text-zinc-900 dark:text-white font-black text-sm">{stats.delivered} <span className="text-zinc-400 font-normal text-xs">{t('filters.delivered')}</span></p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                            <div className="h-1 w-1 rounded-full bg-emerald-500" />
-                            <span className="text-[10px] text-zinc-400 font-black">معدل إنجاز العمليات</span>
-                        </div>
-                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                        إنجاز العمليات
+                    </span>
                 </div>
 
                 {/* Card 2: High Risk */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-rose-500/10 border border-rose-500/20 animate-pulse" />
-                        <AlertTriangle className="h-7 w-7 text-rose-500 relative z-10" />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">{t('table.risk')}</p>
-                        <p className="text-3xl font-black text-rose-500 tabular-nums leading-none">{stats.highRiskCount}</p>
-                        <div className="flex items-center gap-1 mt-1">
-                            <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>
-                            <span className="text-[10px] text-zinc-400 font-black">حالات تحتاج متابعة عاجلة</span>
+                <div className="relative flex items-center justify-between p-3.5 bg-white dark:bg-zinc-900/80 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden group hover:border-slate-300 dark:hover:border-white/20 transition-all">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="h-5 w-5 text-rose-500" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-slate-400 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-wider">{t('table.risk')}</span>
+                            <span className="text-xl font-black text-rose-500 tabular-nums font-mono mt-0.5">{stats.highRiskCount}</span>
                         </div>
                     </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 whitespace-nowrap flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        متابعة عاجلة
+                    </span>
                 </div>
 
                 {/* Card 3: Overdue */}
-                <div className="relative flex items-center gap-5 p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-sm overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full bg-cyan-500/10 border border-cyan-500/20" />
-                        <Clock className="h-7 w-7 text-cyan-500 relative z-10" />
+                <div className="relative flex items-center justify-between p-3.5 bg-white dark:bg-zinc-900/80 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden group hover:border-slate-300 dark:hover:border-white/20 transition-all">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                            <Clock className="h-5 w-5 text-cyan-500" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-slate-400 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-wider">الفجوة (GAP/SLO)</span>
+                            <span className="text-xl font-black text-cyan-500 tabular-nums font-mono mt-0.5">{stats.overdueCount}</span>
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest">الفجوة (Gap/SLO)</p>
-                        <p className="text-3xl font-black text-cyan-500 tabular-nums leading-none">{stats.overdueCount}</p>
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-black">تجاوزت الوقت المتوقع للإصلاح</span>
-                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 whitespace-nowrap">
+                        تجاوز الوقت
+                    </span>
                 </div>
             </div>
 
-            <div className="flex gap-4 items-center flex-wrap">
-                <div className="relative flex-1 min-w-[300px] group/search">
-                    <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-cyan-400 transition-all pointer-events-none" />
+            {/* Filters and Search Bar */}
+            <div className="flex gap-2.5 items-center flex-wrap">
+                <div className="relative flex-1 min-w-[260px] group/search">
+                    <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within/search:text-cyan-500 transition-all pointer-events-none" />
                     <Input
                         placeholder={t('search.placeholder')}
-                        className="ps-12 solid-input h-10 bg-slate-100 dark:bg-zinc-900/50 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-black rounded-xl"
+                        className="ps-10 solid-input h-10 bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:border-cyan-500/50 transition-all text-xs font-bold rounded-xl"
                         value={searchTerm}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             setSearchTerm(e.target.value);
@@ -435,18 +440,18 @@ export default function TicketsList() {
                     {searchTerm && (
                         <button
                             onClick={() => { setSearchTerm(''); setQuery(''); debouncedSetQuery.cancel(); }}
-                            className="absolute end-4 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all active:scale-90"
+                            className="absolute end-3 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-white transition-all active:scale-90"
                         >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                         </button>
                     )}
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900/50 p-1 rounded-lg border border-slate-300 dark:border-white/10 flex-wrap">
+                <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-zinc-900/60 p-1 rounded-xl border border-slate-200/80 dark:border-white/10 flex-wrap h-10">
                     <Button
                         variant={dateFilter === "all" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "all" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
+                        className={cn("h-8 text-xs font-bold px-3 rounded-lg transition-all", dateFilter === "all" ? "bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm" : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5")}
                         onClick={() => {
                             setDateFilter("all");
                             setDateRange(undefined);
@@ -457,7 +462,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "today" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
+                        className={cn("h-8 text-xs font-bold px-3 rounded-lg transition-all", dateFilter === "today" ? "bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm" : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5")}
                         onClick={() => {
                             setDateFilter("today");
                             setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
@@ -468,7 +473,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "yesterday" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
+                        className={cn("h-8 text-xs font-bold px-3 rounded-lg transition-all", dateFilter === "yesterday" ? "bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm" : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5")}
                         onClick={() => {
                             const yesterday = subDays(new Date(), 1);
                             setDateFilter("yesterday");
@@ -480,7 +485,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-all", dateFilter === "week" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
+                        className={cn("h-8 text-xs font-bold px-3 rounded-lg transition-all", dateFilter === "week" ? "bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm" : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5")}
                         onClick={() => {
                             setDateFilter("week");
                             setDateRange({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) });
@@ -491,7 +496,7 @@ export default function TicketsList() {
                     <Button
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
-                        className={cn("h-8 text-[11px] font-black px-2 rounded-md transition-colors", dateFilter === "month" ? "bg-cyan-500 text-black hover:bg-cyan-400" : "text-slate-950 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-white/10")}
+                        className={cn("h-8 text-xs font-bold px-3 rounded-lg transition-all", dateFilter === "month" ? "bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm" : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5")}
                         onClick={() => {
                             setDateFilter("month");
                             setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
@@ -500,7 +505,7 @@ export default function TicketsList() {
                         الشهر
                     </Button>
 
-                    <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+                    <div className="w-px h-4 bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates) => {
@@ -520,28 +525,28 @@ export default function TicketsList() {
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48 bg-transparent border-0 text-xs h-8 text-zinc-300 placeholder:text-zinc-600"
+                        className="w-40 bg-transparent border-0 text-xs h-8 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 dark:placeholder:text-zinc-500 font-mono"
                     />
                 </div>
 
-                <div className="flex gap-2 flex-wrap">
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-900/50 p-1 rounded-lg border border-slate-300 dark:border-white/10 px-3 h-10">
+                <div className="flex gap-2 flex-wrap items-center">
+                    <div className="flex items-center gap-2 bg-white dark:bg-zinc-900/60 p-1 rounded-xl border border-slate-200/80 dark:border-white/10 px-3 h-10">
                         <Zap className="w-3.5 h-3.5 text-indigo-500" />
-                        <span className="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-zinc-300 whitespace-nowrap">طباعة مباشرة</span>
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 whitespace-nowrap">طباعة مباشرة</span>
                         <Switch
                             checked={enableSpeedPrint}
                             onCheckedChange={handleSpeedPrintToggle}
                             className="scale-[0.8] ms-1 data-[state=checked]:bg-indigo-500"
                         />
                     </div>
-                    <div className="flex items-center gap-1.5 px-2 h-10 bg-zinc-500/10 rounded-lg border border-zinc-500/20">
-                        <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
-                        <span className="text-[10px] text-zinc-400 font-bold whitespace-nowrap">{t('printOptions.shiftClickHint') || '(Shift + Click) للمعاينة'}</span>
+                    <div className="flex items-center gap-1.5 px-2.5 h-10 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200/80 dark:border-white/10">
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" />
+                        <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-medium whitespace-nowrap">{t('printOptions.shiftClickHint') || '(Shift + Click) للمعاينة'}</span>
                     </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-slate-100 dark:bg-zinc-900/50 text-slate-900 dark:text-white font-black">
-                                <Filter className="w-4 h-4" />
+                            <Button variant="outline" className="border-slate-200/80 dark:border-white/10 gap-2 h-10 px-3.5 bg-white dark:bg-zinc-900/60 text-slate-800 dark:text-white font-bold rounded-xl text-xs">
+                                <Filter className="w-3.5 h-3.5" />
                                 <span>{statusFilter === 'all' ? t('filters.all') : getStatusLabel(statusFilter.toUpperCase())}</span>
                                 <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
@@ -552,7 +557,7 @@ export default function TicketsList() {
                                 <DropdownMenuItem 
                                     key={st} 
                                     onClick={() => handleFilterChange(st)}
-                                    className={cn("font-black", statusFilter === st ? "bg-slate-100 dark:bg-white/10" : "")}
+                                    className={cn("font-bold text-xs", statusFilter === st ? "bg-slate-100 dark:bg-white/10" : "")}
                                 >
                                     {st === 'all' ? t('filters.all') : getStatusLabel(st.toUpperCase())}
                                 </DropdownMenuItem>
@@ -564,17 +569,20 @@ export default function TicketsList() {
                         variant={showStale ? 'default' : 'outline'}
                         onClick={handleStaleToggle}
                         size="sm"
-                        className={showStale
-                            ? "bg-orange-500 text-white hover:bg-orange-400 border-0 h-10"
-                            : "bg-transparent border-orange-500/30 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-10"}
+                        className={cn(
+                            "h-10 px-3 rounded-xl text-xs font-bold transition-all",
+                            showStale
+                                ? "bg-orange-500 text-white hover:bg-orange-400 border-0"
+                                : "bg-white dark:bg-zinc-900/60 border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
+                        )}
                     >
                         {t('filters.stale')}
                     </Button>
 
-                    <div className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 px-4 rounded-xl flex items-center gap-2 h-10 shadow-sm ml-auto sm:ml-0">
+                    <div className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 px-3.5 rounded-xl flex items-center gap-1.5 h-10 shadow-sm ml-auto sm:ml-0 text-xs font-black">
                         <Activity className="w-3.5 h-3.5" />
-                        <span className="text-[11px] font-black uppercase tracking-widest">{t('table.totalResults') || 'النتائج'}:</span>
-                        <span className="text-sm font-black tabular-nums">{sortedTickets.length}</span>
+                        <span>{t('table.totalResults') || 'النتائج'}:</span>
+                        <span className="font-mono text-sm">{sortedTickets.length}</span>
                     </div>
                 </div>
             </div>
@@ -584,86 +592,77 @@ export default function TicketsList() {
                     <CasperLoader text={t('search.loading')} />
                 </div>
             ) : sortedTickets.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">{t('search.noResults')}</div>
+                <div className="flex flex-col items-center justify-center py-16 px-4 bg-white/40 dark:bg-zinc-900/20 border border-dashed border-slate-300 dark:border-white/10 rounded-2xl text-center font-cairo">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 mb-3 border border-slate-200/60 dark:border-white/5 shadow-sm">
+                        <Wrench className="w-6 h-6 opacity-60" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-700 dark:text-zinc-200">{t('search.noResults') || "لا توجد تذاكر تطابق معايير البحث"}</p>
+                </div>
             ) : (
-                <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden shadow-sm font-cairo">
-                    <div className="overflow-x-auto custom-scrollbar">
-                        <table className="zebra-table w-full text-right text-sm text-zinc-900 dark:text-zinc-200 table-fixed" dir="rtl">
-                            <colgroup>
-                                <col className="w-[150px]" /> {/* Status */}
-                                <col className="w-[80px]" />  {/* Gap */}
-                                <col className="w-[80px]" />  {/* Risk */}
-                                <col className="w-[100px]" /> {/* Success */}
-                                <col className="w-[120px]" /> {/* Date */}
-                                <col className="w-[120px]" /> {/* Info */}
-                                <col className="w-[120px]" /> {/* Paid */}
-                                <col className="w-[120px]" /> {/* Due */}
-                                <col className="w-[180px]" /> {/* Customer */}
-                                <col className="w-[180px]" /> {/* Device */}
-                                <col className="w-[100px]" /> {/* Time */}
-                                <col className="w-[50px]" />  {/* Actions */}
-                            </colgroup>
-                                <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 uppercase font-black text-[11px] tracking-wider border-b border-zinc-200 dark:border-white/10">
-                                    <tr>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('status')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('status')}
-                                                {t('table.status')}
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('gap')}>
-                                             <div className="flex items-center gap-2">
-                                                 {getSortIcon('gap')}
-                                                 {t('table.gap')}
-                                             </div>
-                                         </th>
-                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('riskLevel')}>
-                                             <div className="flex items-center gap-2">
-                                                 {getSortIcon('riskLevel')}
-                                                 {t('table.risk')}
-                                             </div>
-                                         </th>
-                                         <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerSuccessRatio')}>
-                                             <div className="flex items-center gap-2">
-                                                 {getSortIcon('customerSuccessRatio')}
-                                                 {t('table.successRatio')}
-                                             </div>
-                                         </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('createdAt')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('createdAt')}
-                                                {t('table.date')}
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-4 text-start">{t('table.ticketInfo')}</th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('amountPaid')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('amountPaid')}
-                                                {t('table.paidAmount')}
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('amountDue')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('amountDue')}
-                                                {t('table.amountDue')}
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerName')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('customerName')}
-                                                {t('table.customer')}
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-4 text-start">{t('table.device')}</th>
-                                        <th className="px-6 py-4 text-start cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
-                                            <div className="flex items-center gap-2">
-                                                {getSortIcon('expectedDuration')}
-                                                {t('table.timeToFix')}
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-4 w-[50px]"></th>
-                                    </tr>
-                                </thead>
+                <div className="bg-white dark:bg-zinc-900/50 border border-slate-200/80 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm font-cairo">
+                    <div className="w-full overflow-x-auto no-scrollbar">
+                        <table className="zebra-table w-full text-right text-xs text-slate-800 dark:text-zinc-200" dir="rtl">
+                            <thead>
+                                <tr className="bg-slate-50/80 dark:bg-zinc-900/80 text-slate-500 dark:text-zinc-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-200/80 dark:border-white/10">
+                                    <th className="px-2.5 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('status')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('status')}
+                                            <span>{t('table.status')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('gap')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('gap')}
+                                            <span>{t('table.gap')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('riskLevel')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('riskLevel')}
+                                            <span>{t('table.risk')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerSuccessRatio')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('customerSuccessRatio')}
+                                            <span>{t('table.successRatio')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('createdAt')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('createdAt')}
+                                            <span>{t('table.date')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 text-start">{t('table.ticketInfo')}</th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('amountPaid')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('amountPaid')}
+                                            <span>{t('table.paidAmount')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('amountDue')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('amountDue')}
+                                            <span>{t('table.amountDue')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2.5 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('customerName')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('customerName')}
+                                            <span>{t('table.customer')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2.5 py-2.5 text-start">{t('table.device')}</th>
+                                    <th className="px-2 py-2.5 text-start cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('expectedDuration')}>
+                                        <div className="flex items-center gap-1">
+                                            {getSortIcon('expectedDuration')}
+                                            <span>{t('table.timeToFix')}</span>
+                                        </div>
+                                    </th>
+                                    <th className="px-2 py-2.5 w-8"></th>
+                                </tr>
+                            </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                                 {sortedTickets.map((ticket) => {
                                     const urgency = getUrgencyInfo(ticket);
@@ -672,11 +671,11 @@ export default function TicketsList() {
                                         <tr
                                             key={ticket.id}
                                             onClick={() => router.push(`/ar/maintenance/tickets/${ticket.id}`)}
-                                            className="bg-white even:bg-slate-100 dark:bg-transparent dark:even:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer group"
+                                            className="bg-white even:bg-slate-50/70 dark:bg-transparent dark:even:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer group"
                                         >
-                                            <td className="px-6 py-4 whitespace-nowrap font-black">
-                                                <div className="flex flex-col gap-1.5">
-                                                    <Badge className={`${getStatusColor(ticket.status)} text-white font-bold border-0 hover:${getStatusColor(ticket.status)}`}>
+                                            <td className="px-2.5 py-2 whitespace-nowrap font-black">
+                                                <div className="flex flex-col gap-1">
+                                                    <Badge className={`${getStatusColor(ticket.status)} text-white font-bold border-0 text-[10px] px-2 py-0.5 w-fit hover:${getStatusColor(ticket.status)}`}>
                                                         {getStatusLabel(ticket.status)}
                                                     </Badge>
                                                     {/* 🌊 Workflow Stage Progress Bar */}
@@ -684,21 +683,21 @@ export default function TicketsList() {
                                                         const workflow = getWorkflowStage(ticket.status);
                                                         const stageLabels = ['استلام', 'فحص', 'إصلاح', 'QC', 'جاهز', 'تسليم', 'مسدد'];
                                                         return (
-                                                            <div className="mt-1.5">
-                                                                <div className="flex gap-[2px] w-full mb-0.5">
+                                                            <div className="mt-0.5">
+                                                                <div className="flex gap-[1.5px] w-full mb-0.5">
                                                                     {[...Array(workflow.total)].map((_, i) => (
                                                                         <div 
                                                                             key={i} 
                                                                             title={stageLabels[i]}
-                                                                            className={`h-[3px] flex-1 rounded-full transition-all ${
+                                                                            className={`h-[2.5px] flex-1 rounded-full transition-all ${
                                                                                 i < workflow.current 
                                                                                     ? (i === workflow.current - 1 ? `${getStatusColor(ticket.status)} opacity-100` : `${getStatusColor(ticket.status)} opacity-60`) 
-                                                                                    : 'bg-zinc-200 dark:bg-white/10'
+                                                                                    : 'bg-slate-200 dark:bg-white/10'
                                                                             }`} 
                                                                         />
                                                                     ))}
                                                                 </div>
-                                                                <span className="text-[8px] text-zinc-400 dark:text-zinc-600 font-black">
+                                                                <span className="text-[7px] text-slate-400 dark:text-zinc-500 font-mono font-bold">
                                                                     {workflow.current}/{workflow.total}
                                                                 </span>
                                                             </div>
@@ -708,55 +707,55 @@ export default function TicketsList() {
                                             </td>
 
                                             {/* ⏱ Gap Column */}
-                                            <td className="px-4 py-4">
+                                            <td className="px-2 py-2">
                                                 {(() => {
                                                     const isLong = ticket.gap?.includes('d') || (ticket.gap?.includes('h') && parseInt(ticket.gap) > 8);
                                                     return (
-                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black tabular-nums ${
+                                                        <div className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border text-[9px] font-black tabular-nums font-mono ${
                                                             ticket.isOverdue 
-                                                                ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                                                                ? 'bg-rose-500/10 border-rose-500/20 text-rose-500'
                                                                 : isLong 
-                                                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-500'
-                                                                    : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-500'
+                                                                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                                                                    : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500 dark:text-zinc-400'
                                                         }`}>
                                                             <Clock className="w-2.5 h-2.5" />
-                                                            {ticket.gap}
+                                                            <span>{ticket.gap}</span>
                                                         </div>
                                                     );
                                                 })()}
                                             </td>
 
                                             {/* 🎯 Risk Column */}
-                                            <td className="px-4 py-4">
+                                            <td className="px-2 py-2">
                                                 {(() => {
                                                     const riskStyles = {
-                                                        high: { bg: 'bg-red-500/10 border-red-500/30', text: 'text-red-500', label: 'عالي', pulse: true },
-                                                        medium: { bg: 'bg-orange-500/10 border-orange-500/30', text: 'text-orange-500', label: 'متوسط', pulse: false },
+                                                        high: { bg: 'bg-rose-500/10 border-rose-500/30', text: 'text-rose-500', label: 'عالي', pulse: true },
+                                                        medium: { bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-500', label: 'متوسط', pulse: false },
                                                         low: { bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-500', label: 'منخفض', pulse: false }
                                                     };
                                                     const style = riskStyles[risk.level as keyof typeof riskStyles] || riskStyles.low;
                                                     return (
-                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border ${style.bg}`}>
-                                                            {style.pulse && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span>}
+                                                        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${style.bg}`}>
+                                                            {style.pulse && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span></span>}
                                                             <AlertTriangle className={`w-2.5 h-2.5 ${style.text}`} />
-                                                            <span className={`text-[9px] font-black uppercase tracking-tighter ${style.text}`}>{style.label}</span>
+                                                            <span className={`text-[9px] font-black ${style.text}`}>{style.label}</span>
                                                         </div>
                                                     );
                                                 })()}
                                             </td>
 
                                             {/* 🏆 Customer Success Ratio */}
-                                            <td className="px-4 py-4">
+                                            <td className="px-2 py-2">
                                                 {(() => {
                                                     const ratio = Number(ticket.customerSuccessRatio) || 100;
-                                                    const color = ratio >= 80 ? 'text-emerald-500' : ratio >= 50 ? 'text-orange-500' : 'text-rose-500';
-                                                    const trackColor = ratio >= 80 ? 'text-emerald-500' : ratio >= 50 ? 'text-orange-500' : 'text-rose-500';
+                                                    const color = ratio >= 80 ? 'text-emerald-500' : ratio >= 50 ? 'text-amber-500' : 'text-rose-500';
+                                                    const trackColor = ratio >= 80 ? 'text-emerald-500' : ratio >= 50 ? 'text-amber-500' : 'text-rose-500';
                                                     const r = 9; const circ = 2 * Math.PI * r;
                                                     return (
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="relative w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="relative w-7 h-7 flex items-center justify-center flex-shrink-0">
                                                                 <svg viewBox="0 0 24 24" className="w-full h-full -rotate-90">
-                                                                    <circle cx="12" cy="12" r={r} fill="transparent" stroke="currentColor" strokeWidth="2.5" className="text-zinc-200 dark:text-white/5" />
+                                                                    <circle cx="12" cy="12" r={r} fill="transparent" stroke="currentColor" strokeWidth="2.5" className="text-slate-200 dark:text-white/5" />
                                                                     <circle 
                                                                         cx="12" cy="12" r={r}
                                                                         fill="transparent" stroke="currentColor" strokeWidth="2.5"
@@ -766,92 +765,106 @@ export default function TicketsList() {
                                                                         className={`${trackColor} transition-all duration-500`}
                                                                     />
                                                                 </svg>
-                                                                <span className={`absolute text-[7px] font-black ${color}`}>{ratio}%</span>
+                                                                <span className={`absolute text-[7px] font-black font-mono ${color}`}>{ratio}%</span>
                                                             </div>
                                                         </div>
                                                     );
                                                 })()}
                                             </td>
-                                            <td className="px-6 py-4 font-black text-slate-700 dark:text-zinc-400 text-xs tabular-nums">
+
+                                            {/* 📅 Date */}
+                                            <td className="px-2 py-2 font-bold text-slate-600 dark:text-zinc-400 text-[10px] tabular-nums font-mono whitespace-nowrap">
                                                 {new Date(ticket.createdAt).toLocaleDateString()}
                                             </td>
-                                            <td className="px-6 py-4 font-black">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="font-mono text-zinc-500 dark:text-zinc-400 font-black text-xs">#{ticket.barcode}</span>
+
+                                            {/* 🏷️ Info */}
+                                            <td className="px-2 py-2 font-black">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="font-mono text-slate-600 dark:text-zinc-400 font-black text-[10px]">#{ticket.barcode}</span>
                                                     {(() => {
                                                         const caseInfo = getCaseInfo(ticket);
                                                         const CaseIcon = caseInfo.icon;
                                                         return (
-                                                            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border w-fit ${caseInfo.color}`}>
-                                                                <CaseIcon className="w-3 h-3" />
-                                                                <span className="text-[10px] font-black uppercase tracking-wider">{caseInfo.label}</span>
+                                                            <div className={`flex items-center gap-1 px-1.5 py-0.2 rounded border w-fit text-[9px] font-black ${caseInfo.color}`}>
+                                                                <CaseIcon className="w-2.5 h-2.5" />
+                                                                <span>{caseInfo.label}</span>
                                                             </div>
                                                         );
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 font-black">
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className="text-emerald-600 dark:text-emerald-400 font-black tabular-nums">{(ticket.amountPaid || 0).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span></span>
-                                                    <span className="text-[10px] text-zinc-500 tracking-tighter uppercase">{ticket.paymentStatus || 'unpaid'}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-black">
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className={`font-black tabular-nums ${(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500'}`}>
-                                                        {(ticket.repairPrice - (ticket.amountPaid || 0)).toLocaleString()} <span className="text-[10px] font-black text-zinc-500">EGP</span>
-                                                    </span>
-                                                    <span className="text-[10px] text-zinc-500 tracking-tighter uppercase">{(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'pending' : 'settled'}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-black">
+
+                                            {/* 💵 Paid */}
+                                            <td className="px-2 py-2 font-black">
                                                 <div className="flex flex-col">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-black text-slate-900 dark:text-zinc-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors truncate">{ticket.customerName}</span>
-                                                        {ticket.customer?.linkedEmployeeId && (
-                                                            <span className="text-[9px] bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 px-1.5 py-0.5 rounded-full font-black whitespace-nowrap">
-                                                                موظف داخلي
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-xs text-slate-600 dark:text-zinc-500 font-black tracking-tight">{ticket.customerPhone}</span>
+                                                    <span className="text-emerald-600 dark:text-emerald-400 font-black font-mono tabular-nums text-xs">
+                                                        {(ticket.amountPaid || 0).toLocaleString()} <span className="text-[8px] font-bold text-slate-400">ج.م</span>
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-400 uppercase font-mono">{ticket.paymentStatus || 'unpaid'}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-slate-900 dark:text-zinc-200 font-black uppercase truncate block">{ticket.deviceBrand} {ticket.deviceModel}</span>
+
+                                            {/* 💳 Due */}
+                                            <td className="px-2 py-2 font-black">
+                                                <div className="flex flex-col">
+                                                    <span className={`font-black font-mono tabular-nums text-xs ${(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                                                        {(ticket.repairPrice - (ticket.amountPaid || 0)).toLocaleString()} <span className="text-[8px] font-bold text-slate-400">ج.م</span>
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-400 uppercase font-mono">{(ticket.repairPrice - (ticket.amountPaid || 0)) > 0 ? 'pending' : 'settled'}</span>
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className={`flex items-center gap-1 font-black ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
-                                                    <Clock className="w-3.5 h-3.5" />
-                                                    <span className="text-sm font-black">
-                                                        {urgency ? urgency.label : (ticket.expectedDuration ? `${ticket.expectedDuration} min` : '-')}
+
+                                            {/* 👤 Customer */}
+                                            <td className="px-2.5 py-2 font-black">
+                                                <div className="flex flex-col max-w-[130px]">
+                                                    <span className="font-bold text-slate-900 dark:text-zinc-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors truncate block text-xs">
+                                                        {ticket.customerName}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono tracking-tight">{ticket.customerPhone}</span>
+                                                </div>
+                                            </td>
+
+                                            {/* 📱 Device */}
+                                            <td className="px-2.5 py-2">
+                                                <span className="text-slate-800 dark:text-zinc-300 font-bold uppercase truncate block text-xs max-w-[120px]" title={`${ticket.deviceBrand} ${ticket.deviceModel}`}>
+                                                    {ticket.deviceBrand} {ticket.deviceModel}
+                                                </span>
+                                            </td>
+
+                                            {/* ⏱ Duration */}
+                                            <td className="px-2 py-2">
+                                                <div className={`flex items-center gap-1 font-bold text-xs ${urgency ? urgency.color : 'text-slate-500 dark:text-zinc-400'}`}>
+                                                    <Clock className="w-3 h-3 shrink-0" />
+                                                    <span className="font-mono text-[11px] whitespace-nowrap">
+                                                        {urgency ? urgency.label : (ticket.expectedDuration ? `${ticket.expectedDuration} دقيقة` : '-')}
                                                     </span>
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {/* ⚙️ Actions */}
+                                            <td className="px-2 py-2 whitespace-nowrap text-end w-8">
+                                                <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleDirectPrint(ticket, e); }}
-                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors group relative"
-                                                        title="Quick Print (Shift+Click for preview)"
+                                                        className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-slate-500 hover:text-cyan-500"
+                                                        title="طباعة سريعة"
                                                     >
-                                                        <Printer className="h-4 w-4 text-slate-500 group-hover:text-cyan-500" />
+                                                        <Printer className="h-3.5 w-3.5" />
                                                     </button>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                            <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-slate-200 dark:hover:bg-white/10">
-                                                                <MoreHorizontal className="h-4 w-4 text-slate-500 dark:text-zinc-400" />
+                                                            <Button variant="ghost" className="h-6 w-6 p-0 hover:bg-slate-200 dark:hover:bg-white/10">
+                                                                <MoreHorizontal className="h-3.5 w-3.5 text-slate-500 dark:text-zinc-400" />
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" className="w-[160px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-xl">
                                                             <DropdownMenuLabel className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('list.actions')}</DropdownMenuLabel>
-                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/ar/maintenance/tickets/${ticket.id}`) }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                                <Search className="mr-2 h-4 w-4 text-cyan-500" />
+                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/ar/maintenance/tickets/${ticket.id}`) }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer text-xs">
+                                                                <Search className="mr-2 h-3.5 w-3.5 text-cyan-500" />
                                                                 <span>{t('list.viewDetails')}</span>
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingTicket(ticket); setShowEditModal(true); }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer">
-                                                                <Edit2 className="mr-2 h-4 w-4 text-amber-500" />
+                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingTicket(ticket); setShowEditModal(true); }} className="font-bold hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer text-xs">
+                                                                <Edit2 className="mr-2 h-3.5 w-3.5 text-amber-500" />
                                                                 <span>{t('list.editDetails')}</span>
                                                             </DropdownMenuItem>
                                                             <DropdownMenuSeparator className="bg-slate-200 dark:bg-white/5" />

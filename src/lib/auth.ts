@@ -34,13 +34,16 @@ export async function createUserSession(userData: UserSession, maxAge: number = 
             });
             console.log(`[AUTH TRACE] Deleted ${deleted.count} old sessions for user=${userData.id}`);
 
+            const sessionPayload: any = {
+                userId: userData.id,
+                token,
+                expiresAt,
+            };
+            if ((prisma.session as any)?.fields?.tenantId) {
+                sessionPayload.tenantId = userData.tenantId || 'default';
+            }
             const created = await prisma.session.create({
-                data: {
-                    userId: userData.id,
-                    token,
-                    expiresAt,
-                    tenantId: userData.tenantId || 'default'
-                }
+                data: sessionPayload
             });
             console.log(`[AUTH TRACE] Created session id=${created.id}, token=${token.slice(0,8)}..., tenantId=${(created as any).tenantId}, userId=${created.userId}`);
         });
