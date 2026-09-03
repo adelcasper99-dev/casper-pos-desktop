@@ -52,6 +52,8 @@ export interface CartProduct {
     sellPrice3: number;
     stock: number;
     trackStock?: boolean;
+    isBundle?: boolean;
+    bundleComponents?: { id: string; name: string; quantityIncluded: number }[];
 }
 
 export interface Category {

@@ -641,3 +641,18 @@ body {
     /* Use printer's default paper size */
   }
 }
+
+/* Dynamic Viewport Height & Safe Area Enhancements */
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}

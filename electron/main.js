@@ -430,7 +430,7 @@ const createWindow = async () => {
 
     const iconPath = path.join(__dirname, '..', 'public', 'assets', 'casper-light.png');
     mainWindow = new BrowserWindow({
-        width: 1200, height: 800, icon: iconPath, frame: false, titleBarStyle: 'hidden', show: false,
+        width: 1200, height: 800, minWidth: 900, minHeight: 640, icon: iconPath, frame: false, titleBarStyle: 'hidden', show: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false, contextIsolation: true

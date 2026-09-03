@@ -67,27 +67,12 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableSidebarItem } from "./SortableSidebarItem";
 
-const MENU_ITEMS = [
-    { key: "dashboard", href: "/dashboard", icon: LayoutDashboard, permission: PERMISSION_REGISTRY.DASHBOARD.VIEW },
-    { key: "pos", href: "/pos", icon: ShoppingCart, permission: PERMISSION_REGISTRY.POS.ACCESS },
-    { key: "hr", href: "/hr", icon: Briefcase, permission: PERMISSION_REGISTRY.HR.VIEW_ATTENDANCE },
-    { key: "inventory", href: "/inventory", icon: Box, permission: PERMISSION_REGISTRY.INVENTORY.VIEW },
-    { key: "spareParts", href: "/spare-parts", icon: Smartphone, permission: null },
-    { key: "customers", href: "/customers", icon: Users, permission: PERMISSION_REGISTRY.CUSTOMER.VIEW },
-    { key: "purchasing", href: "/purchasing", icon: Truck, permission: PERMISSION_REGISTRY.PURCHASING.VIEW },
-    { key: "treasury", href: "/treasury", icon: Landmark, permission: PERMISSION_REGISTRY.TREASURY.VIEW },
-    { key: "accounting_partners", href: "/accounting/partners", icon: Users, permission: PERMISSION_REGISTRY.PARTNERS.VIEW },
-    { key: "accounting_balance_sheet", href: "/accounting/balance-sheet", icon: FileText, permission: PERMISSION_REGISTRY.ACCOUNTING.VIEW },
-    { key: "logs", href: "/logs", icon: HistoryIcon as LucideIcon, permission: PERMISSION_REGISTRY.LOGS.VIEW },
-    { key: "reports_main", href: "/reports", icon: BarChart3, permission: PERMISSION_REGISTRY.REPORTS.VIEW },
-    { key: "maintenance", href: "/maintenance/tickets", icon: Wrench, permission: PERMISSION_REGISTRY.TICKET.VIEW },
-    { key: "returns", href: "/returns", icon: Undo2, permission: undefined },
-];
+import { MENU_ITEMS, useFilteredNavItems, type NavUser, type NavSettings } from "@/hooks/useFilteredNavItems";
 
 interface BridgeStatusBadgeProps {
     isExpanded: boolean;
     locale: string;
-    router: any;
+    router: ReturnType<typeof useRouter>;
 }
 
 function BridgeStatusBadge({ isExpanded, locale, router }: BridgeStatusBadgeProps) {
@@ -172,7 +157,7 @@ function BridgeStatusBadge({ isExpanded, locale, router }: BridgeStatusBadgeProp
     );
 }
 
-function Sidebar({ user, settings }: { user: any, settings?: any }) {
+function Sidebar({ user, settings }: { user?: NavUser | null, settings?: NavSettings | null }) {
     const t = useTranslations('Sidebar');
     const [isExpanded, setIsExpanded] = useState(false);
     const rawPathname = usePathname();
@@ -185,14 +170,6 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
 
     const [mounted, setMounted] = useState(false);
     const [itemsOrder, setItemsOrder] = useState<string[]>(MENU_ITEMS.map(i => i.key));
-
-    const features = useMemo(() => {
-        try {
-            return JSON.parse(settings?.features || "{}");
-        } catch (e) {
-            return {};
-        }
-    }, [settings?.features]);
 
     useEffect(() => {
         setMounted(true);
@@ -230,49 +207,8 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
 
     const isSettingsActive = pathname === `/settings` || pathname.startsWith(`/settings/`);
     const isAdminLicensesActive = pathname === `/admin/licenses` || pathname.startsWith(`/admin/licenses`);
-    const isAdmin = user?.role === 'ADMIN' || user?.role === 'Admin';
 
-    const filteredItems = useMemo(() => {
-        const visibleItems = MENU_ITEMS.filter(item => {
-            // 1. Check Feature Toggle (Enabled by default if not specified)
-            // Handle linked modules
-            const featureKey = item.key.includes('maintenance') ? 'maintenance' :
-                item.key === 'returns' ? 'returns' :
-                    item.key === 'logs' ? 'reports' :
-                        item.key;
-
-            if (item.key === 'returns') {
-                // Returns should be visible if POS OR Maintenance OR Purchasing is enabled
-                const isPosEnabled = features['pos'] !== false;
-                const isMaintenanceEnabled = features['maintenance'] !== false;
-                const isPurchasingEnabled = features['purchasing'] !== false;
-                if (!isPosEnabled && !isMaintenanceEnabled && !isPurchasingEnabled) return false;
-
-                // Also check if user has permission for ANY of these
-                if (isAdmin) return true;
-                const hasPosAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.POS.ACCESS);
-                const hasMaintAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.TICKET.VIEW);
-                const hasPurchAccess = hasPermission(user?.permissions, PERMISSION_REGISTRY.PURCHASING.VIEW);
-                if (!hasPosAccess && !hasMaintAccess && !hasPurchAccess) return false;
-
-                return true;
-            } else if (features[featureKey] === false) {
-                return false;
-            }
-
-            // 2. Check Permissions
-            if (!item.permission) return true;
-            if (isAdmin) return true;
-            return hasPermission(user?.permissions, item.permission);
-        });
-
-        // Sort visible items according to itemsOrder
-        return [...visibleItems].sort((a, b) => {
-            const indexA = itemsOrder.indexOf(a.key);
-            const indexB = itemsOrder.indexOf(b.key);
-            return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-        });
-    }, [user, isAdmin, itemsOrder, features]);
+    const { filteredItems, features, isAdmin } = useFilteredNavItems(user, settings, itemsOrder);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -503,7 +439,7 @@ function Sidebar({ user, settings }: { user: any, settings?: any }) {
                 )}
 
                 <AppClock isExpanded={isExpanded} />
-                <StaffProfileBadge user={user} isExpanded={isExpanded} />
+                {user?.username && <StaffProfileBadge user={user as Parameters<typeof StaffProfileBadge>[0]['user']} isExpanded={isExpanded} />}
             </div>
         </aside>
     );

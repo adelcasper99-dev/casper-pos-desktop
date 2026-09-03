@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
+import MobileHeader from "@/components/MobileHeader";
 import TitleBar from "@/components/TitleBar";
 import SplashScreen from "@/components/SplashScreen";
 import AutoUpdateListener from "@/components/layout/AutoUpdateListener";
@@ -11,6 +12,8 @@ import { LicenseProvider } from "@/contexts/LicenseContext";
 import { CloudConfigManager } from "@/utils/cloudConfigManager";
 
 const TrainingModal = dynamic(() => import("@/components/ui/TrainingModal"), { ssr: false });
+
+import { type NavUser, type NavSettings } from "@/hooks/useFilteredNavItems";
 
 export default function LayoutContent({
     children,
@@ -20,9 +23,9 @@ export default function LayoutContent({
     isHq
 }: {
     children: React.ReactNode;
-    user: any;
-    settings: any;
-    licenseStatus?: any;
+    user?: NavUser | null;
+    settings?: NavSettings | null;
+    licenseStatus?: { status?: string; message?: string; errorCode?: string | number } | null;
     isHq?: boolean;
 }) {
     const pathname = usePathname();
@@ -38,11 +41,12 @@ export default function LayoutContent({
 
     // 🩹 Self-Healing: Re-derive missing branchId from license JWT if cloud sync is enabled
     useEffect(() => {
-        if (typeof window !== 'undefined' && settings?.licenseJwt) {
+        const licenseJwt = settings?.licenseJwt;
+        if (typeof window !== 'undefined' && typeof licenseJwt === 'string') {
             CloudConfigManager.getCloudConfig().then((config) => {
                 if (config.enabled && !config.branchId) {
                     try {
-                        const parts = settings.licenseJwt.split('.');
+                        const parts = licenseJwt.split('.');
                         if (parts.length === 3) {
                             const payloadB64 = parts[1];
                             const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
@@ -136,7 +140,7 @@ export default function LayoutContent({
 
     // ⏰ Polling Recovery Loop during Emergency Mode
     useEffect(() => {
-        if (typeof window !== 'undefined' && settings?.licenseJwt && settings?.licenseKey) {
+        if (typeof window !== 'undefined' && typeof settings?.licenseJwt === 'string' && settings?.licenseKey) {
             let isEmergency = false;
             try {
                 const parts = settings.licenseJwt.split('.');
@@ -206,7 +210,7 @@ export default function LayoutContent({
 
     if (isStandalonePage) {
         return (
-            <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
+            <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-background">
                 {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
                 <div className="print:hidden">
                     <TitleBar />
@@ -219,13 +223,18 @@ export default function LayoutContent({
     }
 
     return (
-        <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
+        <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-background">
             {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
             <div className="print:hidden">
                 <TitleBar />
+                {user && <MobileHeader user={user} settings={settings} />}
             </div>
             <div className="flex flex-1 overflow-hidden">
-                {user && <Sidebar user={user} settings={settings} />}
+                {user && (
+                    <div className="hidden md:flex h-full shrink-0">
+                        <Sidebar user={user} settings={settings} />
+                    </div>
+                )}
                 <main className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
                     {isReadOnly && (
                         <div className="bg-destructive text-destructive-foreground px-4 py-2 text-center text-sm font-semibold flex items-center justify-center gap-2">

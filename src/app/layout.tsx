@@ -22,7 +22,15 @@ import { redirect } from "next/navigation";
 import LayoutContent from "./LayoutContent";
 import { TimeSyncWarning } from "@/components/layout/TimeSyncWarning";
  
+import type { Viewport } from "next";
+
 export const dynamic = "force-dynamic";
+
+export const viewport: Viewport = {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+};
 
 export const metadata = {
     title: "Casper POS Desktop",
@@ -60,8 +68,9 @@ export default async function RootLayout({
     if (tenantId && tenantId !== 'default' && tenantId !== 'SYSTEM') {
         try {
             await requireActiveTenant(tenantId);
-        } catch (error: any) {
-            if (error?.code === 'TENANT_SUSPENDED') {
+        } catch (error: unknown) {
+            const err = error as { code?: string };
+            if (err?.code === 'TENANT_SUSPENDED') {
                 return (
                     <html lang="ar" dir="rtl">
                         <body className="flex items-center justify-center h-screen bg-slate-950 text-white font-sans">
@@ -78,7 +87,7 @@ export default async function RootLayout({
                     </html>
                 );
             }
-            if (error?.code === 'TENANT_NOT_FOUND') {
+            if (err?.code === 'TENANT_NOT_FOUND') {
                 return (
                     <html lang="ar" dir="rtl">
                         <body className="flex items-center justify-center h-screen bg-slate-950 text-white font-sans">
@@ -131,9 +140,14 @@ export default async function RootLayout({
 
 // Client-side wrapper to handle conditional sidebar
 
-function LayoutWrapper({ children, user, settings, licenseStatus, isHq }: { children: React.ReactNode, user: any, settings: any, licenseStatus: any, isHq: boolean }) {
+function LayoutWrapper({ children, user, settings, licenseStatus, isHq }: { children: React.ReactNode, user?: unknown, settings?: unknown, licenseStatus?: unknown, isHq: boolean }) {
     return (
-        <LayoutContent user={user} settings={settings} licenseStatus={licenseStatus} isHq={isHq}>
+        <LayoutContent
+            user={user as React.ComponentProps<typeof LayoutContent>['user']}
+            settings={settings as React.ComponentProps<typeof LayoutContent>['settings']}
+            licenseStatus={licenseStatus as React.ComponentProps<typeof LayoutContent>['licenseStatus']}
+            isHq={isHq}
+        >
             {children}
         </LayoutContent>
     );

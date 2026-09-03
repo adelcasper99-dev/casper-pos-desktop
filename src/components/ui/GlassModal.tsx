@@ -39,7 +39,7 @@ export default function GlassModal({ isOpen, onClose, title, children, className
         >
             <div
                 className={cn(
-                    "w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar p-6 relative animate-in zoom-in-95 duration-300 bg-background dark:bg-zinc-900/95 dark:backdrop-blur-2xl rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-border dark:border-white/10",
+                    "w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[88dvh] overflow-y-auto custom-scrollbar p-6 relative animate-in zoom-in-95 duration-300 bg-background dark:bg-zinc-900/95 dark:backdrop-blur-2xl rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-border dark:border-white/10",
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}

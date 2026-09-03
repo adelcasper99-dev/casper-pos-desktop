@@ -446,7 +446,7 @@ export default function TicketDetailPage() {
     };
 
     if (loading) return (
-        <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-white transition-colors">
+        <div className="flex items-center justify-center h-[100dvh] bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-white transition-colors">
             <div className="flex flex-col items-center gap-4">
                 <div className="w-12 h-12 border-4 border-slate-300 dark:border-white/20 border-t-black dark:border-t-white rounded-full animate-spin" />
                 <p className="text-slate-500 dark:text-zinc-400 animate-pulse">{tCommon('loading')}...</p>
@@ -455,7 +455,7 @@ export default function TicketDetailPage() {
     );
 
     if (!ticket) return (
-        <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-[#09090b] transition-colors">
+        <div className="flex items-center justify-center h-[100dvh] bg-slate-50 dark:bg-[#09090b] transition-colors">
             <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-center p-8 max-w-md mx-auto shadow-2xl">
                 <X className="w-12 h-12 text-slate-400 dark:text-red-500 mx-auto mb-4" />
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('ticketNotFound')}</h2>
@@ -467,7 +467,7 @@ export default function TicketDetailPage() {
     );
 
     return (
-        <div className="h-screen overflow-hidden bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 flex flex-col pt-2 transition-colors" dir="rtl">
+        <div className="h-[100dvh] overflow-hidden bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 flex flex-col pt-2 transition-colors" dir="rtl">
             {/* Phase 1: Fixed Compact Header */}
             <div className="flex items-center justify-between px-6 py-3 border-b-2 border-slate-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
                 <div className="flex items-center gap-4">

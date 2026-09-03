@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import POSClientAPI from "./POSClientAPI";
+import POSClientAPI, { type POSFloor } from "./POSClientAPI";
 import { getTranslations } from "@/lib/i18n-mock";
 import { getCSRFToken } from "@/lib/csrf";
 import { getCurrentShift } from "@/actions/shift-management-actions";
@@ -82,11 +82,15 @@ export default async function POSPage() {
                 sellPrice2: toNumber(p.sellPrice2),
                 sellPrice3: toNumber(p.sellPrice3),
                 minStock: p.minStock,
-                trackStock: (p as any).trackStock ?? true,
-                isBundle: !!(p as any).isBundle,
+                trackStock: (p as { trackStock?: boolean }).trackStock ?? true,
+                isBundle: !!(p as { isBundle?: boolean }).isBundle,
             };
         });
-        const categories = await prisma.category.findMany();
+        const rawCategories = await prisma.category.findMany();
+        const categories = rawCategories.map(c => ({
+            ...c,
+            color: c.color || '#3b82f6'
+        }));
 
         // Example registers - In production, fetch from database
         const registers = [
@@ -95,25 +99,26 @@ export default async function POSPage() {
         ];
 
         // Fetch Floors and Tables unconditionally now
-        let floors: any[] = [];
+        let floors: POSFloor[] = [];
         try {
-            floors = await prisma.floor.findMany({
+            const dbFloors = await prisma.floor.findMany({
                 include: { tables: true },
                 orderBy: { createdAt: 'asc' }
             });
+            floors = dbFloors as unknown as POSFloor[];
         } catch (e) {
             console.error("Failed to fetch floors", e);
         }
 
         return (
-            <div className="flex flex-col h-screen overflow-hidden">
+            <div className="flex flex-col h-[100dvh] overflow-hidden bg-slate-100/60 dark:bg-black/90">
                 {/* Top Bar: Shift Status */}
-                <div className="shrink-0 p-4 pb-0">
+                <div className="shrink-0 p-2 pb-0">
                     <ShiftStatusIndicator shift={currentShift} registers={registers} csrfToken={csrfToken || ''} />
                 </div>
 
                 {/* POS Interface - fills remaining height */}
-                <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden p-4 animate-fly-in">
+                <div className="flex-1 flex flex-col md:flex-row gap-2 overflow-hidden p-2">
                     <POSClientAPI
                         products={products}
                         categories={categories}
@@ -121,7 +126,7 @@ export default async function POSPage() {
                         csrfToken={csrfToken || ''}
                         floors={floors}
                         permissions={permissions}
-                        posDefaultName={posDefaultName}
+                        posDefaultName={posDefaultName ?? undefined}
                     />
                 </div>
             </div>
@@ -129,7 +134,7 @@ export default async function POSPage() {
     } catch (error) {
         console.error("POS Critical Error:", error);
         return (
-            <div className="flex flex-col items-center justify-center h-screen p-4 text-center">
+            <div className="flex flex-col items-center justify-center h-[100dvh] p-4 text-center">
                 <h1 className="text-2xl font-bold text-red-600 mb-4">خطأ في تحميل نقطة البيع</h1>
                 <p className="text-gray-600 mb-6">حدث خطأ تقني أثناء تحميل البيانات. قد يكون ذلك بسبب تلف مؤقت في البيانات المحلية.</p>
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 max-w-md">
