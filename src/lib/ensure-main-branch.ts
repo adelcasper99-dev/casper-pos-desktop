@@ -112,8 +112,19 @@ async function _ensureMainBranchInternal(): Promise<string> {
     };
 
     // Try to find the existing main branch and check if it has the default treasury
-    const branch = await prisma.branch.findUnique({
-        where: { code: MAIN_BRANCH_CODE },
+    const branch = await prisma.branch.findFirst({
+        where: {
+            OR: [
+                { code: MAIN_BRANCH_CODE },
+                { code: { endsWith: '-MAIN' } }
+            ],
+            deletedAt: null
+        },
+        orderBy: { createdAt: 'asc' },
+        include: { treasuries: { where: { isDefault: true, deletedAt: null } } }
+    }) || await prisma.branch.findFirst({
+        where: { deletedAt: null },
+        orderBy: { createdAt: 'asc' },
         include: { treasuries: { where: { isDefault: true, deletedAt: null } } }
     });
 
@@ -138,8 +149,19 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
 
     if (!branch) {
         branch = await prisma.branch.findFirst({
-            where: { code: MAIN_BRANCH_CODE }
+            where: {
+                OR: [
+                    { code: MAIN_BRANCH_CODE },
+                    { code: { endsWith: '-MAIN' } }
+                ],
+                deletedAt: null
+            },
+            orderBy: { createdAt: 'asc' }
+        }) || await prisma.branch.findFirst({
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' }
         });
+
         if (!branch) {
             try {
                 branch = await prisma.branch.create({
@@ -154,20 +176,19 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
                 });
             } catch (e) {
                 branch = await prisma.branch.findFirst({
-                    where: { code: MAIN_BRANCH_CODE }
+                    where: { deletedAt: null },
+                    orderBy: { createdAt: 'asc' }
                 });
                 if (!branch) throw e;
             }
         }
-    } else if (branch.name !== storeInfo.name || branch.phone !== storeInfo.phone || branch.address !== storeInfo.address || branch.type !== 'CENTER') {
+    }
+
+    // Ensure type is CENTER
+    if (branch.type !== 'CENTER') {
         branch = await prisma.branch.update({
-            where: { code: MAIN_BRANCH_CODE },
-            data: {
-                name: storeInfo.name,
-                phone: storeInfo.phone,
-                address: storeInfo.address,
-                type: 'CENTER' // Self-heal: ensure main branch is always CENTER type
-            }
+            where: { id: branch.id },
+            data: { type: 'CENTER' }
         });
     }
 
@@ -373,21 +394,21 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
  */
 export async function syncMainBranchDetails(details: { name?: string; phone?: string | null; address?: string | null }): Promise<void> {
     try {
-        await prisma.branch.update({
-            where: { code: MAIN_BRANCH_CODE },
-            data: {
-                name: details.name ?? undefined,
-                phone: details.phone === undefined ? undefined : details.phone,
-                address: details.address === undefined ? undefined : details.address
-            }
-        });
+        const branchId = await ensureMainBranch();
+        if (branchId) {
+            await prisma.branch.update({
+                where: { id: branchId },
+                data: {
+                    name: details.name ?? undefined,
+                    phone: details.phone === undefined ? undefined : details.phone,
+                    address: details.address === undefined ? undefined : details.address
+                }
+            });
 
-        // Also sync default warehouse name if store name changed
-        if (details.name) {
-            const branch = await prisma.branch.findUnique({ where: { code: MAIN_BRANCH_CODE } });
-            if (branch) {
+            // Also sync default warehouse name if store name changed
+            if (details.name) {
                 await prisma.warehouse.updateMany({
-                    where: { branchId: branch.id, isDefault: true },
+                    where: { branchId: branchId, isDefault: true },
                     data: { name: details.name }
                 });
             }

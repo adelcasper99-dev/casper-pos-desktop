@@ -58,7 +58,7 @@ export async function provisionTenantCore(params: {
     await tx.branch.create({
       data: {
         id: branchId,
-        name: `${name} Main Branch`,
+        name: name,
         code: `${cleanSlug.toUpperCase()}-MAIN`,
         type: "CENTER",
         tenantId
