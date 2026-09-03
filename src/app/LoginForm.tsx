@@ -149,7 +149,7 @@ export default function LoginForm() {
             const res = await login(formData);
 
             if (res?.success === false) {
-                setError(res.message);
+                setError(res.message || "حدث خطأ أثناء تسجيل الدخول");
                 setLoading(false);
                 // Revert localStorage if login failed
                 if (originalUsers) localStorage.setItem('rememberedUsers', originalUsers);
