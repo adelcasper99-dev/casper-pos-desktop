@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, KeyboardEvent, forwardRef } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, History, Loader2, Sparkles, Tag, ChevronDown, Plus, Pencil } from "lucide-react";
+import { Trash2, History, Loader2, Sparkles, Tag, ChevronDown, Plus, Pencil, Info } from "lucide-react";
 import { clsx } from "clsx";
 import { safeRandomUUID } from "@/lib/utils";
 import { getProductPriceHistory, generateNextSku, updateCategory, deleteCategory, updateModel, deleteModel, updateAttribute, deleteAttribute, updateUnitOfMeasure, deleteUnitOfMeasure } from "@/actions/inventory";
@@ -1817,6 +1817,16 @@ export function PurchaseDataGrid({
                 userSelect: resizingIdx !== null ? 'none' : 'auto'
             }}
         >
+            {/* ── Mobile scroll hint (< lg) ───────────────────────────────── */}
+            <div className="lg:hidden flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-xl text-xs font-bold mb-2 shrink-0 mx-2 mt-2">
+                <Info className="w-3.5 h-3.5 shrink-0 text-cyan-500" />
+                <span>اسحب الجدول أفقياً لعرض كافة الأعمدة (15 عمود)</span>
+            </div>
+
+            {/* ── Single RTL-safe horizontal scroll container ───────────── */}
+            <div className="flex-1 overflow-x-auto custom-scrollbar min-h-0 overscroll-x-contain w-full" dir="rtl">
+            <div style={{ minWidth: '1362px' }} className="flex flex-col h-full min-h-0">
+
             {/* ── Header (Sticky) ───────────────────────────────────────────── */}
             <div 
                 className={clsx("grid bg-zinc-50 dark:bg-zinc-900/50 border-b border-slate-200 dark:border-white/10 sticky top-0 z-20 shrink-0 w-full")}
@@ -2245,6 +2255,10 @@ export function PurchaseDataGrid({
                     </div>
                 </div>
             </div>
+
+            {/* ── /RTL scroll wrappers ──────────────────────────────────────── */}
+            </div>{/* /minWidth inner */}
+            </div>{/* /overflow-x-auto outer */}
 
             {/* ── Dynamic Confirmation Modal (window.prompt/confirm Replacement) ── */}
             <ConfirmationModal

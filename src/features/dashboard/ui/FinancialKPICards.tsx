@@ -75,20 +75,20 @@ export function FinancialKPICards({ metrics, loading = false }: FinancialKPICard
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
                 {[...Array(6)].map((_, i) => (
-                    <div key={i} className="h-32 rounded-xl bg-muted/50 animate-pulse border border-border" />
+                    <div key={i} className="h-28 sm:h-32 rounded-xl bg-muted/50 animate-pulse border border-border" />
                 ))}
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
             {cards.map((card, index) => (
                 <div
                     key={index}
-                    className={`relative p-5 rounded-2xl border transition-all hover:scale-[1.02] bg-card ${card.border}`}
+                    className={`relative p-4 sm:p-5 rounded-2xl border transition-all hover:scale-[1.02] bg-card ${card.border}`}
                 >
                     <div className="flex justify-between items-start mb-4">
                         <div className="flex flex-col">
@@ -96,7 +96,7 @@ export function FinancialKPICards({ metrics, loading = false }: FinancialKPICard
                                 {card.title}
                             </h3>
                             <div className="flex items-center gap-1 group">
-                                <span className={`text-2xl font-bold font-mono tracking-tight ${card.color}`}>
+                                <span className={`text-xl sm:text-2xl font-bold font-mono tracking-tight ${card.color}`}>
                                     {formatCurrency(card.value)}
                                 </span>
                             </div>

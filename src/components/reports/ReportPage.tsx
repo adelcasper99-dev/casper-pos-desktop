@@ -587,8 +587,8 @@ export default function ReportPage({ initialData, branches, categories = [], pro
                                     <Badge variant="outline" className="border-white/10 text-zinc-400 text-[10px] font-normal">يومي</Badge>
                                 </div>
                             </CardHeader>
-                            <CardContent className="p-6">
-                                <div className="h-[320px] w-full">
+                            <CardContent className="p-3 sm:p-6">
+                                <div className="h-[260px] sm:h-[290px] lg:h-[320px] w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                             <defs>

@@ -74,17 +74,17 @@ export default function Dashboard() {
     }, []);
 
     return (
-        <div className="p-8 space-y-8 animate-fade-in-up max-w-[2400px] mx-auto">
+        <div className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 animate-fade-in-up max-w-[2400px] mx-auto">
             {/* 🕐 Post-Login Shift Prompt Modal */}
             <ShiftPromptModal
                 open={showShiftPrompt}
                 onClose={() => setShowShiftPrompt(false)}
             />
 
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-3xl font-bold">{t('title')}</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
 
-                <div className="flex items-center gap-2 bg-card p-2 rounded-xl border border-border">
+                <div className="flex items-center gap-2 bg-card p-2 rounded-xl border border-border w-full sm:w-auto">
                     <span className="text-sm font-bold text-muted-foreground mr-2">الفترة:</span>
                     <FlatpickrRangePicker
                         initialDates={dateRange.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
@@ -96,7 +96,7 @@ export default function Dashboard() {
                             }
                         }}
                         onClear={() => setDateRange({})}
-                        className="w-64"
+                        className="w-full sm:w-64"
                     />
                 </div>
             </div>

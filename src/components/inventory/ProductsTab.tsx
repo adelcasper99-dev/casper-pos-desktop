@@ -528,8 +528,8 @@ export default function ProductsTab({
 
             {/* Products Grid */}
             <div className="glass-card overflow-hidden border border-slate-200 dark:border-white/5 bg-white dark:bg-black/20 shadow-2xl rounded-xl flex flex-col min-h-[500px]">
-                <div className="table-container max-h-[700px] custom-scrollbar overflow-y-auto">
-                    <table className="zebra-table sticky-header w-full text-start">
+                <div className="table-container max-h-[700px] custom-scrollbar overflow-y-auto overflow-x-auto w-full">
+                    <table className="zebra-table sticky-header w-full min-w-[850px] text-start">
                         <thead className="bg-slate-50 dark:bg-transparent text-slate-500 dark:text-zinc-300 text-[11px] uppercase tracking-wider border-b border-slate-200 dark:border-white/5">
                             <tr>
                                 <th className="px-6 py-4 text-center w-[80px]">
