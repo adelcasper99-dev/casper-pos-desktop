@@ -85,7 +85,7 @@ export default function Dashboard() {
                 <h1 className="text-2xl sm:text-3xl font-bold">{t('title')}</h1>
 
                 <div className="flex items-center gap-2 bg-card p-2 rounded-xl border border-border w-full sm:w-auto">
-                    <span className="text-sm font-bold text-muted-foreground mr-2">الفترة:</span>
+                    <span className="text-sm font-bold text-muted-foreground me-2">الفترة:</span>
                     <FlatpickrRangePicker
                         initialDates={dateRange.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
                         onRangeChange={(dates) => {
