@@ -91,6 +91,19 @@ export async function provisionTenantCore(params: {
       }
     });
 
+    // 4.1 Create Default Main Warehouse
+    await tx.warehouse.create({
+      data: {
+        id: `wh-${crypto.randomBytes(4).toString("hex")}`,
+        name: name,
+        type: "SELLABLE",
+        isDefault: true,
+        isMaintenanceDefault: true,
+        branchId,
+        tenantId
+      }
+    });
+
     // 5. Create Default Store Settings
     await tx.storeSettings.create({
       data: {
