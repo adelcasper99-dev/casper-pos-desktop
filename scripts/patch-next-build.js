@@ -85,7 +85,25 @@ function shouldFallbackMissingFile(filePath) {
   ) {
     return '{}';
   }
+  if (filePath.endsWith('build-manifest.json')) {
+    return '{"polyfillFiles":[],"devFiles":[],"ampDevFiles":[],"lowPriorityFiles":[],"rootMainFiles":[],"pages":{"/_app":[]},"ampFirstPages":[]}';
+  }
+  if (filePath.endsWith('prerender-manifest.json')) {
+    return '{"version":4,"routes":{},"dynamicRoutes":{},"preview":{"previewModeId":"","previewModeSigningKey":"","previewModeEncryptionKey":""},"notFoundRoutes":[]}';
+  }
+  if (filePath.endsWith('routes-manifest.json')) {
+    return '{"version":3,"pages404":true,"caseSensitive":false,"basePath":"","redirects":[],"headers":[],"dynamicRoutes":[],"staticRoutes":[],"dataRoutes":[],"rsc":{"header":"RSC","varyHeader":"RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Url","prefetchHeader":"Next-Router-Prefetch","contentTypeHeader":"text/x-component"}}';
+  }
   return null;
+}
+
+function writeFallbackIfMissing(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      ensureDir(filePath);
+      fs.writeFileSync(filePath, fallback, 'utf8');
+    }
+  } catch (_) {}
 }
 
 function wrapAsyncReadFile(originalFn) {
@@ -97,6 +115,7 @@ function wrapAsyncReadFile(originalFn) {
       if (e.code === 'ENOENT') {
         const fallback = shouldFallbackMissingFile(filePath);
         if (fallback !== null) {
+          writeFallbackIfMissing(filePath, fallback);
           console.warn(`[patch-next-build] Ignored ENOENT on missing file: ${filePath}`);
           return fallback;
         }
@@ -115,6 +134,7 @@ function wrapSyncReadFile(originalFn) {
       if (e.code === 'ENOENT') {
         const fallback = shouldFallbackMissingFile(filePath);
         if (fallback !== null) {
+          writeFallbackIfMissing(filePath, fallback);
           console.warn(`[patch-next-build] Ignored ENOENT on missing file: ${filePath}`);
           return fallback;
         }
@@ -131,6 +151,7 @@ function wrapCallbackReadFile(originalFn) {
     if (typeof callback === 'function' && !fs.existsSync(filePath)) {
       const fallback = shouldFallbackMissingFile(filePath);
       if (fallback !== null) {
+        writeFallbackIfMissing(filePath, fallback);
         console.warn(`[patch-next-build] Ignored ENOENT on missing file: ${filePath}`);
         return callback(null, fallback);
       }
