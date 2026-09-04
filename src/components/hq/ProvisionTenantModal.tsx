@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { provisionNewTenant } from "@/actions/hq-tenant-actions";
 import { generateCSRFToken } from "@/lib/csrf-client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function ProvisionTenantModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [activationCode, setActivationCode] = useState("");
   const [createdDomain, setCreatedDomain] = useState("");
@@ -24,8 +25,8 @@ export function ProvisionTenantModal() {
     const domain = formData.get("domain") as string;
     const adminUsername = formData.get("adminUsername") as string;
     const adminPassword = formData.get("adminPassword") as string;
-    const adminRole = (formData.get("adminRole") as any) || "ADMIN";
-    const duration = (formData.get("duration") as any) || "14_DAYS";
+    const adminRole = (formData.get("adminRole") as "ADMIN" | "MANAGER" | "STAFF") || "ADMIN";
+    const duration = (formData.get("duration") as string) || "14_DAYS";
 
     try {
       const csrfToken = await generateCSRFToken();
@@ -39,8 +40,8 @@ export function ProvisionTenantModal() {
       } else {
         setError(res?.error || "Unknown error occurred");
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to provision");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to provision");
     } finally {
       setLoading(false);
     }
@@ -173,15 +174,30 @@ export function ProvisionTenantModal() {
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">كلمة المرور (Password)</label>
-                    <input 
-                      name="adminPassword" 
-                      type="password"
-                      required 
-                      minLength={6}
-                      className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none"
-                      placeholder="الحد الأدنى 6 خانات"
-                      dir="ltr"
-                    />
+                    <div className="relative">
+                      <input 
+                        name="adminPassword" 
+                        type={showPassword ? "text" : "password"} 
+                        required 
+                        minLength={6}
+                        className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 pe-11 font-semibold focus:border-blue-500 outline-none text-left"
+                        placeholder="الحد الأدنى 6 خانات"
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 end-0 pe-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                        title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">صلاحية المستخدم الأول (Role)</label>

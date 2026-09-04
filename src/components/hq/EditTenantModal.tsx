@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { editTenant } from "@/actions/hq-tenant-actions";
 import { generateCSRFToken } from "@/lib/csrf-client";
-import { Loader2, Lock, Edit2 } from "lucide-react";
+import { Loader2, Lock, Edit2, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type TenantAdminRole = "ADMIN" | "MANAGER" | "STAFF" | "SUPER_ADMIN";
@@ -30,6 +30,7 @@ export function EditTenantModal({
   const [adminUsername, setAdminUsername] = useState(initialAdminUsername);
   const [adminRole, setAdminRole] = useState(initialAdminRole || "ADMIN");
   const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -169,15 +170,30 @@ export function EditTenantModal({
 
                     <div>
                       <label className="block text-sm font-bold mb-1">تعيين كلمة مرور جديدة (New Password)</label>
-                      <input
-                        type="password"
-                        minLength={6}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        dir="ltr"
-                        className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 font-semibold focus:border-blue-500 outline-none text-left"
-                        placeholder="اتركه فارغاً للإبقاء على كلمة المرور الحالية"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          dir="ltr"
+                          className="w-full border-2 border-slate-200 dark:border-white/10 bg-transparent rounded-xl px-4 py-3 pe-11 font-semibold focus:border-blue-500 outline-none text-left"
+                          placeholder="اتركه فارغاً للإبقاء على كلمة المرور الحالية"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 end-0 pe-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                          aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                          title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
                       <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
                         اكتب كلمة مرور جديدة فقط إذا كنت تريد إعادة تعيين كلمة المرور لهذا العميل.
                       </p>
