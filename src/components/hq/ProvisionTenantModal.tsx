@@ -26,7 +26,7 @@ export function ProvisionTenantModal() {
     const adminUsername = formData.get("adminUsername") as string;
     const adminPassword = formData.get("adminPassword") as string;
     const adminRole = (formData.get("adminRole") as "ADMIN" | "MANAGER" | "STAFF") || "ADMIN";
-    const duration = (formData.get("duration") as string) || "14_DAYS";
+    const duration = ((formData.get("duration") as string) || "14_DAYS") as "14_DAYS" | "1_MONTH" | "6_MONTHS" | "1_YEAR" | "LIFETIME";
 
     try {
       const csrfToken = await generateCSRFToken();
