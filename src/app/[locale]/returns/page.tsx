@@ -17,15 +17,20 @@ export default async function ReturnsCenterPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 min-h-screen text-foreground transition-colors duration-500">
+        <div className="p-2.5 sm:p-3.5 space-y-2 max-w-[2400px] mx-auto font-cairo text-foreground transition-colors duration-500">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl font-black tracking-tight text-foreground flex items-center gap-3">
-                        <div className="w-2 h-10 bg-primary rounded-full shadow-[0_0_15px_rgba(var(--primary),0.5)]" />
-                        مركز المرتجعات الموحد
-                    </h1>
-                    <p className="text-muted-foreground text-sm mt-2 font-medium">إدارة شاملة لمرتجعات المبيعات، المشتريات، وتذاكر الصيانة من منصة موحدة</p>
+            <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-undo-2"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-sm font-black tracking-tight text-foreground">مركز المرتجعات الموحد</h1>
+                            <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-md font-mono">Casper ERP</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">إدارة شاملة لمرتجعات المبيعات، المشتريات، وتذاكر الصيانة من منصة موحدة</p>
+                    </div>
                 </div>
             </div>
 

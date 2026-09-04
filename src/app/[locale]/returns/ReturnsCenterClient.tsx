@@ -226,9 +226,9 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
   }
 
   return (
-    <div className="space-y-8" dir="rtl">
-      {/* ── Type Toggle (Modern Tabs) ── */}
-      <div className={cn("grid gap-6", 
+    <div className="space-y-2" dir="rtl">
+      {/* ── Type Toggle (Modern Compact Tabs) ── */}
+      <div className={cn("grid gap-2", 
         returnTypes.length === 1 ? "grid-cols-1" : 
         returnTypes.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
         {returnTypes.map(({ key, label, labelEn, icon: Icon, activeColor, glow }) => {
@@ -238,47 +238,46 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
               key={key}
               onClick={() => handleTypeSwitch(key)}
               className={cn(
-                "group relative flex flex-col items-center justify-center gap-2 rounded-3xl border px-6 py-6 transition-all duration-500 overflow-hidden",
+                "group relative flex items-center justify-center gap-2.5 rounded-xl border px-3 py-2 transition-all duration-300 overflow-hidden h-11",
                 isActive 
-                  ? `${activeColor} ${glow} shadow-2xl scale-[1.03] z-10 glass-card backdrop-blur-3xl` 
-                  : "border-border/40 bg-card/20 text-muted-foreground hover:bg-card/40 hover:border-border transition-colors backdrop-blur-md"
+                  ? `${activeColor} ${glow} shadow-xs z-10 glass-card backdrop-blur-md font-bold` 
+                  : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 hover:text-foreground hover:border-border transition-colors backdrop-blur-sm"
               )}
             >
               {isActive && (
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
               )}
-              <Icon size={32} strokeWidth={1.5} className={cn("transition-transform duration-500 group-hover:scale-110", isActive ? "text-primary" : "text-muted-foreground/50")} />
-              <div className="text-center relative z-10">
-                <span className="text-base font-black tracking-tight block">{label}</span>
-                <span className="text-[10px] uppercase font-black tracking-widest opacity-40">{labelEn}</span>
+              <Icon size={18} strokeWidth={2} className={cn("transition-transform group-hover:scale-110 shrink-0", isActive ? "text-primary" : "text-muted-foreground/60")} />
+              <div className="flex items-center gap-1.5 relative z-10">
+                <span className="text-xs font-black tracking-tight">{label}</span>
+                <span className="text-[9px] uppercase font-bold tracking-wider opacity-50 hidden sm:inline">({labelEn})</span>
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* ── Search Bar & Premium Filters ── */}
-      <div className="flex flex-col xl:flex-row gap-6 items-start">
+      {/* ── Search Bar & Compact Date Filters ── */}
+      <div className="flex flex-col md:flex-row gap-2 items-center">
         <div className="relative flex-1 w-full" ref={searchContainerRef}>
-          <div className="glass-card bg-card/40 backdrop-blur-xl border border-border/40 rounded-3xl shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <Search size={22} className="absolute right-5 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within:text-primary transition-colors pointer-events-none" />
+          <div className="relative overflow-hidden group">
+            <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 group-focus-within:text-primary transition-colors pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => (searchQuery.length >= 2 || dateRange?.from) && setShowResults(true)}
               placeholder={activeConfig?.placeholder || ""}
-              className="w-full bg-transparent py-5 pr-14 pl-6 text-lg text-foreground placeholder-muted-foreground/30 focus:outline-none transition-all font-bold"
+              className="w-full bg-card/40 border border-border/50 rounded-xl py-1.5 pr-9 pl-8 text-xs text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-all font-bold h-9 shadow-xs"
             />
-            {isSearching && <Loader2 size={18} className="absolute left-6 top-1/2 -translate-y-1/2 animate-spin text-primary" />}
+            {isSearching && <Loader2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 animate-spin text-primary" />}
           </div>
 
-          {/* Premium Search Results Dropdown */}
+          {/* Search Results Dropdown */}
           {showResults && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-4 z-50 rounded-3xl border border-border/40 bg-card/95 backdrop-blur-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-h-[450px] overflow-y-auto animate-in fade-in slide-in-from-top-4 duration-300">
-              <div className="p-3 space-y-1">
-                <div className="px-4 py-3 text-[10px] uppercase font-black tracking-widest text-muted-foreground/60 border-b border-border/20 mb-2 flex items-center justify-between">
+            <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-xl max-h-[360px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="p-2 space-y-0.5">
+                <div className="px-3 py-1.5 text-[10px] uppercase font-black tracking-wider text-muted-foreground border-b border-border/30 mb-1 flex items-center justify-between">
                   <span>{searchQuery ? "نتائج البحث الذكية" : "تاريخ البحث الأخير"}</span>
                   <History className="w-3 h-3" />
                 </div>
@@ -286,20 +285,20 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
                   <button
                     key={`${res.id}-${idx}`}
                     onClick={() => selectDocument(res.id)}
-                    className="w-full flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-primary/10 transition-all text-right group"
+                    className="w-full flex items-center justify-between gap-4 px-3 py-2 rounded-lg hover:bg-primary/10 transition-all text-right group"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                         <div className="w-2 h-2 rounded-full bg-primary/40 group-hover:bg-primary" />
-                         <span className="font-black text-foreground text-base group-hover:text-primary transition-colors">{res.label}</span>
+                      <div className="flex items-center gap-2 mb-0.5">
+                         <div className="w-1.5 h-1.5 rounded-full bg-primary/50 group-hover:bg-primary" />
+                         <span className="font-bold text-foreground text-xs group-hover:text-primary transition-colors">{res.label}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground font-medium block truncate mr-5">{res.subLabel}</span>
+                      <span className="text-[10px] text-muted-foreground font-medium block truncate mr-3.5">{res.subLabel}</span>
                     </div>
                     <div className="text-left shrink-0">
-                      <span className="text-lg font-black font-mono text-emerald-500 drop-shadow-sm">
+                      <span className="text-xs font-black font-mono text-emerald-400">
                         {res.total.toLocaleString("ar-EG", { minimumFractionDigits: 2 })}
                       </span>
-                      <span className="text-[10px] font-black text-muted-foreground block mr-1">EGP</span>
+                      <span className="text-[9px] font-bold text-muted-foreground block mr-1">EGP</span>
                     </div>
                   </button>
                 ))}
@@ -308,17 +307,17 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
           )}
         </div>
 
-        {/* Premium Integrated Filter Bar */}
-        <div className="flex items-center gap-2 bg-card/40 backdrop-blur-xl p-2 rounded-3xl border border-border/40 shadow-2xl w-fit">
-          <div className="flex items-center">
+        {/* Compact Integrated Filter Bar */}
+        <div className="flex items-center gap-1.5 bg-card/40 backdrop-blur-md p-1 rounded-xl border border-border/50 shadow-xs w-full md:w-auto shrink-0">
+          <div className="flex items-center gap-0.5">
             {["today", "yesterday", "week", "month"].map((filter) => (
               <Button
                 key={filter}
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-10 px-5 text-xs font-black rounded-2xl uppercase tracking-widest transition-all",
-                  dateFilter === filter ? "text-primary bg-primary/10 shadow-inner" : "text-muted-foreground/60 hover:text-foreground hover:bg-background/40"
+                  "h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all",
+                  dateFilter === filter ? "text-primary bg-primary/10 shadow-xs font-black" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 )}
                 onClick={() => {
                   setDateFilter(filter);
@@ -338,7 +337,7 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
             ))}
           </div>
 
-          <div className="w-px h-6 bg-border/40 mx-2" />
+          <div className="w-px h-4 bg-border/50 mx-1" />
 
           <div className="relative group/picker">
             <FlatpickrRangePicker
@@ -350,70 +349,70 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
               onClear={() => { setDateRange(undefined); setDateFilter("all"); }}
               initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
               placeholder="تحديد مخصص..."
-              className="w-48 bg-background/20 border-border/20 h-10 rounded-2xl font-black text-[10px] tracking-widest"
+              className="w-40 bg-transparent border-none h-7 rounded-lg font-bold text-[10px]"
             />
           </div>
         </div>
       </div>
 
       {/* ── Main Data View ── */}
-      <div className="glass-card bg-card/40 backdrop-blur-md border border-border/40 rounded-3xl overflow-hidden shadow-2xl relative">
-        <div className="p-6 border-b border-white/10 bg-gradient-to-r from-background/20 via-transparent to-transparent flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-1">
-            <h3 className="text-lg font-black text-foreground flex items-center gap-3">
-               <History className="w-5 h-5 text-primary" />
-               تفاصيل ومحفوظات الفواتير
-            </h3>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">مستندات العمليات الجارية القابلة للاسترجاع</p>
+      <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-xl overflow-hidden shadow-xs relative">
+        <div className="p-2.5 border-b border-border/30 bg-muted/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-primary shrink-0" />
+            <div>
+              <h3 className="text-xs font-bold text-foreground">تفاصيل ومحفوظات الفواتير</h3>
+              <p className="text-[10px] text-muted-foreground">مستندات العمليات الجارية القابلة للاسترجاع</p>
+            </div>
           </div>
-          <div className="relative w-full lg:w-[400px]">
-             <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                <Search size={16} className="text-muted-foreground/40" />
+          <div className="relative w-full sm:w-64">
+             <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
+                <Search size={13} className="text-muted-foreground/50" />
              </div>
             <input
               type="text"
               value={tableFilter}
               onChange={(e) => setTableFilter(e.target.value)}
               placeholder="البحث في القائمة المعروضة..."
-              className="w-full rounded-2xl border border-border/40 bg-background/40 py-3 pr-11 pl-5 text-xs text-foreground font-bold focus:ring-2 focus:ring-primary/20 transition-all"
+              className="w-full rounded-lg border border-border/40 bg-background/50 py-1 pr-8 pl-3 text-xs text-foreground font-bold focus:ring-1 focus:ring-primary/40 transition-all h-7"
             />
           </div>
         </div>
 
-        <div className="overflow-x-auto min-h-[400px]">
-          <table className="w-full min-w-[1000px] text-sm">
-            <thead className="bg-muted/50 border-b border-border/20">
+        <div className="overflow-x-auto max-h-[calc(100vh-270px)] overflow-y-auto">
+          <table className="w-full min-w-[850px] text-xs">
+            <thead className="bg-muted/60 border-b border-border/30 sticky top-0 z-10 backdrop-blur-md">
               <tr>
                 {["المرجع", "اسم العميل", "رقم العميل", "اسم المنتج", "الكمية", "تاريخ الفاتورة", "سعر الوحدة", "الإجمالي"].map((h) => (
-                  <th key={h} className="px-6 py-5 text-right text-[10px] font-black text-muted-foreground uppercase tracking-widest">{h}</th>
+                  <th key={h} className="px-3 py-2 text-right text-[10px] font-black text-muted-foreground uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/10">
+            <tbody className="divide-y divide-border/20">
               {displayedRows.map((row, idx) => (
                 <tr
                   key={`${row.id}-${idx}`}
                   onClick={() => selectDocument(row.id)}
-                  className="transition-all hover:bg-primary/5 even:bg-muted/70 cursor-pointer h-16 group"
+                  className="transition-all hover:bg-primary/10 even:bg-muted/30 cursor-pointer h-9 group"
                 >
-                  <td className="px-6 py-4 font-mono font-black text-[11px] text-primary">{row.referenceNumber}</td>
-                  <td className="px-6 py-4 font-black text-foreground group-hover:text-primary transition-colors">{row.customerName || "—"}</td>
-                  <td className="px-6 py-4 font-bold text-muted-foreground/60">{row.customerPhone || "—"}</td>
-                  <td className="px-6 py-4 font-black text-foreground/80">{row.productName || "—"}</td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="px-3 py-1 bg-background/60 rounded-lg border border-border/40 font-black">{row.quantity}</span>
+                  <td className="px-3 py-1.5 font-mono font-bold text-[11px] text-primary">{row.referenceNumber}</td>
+                  <td className="px-3 py-1.5 font-bold text-foreground group-hover:text-primary transition-colors">{row.customerName || "—"}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground font-mono">{row.customerPhone || "—"}</td>
+                  <td className="px-3 py-1.5 font-medium text-foreground/80">{row.productName || "—"}</td>
+                  <td className="px-3 py-1.5 text-center">
+                    <span className="px-2 py-0.5 bg-background/60 rounded border border-border/40 font-bold">{row.quantity}</span>
                   </td>
-                  <td className="px-6 py-4 text-muted-foreground/60 font-medium">{new Date(row.invoiceDate).toLocaleDateString("ar-EG")}</td>
-                  <td className="px-6 py-4 font-black">{row.unitPrice.toFixed(2)}</td>
-                  <td className="px-6 py-4"><span className="text-emerald-500 font-black text-base">{row.total.toFixed(2)}</span></td>
+                  <td className="px-3 py-1.5 text-muted-foreground font-mono">{new Date(row.invoiceDate).toLocaleDateString("ar-EG")}</td>
+                  <td className="px-3 py-1.5 font-mono">{row.unitPrice.toFixed(2)}</td>
+                  <td className="px-3 py-1.5"><span className="text-emerald-400 font-bold font-mono text-xs">{row.total.toFixed(2)}</span></td>
                 </tr>
               ))}
               {displayedRows.length === 0 && !isPending && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-24 text-center">
-                    <div className="flex flex-col items-center gap-3 grayscale opacity-30">
-                       <Info size={40} />
-                       <span className="text-sm font-black uppercase tracking-widest">لا توجد سجلات للمطابقة</span>
+                  <td colSpan={8} className="px-3 py-8 text-center">
+                    <div className="flex flex-col items-center gap-1.5 opacity-40">
+                       <Info size={24} />
+                       <span className="text-xs font-bold">لا توجد سجلات للمطابقة</span>
                     </div>
                   </td>
                 </tr>
@@ -424,24 +423,24 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
       </div>
 
       {/* ── Visual Feedbacks ── */}
-      <div className="space-y-4">
+      <div className="space-y-2">
         {successMessage && (
-          <div className="flex items-center gap-4 rounded-3xl glass-card bg-emerald-500/10 border-emerald-500/40 p-5 text-sm text-emerald-400 animate-in zoom-in-95 duration-300">
-            <CheckCircle2 size={24} className="shrink-0 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+          <div className="flex items-center gap-2 rounded-xl glass-card bg-emerald-500/10 border-emerald-500/40 p-2.5 text-xs text-emerald-400 animate-in zoom-in-95 duration-200">
+            <CheckCircle2 size={16} className="shrink-0" />
             <div className="font-bold">{successMessage}</div>
           </div>
         )}
         {fetchError && (
-          <div className="flex items-center gap-4 rounded-3xl glass-card bg-rose-500/10 border-rose-500/40 p-5 text-sm text-rose-400 animate-in zoom-in-95 duration-300">
-            <AlertCircle size={24} className="shrink-0 drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+          <div className="flex items-center gap-2 rounded-xl glass-card bg-rose-500/10 border-rose-500/40 p-2.5 text-xs text-rose-400 animate-in zoom-in-95 duration-200">
+            <AlertCircle size={16} className="shrink-0" />
             <div className="font-bold">{fetchError}</div>
           </div>
         )}
       </div>
 
       {(isPending && !isSearching) && (
-         <div className="flex items-center justify-center py-20 animate-in fade-in duration-500">
-            <Loader2 size={40} className="animate-spin text-primary opacity-40" />
+         <div className="flex items-center justify-center py-8 animate-in fade-in duration-300">
+            <Loader2 size={24} className="animate-spin text-primary opacity-50" />
          </div>
       )}
 
@@ -452,7 +451,7 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
 
       {/* ── Integrated Return Cart ── */}
       {fetchedDocument && !isPending && (
-        <div className="glass-card bg-card/60 backdrop-blur-3xl border border-primary/20 rounded-[40px] p-8 mt-12 shadow-[0_0_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom-12 duration-700">
+        <div className="glass-card bg-card/60 backdrop-blur-2xl border border-primary/20 rounded-2xl p-4 mt-2 shadow-lg animate-in slide-in-from-bottom-4 duration-500">
           <ReturnCart
             returnType={fetchedDocument.type}
             data={fetchedDocument.data as any}
@@ -467,7 +466,7 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
 
 function DocumentPreviewBadge({ doc }: { doc: FetchedDocument }) {
   const commonCls = cn(
-    "flex flex-wrap items-center gap-x-10 gap-y-4 rounded-3xl border px-8 py-6 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 glass-card backdrop-blur-2xl relative overflow-hidden group",
+    "flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border px-3 py-2 shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-300 glass-card backdrop-blur-xl relative overflow-hidden group",
     doc.type === "SALES" ? "border-emerald-500/30 bg-emerald-500/5" :
     doc.type === "PURCHASES" ? "border-sky-500/30 bg-sky-500/5" :
     "border-violet-500/30 bg-violet-500/5"
@@ -475,14 +474,14 @@ function DocumentPreviewBadge({ doc }: { doc: FetchedDocument }) {
 
   const DataItem = ({ label, value, mono = false, color = "text-foreground" }: any) => (
     <div className="relative z-10">
-      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block mb-1.5">{label}</span>
-      <span className={cn("text-lg font-black tracking-tight", mono ? "font-mono" : "", color)}>{value}</span>
+      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block mb-0.5">{label}</span>
+      <span className={cn("text-xs font-bold tracking-tight", mono ? "font-mono" : "", color)}>{value}</span>
     </div>
   );
 
   return (
     <div className={commonCls}>
-      <div className={cn("absolute right-0 top-0 w-32 h-full opacity-10 blur-2xl group-hover:opacity-20 transition-opacity", 
+      <div className={cn("absolute right-0 top-0 w-24 h-full opacity-10 blur-xl group-hover:opacity-20 transition-opacity", 
         doc.type === "SALES" ? "bg-emerald-500" : doc.type === "PURCHASES" ? "bg-sky-500" : "bg-violet-500")} />
       
       {doc.type === "SALES" && (
@@ -490,7 +489,7 @@ function DocumentPreviewBadge({ doc }: { doc: FetchedDocument }) {
           <DataItem label="نظام المبيعات" value={doc.data.invoiceNumber || doc.data.id.slice(0, 8).toUpperCase()} color="text-emerald-400" />
           <DataItem label="العميل المستهدف" value={doc.data.customerName || "—"} />
           <DataItem label="حالة العملية" value={doc.data.status} />
-          <DataItem label="القيمة الإجمالية" value={`${doc.data.totalAmount.toFixed(2)} EGP`} mono color="text-emerald-500" />
+          <DataItem label="القيمة الإجمالية" value={`${doc.data.totalAmount.toFixed(2)} EGP`} mono color="text-emerald-400" />
         </>
       )}
 
@@ -499,7 +498,7 @@ function DocumentPreviewBadge({ doc }: { doc: FetchedDocument }) {
           <DataItem label="نظام المشتريات" value={doc.data.invoiceNumber || doc.data.id.slice(0, 8).toUpperCase()} color="text-sky-400" />
           <DataItem label="المورد" value={doc.data.supplierName} />
           <DataItem label="الحالة" value={doc.data.status} />
-          <DataItem label="القيمة الإجمالية" value={`${doc.data.totalAmount.toFixed(2)} EGP`} mono color="text-sky-500" />
+          <DataItem label="القيمة الإجمالية" value={`${doc.data.totalAmount.toFixed(2)} EGP`} mono color="text-sky-400" />
         </>
       )}
 
@@ -508,7 +507,7 @@ function DocumentPreviewBadge({ doc }: { doc: FetchedDocument }) {
           <DataItem label="نظام الصيانة" value={doc.data.ticketNumber || doc.data.id.slice(0, 8).toUpperCase()} color="text-violet-400" />
           <DataItem label="العميل" value={doc.data.customerName || "—"} />
           <DataItem label="حالة التذكرة" value={doc.data.status} />
-          <DataItem label="القيمة الإجمالية" value={`${doc.data.totalAmount.toFixed(2)} EGP`} mono color="text-violet-500" />
+          <DataItem label="القيمة الإجمالية" value={`${doc.data.totalAmount.toFixed(2)} EGP`} mono color="text-violet-400" />
         </>
       )}
     </div>
