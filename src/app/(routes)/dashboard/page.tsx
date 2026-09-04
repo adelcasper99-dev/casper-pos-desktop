@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { FinancialKPICards } from "@/features/dashboard/ui/FinancialKPICards";
@@ -132,8 +132,8 @@ export default function Dashboard() {
             return;
         }
 
-        getCurrentShift().then((res: { shift?: unknown }) => {
-            const shift = res?.shift ?? null;
+        getCurrentShift().then((res) => {
+            const shift = (res as { shift?: unknown })?.shift ?? null;
             if (!shift) {
                 setShowShiftPrompt(true);
             }
