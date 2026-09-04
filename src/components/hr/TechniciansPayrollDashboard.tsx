@@ -121,144 +121,139 @@ export default function TechniciansPayrollDashboard({
     }), { revenue: 0, cogs: 0, profit: 0, debt: 0, payable: 0 });
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 font-cairo">
-            
-            {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-5 rounded-2xl border border-zinc-200 dark:border-white/10 flex flex-col justify-center shadow-sm border-b-emerald-500/50">
-                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
-                        <TrendingUp className="w-3 h-3 text-emerald-500" /> إجمالي الإيرادات
+        <div className="space-y-2.5 animate-in fade-in duration-300 font-cairo">
+            {/* Compact KPIs Strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="bg-zinc-50/80 dark:bg-zinc-900/40 p-2 px-3 rounded-xl border border-zinc-200/80 dark:border-white/10 flex items-center justify-between shadow-2xs border-r-4 border-r-emerald-500/80">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-bold flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" /> إجمالي الإيرادات
                     </span>
-                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-500 font-mono tabular-nums">
-                        {totalKPIs.revenue.toLocaleString()} <span className="text-xs font-cairo text-zinc-400">ج.م</span>
-                    </span>
-                </div>
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-5 rounded-2xl border border-zinc-200 dark:border-white/10 flex flex-col justify-center shadow-sm border-b-rose-500/50">
-                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
-                        <TrendingUp className="w-3 h-3 text-rose-500 rotate-180" /> تكلفة القطع (COGS)
-                    </span>
-                    <span className="text-xl font-black text-rose-600 dark:text-rose-500 font-mono tabular-nums">
-                        {totalKPIs.cogs.toLocaleString()} <span className="text-xs font-cairo text-zinc-400">ج.م</span>
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
+                        {totalKPIs.revenue.toLocaleString()} <span className="text-[10px] font-cairo text-zinc-400 font-normal">ج.م</span>
                     </span>
                 </div>
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-5 rounded-2xl border border-zinc-200 dark:border-white/10 flex flex-col justify-center shadow-sm border-b-blue-500/50">
-                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
-                        <Wallet className="w-3 h-3 text-blue-500" /> صافي ربح المركز
+                <div className="bg-zinc-50/80 dark:bg-zinc-900/40 p-2 px-3 rounded-xl border border-zinc-200/80 dark:border-white/10 flex items-center justify-between shadow-2xs border-r-4 border-r-rose-500/80">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-bold flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-rose-500 rotate-180" /> تكلفة القطع
                     </span>
-                    <span className="text-xl font-black text-blue-600 dark:text-blue-500 font-mono tabular-nums">
-                        {totalKPIs.profit.toLocaleString()} <span className="text-xs font-cairo text-zinc-400">ج.م</span>
+                    <span className="text-sm font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums">
+                        {totalKPIs.cogs.toLocaleString()} <span className="text-[10px] font-cairo text-zinc-400 font-normal">ج.م</span>
                     </span>
                 </div>
-                <div className="bg-zinc-900 dark:bg-white p-5 rounded-2xl border border-zinc-800 dark:border-zinc-200 flex flex-col justify-center shadow-lg shadow-zinc-900/10">
-                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
-                        <DollarSign className="w-3 h-3 text-white dark:text-zinc-900" /> إجمالي المستحق للفنيين
+                <div className="bg-zinc-50/80 dark:bg-zinc-900/40 p-2 px-3 rounded-xl border border-zinc-200/80 dark:border-white/10 flex items-center justify-between shadow-2xs border-r-4 border-r-indigo-500/80">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-bold flex items-center gap-1.5">
+                        <Wallet className="w-3.5 h-3.5 text-indigo-500" /> صافي ربح المركز
                     </span>
-                    <span className="text-xl font-black text-white dark:text-zinc-900 font-mono tabular-nums">
-                        {totalKPIs.payable.toLocaleString()} <span className="text-xs font-cairo opacity-70">ج.م</span>
+                    <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono tabular-nums">
+                        {totalKPIs.profit.toLocaleString()} <span className="text-[10px] font-cairo text-zinc-400 font-normal">ج.م</span>
+                    </span>
+                </div>
+                <div className="bg-zinc-900 dark:bg-white p-2 px-3 rounded-xl border border-zinc-800 dark:border-zinc-200 flex items-center justify-between shadow-xs">
+                    <span className="text-xs text-zinc-300 dark:text-zinc-700 font-bold flex items-center gap-1.5">
+                        <DollarSign className="w-3.5 h-3.5 text-white dark:text-zinc-900" /> مستحق الفنيين
+                    </span>
+                    <span className="text-sm font-black text-white dark:text-zinc-900 font-mono tabular-nums">
+                        {totalKPIs.payable.toLocaleString()} <span className="text-[10px] font-cairo opacity-70 font-normal">ج.م</span>
                     </span>
                 </div>
             </div>
 
             {/* Toolbar */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-zinc-50 dark:bg-zinc-900/30 p-2 rounded-2xl border border-zinc-200 dark:border-white/5">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <div className="flex flex-col sm:flex-row gap-2 items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/30 p-2 px-3 rounded-xl border border-zinc-200/80 dark:border-white/5 shadow-2xs">
+                <div className="relative w-full sm:w-64">
+                    <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
                     <input 
                         type="text" 
                         placeholder="ابحث عن فني..." 
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pr-10 pl-4 py-2 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-lg pr-8 pl-3 h-8 text-xs font-bold focus:ring-1 focus:ring-primary/30 outline-none transition-all"
                     />
                 </div>
                 <button 
                     onClick={fetchData}
                     disabled={isLoading}
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl transition-all"
+                    className="flex items-center gap-1.5 px-3 h-8 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-all shadow-2xs active:scale-95"
                 >
-                    <RefreshCcw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-                    تحديث البيانات
+                    <RefreshCcw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+                    تحديث
                 </button>
             </div>
 
             {/* Error State */}
             {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-2xl border border-red-100 dark:border-red-900/30 flex items-center gap-3">
-                    <AlertTriangle className="w-5 h-5" />
+                <div className="p-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-xl border border-rose-100 dark:border-rose-900/30 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
                     {error}
                 </div>
             )}
 
             {/* Data Table */}
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-right">
-                        <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 dark:text-zinc-400 font-black text-xs uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800">
+            <div className="bg-white dark:bg-zinc-950/40 border border-zinc-200/80 dark:border-white/10 rounded-xl shadow-xs overflow-hidden">
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-270px)] custom-scrollbar">
+                    <table className="w-full text-xs text-right border-collapse">
+                        <thead className="sticky top-0 z-20 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xs text-zinc-500 dark:text-zinc-400 font-black text-[10px] uppercase tracking-wider border-b border-zinc-200/80 dark:border-zinc-800">
                             <tr>
-                                <th className="px-6 py-4">الفني</th>
-                                <th className="px-6 py-4 text-center">التذاكر</th>
-                                <th className="px-6 py-4">الإيرادات</th>
-                                <th className="px-6 py-4 text-rose-500">تكلفة القطع</th>
-                                <th className="px-6 py-4 text-blue-500">هامش الربح</th>
-                                <th className="px-6 py-4 text-emerald-500">العمولات</th>
-                                <th className="px-6 py-4">الراتب الأساسي</th>
-                                <th className="px-6 py-4 text-red-500">تسويات سابقة (Debt)</th>
-                                <th className="px-6 py-4 text-zinc-900 dark:text-white">إجمالي المستحق</th>
-                                <th className="px-6 py-4 text-center">الإجراء</th>
+                                <th className="px-3 py-2">الفني</th>
+                                <th className="px-3 py-2 text-center">التذاكر</th>
+                                <th className="px-3 py-2">الإيرادات</th>
+                                <th className="px-3 py-2 text-rose-500">تكلفة القطع</th>
+                                <th className="px-3 py-2 text-indigo-500">هامش الربح</th>
+                                <th className="px-3 py-2 text-emerald-500">العمولات</th>
+                                <th className="px-3 py-2">الراتب الأساسي</th>
+                                <th className="px-3 py-2 text-rose-500">تسويات سابقة</th>
+                                <th className="px-3 py-2 text-zinc-900 dark:text-white">إجمالي المستحق</th>
+                                <th className="px-3 py-2 text-center">الإجراء</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/50 font-bold">
+                        <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800/50 font-bold">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={9} className="px-6 py-12 text-center text-zinc-400">
-                                        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" />
-                                        جاري حساب العمولات والأرباح...
+                                    <td colSpan={10} className="px-4 py-12 text-center text-zinc-400">
+                                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                                        <span className="text-xs">جاري حساب العمولات والأرباح...</span>
                                     </td>
                                 </tr>
                             ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="px-6 py-12 text-center text-zinc-400">
+                                    <td colSpan={10} className="px-4 py-12 text-center text-zinc-400 text-xs">
                                         لا توجد تذاكر مدفوعة غير مسواة في هذه الفترة.
                                     </td>
                                 </tr>
                             ) : (
                                 filteredData.map((tech) => (
-                                    <tr key={tech.technicianId} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/20 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black">
+                                    <tr key={tech.technicianId} className="hover:bg-zinc-100/70 dark:hover:bg-zinc-800/20 transition-colors">
+                                        <td className="px-3 py-1.5 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center font-black text-[10px]">
                                                     {tech.technicianName.charAt(0)}
                                                 </div>
-                                                <span className="text-zinc-900 dark:text-white">{tech.technicianName}</span>
+                                                <span className="text-zinc-900 dark:text-white font-bold">{tech.technicianName}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-center tabular-nums">
-                                            <span className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-xs">
+                                        <td className="px-3 py-1.5 text-center tabular-nums">
+                                            <span className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-md text-[10px] font-mono font-bold">
                                                 {tech.ticketsCount}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 tabular-nums text-emerald-600 dark:text-emerald-500">{tech.totalRevenue.toLocaleString()}</td>
-                                        <td className="px-6 py-4 tabular-nums text-rose-600 dark:text-rose-500">{tech.totalPartsCost.toLocaleString()}</td>
-                                        <td className="px-6 py-4 tabular-nums text-blue-600 dark:text-blue-500">{tech.netServiceMargin.toLocaleString()}</td>
-                                        <td className="px-6 py-4 tabular-nums text-emerald-600 dark:text-emerald-500">{tech.commissionEarned.toLocaleString()}</td>
-                                        <td className="px-6 py-4 tabular-nums text-zinc-600 dark:text-zinc-400">{tech.basicSalary.toLocaleString()}</td>
-                                        <td className="px-6 py-4 tabular-nums font-bold text-red-500">
+                                        <td className="px-3 py-1.5 font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{tech.totalRevenue.toLocaleString()}</td>
+                                        <td className="px-3 py-1.5 font-mono tabular-nums text-rose-600 dark:text-rose-400">{tech.totalPartsCost.toLocaleString()}</td>
+                                        <td className="px-3 py-1.5 font-mono tabular-nums text-indigo-600 dark:text-indigo-400">{tech.netServiceMargin.toLocaleString()}</td>
+                                        <td className="px-3 py-1.5 font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{tech.commissionEarned.toLocaleString()}</td>
+                                        <td className="px-3 py-1.5 font-mono tabular-nums text-zinc-600 dark:text-zinc-400">{tech.basicSalary.toLocaleString()}</td>
+                                        <td className="px-3 py-1.5 font-mono tabular-nums font-bold text-rose-500">
                                             {tech.debtCarryover > 0 ? `-${tech.debtCarryover.toLocaleString()}` : "0"}
                                         </td>
-                                        <td className="px-6 py-4 tabular-nums text-base font-black text-zinc-900 dark:text-white">
+                                        <td className="px-3 py-1.5 font-mono tabular-nums font-black text-zinc-900 dark:text-white">
                                             {tech.totalPayable.toLocaleString()}
                                         </td>
-                                        <td className="px-6 py-4 text-center">
-                                            {tech.totalPayable > 0 ? (
-                                                <button
-                                                    onClick={() => handleSettleClick(tech)}
-                                                    className="px-4 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95"
-                                                >
-                                                    صرف
-                                                </button>
-                                            ) : (
-                                                <span className="text-xs text-zinc-400 font-bold">لا يوجد مستحق</span>
-                                            )}
+                                        <td className="px-3 py-1.5 text-center">
+                                            <button
+                                                onClick={() => handleSettleClick(tech)}
+                                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-bold transition-all shadow-2xs active:scale-95"
+                                            >
+                                                تسوية
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
@@ -268,7 +263,8 @@ export default function TechniciansPayrollDashboard({
                 </div>
             </div>
 
-            {selectedTech && (
+            {/* Settle Modal */}
+            {settleModalOpen && selectedTech && (
                 <SettlementConfirmationModal
                     isOpen={settleModalOpen}
                     onClose={() => setSettleModalOpen(false)}

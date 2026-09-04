@@ -735,8 +735,8 @@
     "semantic_hash": ""
   },
   "src/app/(routes)/dashboard/page.tsx": {
-    "mtime": 1777602405.968575,
-    "ast_hash": "f80161664d7cdf79b5bd2783237f916f",
+    "mtime": 1788444394.7524128,
+    "ast_hash": "76079af9672cbbb2e4c6517e9f165391",
     "semantic_hash": ""
   },
   "src/app/(routes)/dashboard/reports/maintenance-profit/page.tsx": {
@@ -745,8 +745,8 @@
     "semantic_hash": ""
   },
   "src/app/(routes)/hr/HRClient.tsx": {
-    "mtime": 1784177113.1390789,
-    "ast_hash": "585c7c096c74b83bed90f01c7dc18dd6",
+    "mtime": 1788480166.6163757,
+    "ast_hash": "9dc2d297e4d162bac4cc0168c67a98c4",
     "semantic_hash": ""
   },
   "src/app/(routes)/hr/employees/[id]/page.tsx": {
@@ -1075,13 +1075,13 @@
     "semantic_hash": ""
   },
   "src/components/hr/AttendanceManager.tsx": {
-    "mtime": 1784090004.5321352,
-    "ast_hash": "e26fef9639992137ba58e2d6039aa130",
+    "mtime": 1788479220.1995814,
+    "ast_hash": "677d8db0214d151e4dd566f3fcdb4880",
     "semantic_hash": ""
   },
   "src/components/hr/DailyAttendance.tsx": {
-    "mtime": 1784090004.533136,
-    "ast_hash": "d0387c53b2002ed5195774da2ee8d4f5",
+    "mtime": 1788480226.7289352,
+    "ast_hash": "1be4e4318b2c6550775cf20fec8da306",
     "semantic_hash": ""
   },
   "src/components/hr/EmployeeAttendanceDetail.tsx": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "src/components/hr/EmployeeDirectory.tsx": {
-    "mtime": 1784090004.5341327,
-    "ast_hash": "9aa2e84219af04d9719b4b7904e35ff5",
+    "mtime": 1788479315.2295916,
+    "ast_hash": "d1af3d7d2a257177bdb9d04efadfab3f",
     "semantic_hash": ""
   },
   "src/components/hr/EmployeeProfileClient.tsx": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "src/components/inventory/ProductsTab.tsx": {
-    "mtime": 1784177113.9709501,
-    "ast_hash": "ae6289e574355db891963e6ff7730546",
+    "mtime": 1788444386.349707,
+    "ast_hash": "f08cdfd65b0c3974bd08005e21fce280",
     "semantic_hash": ""
   },
   "src/components/inventory/PurchasesTab.tsx": {
@@ -1235,8 +1235,8 @@
     "semantic_hash": ""
   },
   "src/components/inventory/purchasing/PurchaseDataGrid.tsx": {
-    "mtime": 1784177113.9906783,
-    "ast_hash": "11d410a714734b611d4d58b20c9217aa",
+    "mtime": 1788443451.532364,
+    "ast_hash": "98e134b76f1bb39affb87291d42dba3c",
     "semantic_hash": ""
   },
   "src/components/inventory/purchasing/PurchaseHeader.tsx": {
@@ -1365,8 +1365,8 @@
     "semantic_hash": ""
   },
   "src/components/reports/ReportPage.tsx": {
-    "mtime": 1784568546.2838664,
-    "ast_hash": "4cdfc505824975d0d872fde13d9c036b",
+    "mtime": 1788443468.3982766,
+    "ast_hash": "0bdf151ccb1139e1bbe6f113d51af575",
     "semantic_hash": ""
   },
   "src/components/settings/BackupManager.tsx": {
@@ -1880,8 +1880,8 @@
     "semantic_hash": ""
   },
   "src/features/dashboard/ui/FinancialKPICards.tsx": {
-    "mtime": 1773276284.113758,
-    "ast_hash": "b7e98c93da8c05f35e606c3eccfea0cf",
+    "mtime": 1788443339.8415873,
+    "ast_hash": "39e42fdd7f6e3e43612b00798f2a1ff5",
     "semantic_hash": ""
   },
   "src/features/reports/api/report-service.ts": {
@@ -4615,8 +4615,8 @@
     "semantic_hash": ""
   },
   "playwright.config.ts": {
-    "mtime": 1784177111.246086,
-    "ast_hash": "6a0ffb5565ca2c6d20a2389adc00d004",
+    "mtime": 1788443785.5628183,
+    "ast_hash": "6b422e346e130a02ff3e2b43dd58e358",
     "semantic_hash": ""
   },
   "prisma/migrations/20260627000000_add_repairpayment_journal_fk/migration.sql": {
@@ -5080,8 +5080,8 @@
     "semantic_hash": ""
   },
   "src/components/hr/TechniciansPayrollDashboard.tsx": {
-    "mtime": 1784177113.968945,
-    "ast_hash": "a4d65c6ff62f055bf68c0bec03bd3bc4",
+    "mtime": 1788479268.59311,
+    "ast_hash": "666e1aaec8244dae90809eef9a92a590",
     "semantic_hash": ""
   },
   "src/components/inventory/ReorderRulesManager.tsx": {
@@ -5275,7 +5275,7 @@
     "semantic_hash": ""
   },
   "src/lib/prisma-tenant-extension.ts": {
-    "mtime": 1788402801.8210347,
+    "mtime": 1788480360.3383634,
     "ast_hash": "09dc51b5bc67b5640292220e490b5679",
     "semantic_hash": ""
   },
@@ -5964,11 +5964,6 @@
     "ast_hash": "fc2b5a452e9118afd67cc6b0a79daced",
     "semantic_hash": ""
   },
-  "cookie.txt": {
-    "mtime": 1786956677.8954818,
-    "ast_hash": "f7960c034b3dec5d72593f057e240884",
-    "semantic_hash": ""
-  },
   "src/actions/hq-whatsapp-actions.ts": {
     "mtime": 1786969741.7686691,
     "ast_hash": "ace12d8ac6dba9e85d141f574c1def4d",
@@ -6000,8 +5995,8 @@
     "semantic_hash": ""
   },
   "src/components/MobileHeader.tsx": {
-    "mtime": 1788407915.4119277,
-    "ast_hash": "d2466a762d5f330c1100673d21c0af32",
+    "mtime": 1788444057.6600537,
+    "ast_hash": "53a70bf587750a583e4d576fc6a3f3dc",
     "semantic_hash": ""
   },
   "src/components/hq/MobileLicenseModal.tsx": {
@@ -6025,13 +6020,13 @@
     "semantic_hash": ""
   },
   "tests/mobile-pos.spec.ts": {
-    "mtime": 1788407698.5822084,
-    "ast_hash": "9521c98d6fdc52bb996e9091f2a06b19",
+    "mtime": 1788444131.1824026,
+    "ast_hash": "83f1dc34fb0bbfaf14d63ce47198ddd6",
     "semantic_hash": ""
   },
   "code_review_report.md": {
-    "mtime": 1788407741.1135051,
-    "ast_hash": "a7091f590e167501b786dd541ebf1178",
+    "mtime": 1788480348.9415393,
+    "ast_hash": "37a3c88b59d985547b40fa725c705fe0",
     "semantic_hash": ""
   },
   "docs/plans/2026-08-30-001-feat-ui-taste-pipeline-execution-plan.md": {
@@ -6045,23 +6040,43 @@
     "semantic_hash": ""
   },
   "ironclad_review_implementation_plan.md": {
-    "mtime": 1788407354.700693,
-    "ast_hash": "52f559e430b009a573432930eaeeb506",
+    "mtime": 1788480116.843389,
+    "ast_hash": "fd0fbb62c65fd8ce53342bf332de8a1c",
     "semantic_hash": ""
   },
   "research_findings.md": {
-    "mtime": 1788407335.8103995,
-    "ast_hash": "27bd30e4b32702babe749310214c02ae",
+    "mtime": 1788480105.594713,
+    "ast_hash": "b87b6d9fbd7c9125027c8f9160c5a264",
     "semantic_hash": ""
   },
   "task.md": {
-    "mtime": 1788407708.531894,
-    "ast_hash": "6a193437b804cf86ad0d7c746e22a5ea",
+    "mtime": 1788480234.1048405,
+    "ast_hash": "13274c30a1fc2216327ffb0679fbd7b6",
     "semantic_hash": ""
   },
   "test_results.txt": {
-    "mtime": 1788441604.2620573,
-    "ast_hash": "43fbd10b627ef883d72845cc0f2f838a",
+    "mtime": 1788480381.708506,
+    "ast_hash": "043d65a4de096e1aa86bde81e8461049",
+    "semantic_hash": ""
+  },
+  "test-results/.last-run.json": {
+    "mtime": 1788444161.083632,
+    "ast_hash": "f196824657d8858bc7fa44eecbba38b1",
+    "semantic_hash": ""
+  },
+  "playwright-report/index.html": {
+    "mtime": 1788444161.0749998,
+    "ast_hash": "235271ae6ce7d10c5d19db2696fc7445",
+    "semantic_hash": ""
+  },
+  "walkthrough.md": {
+    "mtime": 1788480403.7359283,
+    "ast_hash": "07c68ac32b26b9d268809bc7337004ff",
+    "semantic_hash": ""
+  },
+  "public/assets/icon-512.png": {
+    "mtime": 1788442828.9134774,
+    "ast_hash": "1c252435019dbdad5cce0974b2dde0f9",
     "semantic_hash": ""
   }
 }

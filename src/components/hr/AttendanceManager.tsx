@@ -63,10 +63,10 @@ export default function AttendanceManager({ csrfToken, filterDate }: { csrfToken
         <button
             onClick={() => setView(v)}
             className={clsx(
-                'px-8 py-3 rounded-xl flex items-center gap-3 text-sm font-black transition-all font-cairo tracking-wide',
+                'px-3.5 h-8 rounded-lg flex items-center gap-2 text-xs font-bold transition-all font-cairo tracking-wide',
                 view === v 
-                    ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/10' 
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-950 dark:text-white shadow-xs' 
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-white/5'
             )}
         >
             {icon} {label}
@@ -74,19 +74,17 @@ export default function AttendanceManager({ csrfToken, filterDate }: { csrfToken
     )
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-300 font-cairo">
+        <div className="space-y-2.5 animate-in fade-in duration-300 font-cairo">
             {/* Toolbar */}
-            <div className="flex flex-col xl:flex-row gap-6 justify-between items-center bg-zinc-50 dark:bg-white/[0.02] p-6 rounded-[2rem] border border-zinc-200 dark:border-white/5 shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-2.5 justify-between items-center bg-zinc-50/80 dark:bg-white/[0.02] p-2 px-3 rounded-xl border border-zinc-200/80 dark:border-white/5 shadow-xs">
                 {/* View Tabs */}
-                <div className="flex gap-2 p-1.5 bg-zinc-100 dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-inner">
-                    {tabBtn(t("daily"), <List className="w-5 h-5" />, 'DAILY')}
-                    {tabBtn(t("monthly"), <CalendarDays className="w-5 h-5" />, 'MONTHLY')}
+                <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/80 dark:border-white/10 shadow-inner">
+                    {tabBtn(t("daily"), <List className="w-3.5 h-3.5" />, 'DAILY')}
+                    {tabBtn(t("monthly"), <CalendarDays className="w-3.5 h-3.5" />, 'MONTHLY')}
                 </div>
 
                 {/* Controls */}
-                <div className="flex items-center gap-4 flex-wrap w-full md:w-auto">
-
-
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                     {/* Daily: date picker */}
                     {view === 'DAILY' && (
                         <div className="relative group">
@@ -94,7 +92,7 @@ export default function AttendanceManager({ csrfToken, filterDate }: { csrfToken
                                 type="date"
                                 value={selectedDate}
                                 onChange={e => setSelectedDate(e.target.value)}
-                                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl h-14 px-6 text-zinc-900 dark:text-white font-black text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner tabular-nums"
+                                className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/10 rounded-lg h-8 px-3 text-zinc-900 dark:text-white font-bold text-xs outline-none focus:ring-1 focus:ring-primary/50 transition-all shadow-xs tabular-nums"
                             />
                         </div>
                     )}
