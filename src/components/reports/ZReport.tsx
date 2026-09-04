@@ -62,74 +62,73 @@ export function ZReport() {
     const { summary, shifts } = data;
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="space-y-2.5 animate-fade-in-up">
             {/* Header & Export */}
             <div className="flex justify-end">
                 <button
                     onClick={exportToExcel}
-                    className="h-11 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] flex items-center gap-2"
+                    className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shadow-xs transition-all active:scale-[0.98] flex items-center gap-1.5"
                 >
-                    <Download className="w-4 h-4 ml-1" />
+                    <Download className="w-3.5 h-3.5" />
                     تصدير Excel
                 </button>
             </div>
 
             {/* Main Table */}
-            <div className="glass-card bg-card/40 backdrop-blur-md border border-border/40 rounded-3xl overflow-hidden relative group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-colors" />
-                <div className="p-6 border-b border-border/40 flex items-center justify-between">
-                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-widest flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-indigo-500" />
+            <div className="glass-card bg-card/40 backdrop-blur-md border border-border/50 rounded-xl overflow-hidden relative group shadow-xs">
+                <div className="p-2.5 border-b border-border/40 flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-indigo-400" />
                         Z-Report (تقارير الورديات)
                     </h3>
-                    <span className="text-[10px] font-bold text-foreground/40 bg-zinc-950/40 border border-border/40 px-3 py-1 rounded-full uppercase tracking-wider">
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/50 border border-border/40 px-2 py-0.5 rounded-md">
                         آخر {shifts.length} وردية
                     </span>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50 border-b border-border/40">
+                <div className="overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
+                    <table className="w-full text-xs">
+                        <thead className="bg-muted/60 border-b border-border/40 sticky top-0 z-10 backdrop-blur-md">
                             <tr>
-                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">تاريخ ووقت الفتح</th>
-                                <th className="text-right py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الكاشير</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">مبيعات كاش</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">مبيعات فيزا</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">مرتجعات</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">المصروفات</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">كاش متوقع</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">كاش فعلي</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">العجز/الزيادة</th>
-                                <th className="text-center py-4 px-6 text-[10px] font-black text-foreground/60 uppercase tracking-widest">الحالة</th>
+                                <th className="text-right py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">تاريخ ووقت الفتح</th>
+                                <th className="text-right py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">الكاشير</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">مبيعات كاش</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">مبيعات فيزا</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">مرتجعات</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">المصروفات</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">كاش متوقع</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">كاش فعلي</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">العجز/الزيادة</th>
+                                <th className="text-center py-2 px-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider">الحالة</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/20">
                             {shifts.map((s: any) => (
-                                <tr key={s.id} className="transition-all hover:bg-primary/10 even:bg-muted/70 group">
-                                    <td className="py-3 px-6">
-                                        <div className="font-black text-foreground text-xs">{format(new Date(s.openedAt), 'yyyy/MM/dd HH:mm')}</div>
-                                        {s.closedAt && <div className="text-[10px] text-foreground/50 font-mono mt-0.5">إغلاق: {format(new Date(s.closedAt), 'HH:mm')}</div>}
+                                <tr key={s.id} className="transition-all hover:bg-primary/10 even:bg-muted/30 group h-9">
+                                    <td className="py-1.5 px-3">
+                                        <div className="font-bold text-foreground text-xs">{format(new Date(s.openedAt), 'yyyy/MM/dd HH:mm')}</div>
+                                        {s.closedAt && <div className="text-[10px] text-muted-foreground font-mono">إغلاق: {format(new Date(s.closedAt), 'HH:mm')}</div>}
                                     </td>
-                                    <td className="py-3 px-6 font-bold text-foreground/80 text-xs">{s.cashierName}</td>
-                                    <td className="py-3 px-6 text-center text-cyan-500 font-bold font-mono">{formatCurrency(s.totalCashSales)}</td>
-                                    <td className="py-3 px-6 text-center text-indigo-400 font-bold font-mono">{formatCurrency(s.totalCardSales)}</td>
-                                    <td className="py-3 px-6 text-center text-rose-400 font-bold font-mono">{formatCurrency(s.totalRefunds)}</td>
-                                    <td className="py-3 px-6 text-center text-amber-500 font-bold font-mono">{formatCurrency(s.totalExpenses)}</td>
-                                    <td className="py-3 px-6 text-center text-foreground/60 font-bold font-mono">{formatCurrency(s.expectedCash)}</td>
-                                    <td className="py-3 px-6 text-center text-emerald-500 font-black font-mono">{formatCurrency(s.actualCash)}</td>
-                                    <td className="py-3 px-6 text-center">
+                                    <td className="py-1.5 px-3 font-medium text-foreground text-xs">{s.cashierName}</td>
+                                    <td className="py-1.5 px-3 text-center text-cyan-400 font-bold font-mono">{formatCurrency(s.totalCashSales)}</td>
+                                    <td className="py-1.5 px-3 text-center text-indigo-400 font-bold font-mono">{formatCurrency(s.totalCardSales)}</td>
+                                    <td className="py-1.5 px-3 text-center text-rose-400 font-bold font-mono">{formatCurrency(s.totalRefunds)}</td>
+                                    <td className="py-1.5 px-3 text-center text-amber-400 font-bold font-mono">{formatCurrency(s.totalExpenses)}</td>
+                                    <td className="py-1.5 px-3 text-center text-muted-foreground font-bold font-mono">{formatCurrency(s.expectedCash)}</td>
+                                    <td className="py-1.5 px-3 text-center text-emerald-400 font-bold font-mono">{formatCurrency(s.actualCash)}</td>
+                                    <td className="py-1.5 px-3 text-center">
                                         <div className={cn(
-                                            "font-black font-mono text-xs",
-                                            s.cashVariance === 0 ? "text-foreground/40" : s.cashVariance > 0 ? "text-emerald-500" : "text-rose-500"
+                                            "font-bold font-mono text-xs",
+                                            s.cashVariance === 0 ? "text-muted-foreground" : s.cashVariance > 0 ? "text-emerald-400" : "text-rose-400"
                                         )}>
                                             {s.cashVariance > 0 ? '+' : ''}{formatCurrency(s.cashVariance)}
                                         </div>
                                     </td>
-                                    <td className="py-3 px-6 text-center">
+                                    <td className="py-1.5 px-3 text-center">
                                         {s.status === 'CLOSED' ? (
-                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">مغلقة</span>
+                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">مغلقة</span>
                                         ) : (
-                                            <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1 w-fit mx-auto">
-                                                <AlertTriangle className="w-3 h-3 text-amber-500" />
+                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1 w-fit mx-auto">
+                                                <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
                                                 مفتوحة
                                             </span>
                                         )}
@@ -138,7 +137,7 @@ export function ZReport() {
                             ))}
                             {shifts.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="py-12 text-center text-foreground/40 font-bold text-xs uppercase tracking-widest">
+                                    <td colSpan={10} className="py-8 text-center text-muted-foreground font-bold text-xs">
                                         لا توجد ورديات حالياً
                                     </td>
                                 </tr>

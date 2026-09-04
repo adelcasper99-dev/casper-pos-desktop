@@ -510,9 +510,7 @@ export default function UnifiedReportsPage() {
                         <InventoryReportDetail isTab={true} />
                     </TabsContent>
                     <TabsContent value="cash_flow" className="focus-visible:outline-none data-[state=inactive]:hidden">
-                        <div className="glass-card bg-card/10 backdrop-blur-md border border-border/20 rounded-3xl p-6">
-                            <CashFlowDashboard isTab={true} />
-                        </div>
+                        <CashFlowDashboard isTab={true} />
                     </TabsContent>
                     <TabsContent value="aged_receivables" className="focus-visible:outline-none data-[state=inactive]:hidden">
                         <AgedReceivablesReport />

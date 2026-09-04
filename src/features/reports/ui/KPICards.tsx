@@ -48,24 +48,21 @@ export function KPICards({ kpis }: KPICardsProps) {
     ];
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {cards.map((card, i) => (
                 <div
                     key={i}
-                    className={`glass-card p-6 rounded-2xl border ${card.border} ${card.bg} ${card.shadow} flex flex-col gap-2 transition-all hover:scale-[1.02]`}
+                    className={`glass-card p-2.5 rounded-xl border ${card.border} ${card.bg} ${card.shadow} flex flex-col gap-1 transition-all shadow-xs`}
                 >
                     <div className="flex items-center justify-between">
-                        <p className="text-muted-foreground text-xs uppercase font-bold tracking-wider">{card.label}</p>
-                        <card.icon className={`w-5 h-5 ${card.color}`} />
+                        <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">{card.label}</p>
+                        <card.icon className={`w-3.5 h-3.5 ${card.color}`} />
                     </div>
-                    <div className="flex items-baseline gap-1 mt-1">
-                        <h2 className={`text-2xl font-mono font-bold ${card.color}`}>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                        <h2 className={`text-base font-mono font-bold ${card.color}`}>
                             {card.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </h2>
-                        <span className="text-[10px] text-muted-foreground font-bold">ج.م</span>
-                    </div>
-                    <div className="w-full h-1 bg-black/20 rounded-full mt-2 overflow-hidden">
-                        <div className={`h-full ${card.color.replace('text', 'bg')} opacity-40`} style={{ width: '60%' }} />
+                        <span className="text-[9px] text-muted-foreground font-bold">ج.م</span>
                     </div>
                 </div>
             ))}
