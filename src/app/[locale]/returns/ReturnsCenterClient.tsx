@@ -58,7 +58,10 @@ const ALL_RETURN_TYPES: {
   labelEn: string;
   icon: React.ElementType;
   placeholder: string;
-  activeColor: string;
+  activeClass: string;
+  inactiveClass: string;
+  activeIconClass: string;
+  inactiveIconClass: string;
   glow: string;
 }[] = [
   {
@@ -67,7 +70,10 @@ const ALL_RETURN_TYPES: {
     labelEn: "Sales Return",
     icon: ShoppingCart,
     placeholder: "البحث بالاسم، الهاتف، أو رقم الفاتورة...",
-    activeColor: "bg-emerald-500/20 border-emerald-500/60 text-emerald-400",
+    activeClass: "bg-gradient-to-r from-emerald-600 to-emerald-500 border-emerald-400 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400/30",
+    inactiveClass: "bg-emerald-950/30 border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/60 hover:border-emerald-500/70 hover:text-emerald-300 shadow-xs",
+    activeIconClass: "bg-white/20 text-white",
+    inactiveIconClass: "bg-emerald-500/20 text-emerald-400",
     glow: "shadow-emerald-500/20",
   },
   {
@@ -76,7 +82,10 @@ const ALL_RETURN_TYPES: {
     labelEn: "Purchase Return",
     icon: Truck,
     placeholder: "البحث باسم المورد أو رقم أمر الشراء...",
-    activeColor: "bg-sky-500/20 border-sky-500/60 text-sky-400",
+    activeClass: "bg-gradient-to-r from-sky-600 to-sky-500 border-sky-400 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400/30",
+    inactiveClass: "bg-sky-950/30 border-sky-500/40 text-sky-400 hover:bg-sky-950/60 hover:border-sky-500/70 hover:text-sky-300 shadow-xs",
+    activeIconClass: "bg-white/20 text-white",
+    inactiveIconClass: "bg-sky-500/20 text-sky-400",
     glow: "shadow-sky-500/20",
   },
   {
@@ -85,7 +94,10 @@ const ALL_RETURN_TYPES: {
     labelEn: "Ticket Return",
     icon: Wrench,
     placeholder: "البحث باسم العميل، الهاتف، أو رقم التذكرة...",
-    activeColor: "bg-violet-500/20 border-violet-500/60 text-violet-400",
+    activeClass: "bg-gradient-to-r from-violet-600 to-violet-500 border-violet-400 text-white shadow-md shadow-violet-600/30 ring-2 ring-violet-400/30",
+    inactiveClass: "bg-violet-950/30 border-violet-500/40 text-violet-400 hover:bg-violet-950/60 hover:border-violet-500/70 hover:text-violet-300 shadow-xs",
+    activeIconClass: "bg-white/20 text-white",
+    inactiveIconClass: "bg-violet-500/20 text-violet-400",
     glow: "shadow-violet-500/20",
   },
 ];
@@ -226,32 +238,43 @@ export default function ReturnsCenterClient({ csrfToken, features }: ReturnsCent
   }
 
   return (
-    <div className="space-y-2" dir="rtl">
-      {/* ── Type Toggle (Modern Compact Tabs) ── */}
-      <div className={cn("grid gap-2", 
+    <div className="space-y-2.5" dir="rtl">
+      {/* ── Type Toggle (Modern Visible Buttons) ── */}
+      <div className={cn("grid gap-2.5", 
         returnTypes.length === 1 ? "grid-cols-1" : 
         returnTypes.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
-        {returnTypes.map(({ key, label, labelEn, icon: Icon, activeColor, glow }) => {
+        {returnTypes.map(({ key, label, labelEn, icon: Icon, activeClass, inactiveClass, activeIconClass, inactiveIconClass }) => {
           const isActive = returnType === key;
           return (
             <button
               key={key}
+              type="button"
               onClick={() => handleTypeSwitch(key)}
               className={cn(
-                "group relative flex items-center justify-center gap-2.5 rounded-xl border px-3 py-2 transition-all duration-300 overflow-hidden h-11",
+                "group relative flex items-center justify-center gap-3 rounded-xl border-2 px-3 py-2 transition-all duration-200 cursor-pointer h-12 select-none active:scale-[0.98]",
                 isActive 
-                  ? `${activeColor} ${glow} shadow-xs z-10 glass-card backdrop-blur-md font-bold` 
-                  : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 hover:text-foreground hover:border-border transition-colors backdrop-blur-sm"
+                  ? `${activeClass} font-black scale-[1.01]` 
+                  : `${inactiveClass} font-bold`
               )}
             >
-              {isActive && (
-                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-              )}
-              <Icon size={18} strokeWidth={2} className={cn("transition-transform group-hover:scale-110 shrink-0", isActive ? "text-primary" : "text-muted-foreground/60")} />
-              <div className="flex items-center gap-1.5 relative z-10">
-                <span className="text-xs font-black tracking-tight">{label}</span>
-                <span className="text-[9px] uppercase font-bold tracking-wider opacity-50 hidden sm:inline">({labelEn})</span>
+              <div className={cn(
+                "p-1.5 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                isActive ? activeIconClass : inactiveIconClass
+              )}>
+                <Icon size={18} strokeWidth={2.5} />
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-black tracking-tight">{label}</span>
+                <span className={cn(
+                  "text-[10px] uppercase font-bold tracking-wider hidden sm:inline",
+                  isActive ? "text-white/85" : "opacity-60"
+                )}>
+                  ({labelEn})
+                </span>
+              </div>
+              {isActive && (
+                <span className="w-2 h-2 rounded-full bg-white shadow-xs animate-pulse mr-auto" />
+              )}
             </button>
           );
         })}
