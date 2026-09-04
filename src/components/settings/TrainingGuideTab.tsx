@@ -21,52 +21,55 @@ export default function TrainingGuideTab() {
     };
 
     return (
-        <div className="space-y-6">
-            <Card className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-3xl overflow-hidden shadow-xl relative group">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-500/10 via-cyan-500/5 to-transparent blur-3xl pointer-events-none" />
-                <CardHeader className="p-8 pb-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="space-y-1.5">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-xs font-black tracking-widest uppercase mb-2">
-                                <GraduationCap className="w-3.5 h-3.5" /> مركز التدريب التفاعلي
-                            </div>
-                            <CardTitle className="text-2xl font-black tracking-tight">
-                                التدريب والدليل التشغيلي للنظام
-                            </CardTitle>
-                            <CardDescription className="text-sm font-medium">
-                                تعلم كيفية استخدام جميع أقسام Casper POS خطوة بخطوة من خلال الجولة التفاعلية المصورة.
-                            </CardDescription>
-                        </div>
-                        <Button
-                            onClick={launchTour}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-black px-6 py-5 rounded-2xl shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all hover:scale-[1.02] flex items-center gap-2.5 shrink-0"
-                        >
-                            <Play className="w-4 h-4 fill-current" />
-                            <span>بدء الجولة التفاعلية</span>
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-8 pt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                        {MODULES.map((mod, idx) => (
-                            <div
-                                key={idx}
-                                className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 hover:border-cyan-500/30 transition-all duration-200 group/card"
-                            >
-                                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-500 flex items-center justify-center mb-3 group-hover/card:scale-110 transition-transform">
-                                    <mod.icon className="w-4 h-4" />
+        <div className="max-w-5xl space-y-3 animate-in fade-in duration-500">
+            <div className="max-h-[calc(100vh-140px)] overflow-y-auto pr-1 custom-scrollbar space-y-3">
+                <Card className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-2xl overflow-hidden shadow-sm relative group">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-blue-500/10 via-cyan-500/5 to-transparent blur-3xl pointer-events-none" />
+                    <CardHeader className="p-3 pb-2 border-b border-border/20">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-[10px] font-bold uppercase">
+                                    <GraduationCap className="w-3 h-3" /> مركز التدريب التفاعلي
                                 </div>
-                                <h4 className="font-bold text-sm text-foreground mb-1">
-                                    {mod.title}
-                                </h4>
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                    {mod.desc}
-                                </p>
+                                <CardTitle className="text-sm font-bold tracking-tight">
+                                    التدريب والدليل التشغيلي للنظام (Training Guide)
+                                </CardTitle>
+                                <CardDescription className="text-[11px] font-medium text-muted-foreground">
+                                    تعلم كيفية استخدام جميع أقسام Casper POS خطوة بخطوة من خلال الجولة التفاعلية المصورة.
+                                </CardDescription>
                             </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+                            <Button
+                                onClick={launchTour}
+                                size="sm"
+                                className="h-8 bg-cyan-500 hover:bg-cyan-400 text-black font-bold px-4 rounded-xl shadow-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer text-xs"
+                            >
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>بدء الجولة التفاعلية</span>
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-2">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1">
+                            {MODULES.map((mod, idx) => (
+                                <div
+                                    key={idx}
+                                    className="p-2.5 rounded-xl bg-slate-50/50 dark:bg-white/[0.02] border border-slate-200/50 dark:border-white/5 hover:border-cyan-500/30 transition-all duration-200 group/card"
+                                >
+                                    <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-500 flex items-center justify-center mb-1.5 group-hover/card:scale-105 transition-transform">
+                                        <mod.icon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <h4 className="font-bold text-xs text-foreground mb-0.5">
+                                        {mod.title}
+                                    </h4>
+                                    <p className="text-[10px] text-muted-foreground leading-snug">
+                                        {mod.desc}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

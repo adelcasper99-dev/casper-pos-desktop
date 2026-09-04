@@ -11,11 +11,19 @@ import { resetDatabase } from "@/actions/database-reset";
 import { cn } from "@/lib/utils";
 import { extractIpcData } from "@/lib/ipc-utils";
 
+interface BackupFileItem {
+    filename: string;
+    path: string;
+    sizeBytes: number;
+    createdAt: string | number | Date;
+    [key: string]: unknown;
+}
+
 export default function BackupManager() {
     const [backupPath, setBackupPath] = useState<string>('');
     const [backupInterval, setBackupInterval] = useState<string>('15');
     const [maxBackups, setMaxBackups] = useState<string>('30');
-    const [backups, setBackups] = useState<any[]>([]);
+    const [backups, setBackups] = useState<BackupFileItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isRestoring, setIsRestoring] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +80,7 @@ export default function BackupManager() {
             const res = await window.electronAPI.config.selectBackupFolder();
             const folder = extractIpcData(res, 'dialog:showBackupFolderDialog');
             if (folder) setBackupPath(folder);
-        } catch (err: any) {
+        } catch {
             toast.error(t('messages.selectFolderError'));
         }
     };
@@ -107,8 +115,9 @@ export default function BackupManager() {
             await LocalPersistenceService.backupToFilesystem(true);
             toast.success(t('messages.manualBackupSuccess'), { id: tid });
             fetchBackups();
-        } catch (error: any) {
-            toast.error(t('messages.manualBackupError', { error: error.message }), { id: tid });
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(t('messages.manualBackupError', { error: msg }), { id: tid });
         } finally {
             setIsSaving(false);
         }
@@ -126,8 +135,9 @@ export default function BackupManager() {
             } else {
                 toast.error(t('messages.deleteError', { error: result.error }));
             }
-        } catch (error: any) {
-            toast.error(t('messages.deleteError', { error: error.message }));
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(t('messages.deleteError', { error: msg }));
         } finally {
             setIsSaving(false);
         }
@@ -170,8 +180,9 @@ export default function BackupManager() {
                 toast.error(t('messages.restoreError', { error: result.error }), { id: tid });
                 setIsRestoring(false);
             }
-        } catch (error: any) {
-            toast.error(t('messages.restoreError', { error: error.message }));
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(t('messages.restoreError', { error: msg }));
             setIsRestoring(false);
         }
     };
@@ -197,238 +208,224 @@ export default function BackupManager() {
 
     return (
         <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-700 max-w-5xl mx-auto pb-20">
+    return (
+        <div className="space-y-3 animate-in slide-in-from-bottom-2 duration-300 pb-14">
             {/* Automated Persistence Configuration */}
-            <div className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/auto">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/auto:bg-cyan-500/10 transition-colors" />
-                
-                <div className="space-y-8 relative z-10">
-                    <div className="space-y-2">
-                        <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                            <Database className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+            <div className="glass-card bg-card/40 backdrop-blur-xl p-3.5 rounded-xl border border-border/40 shadow-sm relative overflow-hidden group/auto space-y-3">
+                <div className="flex items-center gap-2.5 relative z-10">
+                    <div className="w-7 h-7 bg-cyan-500/10 rounded-lg border border-cyan-500/20 flex items-center justify-center">
+                        <Database className="w-3.5 h-3.5 text-cyan-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-xs font-black uppercase tracking-tight text-foreground leading-none">
                             {t('autonomousPersistence')}
                         </h3>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">{t('autonomousPersistenceDesc')}</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground opacity-70 mt-0.5">{t('autonomousPersistenceDesc')}</p>
                     </div>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('sequenceFrequency')}</label>
-                            <select
-                                value={backupInterval}
-                                onChange={(e) => setBackupInterval(e.target.value)}
-                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="5" className="bg-card font-black">{t('intervalTitles.5')}</option>
-                                <option value="15" className="bg-card font-black">{t('intervalTitles.15')}</option>
-                                <option value="60" className="bg-card font-black">{t('intervalTitles.60')}</option>
-                                <option value="360" className="bg-card font-black">{t('intervalTitles.360')}</option>
-                                <option value="1440" className="bg-card font-black">{t('intervalTitles.1440')}</option>
-                            </select>
-                        </div>
-
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('retentionDepth')}</label>
-                            <select
-                                value={maxBackups}
-                                onChange={(e) => setMaxBackups(e.target.value)}
-                                className="w-full bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="10" className="bg-card font-black">{t('nodeTitles.10')}</option>
-                                <option value="30" className="bg-card font-black">{t('nodeTitles.30')}</option>
-                                <option value="50" className="bg-card font-black">{t('nodeTitles.50')}</option>
-                                <option value="100" className="bg-card font-black">{t('nodeTitles.100')}</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3 pt-4">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('targetEndpoint')}</label>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <div className="flex-1 relative group/input">
-                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none opacity-40">
-                                    <HardDrive size={14} />
-                                </div>
-                                <input
-                                    readOnly
-                                    value={backupPath || t('emulatedStorage')}
-                                    className="w-full bg-background/40 border border-border/40 rounded-2xl py-4 pl-12 pr-6 text-[10px] font-black font-mono text-cyan-400 group-hover/input:border-cyan-500/30 transition-all"
-                                />
-                            </div>
-                            <Button 
-                                variant="outline" 
-                                onClick={handleSelectFolder} 
-                                disabled={isLoading || isSaving}
-                                className="h-14 rounded-2xl px-8 border-border/40 hover:bg-card hover:border-cyan-500/40 font-black text-[10px] uppercase tracking-widest transition-all"
-                            >
-                                <FolderOpen className="w-4 h-4 mr-2" />
-                                {t('browseTargets')}
-                            </Button>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row justify-end items-center gap-4 pt-10 border-t border-border/20">
-                         <Button
-                            variant="ghost"
-                            onClick={handleManualBackup}
-                            disabled={isSaving || !backupPath}
-                            className={cn(
-                                "h-14 px-8 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all gap-3",
-                                isSaving ? "animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-primary/5"
-                            )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider ml-1">{t('sequenceFrequency')}</label>
+                        <select
+                            value={backupInterval}
+                            onChange={(e) => setBackupInterval(e.target.value)}
+                            className="w-full bg-background/50 border border-border/40 rounded-xl h-8 px-3 text-xs font-bold uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
                         >
-                            <Zap className="w-4 h-4" />
-                            {t('forceSnapshot')}
-                        </Button>
-                        <Button
-                            onClick={handleSaveConfig}
-                            disabled={isSaving || !backupPath}
-                            className="h-14 px-12 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-primary/20 transition-all active:scale-95"
+                            <option value="5" className="bg-card font-black">{t('intervalTitles.5')}</option>
+                            <option value="15" className="bg-card font-black">{t('intervalTitles.15')}</option>
+                            <option value="60" className="bg-card font-black">{t('intervalTitles.60')}</option>
+                            <option value="360" className="bg-card font-black">{t('intervalTitles.360')}</option>
+                            <option value="1440" className="bg-card font-black">{t('intervalTitles.1440')}</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider ml-1">{t('retentionDepth')}</label>
+                        <select
+                            value={maxBackups}
+                            onChange={(e) => setMaxBackups(e.target.value)}
+                            className="w-full bg-background/50 border border-border/40 rounded-xl h-8 px-3 text-xs font-bold uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
                         >
-                            <Save className="w-4 h-4 mr-2" />
-                            {t('commitPolicy')}
+                            <option value="10" className="bg-card font-black">{t('nodeTitles.10')}</option>
+                            <option value="30" className="bg-card font-black">{t('nodeTitles.30')}</option>
+                            <option value="50" className="bg-card font-black">{t('nodeTitles.50')}</option>
+                            <option value="100" className="bg-card font-black">{t('nodeTitles.100')}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="space-y-1 relative z-10">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider ml-1">{t('targetEndpoint')}</label>
+                    <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                            <input
+                                readOnly
+                                value={backupPath || t('emulatedStorage')}
+                                className="w-full bg-background/50 border border-border/40 rounded-xl h-8 px-3 text-xs font-bold font-mono text-cyan-400"
+                            />
+                        </div>
+                        <Button 
+                            variant="outline" 
+                            onClick={handleSelectFolder} 
+                            disabled={isLoading || isSaving}
+                            className="h-8 rounded-xl px-3 border-border/40 font-bold text-xs gap-1.5 shrink-0"
+                        >
+                            <FolderOpen className="w-3.5 h-3.5" />
+                            {t('browseTargets')}
                         </Button>
                     </div>
+                </div>
+
+                <div className="flex justify-end items-center gap-2 pt-2 border-t border-border/20 relative z-10">
+                     <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleManualBackup}
+                        disabled={isSaving || !backupPath}
+                        className={cn(
+                            "h-8 px-3 rounded-xl font-bold text-xs gap-1.5",
+                            isSaving ? "animate-pulse" : "text-muted-foreground hover:text-primary"
+                        )}
+                    >
+                        <Zap className="w-3.5 h-3.5" />
+                        {t('forceSnapshot')}
+                    </Button>
+                    <Button
+                        size="sm"
+                        onClick={handleSaveConfig}
+                        disabled={isSaving || !backupPath}
+                        className="h-8 px-4 rounded-xl bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-primary/20 gap-1.5"
+                    >
+                        <Save className="w-3.5 h-3.5" />
+                        {t('commitPolicy')}
+                    </Button>
                 </div>
             </div>
 
             {/* Disaster Recovery Interface */}
-            <div className="glass-card bg-card/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/recovery">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/recovery:bg-orange-500/10 transition-colors" />
-                
-                <div className="space-y-8 relative z-10">
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                                <History className="w-6 h-6 text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.5)]" />
+            <div className="glass-card bg-card/40 backdrop-blur-xl p-3.5 rounded-xl border border-border/40 shadow-sm relative overflow-hidden group/recovery space-y-2.5">
+                <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 bg-orange-500/10 rounded-lg border border-orange-500/20 flex items-center justify-center">
+                            <History className="w-3.5 h-3.5 text-orange-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-black uppercase tracking-tight text-foreground leading-none">
                                 {t('recoveryTitle')}
                             </h3>
-                            <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded-full text-[8px] font-black uppercase text-orange-400 tracking-widest animate-pulse">
-                                {t('stateCritical')}
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground opacity-70 mt-0.5">{t('recoveryDesc')}</p>
+                        </div>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExternalRestore}
+                        disabled={isRestoring || isSaving}
+                        className="h-7 rounded-lg px-2.5 border-orange-500/30 hover:bg-orange-500/10 hover:border-orange-500 font-bold text-[10px] uppercase tracking-wider"
+                    >
+                        <FolderOpen className="w-3 h-3 mr-1 text-orange-400" />
+                        {t('restoreFromExternal', 'Restore from External File')}
+                    </Button>
+                </div>
+
+                <div className="rounded-xl border border-border/40 bg-background/20 overflow-hidden shadow-inner relative z-10">
+                    <div className="grid grid-cols-12 gap-2 bg-muted/40 py-1.5 px-3 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/20">
+                        <div className="col-span-6">{t('temporalMarker')}</div>
+                        <div className="col-span-3 text-center">{t('payloadSize')}</div>
+                        <div className="col-span-3 text-right">{t('protocols')}</div>
+                    </div>
+
+                    <div className="max-h-[180px] overflow-y-auto custom-scrollbar divide-y divide-border/10">
+                        {!backupPath && (
+                            <div className="py-8 text-center text-muted-foreground/40 flex flex-col items-center justify-center">
+                                <Database className="w-8 h-8 mb-1.5 opacity-30" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider">{t('undefinedEndpoint')}</p>
                             </div>
-                        </div>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-60">{t('recoveryDesc')}</p>
-                    </div>
-
-                    {/* NEW: Restore from External File Button */}
-                    <div className="flex justify-end">
-                        <Button
-                            variant="outline"
-                            onClick={handleExternalRestore}
-                            disabled={isRestoring || isSaving}
-                            className="h-14 rounded-2xl px-8 border-orange-500/30 hover:bg-orange-500/10 hover:border-orange-500 font-black text-[10px] uppercase tracking-widest transition-all group/ext"
-                        >
-                            <FolderOpen className="w-4 h-4 mr-2 text-orange-400 group-hover/ext:scale-110 transition-transform" />
-                            {t('restoreFromExternal', 'Restore from External File')}
-                        </Button>
-                    </div>
-
-                    <div className="rounded-[2rem] border border-border/40 bg-background/20 overflow-hidden shadow-inner">
-                        <div className="grid grid-cols-12 gap-4 bg-muted/40 p-5 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] border-b border-border/20">
-                            <div className="col-span-6 ml-2">{t('temporalMarker')}</div>
-                            <div className="col-span-3 text-center">{t('payloadSize')}</div>
-                            <div className="col-span-3 text-right mr-4">{t('protocols')}</div>
-                        </div>
-
-                        <div className="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-border/10">
-                            {!backupPath && (
-                                <div className="p-20 text-center text-muted-foreground/30 flex flex-col items-center justify-center grayscale scale-75">
-                                    <Database className="w-16 h-16 mb-4 opacity-20" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">{t('undefinedEndpoint')}</p>
-                                </div>
-                            )}
-                            {backupPath && backups.length === 0 && (
-                                <div className="p-20 text-center text-muted-foreground/30 flex flex-col items-center justify-center grayscale scale-75">
-                                    <RotateCcw className="w-16 h-16 mb-4 opacity-20" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">{t('noNodes')}</p>
-                                </div>
-                            )}
-                            {backups.map((backup) => (
-                                <div key={backup.filename} className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-orange-500/5 even:bg-white/[0.02] group/item transition-all duration-300">
-                                    <div className="col-span-6 flex items-center gap-5">
-                                        <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20 group-hover/item:scale-110 transition-transform shadow-lg shadow-orange-500/5">
-                                            <Clock className="w-5 h-5" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-foreground uppercase tracking-tight text-sm">
-                                                {format(new Date(backup.createdAt), "MMM d, yyyy")}
-                                            </span>
-                                            <span className="text-[10px] font-black font-mono text-muted-foreground uppercase opacity-40">
-                                                {format(new Date(backup.createdAt), "HH:mm:ss 'UTC'")}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="col-span-3 text-center">
-                                        <span className="text-xs font-black font-mono text-muted-foreground group-hover/item:text-orange-400 transition-colors">
-                                            {(backup.sizeBytes / (1024 * 1024)).toFixed(2)} MB
+                        )}
+                        {backupPath && backups.length === 0 && (
+                            <div className="py-8 text-center text-muted-foreground/40 flex flex-col items-center justify-center">
+                                <RotateCcw className="w-8 h-8 mb-1.5 opacity-30" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider">{t('noNodes')}</p>
+                            </div>
+                        )}
+                        {backups.map((backup) => (
+                            <div key={backup.filename} className="grid grid-cols-12 gap-2 py-1.5 px-3 items-center hover:bg-orange-500/5 transition-all text-xs">
+                                <div className="col-span-6 flex items-center gap-2 min-w-0">
+                                    <Clock className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                                    <div className="flex items-center gap-2 truncate">
+                                        <span className="font-bold text-foreground text-xs truncate">
+                                            {format(new Date(backup.createdAt), "MMM d, yyyy")}
+                                        </span>
+                                        <span className="text-[9px] font-mono text-muted-foreground opacity-70">
+                                            {format(new Date(backup.createdAt), "HH:mm")}
                                         </span>
                                     </div>
-                                    <div className="col-span-3 flex items-center justify-end gap-3 pr-2">
-                                        <button
-                                            onClick={() => handleDelete(backup.path)}
-                                            className="w-10 h-10 rounded-xl bg-card/40 border border-border/40 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition-all flex items-center justify-center shadow-lg"
-                                            title={t('purgeNode')}
-                                        >
-                                            <Trash className="w-4 h-4" />
-                                        </button>
-                                        <Button
-                                            onClick={() => handleRestore(backup.path)}
-                                            disabled={isRestoring || isSaving}
-                                            className="h-10 px-8 rounded-xl bg-orange-600/10 hover:bg-orange-600 text-orange-400 hover:text-white border border-orange-900/50 hover:border-orange-500 font-black text-[10px] uppercase tracking-widest shadow-lg transition-all"
-                                        >
-                                            {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                            {t('restoreNode')}
-                                        </Button>
-                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="col-span-3 text-center">
+                                    <span className="text-[11px] font-bold font-mono text-muted-foreground">
+                                        {(backup.sizeBytes / (1024 * 1024)).toFixed(2)} MB
+                                    </span>
+                                </div>
+                                <div className="col-span-3 flex items-center justify-end gap-1.5">
+                                    <button
+                                        onClick={() => handleDelete(backup.path)}
+                                        className="w-6 h-6 rounded-md bg-card/60 border border-border/40 text-rose-400 hover:bg-rose-500/10 flex items-center justify-center"
+                                        title={t('purgeNode')}
+                                    >
+                                        <Trash className="w-3 h-3" />
+                                    </button>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => handleRestore(backup.path)}
+                                        disabled={isRestoring || isSaving}
+                                        className="h-6 px-2.5 rounded-md bg-orange-600/10 hover:bg-orange-600 text-orange-400 hover:text-white border border-orange-500/30 text-[10px] font-bold"
+                                    >
+                                        {isRestoring ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                        {t('restoreNode')}
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
 
             {/* Critical Danger Infrastructure */}
-            <div className="glass-card bg-rose-500/5 backdrop-blur-xl rounded-[2.5rem] border border-rose-500/30 overflow-hidden shadow-2xl group/danger">
-                <div className="bg-rose-500/10 p-8 border-b border-rose-500/30">
-                    <div className="flex items-center justify-between">
-                         <div className="space-y-2">
-                            <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3 text-rose-500">
-                                <ShieldAlert className="w-6 h-6 animate-pulse" />
+            <div className="glass-card bg-rose-500/5 backdrop-blur-xl rounded-xl border border-rose-500/30 overflow-hidden shadow-sm p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-rose-500 animate-pulse" />
+                        <div>
+                            <h3 className="text-xs font-black uppercase tracking-tight text-rose-500 leading-none">
                                 {t('resetTitle')}
                             </h3>
-                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 opacity-60 ml-9">{t('resetDesc')}</p>
-                         </div>
-                         <AlertTriangle className="w-10 h-10 text-rose-500/20" />
-                    </div>
-                </div>
-                <div className="p-8 space-y-8">
-                    <div className="p-6 rounded-3xl bg-background/40 border border-rose-500/20 text-[10px] font-medium text-rose-100/60 leading-relaxed uppercase tracking-widest space-y-2">
-                        <p>• {t('resetAlert1')}</p>
-                        <p>• {t('resetAlert2')}</p>
-                        <p>• {t('resetAlert3')}</p>
-                    </div>
-
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">{t('resetAuth')}</label>
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            <Input
-                                value={resetConfirmText}
-                                onChange={(e) => setResetConfirmText(e.target.value.toUpperCase())}
-                                placeholder={t('resetPlaceholder')}
-                                className="h-14 bg-background/40 border-rose-500/20 focus:border-rose-500/60 text-rose-500 font-black tracking-[0.3em] rounded-2xl placeholder:opacity-20 flex-1"
-                            />
-                            <Button
-                                variant="destructive"
-                                onClick={handleDatabaseReset}
-                                disabled={isResetting || resetConfirmText !== 'RESET'}
-                                className="h-14 px-12 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-rose-900/50 hover:scale-[1.05] active:scale-95 transition-all gap-3"
-                            >
-                                {isResetting ? <Loader2 className="w-5 h-5 animate-spin" /> : <RotateCcw className="w-5 h-5" />}
-                                {t('initializeReset')}
-                            </Button>
+                            <p className="text-[9px] uppercase font-bold text-rose-400/80 mt-0.5">{t('resetDesc')}</p>
                         </div>
-                    </div>
+                     </div>
+                     <AlertTriangle className="w-4 h-4 text-rose-500/40" />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                    <Input
+                        value={resetConfirmText}
+                        onChange={(e) => setResetConfirmText(e.target.value.toUpperCase())}
+                        placeholder={t('resetPlaceholder')}
+                        className="h-8 bg-background/50 border-rose-500/30 focus:border-rose-500 text-rose-500 font-bold text-xs rounded-xl placeholder:opacity-40 flex-1"
+                    />
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDatabaseReset}
+                        disabled={isResetting || resetConfirmText !== 'RESET'}
+                        className="h-8 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider shadow-sm gap-1.5 shrink-0"
+                    >
+                        {isResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                        {t('initializeReset')}
+                    </Button>
                 </div>
             </div>
+        </div>
         </div >
     );
 }

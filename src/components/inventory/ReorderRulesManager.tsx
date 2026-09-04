@@ -18,7 +18,6 @@ interface WarehouseOption {
 interface ProductOption {
     id: string;
     name: string;
-    [key: string]: unknown;
 }
 
 interface ReorderRuleItem {

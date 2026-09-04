@@ -50,7 +50,7 @@ export async function getStoreSettings() {
                 whatsappTemplates: settings?.features ? JSON.parse(settings.features).whatsappTemplates || null : null,
             }
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("getStoreSettings error:", error);
         return { success: false, data: {} };
     }
@@ -67,7 +67,7 @@ export const getEffectiveStoreSettings = secureAction(async () => {
         }
 
         // Initialize settings
-        let settings: any = { ...baseSettingsRes.data };
+        let settings: Record<string, unknown> = { ...baseSettingsRes.data };
 
         // 2. Get User Session to check for Branch Override
         try {
@@ -86,18 +86,19 @@ export const getEffectiveStoreSettings = secureAction(async () => {
                     };
                 }
             }
-        } catch (sessionError) {
+        } catch {
             // Ignore session errors for unauthenticated users
         }
 
         return { success: true, data: settings };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Error fetching effective store settings';
         console.error("Error fetching effective store settings:", error);
-        return { success: false, error: error.message };
+        return { success: false, error: msg };
     }
 }, { requireCSRF: false });
 
-export const updateStoreSettings = secureAction(async (data: any) => {
+export const updateStoreSettings = secureAction(async (data: unknown) => {
     const validated = settingsSchema.parse(data);
 
     // Fetch current settings to handle JSON merging for features
@@ -191,8 +192,47 @@ export const clearLocalLicenseJwt = secureAction(async () => {
         });
         revalidatePath('/', 'layout');
         return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Error clearing license JWT';
         console.error("Error clearing license JWT:", error);
-        return { success: false, error: error.message };
+        return { success: false, error: msg };
     }
 }, { requireCSRF: false });
+
+export async function getServerNetworkInfo() {
+    try {
+        const os = await import('os');
+        const interfaces = os.networkInterfaces();
+        let lanIp = '127.0.0.1';
+
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name] || []) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    lanIp = iface.address;
+                    break;
+                }
+            }
+            if (lanIp !== '127.0.0.1') break;
+        }
+
+        const port = Number(process.env.PORT) || 3001;
+        const hostname = os.hostname().toLowerCase();
+
+        return {
+            success: true,
+            data: {
+                lanIp,
+                port,
+                lanUrl: `http://${lanIp}:${port}`,
+                localUrl: `http://${hostname}.local:${port}`,
+                isElectronMaster: false
+            }
+        };
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Failed to detect network info';
+        return {
+            success: false,
+            error: msg
+        };
+    }
+}

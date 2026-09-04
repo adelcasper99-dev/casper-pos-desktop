@@ -33,6 +33,7 @@ export default function PrinterSettings() {
     const [defaultCopies, setDefaultCopies] = useState<number>(1);
     const [detecting, setDetecting] = useState(false);
     const [detectError, setDetectError] = useState(false);
+    const [isTestingPrint, setIsTestingPrint] = useState(false);
     const detectInitRef = useRef(false);
 
     useEffect(() => {
@@ -120,8 +121,9 @@ export default function PrinterSettings() {
             } else {
                 toast.error(result.message);
             }
-        } catch (error: any) {
-            toast.error('Setup failed: ' + error.message);
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error('Setup failed: ' + msg);
         } finally {
             setInstalling(false);
             checkCertStatus();
@@ -164,15 +166,20 @@ export default function PrinterSettings() {
     };
 
     const handleTestReceipt = async () => {
+        if (isTestingPrint) return;
         const target = receiptFormat === 'a4' ? a4Printer : thermalPrinter;
         if (!target || target === 'none') return toast.error("Select a printer first");
+        setIsTestingPrint(true);
         try {
             const t = toast.loading("Sending test receipt...");
             await printService.testPrint(target);
             toast.dismiss(t);
             toast.success("Test sent to " + target);
-        } catch (e: any) {
-            toast.error("Print failed: " + e.message);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            toast.error("Print failed: " + msg);
+        } finally {
+            setIsTestingPrint(false);
         }
     };
 
@@ -190,86 +197,78 @@ export default function PrinterSettings() {
         }
     };
 
-    const certDisplay = getCertStatusDisplay();
-
-    return (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-700">
-            {/* Host Connection Status */}
-            <div className={cn(
-                "glass-card backdrop-blur-xl p-6 rounded-3xl border flex items-center gap-6 shadow-2xl transition-all duration-500 group",
-                qzStatus?.online ? "bg-emerald-500/10 border-emerald-500/40" : "bg-rose-500/10 border-rose-500/40"
-            )}>
+    const certDisplay = getCertStatusDisplay();    return (
+        <div className="space-y-3 animate-in slide-in-from-bottom-2 duration-300 pb-14">
+            {/* Status & Security Top Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                {/* Host Connection Status */}
                 <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-xl",
-                    qzStatus?.online ? "bg-emerald-500/30 text-emerald-500 shadow-emerald-500/30" : "bg-rose-500/30 text-rose-500 shadow-rose-500/30"
+                    "glass-card backdrop-blur-xl p-3 rounded-xl border flex items-center gap-3 shadow-sm transition-all group",
+                    qzStatus?.online ? "bg-emerald-500/10 border-emerald-500/30" : "bg-rose-500/10 border-rose-500/30"
                 )}>
-                    {qzStatus?.online ? <CheckCircle className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
-                </div>
-                <div className="flex-1">
-                    <div className="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">
-                        {printService.isElectron() ? "Host Connection" : "Network Target Connection"}
+                    <div className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0",
+                        qzStatus?.online ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                    )}>
+                        {qzStatus?.online ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                     </div>
-                    <div className="text-xl font-black tracking-tight flex items-center gap-2">
-                        {qzStatus?.online ? (
-                             printService.isElectron() ? (
-                                 <><ShieldCheck className="w-5 h-5 text-emerald-400" /> Native Core Enabled</>
-                             ) : (
-                                 "Hardware Bridge Connected"
-                             )
-                        ) : "Service Offline"}
+                    <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">
+                            {printService.isElectron() ? "Host Connection" : "Network Target"}
+                        </div>
+                        <div className="text-xs font-black tracking-tight flex items-center gap-1.5 text-foreground truncate">
+                            {qzStatus?.online ? (
+                                 printService.isElectron() ? (
+                                     <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Native Core Enabled</>
+                                 ) : (
+                                     "Hardware Bridge Connected"
+                                 )
+                            ) : "Service Offline"}
+                        </div>
+                        <div className="text-[9px] font-bold text-muted-foreground/60 truncate">
+                            {qzStatus?.online 
+                                ? (qzStatus.version?.includes('Bridge') ? `Remote ${qzStatus.version}` : `v${qzStatus.version}`)
+                                : "Physical hardware offline"}
+                        </div>
                     </div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                        {qzStatus?.online 
-                            ? (qzStatus.version?.includes('Bridge') ? `Remote Connection ${qzStatus.version}` : `Protocol Version v${qzStatus.version}`)
-                            : "Connection to physical hardware failed"}
-                    </div>
-                </div>
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={checkQZConnection} 
-                    disabled={loading} 
-                    className="h-12 w-12 rounded-2xl bg-card/60 border border-border/40 hover:bg-card hover:border-border transition-all group-hover:rotate-180 duration-700"
-                >
-                    <RefreshCw className={cn("w-5 h-5", loading ? "animate-spin" : "")} />
-                </Button>
-            </div>
-
-            {/* QZ Tray Security Card */}
-            <div className="glass-card bg-card/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl space-y-8 group/security relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 blur-3xl opacity-0 group-hover/security:opacity-100 transition-opacity" />
-                <div className="space-y-2 relative z-10">
-                    <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                        <ShieldCheck className="w-6 h-6 text-cyan-500 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-                        Infrastructure Security
-                    </h3>
-                    <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Manage silent printing and hardware trust</p>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={checkQZConnection} 
+                        disabled={loading} 
+                        className="h-8 w-8 rounded-lg bg-card/60 border border-border/40 hover:bg-card shrink-0"
+                        title="Refresh connection"
+                    >
+                        <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+                    </Button>
                 </div>
 
-                <div className={cn("p-6 rounded-3xl border transition-all duration-300 flex items-center gap-5", certDisplay.color)}>
+                {/* QZ Tray Security Card */}
+                <div className={cn("glass-card backdrop-blur-xl p-3 rounded-xl border flex items-center gap-3 shadow-sm transition-all", certDisplay.color)}>
                     <div className="shrink-0">{certDisplay.icon}</div>
                     <div className="flex-1 min-w-0">
-                        <div className="font-black text-xs uppercase tracking-widest">{certDisplay.label}</div>
-                        <div className="text-xs font-medium opacity-70">{certDisplay.desc}</div>
+                        <div className="text-[10px] font-black uppercase tracking-wider">{certDisplay.label}</div>
+                        <div className="text-[9px] font-medium opacity-70 truncate">{certDisplay.desc}</div>
                     </div>
                     {certStatus !== 'installed' && certStatus !== 'checking' && certStatus !== 'qz-missing' && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-1 shrink-0">
                              <Button
                                 size="sm"
                                 onClick={handleInstallCert}
                                 disabled={installing}
-                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase tracking-widest px-6 rounded-xl h-10 shadow-lg"
+                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-[10px] uppercase tracking-wider px-2.5 rounded-lg h-7 shadow-xs"
                             >
-                                {installing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Zap className="w-3 h-3 mr-2 group-hover:scale-110 transition-transform" />}
-                                Setup Integrity
+                                {installing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+                                Fix
                             </Button>
                             <Button
                                 size="icon"
                                 variant="outline"
                                 onClick={handleDownloadScript}
-                                className="border-border/40 text-foreground hover:bg-card rounded-xl h-10 w-10 transition-all"
+                                className="border-border/40 text-foreground hover:bg-card rounded-lg h-7 w-7 transition-all"
+                                title="Download script"
                             >
-                                <Download className="w-4 h-4" />
+                                <Download className="w-3 h-3" />
                             </Button>
                         </div>
                     )}
@@ -277,186 +276,175 @@ export default function PrinterSettings() {
             </div>
 
             {/* Printer Assignment Matrix */}
-            <div className="glass-card bg-card/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-border/40 shadow-2xl relative overflow-hidden group/matrix">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-3xl rounded-full -mr-20 -mt-20 group-hover/matrix:bg-primary/20 transition-colors" />
-                
-                <div className="space-y-10 relative z-10">
-                    <div className="space-y-2">
-                        <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                            <Printer className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+            <div className="glass-card bg-card/60 backdrop-blur-xl p-3.5 rounded-xl border border-border/40 shadow-md relative overflow-hidden space-y-3">
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                        <Printer className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <div>
+                        <h3 className="text-xs font-black uppercase tracking-tight text-foreground leading-none">
                             Hardware Telemetry & Routing
                         </h3>
-                        <p className="text-xs uppercase font-black tracking-widest text-muted-foreground ml-9 opacity-70">Route POS documents to local physical devices</p>
+                        <p className="text-[10px] font-bold text-muted-foreground/60 mt-0.5">Route POS documents to local physical devices</p>
                     </div>
+                </div>
 
-                    <div className="grid gap-8">
-                        {/* Hardware Bridge IP (Network Printing) */}
-                        {!printService.isElectron() && (
-                            <div className="space-y-4 pb-6 border-b border-border/20">
-                                <Label className="text-xs font-black uppercase tracking-widest text-foreground ml-1 flex items-center gap-2">
-                                    <Zap className="w-3 h-3 text-cyan-500" /> Hardware Bridge IP Address (Network Node)
-                                </Label>
-                                <div className="flex gap-3 items-start">
-                                    <input
-                                        type="text"
-                                        value={bridgeIpAddress}
-                                        onChange={(e) => setBridgeIpAddress(e.target.value)}
-                                        placeholder="e.g. 192.168.1.15"
-                                        className="flex-1 glass-card bg-background/60 border-border/40 text-foreground font-bold text-sm h-14 rounded-2xl px-6 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={handleDetectIp}
-                                        disabled={detecting}
-                                        className="h-14 w-14 rounded-2xl border-border/40 shrink-0"
-                                        title="Detect local IP address"
-                                    >
-                                        <RefreshCw className={cn("w-5 h-5", detecting && "animate-spin")} />
-                                    </Button>
-                                </div>
-                                {detectError && (
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-400/90 leading-tight flex items-center gap-1.5">
-                                        <AlertCircle className="w-3 h-3 shrink-0" />
-                                        Auto-detection failed — enter the Bridge PC&apos;s IP manually.
-                                    </p>
-                                )}
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">
-                                    Required for Web browsers &amp; mobile devices. Enter the IP of the main cashier PC running the Bridge. Leave blank if running locally.
-                                </p>
-                            </div>
-                        )}
+                {/* Hardware Bridge IP (Network Printing) */}
+                {!printService.isElectron() && (
+                    <div className="space-y-1 p-2.5 rounded-lg bg-background/40 border border-border/20">
+                        <Label className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                            <Zap className="w-3 h-3 text-cyan-500" /> Hardware Bridge IP Address
+                        </Label>
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="text"
+                                value={bridgeIpAddress}
+                                onChange={(e) => setBridgeIpAddress(e.target.value)}
+                                placeholder="e.g. 192.168.1.15"
+                                className="flex-1 bg-background/60 border border-border/40 text-foreground font-bold text-xs h-8 rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={handleDetectIp}
+                                disabled={detecting}
+                                className="h-8 w-8 rounded-xl border-border/40 shrink-0"
+                                title="Detect local IP address"
+                            >
+                                <RefreshCw className={cn("w-3.5 h-3.5", detecting && "animate-spin")} />
+                            </Button>
+                        </div>
+                    </div>
+                )}
 
-                        {/* Thermal Configuration */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Label className={cn("text-xs font-black uppercase tracking-widest text-muted-foreground ml-1", enableThermal ? "text-foreground" : "opacity-50")}>Thermal Direct (80mm / 58mm)</Label>
-                                <div className="flex items-center gap-3 bg-background/60 px-3 py-1.5 rounded-2xl border border-border/40">
-                                    <span className={cn("text-[10px] font-black uppercase tracking-widest", enableThermal ? "text-emerald-500" : "text-muted-foreground/50")}>{enableThermal ? 'Broadcasting' : 'Blocked'}</span>
-                                    <Switch
-                                        checked={enableThermal}
-                                        onCheckedChange={(val) => {
-                                            setEnableThermal(val);
-                                            if (!val && receiptFormat === 'thermal') setReceiptFormat('a4');
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            {enableThermal && (
-                                <Select
-                                    value={thermalPrinter || "none"}
-                                    onValueChange={(val) => {
-                                        setThermalPrinter(val);
-                                        if (val !== 'none') setReceiptFormat('thermal');
+                {/* Printer Selectors Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {/* Thermal Configuration */}
+                    <div className="space-y-1.5 p-2.5 rounded-xl bg-background/30 border border-border/30">
+                        <div className="flex items-center justify-between">
+                            <Label className={cn("text-[10px] font-black uppercase tracking-wider", enableThermal ? "text-foreground" : "opacity-50")}>Thermal (80/58mm)</Label>
+                            <div className="flex items-center gap-1.5">
+                                <span className={cn("text-[8px] font-black uppercase", enableThermal ? "text-emerald-500" : "text-muted-foreground/50")}>{enableThermal ? 'Active' : 'Off'}</span>
+                                <Switch
+                                    checked={enableThermal}
+                                    onCheckedChange={(val) => {
+                                        setEnableThermal(val);
+                                        if (!val && receiptFormat === 'thermal') setReceiptFormat('a4');
                                     }}
-                                    disabled={!qzStatus?.online}
-                                >
-                                    <SelectTrigger className="glass-card bg-background/60 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all animate-in zoom-in-95 duration-200">
-                                        <SelectValue placeholder="Select high-speed thermal target..." />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl text-foreground">
-                                        <SelectItem value="none" className="font-black text-xs uppercase tracking-widest py-3">/ Disabled Routing</SelectItem>
-                                        {printers.map(p => (
-                                            <SelectItem key={p} value={p} className="font-bold text-xs py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            )}
+                                />
+                            </div>
                         </div>
 
-                        {/* A4 Configuration */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Label className={cn("text-xs font-black uppercase tracking-widest text-muted-foreground ml-1", enableA4 ? "text-foreground" : "opacity-50")}>Document Printing (A4 / Laser)</Label>
-                                <div className="flex items-center gap-3 bg-background/60 px-3 py-1.5 rounded-2xl border border-border/40">
-                                    <span className={cn("text-[10px] font-black uppercase tracking-widest", enableA4 ? "text-sky-500" : "text-muted-foreground/50")}>{enableA4 ? 'Active' : 'Offline'}</span>
-                                    <Switch
-                                        checked={enableA4}
-                                        onCheckedChange={(val) => {
-                                            setEnableA4(val);
-                                            if (!val && receiptFormat === 'a4') setReceiptFormat('thermal');
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            {enableA4 && (
-                                <Select
-                                    value={a4Printer || "none"}
-                                    onValueChange={(val) => {
-                                        setA4Printer(val);
-                                        if (val !== 'none') setReceiptFormat('a4');
-                                    }}
-                                    disabled={!qzStatus?.online}
-                                >
-                                    <SelectTrigger className="glass-card bg-background/60 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all animate-in zoom-in-95 duration-200">
-                                        <SelectValue placeholder="Select document printer destination..." />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl text-foreground">
-                                        <SelectItem value="none" className="font-black text-xs uppercase tracking-widest py-3">/ Manual Handover</SelectItem>
-                                        {printers.map(p => (
-                                            <SelectItem key={p} value={p} className="font-bold text-xs py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        </div>
-
-                        {/* Label Configuration */}
-                        <div className="space-y-4">
-                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Asset Labelling (Sticky 50x30mm)</Label>
-                            <Select value={labelPrinter} onValueChange={setLabelPrinter} disabled={!qzStatus?.online}>
-                                <SelectTrigger className="glass-card bg-background/60 border-border/40 text-foreground font-black text-xs h-14 rounded-2xl px-6 focus:ring-primary/20 transition-all">
-                                    <SelectValue placeholder="Select automated label target..." />
+                        {enableThermal && (
+                            <Select
+                                value={thermalPrinter || "none"}
+                                onValueChange={(val) => {
+                                    setThermalPrinter(val);
+                                    if (val !== 'none') setReceiptFormat('thermal');
+                                }}
+                                disabled={!qzStatus?.online}
+                            >
+                                <SelectTrigger className="bg-background/60 border border-border/40 text-foreground font-bold text-xs h-8 rounded-xl px-2.5 focus:ring-primary/20">
+                                    <SelectValue placeholder="Select thermal target..." />
                                 </SelectTrigger>
-                                <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-2xl text-foreground">
-                                    <SelectItem value="none" className="font-black text-xs uppercase tracking-widest py-3 hover:text-primary transition-colors">/ Use OS Dialog</SelectItem>
+                                <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-xl text-foreground">
+                                    <SelectItem value="none" className="font-bold text-xs uppercase py-2">/ Disabled Routing</SelectItem>
                                     {printers.map(p => (
-                                        <SelectItem key={p} value={p} className="font-bold text-xs py-3 mb-1 rounded-xl transition-colors">{p}</SelectItem>
+                                        <SelectItem key={p} value={p} className="font-bold text-xs py-2 rounded-lg">{p}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
+                        )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-10 border-t border-border/20">
-                         {/* Iteration Control */}
-                         <div className="space-y-4">
-                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Batch Sequence (Default Copies)</Label>
-                            <div className="flex items-center gap-6 bg-background/60 border border-border/40 p-4 rounded-3xl w-fit">
-                                <Button 
-                                    size="icon" 
-                                    variant="ghost" 
-                                    onClick={() => setDefaultCopies(prev => Math.max(1, prev - 1))}
-                                    className="w-10 h-10 rounded-xl bg-card border border-border/40 hover:bg-rose-500/20 hover:text-rose-500 transition-all"
-                                >
-                                    -
-                                </Button>
-                                <div className="min-w-[40px] text-center text-3xl font-black text-primary font-mono drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]">
-                                    {defaultCopies}
-                                </div>
-                                <Button 
-                                    size="icon" 
-                                    variant="ghost" 
-                                    onClick={() => setDefaultCopies(prev => Math.min(10, prev + 1))}
-                                    className="w-10 h-10 rounded-xl bg-card border border-border/40 hover:bg-emerald-500/20 hover:text-emerald-500 transition-all"
-                                >
-                                    +
-                                </Button>
+                    {/* A4 Configuration */}
+                    <div className="space-y-1.5 p-2.5 rounded-xl bg-background/30 border border-border/30">
+                        <div className="flex items-center justify-between">
+                            <Label className={cn("text-[10px] font-black uppercase tracking-wider", enableA4 ? "text-foreground" : "opacity-50")}>A4 / Laser</Label>
+                            <div className="flex items-center gap-1.5">
+                                <span className={cn("text-[8px] font-black uppercase", enableA4 ? "text-sky-500" : "text-muted-foreground/50")}>{enableA4 ? 'Active' : 'Off'}</span>
+                                <Switch
+                                    checked={enableA4}
+                                    onCheckedChange={(val) => {
+                                        setEnableA4(val);
+                                        if (!val && receiptFormat === 'a4') setReceiptFormat('thermal');
+                                    }}
+                                />
                             </div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 leading-tight">Automated duplication per transaction</p>
+                        </div>
+
+                        {enableA4 && (
+                            <Select
+                                value={a4Printer || "none"}
+                                onValueChange={(val) => {
+                                    setA4Printer(val);
+                                    if (val !== 'none') setReceiptFormat('a4');
+                                }}
+                                disabled={!qzStatus?.online}
+                            >
+                                <SelectTrigger className="bg-background/60 border border-border/40 text-foreground font-bold text-xs h-8 rounded-xl px-2.5 focus:ring-primary/20">
+                                    <SelectValue placeholder="Select A4 destination..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-xl text-foreground">
+                                    <SelectItem value="none" className="font-bold text-xs uppercase py-2">/ Manual Handover</SelectItem>
+                                    {printers.map(p => (
+                                        <SelectItem key={p} value={p} className="font-bold text-xs py-2 rounded-lg">{p}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
+
+                    {/* Label Configuration */}
+                    <div className="space-y-1.5 p-2.5 rounded-xl bg-background/30 border border-border/30">
+                        <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Label (50x30mm)</Label>
+                        <Select value={labelPrinter} onValueChange={setLabelPrinter} disabled={!qzStatus?.online}>
+                            <SelectTrigger className="bg-background/60 border border-border/40 text-foreground font-bold text-xs h-8 rounded-xl px-2.5 focus:ring-primary/20">
+                                <SelectValue placeholder="Select label target..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card/95 backdrop-blur-2xl border-border/40 rounded-xl text-foreground">
+                                <SelectItem value="none" className="font-bold text-xs uppercase py-2">/ Use OS Dialog</SelectItem>
+                                {printers.map(p => (
+                                    <SelectItem key={p} value={p} className="font-bold text-xs py-2 rounded-lg">{p}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {/* Copies, Speed Print & Action Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/20">
+                    <div className="flex items-center gap-3">
+                        {/* Iteration Control */}
+                        <div className="flex items-center gap-1.5 bg-background/60 border border-border/40 px-2 py-1 rounded-xl">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70 mr-1">Copies:</span>
+                            <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                onClick={() => setDefaultCopies(prev => Math.max(1, prev - 1))}
+                                className="w-6 h-6 rounded-lg bg-card border border-border/40 hover:text-rose-500 text-xs"
+                            >
+                                -
+                            </Button>
+                            <span className="w-5 text-center text-xs font-black text-primary font-mono">
+                                {defaultCopies}
+                            </span>
+                            <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                onClick={() => setDefaultCopies(prev => Math.min(10, prev + 1))}
+                                className="w-6 h-6 rounded-lg bg-card border border-border/40 hover:text-emerald-500 text-xs"
+                            >
+                                +
+                            </Button>
                         </div>
 
                         {/* Speed Print Toggle */}
-                        <div className="flex items-center justify-between p-6 border border-border/40 rounded-[2rem] bg-indigo-500/10 group/speed hover:bg-indigo-500/20 transition-all duration-500">
-                             <div className="space-y-1">
-                                <Label className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-2">
-                                   <Zap className="w-3 h-3 text-indigo-500" /> Matrix-Checkout
-                                </Label>
-                                <p className="text-[10px] font-bold text-muted-foreground/70 leading-tight">Direct routing bypassing interface confirmation</p>
-                             </div>
+                        <div className="flex items-center gap-2 px-2.5 py-1 border border-border/40 rounded-xl bg-indigo-500/10">
+                             <Label className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1">
+                                <Zap className="w-2.5 h-2.5 text-indigo-400" /> Fast-Print
+                             </Label>
                              <Switch
                                 checked={enableSpeedPrint}
                                 onCheckedChange={setEnableSpeedPrint}
@@ -465,21 +453,24 @@ export default function PrinterSettings() {
                     </div>
 
                     {/* Operational Actions */}
-                    <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pt-10">
+                    <div className="flex items-center gap-2">
                         {(enableThermal || enableA4) && (
                             <Button 
-                                variant="ghost" 
+                                variant="outline" 
+                                size="sm"
                                 onClick={handleTestReceipt}
-                                className="font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex gap-2"
+                                disabled={isTestingPrint}
+                                className="h-8 px-3 rounded-xl border-border/40 text-xs font-bold gap-1.5 hover:text-primary"
                             >
-                                <RefreshCw className="w-3 h-3" /> Execute Integrity Test
+                                {isTestingPrint ? <Loader2 className="w-3 h-3 animate-spin text-primary" /> : <RefreshCw className="w-3 h-3" />}
+                                Test Print
                             </Button>
                         )}
                         <Button 
                             onClick={handleSave} 
-                            className="bg-primary hover:bg-primary/90 px-10 h-14 rounded-2xl text-white font-black uppercase tracking-widest gap-3 shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                            className="bg-primary hover:bg-primary/90 px-4 h-8 rounded-xl text-white font-black text-xs uppercase tracking-wider gap-1.5 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                         >
-                            <Save className="w-5 h-5" /> Commit Preferences
+                            <Save className="w-3.5 h-3.5" /> Save Preferences
                         </Button>
                     </div>
                 </div>

@@ -122,7 +122,7 @@ export default async function POSPage() {
                     <POSClientAPI
                         products={products}
                         categories={categories}
-                        settings={settings}
+                        settings={settings ?? undefined}
                         csrfToken={csrfToken || ''}
                         floors={floors}
                         permissions={permissions}

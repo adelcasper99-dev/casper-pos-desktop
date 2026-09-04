@@ -55,7 +55,7 @@ export function BarcodePrintDialog({ products, initialQuantities, onClose }: Bar
   const loadStoreSettings = async () => {
     try {
       const result = await getEffectiveStoreSettings();
-      if (result?.data?.name) {
+      if (result?.data?.name && typeof result.data.name === 'string') {
         setStoreName(result.data.name);
       }
       if (result?.data?.labelTemplate) {

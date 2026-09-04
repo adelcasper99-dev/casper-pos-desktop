@@ -1068,4 +1068,60 @@ ipcMain.handle('app:safe-storage-decrypt', (event, encryptedBase64) => {
     }
 });
 
+// WhatsApp Service Integration
+let whatsappService = null;
+try {
+    whatsappService = require('./whatsappService');
+} catch (err) {
+    console.error('[Main] Failed to load whatsappService:', err);
+}
+
+ipcMain.handle('whatsapp:initialize', async () => {
+    if (!whatsappService) return { success: false, error: 'WHATSAPP_MODULE_UNAVAILABLE' };
+    try {
+        await whatsappService.initialize((event, data) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                if (event === 'status') {
+                    mainWindow.webContents.send('whatsapp:status', data);
+                } else if (event === 'qr') {
+                    mainWindow.webContents.send('whatsapp:qr', data);
+                }
+            }
+        });
+        return { success: true, data: { status: whatsappService.getStatus() } };
+    } catch (err) {
+        console.error('[WhatsApp IPC] Initialize failed:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('whatsapp:getStatus', () => {
+    if (!whatsappService) return { success: false, data: { status: 'DISCONNECTED' } };
+    try {
+        return { success: true, data: { status: whatsappService.getStatus() } };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('whatsapp:logout', async () => {
+    if (!whatsappService) return { success: false, error: 'WHATSAPP_MODULE_UNAVAILABLE' };
+    try {
+        return await whatsappService.logout();
+    } catch (err) {
+        console.error('[WhatsApp IPC] Logout failed:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('whatsapp:sendMessage', async (event, to, body) => {
+    if (!whatsappService) return { success: false, error: 'WHATSAPP_MODULE_UNAVAILABLE' };
+    try {
+        return await whatsappService.sendMessage(to, body);
+    } catch (err) {
+        console.error('[WhatsApp IPC] SendMessage failed:', err);
+        return { success: false, error: err.message };
+    }
+});
+
 app.whenReady().then(createWindow);

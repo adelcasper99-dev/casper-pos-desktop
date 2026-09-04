@@ -7,18 +7,32 @@ import { toast } from "sonner";
 import GlassModal from "@/components/ui/GlassModal";
 import { getFloors, createFloor, deleteFloor, updateFloor, getTablesByFloor, createTable, deleteTable, updateTable } from "@/actions/tables-actions";
 
+interface FloorItem {
+    id: string;
+    name: string;
+    [key: string]: unknown;
+}
+
+interface TableItem {
+    id: string;
+    name: string;
+    floorId: string;
+    status?: string;
+    [key: string]: unknown;
+}
+
 export default function TablesManagement() {
     const t = useTranslations("TablesManagement");
-    const [floors, setFloors] = useState<any[]>([]);
-    const [tables, setTables] = useState<any[]>([]);
+    const [floors, setFloors] = useState<FloorItem[]>([]);
+    const [tables, setTables] = useState<TableItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
 
     // Modals
     const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
     const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-    const [editingFloor, setEditingFloor] = useState<any>(null);
-    const [editingTable, setEditingTable] = useState<any>(null);
+    const [editingFloor, setEditingFloor] = useState<FloorItem | null>(null);
+    const [editingTable, setEditingTable] = useState<TableItem | null>(null);
 
     // Forms
     const [floorName, setFloorName] = useState("");
@@ -132,141 +146,147 @@ export default function TablesManagement() {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">Floors</h2>
-                <button
-                    onClick={() => {
-                        setEditingFloor(null);
-                        setFloorName("");
-                        setIsFloorModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded-lg text-white font-bold transition-all"
-                >
-                    <Plus className="w-4 h-4" /> Add Floor
-                </button>
-            </div>
-
-            {/* Floors List */}
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                {floors.map(floor => (
-                    <div
-                        key={floor.id}
-                        onClick={() => setSelectedFloorId(floor.id)}
-                        className={`min-w-[150px] p-4 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${selectedFloorId === floor.id ? 'bg-cyan-500/20 border-cyan-500' : 'bg-black/40 border-white/10 hover:border-white/30'}`}
+        <div className="max-w-5xl space-y-3 animate-in fade-in duration-500">
+            <div className="max-h-[calc(100vh-140px)] overflow-y-auto pr-1 custom-scrollbar space-y-3">
+                {/* Floors Bar Header */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-card/40 border border-border/40">
+                    <div>
+                        <h2 className="text-sm font-bold text-foreground">طوابق وصالات المطعم (Floors)</h2>
+                        <p className="text-[10px] text-muted-foreground">تنظيم وتوزيع الطاولات حسب الصالة أو الطابق</p>
+                    </div>
+                    <button
+                        onClick={() => {
+                            setEditingFloor(null);
+                            setFloorName("");
+                            setIsFloorModalOpen(true);
+                        }}
+                        className="h-8 flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 px-3 rounded-lg text-white font-bold text-xs transition-all cursor-pointer"
                     >
-                        <span className="font-bold text-white">{floor.name}</span>
-                        <div className="flex gap-2">
+                        <Plus className="w-3.5 h-3.5" /> إضافة صالة/طابق
+                    </button>
+                </div>
+
+                {/* Floors List */}
+                <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                    {floors.map(floor => (
+                        <div
+                            key={floor.id}
+                            onClick={() => setSelectedFloorId(floor.id)}
+                            className={`min-w-[130px] p-2.5 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${selectedFloorId === floor.id ? 'bg-cyan-500/20 border-cyan-500 shadow-xs' : 'bg-card/40 border-border/40 hover:border-border/80'}`}
+                        >
+                            <span className="font-bold text-xs text-foreground">{floor.name}</span>
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingFloor(floor);
+                                        setFloorName(floor.name);
+                                        setIsFloorModalOpen(true);
+                                    }}
+                                    className="text-muted-foreground hover:text-cyan-400 p-1 cursor-pointer"
+                                >
+                                    <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                    onClick={(e) => handleDeleteFloor(floor.id, e)}
+                                    className="text-muted-foreground hover:text-rose-400 p-1 cursor-pointer"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {floors.length === 0 && <span className="text-xs text-muted-foreground py-2">لا توجد صالات مضافة بعد.</span>}
+                </div>
+
+                {/* Tables Area */}
+                {selectedFloorId && (
+                    <div className="space-y-2.5 border-t border-border/40 pt-2.5 animate-in fade-in">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xs font-bold text-foreground">طاولات الصالة المحددة</h2>
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingFloor(floor);
-                                    setFloorName(floor.name);
-                                    setIsFloorModalOpen(true);
+                                onClick={() => {
+                                    setEditingTable(null);
+                                    setTableName("");
+                                    setIsTableModalOpen(true);
                                 }}
-                                className="text-zinc-500 hover:text-cyan-400 p-1"
+                                className="h-7 flex items-center gap-1 bg-purple-600 hover:bg-purple-500 px-2.5 rounded-lg text-white font-bold text-[11px] transition-all cursor-pointer"
                             >
-                                <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button
-                                onClick={(e) => handleDeleteFloor(floor.id, e)}
-                                className="text-zinc-500 hover:text-red-400 p-1"
-                            >
-                                <Trash2 className="w-3 h-3" />
+                                <Plus className="w-3 h-3" /> إضافة طاولة
                             </button>
                         </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                            {tables.map(table => (
+                                <div key={table.id} className="relative group p-3 rounded-xl border border-border/40 bg-card/40 hover:bg-card/70 transition-all text-center">
+                                    <span className={`absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${table.status === 'AVAILABLE' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                        {table.status}
+                                    </span>
+                                    <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                        <button
+                                            onClick={() => {
+                                                setEditingTable(table);
+                                                setTableName(table.name);
+                                                setIsTableModalOpen(true);
+                                            }}
+                                            className="text-muted-foreground hover:text-cyan-400 p-0.5 cursor-pointer"
+                                        >
+                                            <Edit2 className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteTable(table.id)}
+                                            className="text-muted-foreground hover:text-rose-400 p-0.5 cursor-pointer"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                    <div className="mt-3 text-lg font-black text-foreground">{table.name}</div>
+                                </div>
+                            ))}
+                        </div>
+                        {tables.length === 0 && <div className="text-muted-foreground text-xs text-center py-4">لا توجد طاولات في هذا الطابق بعد.</div>}
                     </div>
-                ))}
-                {floors.length === 0 && <span className="text-zinc-500">No floors found.</span>}
+                )}
             </div>
 
-            {/* Tables Area */}
-            {selectedFloorId && (
-                <div className="mt-8 space-y-6 border-t border-white/10 pt-8 animate-in fade-in">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-white">Tables on Floor</h2>
-                        <button
-                            onClick={() => {
-                                setEditingTable(null);
-                                setTableName("");
-                                setIsTableModalOpen(true);
-                            }}
-                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg text-white font-bold transition-all"
-                        >
-                            <Plus className="w-4 h-4" /> Add Table
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                        {tables.map(table => (
-                            <div key={table.id} className="relative group p-6 rounded-xl border border-white/10 bg-black/40 hover:bg-white/5 transition-all text-center">
-                                <span className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${table.status === 'AVAILABLE' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                    {table.status}
-                                </span>
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                    <button
-                                        onClick={() => {
-                                            setEditingTable(table);
-                                            setTableName(table.name);
-                                            setIsTableModalOpen(true);
-                                        }}
-                                        className="text-zinc-500 hover:text-cyan-400"
-                                    >
-                                        <Edit2 className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteTable(table.id)}
-                                        className="text-zinc-500 hover:text-red-400"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </button>
-                                </div>
-                                <div className="mt-4 text-2xl font-black text-white">{table.name}</div>
-                            </div>
-                        ))}
-                    </div>
-                    {tables.length === 0 && <div className="text-zinc-500 text-center py-8">No tables found on this floor.</div>}
-                </div>
-            )}
-
             {/* Floor Modal */}
-            <GlassModal isOpen={isFloorModalOpen} onClose={() => setIsFloorModalOpen(false)} title={editingFloor ? "Edit Floor" : "Add Floor"}>
-                <div className="p-4 space-y-4">
-                    <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold mb-1 block">Floor Name</label>
+            <GlassModal isOpen={isFloorModalOpen} onClose={() => setIsFloorModalOpen(false)} title={editingFloor ? "تعديل الصالة / الطابق" : "إضافة صالة جديدة"}>
+                <div className="p-3 space-y-3 max-h-[80vh] overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground uppercase font-bold block">اسم الصالة أو الطابق</label>
                         <input
-                            className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
+                            className="w-full h-8 text-xs bg-background/50 border border-border/50 rounded-lg px-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500"
                             value={floorName}
                             onChange={e => setFloorName(e.target.value)}
-                            placeholder="e.g. Ground Floor"
+                            placeholder="مثال: الصالة الرئيسية، الدور الأرضي"
                         />
                     </div>
                     <button
                         onClick={handleSaveFloor}
-                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-colors"
+                        className="w-full h-8 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl flex justify-center items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                        <Save className="w-4 h-4" /> Save
+                        <Save className="w-3.5 h-3.5" /> حفظ الصالة
                     </button>
                 </div>
             </GlassModal>
 
             {/* Table Modal */}
-            <GlassModal isOpen={isTableModalOpen} onClose={() => setIsTableModalOpen(false)} title={editingTable ? "Edit Table" : "Add Table"}>
-                <div className="p-4 space-y-4">
-                    <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold mb-1 block">Table Name / Number</label>
+            <GlassModal isOpen={isTableModalOpen} onClose={() => setIsTableModalOpen(false)} title={editingTable ? "تعديل الطاولة" : "إضافة طاولة جديدة"}>
+                <div className="p-3 space-y-3 max-h-[80vh] overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground uppercase font-bold block">رقم أو اسم الطاولة</label>
                         <input
-                            className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
+                            className="w-full h-8 text-xs bg-background/50 border border-border/50 rounded-lg px-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500"
                             value={tableName}
                             onChange={e => setTableName(e.target.value)}
-                            placeholder="e.g. T-12, Area B1"
+                            placeholder="مثال: T-01, طاولة العائلات 3"
                         />
                     </div>
                     <button
                         onClick={handleSaveTable}
-                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-colors"
+                        className="w-full h-8 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl flex justify-center items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                        <Save className="w-4 h-4" /> Save
+                        <Save className="w-3.5 h-3.5" /> حفظ الطاولة
                     </button>
                 </div>
             </GlassModal>

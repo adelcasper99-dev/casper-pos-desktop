@@ -33,25 +33,25 @@ function WarehouseCard({
     return (
         <div
             className={cn(
-                "relative group p-6 rounded-3xl border transition-all duration-300",
+                "relative group p-2.5 rounded-xl border transition-all duration-200",
                 isActive
                     ? type === 'pos'
-                        ? "bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/5"
-                        : "bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/5"
+                        ? "bg-cyan-500/10 border-cyan-500/40 shadow-xs"
+                        : "bg-amber-500/10 border-amber-500/40 shadow-xs"
                     : "bg-background/40 border-border/40 hover:border-primary/40 hover:bg-background/60"
             )}
         >
-            <div className="flex flex-col h-full justify-between gap-5 text-right">
-                <div className="space-y-1">
+            <div className="flex flex-col h-full justify-between gap-2 text-right">
+                <div className="space-y-0.5">
                     <div className="flex items-center justify-between flex-row-reverse">
-                        <h4 className="font-black text-foreground uppercase tracking-tight group-hover:text-primary transition-colors">
+                        <h4 className="font-black text-xs text-foreground uppercase tracking-tight group-hover:text-primary transition-colors truncate">
                             {warehouse.name}
                         </h4>
                         {isActive && (
-                            <Star className={cn("w-4 h-4 fill-current", type === 'pos' ? "text-cyan-500" : "text-amber-500")} />
+                            <Star className={cn("w-3.5 h-3.5 fill-current shrink-0", type === 'pos' ? "text-cyan-500" : "text-amber-500")} />
                         )}
                     </div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-70">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider opacity-70 truncate">
                         {warehouse.address || "NO ADDRESS REGISTERED"}
                     </p>
                 </div>
@@ -60,11 +60,11 @@ function WarehouseCard({
                     onClick={() => onSetDefault(warehouse.id, type)}
                     disabled={loading !== null || isActive}
                     className={cn(
-                        "w-full py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        "w-full h-7 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
                         isActive
                             ? type === 'pos'
-                                ? "bg-cyan-500 text-white cursor-default shadow-lg shadow-cyan-500/20"
-                                : "bg-amber-500 text-white cursor-default shadow-lg shadow-amber-500/20"
+                                ? "bg-cyan-500 text-white cursor-default shadow-xs"
+                                : "bg-amber-500 text-white cursor-default shadow-xs"
                             : "bg-card border border-border/40 text-foreground hover:bg-primary hover:text-white hover:border-primary"
                     )}
                 >
@@ -109,22 +109,20 @@ export default function WarehouseSettings({ warehouses, currentBranchId }: { war
     };
 
     return (
-        <div className="max-w-5xl space-y-10 animate-in slide-in-from-bottom-4 duration-700 pb-20">
+        <div className="max-w-5xl space-y-3 animate-in slide-in-from-bottom-2 duration-300 pb-14">
             {/* POS Default Warehouse */}
-            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group/pos">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/pos:bg-cyan-500/10 transition-colors" />
-                
-                <div className="flex items-center gap-4 mb-10 relative z-10">
-                    <div className="p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 shadow-inner">
-                        <ShoppingCart className="w-6 h-6 text-cyan-500" />
+            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-xl p-3.5 shadow-sm relative overflow-hidden group/pos space-y-2.5">
+                <div className="flex items-center gap-2.5 relative z-10">
+                    <div className="w-7 h-7 bg-cyan-500/10 rounded-lg border border-cyan-500/20 flex items-center justify-center">
+                        <ShoppingCart className="w-3.5 h-3.5 text-cyan-500" />
                     </div>
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-black uppercase tracking-tight text-foreground">Sales Inventory (POS)</h3>
-                        <p className="text-xs font-black text-muted-foreground uppercase tracking-widest opacity-60">Global default source for point-of-sale transactions</p>
+                    <div>
+                        <h3 className="text-xs font-black uppercase tracking-tight text-foreground leading-none">Sales Inventory (POS)</h3>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider opacity-70 mt-0.5">Global default source for point-of-sale transactions</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 relative z-10">
                     {warehouses.map((warehouse) => (
                         <WarehouseCard
                             key={`pos-${warehouse.id}`}
@@ -138,20 +136,18 @@ export default function WarehouseSettings({ warehouses, currentBranchId }: { war
             </div>
 
             {/* Maintenance Default Warehouse */}
-            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group/maint">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 blur-3xl rounded-full -mr-20 -mt-20 group-hover/maint:bg-amber-500/10 transition-colors" />
-                
-                <div className="flex items-center gap-4 mb-10 relative z-10">
-                    <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 shadow-inner">
-                        <Wrench className="w-6 h-6 text-amber-500" />
+            <div className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-xl p-3.5 shadow-sm relative overflow-hidden group/maint space-y-2.5">
+                <div className="flex items-center gap-2.5 relative z-10">
+                    <div className="w-7 h-7 bg-amber-500/10 rounded-lg border border-amber-500/20 flex items-center justify-center">
+                        <Wrench className="w-3.5 h-3.5 text-amber-500" />
                     </div>
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-black uppercase tracking-tight text-foreground">Maintenance Logistics</h3>
-                        <p className="text-xs font-black text-muted-foreground uppercase tracking-widest opacity-60">Primary warehouse for ticket spare parts fulfillments</p>
+                    <div>
+                        <h3 className="text-xs font-black uppercase tracking-tight text-foreground leading-none">Maintenance Logistics</h3>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider opacity-70 mt-0.5">Primary warehouse for ticket spare parts fulfillments</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 relative z-10">
                     {warehouses.map((warehouse) => (
                         <WarehouseCard
                             key={`maint-${warehouse.id}`}
