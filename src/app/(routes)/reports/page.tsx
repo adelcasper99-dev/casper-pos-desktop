@@ -378,7 +378,6 @@ export default function UnifiedReportsPage() {
     };
 
     return (
-    return (
         <div className="p-2.5 sm:p-3.5 space-y-2.5 min-h-screen text-foreground transition-colors duration-500 max-w-[2400px] mx-auto font-cairo">
             {/* Compact Header & Integrated Filter Bar */}
             <div className="glass-card bg-card/60 backdrop-blur-xl border border-border rounded-2xl p-2.5 px-3.5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
