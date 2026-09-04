@@ -782,13 +782,16 @@ export default function ProductsTab({
                 isOpen={!!editingProduct}
                 onClose={() => setEditingProduct(null)}
                 title={t('editTitle')}
+                className="max-w-[calc(100vw-2rem)] sm:max-w-2xl md:max-w-3xl max-h-[92dvh] p-4 sm:p-5"
             >
                 {editingProduct && (
-                    <form onSubmit={handleSave} className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
+                    <form onSubmit={handleSave} className="space-y-3 text-start" dir="rtl">
+                        {/* Row 1: الهوية والتصنيف (4 أعمدة متوازنة) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                            {/* SKU */}
                             <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 flex justify-between tracking-widest">
-                                    {t('sku')}
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 flex items-center justify-between">
+                                    <span>{t('sku')}</span>
                                     <button
                                         type="button"
                                         onClick={async () => {
@@ -797,21 +800,23 @@ export default function ProductsTab({
                                                 setEditingProduct({ ...editingProduct, sku: res.sku });
                                             }
                                         }}
-                                        className="text-[10px] text-cyan-500 hover:text-cyan-400 flex items-center gap-1 font-black transition-colors"
+                                        className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold transition-colors cursor-pointer"
                                     >
                                         <Wand2 className="w-3 h-3" /> {t('auto')}
                                     </button>
                                 </label>
                                 <input
-                                    className="glass-input w-full font-black text-slate-900 dark:text-white"
+                                    className="glass-input w-full h-8.5 text-xs font-bold text-slate-900 dark:text-white"
                                     value={editingProduct.sku}
                                     onChange={e => setEditingProduct({ ...editingProduct, sku: e.target.value })}
                                 />
                             </div>
+
+                            {/* Category */}
                             <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('category')}</label>
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">{t('category')}</label>
                                 <select
-                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    className="glass-input w-full h-8.5 text-xs [&>option]:text-black font-bold text-slate-900 dark:text-white"
                                     value={editingProduct.categoryId || ""}
                                     onChange={e => {
                                         const newProd = { ...editingProduct, categoryId: e.target.value, modelId: "" };
@@ -819,17 +824,16 @@ export default function ProductsTab({
                                         setEditingProduct(newProd);
                                     }}
                                 >
-                                    <option value="">No Category</option>
+                                    <option value="">بدون تصنيف</option>
                                     {categories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                            {/* Model */}
                             <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('model') || "الموديل"}</label>
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">{t('model') || "الموديل"}</label>
                                 <select
-                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    className="glass-input w-full h-8.5 text-xs [&>option]:text-black font-bold text-slate-900 dark:text-white"
                                     value={editingProduct.modelId || ""}
                                     onChange={e => {
                                         const newProd = { ...editingProduct, modelId: e.target.value };
@@ -837,7 +841,7 @@ export default function ProductsTab({
                                         setEditingProduct(newProd);
                                     }}
                                 >
-                                    <option value="">No Model</option>
+                                    <option value="">بدون موديل</option>
                                     {models.filter((m: ModelItem) => !editingProduct.categoryId || m.categoryId === editingProduct.categoryId).map((m: ModelItem) => {
                                         const cat = categories.find((c: Category) => c.id === m.categoryId);
                                         return (
@@ -848,10 +852,12 @@ export default function ProductsTab({
                                     })}
                                 </select>
                             </div>
+
+                            {/* Attribute */}
                             <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">الوصف/الصفة</label>
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">الوصف / الصفة</label>
                                 <select
-                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    className="glass-input w-full h-8.5 text-xs [&>option]:text-black font-bold text-slate-900 dark:text-white"
                                     value={editingProduct.attributeId || ""}
                                     onChange={e => {
                                         const newProd = { ...editingProduct, attributeId: e.target.value };
@@ -866,235 +872,209 @@ export default function ProductsTab({
                                 </select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">الوصف الإضافي</label>
+
+                        {/* Row 2: الاسم المشتق + الوصف الإضافي + الوحدة */}
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                            {/* Derived Name */}
+                            <div className="sm:col-span-6">
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">{t('name')}</label>
                                 <input
-                                    className="glass-input w-full font-black text-slate-900 dark:text-white"
+                                    className="glass-input w-full h-8.5 text-xs font-bold text-slate-400 dark:text-zinc-400 bg-slate-100 dark:bg-white/5 cursor-not-allowed"
+                                    value={editingProduct.name}
+                                    readOnly
+                                />
+                            </div>
+
+                            {/* Additional Description */}
+                            <div className="sm:col-span-3">
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">الوصف الإضافي</label>
+                                <input
+                                    className="glass-input w-full h-8.5 text-xs font-bold text-slate-900 dark:text-white"
                                     value={editingProduct.description || ""}
                                     onChange={e => {
                                         const newProd = { ...editingProduct, description: e.target.value };
                                         newProd.name = updateDerivedName(newProd);
                                         setEditingProduct(newProd);
                                     }}
-                                    placeholder="مثلاً: 128GB، لون أسود..."
+                                    placeholder="مثلاً: 128GB، أسود..."
                                 />
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('unit') || "الوحدة"}</label>
+                            {/* Unit */}
+                            <div className="sm:col-span-3">
+                                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">{t('unit') || "الوحدة"}</label>
                                 <select
-                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
-                                    value={editingProduct.unitOfMeasureId || ""}
-                                    onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value })}
-                                >
-                                    <option value="">Default Unit</option>
-                                    {unitsList.map(u => (
-                                        <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-
-                        <div>
-                            <label className="text-xs text-slate-500 dark:text-zinc-400 uppercase font-black mb-1 block tracking-widest">{t('name')}</label>
-                            <input
-                                className="glass-input w-full font-black text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-white/5 cursor-not-allowed"
-                                value={editingProduct.name}
-                                readOnly
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-3">
-                            {/* Cost - Protected */}
-                            {canViewCost ? (
-                                <div>
-                                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('cost')}</label>
-                                    <input
-                                        type="number"
-                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                                        value={editingProduct.costPrice}
-                                        onChange={e => setEditingProduct({ ...editingProduct, costPrice: parseFloat(e.target.value) })}
-                                    />
-                                </div>
-                            ) : (
-                                <div>
-                                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('cost')}</label>
-                                    <div className="glass-input w-full flex items-center justify-center text-slate-400 dark:text-muted-foreground bg-slate-100 dark:bg-muted/20 border-dashed">
-                                        <Lock className="w-4 h-4" />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Price 1 - Protected */}
-                            {canViewPrice1 ? (
-                                <div>
-                                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('price1')}</label>
-                                    <input
-                                        type="number"
-                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                                        value={editingProduct.sellPrice}
-                                        onChange={e => setEditingProduct({ ...editingProduct, sellPrice: parseFloat(e.target.value) })}
-                                    />
-                                </div>
-                            ) : (
-                                <div>
-                                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('price1')}</label>
-                                    <div className="glass-input w-full flex items-center justify-center text-slate-400 dark:text-muted-foreground bg-slate-100 dark:bg-muted/20 border-dashed">
-                                        <Lock className="w-4 h-4" />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Price 2 - Protected */}
-                            {canViewPrice2 ? (
-                                <div>
-                                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('price2')}</label>
-                                    <input
-                                        type="number"
-                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                                        value={editingProduct.sellPrice2 || 0}
-                                        onChange={e => setEditingProduct({ ...editingProduct, sellPrice2: parseFloat(e.target.value) })}
-                                    />
-                                </div>
-                            ) : null}
-
-                            {/* Price 3 - Protected */}
-                            {canViewPrice3 ? (
-                                <div>
-                                    <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('price3')}</label>
-                                    <input
-                                        type="number"
-                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                                        value={editingProduct.sellPrice3 || 0}
-                                        onChange={e => setEditingProduct({ ...editingProduct, sellPrice3: parseFloat(e.target.value) })}
-                                    />
-                                </div>
-                            ) : null}
-                        </div>
-
-                        <div className="space-y-3">
-                            <div className={cn(
-                                "flex items-center gap-3 p-4 rounded-2xl border transition-all shadow-sm",
-                                editingProduct.hasHistory 
-                                    ? "bg-slate-50 dark:bg-zinc-900/40 border-slate-200 dark:border-white/5 opacity-80" 
-                                    : "bg-slate-100 dark:bg-muted/20 border-slate-200 dark:border-border"
-                            )}>
-                                <input
-                                    type="checkbox"
-                                    id="trackStock"
-                                    checked={editingProduct.trackStock}
-                                    disabled={editingProduct.hasHistory}
-                                    onChange={e => setEditingProduct({ ...editingProduct, trackStock: e.target.checked })}
-                                    className={cn(
-                                        "w-5 h-5 rounded-lg text-cyan-500 cursor-pointer accent-cyan-500",
-                                        editingProduct.hasHistory && "cursor-not-allowed opacity-50"
-                                    )}
-                                />
-                                <label htmlFor="trackStock" className={cn(
-                                    "text-sm font-black flex items-center gap-3 cursor-pointer text-slate-700 dark:text-white",
-                                    editingProduct.hasHistory && "cursor-not-allowed"
-                                )}>
-                                    {editingProduct.trackStock ? 
-                                        <Box className={cn("w-5 h-5", editingProduct.hasHistory ? "text-slate-300" : "text-slate-400 dark:text-zinc-400")} /> : 
-                                        <InfinityIcon className={cn("w-5 h-5", editingProduct.hasHistory ? "text-cyan-300" : "text-cyan-500")} />
-                                    }
-                                    {t('trackStock')}
-                                    {editingProduct.hasHistory && <Lock className="w-3.5 h-3.5 text-amber-500 ml-auto" />}
-                                </label>
-                            </div>
-                            
-                            {editingProduct.hasHistory && (
-                                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
-                                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                                    <div className="space-y-1">
-                                        <div className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-tight">حماية نزاهة المخزون</div>
-                                        <div className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 leading-relaxed">
-                                            لا يمكن تغيير نوع تتبع المخزون لوجود حركات سابقة (مبيعات، مشتريات) أو كمية متوفرة. لتغيير طبيعة العمل، يرجى أرشفة الصنف وإنشاء صنف جديد.
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {editingProduct.trackStock && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs text-slate-500 underline font-black uppercase tracking-widest">{t('stock')}</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="number"
-                                            step="any"
-                                            className="glass-input w-full font-black text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-white/5 cursor-not-allowed"
-                                            value={editingProduct.stock}
-                                            readOnly
-                                            disabled
-                                        />
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setAdjustmentProduct(editingProduct)}
-                                            className="px-3 bg-cyan-500 hover:bg-cyan-400 text-black text-[10px] font-black rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all whitespace-nowrap"
-                                        >
-                                            إجراء تسوية جردية
-                                        </button>
-                                    </div>
-                                    <div className="text-[10px] text-amber-500/80 font-black pt-1">
-                                        تعديل الكمية يتم فقط من خلال التسوية الجردية.
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs text-slate-500 underline font-black uppercase tracking-widest">{t('minStock')}</label>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        className="glass-input w-full font-black text-slate-900 dark:text-white"
-                                        value={editingProduct.minStock}
-                                        onChange={e => setEditingProduct({ ...editingProduct, minStock: parseFloat(e.target.value) || 0 })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {features?.unitVisibility !== false && (
-                            <div>
-                                <label className="text-xs text-slate-500 dark:text-muted-foreground uppercase font-black mb-1 block tracking-widest">{t('unitOfMeasure') || 'وحدة القياس'}</label>
-                                <select
-                                    className="glass-input w-full [&>option]:text-black font-black text-slate-900 dark:text-white"
+                                    className="glass-input w-full h-8.5 text-xs [&>option]:text-black font-bold text-slate-900 dark:text-white"
                                     value={editingProduct.unitOfMeasureId || ""}
                                     onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value || null })}
                                 >
-                                    <option value="">{t('noUnit') || 'بدون وحدة'}</option>
-                                    {Object.entries(unitsByCategory).map(([category, catUnits]) => (
-                                        <optgroup key={category} label={category}>
-                                            {catUnits.map((u: UnitItem) => (
-                                                <option key={u.id} value={u.id}>
-                                                    {u.name} ({u.code})
-                                                </option>
-                                            ))}
-                                        </optgroup>
+                                    <option value="">الوحدة الافتراضية</option>
+                                    {unitsList.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.abbreviation || u.code})</option>
                                     ))}
                                 </select>
                             </div>
-                        )}
+                        </div>
 
-                        <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-white/5">
+                        {/* Section 2: هيكل التسعير (4 أعمدة متناسقة) */}
+                        <div className="p-2.5 bg-zinc-950/40 rounded-xl border border-zinc-800/80">
+                            <div className="text-[11px] font-bold text-zinc-400 mb-1.5 flex items-center justify-between">
+                                <span>هيكل التسعير</span>
+                                <span className="text-[10px] text-zinc-500 font-mono">({currency})</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                {/* Cost */}
+                                <div>
+                                    <label className="text-[10px] text-zinc-400 font-bold mb-1 block">{t('cost')}</label>
+                                    {canViewCost ? (
+                                        <input
+                                            type="number"
+                                            className="glass-input w-full h-8 text-xs font-mono font-bold text-slate-900 dark:text-white text-center"
+                                            value={editingProduct.costPrice}
+                                            onChange={e => setEditingProduct({ ...editingProduct, costPrice: parseFloat(e.target.value) || 0 })}
+                                        />
+                                    ) : (
+                                        <div className="glass-input w-full h-8 flex items-center justify-center text-zinc-500 bg-slate-100 dark:bg-zinc-800/50 border-dashed">
+                                            <Lock className="w-3 h-3" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Price 1 */}
+                                <div>
+                                    <label className="text-[10px] text-zinc-400 font-bold mb-1 block">{t('price1')}</label>
+                                    {canViewPrice1 ? (
+                                        <input
+                                            type="number"
+                                            className="glass-input w-full h-8 text-xs font-mono font-bold text-cyan-400 text-center"
+                                            value={editingProduct.sellPrice}
+                                            onChange={e => setEditingProduct({ ...editingProduct, sellPrice: parseFloat(e.target.value) || 0 })}
+                                        />
+                                    ) : (
+                                        <div className="glass-input w-full h-8 flex items-center justify-center text-zinc-500 bg-slate-100 dark:bg-zinc-800/50 border-dashed">
+                                            <Lock className="w-3 h-3" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Price 2 */}
+                                <div>
+                                    <label className="text-[10px] text-zinc-400 font-bold mb-1 block">{t('price2')}</label>
+                                    {canViewPrice2 ? (
+                                        <input
+                                            type="number"
+                                            className="glass-input w-full h-8 text-xs font-mono font-bold text-slate-900 dark:text-white text-center"
+                                            value={editingProduct.sellPrice2 || 0}
+                                            onChange={e => setEditingProduct({ ...editingProduct, sellPrice2: parseFloat(e.target.value) || 0 })}
+                                        />
+                                    ) : (
+                                        <div className="glass-input w-full h-8 flex items-center justify-center text-zinc-500 bg-slate-100 dark:bg-zinc-800/50 border-dashed">
+                                            <Lock className="w-3 h-3" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Price 3 */}
+                                <div>
+                                    <label className="text-[10px] text-zinc-400 font-bold mb-1 block">{t('price3')}</label>
+                                    {canViewPrice3 ? (
+                                        <input
+                                            type="number"
+                                            className="glass-input w-full h-8 text-xs font-mono font-bold text-slate-900 dark:text-white text-center"
+                                            value={editingProduct.sellPrice3 || 0}
+                                            onChange={e => setEditingProduct({ ...editingProduct, sellPrice3: parseFloat(e.target.value) || 0 })}
+                                        />
+                                    ) : (
+                                        <div className="glass-input w-full h-8 flex items-center justify-center text-zinc-500 bg-slate-100 dark:bg-zinc-800/50 border-dashed">
+                                            <Lock className="w-3 h-3" />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 3: إدارة وتتبع المخزون */}
+                        <div className="p-2.5 bg-zinc-950/40 rounded-xl border border-zinc-800/80">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="trackStock"
+                                        checked={editingProduct.trackStock}
+                                        disabled={editingProduct.hasHistory}
+                                        onChange={e => setEditingProduct({ ...editingProduct, trackStock: e.target.checked })}
+                                        className={cn(
+                                            "w-4 h-4 rounded text-cyan-500 cursor-pointer accent-cyan-500",
+                                            editingProduct.hasHistory && "cursor-not-allowed opacity-50"
+                                        )}
+                                    />
+                                    <label htmlFor="trackStock" className={cn(
+                                        "text-xs font-bold flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-zinc-200",
+                                        editingProduct.hasHistory && "cursor-not-allowed opacity-75"
+                                    )}>
+                                        {editingProduct.trackStock ? 
+                                            <Box className="w-3.5 h-3.5 text-cyan-400" /> : 
+                                            <InfinityIcon className="w-3.5 h-3.5 text-zinc-400" />
+                                        }
+                                        <span>{t('trackStock')}</span>
+                                        {editingProduct.hasHistory && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 mr-1.5 font-normal">
+                                                <Lock className="w-2.5 h-2.5" /> مقفل لوجود حركات سابقة
+                                            </span>
+                                        )}
+                                    </label>
+                                </div>
+
+                                {editingProduct.trackStock && (
+                                    <div className="flex items-center gap-3">
+                                        {/* Current Stock */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[11px] font-bold text-zinc-400 whitespace-nowrap">{t('stock')}:</span>
+                                            <span className="font-mono font-bold text-xs text-cyan-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                                                {editingProduct.stock}
+                                            </span>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setAdjustmentProduct(editingProduct)}
+                                                className="px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-[10px] font-bold rounded border border-cyan-500/30 transition-all cursor-pointer whitespace-nowrap"
+                                            >
+                                                تسوية جردية
+                                            </button>
+                                        </div>
+
+                                        {/* Min Stock */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[11px] font-bold text-zinc-400 whitespace-nowrap">{t('minStock')}:</span>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                className="glass-input w-16 h-7 text-xs font-mono font-bold text-center text-slate-900 dark:text-white"
+                                                value={editingProduct.minStock}
+                                                onChange={e => setEditingProduct({ ...editingProduct, minStock: parseFloat(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Section 4: أزرار الحفظ والإلغاء */}
+                        <div className="flex justify-end items-center gap-2 pt-2.5 border-t border-zinc-800">
                             <button
                                 type="button"
                                 onClick={() => setEditingProduct(null)}
-                                className="px-6 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-muted text-slate-500 dark:text-muted-foreground font-black transition-all"
+                                className="px-4 py-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-bold transition-all cursor-pointer"
                             >
                                 {t('cancel')}
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="bg-cyan-500 hover:bg-cyan-400 text-black font-black px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                                className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold px-6 py-1.5 rounded-xl flex items-center gap-1.5 text-xs shadow-lg shadow-cyan-500/20 active:scale-95 transition-all cursor-pointer"
                             >
-                                {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Save className="w-5 h-5" />}
-                                {t('saveChanges')}
+                                {loading ? <Loader2 className="animate-spin w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+                                <span>{t('saveChanges')}</span>
                             </button>
                         </div>
                     </form>

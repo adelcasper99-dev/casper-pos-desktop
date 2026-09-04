@@ -1862,7 +1862,7 @@ export const getWarehouses = secureAction(async () => {
 
     const warehouses = await prisma.warehouse.findMany({
         where: isHQUser ? { deletedAt: null } : { branchId: user.branchId || '', deletedAt: null },
-        include: { branch: { where: { deletedAt: null } } },
+        include: { branch: true },
         orderBy: { isDefault: 'desc' }
     });
 

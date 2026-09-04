@@ -59,7 +59,7 @@ export default async function InventoryPage() {
         id: p.id,
         sku: p.sku,
         name: p.name,
-        stock: p.stock,
+        stock: p.stock.toNumber(),
         categoryId: p.categoryId,
         modelId: p.modelId,
         attributeId: p.attributeId,
@@ -78,7 +78,7 @@ export default async function InventoryPage() {
         deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
         description: p.description,
         archived: p.archived,
-        minStock: p.minStock,
+        minStock: p.minStock.toNumber(),
         version: p.version
     }));
 

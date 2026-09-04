@@ -403,7 +403,9 @@
             "invoices": "الفواتير",
             "suppliers": "الموردين",
             "locations": "المواقع والمستودعات",
-            "operations": "العمليات (تحويل وتعديل)"
+            "operations": "العمليات (تحويل وتعديل)",
+            "reorderRules": "قواعد إعادة الطلب",
+            "stockRequests": "طلبات المخزون"
         },
         "products": {
             "searchPlaceholder": "بحث عن منتج...",
@@ -613,6 +615,49 @@
             "qzDownload": "تحميل QZ Tray",
             "retryConnection": "إعادة محاولة الاتصال",
             "printButton": "طباعة {count} ملصق"
+        },
+        "reorder": {
+            "title": "قواعد إعادة الطلب",
+            "generateRequests": "توليد طلبات التزويد",
+            "warehouse": "المستودع",
+            "selectWarehouse": "اختر المستودع...",
+            "product": "المنتج",
+            "selectProduct": "اختر المنتج...",
+            "minQty": "الحد الأدنى",
+            "maxQty": "الحد الأقصى",
+            "addRule": "إضافة قاعدة",
+            "tableProduct": "المنتج",
+            "tableMin": "الحد الأدنى",
+            "tableMax": "الحد الأقصى",
+            "actions": "الإجراءات",
+            "loading": "جاري التحميل...",
+            "noRules": "لا توجد قواعد إعادة طلب مسجلة",
+            "selectProductError": "يرجى تحديد منتج أولاً",
+            "ruleAdded": "تمت إضافة قاعدة إعادة الطلب بنجاح",
+            "ruleDeleted": "تم حذف القاعدة بنجاح",
+            "generatedCount": "تم إنشاء {count} طلب تزويد بنجاح"
+        },
+        "requests": {
+            "title": "طلبات المخزون",
+            "filterWarehouse": "تصفية حسب المستودع",
+            "allWarehouses": "جميع المستودعات",
+            "tableId": "المعرف",
+            "tableWarehouse": "المستودع",
+            "tableItems": "الأصناف والكميات",
+            "tableStatus": "الحالة",
+            "tableActions": "الإجراءات",
+            "loading": "جاري التحميل...",
+            "noRequests": "لا توجد طلبات مخزون مسجلة",
+            "statusPending": "قيد الانتظار",
+            "statusApproved": "تمت الموافقة",
+            "statusDispatched": "تم الشحن",
+            "statusReceived": "تم الاستلام",
+            "statusRejected": "مرفوض",
+            "approve": "موافقة",
+            "reject": "رفض",
+            "dispatch": "إرسال / شحن",
+            "receive": "استلام",
+            "statusUpdated": "تم تحديث حالة الطلب إلى: {status}"
         }
     },
     "Purchasing": {

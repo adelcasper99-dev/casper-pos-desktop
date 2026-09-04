@@ -336,47 +336,53 @@ async function initializeOrUpdateMainBranch(storeInfo: { name: string, phone: st
         });
     }
 
-    // Cleanup: Ensure only ONE warehouse is marked as default for this branch
-    const defaultWarehouses = await prisma.warehouse.findMany({
-        where: { branchId: branch.id, isDefault: true, deletedAt: null },
-        orderBy: { createdAt: 'asc' } // Keep the oldest one as the true original
+    // Cleanup: Ensure single default warehouse and remove empty phantom duplicates
+    const allWarehouses = await prisma.warehouse.findMany({
+        where: { branchId: branch.id, deletedAt: null },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }]
     });
 
-    if (defaultWarehouses.length > 1) {
-        const trueOriginalWarehouse = defaultWarehouses[0];
+    if (allWarehouses.length > 1) {
+        // Pick primary warehouse: prefer default, fallback to oldest
+        const primaryWh = allWarehouses.find(w => w.isDefault) || allWarehouses[0];
 
-        // Ensure we don't accidentally delete stock. If the duplicates have no stock, we can delete them.
-        // Otherwise we just mark them as not default.
-        for (let i = 1; i < defaultWarehouses.length; i++) {
-            const duplicateWh = defaultWarehouses[i];
-            
-            // Check if it has stock, invoices, sales, or movements
-            const [stockCount, invoiceCount, saleCount, mvCount] = await Promise.all([
+        // Ensure primary has default flag
+        if (!primaryWh.isDefault) {
+            await prisma.warehouse.update({
+                where: { id: primaryWh.id },
+                data: { isDefault: true }
+            });
+            primaryWh.isDefault = true;
+        }
+
+        for (const duplicateWh of allWarehouses) {
+            if (duplicateWh.id === primaryWh.id) continue;
+
+            const [stockCount, invoiceCount, saleCount, mvCount, techCount, partCount] = await Promise.all([
                 prisma.stock.count({ where: { warehouseId: duplicateWh.id, quantity: { gt: 0 } } }),
                 prisma.purchaseInvoice.count({ where: { warehouseId: duplicateWh.id } }),
                 prisma.sale.count({ where: { warehouseId: duplicateWh.id } }),
-                prisma.stockMovement.count({ where: { OR: [{ fromWarehouseId: duplicateWh.id }, { toWarehouseId: duplicateWh.id }] } })
+                prisma.stockMovement.count({ where: { OR: [{ fromWarehouseId: duplicateWh.id }, { toWarehouseId: duplicateWh.id }] } }),
+                prisma.technician.count({ where: { warehouseId: duplicateWh.id } }),
+                prisma.ticketPart.count({ where: { warehouseId: duplicateWh.id } })
             ]);
 
-            if (stockCount === 0 && invoiceCount === 0 && saleCount === 0 && mvCount === 0) {
+            if (stockCount === 0 && invoiceCount === 0 && saleCount === 0 && mvCount === 0 && techCount === 0 && partCount === 0) {
                 // Completely safe to delete the duplicate phantom warehouse
-                await prisma.stock.deleteMany({ where: { warehouseId: duplicateWh.id } }); // Delete any zero-qty stock records
-                await prisma.technician.deleteMany({ where: { warehouseId: duplicateWh.id } });
+                await prisma.stock.deleteMany({ where: { warehouseId: duplicateWh.id } });
                 try {
                     await prisma.warehouse.delete({ where: { id: duplicateWh.id } });
+                    console.log(`[INIT] Auto-cleaned phantom empty warehouse ${duplicateWh.id} (${duplicateWh.name})`);
                 } catch (error: any) {
                     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
                         throw error;
                     }
                 }
-            } else {
-                // Not safe to delete, just remove the default flag and rename it to avoid confusion
+            } else if (duplicateWh.isDefault) {
+                // Remove default flag if it has data but isn't primary
                 await prisma.warehouse.update({
                     where: { id: duplicateWh.id },
-                    data: { 
-                        isDefault: false, 
-                        name: `${duplicateWh.name} (Duplicate)` 
-                    }
+                    data: { isDefault: false }
                 });
             }
         }

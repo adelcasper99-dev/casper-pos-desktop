@@ -39,21 +39,21 @@ export default function GlassModal({ isOpen, onClose, title, children, className
         >
             <div
                 className={cn(
-                    "w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[88dvh] overflow-y-auto custom-scrollbar p-6 relative animate-in zoom-in-95 duration-300 bg-background dark:bg-zinc-900/95 dark:backdrop-blur-2xl rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-border dark:border-white/10",
+                    "w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[92dvh] overflow-y-auto custom-scrollbar p-4 sm:p-5 relative animate-in zoom-in-95 duration-300 bg-background dark:bg-zinc-900/95 dark:backdrop-blur-2xl rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-border dark:border-white/10",
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}
             >
 
                 <div className="relative z-10">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-bold text-foreground tracking-tight">{title}</h2>
+                    <div className="flex justify-between items-center mb-3 sm:mb-4">
+                        <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">{title}</h2>
                         <button
                             onClick={onClose}
-                            className="p-3 hover:bg-muted rounded-full transition-all duration-200 text-muted-foreground hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px] min-w-[44px]"
+                            className="p-1.5 hover:bg-muted rounded-full transition-all duration-200 text-muted-foreground hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
                             aria-label="Close modal"
                         >
-                            <X className="w-6 h-6" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 

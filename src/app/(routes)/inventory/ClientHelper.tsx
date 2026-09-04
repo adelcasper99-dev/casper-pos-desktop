@@ -104,7 +104,7 @@ export default function InventoryTabs({
                                 : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
                         )}
                     >
-                        Reorder Rules
+                        {t('tabs.reorderRules', 'قواعد إعادة الطلب')}
                     </button>
                     <button
                         onClick={() => setActiveSection('STOCK_REQUESTS')}
@@ -115,7 +115,7 @@ export default function InventoryTabs({
                                 : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
                         )}
                     >
-                        Stock Requests
+                        {t('tabs.stockRequests', 'طلبات المخزون')}
                     </button>
                 </div>
             </div>

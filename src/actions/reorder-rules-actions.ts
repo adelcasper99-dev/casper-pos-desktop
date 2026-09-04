@@ -27,7 +27,7 @@ export const getReorderRules = secureAction(async (warehouseId: string) => {
           id: true,
           name: true,
           sku: true,
-          type: true,
+          isBundle: true,
         }
       }
     },
