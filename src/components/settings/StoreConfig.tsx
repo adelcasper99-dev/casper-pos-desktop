@@ -173,45 +173,42 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-12">
+                    <div className="space-y-4 max-h-[calc(100vh-145px)] overflow-y-auto pr-1 pb-16">
                         {/* Store Identity */}
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-3 mb-8">
-                                <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-                                    <Store className="w-5 h-5 text-cyan-400" />
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1.5 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                                    <Store className="w-4 h-4 text-cyan-400" />
                                 </div>
-                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('title')}</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-tight text-foreground">{t('title')}</h3>
                             </div>
 
-                            <div className="flex flex-col md:flex-row gap-10 items-start">
+                            <div className="flex flex-col sm:flex-row gap-4 items-start">
                                 {/* Logo Dropzone */}
-                                <div className="space-y-3 shrink-0">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('storeLogo')}</Label>
+                                <div className="space-y-1 shrink-0">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('storeLogo')}</Label>
                                     <div 
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="relative w-40 h-40 group/logo cursor-pointer"
+                                        className="relative w-24 h-24 group/logo cursor-pointer"
                                     >
-                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent blur-2xl opacity-0 group-hover/logo:opacity-100 transition-opacity" />
                                         <div className={cn(
-                                            "w-full h-full rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center p-2 transition-all relative z-10 overflow-hidden bg-background/60 dark:bg-background/40 backdrop-blur-xl",
+                                            "w-full h-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-1 transition-all relative z-10 overflow-hidden bg-card/40 backdrop-blur-md",
                                             form.logoUrl ? "border-primary/40 bg-primary/5" : "border-border/60 hover:border-primary/60"
                                         )}>
                                             {form.logoUrl ? (
-                                                <div className="relative w-full h-full p-2">
+                                                <div className="relative w-full h-full p-1">
                                                     <img src={form.logoUrl} alt="Store Logo" className="w-full h-full object-contain" />
-                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/logo:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm rounded-3xl">
+                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/logo:opacity-100 transition-all flex items-center justify-center backdrop-blur-xs rounded-xl">
                                                         <X 
-                                                            className="w-8 h-8 text-white hover:text-rose-400 transition-colors" 
+                                                            className="w-5 h-5 text-white hover:text-rose-400 transition-colors" 
                                                             onClick={(e) => { e.stopPropagation(); handleChange('logoUrl', null); }} 
                                                         />
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <>
-                                                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 group/upload cursor-pointer hover:bg-primary/10 transition-all flex items-center justify-center">
-                                                        <p className="text-xs font-black text-primary uppercase tracking-widest">{t('changeLogo')}</p>
-                                                    </div>
-                                                </>
+                                                <div className="p-2 rounded-lg bg-primary/5 border border-primary/20 group/upload cursor-pointer hover:bg-primary/10 transition-all flex items-center justify-center text-center">
+                                                    <p className="text-[10px] font-bold text-primary">{t('changeLogo')}</p>
+                                                </div>
                                             )}
                                         </div>
                                         <input 
@@ -225,51 +222,51 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                 </div>
 
                                 {/* Form Fields Matrix */}
-                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-                                    <div className="space-y-2 group">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1 group-focus-within:text-primary transition-colors">{t('storeName')}</Label>
+                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+                                    <div className="space-y-1 group">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('storeName')}</Label>
                                         <div className="relative">
-                                           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                              <Store size={14} className="text-muted-foreground/40" />
+                                           <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                              <Store size={13} className="text-muted-foreground/40" />
                                            </div>
                                             <input
-                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                                className="w-full bg-card/40 border border-border/50 rounded-xl py-1 pl-8 pr-3 text-xs font-bold focus:outline-none focus:border-primary h-8 transition-all"
                                                 value={form.name || ""}
                                                 onChange={e => handleChange('name', e.target.value)}
                                                 placeholder="My Awesome Store"
                                             />
                                         </div>
                                     </div>
-                                    <div className="space-y-2 group">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('currency')}</Label>
+                                    <div className="space-y-1 group">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('currency')}</Label>
                                         <input
-                                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                            className="w-full bg-card/40 border border-border/50 rounded-xl px-3 py-1 text-xs font-bold focus:outline-none focus:border-primary h-8 transition-all"
                                             value={form.currency || "EGP"}
                                             onChange={e => handleChange('currency', e.target.value)}
                                         />
                                     </div>
-                                    <div className="space-y-2 group">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('phone')}</Label>
+                                    <div className="space-y-1 group">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('phone')}</Label>
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                               <Phone size={14} className="text-muted-foreground/40" />
+                                            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                               <Phone size={13} className="text-muted-foreground/40" />
                                             </div>
                                             <input
-                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                                className="w-full bg-card/40 border border-border/50 rounded-xl py-1 pl-8 pr-3 text-xs font-bold focus:outline-none focus:border-primary h-8 transition-all"
                                                 value={form.phone || ""}
                                                 onChange={e => handleChange('phone', e.target.value)}
                                                 placeholder="01xxxxxxxxx"
                                             />
                                         </div>
                                     </div>
-                                    <div className="space-y-2 group">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('address')}</Label>
+                                    <div className="space-y-1 group">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('address')}</Label>
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                               <MapPin size={14} className="text-muted-foreground/40" />
+                                            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                               <MapPin size={13} className="text-muted-foreground/40" />
                                             </div>
                                             <input
-                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                                className="w-full bg-card/40 border border-border/50 rounded-xl py-1 pl-8 pr-3 text-xs font-bold focus:outline-none focus:border-primary h-8 transition-all"
                                                 value={form.address || ""}
                                                 onChange={e => handleChange('address', e.target.value)}
                                                 placeholder="City, Street..."
@@ -281,25 +278,25 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                         </div>
 
                         {/* Financial & Tax Policies */}
-                        <div className="space-y-8 pt-6 border-t border-border/20">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20">
-                                    <Receipt className="w-5 h-5 text-purple-400" />
+                        <div className="space-y-3 pt-3 border-t border-border/20">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1.5 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                    <Receipt className="w-4 h-4 text-purple-400" />
                                 </div>
-                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('taxTitle')}</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-tight text-foreground">{t('taxTitle')}</h3>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {[
                                     { id: 'enableTax', label: t('enableTax'), desc: t('enableTaxDesc'), val: Number(form.taxRate) > 0, fn: (c: boolean) => handleChange('taxRate', c ? 14.0 : 0) },
                                     { id: 'autoPrint', label: t('autoPrint'), desc: t('autoPrintDesc'), val: form.autoPrint || false, fn: (c: boolean) => handleChange('autoPrint', c) },
                                     { id: 'autoPrintTicket', label: t('autoPrintTicket'), desc: t('autoPrintTicketDesc'), val: form.autoPrintTicket || false, fn: (c: boolean) => handleChange('autoPrintTicket', c) },
                                     { id: 'autoPrintEngineerCopy', label: t('autoPrintEngineerCopy'), desc: t('autoPrintEngineerCopyDesc'), val: form.autoPrintEngineerCopy || false, fn: (c: boolean) => handleChange('autoPrintEngineerCopy', c) },
                                 ].map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
-                                        <div className="space-y-0.5 max-w-[70%]">
-                                            <Label className="text-xs font-black uppercase tracking-widest text-foreground">{item.label}</Label>
-                                            <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{item.desc}</p>
+                                    <div key={item.id} className="flex items-center justify-between p-2.5 border border-border/40 rounded-xl bg-card/40 transition-all hover:bg-card/60">
+                                        <div className="space-y-0.5 max-w-[75%]">
+                                            <Label className="text-xs font-bold text-foreground">{item.label}</Label>
+                                            <p className="text-[10px] text-muted-foreground leading-tight opacity-70">{item.desc}</p>
                                         </div>
                                         <Switch
                                             checked={item.val}
@@ -310,27 +307,27 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                             </div>
 
                             {Number(form.taxRate) > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-[2rem] bg-indigo-500/10 border border-indigo-500/20 animate-in fade-in slide-in-from-top-4">
-                                    <div className="space-y-2 group">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('vatNumber')}</Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-1 group">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('vatNumber')}</Label>
                                         <input
-                                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 shadow-sm"
+                                            className="w-full bg-card/60 border border-border/40 rounded-xl p-2 text-xs font-black focus:outline-none focus:border-indigo-500/50 shadow-xs h-8"
                                             value={form.vatNumber || ""}
                                             onChange={e => handleChange('vatNumber', e.target.value)}
                                             placeholder="310000000000003"
                                         />
                                     </div>
-                                    <div className="space-y-2 group">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('taxRate')}</Label>
+                                    <div className="space-y-1 group">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('taxRate')}</Label>
                                         <div className="relative">
                                             <input
                                                 type="number"
-                                                className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-3 text-sm font-black focus:outline-none focus:border-indigo-500/50 shadow-sm pr-10"
+                                                className="w-full bg-card/60 border border-border/40 rounded-xl p-2 text-xs font-black focus:outline-none focus:border-indigo-500/50 shadow-xs pr-8 h-8"
                                                 value={form.taxRate || 0}
                                                 onChange={e => handleChange('taxRate', e.target.value)}
                                             />
-                                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                                               <span className="font-black text-indigo-400 opacity-60 text-xs">%</span>
+                                            <div className="absolute inset-y-0 right-2.5 flex items-center pointer-events-none">
+                                               <span className="font-bold text-indigo-400 opacity-60 text-xs">%</span>
                                             </div>
                                         </div>
                                     </div>
@@ -339,24 +336,24 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                         </div>
 
                         {/* Inventory & Operational Policy */}
-                        <div className="space-y-8 pt-6 border-t border-border/20 group/policy">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2.5 bg-orange-500/10 rounded-xl border border-orange-500/20">
-                                    <History className="w-5 h-5 text-orange-400" />
+                        <div className="space-y-3 pt-3 border-t border-border/20 group/policy">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1.5 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                                    <History className="w-4 h-4 text-orange-400" />
                                 </div>
-                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('inventoryPolicy')}</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-tight text-foreground">{t('inventoryPolicy')}</h3>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {[
                                     { id: 'allowNegativeStock', label: t('allowNegativeStock'), desc: t('allowNegativeStockDesc'), val: form.allowNegativeStock || false, fn: (c: boolean) => handleChange('allowNegativeStock', c) },
                                     { id: 'hideLocationsTab', label: t('hideLocationsTab'), desc: t('hideLocationsTabDesc'), val: getFeatureValue('hideLocationsTab') === true, fn: (c: boolean) => handleFeatureToggle('hideLocationsTab', c) },
                                     { id: 'blindCloseEnabled', label: "Blind Close Shift", desc: "Hide expected cash totals during shift close.", val: form.blindCloseEnabled !== false, fn: (c: boolean) => handleChange('blindCloseEnabled', c) },
                                 ].map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
-                                        <div className="space-y-0.5 max-w-[70%]">
-                                            <Label className="text-xs font-black uppercase tracking-widest text-foreground">{item.label}</Label>
-                                            <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{item.desc}</p>
+                                    <div key={item.id} className="flex items-center justify-between p-2.5 border border-border/40 rounded-xl bg-card/40 transition-all hover:bg-card/60">
+                                        <div className="space-y-0.5 max-w-[75%]">
+                                            <Label className="text-xs font-bold text-foreground">{item.label}</Label>
+                                            <p className="text-[10px] text-muted-foreground leading-tight opacity-70">{item.desc}</p>
                                         </div>
                                         <Switch
                                             checked={item.val}
@@ -368,117 +365,96 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                         </div>
 
                         {/* Location Services */}
-                        <div className="space-y-8 pt-6 border-t border-border/20">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                                    <MapPin className="w-5 h-5 text-emerald-400" />
+                        <div className="space-y-3 pt-3 border-t border-border/20">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                                    <MapPin className="w-4 h-4 text-emerald-400" />
                                 </div>
-                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('locationTitle')}</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-tight text-foreground">{t('locationTitle')}</h3>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="space-y-2 lg:col-span-1">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('latitude')}</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                <div className="space-y-1 lg:col-span-1">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('latitude')}</Label>
                                     <input
                                         type="number"
                                         step="any"
-                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                        className="w-full bg-card/40 border border-border/50 rounded-xl px-3 py-1 text-xs font-bold focus:outline-none focus:border-primary h-8 transition-all"
                                         value={form.locationLat ?? 24.7136}
                                         onChange={e => handleChange('locationLat', e.target.value)}
                                     />
                                 </div>
-                                <div className="space-y-2 lg:col-span-1">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('longitude')}</Label>
+                                <div className="space-y-1 lg:col-span-1">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('longitude')}</Label>
                                     <input
                                         type="number"
                                         step="any"
-                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all"
+                                        className="w-full bg-card/40 border border-border/50 rounded-xl px-3 py-1 text-xs font-bold focus:outline-none focus:border-primary h-8 transition-all"
                                         value={form.locationLng ?? 46.6753}
                                         onChange={e => handleChange('locationLng', e.target.value)}
                                     />
                                 </div>
-                                <div className="space-y-2 lg:col-span-1">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('radius')}</Label>
+                                <div className="space-y-1 lg:col-span-1">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('radius')}</Label>
                                     <div className="relative">
                                         <input
                                             type="number"
-                                            className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all pe-12"
+                                            className="w-full bg-card/40 border border-border/50 rounded-xl px-3 py-1 text-xs font-bold focus:outline-none focus:border-primary pe-12 h-8 transition-all"
                                             value={form.locationRadius ?? 500}
                                             onChange={e => handleChange('locationRadius', e.target.value)}
                                         />
-                                        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                                            <span className="font-black text-primary/40 text-[10px] uppercase">Meters</span>
+                                        <div className="absolute inset-y-0 right-2.5 flex items-center pointer-events-none">
+                                            <span className="font-bold text-muted-foreground text-[10px] uppercase">Meters</span>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="space-y-2 lg:col-span-1">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">Sync Policy</Label>
-                                    <div className="flex items-center gap-3 p-4 bg-background/40 rounded-2xl border border-border/40 h-[54px]">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[10px] uppercase font-black tracking-widest text-foreground">Geo-fencing Active</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('invoiceHeader')}</Label>
-                                    <textarea
-                                        rows={3}
-                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-4 px-6 text-xs font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner resize-none"
-                                        placeholder="Text appears at top of receipts..."
-                                        value={form.invoiceHeader || ""}
-                                        onChange={e => handleChange('invoiceHeader', e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('invoiceFooter')}</Label>
-                                    <textarea
-                                        rows={3}
-                                        className="w-full bg-background/60 dark:bg-background/40 border border-border/40 rounded-2xl py-4 px-6 text-xs font-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner resize-none"
-                                        placeholder="Text appears at bottom of receipts..."
-                                        value={form.invoiceFooter || ""}
-                                        onChange={e => handleChange('invoiceFooter', e.target.value)}
-                                    />
                                 </div>
                             </div>
                         </div>
 
-                        {/* LAN Network Settings */}
-                        <div className="space-y-8 pt-6 border-t border-border/20">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-                                    <Globe className="w-5 h-5 text-cyan-400" />
+                        {/* Local Node & Printing Configuration */}
+                        <div className="space-y-3 pt-3 border-t border-border/20">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1.5 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                                    <Globe className="w-4 h-4 text-cyan-400" />
                                 </div>
-                                <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{t('staticIpLabel')}</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-tight text-foreground">{t('hardwareIntegration')}</h3>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="flex items-center justify-between p-5 border border-border/40 rounded-2xl bg-card/60 dark:bg-card/40 transition-all hover:bg-card/80">
-                                    <div className="space-y-0.5 max-w-[70%]">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-foreground">{t('staticIpLabel')}</Label>
-                                        <p className="text-[10px] text-muted-foreground font-medium leading-tight opacity-70">{t('staticIpDesc')}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div className="flex items-center justify-between p-2.5 border border-border/40 rounded-xl bg-card/40 transition-all hover:bg-card/60">
+                                    <div className="space-y-0.5 max-w-[75%]">
+                                        <Label className="text-xs font-bold text-foreground">{t('speedPrintToggle') || "الطباعة السريعة (Speed Print)"}</Label>
+                                        <p className="text-[10px] text-muted-foreground leading-tight opacity-70">
+                                            {t('speedPrintDesc') || "الطباعة الصامتة عبر خادم أجهزة كاسبر أو سطح المكتب دون حوار المتصفح"}
+                                        </p>
                                     </div>
                                     <Switch
-                                        checked={getFeatures().manualIpEnabled || false}
-                                        onCheckedChange={(checked) => {
-                                            updateFeature('manualIpEnabled', checked);
-                                            if (!checked) {
-                                                updateFeature('staticIp', '');
-                                                setIpError(null);
-                                            }
-                                        }}
+                                        checked={getFeatures().speedPrintEnabled === true}
+                                        onCheckedChange={(checked) => updateFeature('speedPrintEnabled', checked)}
                                     />
                                 </div>
 
-                                {getFeatures().manualIpEnabled && (
-                                    <div className="space-y-2 group animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ps-1">{t('staticIpInput')}</Label>
+                                <div className="flex items-center justify-between p-2.5 border border-border/40 rounded-xl bg-card/40 transition-all hover:bg-card/60">
+                                    <div className="space-y-0.5 max-w-[75%]">
+                                        <Label className="text-xs font-bold text-foreground">{t('manualIpToggle') || "تثبيت عنوان IP للجهاز"}</Label>
+                                        <p className="text-[10px] text-muted-foreground leading-tight opacity-70">
+                                            {t('manualIpDesc') || "تحديد عنوان IP مخصص لتعريف طرفية الكاشير محلياً"}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={getFeatures().manualIpEnabled === true}
+                                        onCheckedChange={(checked) => updateFeature('manualIpEnabled', checked)}
+                                    />
+                                </div>
+
+                                {getFeatures().manualIpEnabled === true && (
+                                    <div className="sm:col-span-2 p-2.5 border border-cyan-500/30 rounded-xl bg-cyan-500/5 space-y-1 animate-in fade-in duration-200">
+                                        <Label className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">{t('staticIpAddress') || "عنوان IP الثابت للجهاز"}</Label>
                                         <div className="relative">
                                             <input
                                                 type="text"
                                                 className={cn(
-                                                    "w-full bg-background/60 dark:bg-background/40 border rounded-2xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all",
+                                                    "w-full bg-card/60 border rounded-xl px-3 py-1 text-xs font-bold focus:outline-none h-8 transition-all",
                                                     ipError ? "border-rose-500 focus:border-rose-500" : "border-border/40 focus:border-primary"
                                                 )}
                                                 value={getFeatures().staticIp || ""}
@@ -495,37 +471,36 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                                 placeholder={t('staticIpPlaceholder') || "192.168.1.6"}
                                             />
                                             {ipError && (
-                                                <span className="text-xs text-rose-500 font-bold block mt-1 ps-1">{ipError}</span>
+                                                <span className="text-[10px] text-rose-500 font-bold block mt-0.5 ps-1">{ipError}</span>
                                             )}
                                         </div>
                                     </div>
                                 )}
                             </div>
                         </div>
+
+                        {/* Sticky Save Button Bar */}
+                        <div className="sticky bottom-0 bg-card/90 backdrop-blur-md p-2 rounded-xl border border-border/50 flex justify-end shadow-lg z-20">
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="inline-flex items-center justify-center gap-2 bg-primary px-6 h-8 rounded-xl text-white font-bold text-xs transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 shadow-xs"
+                            >
+                                {saving ? (
+                                    <span className="flex items-center gap-1.5 animate-pulse">
+                                       <div className="w-3.5 h-3.5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                                       {t('saving')}
+                                    </span>
+                                ) : (
+                                    <>
+                                        <Save className="w-3.5 h-3.5" />
+                                        <span>{t('save')}</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 )}
-
-                {/* Premium Save Button */}
-                <div className="pt-10 flex justify-end">
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="group relative inline-flex items-center justify-center gap-3 bg-primary px-10 py-4 rounded-2xl text-white font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-[1.05] active:scale-[0.98] disabled:opacity-50"
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                        {saving ? (
-                            <span className="flex items-center gap-2 animate-pulse">
-                               <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                               {t('saving')}
-                            </span>
-                        ) : (
-                            <>
-                                <Save className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                                <span>{t('save')}</span>
-                            </>
-                        )}
-                    </button>
-                </div>
             </div>
         </div>
     );

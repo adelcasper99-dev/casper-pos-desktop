@@ -96,108 +96,108 @@ export default async function SettingsPage() {
     const validSessionBranchId = branches.find(b => b.id === session.user.branchId)?.id;
 
     return (
-        <div className="p-6 max-w-[2400px] mx-auto w-full min-h-screen space-y-10 animate-in fade-in duration-700">
-            {/* Premium Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-1">
-                    <h1 className="text-4xl font-black tracking-tight text-foreground flex items-center gap-4">
-                        <div className="w-2 h-10 bg-primary rounded-full shadow-[0_0_20px_rgba(var(--primary),0.5)]" />
-                        {t('title', 'System Settings')}
-                    </h1>
-                    <p className="text-muted-foreground font-medium text-sm ms-6">{t('description', 'Manage your store configuration, devices, and team.')}</p>
-                </div>
-                <div className="flex items-center gap-3 bg-card/40 backdrop-blur-xl p-2 rounded-2xl border border-border/40 shadow-xl">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Settings2 className="w-5 h-5 text-primary" />
+        <div className="p-2.5 sm:p-3.5 max-w-[2400px] mx-auto w-full min-h-screen space-y-2.5 animate-fade-in-up font-cairo">
+            {/* Compact Header */}
+            <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                        <Settings2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-sm font-black tracking-tight text-foreground">{t('title', 'System Settings')}</h1>
+                            <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-md font-mono">Casper ERP</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">{t('description', 'Manage your store configuration, devices, and team.')}</p>
                     </div>
                 </div>
             </div>
 
-            <Tabs defaultValue={defaultTab} className="space-y-8">
-                {/* Modern Glass Tabs List */}
-                <TabsList className="bg-card/80 dark:bg-card/30 backdrop-blur-xl border border-border/40 p-1.5 h-auto flex-wrap justify-start gap-2 rounded-2xl shadow-xl overflow-hidden">
+            <Tabs defaultValue={defaultTab} className="space-y-2.5">
+                {/* Modern Compact Tabs List */}
+                <TabsList className="bg-card/40 backdrop-blur-md border border-border/50 p-1 h-auto flex-wrap justify-start gap-1 rounded-xl shadow-xs w-full">
                     {canManageGeneral && (
                         <TabsTrigger 
                             value="general" 
-                            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Store className="w-4 h-4 opacity-70" /> {t('tabs.general', 'General')}
+                            <Store className="w-3.5 h-3.5 opacity-70" /> {t('tabs.general', 'General')}
                         </TabsTrigger>
                     )}
                     {canManageGeneral && (
                         <TabsTrigger 
                             value="messaging" 
-                            className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400 data-[state=active]:border-green-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 data-[state=active]:border-green-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <MessageCircle className="w-4 h-4 opacity-70" /> {t('tabs.messaging', 'Messaging')}
+                            <MessageCircle className="w-3.5 h-3.5 opacity-70" /> {t('tabs.messaging', 'Messaging')}
                         </TabsTrigger>
                     )}
                     {canSeePrinters && (
                         <TabsTrigger 
                             value="printers" 
-                            className="data-[state=active]:bg-sky-500/20 data-[state=active]:text-sky-600 dark:data-[state=active]:text-sky-400 data-[state=active]:border-sky-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-sky-500/20 data-[state=active]:text-sky-400 data-[state=active]:border-sky-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Printer className="w-4 h-4 opacity-70" /> {t('tabs.print', 'Printers')}
+                            <Printer className="w-3.5 h-3.5 opacity-70" /> {t('tabs.print', 'Printers')}
                         </TabsTrigger>
                     )}
                     <TabsTrigger 
                         value="users" 
-                        className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-600 dark:data-[state=active]:text-violet-400 data-[state=active]:border-violet-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-400 data-[state=active]:border-violet-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                     >
-                        <Users className="w-4 h-4 opacity-70" /> Users & Roles
+                        <Users className="w-3.5 h-3.5 opacity-70" /> Users & Roles
                     </TabsTrigger>
 
                     {canManageWarehouses && (
                         <TabsTrigger 
                             value="warehouses" 
-                            className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:border-blue-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:border-blue-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Database className="w-4 h-4 opacity-70" /> المستودعات
+                            <Database className="w-3.5 h-3.5 opacity-70" /> المستودعات
                         </TabsTrigger>
                     )}
 
                     {canManageBranches && (
                         <TabsTrigger 
                             value="branches" 
-                            className="data-[state=active]:bg-indigo-500/20 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:border-indigo-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-indigo-500/20 data-[state=active]:text-indigo-400 data-[state=active]:border-indigo-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Building2 className="w-4 h-4 opacity-70" /> الفروع
+                            <Building2 className="w-3.5 h-3.5 opacity-70" /> الفروع
                         </TabsTrigger>
                     )}
 
                     {canManageBackups && (
                         <TabsTrigger 
                             value="backups" 
-                            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:border-amber-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:border-amber-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Database className="w-4 h-4 opacity-70" /> {t('tabs.backup', 'Backups')}
+                            <Database className="w-3.5 h-3.5 opacity-70" /> {t('tabs.backup', 'Backups')}
                         </TabsTrigger>
                     )}
 
                     {canManageTables && (
                         <TabsTrigger 
                             value="tables" 
-                            className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Store className="w-4 h-4 opacity-70" /> {t('tabs.tables_and_floors', 'Tables')}
+                            <Store className="w-3.5 h-3.5 opacity-70" /> {t('tabs.tables_and_floors', 'Tables')}
                         </TabsTrigger>
                     )}
 
                     {canManageModules && (
                         <TabsTrigger 
                             value="modules" 
-                            className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:border-rose-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400 data-[state=active]:border-rose-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Shield className="w-4 h-4 opacity-70" /> {t('tabs.modules', 'الميزات / Features')}
+                            <Shield className="w-3.5 h-3.5 opacity-70" /> {t('tabs.modules', 'الميزات / Features')}
                         </TabsTrigger>
                     )}
 
                     {canManageAccounting && (
                         <TabsTrigger 
                             value="accounting" 
-                            className="data-[state=active]:bg-indigo-500/20 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:border-indigo-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-indigo-500/20 data-[state=active]:text-indigo-400 data-[state=active]:border-indigo-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Calculator className="w-4 h-4 opacity-70" /> {t('tabs.accounting', 'Accounting')}
+                            <Calculator className="w-3.5 h-3.5 opacity-70" /> {t('tabs.accounting', 'Accounting')}
                         </TabsTrigger>
                     )}
 
@@ -205,48 +205,48 @@ export default async function SettingsPage() {
                         <>
                             <TabsTrigger 
                                 value="cloud" 
-                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                             >
-                                <Cloud className="w-4 h-4 opacity-70" /> Cloud Sync Config
+                                <Cloud className="w-3.5 h-3.5 opacity-70" /> Cloud Sync Config
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="sync" 
-                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                             >
-                                <RefreshCw className="w-4 h-4 opacity-70" /> Sync Management
+                                <RefreshCw className="w-3.5 h-3.5 opacity-70" /> Sync Management
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="network" 
-                                className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                                className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 data-[state=active]:border-emerald-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                             >
-                                <Wifi className="w-4 h-4 opacity-70" /> شبكة الفرع
+                                <Wifi className="w-3.5 h-3.5 opacity-70" /> شبكة الفرع
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="licenses" 
-                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                                className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                             >
-                                <ShieldCheck className="w-4 h-4 opacity-70 text-cyan-500" /> التراخيص
+                                <ShieldCheck className="w-3.5 h-3.5 opacity-70 text-cyan-500" /> التراخيص
                             </TabsTrigger>
                         </>
                     )}
                     <TabsTrigger 
                         value="training" 
-                        className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:border-amber-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                        className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:border-amber-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                     >
-                        <GraduationCap className="w-4 h-4 opacity-70 text-amber-500" /> دليل التدريب
+                        <GraduationCap className="w-3.5 h-3.5 opacity-70 text-amber-500" /> دليل التدريب
                     </TabsTrigger>
                     {isSuperAdmin && (
                         <TabsTrigger 
                             value="security" 
-                            className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:border-rose-500/50 border border-transparent px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:bg-white/5 flex gap-2.5 items-center"
+                            className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400 data-[state=active]:border-rose-500/50 border border-transparent px-2.5 py-1 rounded-lg font-bold text-xs transition-all hover:bg-white/5 flex gap-1.5 items-center h-8"
                         >
-                            <Shield className="w-4 h-4 opacity-70" /> الحماية
+                            <Shield className="w-3.5 h-3.5 opacity-70" /> الحماية
                         </TabsTrigger>
                     )}
                 </TabsList>
 
                 {/* Main Content Area */}
-                <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="animate-in fade-in duration-300 max-h-[calc(100vh-140px)] overflow-y-auto pr-1">
                     {canManageGeneral && (
                         <TabsContent value="general" className="outline-none focus-visible:ring-0">
                             <StoreConfig settings={settings} hideModules={true} />
@@ -261,28 +261,27 @@ export default async function SettingsPage() {
 
                     {canSeePrinters && (
                         <TabsContent value="printers" className="outline-none focus-visible:ring-0">
-                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-                                <div className="xl:col-span-2 space-y-6">
+                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+                                <div className="xl:col-span-2 space-y-3">
                                     <PrinterSettings />
                                 </div>
-                                <div className="space-y-6">
-                                    <Card className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-3xl overflow-hidden shadow-xl relative group">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-3 font-black text-lg">
-                                                <Globe className="w-5 h-5 text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]" /> 
+                                <div className="space-y-3">
+                                    <Card className="glass-card bg-card/90 dark:bg-card/40 backdrop-blur-xl border border-border/40 rounded-xl overflow-hidden shadow-xs relative group p-3">
+                                        <CardHeader className="p-2 pb-1">
+                                            <CardTitle className="flex items-center gap-2 font-bold text-xs">
+                                                <Globe className="w-4 h-4 text-blue-400" /> 
                                                 <span className="uppercase tracking-tight">Regional Settings</span>
                                             </CardTitle>
-                                            <CardDescription className="text-muted-foreground font-bold text-xs">
+                                            <CardDescription className="text-muted-foreground font-medium text-[10px]">
                                                 Language and localization preferences.
                                             </CardDescription>
                                         </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="p-5 bg-background/40 rounded-2xl border border-border/20 text-sm shadow-inner group-hover:border-blue-500/40 transition-colors">
+                                        <CardContent className="p-2 pt-1">
+                                            <div className="p-2 bg-background/40 rounded-lg border border-border/20 text-xs">
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-xs uppercase font-black tracking-widest text-muted-foreground">Current Language</span>
-                                                    <span className="font-black flex items-center gap-2 text-foreground">
-                                                        <span className="text-xl">🇸🇦</span> Arabic (KSA)
+                                                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Current Language</span>
+                                                    <span className="font-bold flex items-center gap-1.5 text-foreground text-xs">
+                                                        <span>🇸🇦</span> Arabic (KSA)
                                                     </span>
                                                 </div>
                                             </div>
@@ -300,19 +299,19 @@ export default async function SettingsPage() {
                     )}
 
                     <TabsContent value="users" className="outline-none focus-visible:ring-0">
-                        <Tabs defaultValue="staff" className="w-full space-y-6">
+                        <Tabs defaultValue="staff" className="w-full space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <TabsList className="bg-card/80 dark:bg-card/30 backdrop-blur-xl p-1.5 border border-border/40 rounded-2xl shadow-lg h-auto">
+                                <TabsList className="bg-card/40 backdrop-blur-md p-1 border border-border/40 rounded-xl shadow-xs h-auto gap-1">
                                     <TabsTrigger 
                                         value="staff" 
-                                        className="px-6 py-2.5 data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-600 dark:data-[state=active]:text-violet-400 data-[state=active]:border-violet-500/50 border border-transparent font-black text-xs uppercase tracking-widest transition-all rounded-xl"
+                                        className="px-3 py-1 data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-400 data-[state=active]:border-violet-500/50 border border-transparent font-bold text-xs uppercase transition-all rounded-lg h-7"
                                     >
                                         Staff Members
                                     </TabsTrigger>
                                     {canManageRoles && (
                                         <TabsTrigger 
                                             value="roles" 
-                                            className="px-6 py-2.5 data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:border-purple-500/50 border border-transparent font-black text-xs uppercase tracking-widest transition-all rounded-xl"
+                                            className="px-3 py-1 data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-400 data-[state=active]:border-purple-500/50 border border-transparent font-bold text-xs uppercase transition-all rounded-lg h-7"
                                         >
                                             Roles & Permissions
                                         </TabsTrigger>
