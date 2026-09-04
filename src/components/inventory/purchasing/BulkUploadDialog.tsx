@@ -132,37 +132,37 @@ export function BulkUploadDialog({
                 dir="rtl"
             >
                 {/* Header */}
-                <div className="p-6 border-b border-border flex justify-between items-center bg-muted/20">
+                <div className="p-3.5 border-b border-border flex justify-between items-center bg-muted/20">
                     <div>
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Upload className="w-5 h-5 text-indigo-400" />
+                        <h2 className="text-base font-bold flex items-center gap-2">
+                            <Upload className="w-4 h-4 text-indigo-400" />
                             {t('title')}
                         </h2>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                             {t('description')}
                         </p>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="p-2 hover:bg-muted rounded-full text-muted-foreground transition-colors"
+                        className="p-1.5 hover:bg-muted rounded-full text-muted-foreground transition-colors"
                     >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {/* File Upload */}
                     {!result && (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <div className="flex gap-3">
                                 <label className="flex-1 cursor-pointer">
-                                    <div className="glass-card p-8 border-2 border-dashed border-border hover:border-cyan-500 transition-colors text-center">
-                                        <Upload className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                                        <p className="font-bold text-foreground">
+                                    <div className="glass-card p-4 border-2 border-dashed border-border hover:border-cyan-500 transition-colors text-center rounded-xl">
+                                        <Upload className="w-8 h-8 mx-auto mb-1.5 text-muted-foreground" />
+                                        <p className="text-xs font-bold text-foreground">
                                             {file ? file.name : t('selectFile')}
                                         </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">
                                             {t('maxSizeNote', { size: '10MB', count: 500 })}
                                         </p>
                                     </div>
@@ -176,9 +176,9 @@ export function BulkUploadDialog({
 
                                 <button
                                     onClick={handleDownloadTemplate}
-                                    className="bg-muted hover:bg-muted/80 text-foreground font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                                    className="bg-muted hover:bg-muted/80 text-foreground font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs transition-colors h-fit self-center"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-3.5 h-3.5" />
                                     {t('templateButton')}
                                 </button>
                             </div>
@@ -269,10 +269,10 @@ export function BulkUploadDialog({
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-border bg-muted/20 flex justify-between items-center">
+                <div className="p-3 border-t border-border bg-muted/20 flex justify-between items-center">
                     <button
                         onClick={handleClose}
-                        className="bg-muted hover:bg-muted/80 text-foreground font-bold px-6 py-2 rounded-lg transition-colors"
+                        className="bg-muted hover:bg-muted/80 text-foreground font-bold px-4 py-1.5 rounded-lg text-xs transition-colors"
                     >
                         {result ? t('close') : t('cancel')}
                     </button>
@@ -281,16 +281,16 @@ export function BulkUploadDialog({
                         <button
                             onClick={handleUpload}
                             disabled={uploading}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold px-8 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-cyan-500/20"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold px-5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 disabled:opacity-50 transition-all shadow-lg shadow-cyan-500/20"
                         >
                             {uploading ? (
                                 <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                     {t('importing')}
                                 </>
                             ) : (
                                 <>
-                                    <Upload className="w-5 h-5" />
+                                    <Upload className="w-4 h-4" />
                                     {t('importButton', { count: preview.length })}
                                 </>
                             )}

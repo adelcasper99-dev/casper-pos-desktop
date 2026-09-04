@@ -495,50 +495,18 @@ export default function PurchasesTab({
     return (
         <div className="h-full flex flex-col overflow-hidden animate-fly-in font-cairo" dir="rtl">
             
-            {/* Header Section */}
-            <div className="flex-none space-y-4 mb-4">
-                <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50 p-6 rounded-3xl border border-zinc-200 dark:border-white/10 shadow-sm">
-                    <div>
-                        <h2 className="text-2xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
-                            <div className="p-2.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20">
-                                <ShoppingCart className="w-6 h-6" />
-                            </div>
-                            {t('title')}
-                        </h2>
-                        <p className="text-zinc-500 mt-1.5 font-medium text-sm">{t('subtitle')}</p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setShowBulkUpload(true)}
-                            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition-all active:scale-95"
-                        >
-                            <Plus className="w-4 h-4" />
-                            {t('bulkCsv')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                form.resetForm();
-                                setIsNewPurchaseOpen(true);
-                            }}
-                            className="flex items-center gap-2 px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-zinc-900/20"
-                        >
-                            <Plus className="w-4 h-4" />
-                            {t('newPurchase')}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Stats & Filters Row */}
-                <div className="flex justify-between items-center gap-4">
+            {/* Unified Action & Filters Bar */}
+            <div className="flex-none mb-2.5 flex flex-wrap justify-between items-center gap-2">
+                {/* Right: Status Tabs & Date Picker */}
+                <div className="flex items-center gap-2 flex-wrap">
                     {/* Status Tabs */}
-                    <div className="flex gap-2 p-1 bg-zinc-100 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/5">
+                    <div className="flex gap-1 p-0.5 bg-zinc-100 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-white/5">
                         {['ACTIVE', 'ALL', 'RETURNS'].map((status) => (
                             <button
                                 key={status}
                                 onClick={() => setStatusFilter(status as any)}
                                 className={cn(
-                                    "px-5 py-2 rounded-xl text-xs font-bold transition-all",
+                                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
                                     statusFilter === status
                                         ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm"
                                         : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -551,58 +519,77 @@ export default function PurchasesTab({
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <FlatpickrRangePicker
-                            onRangeChange={(dates: Date[]) => {
-                                if (dates.length === 2) {
-                                    setDateRange({ from: dates[0], to: dates[1] });
-                                    setDateFilter("custom");
-                                } else if (dates.length === 0) {
-                                    setDateRange(undefined);
-                                    setDateFilter("all");
-                                }
-                            }}
-                            onClear={() => {
+                    <FlatpickrRangePicker
+                        onRangeChange={(dates: Date[]) => {
+                            if (dates.length === 2) {
+                                setDateRange({ from: dates[0], to: dates[1] });
+                                setDateFilter("custom");
+                            } else if (dates.length === 0) {
                                 setDateRange(undefined);
                                 setDateFilter("all");
-                            }}
-                            initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                            className="w-56 bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-xs h-10 px-4 rounded-xl font-bold"
-                        />
-                    </div>
+                            }
+                        }}
+                        onClear={() => {
+                            setDateRange(undefined);
+                            setDateFilter("all");
+                        }}
+                        initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
+                        className="w-52 bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-xs h-8.5 px-3 rounded-xl font-bold"
+                    />
+                </div>
+
+                {/* Left: Action Buttons */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowBulkUpload(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-sm h-8.5"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        {t('bulkCsv')}
+                    </button>
+                    <button
+                        onClick={() => {
+                            form.resetForm();
+                            setIsNewPurchaseOpen(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer h-8.5"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        {t('newPurchase')}
+                    </button>
                 </div>
             </div>
 
             {/* Invoices Table Area */}
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-white dark:bg-zinc-900/50 rounded-3xl border border-zinc-200 dark:border-white/5 shadow-sm">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-white dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/5 shadow-sm">
                 {filteredInvoices.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                        <div className="w-20 h-20 bg-zinc-50 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-                            <FileText className="w-10 h-10 text-zinc-300" />
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                        <div className="w-14 h-14 bg-zinc-50 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-3">
+                            <FileText className="w-7 h-7 text-zinc-300" />
                         </div>
-                        <h3 className="text-lg font-black text-zinc-900 dark:text-white mb-1">{t('noPurchases')}</h3>
-                        <p className="text-zinc-500 text-sm max-w-sm">{t('noPurchasesDesc')}</p>
+                        <h3 className="text-base font-black text-zinc-900 dark:text-white mb-1">{t('noPurchases')}</h3>
+                        <p className="text-zinc-500 text-xs max-w-sm">{t('noPurchasesDesc')}</p>
                     </div>
                 ) : (
                     <div className="h-full overflow-auto custom-scrollbar">
                         <table className="w-full text-right border-collapse">
                             <thead className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-white/5 text-[10px] text-zinc-400 font-black uppercase tracking-widest">
                                 <tr>
-                                    <th className="px-6 py-4 cursor-pointer hover:text-zinc-600" onClick={() => handleSort('purchaseDate')}>
-                                        <div className="flex items-center gap-2">التاريخ {getSortIcon('purchaseDate')}</div>
+                                    <th className="px-3.5 py-2.5 cursor-pointer hover:text-zinc-600" onClick={() => handleSort('purchaseDate')}>
+                                        <div className="flex items-center gap-1.5">التاريخ {getSortIcon('purchaseDate')}</div>
                                     </th>
-                                    <th className="px-6 py-4 cursor-pointer hover:text-zinc-600" onClick={() => handleSort('invoiceNumber')}>
-                                        <div className="flex items-center gap-2">رقم الفاتورة {getSortIcon('invoiceNumber')}</div>
+                                    <th className="px-3.5 py-2.5 cursor-pointer hover:text-zinc-600" onClick={() => handleSort('invoiceNumber')}>
+                                        <div className="flex items-center gap-1.5">رقم الفاتورة {getSortIcon('invoiceNumber')}</div>
                                     </th>
-                                    <th className="px-6 py-4 text-start">المورد</th>
-                                    <th className="px-6 py-4 cursor-pointer hover:text-zinc-600" onClick={() => handleSort('totalAmount')}>
-                                        <div className="flex items-center gap-2 justify-end">الإجمالي {getSortIcon('totalAmount')}</div>
+                                    <th className="px-3.5 py-2.5 text-start">المورد</th>
+                                    <th className="px-3.5 py-2.5 cursor-pointer hover:text-zinc-600" onClick={() => handleSort('totalAmount')}>
+                                        <div className="flex items-center gap-1.5 justify-end">الإجمالي {getSortIcon('totalAmount')}</div>
                                     </th>
-                                    <th className="px-6 py-4 text-end">المدفوع</th>
-                                    <th className="px-6 py-4 text-start">الخزنة</th>
-                                    <th className="px-6 py-4 text-start">المخزن</th>
-                                    <th className="px-6 py-4 text-center">الحالة</th>
-                                    <th className="px-6 py-4"></th>
+                                    <th className="px-3.5 py-2.5 text-end">المدفوع</th>
+                                    <th className="px-3.5 py-2.5 text-start">الخزنة</th>
+                                    <th className="px-3.5 py-2.5 text-start">المخزن</th>
+                                    <th className="px-3.5 py-2.5 text-center">الحالة</th>
+                                    <th className="px-3.5 py-2.5"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100 dark:divide-white/5">
@@ -612,44 +599,44 @@ export default function PurchasesTab({
                                         className="group hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
                                         onClick={() => handleViewDetails(inv.id)}
                                     >
-                                        <td className="px-6 py-4 text-sm font-bold text-zinc-500">
+                                        <td className="px-3.5 py-2 text-xs font-bold text-zinc-500">
                                             {format(new Date(inv.purchaseDate), 'yyyy-MM-dd')}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="font-mono text-sm font-black text-zinc-900 dark:text-white">
+                                        <td className="px-3.5 py-2">
+                                            <span className="font-mono text-xs font-black text-zinc-900 dark:text-white">
                                                 #{inv.invoiceNumber || 'Auto'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-start">
+                                        <td className="px-3.5 py-2 text-start">
                                             <div>
-                                                <div className="font-black text-zinc-900 dark:text-white text-sm">{inv.supplier?.name}</div>
-                                                <div className="text-[10px] text-zinc-500 font-bold uppercase">{inv.branch?.name}</div>
+                                                <div className="font-black text-zinc-900 dark:text-white text-xs">{inv.supplier?.name}</div>
+                                                <div className="text-[9px] text-zinc-500 font-bold uppercase">{inv.branch?.name}</div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-end">
-                                            <div className="font-black text-zinc-900 dark:text-white text-sm">
+                                        <td className="px-3.5 py-2 text-end">
+                                            <div className="font-black text-zinc-900 dark:text-white text-xs">
                                                 {formatCurrency(Number(inv.totalAmount))}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-end font-bold text-emerald-500 text-sm">
+                                        <td className="px-3.5 py-2 text-end font-bold text-emerald-500 text-xs">
                                             {formatCurrency(Number(inv.paidAmount))}
                                         </td>
-                                        <td className="px-6 py-4 text-start">
-                                            <div className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                        <td className="px-3.5 py-2 text-start">
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-300">
                                                 {inv.paymentMethod === 'VISA' || inv.paymentMethod === 'CARD' ? 'فيزا (بنك)' : 
                                                  inv.paymentMethod === 'INSTAPAY' ? 'انستا باي' : 
                                                  inv.paymentMethod === 'WALLET' ? 'محفظة' : 
                                                  inv.paymentMethod === 'TRANSFER' ? 'تحويل' : 'كاش (صندوق)'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-start">
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-600 dark:text-zinc-400">
+                                        <td className="px-3.5 py-2 text-start">
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-[11px] font-bold text-zinc-600 dark:text-zinc-400">
                                                 {inv.warehouse?.name || "-"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-3.5 py-2 text-center">
                                             <div className={cn(
-                                                "inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                                                "inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border",
                                                 inv.status === 'PAID' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" :
                                                 inv.status === 'PENDING' ? "bg-amber-500/10 border-amber-500/20 text-amber-500" :
                                                 inv.status === 'PARTIAL' ? "bg-blue-500/10 border-blue-500/20 text-blue-500" :
@@ -663,14 +650,14 @@ export default function PurchasesTab({
                                                  'ملغي'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <td className="px-3.5 py-2">
+                                            <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handlePrint(inv.id); }}
-                                                    className="p-2 hover:bg-zinc-900 hover:text-white rounded-lg transition-all"
+                                                    className="p-1.5 hover:bg-zinc-900 hover:text-white rounded-lg transition-all"
                                                     title={t('print')}
                                                 >
-                                                    <Printer className="w-4 h-4" />
+                                                    <Printer className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                   onClick={(e) => {
@@ -678,16 +665,16 @@ export default function PurchasesTab({
                                                     setSelectedTableInvoice(inv);
                                                     setShowBarcodePrint(true);
                                                   }}
-                                                  className="p-2 hover:bg-zinc-900 hover:text-white rounded-lg transition-all"
+                                                  className="p-1.5 hover:bg-zinc-900 hover:text-white rounded-lg transition-all"
                                                 >
-                                                  <Barcode className="w-4 h-4" />
+                                                  <Barcode className="w-3.5 h-3.5" />
                                                 </button>
                                                 {(!['CANCELLED', 'VOIDED', 'RETURNED', 'RETURN'].includes(inv.status)) && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); voidInvoice(inv.id); }}
-                                                        className="p-2 hover:bg-rose-500 hover:text-white rounded-lg transition-all"
+                                                        className="p-1.5 hover:bg-rose-500 hover:text-white rounded-lg transition-all"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                 )}
                                             </div>
@@ -739,62 +726,61 @@ export default function PurchasesTab({
 
             {selectedDetailsInvoice && (
                 <Dialog open={!!selectedDetailsInvoice} onOpenChange={() => setSelectedDetailsInvoice(null)}>
-                    <DialogContent className="sm:max-w-xl bg-card border-border text-foreground shadow-2xl rounded-3xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="p-8 space-y-6">
-                            <DialogHeader className="pb-4 border-b border-border">
+                    <DialogContent className="sm:max-w-xl max-h-[92dvh] overflow-y-auto custom-scrollbar bg-card border-border text-foreground shadow-2xl rounded-2xl p-0" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 sm:p-5 space-y-3">
+                            <DialogHeader className="pb-2.5 border-b border-border">
                                 <DialogTitle className="flex items-center justify-between">
-                                    <span className="text-2xl font-black flex items-center gap-3">
-                                        <div className="p-2.5 rounded-2xl bg-secondary/10 border border-secondary/20">
-                                            <FileText className="w-6 h-6 text-secondary" />
+                                    <span className="text-base sm:text-lg font-black flex items-center gap-2">
+                                        <div className="p-1.5 rounded-xl bg-secondary/10 border border-secondary/20">
+                                            <FileText className="w-4 h-4 text-secondary" />
                                         </div>
                                         تفاصيل فاتورة شراء
                                     </span>
-                                    <Badge variant="outline" className="border-border bg-muted/50 text-xs px-3 py-1 font-mono rounded-lg">
+                                    <Badge variant="outline" className="border-border bg-muted/50 text-xs px-2 py-0.5 font-mono rounded-lg">
                                         {selectedDetailsInvoice.invoiceNumber || `#${selectedDetailsInvoice.id.slice(0, 8).toUpperCase()}`}
                                     </Badge>
                                 </DialogTitle>
                             </DialogHeader>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-1 group hover:border-secondary/30 transition-all">
-                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">التاريخ والوقت</span>
-                                    <span className="font-bold text-sm block italic">{format(new Date(selectedDetailsInvoice.purchaseDate || selectedDetailsInvoice.createdAt), 'yyyy/MM/dd HH:mm')}</span>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-muted/40 p-2.5 rounded-xl border border-border space-y-0.5 group hover:border-secondary/30 transition-all">
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block opacity-60">التاريخ والوقت</span>
+                                    <span className="font-bold text-xs block">{format(new Date(selectedDetailsInvoice.purchaseDate || selectedDetailsInvoice.createdAt), 'yyyy/MM/dd HH:mm')}</span>
                                 </div>
-                                <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-1 group hover:border-secondary/30 transition-all">
-                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">المورد المعتمد</span>
-                                    <span className="font-bold text-sm block">{selectedDetailsInvoice.supplier?.name || "مورد نقدي"}</span>
+                                <div className="bg-muted/40 p-2.5 rounded-xl border border-border space-y-0.5 group hover:border-secondary/30 transition-all">
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block opacity-60">المورد المعتمد</span>
+                                    <span className="font-bold text-xs block">{selectedDetailsInvoice.supplier?.name || "مورد نقدي"}</span>
                                 </div>
-                                <div className="bg-muted/40 p-5 rounded-2xl border border-border space-y-2 col-span-2 group hover:border-secondary/30 transition-all">
-                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block opacity-60">موقع التخزين (المستودع)</span>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center border border-secondary/20 text-secondary font-bold text-xs uppercase">
-                                            {(selectedDetailsInvoice.warehouse?.name?.[0] || 'W').toUpperCase()}
-                                        </div>
-                                        <span className="font-black text-lg italic">{selectedDetailsInvoice.warehouse?.name || "المستودع الافتراضي"}</span>
+                                <div className="bg-muted/40 p-2.5 rounded-xl border border-border col-span-2 group hover:border-secondary/30 transition-all flex items-center justify-between">
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block opacity-60">موقع التخزين (المستودع)</span>
+                                        <span className="font-black text-xs">{selectedDetailsInvoice.warehouse?.name || "المستودع الافتراضي"}</span>
+                                    </div>
+                                    <div className="w-6 h-6 rounded-full bg-secondary/10 flex items-center justify-center border border-secondary/20 text-secondary font-bold text-[10px] uppercase">
+                                        {(selectedDetailsInvoice.warehouse?.name?.[0] || 'W').toUpperCase()}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Items List */}
-                            <div className="space-y-3">
+                            <div className="space-y-1.5">
                                 <div className="flex items-center justify-between px-1">
-                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">الأصناف الموردة ({selectedDetailsInvoice.items?.length})</span>
-                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">تكلفة التوريد</span>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider">الأصناف الموردة ({selectedDetailsInvoice.items?.length})</span>
+                                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider">تكلفة التوريد</span>
                                 </div>
-                                <div className="max-h-[250px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1.5 custom-scrollbar">
                                     {selectedDetailsInvoice.items?.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center p-4 rounded-2xl bg-muted/20 border border-border group hover:bg-muted/40 hover:border-secondary/20 transition-all">
-                                            <div className="flex-1">
-                                                <div className="font-black text-sm text-foreground">{item.product?.name || "صنف غير محدد"}</div>
-                                                <div className="text-[11px] text-muted-foreground font-mono mt-0.5 opacity-80">
-                                                    {item.quantity} وحدة {item.unitCost ? <span className="mx-1.5 opacity-30">×</span> : ''} {item.unitCost ? Number(item.unitCost).toLocaleString() : ''}
+                                        <div key={idx} className="flex justify-between items-center p-2 rounded-xl bg-muted/20 border border-border group hover:bg-muted/40 transition-all text-xs">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-black text-foreground truncate">{item.product?.name || "صنف غير محدد"}</div>
+                                                <div className="text-[10px] text-muted-foreground font-mono mt-0.5 opacity-80">
+                                                    {item.quantity} وحدة {item.unitCost ? <span className="mx-1 opacity-30">×</span> : ''} {item.unitCost ? Number(item.unitCost).toLocaleString() : ''}
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <div className="font-mono font-black text-secondary text-sm">
+                                            <div className="text-end shrink-0 ps-2">
+                                                <div className="font-mono font-black text-secondary text-xs">
                                                     {(item.quantity * Number(item.unitCost || 0)).toLocaleString()}
                                                 </div>
-                                                <div className="text-[9px] font-black uppercase text-muted-foreground opacity-40">صافي التكلفة</div>
                                             </div>
                                         </div>
                                     ))}
@@ -802,78 +788,78 @@ export default function PurchasesTab({
                             </div>
 
                             {/* Summary & Totals */}
-                            <div className="bg-muted/50 rounded-3xl p-6 border border-border space-y-4 shadow-inner">
-                                <div className="grid grid-cols-2 gap-y-3">
-                                    <div className="flex justify-between items-center text-muted-foreground text-xs px-2">
-                                        <span className="font-medium opacity-60 uppercase tracking-widest text-[10px]">إجمالي الفاتورة</span>
-                                        <span className="font-bold italic">{formatCurrency(selectedDetailsInvoice.totalAmount)}</span>
+                            <div className="bg-muted/50 rounded-xl p-3 border border-border space-y-2 shadow-inner">
+                                <div className="grid grid-cols-2 gap-y-2">
+                                    <div className="flex justify-between items-center text-muted-foreground text-xs px-1">
+                                        <span className="font-medium opacity-60 uppercase tracking-wider text-[9px]">إجمالي الفاتورة</span>
+                                        <span className="font-bold">{formatCurrency(selectedDetailsInvoice.totalAmount)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-xs px-2 border-r border-border ml-2 pl-4">
-                                        <span className="font-medium text-muted-foreground opacity-60 uppercase tracking-widest text-[10px]">الحالة المالية</span>
+                                    <div className="flex justify-between items-center text-xs px-1 border-s border-border ps-3">
+                                        <span className="font-medium text-muted-foreground opacity-60 uppercase tracking-wider text-[9px]">الحالة</span>
                                         <Badge variant="outline" className={cn(
-                                            "font-black text-[9px] uppercase px-2 py-0.5 rounded-md",
+                                            "font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md",
                                             selectedDetailsInvoice.status === 'PAID' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
                                         )}>
-                                            {selectedDetailsInvoice.status === 'PAID' ? 'تم الدفع بالكامل' : 'مدفوع جزئياً'}
+                                            {selectedDetailsInvoice.status === 'PAID' ? 'تم الدفع' : 'مدفوع جزئياً'}
                                         </Badge>
                                     </div>
-                                    <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 text-xs px-2 col-span-2 pt-1 border-t border-border mt-1">
-                                        <span className="font-black uppercase tracking-widest text-[10px] opacity-60">المدفوع للمورد</span>
+                                    <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 text-xs px-1 col-span-2 pt-1 border-t border-border">
+                                        <span className="font-black uppercase tracking-wider text-[9px] opacity-70">المدفوع للمورد</span>
                                         <span className="font-black">+{formatCurrency(selectedDetailsInvoice.paidAmount)}</span>
                                     </div>
                                 </div>
 
-                                <div className="pt-4 border-t border-border flex justify-between items-center">
+                                <div className="pt-2 border-t border-border flex justify-between items-center">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-rose-500">المبلغ الآجل (مديونية)</span>
-                                        <span className="text-xs text-muted-foreground font-medium italic">القيمة المستحقة للمورد لاحقاً</span>
+                                        <span className="text-[9px] font-black uppercase text-rose-500 tracking-wider">المبلغ الآجل</span>
+                                        <span className="text-[10px] text-muted-foreground font-medium">القيمة المستحقة</span>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-4xl font-black font-mono tracking-tighter text-rose-600 dark:text-rose-400">
+                                    <div className="text-end">
+                                        <div className="text-xl font-black font-mono tracking-tight text-rose-600 dark:text-rose-400">
                                             {(Number(selectedDetailsInvoice.totalAmount) - Number(selectedDetailsInvoice.paidAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            <span className="text-xs font-bold text-muted-foreground mr-1.5 opacity-50 uppercase tracking-tighter">jod/egp</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground mr-1 opacity-50 uppercase">EGP</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 pt-1">
                                 <Button
                                     variant="outline"
-                                    className="flex-1 h-12 bg-background border-border hover:bg-muted font-black rounded-2xl gap-2 text-sm shadow-sm"
+                                    className="flex-1 h-8.5 bg-background border-border hover:bg-muted font-bold rounded-xl text-xs shadow-sm cursor-pointer"
                                     onClick={() => setSelectedDetailsInvoice(null)}
                                 >
-                                    إغلاق النافذة
+                                    إغلاق
                                 </Button>
                                 {!['VOIDED', 'CANCELLED'].includes(selectedDetailsInvoice.status) && !selectedDetailsInvoice.isReturn && (
                                     <>
                                         <Button
                                             variant="outline"
-                                            className="h-12 border-border bg-background hover:bg-muted text-foreground font-black rounded-2xl gap-2 px-4 whitespace-nowrap text-xs shadow-sm flex-1 sm:flex-none"
+                                            className="h-8.5 border-border bg-background hover:bg-muted text-foreground font-bold rounded-xl gap-1.5 px-3 text-xs shadow-sm flex-1 sm:flex-none cursor-pointer"
                                             onClick={() => {
                                                 setSelectedDetailsInvoice(null);
                                                 handleThermalPrint(selectedDetailsInvoice.id);
                                             }}
                                         >
-                                            <Printer className="w-4 h-4 text-cyan-500" />
+                                            <Printer className="w-3.5 h-3.5 text-cyan-500" />
                                             طباعة ريسيت 80mm
                                         </Button>
                                         <Button
                                             variant="outline"
-                                            className="h-12 border-border bg-background hover:bg-muted text-foreground font-black rounded-2xl gap-2 px-4 whitespace-nowrap text-xs shadow-sm flex-1 sm:flex-none"
+                                            className="h-8.5 border-border bg-background hover:bg-muted text-foreground font-bold rounded-xl gap-1.5 px-3 text-xs shadow-sm flex-1 sm:flex-none cursor-pointer"
                                             onClick={() => handleEditInvoice(selectedDetailsInvoice)}
                                         >
-                                            <Pencil className="w-4 h-4 text-emerald-500" />
+                                            <Pencil className="w-3.5 h-3.5 text-emerald-500" />
                                             تعديل الفاتورة
                                         </Button>
                                         <Button
-                                            className="h-12 bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-lg shadow-secondary/20 font-black rounded-2xl gap-2 text-sm px-4 flex-1 sm:flex-none"
+                                            className="h-8.5 bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-md font-bold rounded-xl gap-1.5 text-xs px-4 flex-1 sm:flex-none cursor-pointer"
                                             onClick={() => { 
                                                 setSelectedDetailsInvoice(null);
                                                 handlePrint(selectedDetailsInvoice.id);
                                             }}
                                         >
-                                            <Printer className="w-4 h-4" />
+                                            <Printer className="w-3.5 h-3.5" />
                                             طباعة الفاتورة A4
                                         </Button>
                                     </>

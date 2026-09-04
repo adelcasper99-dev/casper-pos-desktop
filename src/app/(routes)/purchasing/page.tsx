@@ -4,6 +4,7 @@ import { getTranslations } from "@/lib/i18n-mock";
 import { getCSRFToken } from '@/lib/csrf';
 import { getVisibleBranches } from "@/actions/branch-actions";
 import { getCurrentUser } from "@/actions/auth";
+import { ShoppingCart } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
 
@@ -132,11 +133,18 @@ export default async function PurchasingPage() {
     }));
 
     return (
-        <div className="space-y-6 font-cairo max-w-[2400px] mx-auto">
-            <header className="flex flex-col gap-1">
-                <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">{t('header.title')}</h1>
-                <p className="text-muted-foreground font-bold text-sm">{t('header.subtitle')}</p>
-            </header>
+        <div className="space-y-2.5 max-w-[2400px] mx-auto p-2.5 sm:p-3.5 font-cairo">
+            <div className="flex items-center gap-2.5 bg-zinc-50/80 dark:bg-zinc-900/40 p-2 px-3.5 rounded-xl border border-zinc-200/80 dark:border-white/10 shadow-xs">
+                <div className="p-1.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs">
+                    <ShoppingCart className="w-4 h-4" />
+                </div>
+                <div>
+                    <h1 className="text-sm sm:text-base font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+                        {t('header.title')}
+                        <span className="text-[11px] font-normal text-zinc-500 dark:text-zinc-400">({t('header.subtitle')})</span>
+                    </h1>
+                </div>
+            </div>
 
             <PurchasingClient
                 suppliers={suppliers}

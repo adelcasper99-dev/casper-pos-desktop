@@ -137,35 +137,25 @@ export default function ServicesTab({ categories, csrfToken }: any) {
     };
 
     return (
-        <div className="space-y-6 animate-fly-in font-cairo" dir="rtl">
-            <div className="flex justify-between items-center bg-white dark:bg-muted/50 p-6 rounded-2xl border border-zinc-200 dark:border-border shadow-sm">
-                <div>
-                    <h2 className="text-2xl font-black flex items-center gap-3 text-zinc-900 dark:text-white uppercase tracking-tight">
-                        <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                            <InfinityIcon className="w-6 h-6" />
-                        </div>
-                        {t('services.title')}
-                    </h2>
-                    <p className="text-muted-foreground font-bold text-sm mt-1">{t('services.subtitle')}</p>
+        <div className="space-y-2.5 animate-fly-in font-cairo" dir="rtl">
+            <div className="flex items-center justify-between gap-2">
+                <div className="relative flex-1 group">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-primary transition-all pointer-events-none" />
+                    <input
+                        type="text"
+                        placeholder={t('services.searchPlaceholder')}
+                        className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl h-8.5 pr-9 pl-3 focus:border-primary/50 outline-none transition-all font-bold text-xs text-zinc-900 dark:text-white placeholder:text-zinc-500 shadow-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                 </div>
                 <button
                     onClick={handleOpenCreate}
-                    className="bg-primary text-primary-foreground font-black px-6 py-3 rounded-xl flex items-center gap-2 hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-primary/20 text-xs uppercase tracking-widest"
+                    className="bg-primary text-primary-foreground font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 hover:opacity-90 transition-all active:scale-95 shadow-sm text-xs uppercase tracking-widest h-8.5 cursor-pointer shrink-0"
                 >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                     {t('services.newService')}
                 </button>
-            </div>
-
-            <div className="relative group">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary transition-all pointer-events-none" />
-                <input
-                    type="text"
-                    placeholder={t('services.searchPlaceholder')}
-                    className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl py-4 pr-12 pl-4 focus:border-primary/50 outline-none transition-all font-bold text-zinc-900 dark:text-white placeholder:text-zinc-500 shadow-sm"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
             </div>
 
             {isLoading ? (
@@ -178,36 +168,36 @@ export default function ServicesTab({ categories, csrfToken }: any) {
                     <p>{t('services.noServices')}</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {filtered.map((item: any) => (
-                        <div key={item.id} className="bg-white dark:bg-card/50 border border-zinc-200 dark:border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-all group relative shadow-sm hover:shadow-md">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="p-3 bg-primary/10 rounded-xl">
-                                    <InfinityIcon className="w-6 h-6 text-primary" />
+                        <div key={item.id} className="bg-white dark:bg-card/50 border border-zinc-200 dark:border-white/5 p-3 rounded-xl hover:border-primary/50 transition-all group relative shadow-xs hover:shadow-sm">
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="p-1.5 bg-primary/10 rounded-lg">
+                                    <InfinityIcon className="w-4 h-4 text-primary" />
                                 </div>
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
+                                <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
                                     <button 
                                         onClick={() => handleOpenEdit(item)}
-                                        className="p-2.5 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl text-zinc-400 hover:text-primary transition-colors"
+                                        className="p-1.5 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-lg text-zinc-400 hover:text-primary transition-colors cursor-pointer"
                                     >
-                                        <Edit2 className="w-4.5 h-4.5" />
+                                        <Edit2 className="w-3.5 h-3.5" />
                                     </button>
                                     <button 
                                         onClick={() => handleOpenDelete(item)}
-                                        className="p-2.5 hover:bg-rose-500/10 rounded-xl text-zinc-400 hover:text-rose-500 transition-colors"
+                                        className="p-1.5 hover:bg-rose-500/10 rounded-lg text-zinc-400 hover:text-rose-500 transition-colors cursor-pointer"
                                     >
-                                        <Trash2 className="w-4.5 h-4.5" />
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             </div>
-                            <h3 className="font-black text-zinc-900 dark:text-white text-xl mb-1 group-hover:text-primary transition-colors">{item.name}</h3>
-                            <div className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-4 opacity-70 group-hover:opacity-100 transition-opacity">{item.sku}</div>
+                            <h3 className="font-black text-zinc-900 dark:text-white text-sm mb-0.5 group-hover:text-primary transition-colors">{item.name}</h3>
+                            <div className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2 opacity-70 group-hover:opacity-100 transition-opacity">{item.sku}</div>
                             
-                            <div className="flex justify-between items-center pt-5 border-t border-zinc-100 dark:border-white/5">
-                                <div className="text-primary font-black text-lg font-mono">
-                                    {Number(item.sellPrice).toFixed(2)} <span className="text-[10px] text-zinc-500 dark:text-zinc-500 uppercase ml-1">EGP</span>
+                            <div className="flex justify-between items-center pt-2.5 border-t border-zinc-100 dark:border-white/5">
+                                <div className="text-primary font-black text-sm font-mono">
+                                    {Number(item.sellPrice).toFixed(2)} <span className="text-[9px] text-zinc-500 dark:text-zinc-500 uppercase ml-1">EGP</span>
                                 </div>
-                                <div className="text-[10px] px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 font-black uppercase tracking-widest">
+                                <div className="text-[9px] px-2.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 font-black uppercase tracking-widest">
                                     {item.category?.name || 'بدون قسم'}
                                 </div>
                             </div>
