@@ -23,17 +23,19 @@ export default async function TreasuryPage() {
         : { byMethod: { CASH: 0, VISA: 0, WALLET: 0, INSTAPAY: 0 }, transactions: [], treasuries: [] };
 
     return (
-        <div className="p-6 space-y-6 min-h-screen font-cairo" dir="rtl">
+        <div className="p-2.5 sm:p-3.5 space-y-2.5 min-h-screen font-cairo max-w-[2400px] mx-auto" dir="rtl">
             {/* Header */}
-            <header className="flex flex-col gap-1">
-                <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white uppercase flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                        <Landmark className="w-8 h-8" />
-                    </div>
-                    {t('title', "الخزينة المركزية")}
-                </h1>
-                <p className="text-muted-foreground font-bold text-sm ml-12">{t('subtitle', "إدارة الأرصدة والسيولة النقدية والحركات المالية")}</p>
-            </header>
+            <div className="flex items-center gap-2.5 bg-zinc-50/80 dark:bg-zinc-900/40 p-2 px-3.5 rounded-xl border border-zinc-200/80 dark:border-white/10 shadow-xs">
+                <div className="p-1.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs">
+                    <Landmark className="w-4 h-4" />
+                </div>
+                <div>
+                    <h1 className="text-sm sm:text-base font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+                        {t('title', "الخزينة المركزية")}
+                        <span className="text-[11px] font-normal text-zinc-500 dark:text-zinc-400">({t('subtitle', "إدارة الأرصدة والسيولة النقدية والحركات المالية")})</span>
+                    </h1>
+                </div>
+            </div>
 
             <TreasuryDashboard 
                 data={data as any} 

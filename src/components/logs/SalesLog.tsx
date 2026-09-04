@@ -311,27 +311,27 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-3">
             {/* Filter Bar */}
-            <div className="flex flex-col xl:flex-row gap-4">
+            <div className="flex flex-col xl:flex-row gap-2.5">
                 <div className="relative flex-1 group">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input
                         placeholder="البحث برقم الفاتورة أو اسم العميل..."
-                        className="glass-input pl-11 h-12 w-full focus:ring-2 focus:ring-primary/20"
+                        className="glass-input pl-9 h-8.5 text-xs w-full focus:ring-1 focus:ring-primary/20"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
+                <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border">
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "today" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -345,9 +345,9 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "yesterday" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -362,9 +362,9 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "week" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -378,9 +378,9 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "month" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -391,7 +391,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                         الشهر
                     </Button>
 
-                    <div className="w-px h-5 bg-border mx-1" />
+                    <div className="w-px h-4 bg-border mx-0.5" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates) => {
@@ -411,42 +411,42 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48 bg-transparent border-none py-0 h-9 text-xs font-bold focus:ring-0"
+                        className="w-40 bg-transparent border-none py-0 h-6.5 text-[11px] font-bold focus:ring-0"
                     />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-border gap-2 h-12 px-6 rounded-2xl bg-card hover:bg-muted transition-all font-bold">
-                                <Filter className="w-4 h-4 text-primary" />
+                            <Button variant="outline" className="border-border gap-1.5 h-8.5 px-3 rounded-xl bg-card hover:bg-muted transition-all font-bold text-xs">
+                                <Filter className="w-3.5 h-3.5 text-primary" />
                                 <span>تصفية المخرجات</span>
-                                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                                <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-card border-border shadow-2xl">
-                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1.5">حالة الفاتورة</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setStatusFilter("all")} className={cn("rounded-xl h-10 px-3", statusFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={cn("rounded-xl h-10 px-3", statusFilter === "PAID" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" : "")}>مدفوع</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter("REFUNDED")} className={cn("rounded-xl h-10 px-3", statusFilter === "REFUNDED" ? "bg-red-500/10 text-red-600 dark:text-red-400 font-bold" : "")}>مرتجع كامل</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter("PARTIAL_REFUND")} className={cn("rounded-xl h-10 px-3", statusFilter === "PARTIAL_REFUND" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold" : "")}>مرتجع جزئي</DropdownMenuItem>
+                        <DropdownMenuContent align="end" className="w-60 p-1.5 rounded-xl bg-card border-border shadow-2xl">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1">حالة الفاتورة</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setStatusFilter("all")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "PAID" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" : "")}>مدفوع</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("REFUNDED")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "REFUNDED" ? "bg-red-500/10 text-red-600 dark:text-red-400 font-bold" : "")}>مرتجع كامل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("PARTIAL_REFUND")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "PARTIAL_REFUND" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold" : "")}>مرتجع جزئي</DropdownMenuItem>
 
-                            <DropdownMenuSeparator className="my-2 bg-border" />
+                            <DropdownMenuSeparator className="my-1.5 bg-border" />
 
-                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1.5">طريقة الدفع</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setPaymentFilter("all")} className={cn("rounded-xl h-10 px-3", paymentFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setPaymentFilter("CASH")} className={cn("rounded-xl h-10 px-3", paymentFilter === "CASH" ? "bg-primary/10 text-primary font-bold" : "")}>كاش</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setPaymentFilter("VISA")} className={cn("rounded-xl h-10 px-3", paymentFilter === "VISA" ? "bg-primary/10 text-primary font-bold" : "")}>فيزا</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setPaymentFilter("ACCOUNT")} className={cn("rounded-xl h-10 px-3", paymentFilter === "ACCOUNT" ? "bg-primary/10 text-primary font-bold" : "")}>آجل / عميل</DropdownMenuItem>
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1">طريقة الدفع</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("all")} className={cn("rounded-lg h-8 px-2.5 text-xs", paymentFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("CASH")} className={cn("rounded-lg h-8 px-2.5 text-xs", paymentFilter === "CASH" ? "bg-primary/10 text-primary font-bold" : "")}>كاش</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("VISA")} className={cn("rounded-lg h-8 px-2.5 text-xs", paymentFilter === "VISA" ? "bg-primary/10 text-primary font-bold" : "")}>فيزا</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPaymentFilter("ACCOUNT")} className={cn("rounded-lg h-8 px-2.5 text-xs", paymentFilter === "ACCOUNT" ? "bg-primary/10 text-primary font-bold" : "")}>آجل / عميل</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
 
                     <Button
                         variant="outline"
-                        className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-2 h-12 px-6 rounded-2xl group transition-all font-bold"
+                        className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-1.5 h-8.5 px-3 rounded-xl group transition-all font-bold text-xs"
                         onClick={exportToExcel}
                     >
-                        <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                        <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" />
                         <span>تصدير Excel</span>
                     </Button>
                 </div>
@@ -455,7 +455,7 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-12 w-12 rounded-2xl text-red-500 hover:bg-red-500/10 shrink-0"
+                        className="h-8.5 w-8.5 rounded-xl text-red-500 hover:bg-red-500/10 shrink-0"
                         title="حذف جميع الفلاتر"
                         onClick={() => {
                             setSearchTerm("");
@@ -465,34 +465,34 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                             setDateRange(undefined);
                         }}
                     >
-                        <RotateCcw className="w-5 h-5" />
+                        <RotateCcw className="w-4 h-4" />
                     </Button>
                 )}
             </div>
 
             {/* Main Table */}
-            <div className="glass-card rounded-2xl overflow-hidden shadow-2xl transition-all duration-300">
+            <div className="glass-card rounded-2xl overflow-hidden shadow-sm border border-border transition-all duration-300">
                 <Table>
-                    <TableHeader className="bg-muted/60">
+                    <TableHeader className="bg-muted/50">
                         <TableRow className="border-border hover:bg-transparent">
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">رقم الفاتورة</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">التاريخ</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">العميل</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">الإجمالي</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">طريقة الدفع</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">الحالة</TableHead>
-                            <TableHead className="text-left text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest px-6">الإجراءات</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">رقم الفاتورة</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">التاريخ</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">العميل</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">الإجمالي</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">طريقة الدفع</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">الحالة</TableHead>
+                            <TableHead className="text-left text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider px-3.5">الإجراءات</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredSales.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-24">
-                                    <div className="flex flex-col items-center gap-3 opacity-40">
-                                        <div className="p-4 rounded-full bg-muted border border-border">
-                                            <Search className="w-10 h-10" />
+                                <TableCell colSpan={7} className="text-center py-12">
+                                    <div className="flex flex-col items-center gap-2 opacity-40">
+                                        <div className="p-3 rounded-full bg-muted border border-border">
+                                            <Search className="w-6 h-6" />
                                         </div>
-                                        <span className="text-sm font-medium italic">لا توجد عمليات بيع تطابقة لمعايير البحث الحالية</span>
+                                        <span className="text-xs font-medium italic">لا توجد عمليات بيع تطابقة لمعايير البحث الحالية</span>
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -502,100 +502,100 @@ ${(sale.discountAmount && Number(sale.discountAmount) > 0) ? `
                                     key={sale.id}
                                     className={cn(
                                         "border-border hover:bg-primary/10 transition-all group cursor-pointer border-b",
-                                        "even:bg-muted/70",
+                                        "even:bg-muted/40",
                                         (sale.isReturn || sale._isRefundEntry) && "bg-red-500/[0.02] dark:bg-red-500/[0.04]",
                                         !(sale.isReturn || sale._isRefundEntry) && Number(sale.discountAmount) > 0 && "bg-amber-500/[0.02] dark:bg-amber-500/[0.04]"
                                     )}
                                     onClick={() => setSelectedSale(sale)}
                                 >
-                                    <td className="py-4 px-4 text-center">
-                                        <div className="flex flex-col items-center gap-1">
+                                    <td className="py-2 px-3 text-center">
+                                        <div className="flex flex-col items-center gap-0.5">
                                             {(sale.isReturn || sale._isRefundEntry) && (
-                                                <span className="text-[8px] font-black uppercase bg-red-500/10 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">
+                                                <span className="text-[7.5px] font-black uppercase bg-red-500/10 text-red-600 dark:text-red-400 px-1 py-0.2 rounded border border-red-500/20">
                                                     إرجاع
                                                 </span>
                                             )}
                                             <div className={cn(
-                                                "font-mono text-xs font-bold px-2 py-1 rounded-md", 
+                                                "font-mono text-[11px] font-bold px-1.5 py-0.5 rounded-md", 
                                                 (sale.isReturn || sale._isRefundEntry) ? 'bg-red-500/5 text-red-500' : 'bg-primary/5 text-primary'
                                             )}>
                                                 {sale.invoiceNumber || (sale._isRefundEntry ? sale.id.replace('refund-', '').slice(0, 8).toUpperCase() : sale.id.slice(0, 8).toUpperCase())}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="py-4 px-4 text-center text-muted-foreground text-[11px] font-medium font-mono">
+                                    <td className="py-2 px-3 text-center text-muted-foreground text-[10px] font-medium font-mono">
                                         {format(new Date(sale.createdAt), 'yyyy/MM/dd HH:mm')}
                                     </td>
-                                    <td className="py-4 px-4 text-center">
-                                        <div className="font-bold text-foreground text-sm">
+                                    <td className="py-2 px-3 text-center">
+                                        <div className="font-bold text-foreground text-xs">
                                             {sale.customerName || "عميل نقدي"}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-4 text-center">
+                                    <td className="py-2 px-3 text-center">
                                         <div className={cn(
-                                            "font-mono font-black text-sm px-3 py-1 rounded-lg inline-block",
+                                            "font-mono font-black text-xs px-2 py-0.5 rounded-md inline-block",
                                             (sale.isReturn || sale._isRefundEntry) ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 
-                                            sale.status === 'REFUNDED' ? 'bg-muted text-foreground line-through opacity-40' : 'bg-muted text-foreground'
+                                             sale.status === 'REFUNDED' ? 'bg-muted text-foreground line-through opacity-40' : 'bg-muted text-foreground'
                                         )}>
                                             {sale.totalAmount < 0 ? '-' : ''}{Math.abs(Number(sale.totalAmount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-4 text-center">
-                                        <Badge variant="outline" className="text-[10px] border-border bg-background/50 font-black uppercase text-muted-foreground">
+                                    <td className="py-2 px-3 text-center">
+                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-border bg-background/50 font-black uppercase text-muted-foreground">
                                             {getPaymentMethodLabel(sale.paymentMethod)}
                                         </Badge>
                                     </td>
-                                    <td className="py-4 px-4 text-center">
+                                    <td className="py-2 px-3 text-center">
                                         <span className={cn(
-                                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm",
+                                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-xs",
                                             getStatusStyles(sale.status, sale.paymentMethod)
                                         )}>
                                             {getStatusLabel(sale.status, sale.paymentMethod, sale.isReturn || sale._isRefundEntry)}
                                         </span>
                                     </td>
 
-                                    <td className="py-4 px-6 text-left" onClick={(e) => e.stopPropagation()}>
+                                    <td className="py-2 px-3.5 text-left" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex justify-start gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-9 w-9 text-primary hover:bg-primary/10 rounded-xl"
-                                                onClick={() => setSelectedSale(sale)}
+                                                className="h-7 w-7 text-indigo-500 hover:bg-indigo-500/10 rounded-lg"
+                                                title="طباعة A4"
+                                                onClick={() => handlePrintA4(sale)}
                                             >
-                                                <Eye className="w-4 h-4" />
+                                                <FileText className="w-3.5 h-3.5" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-9 w-9 text-indigo-500 hover:bg-indigo-500/10 rounded-xl"
-                                                title="طباعة A4"
-                                                onClick={() => handlePrintA4(sale)}
+                                                className="h-7 w-7 text-primary hover:bg-primary/10 rounded-lg"
+                                                onClick={() => setSelectedSale(sale)}
                                             >
-                                                <FileText className="w-4 h-4" />
+                                                <Eye className="w-3.5 h-3.5" />
                                             </Button>
                                             {!(sale.isReturn || sale._isRefundEntry) && sale.status !== 'REFUNDED' && (
                                                 <>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-9 w-9 text-orange-500 hover:bg-orange-500/10 rounded-xl"
+                                                        className="h-7 w-7 text-orange-500 hover:bg-orange-500/10 rounded-lg"
                                                         title="مرتجع جزئي"
                                                         onClick={() => setPartialRefundSale(sale)}
                                                     >
-                                                        <Package className="w-4 h-4" />
+                                                        <Package className="w-3.5 h-3.5" />
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-9 w-9 text-red-500 hover:bg-red-500/10 rounded-xl"
+                                                        className="h-7 w-7 text-red-500 hover:bg-red-500/10 rounded-lg"
                                                         title="مرتجع كامل"
                                                         disabled={loading === sale.id}
                                                         onClick={() => setRefundItem({ id: sale.id })}
                                                     >
                                                         {loading === sale.id ? (
-                                                            <div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                                                            <div className="w-3.5 h-3.5 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
                                                         ) : (
-                                                            <RotateCcw className="w-4 h-4" />
+                                                            <RotateCcw className="w-3.5 h-3.5" />
                                                         )}
                                                     </Button>
                                                 </>

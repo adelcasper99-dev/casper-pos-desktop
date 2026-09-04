@@ -247,27 +247,27 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             {/* Filter Bar */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1 group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <Input
                         placeholder="البحث بالمورد أو رقم الفاتورة..."
-                        className="pl-10 h-12 glass-input border-border focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+                        className="pl-9 h-8.5 text-xs glass-input border-border focus:ring-1 focus:ring-primary/20 transition-all font-bold"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex items-center gap-1 bg-muted/60 p-1.5 rounded-2xl border border-border shadow-inner">
+                <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl border border-border">
                     <Button
                         variant={dateFilter === "today" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "today" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -281,9 +281,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                         variant={dateFilter === "yesterday" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "yesterday" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -298,9 +298,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                         variant={dateFilter === "week" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "week" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -314,9 +314,9 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                         variant={dateFilter === "month" ? "default" : "ghost"}
                         size="sm"
                         className={cn(
-                            "h-9 text-xs font-black px-4 rounded-xl transition-all",
+                            "h-6.5 text-[11px] font-black px-2.5 rounded-lg transition-all",
                             dateFilter === "month" 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
                                 : "text-muted-foreground hover:bg-muted"
                         )}
                         onClick={() => {
@@ -327,7 +327,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                         الشهر
                     </Button>
 
-                    <div className="w-px h-5 bg-border mx-1" />
+                    <div className="w-px h-4 bg-border mx-0.5" />
 
                     <FlatpickrRangePicker
                         onRangeChange={(dates) => {
@@ -347,33 +347,33 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                             setDateFilter("all");
                         }}
                         initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                        className="w-48 bg-transparent border-none py-0 h-9 text-xs font-bold focus:ring-0"
+                        className="w-40 bg-transparent border-none py-0 h-6.5 text-[11px] font-bold focus:ring-0"
                     />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="border-border gap-2 h-12 px-6 rounded-2xl bg-card hover:bg-muted transition-all font-bold">
-                                <Filter className="w-4 h-4 text-secondary" />
+                            <Button variant="outline" className="border-border gap-1.5 h-8.5 px-3 rounded-xl bg-card hover:bg-muted transition-all font-bold text-xs">
+                                <Filter className="w-3.5 h-3.5 text-secondary" />
                                 <span>تصفية المشتريات</span>
-                                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                                <ChevronDown className="w-3 h-3 opacity-50" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-card border-border shadow-2xl">
-                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1.5">حالة التوريد</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setStatusFilter("all")} className={cn("rounded-xl h-10 px-3", statusFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={cn("rounded-xl h-10 px-3", statusFilter === "PAID" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" : "")}>مدفوعة</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setStatusFilter("VOIDED")} className={cn("rounded-xl h-10 px-3", statusFilter === "VOIDED" ? "bg-red-500/10 text-red-600 dark:text-red-400 font-bold" : "")}>ملغاة / مرتجع</DropdownMenuItem>
+                        <DropdownMenuContent align="end" className="w-60 p-1.5 rounded-xl bg-card border-border shadow-2xl">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2 py-1">حالة التوريد</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setStatusFilter("all")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "all" ? "bg-primary/10 text-primary font-bold" : "")}>الكل</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("PAID")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "PAID" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" : "")}>مدفوعة</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter("VOIDED")} className={cn("rounded-lg h-8 px-2.5 text-xs", statusFilter === "VOIDED" ? "bg-red-500/10 text-red-600 dark:text-red-400 font-bold" : "")}>ملغاة / مرتجع</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
 
                     <Button
                         variant="outline"
-                        className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-2 h-12 px-6 rounded-2xl group transition-all font-bold"
+                        className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-1.5 h-8.5 px-3 rounded-xl group transition-all font-bold text-xs"
                         onClick={exportToExcel}
                     >
-                        <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                        <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" />
                         <span>تصدير Excel</span>
                     </Button>
                 </div>
@@ -382,7 +382,7 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-12 w-12 rounded-2xl text-red-500 hover:bg-red-500/10 shrink-0"
+                        className="h-8.5 w-8.5 rounded-xl text-red-500 hover:bg-red-500/10 shrink-0"
                         title="حذف جميع الفلاتر"
                         onClick={() => {
                             setSearchTerm("");
@@ -391,34 +391,34 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                             setDateRange(undefined);
                         }}
                     >
-                        <RotateCcw className="w-5 h-5" />
+                        <RotateCcw className="w-4 h-4" />
                     </Button>
                 )}
             </div>
 
             {/* Main Table */}
-            <div className="glass-card rounded-2xl overflow-hidden shadow-2xl transition-all duration-300">
+            <div className="glass-card rounded-2xl overflow-hidden shadow-sm border border-border transition-all duration-300">
                 <Table>
-                    <TableHeader className="bg-muted/60">
+                    <TableHeader className="bg-muted/50">
                         <TableRow className="border-border hover:bg-transparent">
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">التاريخ</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">رقم الفاتورة</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">المورد</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-right px-6">الإجمالي</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-right px-6">المدفوع</TableHead>
-                            <TableHead className="text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest text-center px-4">الحالة / التقييم</TableHead>
-                            <TableHead className="text-left text-foreground/80 font-black py-4 text-[10px] uppercase tracking-widest px-6">الإجراءات</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">التاريخ</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">رقم الفاتورة</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">المورد</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-right px-3.5">الإجمالي</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-right px-3.5">المدفوع</TableHead>
+                            <TableHead className="text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider text-center px-3.5">الحالة / التقييم</TableHead>
+                            <TableHead className="text-left text-foreground/80 font-black py-2.5 text-[10px] uppercase tracking-wider px-3.5">الإجراءات</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredPurchases.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-24">
-                                    <div className="flex flex-col items-center gap-3 opacity-40">
-                                        <div className="p-4 rounded-full bg-muted border border-border">
-                                            <Search className="w-10 h-10" />
+                                <TableCell colSpan={7} className="text-center py-12">
+                                    <div className="flex flex-col items-center gap-2 opacity-40">
+                                        <div className="p-3 rounded-full bg-muted border border-border">
+                                            <Search className="w-6 h-6" />
                                         </div>
-                                        <span className="text-sm font-medium italic">لا توجد فواتير مشتريات مطابقة لمعايير البحث</span>
+                                        <span className="text-xs font-medium italic">لا توجد فواتير مشتريات مطابقة لمعايير البحث</span>
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -427,100 +427,100 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                 <tr key={inv.id}
                                     className={cn(
                                         "border-border hover:bg-primary/10 transition-all group cursor-pointer border-b",
-                                        "even:bg-muted/70",
+                                        "even:bg-muted/40",
                                         (inv.status === 'VOIDED' || inv.status === 'CANCELLED' || inv.isReturn) && "opacity-60 bg-red-500/[0.02]",
                                         inv.isReturn && "bg-red-500/[0.04]"
                                     )}
                                     onClick={() => setSelectedPurchase(inv)}
                                 >
-                                    <td className="py-4 px-4 text-center text-muted-foreground text-[11px] font-medium font-mono">
+                                    <td className="py-2 px-3 text-center text-muted-foreground text-[10px] font-medium font-mono">
                                         {format(new Date(inv.purchaseDate || inv.createdAt), 'yyyy/MM/dd HH:mm')}
                                     </td>
-                                    <td className="py-4 px-4 text-center">
-                                        <div className="flex flex-col items-center gap-1">
+                                    <td className="py-2 px-3 text-center">
+                                        <div className="flex flex-col items-center gap-0.5">
                                             {inv.isReturn && (
-                                                <span className="text-[8px] font-black uppercase bg-red-500/10 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">
+                                                <span className="text-[7.5px] font-black uppercase bg-red-500/10 text-red-600 dark:text-red-400 px-1 py-0.2 rounded border border-red-500/20">
                                                     إرجاع
                                                 </span>
                                             )}
                                             <div className={cn(
-                                                "font-mono text-xs font-bold px-2 py-1 rounded-md", 
+                                                "font-mono text-[11px] font-bold px-1.5 py-0.5 rounded-md", 
                                                 inv.isReturn ? "bg-red-500/5 text-red-500" : "bg-secondary/10 text-secondary"
                                             )}>
                                                 {inv.invoiceNumber || `#${inv.id.slice(0, 4)}...`}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="py-4 px-4 text-center">
-                                        <div className="font-bold text-foreground text-sm flex items-center justify-center gap-2">
-                                            <Truck className="w-3.5 h-3.5 text-secondary/70" />
+                                    <td className="py-2 px-3 text-center">
+                                        <div className="font-bold text-foreground text-xs flex items-center justify-center gap-1.5">
+                                            <Truck className="w-3 h-3 text-secondary/70" />
                                             {inv.supplier?.name || "مورد نقدي"}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-6 text-right">
+                                    <td className="py-2 px-3.5 text-right">
                                         <div className={cn(
-                                            "font-mono font-black text-sm px-3 py-1 rounded-lg inline-block",
+                                            "font-mono font-black text-xs px-2 py-0.5 rounded-md inline-block",
                                             inv.isReturn ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 
                                             inv.status === 'RETURNED' ? 'bg-muted text-foreground line-through opacity-40' : 'bg-muted text-foreground'
                                         )}>
                                             {inv.totalAmount < 0 ? '-' : ''}{Math.abs(Number(inv.totalAmount)).toLocaleString()}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-6 text-right font-mono text-muted-foreground font-bold">
+                                    <td className="py-2 px-3.5 text-right font-mono text-muted-foreground font-bold text-xs">
                                         {Math.abs(Number(inv.paidAmount)).toLocaleString()}
                                     </td>
-                                    <td className="py-4 px-4 text-center">
+                                    <td className="py-2 px-3 text-center">
                                         {getStatusBadge(inv.status, Number(inv.totalAmount), Number(inv.paidAmount), inv.isReturn)}
                                     </td>
-                                    <td className="py-4 px-6 text-left" onClick={(e) => e.stopPropagation()}>
+                                    <td className="py-2 px-3.5 text-left" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex justify-start gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 disabled={loadingInvoiceId === inv.id}
-                                                className="h-9 w-9 text-muted-foreground hover:bg-muted rounded-xl"
+                                                className="h-7 w-7 text-muted-foreground hover:bg-muted rounded-lg"
                                                 title="طباعة A4"
                                                 onClick={(e) => { e.stopPropagation(); handleDirectPrint(inv); }}
                                             >
                                                 {loadingInvoiceId === inv.id ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                                 ) : (
-                                                    <Printer className="w-4 h-4" />
+                                                    <Printer className="w-3.5 h-3.5" />
                                                 )}
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-9 w-9 text-secondary hover:bg-secondary/10 rounded-xl"
+                                                className="h-7 w-7 text-secondary hover:bg-secondary/10 rounded-lg"
                                                 title="طباعة باركود"
                                                 onClick={(e) => { e.stopPropagation(); handleDirectBarcode(inv); }}
                                             >
-                                                <Tag className="w-4 h-4" />
+                                                <Tag className="w-3.5 h-3.5" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-9 w-9 text-primary hover:bg-primary/10 rounded-xl"
+                                                className="h-7 w-7 text-primary hover:bg-primary/10 rounded-lg"
                                                 title="عرض التفاصيل"
                                                 onClick={(e) => { e.stopPropagation(); setSelectedPurchase(inv); }}
                                             >
-                                                <Package className="w-4 h-4" />
+                                                <Package className="w-3.5 h-3.5" />
                                             </Button>
                                             {!['VOIDED', 'CANCELLED', 'RETURNED'].includes(inv.status) && !inv.isReturn && (
                                                 <>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-9 w-9 text-orange-500 hover:bg-orange-500/10 rounded-xl"
+                                                        className="h-7 w-7 text-orange-500 hover:bg-orange-500/10 rounded-lg"
                                                         title="مرتجع جزئي"
                                                         onClick={(e) => { e.stopPropagation(); setPartialReturnPurchase(inv); }}
                                                     >
-                                                        <RotateCcw className="w-4 h-4" />
+                                                        <RotateCcw className="w-3.5 h-3.5" />
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-9 w-9 text-secondary hover:bg-secondary/10 rounded-xl"
+                                                        className="h-7 w-7 text-secondary hover:bg-secondary/10 rounded-lg"
                                                         title="تعديل"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -528,20 +528,20 @@ export default function PurchaseLog({ initialPurchases, csrfToken, onTotalsChang
                                                             window.location.href = `/purchasing?edit=${inv.id}`;
                                                         }}
                                                     >
-                                                        <Pencil className="w-4 h-4" />
+                                                        <Pencil className="w-3.5 h-3.5" />
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-9 w-9 text-rose-500 hover:bg-rose-500/10 rounded-xl"
+                                                        className="h-7 w-7 text-rose-500 hover:bg-rose-500/10 rounded-lg"
                                                         title="إلغاء كامل"
                                                         disabled={loading === inv.id}
                                                         onClick={() => setVoidItem(inv)}
                                                     >
                                                         {loading === inv.id ? (
-                                                            <div className="w-4 h-4 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
+                                                            <div className="w-3.5 h-3.5 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
                                                         ) : (
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="w-3.5 h-3.5" />
                                                         )}
                                                     </Button>
                                                 </>

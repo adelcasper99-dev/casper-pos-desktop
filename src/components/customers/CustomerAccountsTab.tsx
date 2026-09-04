@@ -299,61 +299,73 @@ export default function CustomerAccountsTab() {
     };
 
     return (
-        <div className="space-y-6 animate-fly-in font-cairo" dir="rtl">
+        <div className="space-y-2.5 animate-fly-in font-cairo" dir="rtl">
             {/* Header / Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-rose-500/50">
-                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                        {t('intelligence.outstanding')}
-                    </span>
-                    <span className="text-2xl font-black text-rose-600 dark:text-rose-500 font-mono flex items-center gap-1.5">
-                        {Number(intelligenceStats?.totalOutstanding || 0).toLocaleString()}
-                        <span className="text-xs font-normal opacity-70 italic font-cairo">EGP</span>
-                    </span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                {/* 1. مديونيات معلقة */}
+                <div className="bg-zinc-900/80 border border-rose-500/25 rounded-2xl p-2.5 px-3 flex items-center gap-3 shadow-xs hover:border-rose-500/40 transition-all">
+                    <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shrink-0">
+                        <AlertTriangle className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-bold text-zinc-400 leading-tight mb-0.5">{t('intelligence.outstanding')}</span>
+                        <span className="text-sm sm:text-base font-black text-rose-500 font-mono tracking-tight tabular-nums flex items-center gap-1">
+                            {Number(intelligenceStats?.totalOutstanding || 0).toLocaleString()}
+                            <span className="text-[10px] font-normal opacity-70 italic font-cairo">EGP</span>
+                        </span>
+                    </div>
                 </div>
                 
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-emerald-500/50">
-                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
-                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                        {t('intelligence.avgSuccess')}
-                    </span>
-                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-500 font-mono flex items-center gap-1.5">
-                        {intelligenceStats?.avgSuccessRatio || 0}%
-                        <Activity className="w-4 h-4 opacity-50" />
-                    </span>
+                {/* 2. متوسط التحصيل */}
+                <div className="bg-zinc-900/80 border border-emerald-500/25 rounded-2xl p-2.5 px-3 flex items-center gap-3 shadow-xs hover:border-emerald-500/40 transition-all">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                        <TrendingUp className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-bold text-zinc-400 leading-tight mb-0.5">{t('intelligence.avgSuccess')}</span>
+                        <span className="text-sm sm:text-base font-black text-emerald-500 font-mono tracking-tight tabular-nums flex items-center gap-1">
+                            {intelligenceStats?.avgSuccessRatio || 0}%
+                            <Activity className="w-3.5 h-3.5 opacity-50" />
+                        </span>
+                    </div>
                 </div>
 
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-orange-500/50">
-                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
-                        <Clock className="w-3.5 h-3.5 text-orange-500" />
-                        {t('intelligence.highRiskCount')}
-                    </span>
-                    <span className="text-2xl font-black text-orange-600 dark:text-orange-500 font-mono flex items-center gap-1.5">
-                        {intelligenceStats?.highRiskCount || 0}
-                        <span className="text-xs font-normal opacity-70 italic font-cairo">{t('totalCustomersLabel')}</span>
-                    </span>
+                {/* 3. عملاء مرتفعي المخاطر */}
+                <div className="bg-zinc-900/80 border border-orange-500/25 rounded-2xl p-2.5 px-3 flex items-center gap-3 shadow-xs hover:border-orange-500/40 transition-all">
+                    <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 shrink-0">
+                        <Clock className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-bold text-zinc-400 leading-tight mb-0.5">{t('intelligence.highRiskCount')}</span>
+                        <span className="text-sm sm:text-base font-black text-orange-500 font-mono tracking-tight tabular-nums flex items-center gap-1">
+                            {intelligenceStats?.highRiskCount || 0}
+                            <span className="text-[10px] font-normal opacity-70 italic font-cairo">{t('totalCustomersLabel')}</span>
+                        </span>
+                    </div>
                 </div>
 
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 flex flex-col items-center justify-center border border-zinc-200 dark:border-white/10 rounded-3xl shadow-sm transition-all hover:shadow-md border-b-zinc-900/50 dark:border-b-white/50">
-                    <span className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase font-black tracking-widest mb-2">
-                        <User className="w-3.5 h-3.5 text-zinc-400" />
-                        {t('totalCustomers')}
-                    </span>
-                    <span className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-1.5">
-                        {intelligenceStats?.totalCustomers || 0}
-                        <span className="text-xs font-normal opacity-70 italic font-cairo">{t('totalCustomersLabel')}</span>
-                    </span>
+                {/* 4. إجمالي العملاء */}
+                <div className="bg-zinc-900/80 border border-zinc-700/60 dark:border-white/10 rounded-2xl p-2.5 px-3 flex items-center gap-3 shadow-xs hover:border-cyan-500/30 transition-all">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+                        <User className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-bold text-zinc-400 leading-tight mb-0.5">{t('totalCustomers')}</span>
+                        <span className="text-sm sm:text-base font-black text-white font-mono tracking-tight tabular-nums flex items-center gap-1">
+                            {intelligenceStats?.totalCustomers || 0}
+                            <span className="text-[10px] font-normal opacity-70 italic font-cairo">{t('totalCustomersLabel')}</span>
+                        </span>
+                    </div>
                 </div>
             </div>
 
             {/* Filters Area */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="relative flex-1 min-w-[300px] group/search w-full">
-                    <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within/search:text-zinc-900 dark:group-focus-within/search:text-white transition-all pointer-events-none" />
+            <div className="flex gap-2.5 items-center justify-between">
+                <div className="relative flex-1 min-w-[260px] group/search">
+                    <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 group-focus-within/search:text-zinc-900 dark:group-focus-within/search:text-white transition-all pointer-events-none" />
                     <input
                         placeholder={t('searchPlaceholder')}
-                        className="w-full h-12 ps-12 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:border-zinc-900 dark:focus:border-white transition-all font-bold rounded-2xl shadow-inner"
+                        className="w-full h-8.5 ps-8 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:border-zinc-900 dark:focus:border-white transition-all font-bold text-xs rounded-xl shadow-inner"
                         value={searchQuery}
                         onChange={handleSearchChange}
                     />
@@ -362,64 +374,64 @@ export default function CustomerAccountsTab() {
                     variant={hasBalanceOnly ? "default" : "ghost"}
                     onClick={() => setHasBalanceOnly(!hasBalanceOnly)}
                     className={cn(
-                        "h-12 px-6 rounded-2xl font-black gap-2 transition-all uppercase tracking-widest text-xs",
+                        "h-8.5 px-3.5 rounded-xl font-black gap-1.5 transition-all uppercase tracking-widest text-xs",
                         hasBalanceOnly 
-                            ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/10" 
+                            ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm" 
                             : "bg-zinc-50 dark:bg-zinc-900/50 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-white/10 hover:bg-zinc-100 dark:hover:bg-white/5"
                     )}
                 >
-                    <Filter className="w-4 h-4" />
+                    <Filter className="w-3.5 h-3.5" />
                     {t('onlyWithBalance')}
                 </Button>
             </div>
 
             {/* Customers Table */}
-            <div className="bg-white dark:bg-zinc-900/50 overflow-hidden rounded-3xl border border-zinc-200 dark:border-white/10 shadow-sm">
-                <table className="w-full text-right text-sm text-zinc-600 dark:text-zinc-400 zebra-table">
+            <div className="bg-white dark:bg-zinc-900/50 overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 shadow-sm">
+                <table className="w-full text-right text-xs text-zinc-600 dark:text-zinc-400 zebra-table">
                     <thead className="bg-zinc-50 dark:bg-zinc-900/80 text-zinc-900 dark:text-white border-b border-zinc-200 dark:border-white/10">
                         <tr className="hover:bg-transparent border-none">
                             <th 
-                                className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none"
+                                className="px-3.5 py-2 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none"
                                 onClick={() => handleSort('name')}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                     <span className={cn("transition-transform group-hover:translate-x-1", sortConfig.key === 'name' && "underline underline-offset-4 decoration-2")}>{t('table.name')}</span>
                                     {getSortIcon('name')}
                                 </div>
                             </th>
-                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none" onClick={() => handleSort('balance')}>
-                                <div className="flex items-center gap-2">
+                            <th className="px-3.5 py-2 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group select-none" onClick={() => handleSort('balance')}>
+                                <div className="flex items-center gap-1.5">
                                     <span className={cn("transition-transform group-hover:translate-x-1", sortConfig.key === 'balance' && "underline underline-offset-4 decoration-2")}>{t('table.balance')}</span>
                                     {getSortIcon('balance')}
                                 </div>
                             </th>
-                            <th className="px-6 py-4 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" onClick={() => handleSort('successRatio')}>
-                                <div className="flex items-center gap-2">
+                            <th className="px-3.5 py-2 text-start font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" onClick={() => handleSort('successRatio')}>
+                                <div className="flex items-center gap-1.5">
                                     <span className={cn("transition-transform group-hover:translate-x-1", sortConfig.key === 'successRatio' && "underline underline-offset-4 decoration-2")}>{t('table.intelligence')}</span>
                                     {getSortIcon('successRatio')}
                                 </div>
                             </th>
-                            <th className="px-6 py-4 text-end font-black text-[10px] uppercase tracking-widest">{t('table.actions')}</th>
+                            <th className="px-3.5 py-2 text-end font-black text-[10px] uppercase tracking-widest">{t('table.actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="py-16 text-center">
-                                    <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                                        <CasperLoader width={60} />
+                                <td colSpan={5} className="py-12 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                        <CasperLoader width={48} />
                                         <p className="font-bold text-xs uppercase tracking-widest">{ct('loading')}</p>
                                     </div>
                                 </td>
                             </tr>
                         ) : sortedCustomers.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="py-16 text-center">
-                                    <div className="flex flex-col items-center justify-center gap-4">
-                                        <div className="inline-flex p-4 rounded-full bg-zinc-50 dark:bg-white/5 mb-2">
-                                            <Search className="w-8 h-8 text-zinc-300 dark:text-zinc-600" />
+                                <td colSpan={5} className="py-12 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                        <div className="inline-flex p-3 rounded-full bg-zinc-50 dark:bg-white/5 mb-1">
+                                            <Search className="w-6 h-6 text-zinc-300 dark:text-zinc-600" />
                                         </div>
-                                        <p className="font-bold text-zinc-500 dark:text-zinc-400">{t('noCustomersFound')}</p>
+                                        <p className="font-bold text-zinc-500 dark:text-zinc-400 text-xs">{t('noCustomersFound')}</p>
                                     </div>
                                 </td>
                             </tr>
@@ -430,56 +442,56 @@ export default function CustomerAccountsTab() {
                                     className="hover:bg-zinc-50 dark:hover:bg-white/5 transition-all group border-none cursor-pointer"
                                     onClick={() => handleOpenDetails(customer)}
                                 >
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black text-xs shrink-0 shadow-lg shadow-zinc-900/10">
+                                    <td className="px-3.5 py-2">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-black text-[11px] shrink-0 shadow-sm">
                                                 {customer.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="font-black text-zinc-900 dark:text-white text-sm group-hover:underline transition-all truncate max-w-[200px]">{customer.name}</span>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[10px] text-zinc-500 font-bold flex items-center gap-1">
+                                                <span className="font-black text-zinc-900 dark:text-white text-xs group-hover:underline transition-all truncate max-w-[180px]">{customer.name}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[9.5px] text-zinc-500 font-bold flex items-center gap-1">
                                                         <Phone className="w-2.5 h-2.5 opacity-50" /> {customer.phone}
                                                     </span>
                                                     {customer.email && (
-                                                        <span className="text-[10px] text-zinc-400 font-bold truncate max-w-[120px]">• {customer.email}</span>
+                                                        <span className="text-[9.5px] text-zinc-400 font-bold truncate max-w-[100px]">• {customer.email}</span>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col items-start gap-1">
+                                    <td className="px-3.5 py-2">
+                                        <div className="flex flex-col items-start gap-0.5">
                                             <span className={clsx(
-                                                "text-sm font-black font-mono px-2.5 py-1 rounded-lg border",
+                                                "text-xs font-black font-mono px-2 py-0.5 rounded-md border",
                                                 customer.balance > 0 ? "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/20" : 
                                                 customer.balance < 0 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : 
                                                 "bg-zinc-50 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-white/10"
                                             )}>
                                                 {Math.abs(customer.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1.5">
                                                 {customer.balance !== 0 && (
                                                     <span className={cn(
-                                                        "text-[9px] font-black uppercase tracking-widest",
+                                                        "text-[8px] font-black uppercase tracking-widest",
                                                         customer.balance > 0 ? "text-rose-600" : "text-emerald-600"
                                                     )}>
                                                         {customer.balance > 0 ? "DEBIT" : "CREDIT"}
                                                     </span>
                                                 )}
                                                 {customer.creditLimit && (
-                                                    <span className="text-[9px] text-zinc-400 font-bold">/ Limit: {customer.creditLimit}</span>
+                                                    <span className="text-[8.5px] text-zinc-400 font-bold">/ Limit: {customer.creditLimit}</span>
                                                 )}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-4">
+                                    <td className="px-3.5 py-2">
+                                        <div className="flex items-center gap-3">
                                             {/* Risk Indicator */}
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-[8px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.riskLevel')}</span>
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-[7.5px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.riskLevel')}</span>
                                                 <Badge variant="outline" className={cn(
-                                                    "text-[9px] h-5 font-black uppercase",
+                                                    "text-[8px] h-4 font-black uppercase px-1.5",
                                                     customer.riskLevel === 'high' ? "bg-rose-500/10 text-rose-600 border-rose-200" :
                                                     customer.riskLevel === 'medium' ? "bg-orange-500/10 text-orange-600 border-orange-200" :
                                                     "bg-emerald-500/10 text-emerald-600 border-emerald-200"
@@ -489,12 +501,12 @@ export default function CustomerAccountsTab() {
                                             </div>
 
                                             {/* Success Ratio */}
-                                            <div className="flex flex-col gap-1 w-20">
+                                            <div className="flex flex-col gap-0.5 w-16">
                                                 <div className="flex justify-between items-center px-0.5">
-                                                    <span className="text-[8px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.successRatio')}</span>
-                                                    <span className="text-[9px] font-black font-mono">{customer.successRatio}%</span>
+                                                    <span className="text-[7.5px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.successRatio')}</span>
+                                                    <span className="text-[8.5px] font-black font-mono">{customer.successRatio}%</span>
                                                 </div>
-                                                <div className="h-1.5 w-full bg-zinc-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                <div className="h-1 w-full bg-zinc-100 dark:bg-white/5 rounded-full overflow-hidden">
                                                     <div 
                                                         className={cn(
                                                             "h-full transition-all duration-1000",
@@ -508,27 +520,27 @@ export default function CustomerAccountsTab() {
                                             </div>
 
                                             {/* Activity Status */}
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-[8px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.activityGap')}</span>
-                                                <div className="flex items-center gap-1.5">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-[7.5px] text-zinc-400 font-black uppercase tracking-tighter">{t('intelligence.activityGap')}</span>
+                                                <div className="flex items-center gap-1">
                                                     <div className={cn(
-                                                        "w-2 h-2 rounded-full animate-pulse",
+                                                        "w-1.5 h-1.5 rounded-full animate-pulse",
                                                         customer.daysSinceLastActivity < 7 ? "bg-emerald-500" :
                                                         customer.daysSinceLastActivity < 30 ? "bg-orange-500" :
                                                         "bg-rose-500"
                                                     )} />
-                                                    <span className="text-[10px] font-bold text-zinc-500">
+                                                    <span className="text-[9px] font-bold text-zinc-500">
                                                         {customer.daysSinceLastActivity === 0 ? t('intelligence.active') : t('intelligence.staleDays', { days: customer.daysSinceLastActivity })}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-end" onClick={(e) => e.stopPropagation()}>
+                                    <td className="px-3.5 py-2 text-end" onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5">
-                                                    <MoreVertical className="h-4 w-4" />
+                                                <Button variant="ghost" className="h-7 w-7 p-0 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5">
+                                                    <MoreVertical className="h-3.5 w-3.5" />
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 rounded-2xl shadow-2xl p-2 font-cairo">

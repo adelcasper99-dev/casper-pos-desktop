@@ -662,13 +662,9 @@ export default function TreasuryDashboard({
                 .dark .zebra-table tr:nth-child(even) { background-color: rgba(255,255,255,0.02); }
             `}</style>
 
-            <div className="print-only mb-6 text-center border-b pb-4">
-                <h1 className="text-2xl font-bold">سجل حركة الخزينة</h1>
-                <p className="text-sm text-gray-500" suppressHydrationWarning>{new Date().toLocaleString('ar-EG')}</p>
-            </div>
-            {/* ── Treasury Accounts ────────────────────── */}
+            {/* ── Treasury Accounts (Compact Cards) ────────────────────── */}
             {data.treasuries.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 no-print">
                     {data.treasuries.map(tr => {
                         const style = tr.paymentMethod ? METHOD_STYLE[tr.paymentMethod] : null;
                         const IconComp = style?.icon || Landmark;
@@ -679,58 +675,57 @@ export default function TreasuryDashboard({
                                 key={tr.id}
                                 onClick={() => setViewTreasuryId(tr.id === viewTreasuryId ? null : tr.id)}
                                 className={cn(
-                                    "relative group overflow-hidden bg-white dark:bg-card/50 border rounded-[2.5rem] p-6 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-2xl hover:-translate-y-1",
+                                    "relative group overflow-hidden bg-zinc-900/80 border rounded-2xl p-2.5 px-3.5 cursor-pointer transition-all shadow-xs hover:border-cyan-500/40",
                                     viewTreasuryId === tr.id 
-                                        ? "border-primary dark:border-primary ring-1 ring-primary/20 bg-primary/5 shadow-primary/10" 
-                                        : "border-zinc-200 dark:border-white/5"
+                                        ? "border-primary ring-1 ring-primary/20 bg-primary/5 shadow-primary/10" 
+                                        : "border-zinc-700/60 dark:border-white/10"
                                 )}
                             >
                                 {!tr.isDefault && (
                                     <button 
                                         onClick={e => { e.stopPropagation(); setDeletingTreasuryId(tr.id); }} 
-                                        className="absolute top-4 left-4 p-2 text-zinc-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all z-10 hover:bg-rose-500/10 rounded-xl"
+                                        className="absolute top-2 left-2 p-1 text-zinc-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all z-10 hover:bg-rose-500/10 rounded-lg"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                                 
-                                <div className="flex flex-col gap-4">
-                                    <div className="flex justify-between items-start">
-                                        <div className={cn(
-                                            "p-3 rounded-2xl transition-colors text-white",
-                                            tr.paymentMethod === 'VISA' ? "bg-blue-600 shadow-lg shadow-blue-500/20" :
-                                            tr.paymentMethod === 'WALLET' ? "bg-purple-600 shadow-lg shadow-purple-500/20" :
-                                            tr.paymentMethod === 'INSTAPAY' ? "bg-pink-600 shadow-lg shadow-pink-500/20" :
-                                            "bg-emerald-600 shadow-lg shadow-emerald-500/20"
-                                        )}>
-                                            <IconComp className="w-6 h-6" />
-                                        </div>
-                                        {isDefault && (
-                                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-zinc-900 dark:bg-white text-white dark:text-black border border-zinc-900 dark:border-white shadow-md">
-                                                {t('default', "الافتراضي")}
-                                            </span>
-                                        )}
+                                <div className="flex items-center gap-3">
+                                    <div className={cn(
+                                        "p-2 rounded-xl text-white shrink-0 shadow-sm",
+                                        tr.paymentMethod === 'VISA' ? "bg-blue-600 shadow-blue-500/20" :
+                                        tr.paymentMethod === 'WALLET' ? "bg-purple-600 shadow-purple-500/20" :
+                                        tr.paymentMethod === 'INSTAPAY' ? "bg-pink-600 shadow-pink-500/20" :
+                                        "bg-emerald-600 shadow-emerald-500/20"
+                                    )}>
+                                        <IconComp className="w-4.5 h-4.5" />
                                     </div>
-                                    
-                                    <div>
-                                        <p className="text-zinc-900 dark:text-white text-sm font-black uppercase tracking-widest mb-1 shadow-sm">
-                                            {tr.name}
-                                        </p>
-                                        <div className="flex items-baseline gap-2">
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                            <p className="text-zinc-400 text-[10.5px] font-bold truncate">
+                                                {tr.name}
+                                            </p>
+                                            {isDefault && (
+                                                <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                                    {t('default', "الافتراضي")}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-baseline gap-1.5">
                                             <h2 className={cn(
-                                                "text-3xl font-black font-mono tracking-tighter tabular-nums",
-                                                tr.balance >= 0 ? "text-zinc-900 dark:text-white" : "text-rose-500"
+                                                "text-base sm:text-lg font-black font-mono tracking-tight tabular-nums",
+                                                tr.balance >= 0 ? "text-white" : "text-rose-500"
                                             )}>
                                                 {tr.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </h2>
-                                            <span className="text-[10px] font-bold text-zinc-400 italic font-mono uppercase">EGP</span>
+                                            <span className="text-[9.5px] font-bold text-zinc-400 font-mono">EGP</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {viewTreasuryId === tr.id && (
-                                    <div className="mt-4 pt-4 border-t border-primary/10 flex items-center gap-2 text-[10px] text-primary font-black uppercase tracking-widest">
-                                        <Filter className="w-3.5 h-3.5" />
+                                    <div className="mt-2 pt-1.5 border-t border-primary/10 flex items-center gap-1.5 text-[9.5px] text-primary font-black uppercase tracking-widest">
+                                        <Filter className="w-3 h-3" />
                                         {"عرض حركات هذه الخزنة"}
                                     </div>
                                 )}
@@ -740,61 +735,61 @@ export default function TreasuryDashboard({
                 </div>
             )}
 
-            {/* ── Toolbar ──────────────────────────────── */}
-            <div className="bg-white dark:bg-card/30 backdrop-blur-md p-6 rounded-3xl border border-zinc-200 dark:border-white/5 space-y-6 relative z-10 shadow-sm">
-                <div className="flex flex-wrap gap-4 items-center justify-between no-print">
-                    <div className="flex gap-2">
-                        <button onClick={() => refresh()} disabled={loading} className="flex items-center gap-2 px-4 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-                            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            {/* ── Toolbar (Compact) ──────────────────────────────── */}
+            <div className="bg-white dark:bg-card/30 backdrop-blur-md p-2.5 rounded-2xl border border-zinc-200 dark:border-white/5 space-y-2 relative z-10 shadow-xs">
+                <div className="flex flex-wrap gap-2 items-center justify-between no-print">
+                    <div className="flex gap-1.5">
+                        <button onClick={() => refresh()} disabled={loading} className="flex items-center justify-center w-8.5 h-8.5 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer">
+                            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                         </button>
-                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm" title="طباعة">
-                            <Printer className="w-4 h-4" />
+                        <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer" title="طباعة">
+                            <Printer className="w-3.5 h-3.5" />
                             {"طباعة"}
                         </button>
-                        <button onClick={handleExportCSV} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm" title="تصدير CSV">
-                            <FileDown className="w-4 h-4" />
+                        <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer" title="تصدير CSV">
+                            <FileDown className="w-3.5 h-3.5" />
                             {"تصدير"}
                         </button>
                         <Link href="/treasury/log">
-                            <button className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-                                <History className="w-4 h-4" />
+                            <button className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer">
+                                <History className="w-3.5 h-3.5" />
                                 {"سجل الخزينة"}
                             </button>
                         </Link>
                     </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsCreateTreasuryOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground border border-zinc-200 dark:border-white/10 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-                            <PlusCircle className="w-4 h-4" /> {"إضافة خزنة جديدة"}
+                    <div className="flex gap-1.5 flex-wrap">
+                        <button onClick={() => setIsCreateTreasuryOpen(true)} className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-zinc-100 dark:bg-muted/50 hover:bg-zinc-200 dark:hover:bg-muted text-zinc-900 dark:text-foreground border border-zinc-200 dark:border-white/10 font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer">
+                            <PlusCircle className="w-3.5 h-3.5" /> {"إضافة خزنة جديدة"}
                         </button>
                         <button 
                             onClick={() => setIsWalletModalOpen(true)} 
                             disabled={!data.treasuries?.some((t: any) => ['WALLET', 'VODAFONE_CASH', 'INSTAPAY'].includes(t.paymentMethod ?? '')) || !data.treasuries?.some((t: any) => t.paymentMethod === 'CASH')}
                             title={!data.treasuries?.some((t: any) => ['WALLET', 'VODAFONE_CASH', 'INSTAPAY'].includes(t.paymentMethod ?? '')) || !data.treasuries?.some((t: any) => t.paymentMethod === 'CASH') ? "يجب إضافة محفظة إلكترونية وخزنة نقدية أولاً" : undefined}
-                            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed">
-                            <Smartphone className="w-4 h-4" /> {"عملية محفظة"}
+                            className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed">
+                            <Smartphone className="w-3.5 h-3.5" /> {"عملية محفظة"}
                         </button>
-                        <button onClick={() => setIsTransferOpen(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/20 font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-                            <ArrowLeftRight className="w-4 h-4" /> {"تحويل"}
+                        <button onClick={() => setIsTransferOpen(true)} className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/20 font-black text-xs transition-all active:scale-95 shadow-xs cursor-pointer">
+                            <ArrowLeftRight className="w-3.5 h-3.5" /> {"تحويل"}
                         </button>
-                        <button onClick={() => { resetForm(); setTransType("OUT"); setIsModalOpen(true); }} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-rose-500 text-white font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-rose-500/20">
-                            <Minus className="w-4 h-4" /> {"سحب نقدية"}
+                        <button onClick={() => { resetForm(); setTransType("OUT"); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3 h-8.5 rounded-xl bg-rose-500 text-white font-black text-xs transition-all active:scale-95 shadow-sm shadow-rose-500/20 cursor-pointer">
+                            <Minus className="w-3.5 h-3.5" /> {"سحب نقدية"}
                         </button>
-                        <button onClick={() => setIsDepositModalOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-black shadow-lg shadow-primary/20 text-xs uppercase tracking-widest transition-all active:scale-95">
-                            <Plus className="w-4 h-4" /> {"إيداع نقدية"}
+                        <button onClick={() => setIsDepositModalOpen(true)} className="flex items-center gap-1.5 px-3.5 h-8.5 rounded-xl bg-primary text-primary-foreground font-black shadow-sm shadow-primary/20 text-xs transition-all active:scale-95 cursor-pointer">
+                            <Plus className="w-3.5 h-3.5" /> {"إيداع نقدية"}
                         </button>
                     </div>
                 </div>
 
-                <div className="no-print space-y-4 pt-4 border-t border-zinc-100 dark:border-white/5">
+                <div className="no-print space-y-2 pt-2 border-t border-zinc-100 dark:border-white/5">
                     <TreasuryFilterBar 
                         filters={filters} 
                         onFilterChange={handleFilterChange} 
                         dbCategories={dbCategories}
                     />
 
-                    <div className="flex flex-wrap items-center gap-3 p-2 bg-zinc-50 dark:bg-white/[0.02] rounded-2xl border border-zinc-100 dark:border-white/5 w-fit">
-                        <div className="p-2 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-white/5">
-                            <CreditCard className="w-4 h-4 text-primary" />
+                    <div className="flex flex-wrap items-center gap-2 p-1 bg-zinc-50 dark:bg-white/[0.02] rounded-xl border border-zinc-100 dark:border-white/5 w-fit">
+                        <div className="p-1 bg-white dark:bg-zinc-900 rounded-lg shadow-xs border border-zinc-200 dark:border-white/5">
+                            <CreditCard className="w-3.5 h-3.5 text-primary" />
                         </div>
                         <select
                             value={methodFilter}
@@ -802,13 +797,13 @@ export default function TreasuryDashboard({
                                 setMethodFilter(e.target.value);
                                 refresh(filters, e.target.value);
                             }}
-                            className="bg-transparent h-10 text-xs font-black uppercase tracking-widest px-4 min-w-[160px] outline-none text-zinc-900 dark:text-white appearance-none cursor-pointer"
+                            className="bg-transparent h-7 text-xs font-black px-2 min-w-[140px] outline-none text-zinc-900 dark:text-white appearance-none cursor-pointer"
                         >
                             <option value="ALL" className="bg-white dark:bg-zinc-950 font-black">{"--- كل طرق الدفع ---"}</option>
                             {METHODS.map(m => <option key={m.key} value={m.key} className="bg-white dark:bg-zinc-950 font-black">{m.label}</option>)}
                         </select>
 
-                        <div className="h-6 w-px bg-zinc-200 dark:bg-white/10 mx-1" />
+                        <div className="h-4 w-px bg-zinc-200 dark:bg-white/10 mx-0.5" />
 
                         <button
                             onClick={() => {
@@ -822,48 +817,47 @@ export default function TreasuryDashboard({
                                 setMethodFilter("ALL");
                                 refresh(undefined, "ALL");
                             }}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+                            className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 cursor-pointer"
                         >
-                            <X className="w-3.5 h-3.5" /> {"مسح الفلاتر"}
+                            <X className="w-3 h-3" /> {"مسح الفلاتر"}
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* ── Transactions Table ───────────────────── */}
-            <div className="bg-white dark:bg-card/20 overflow-hidden rounded-[2.5rem] border border-zinc-200 dark:border-white/5 shadow-2xl">
-                <div className="p-8 border-b border-zinc-100 dark:border-white/5 flex items-center gap-4 bg-zinc-50/50 dark:bg-white/[0.02]">
-                    <div className="p-3 rounded-2xl bg-primary text-zinc-900 shadow-lg shadow-primary/20">
-                        <Landmark className="w-6 h-6" />
+            {/* ── Transactions Table (Compact) ───────────────────── */}
+            <div className="bg-white dark:bg-card/20 overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/5 shadow-sm">
+                <div className="p-2.5 px-3.5 border-b border-zinc-100 dark:border-white/5 flex items-center gap-2.5 bg-zinc-50/50 dark:bg-white/[0.02]">
+                    <div className="p-1.5 rounded-lg bg-primary text-zinc-900 shadow-xs">
+                        <Landmark className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="font-black text-sm uppercase tracking-widest text-zinc-900 dark:text-white leading-none mb-1">{"سجل الحركات المالية المفصل"}</h3>
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">{"دفتر الأستاذ المالي ومراجعة الحسابات"}</p>
+                        <h3 className="font-black text-xs uppercase tracking-widest text-zinc-900 dark:text-white leading-none">{"سجل الحركات المالية المفصل"}</h3>
                     </div>
                     {viewTreasuryId && (
-                        <button onClick={() => setViewTreasuryId(null)} className="ms-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all font-black text-xs tracking-tight">
-                            <X className="w-4 h-4" /> {"إلغاء الفلتر"}
+                        <button onClick={() => setViewTreasuryId(null)} className="ms-auto flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500 text-white hover:bg-rose-600 shadow-xs transition-all font-black text-xs cursor-pointer">
+                            <X className="w-3.5 h-3.5" /> {"إلغاء الفلتر"}
                         </button>
                     )}
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-right text-sm border-collapse zebra-table">
-                        <thead className="bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-zinc-400 text-[10px] font-black uppercase tracking-[0.2em] text-center">
+                    <table className="w-full text-right text-xs border-collapse zebra-table">
+                        <thead className="bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-zinc-400 text-[10px] font-black uppercase tracking-widest text-center">
                             <tr>
-                                <th className="p-6 text-center">{t('table.date', "التاريخ والوقت")}</th>
-                                <th className="p-6 text-center">{t('table.type', "نوع الحركة")}</th>
-                                <th className="p-6 text-center">{t('table.method', "طريقة الدفع")}</th>
-                                <th className="p-6 text-right w-full">{t('table.note', "البيان / ملاحظات")}</th>
-                                <th className="p-6 text-end min-w-[150px]">{t('table.amount', "المبلغ المستلم")}</th>
+                                <th className="px-3.5 py-2 text-center">{t('table.date', "التاريخ والوقت")}</th>
+                                <th className="px-3.5 py-2 text-center">{t('table.type', "نوع الحركة")}</th>
+                                <th className="px-3.5 py-2 text-center">{t('table.method', "طريقة الدفع")}</th>
+                                <th className="px-3.5 py-2 text-right w-full">{t('table.note', "البيان / ملاحظات")}</th>
+                                <th className="px-3.5 py-2 text-end min-w-[120px]">{t('table.amount', "المبلغ")}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-100 dark:divide-white/5 border-t border-zinc-100 dark:border-white/5">
                             {displayedTx.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-32 text-center text-zinc-300 dark:text-zinc-600">
-                                        <div className="flex flex-col items-center gap-6">
-                                            <History className="w-20 h-20 opacity-20" />
-                                            <p className="font-black uppercase tracking-[0.3em] text-xs pb-1 border-b-2 border-zinc-100 dark:border-white/5">{t('noTransactions', "لا توجد حركات مالية مسجلة لهذه الفترة")}</p>
+                                    <td colSpan={5} className="py-12 text-center text-zinc-300 dark:text-zinc-600">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <History className="w-8 h-8 opacity-20" />
+                                            <p className="font-black uppercase tracking-widest text-xs">{t('noTransactions', "لا توجد حركات مالية مسجلة لهذه الفترة")}</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -872,26 +866,26 @@ export default function TreasuryDashboard({
                                     const isPos = POSITIVE_TYPES.includes(tx.type);
                                     return (
                                         <tr key={tx.id} className="hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-all duration-200 group border-none">
-                                            <td className="p-6 text-center" suppressHydrationWarning>
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <span className="font-mono text-[11px] font-black text-zinc-900 dark:text-zinc-200">{new Date(tx.createdAt).toLocaleDateString("ar-EG")}</span>
-                                                    <span className="font-mono text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">{new Date(tx.createdAt).toLocaleTimeString("ar-EG", { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <td className="px-3.5 py-2 text-center" suppressHydrationWarning>
+                                                <div className="flex flex-col items-center gap-0.5">
+                                                    <span className="font-mono text-[10.5px] font-black text-zinc-900 dark:text-zinc-200">{new Date(tx.createdAt).toLocaleDateString("ar-EG")}</span>
+                                                    <span className="font-mono text-[9px] font-bold text-zinc-400">{new Date(tx.createdAt).toLocaleTimeString("ar-EG", { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </div>
                                             </td>
-                                            <td className="p-6">
+                                            <td className="px-3.5 py-2">
                                                 <div className="flex justify-center">
                                                     <div className={cn(
-                                                        "px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] flex items-center gap-2 whitespace-nowrap min-w-[120px] justify-center shadow-sm",
+                                                        "px-2.5 py-1 rounded-xl text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap justify-center shadow-xs",
                                                         isPos ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-rose-500 text-white shadow-rose-500/20"
                                                     )}>
-                                                        {isPos ? <ArrowUpCircle className="w-4 h-4" /> : <ArrowDownCircle className="w-4 h-4" />}
+                                                        {isPos ? <ArrowUpCircle className="w-3.5 h-3.5" /> : <ArrowDownCircle className="w-3.5 h-3.5" />}
                                                         {TYPE_LABELS[tx.type] || tx.type}
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="p-6 text-center">
+                                            <td className="px-3.5 py-2 text-center">
                                                 <span className={cn(
-                                                    "px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-inner",
+                                                    "px-2.5 py-0.5 rounded-lg text-[9.5px] font-black uppercase tracking-wider border shadow-inner",
                                                     (tx.paymentMethod === 'ACCOUNT' || tx.paymentMethod === 'DEFERRED')
                                                         ? "bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20"
                                                         : "bg-zinc-100 dark:bg-white/5 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-white/5"
@@ -899,36 +893,37 @@ export default function TreasuryDashboard({
                                                     {METHODS.find(m => m.key === tx.paymentMethod)?.label || (tx.paymentMethod === 'ACCOUNT' || tx.paymentMethod === 'DEFERRED' ? 'آجل' : tx.paymentMethod)}
                                                 </span>
                                             </td>
-                                            <td className="p-6">
-                                                <div className="flex flex-col gap-1 text-right">
-                                                    <span className="font-black text-zinc-900 dark:text-white text-base group-hover:text-primary transition-colors leading-tight">{tx.description || "-"}</span>
+                                            <td className="px-3.5 py-2">
+                                                <div className="flex flex-col gap-0.5 text-right">
+                                                    <span className="font-black text-zinc-900 dark:text-white text-xs group-hover:text-primary transition-colors leading-tight">{tx.description || "-"}</span>
                                                     {tx.treasuryName && (
-                                                        <span className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest justify-end">
-                                                            {tx.treasuryName} <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+                                                        <span className="flex items-center gap-1 text-[9px] font-black text-zinc-400 uppercase tracking-widest justify-end">
+                                                            {tx.treasuryName} <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                                         </span>
                                                     )}
                                                     {tx.categoryName && (
-                                                        <span className="flex items-center gap-2 text-[11px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest justify-end mt-0.5">
-                                                            {tx.categoryName} <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(var(--indigo-500),0.5)]" />
+                                                        <span className="flex items-center gap-1 text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest justify-end">
+                                                            {tx.categoryName} <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                                                         </span>
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="p-6 text-end">
-                                                <div className="flex flex-col items-end gap-1">
+                                            <td className="px-3.5 py-2 text-end">
+                                                <div className="flex items-center justify-end gap-2">
                                                     <span className={cn(
-                                                        "text-2xl font-black font-mono tracking-tighter tabular-nums",
+                                                        "text-xs sm:text-sm font-black font-mono tracking-tight tabular-nums",
                                                         isPos ? "text-emerald-600 dark:text-emerald-500" : "text-rose-600 dark:text-rose-500"
                                                     )}>
                                                         {isPos ? "+" : "-"}{Math.abs(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        <span className="text-[9px] font-bold text-zinc-400 font-mono ms-1">EGP</span>
                                                     </span>
                                                     
-                                                    <div className="flex gap-2 justify-end no-print">
-                                                        <button onClick={() => handleEditClick(tx)} className="p-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black rounded-xl text-zinc-500 transition-all shadow-sm border border-zinc-200 dark:border-white/5 active:scale-95" title="تعديل">
-                                                            <Edit className="w-4 h-4" />
+                                                    <div className="flex gap-1 no-print">
+                                                        <button onClick={() => handleEditClick(tx)} className="p-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black rounded-lg text-zinc-500 transition-all border border-zinc-200 dark:border-white/5 active:scale-95 cursor-pointer" title="تعديل">
+                                                            <Edit className="w-3 h-3" />
                                                         </button>
-                                                        <button onClick={() => { setDeletingId(tx.id); setReason(""); }} className="p-2.5 bg-rose-500/10 hover:bg-rose-500 hover:text-white rounded-xl text-rose-500 transition-all shadow-sm shadow-rose-500/5 border border-rose-500/20 active:scale-95" title="حذف">
-                                                            <Trash2 className="w-4 h-4" />
+                                                        <button onClick={() => { setDeletingId(tx.id); setReason(""); }} className="p-1 bg-rose-500/10 hover:bg-rose-500 hover:text-white rounded-lg text-rose-500 transition-all border border-rose-500/20 active:scale-95 cursor-pointer" title="حذف">
+                                                            <Trash2 className="w-3 h-3" />
                                                         </button>
                                                     </div>
                                                 </div>
