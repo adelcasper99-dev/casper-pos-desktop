@@ -760,13 +760,13 @@
     "semantic_hash": ""
   },
   "src/app/(routes)/inventory/ClientHelper.tsx": {
-    "mtime": 1784177113.1409314,
-    "ast_hash": "f485cb0f7984c1452f1976e328076920",
+    "mtime": 1788481546.4316878,
+    "ast_hash": "ef5ace8d4ccd041cb5ffc36b4756e152",
     "semantic_hash": ""
   },
   "src/app/(routes)/inventory/page.tsx": {
-    "mtime": 1784872956.479747,
-    "ast_hash": "995c726edfc6fe8a0dda2e8932037e12",
+    "mtime": 1788481343.2407532,
+    "ast_hash": "312508b9f1aba5e5c05fd4f3eb692ef5",
     "semantic_hash": ""
   },
   "src/app/(routes)/inventory/suppliers/[id]/page.tsx": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "src/components/inventory/ProductsTab.tsx": {
-    "mtime": 1788444386.349707,
-    "ast_hash": "f08cdfd65b0c3974bd08005e21fce280",
+    "mtime": 1788481565.169522,
+    "ast_hash": "004930b2eb582e8089195bae52f20449",
     "semantic_hash": ""
   },
   "src/components/inventory/PurchasesTab.tsx": {
@@ -6025,8 +6025,8 @@
     "semantic_hash": ""
   },
   "code_review_report.md": {
-    "mtime": 1788480348.9415393,
-    "ast_hash": "37a3c88b59d985547b40fa725c705fe0",
+    "mtime": 1788481161.475357,
+    "ast_hash": "5c95d9b61b7ce35fed47026d75c7abdf",
     "semantic_hash": ""
   },
   "docs/plans/2026-08-30-001-feat-ui-taste-pipeline-execution-plan.md": {
@@ -6035,28 +6035,28 @@
     "semantic_hash": ""
   },
   "implementation_plan.md": {
-    "mtime": 1788406955.9647615,
-    "ast_hash": "4692c924e32ff403f2381b3fd217f120",
+    "mtime": 1788480817.6771498,
+    "ast_hash": "cd8b3583adc78fce211221acef4b1564",
     "semantic_hash": ""
   },
   "ironclad_review_implementation_plan.md": {
-    "mtime": 1788480116.843389,
-    "ast_hash": "fd0fbb62c65fd8ce53342bf332de8a1c",
+    "mtime": 1788480826.5756154,
+    "ast_hash": "8b8cf638b6c90ee7ce85cf3c0db30762",
     "semantic_hash": ""
   },
   "research_findings.md": {
-    "mtime": 1788480105.594713,
-    "ast_hash": "b87b6d9fbd7c9125027c8f9160c5a264",
+    "mtime": 1788480808.20952,
+    "ast_hash": "a32ae889386e9fd176daf9c27e6ffb2b",
     "semantic_hash": ""
   },
   "task.md": {
-    "mtime": 1788480234.1048405,
-    "ast_hash": "13274c30a1fc2216327ffb0679fbd7b6",
+    "mtime": 1788481112.59107,
+    "ast_hash": "7c56aae26610e74e90032b296aef4233",
     "semantic_hash": ""
   },
   "test_results.txt": {
-    "mtime": 1788480381.708506,
-    "ast_hash": "043d65a4de096e1aa86bde81e8461049",
+    "mtime": 1788481150.1720698,
+    "ast_hash": "e6247fc72800874c0718a916b7bd3efc",
     "semantic_hash": ""
   },
   "test-results/.last-run.json": {
@@ -6070,13 +6070,23 @@
     "semantic_hash": ""
   },
   "walkthrough.md": {
-    "mtime": 1788480403.7359283,
-    "ast_hash": "07c68ac32b26b9d268809bc7337004ff",
+    "mtime": 1788481188.107237,
+    "ast_hash": "5acff273fd1750c42537c3081f5c43fd",
     "semantic_hash": ""
   },
   "public/assets/icon-512.png": {
     "mtime": 1788442828.9134774,
     "ast_hash": "1c252435019dbdad5cce0974b2dde0f9",
+    "semantic_hash": ""
+  },
+  "pipeline_completion_report.md": {
+    "mtime": 1788480475.8829186,
+    "ast_hash": "a9631dff2e0a7097945326fb1f597bc4",
+    "semantic_hash": ""
+  },
+  "compliance_report.md": {
+    "mtime": 1788481613.2548244,
+    "ast_hash": "1f2cac3185a3616937d8eadb819d4ca9",
     "semantic_hash": ""
   }
 }

@@ -1,27 +1,30 @@
-# Dense Desktop ERP & Attendance Grid Engineering Best Practices (Stage 0b Research)
+# High-Density ERP & POS Inventory Data Grid Best Practices (Stage 0b Research)
 
-## 1. Single-Viewport High-Density Data Grid Architecture (Linear / Odoo POS / ERPNext)
-- **Problem**: Default table padding (`px-6 py-6`) and large row heights (>80px) cause massive vertical spill. In a 1080p desktop viewport, only 2-3 records fit without page scroll, disorienting POS operators.
+## 1. Single-Viewport High-Volume Inventory Grid Architecture (Odoo / Toast / SAP Fiori)
+- **Problem**: Inventory management systems with default web table padding (`px-6 py-4`) display only 3-4 products per 1080p desktop screen. Warehousing and retail managers cannot scan stock levels or spot low-inventory items effectively, causing severe visual fatigue and excessive scroll navigation.
 - **Industry Standard**:
-  - High-density table rows: row height target **34px - 40px** with `px-3 py-1.5` padding.
-  - Sticky table headers: `sticky top-0 z-20 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xs` preventing loss of column context.
-  - Contained scroll boundary: `max-h-[calc(100vh-270px)] overflow-y-auto custom-scrollbar` ensuring page navigation and metrics remain permanently docked in view.
+  - High-density row height target: **30px - 34px** with `px-3 py-1.5` cell padding.
+  - Viewport-contained table container: `max-h-[calc(100vh-270px)] overflow-y-auto custom-scrollbar` allowing 12-16 items visible simultaneously on a standard 1080p desktop.
+  - Pinned table header: `sticky top-0 z-20 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xs` preserving SKU, stock, and price column alignment at all times.
 
-## 2. Compact Segmented Presence Toggles (Toast POS / Square Staff)
-- **Problem**: Independent oversized buttons (`p-3 rounded-xl scale-110 rotate-3`) with heavy box-shadows introduce row height distortion and jumpy hover states.
+## 2. Multi-Tier Filter & Action Bar Ergonomics (Linear / Shopify Admin)
+- **Problem**: Multi-level filter toolbars (Search, Category dropdown, Warehouse selector, Stock status, Date ranges, Add product, Template download) take up 3 vertical rows (>120px) when uncompacted, pushing table data below the fold.
 - **Industry Standard**:
-  - Segmented inline control strip: `h-7 p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-white/10`.
-  - Micro action buttons: `w-7 h-7 rounded-md` with `w-3.5 h-3.5` icons (Check, X, Clock, Coffee).
-  - Subtle active state: `bg-emerald-500 text-black shadow-xs font-bold` without radical rotation or scale that breaks row boundary.
+  - Compact search bar: `h-8 ps-9 pe-8 text-xs font-medium rounded-lg` with 14px search icon.
+  - Clustered micro-actions: `h-8 px-3 text-xs font-bold rounded-lg` with subtle hover elevations.
+  - Dropdown triggers: Standardized `h-7.5 px-2.5 text-xs font-bold rounded-lg border border-zinc-200/80 dark:border-white/10`.
+  - Date quick buttons: Micro pills `h-7 px-2 text-[10px]` with flatpickr inline container.
 
-## 3. Financial & Numeric Wrapping Guardrails in Dense KPI Cards
-- **Problem**: Dynamic currency strings (e.g. `EGP 12,450.00`) wrap decimals or currency units onto a secondary line when flex containers shrink, destroying vertical grid rhythm.
+## 3. Financial & Numeric Alignment in Multi-Price Retail Grids
+- **Problem**: Products with multiple price tiers (Cost Price, Wholesale Price 1, Retail Price 2, Special Price 3) easily wrap decimals and currency symbols when column widths fluctuate.
 - **Industry Standard**:
-  - Layout: `flex items-center justify-between gap-2 min-w-0 overflow-hidden`.
-  - Label: `truncate text-xs font-bold min-w-0`.
-  - Value: `font-mono tabular-nums whitespace-nowrap shrink-0 text-sm sm:text-base font-black`.
+  - Right-aligned monetary values with tabular figures: `text-end font-mono font-bold text-xs tabular-nums whitespace-nowrap`.
+  - Stock quantity highlighting: `font-mono font-black text-xs tabular-nums`, with color tokens:
+    - Normal stock: `text-zinc-900 dark:text-white`
+    - Shortage/Low stock (`stock <= minStock`): `text-rose-500 font-bold`
+    - Service items (non-tracked): micro pill `h-5 px-1.5 text-[9px] font-bold text-cyan-600 bg-cyan-500/10`.
 
-## 4. Optimistic UI & Server Action Concurrency Safety (Casper Core Architecture)
-- Maintain optimistic local React state with `previousStates` ref map.
-- Clean up debounce timeouts (`pendingTimeouts.current`) on component unmount and rollback gracefully on server action failure.
-- Ensure strict Decimal.js / integer parsing without JavaScript floating-point arithmetic errors on bonuses and deductions.
+## 4. Concurrency & Action Safety in POS Desktop
+- Retain all server action bindings (`deleteProduct`, `updateProduct`, `generateNextSku`, `generateInventoryTemplate`).
+- Preserve CSRF tokens and TanStack Query refetch lifecycle without triggering unnecessary re-renders.
+- Strict TypeScript: No `any` types; Decimal.js / numeric string sanitization.

@@ -43,6 +43,43 @@ import { Button } from "@/components/ui/button";
 import { Product, Category } from "@/types/product";
 import { generateInventoryTemplate } from "@/lib/export-templates";
 
+interface ModelItem {
+    id: string;
+    name: string;
+    categoryId?: string;
+    [key: string]: unknown;
+}
+
+interface AttributeItem {
+    id: string;
+    name: string;
+    [key: string]: unknown;
+}
+
+interface UnitItem {
+    id: string;
+    name: string;
+    code: string;
+    category?: string;
+    abbreviation?: string | null;
+}
+
+interface ProductsTabProps {
+    products?: Product[];
+    categories: Category[];
+    csrfToken?: string;
+    user?: { permissions?: string[]; [key: string]: unknown };
+    warehouseId?: string;
+    currency?: string;
+    initialUnits?: UnitItem[];
+    models?: ModelItem[];
+    attributes?: AttributeItem[];
+    initialStockStatus?: string;
+    isShortageOnly?: boolean;
+    globalMinStock?: number;
+    features?: Record<string, unknown>;
+}
+
 export default function ProductsTab({
     products: initialProducts,
     categories,
@@ -56,13 +93,13 @@ export default function ProductsTab({
     initialStockStatus = "",
     isShortageOnly = false,
     globalMinStock
-}: any) {
+}: ProductsTabProps) {
     const { settings } = useSettings();
     const features = typeof settings?.features === 'string' ? JSON.parse(settings.features || "{}") : (settings?.features || {});
-    const updateDerivedName = (prod: any) => {
+    const updateDerivedName = (prod: { name: string; categoryId?: string | null; modelId?: string | null; attributeId?: string | null; description?: string | null }) => {
         const cat = categories.find((c: Category) => c.id === prod.categoryId);
-        const mod = models.find((m: any) => m.id === prod.modelId);
-        const attr = attributes.find((a: any) => a.id === prod.attributeId);
+        const mod = models.find((m: ModelItem) => m.id === prod.modelId);
+        const attr = attributes.find((a: AttributeItem) => a.id === prod.attributeId);
         
         let newName = prod.name;
         if (cat || mod || attr || prod.description) {
@@ -92,10 +129,10 @@ export default function ProductsTab({
     const [dateFilter, setDateFilter] = useState<string>("all");
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [filterWarehouseId, setFilterWarehouseId] = useState<string>("");
-    const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice'>('name');
+    const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice' | 'costPrice'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-    const handleSort = (key: any) => {
+    const handleSort = (key: 'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice' | 'costPrice') => {
         if (sortBy === key) {
             setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
         } else {
@@ -120,26 +157,27 @@ export default function ProductsTab({
     });
     const warehouses = warehousesData || [];
 
-    // Fetch Units for dropdown
-    const { data: unitsData, isLoading: unitsLoading } = useQuery({
+
+    // Query for units of measure
+    const { data: unitsData } = useQuery({
         queryKey: ['units'],
         queryFn: async () => {
             const res = await getAllUnits();
-            return res.units || [];
+            return (res.units || []) as UnitItem[];
         }
     });
     // Map units to ensure abbreviation is not null (TS compatibility)
-    const unitsList = (unitsData || []).map((u: any) => ({
+    const unitsList = (unitsData || []).map((u: UnitItem) => ({
         ...u,
         abbreviation: u.abbreviation || undefined
     }));
 
-    const unitsByCategory = unitsList.reduce((acc: any, unit: any) => {
+    const unitsByCategory = unitsList.reduce((acc: Record<string, typeof unitsList>, unit) => {
         const cat = unit.category || 'COUNT';
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(unit);
         return acc;
-    }, {} as Record<string, any[]>);
+    }, {} as Record<string, typeof unitsList>);
 
     // Permission Checks
     const canManage = hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE);
@@ -166,13 +204,13 @@ export default function ProductsTab({
                 warehouseId: filterWarehouseId || undefined,
                 startDate: dateRange?.from ? dateRange.from.toISOString() : undefined,
                 endDate: dateRange?.to ? dateRange.to.toISOString() : undefined,
-                sortBy,
+                sortBy: sortBy === 'costPrice' ? undefined : sortBy,
                 sortOrder,
                 globalMinStock: globalMinStock || undefined
             });
             return res.success ? res : { data: [], pagination: { total: 0, totalPages: 0, page: 1, limit: 50 } };
         },
-        initialData: (debouncedSearch === "" && page === 1 && !filterWarehouseId && !dateRange) ? {
+        initialData: (debouncedSearch === "" && page === 1 && !filterWarehouseId && !dateRange && initialProducts) ? {
             success: true,
             data: initialProducts,
             pagination: {
@@ -186,7 +224,7 @@ export default function ProductsTab({
     });
 
     // Safe mapping for products to ensure numeric values for stock and prices
-    const products = (queryData?.data || []).map((p: any) => ({
+    const products = (queryData?.data || []).map((p: Product) => ({
         ...p,
         stock: Number(p.stock || 0),
         costPrice: Number(p.costPrice || 0),
@@ -246,7 +284,7 @@ export default function ProductsTab({
             attributeId: editingProduct.attributeId || undefined,
             description: editingProduct.description || undefined,
             csrfToken
-        } as any);
+        } as Parameters<typeof updateProduct>[0]);
 
         setLoading(false);
         if (result.success) {
@@ -273,13 +311,13 @@ export default function ProductsTab({
     };
 
     return (
-        <div className="space-y-6 animate-fly-in">
+        <div className="space-y-2 animate-fly-in font-cairo">
             <BarcodeListener onScan={(code) => setSearch(code)} />
             {/* Action Bar */}
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="relative flex-1 min-w-[300px] group/search">
-                        <Search className="absolute start-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-zinc-500 group-focus-within/search:text-cyan-500 transition-all pointer-events-none" />
+            <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="relative flex-1 min-w-[240px] group/search">
+                        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 group-focus-within/search:text-cyan-500 transition-all pointer-events-none" />
                         <input
                             type="text"
                             placeholder={t('searchPlaceholder')}
@@ -288,33 +326,33 @@ export default function ProductsTab({
                                 setSearch(e.target.value);
                                 setPage(1);
                             }}
-                            className="w-full glass-input ps-12 py-3 bg-white dark:bg-zinc-900/50 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:border-cyan-500/50 transition-all font-black rounded-xl"
+                            className="w-full ps-8 pe-8 h-8 text-xs bg-white dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-cyan-500/50 transition-all font-medium rounded-lg shadow-2xs outline-none"
                         />
-                        {isQueryLoading && <div className="absolute end-4 top-1/2 -translate-y-1/2"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>}
+                        {isQueryLoading && <div className="absolute end-3 top-1/2 -translate-y-1/2"><Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-500" /></div>}
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                         {canManage && (
                             <>
                                 <button
                                     onClick={() => {
                                         generateInventoryTemplate(
-                                            categories.map((c: any) => c.name),
-                                            models.map((m: any) => m.name),
-                                            attributes.map((a: any) => a.name)
+                                            categories.map((c: Category) => c.name),
+                                            models.map((m: ModelItem) => m.name),
+                                            attributes.map((a: AttributeItem) => a.name)
                                         );
                                     }}
-                                    className="px-5 py-3 h-11 bg-white dark:bg-zinc-900/50 hover:bg-slate-50 dark:hover:bg-zinc-800 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-zinc-300 font-bold rounded-xl flex items-center gap-2 transition-all shadow-sm"
+                                    className="px-2.5 h-8 bg-white dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200/80 dark:border-white/10 text-zinc-700 dark:text-zinc-300 font-bold rounded-lg flex items-center gap-1.5 transition-all text-xs shadow-2xs"
                                     title="تحميل ملف Excel جاهز للاستيراد"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-3.5 h-3.5" />
                                     تحميل النموذج
                                 </button>
                                 <button
                                     onClick={() => setAddProductOpen(true)}
-                                    className="px-5 py-3 h-11 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-bold rounded-xl flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-amber-500/20 active:scale-95"
+                                    className="px-3 h-8 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-bold rounded-lg flex items-center gap-1.5 transition-all text-xs shadow-xs active:scale-95"
                                 >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-3.5 h-3.5" />
                                     {tCommon('add') || "إضافة منتج"}
                                 </button>
                             </>
@@ -323,9 +361,9 @@ export default function ProductsTab({
                         {selectedProducts.size > 0 && (
                             <button
                                 onClick={() => setShowPrintDialog(true)}
-                                className="px-6 py-3 h-11 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
+                                className="px-3 h-8 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg flex items-center gap-1.5 transition-all text-xs shadow-xs active:scale-95"
                             >
-                                <Printer className="w-5 h-5" />
+                                <Printer className="w-3.5 h-3.5" />
                                 {t('printLabels')} ({selectedProducts.size})
                             </button>
                         )}
@@ -333,9 +371,9 @@ export default function ProductsTab({
                 </div>
 
                 {/* Advanced Filters Toolbar */}
-                <div className="flex gap-4 items-center flex-wrap">
+                <div className="flex gap-2 items-center flex-wrap">
                     {/* Date Quick Filters */}
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900/50 p-1 rounded-xl border border-slate-200 dark:border-white/10 flex-wrap overflow-hidden">
+                    <div className="flex items-center gap-0.5 bg-zinc-100 dark:bg-zinc-900/50 p-0.5 rounded-lg border border-zinc-200/80 dark:border-white/10 flex-wrap overflow-hidden">
                         {[
                             { id: 'all', label: 'الكل' },
                             { id: 'today', label: 'اليوم', fn: () => ({ from: startOfDay(new Date()), to: endOfDay(new Date()) }) },
@@ -343,15 +381,13 @@ export default function ProductsTab({
                             { id: 'week', label: 'الأسبوع', fn: () => ({ from: startOfWeek(new Date(), { weekStartsOn: 6 }), to: endOfWeek(new Date(), { weekStartsOn: 6 }) }) },
                             { id: 'month', label: 'الشهر', fn: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }) }
                         ].map(f => (
-                            <Button
+                            <button
                                 key={f.id}
-                                variant={dateFilter === f.id ? "default" : "ghost"}
-                                size="sm"
                                 className={cn(
-                                    "h-8 text-[11px] font-black px-3 rounded-lg transition-all",
+                                    "h-7 text-[10px] font-bold px-2 rounded-md transition-all",
                                     dateFilter === f.id 
-                                        ? "bg-cyan-500 text-black hover:bg-cyan-400 shadow-md shadow-cyan-500/20" 
-                                        : "text-slate-400 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5"
+                                        ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5"
                                 )}
                                 onClick={() => {
                                     setDateFilter(f.id);
@@ -361,10 +397,10 @@ export default function ProductsTab({
                                 }}
                             >
                                 {f.label}
-                            </Button>
+                            </button>
                         ))}
 
-                        <div className="w-px h-4 bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block" />
+                        <div className="w-px h-3.5 bg-zinc-300 dark:bg-white/10 mx-0.5 hidden sm:block" />
 
                         <FlatpickrRangePicker
                             onRangeChange={(dates) => {
@@ -386,33 +422,33 @@ export default function ProductsTab({
                                 setPage(1);
                             }}
                             initialDates={dateRange?.from ? [dateRange.from, ...(dateRange.to ? [dateRange.to] : [])] : []}
-                            className="w-48 bg-transparent border-0 text-xs h-8 text-slate-500 dark:text-zinc-300 placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-0"
+                            className="w-36 bg-transparent border-0 text-[11px] h-7 text-zinc-600 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
                             placeholder="تاريخ مخصص..."
                         />
                     </div>
 
                     {/* Warehouse Filter */}
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-1.5 flex-wrap">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-white dark:bg-zinc-900/50 rounded-xl hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all shadow-sm">
-                                    <Box className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
-                                    <span className="text-slate-700 dark:text-zinc-300 font-bold">
+                                <Button variant="outline" className="border-zinc-200/80 dark:border-white/10 gap-1.5 h-7.5 px-2.5 bg-white dark:bg-zinc-900/50 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all text-xs font-bold shadow-2xs">
+                                    <Box className="w-3.5 h-3.5 text-zinc-400" />
+                                    <span className="text-zinc-700 dark:text-zinc-300">
                                         {filterWarehouseId 
-                                            ? warehouses.find(w => w.id === filterWarehouseId)?.name 
+                                            ? warehouses.find(wh => wh.id === filterWarehouseId)?.name 
                                             : "كل المستودعات"}
                                     </span>
-                                    <ChevronDown className="w-3 h-3 opacity-50 text-slate-400" />
+                                    <ChevronDown className="w-3 h-3 opacity-50 text-zinc-400" />
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500 p-3">تصفية حسب المستودع</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => { setFilterWarehouseId(""); setPage(1); }} className={cn("rounded-lg m-1 font-bold", !filterWarehouseId && "bg-slate-100 dark:bg-white/10")}>
+                            <DropdownMenuContent align="start" className="w-48 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl shadow-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-400 p-2">تصفية حسب المستودع</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => { setFilterWarehouseId(""); setPage(1); }} className={cn("rounded-lg m-1 font-bold text-xs", !filterWarehouseId && "bg-zinc-100 dark:bg-white/10")}>
                                     كل المستودعات
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-slate-100 dark:bg-white/5" />
+                                <DropdownMenuSeparator className="bg-zinc-100 dark:bg-white/5" />
                                 {warehouses.map(wh => (
-                                    <DropdownMenuItem key={wh.id} onClick={() => { setFilterWarehouseId(wh.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold", filterWarehouseId === wh.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
+                                    <DropdownMenuItem key={wh.id} onClick={() => { setFilterWarehouseId(wh.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold text-xs", filterWarehouseId === wh.id && "bg-zinc-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
                                         {wh.name}
                                     </DropdownMenuItem>
                                 ))}
@@ -422,24 +458,24 @@ export default function ProductsTab({
                         {/* Category Filter Group */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-white dark:bg-zinc-900/50 rounded-xl hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all shadow-sm">
-                                    <Filter className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
-                                    <span className="text-slate-700 dark:text-zinc-300 font-bold">
+                                <Button variant="outline" className="border-zinc-200/80 dark:border-white/10 gap-1.5 h-7.5 px-2.5 bg-white dark:bg-zinc-900/50 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all text-xs font-bold shadow-2xs">
+                                    <Filter className="w-3.5 h-3.5 text-zinc-400" />
+                                    <span className="text-zinc-700 dark:text-zinc-300">
                                         {categoryId 
-                                            ? categories.find((c: any) => c.id === categoryId)?.name 
+                                            ? categories.find((c: Category) => c.id === categoryId)?.name 
                                             : (tCommon('allCategories') || "كل الأقسام")}
                                     </span>
-                                    <ChevronDown className="w-3 h-3 opacity-50 text-slate-400" />
+                                    <ChevronDown className="w-3 h-3 opacity-50 text-zinc-400" />
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500 p-3">الأقسام</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => { setCategoryId(""); setPage(1); }} className="rounded-lg m-1 font-bold">
+                            <DropdownMenuContent align="start" className="w-48 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl shadow-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-400 p-2">الأقسام</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => { setCategoryId(""); setPage(1); }} className="rounded-lg m-1 font-bold text-xs">
                                     {tCommon('allCategories') || "كل الأقسام"}
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-slate-100 dark:bg-white/5" />
-                                {categories.map((cat: any) => (
-                                    <DropdownMenuItem key={cat.id} onClick={() => { setCategoryId(cat.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold", categoryId === cat.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
+                                <DropdownMenuSeparator className="bg-zinc-100 dark:bg-white/5" />
+                                {categories.map((cat: Category) => (
+                                    <DropdownMenuItem key={cat.id} onClick={() => { setCategoryId(cat.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold text-xs", categoryId === cat.id && "bg-zinc-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
                                         {cat.name}
                                     </DropdownMenuItem>
                                 ))}
@@ -450,20 +486,20 @@ export default function ProductsTab({
                         {!isShortageOnly && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-white dark:bg-zinc-900/50 rounded-xl hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all shadow-sm">
-                                        <ActivityIcon className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
-                                        <span className="text-slate-700 dark:text-zinc-300 font-bold">
+                                    <Button variant="outline" className="border-zinc-200/80 dark:border-white/10 gap-1.5 h-7.5 px-2.5 bg-white dark:bg-zinc-900/50 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all text-xs font-bold shadow-2xs">
+                                        <ActivityIcon className="w-3.5 h-3.5 text-zinc-400" />
+                                        <span className="text-zinc-700 dark:text-zinc-300">
                                             {stockStatus === "in_stock" ? "متوفر" :
                                              stockStatus === "low_stock" ? "منخفض" :
                                              stockStatus === "out_of_stock" ? "نفذ" :
                                              stockStatus === "shortage" ? "النواقص" :
                                              stockStatus === "services" ? "خدمات" : "كل الحالات"}
                                         </span>
-                                        <ChevronDown className="w-3 h-3 opacity-50 text-slate-400" />
+                                        <ChevronDown className="w-3 h-3 opacity-50 text-zinc-400" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                                    <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500 p-3">حالة المخزون</DropdownMenuLabel>
+                                <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl shadow-xl">
+                                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-400 p-2">حالة المخزون</DropdownMenuLabel>
                                     {[
                                         { id: "", label: "كل الحالات" },
                                         { id: "in_stock", label: "متوفر" },
@@ -472,7 +508,7 @@ export default function ProductsTab({
                                         { id: "shortage", label: "النواقص (تحت الحد الأدنى)" },
                                         { id: "services", label: "خدمات" }
                                     ].map(st => (
-                                        <DropdownMenuItem key={st.id} onClick={() => { setStockStatus(st.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold", stockStatus === st.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
+                                        <DropdownMenuItem key={st.id} onClick={() => { setStockStatus(st.id); setPage(1); }} className={cn("rounded-lg m-1 font-bold text-xs", stockStatus === st.id && "bg-zinc-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
                                             {st.label}
                                         </DropdownMenuItem>
                                     ))}
@@ -483,15 +519,15 @@ export default function ProductsTab({
                         {/* Sort Logic */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="border-slate-200 dark:border-white/10 gap-2 h-10 px-4 bg-white dark:bg-zinc-900/50 rounded-xl hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all shadow-sm">
-                                    <ArrowUpDown className="w-4 h-4 text-slate-400 dark:text-zinc-400" />
-                                    <span className="text-slate-700 dark:text-zinc-300 font-bold">
+                                <Button variant="outline" className="border-zinc-200/80 dark:border-white/10 gap-1.5 h-7.5 px-2.5 bg-white dark:bg-zinc-900/50 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all text-xs font-bold shadow-2xs">
+                                    <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400" />
+                                    <span className="text-zinc-700 dark:text-zinc-300">
                                         {sortBy === 'name' ? 'الاسم' : (sortBy === 'createdAt' ? 'التاريخ' : 'الكمية')}
                                     </span>
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-zinc-950 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500 p-3">ترتيب حسب</DropdownMenuLabel>
+                            <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl shadow-xl">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-400 p-2">ترتيب حسب</DropdownMenuLabel>
                                 {[
                                     { id: 'name', label: 'الاسم' },
                                     { id: 'createdAt', label: 'تاريخ الإضافة' },
@@ -499,9 +535,9 @@ export default function ProductsTab({
                                 ].map(s => (
                                     <DropdownMenuItem key={s.id} onClick={() => { 
                                         if (sortBy === s.id) setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
-                                        else { setSortBy(s.id as any); setSortOrder('asc'); }
+                                        else { setSortBy(s.id as 'name' | 'createdAt' | 'stock' | 'sku' | 'sellPrice' | 'costPrice'); setSortOrder('asc'); }
                                         setPage(1);
-                                    }} className={cn("rounded-lg m-1 flex justify-between font-bold", sortBy === s.id && "bg-slate-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
+                                    }} className={cn("rounded-lg m-1 flex justify-between font-bold text-xs", sortBy === s.id && "bg-zinc-100 dark:bg-white/10 text-cyan-600 dark:text-cyan-400")}>
                                         {s.label}
                                         {sortBy === s.id && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                                     </DropdownMenuItem>
@@ -527,80 +563,80 @@ export default function ProductsTab({
              />
 
             {/* Products Grid */}
-            <div className="glass-card overflow-visible border border-slate-200 dark:border-white/5 bg-white dark:bg-black/20 shadow-2xl rounded-xl flex flex-col min-h-[500px]">
-                <div className="table-container max-h-[700px] custom-scrollbar overflow-y-auto overflow-x-auto w-full">
-                    <table className="zebra-table sticky-header w-full min-w-[850px] text-start">
-                        <thead className="bg-slate-50 dark:bg-transparent text-slate-500 dark:text-zinc-300 text-[11px] uppercase tracking-wider border-b border-slate-200 dark:border-white/5">
+            <div className="border border-zinc-200/80 dark:border-white/10 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-zinc-950/40 flex flex-col">
+                <div className="table-container max-h-[calc(100vh-270px)] custom-scrollbar overflow-y-auto overflow-x-auto w-full">
+                    <table className="zebra-table w-full min-w-[950px] text-start text-xs">
+                        <thead className="sticky top-0 z-20 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xs text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-black tracking-wider border-b border-zinc-200/80 dark:border-white/10 shadow-xs">
                             <tr>
-                                <th className="px-6 py-4 text-center w-[80px]">
+                                <th className="px-2 py-1.5 text-center w-9">
                                     <input
                                         type="checkbox"
                                         checked={selectedProducts.size === products.length && products.length > 0}
                                         onChange={(e) => {
                                             if (e.target.checked) {
-                                                setSelectedProducts(new Set(products.map((p: any) => p.id)));
+                                                setSelectedProducts(new Set(products.map((p: Product) => p.id)));
                                             } else {
                                                 setSelectedProducts(new Set());
                                             }
                                         }}
-                                        className="w-4 h-4 cursor-pointer accent-cyan-500"
+                                        className="w-3.5 h-3.5 cursor-pointer accent-cyan-500 rounded"
                                     />
                                 </th>
-                                <th className="px-6 py-4 text-start font-black w-[150px] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('sku')}>
-                                    <div className="flex items-center gap-2">
+                                <th className="px-3 py-1.5 text-start font-black w-[120px] cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('sku')}>
+                                    <div className="flex items-center gap-1.5">
                                         {getSortIcon('sku')}
                                         {t('sku')}
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 text-start font-black cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
-                                    <div className="flex items-center gap-2">
+                                <th className="px-3 py-1.5 text-start font-black cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
+                                    <div className="flex items-center gap-1.5">
                                         {getSortIcon('name')}
                                         {t('name')}
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 text-start font-black w-[150px]">{t('model') || "الموديل"}</th>
-                                <th className="px-6 py-4 text-start font-black w-[150px]">{t('category')}</th>
-                                <th className="px-6 py-4 text-center font-black w-[120px] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('stock')}>
-                                    <div className="flex items-center justify-center gap-2">
+                                <th className="px-3 py-1.5 text-start font-black w-[120px]">{t('model') || "الموديل"}</th>
+                                <th className="px-3 py-1.5 text-start font-black w-[120px]">{t('category')}</th>
+                                <th className="px-3 py-1.5 text-center font-black w-[90px] cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('stock')}>
+                                    <div className="flex items-center justify-center gap-1.5">
                                         {getSortIcon('stock')}
                                         {t('stock')}
                                     </div>
                                 </th>
                                 {canViewCost && (
-                                    <th className="px-6 py-4 text-end font-black w-[130px] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('costPrice')}>
-                                        <div className="flex items-center justify-end gap-2 text-end">
+                                    <th className="px-3 py-1.5 text-end font-black w-[100px] cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('costPrice')}>
+                                        <div className="flex items-center justify-end gap-1.5 text-end">
                                             {getSortIcon('costPrice')}
                                             {t('cost')}
                                         </div>
                                     </th>
                                 )}
                                 {canViewPrice1 && (
-                                    <th className="px-6 py-4 text-end font-black w-[130px] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('sellPrice')}>
-                                        <div className="flex items-center justify-end gap-2 text-end">
+                                    <th className="px-3 py-1.5 text-end font-black w-[100px] cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-white/5 transition-colors" onClick={() => handleSort('sellPrice')}>
+                                        <div className="flex items-center justify-end gap-1.5 text-end">
                                             {getSortIcon('sellPrice')}
                                             {t('price1')}
                                         </div>
                                     </th>
                                 )}
-                                {canViewPrice2 && <th className="px-6 py-4 text-end font-black w-[130px]">{t('price2')}</th>}
-                                {canViewPrice3 && <th className="px-6 py-4 text-end font-black w-[130px]">{t('price3')}</th>}
-                                {canManage && <th className="px-6 py-4 text-end font-black w-[150px]">{tCommon('actions')}</th>}
+                                {canViewPrice2 && <th className="px-3 py-1.5 text-end font-black w-[100px]">{t('price2')}</th>}
+                                {canViewPrice3 && <th className="px-3 py-1.5 text-end font-black w-[100px]">{t('price3')}</th>}
+                                {canManage && <th className="px-3 py-1.5 text-end font-black w-[120px]">{tCommon('actions')}</th>}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                        <tbody className="divide-y divide-zinc-100 dark:divide-white/5">
                             {products.length === 0 ? (
                                 <tr>
-                                    <td colSpan={12} className="p-10 text-center text-slate-400 dark:text-zinc-500 italic font-black">
-                                        <div className="flex flex-col items-center gap-2 opacity-20">
-                                            <Box className="w-12 h-12" />
-                                            <span>{t('noProducts')}</span>
+                                    <td colSpan={12} className="p-8 text-center text-zinc-400 dark:text-zinc-500 italic font-bold">
+                                        <div className="flex flex-col items-center gap-1.5 opacity-30">
+                                            <Box className="w-8 h-8" />
+                                            <span className="text-xs">{t('noProducts')}</span>
                                         </div>
                                     </td>
                                 </tr>
                             ) : (
-                                products.map((p: any) => (
-                                    <tr key={p.id} className="group hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors border-slate-100 dark:border-white/5">
-                                        <td className="px-6 py-4">
+                                products.map((p: Product) => (
+                                    <tr key={p.id} className="group hover:bg-zinc-50/80 dark:hover:bg-white/[0.02] transition-colors border-b border-zinc-100 dark:border-white/5">
+                                        <td className="px-2 py-1.5 text-center">
                                             <input
                                                 type="checkbox"
                                                 checked={selectedProducts.has(p.id)}
@@ -613,88 +649,88 @@ export default function ProductsTab({
                                                     }
                                                     setSelectedProducts(newSelected);
                                                 }}
-                                                className="w-4 h-4 cursor-pointer accent-cyan-500 bg-white/5 border-slate-200 dark:border-white/10 rounded"
+                                                className="w-3.5 h-3.5 cursor-pointer accent-cyan-500 bg-white/5 border-zinc-300 dark:border-white/10 rounded"
                                             />
                                         </td>
-                                        <td className="px-6 py-4 font-mono text-sm font-bold text-cyan-600 dark:text-cyan-400/80">{p.sku}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-black text-slate-800 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                                        <td className="px-3 py-1.5 font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400/80 whitespace-nowrap">{p.sku}</td>
+                                        <td className="px-3 py-1.5">
+                                            <div className="text-xs font-bold text-zinc-900 dark:text-white truncate max-w-[200px] group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors" title={p.name}>
                                                 {p.name}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-xs font-bold text-slate-600 dark:text-zinc-400">
+                                        <td className="px-3 py-1.5">
+                                            <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400 truncate max-w-[120px]">
                                                 {p.modelName || '-'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-xs font-black text-slate-500 dark:text-white/40 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded border border-slate-200 dark:border-white/10 uppercase tracking-wider">
-                                                {categories.find((c: any) => c.id === p.categoryId)?.name || '-'}
+                                        <td className="px-3 py-1.5">
+                                            <span className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-white/5 px-1.5 py-0.5 rounded border border-zinc-200/80 dark:border-white/10 uppercase tracking-wider">
+                                                {categories.find((c: Category) => c.id === p.categoryId)?.name || '-'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-3 py-1.5 text-center whitespace-nowrap">
                                             {p.trackStock ? (
-                                                <>
-                                                    <div className={clsx(
-                                                        "font-black text-2xl tracking-tight leading-none",
-                                                        p.stock < p.minStock ? "text-rose-500" : "text-slate-900 dark:text-white"
+                                                <div className="flex items-baseline justify-center gap-1">
+                                                    <span className={clsx(
+                                                        "font-mono font-black text-xs tabular-nums",
+                                                        p.stock < p.minStock ? "text-rose-500" : "text-zinc-900 dark:text-white"
                                                     )}>
                                                         {Number.isInteger(Number(p.stock)) ? Number(p.stock) : Number(p.stock).toFixed(3).replace(/\.?0+$/, '')}
-                                                    </div>
+                                                    </span>
                                                     {p.unitAbbreviation && (
-                                                        <div className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mt-1">
+                                                        <span className="text-[9px] font-semibold text-zinc-400 dark:text-zinc-500">
                                                             {p.unitAbbreviation}
-                                                        </div>
+                                                        </span>
                                                     )}
-                                                </>
+                                                </div>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]">
-                                                    <InfinityIcon className="w-3 h-3" />
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                                                    <InfinityIcon className="w-2.5 h-2.5" />
                                                     {t('serviceLabel')}
                                                 </span>
                                             )}
                                         </td>
                                         {canViewCost && (
-                                            <td className="px-6 py-4 text-end font-mono font-black text-amber-600 dark:text-amber-500/80">
+                                            <td className="px-3 py-1.5 text-end font-mono font-bold text-xs tabular-nums text-amber-600 dark:text-amber-500/80 whitespace-nowrap">
                                                 {formatCurrency(p.costPrice, currency)}
                                             </td>
                                         )}
                                         {canViewPrice1 && (
-                                            <td className="px-6 py-4 text-end font-mono font-black text-slate-900 dark:text-white/90">
+                                            <td className="px-3 py-1.5 text-end font-mono font-bold text-xs tabular-nums text-zinc-900 dark:text-white/90 whitespace-nowrap">
                                                 {formatCurrency(p.sellPrice, currency)}
                                             </td>
                                         )}
                                         {canViewPrice2 && (
-                                            <td className="px-6 py-4 text-end font-mono font-black text-sm text-slate-400 dark:text-white/40">
+                                            <td className="px-3 py-1.5 text-end font-mono font-bold text-xs tabular-nums text-zinc-400 dark:text-white/40 whitespace-nowrap">
                                                 {formatCurrency(p.sellPrice2 || 0, currency)}
                                             </td>
                                         )}
                                         {canViewPrice3 && (
-                                            <td className="px-6 py-4 text-end font-mono font-black text-sm text-slate-400 dark:text-white/40">
+                                            <td className="px-3 py-1.5 text-end font-mono font-bold text-xs tabular-nums text-zinc-400 dark:text-white/40 whitespace-nowrap">
                                                 {formatCurrency(p.sellPrice3 || 0, currency)}
                                             </td>
                                         )}
                                         {canManage && (
-                                            <td className="px-6 py-4 text-end">
-                                                <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                            <td className="px-3 py-1.5 text-end whitespace-nowrap">
+                                                <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                                     <button
                                                         onClick={() => setQuickPrintProduct(p)}
-                                                        className="p-1.5 hover:bg-cyan-500/10 rounded-lg text-white/40 hover:text-cyan-400 transition-colors"
+                                                        className="p-1 hover:bg-cyan-500/10 rounded-md text-zinc-400 hover:text-cyan-400 transition-colors"
                                                         title={t('quickPrint')}
                                                     >
-                                                        <Printer className="w-4 h-4" />
+                                                        <Printer className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                         onClick={() => setEditingProduct(p)}
-                                                        className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
+                                                        className="p-1 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
                                                         title={tCommon('edit')}
                                                     >
-                                                        <Edit className="w-4 h-4" />
+                                                        <Edit className="w-3.5 h-3.5" />
                                                     </button>
                                                     {warehouseId && csrfToken && hasPermission(user?.permissions, PERMISSIONS.INVENTORY_MANAGE) && (
                                                         <button
                                                             onClick={() => setWastageProduct(p)}
-                                                            className="px-3 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-md text-xs font-bold border border-rose-500/20 transition-all"
+                                                            className="px-2 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded text-[10px] font-bold border border-rose-500/20 transition-all"
                                                         >
                                                             {t('reportWastage')}
                                                         </button>
@@ -702,10 +738,10 @@ export default function ProductsTab({
                                                     <button
                                                         onClick={() => handleDelete(p.id)}
                                                         disabled={deletingId === p.id}
-                                                        className="p-1.5 hover:bg-rose-500/10 rounded-lg text-rose-400 hover:text-rose-500 transition-colors"
+                                                        className="p-1 hover:bg-rose-500/10 rounded-md text-rose-400 hover:text-rose-500 transition-colors"
                                                         title={tCommon('delete')}
                                                     >
-                                                        {deletingId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                                        {deletingId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                                     </button>
                                                 </div>
                                             </td>
@@ -718,24 +754,24 @@ export default function ProductsTab({
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="border-t border-slate-200 dark:border-white/5 p-4 flex items-center justify-between bg-slate-50 dark:bg-black/20">
-                    <div className="text-sm text-slate-500 dark:text-zinc-500 font-black">
+                <div className="border-t border-zinc-200/80 dark:border-white/10 p-1.5 px-3 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/30">
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 font-bold">
                         {t('pageInfo', { page: pagination.page, total: pagination.totalPages || 1 })}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page === 1 || isQueryLoading}
-                            className="p-2.5 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 disabled:opacity-20 transition-all active:scale-90"
+                            className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 disabled:opacity-20 transition-all active:scale-95"
                         >
-                            <ChevronLeft className="w-5 h-5 text-slate-500 dark:text-zinc-400" />
+                            <ChevronLeft className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
                         </button>
                         <button
                             onClick={() => setPage(p => p + 1)}
                             disabled={page >= (pagination.totalPages || 1) || isQueryLoading}
-                            className="p-2.5 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 disabled:opacity-20 transition-all active:scale-90"
+                            className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 disabled:opacity-20 transition-all active:scale-95"
                         >
-                            <ChevronRight className="w-5 h-5 text-slate-500 dark:text-zinc-400" />
+                            <ChevronRight className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
                         </button>
                     </div>
                 </div>
@@ -784,7 +820,7 @@ export default function ProductsTab({
                                     }}
                                 >
                                     <option value="">No Category</option>
-                                    {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    {categories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -802,8 +838,8 @@ export default function ProductsTab({
                                     }}
                                 >
                                     <option value="">No Model</option>
-                                    {models.filter((m: any) => !editingProduct.categoryId || m.categoryId === editingProduct.categoryId).map((m: any) => {
-                                        const cat = categories.find((c: any) => c.id === m.categoryId);
+                                    {models.filter((m: ModelItem) => !editingProduct.categoryId || m.categoryId === editingProduct.categoryId).map((m: ModelItem) => {
+                                        const cat = categories.find((c: Category) => c.id === m.categoryId);
                                         return (
                                             <option key={m.id} value={m.id}>
                                                 {cat ? `${cat.name} - ` : ''}{m.name}
@@ -824,7 +860,7 @@ export default function ProductsTab({
                                     }}
                                 >
                                     <option value="">بدون صفة</option>
-                                    {attributes.map((a: any) => (
+                                    {attributes.map((a: AttributeItem) => (
                                         <option key={a.id} value={a.id}>{a.name}</option>
                                     ))}
                                 </select>
@@ -1031,9 +1067,9 @@ export default function ProductsTab({
                                     onChange={e => setEditingProduct({ ...editingProduct, unitOfMeasureId: e.target.value || null })}
                                 >
                                     <option value="">{t('noUnit') || 'بدون وحدة'}</option>
-                                    {Object.entries(unitsByCategory).map(([category, catUnits]: [string, any]) => (
+                                    {Object.entries(unitsByCategory).map(([category, catUnits]) => (
                                         <optgroup key={category} label={category}>
-                                            {catUnits.map((u: any) => (
+                                            {catUnits.map((u: UnitItem) => (
                                                 <option key={u.id} value={u.id}>
                                                     {u.name} ({u.code})
                                                 </option>
@@ -1068,7 +1104,7 @@ export default function ProductsTab({
             {/* Barcode Print Dialog */}
             {showPrintDialog && (
                 <BarcodePrintDialog
-                    products={products.filter((p: any) => selectedProducts.has(p.id))}
+                    products={products.filter((p: Product) => selectedProducts.has(p.id))}
                     onClose={() => {
                         setShowPrintDialog(false);
                         setSelectedProducts(new Set());
@@ -1105,7 +1141,7 @@ export default function ProductsTab({
 
             {/* Quick Print Component (Hidden) */}
             <ThermalPrintLabel
-                products={quickPrintProduct ? [{ ...quickPrintProduct, quantity: 1 } as any] : []}
+                products={quickPrintProduct ? [{ ...quickPrintProduct, quantity: 1 } as unknown as Parameters<typeof ThermalPrintLabel>[0]['products'][0]] : []}
                 autoPrint={!!quickPrintProduct}
                 showButton={false}
                 onAfterPrint={() => setQuickPrintProduct(null)}

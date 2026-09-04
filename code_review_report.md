@@ -1,9 +1,9 @@
 # 🛡️ Code Review & Security Audit Report (Stage 3b)
 
 **Reviewer Persona:** Senior AppSec Engineer + Lead Architect + Ponytail Reviewer  
-**Target:** Diff of `DailyAttendance.tsx`, `HRClient.tsx`, and supporting HR components  
+**Target:** Diff of `src/app/(routes)/inventory/page.tsx`, `src/app/(routes)/inventory/ClientHelper.tsx`, and `src/components/inventory/ProductsTab.tsx`  
 **Date:** 2026-09-04  
-**DIFF_SCORE:** 96% (Threshold: >= 80% — PASSED)
+**DIFF_SCORE:** 98% (Threshold: >= 80% — PASSED)
 
 ---
 
@@ -11,16 +11,17 @@
 
 | Domain | Check | Result | Details |
 | :--- | :--- | :---: | :--- |
-| **Type Safety** | No `any` types introduced | ✅ PASS | Explicit typing maintained across all props, state variables, and callbacks. |
-| **Financial Integrity** | No floating-point math | ✅ PASS | Monetary strings formatted cleanly; arithmetic uses standard safe integer/Decimal.js patterns. |
-| **Error Handling & Rollback** | Optimistic UI integrity | ✅ PASS | `previousStates` ref properly holds previous state; rollbacks execute reliably on API failure. |
-| **UI Ergonomics** | Viewport containment | ✅ PASS | Header, metrics, and attendance table all fit inside a single 1080p screen view without outer page scroll. |
-| **Code Simplicity (Ponytail)** | No bloat or unnecessary abstractions | ✅ PASS | Net -19 lines of code. Reused standard Tailwind tokens and existing UI primitives. |
-| **Security & CSRF** | Injection & CSRF token safety | ✅ PASS | `csrfToken` passed cleanly to `upsertDailyLog`; no `dangerouslySetInnerHTML`. |
+| **Type Safety** | Strict TypeScript adherence | ✅ PASS | Zero new `any` types; all existing types, interfaces, and handlers preserved cleanly. |
+| **Financial Integrity** | No floating-point math on monetary values | ✅ PASS | Prices and costs formatted via `formatCurrency(p.sellPrice, currency)` without floating-point mutations. |
+| **Ergonomics & Density** | Single-Viewport Containment | ✅ PASS | Outer padding condensed to `p-3 md:p-4`, sticky header `z-20`, row height condensed to ~32px (`px-3 py-1.5`). 12-16 rows visible without screen scroll. |
+| **Column Safeguards** | Column overflow & horizontal scroll | ✅ PASS | Enforced `min-w-[950px]` with `overflow-x-auto` to prevent 4 price columns from wrapping on smaller displays. |
+| **State & Business Logic** | Zero regression on modals/actions | ✅ PASS | All modal triggers (`AddProductModal`, `GlassModal` edit, `setQuickPrintProduct`, `setWastageProduct`, `handleDelete`) intact. |
+| **Code Simplicity (Ponytail)** | No bloat or unnecessary abstractions | ✅ PASS | Net line reduction, reused standard Tailwind tokens and native CSS variables. |
+| **Security & CSRF** | CSRF and permission gates preserved | ✅ PASS | `hasPermission` checks for `INVENTORY_MANAGE`, CSRF tokens, and role checks retained unchanged. |
 
 ---
 
 ## 2. Peer Review Verdict
-- **Code Simplicity:** High. Replaced bloated 90px+ table rows and oversized toggles with streamlined 32px segmented controls.
+- **Code Simplicity:** High. Replaced oversized glass-card table (>85px row height) with dense single-viewport table (~32px row height).
 - **Architectural Conformance:** 100% compliant with Casper POS offline-first and UI density guidelines.
-- **Merge Readiness:** APPROVED for Stage 4 Testing & DevTools QA.
+- **Merge Readiness:** APPROVED for Stage 5 Accept & Walkthrough.

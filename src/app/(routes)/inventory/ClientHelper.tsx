@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Package, Palette, AlertTriangle } from "lucide-react";
 import { useTranslations } from "@/lib/i18n-mock";
 import clsx from "clsx";
+import type { Product } from "@/types/product";
 
 import ProductsTab from "@/components/inventory/ProductsTab";
 import CategoriesTab from "@/components/inventory/CategoriesTab";
@@ -11,10 +12,40 @@ import WarehouseClient from "@/components/inventory/WarehouseClient";
 import ReorderRulesManager from "@/components/inventory/ReorderRulesManager";
 import StockRequestsManager from "@/components/inventory/StockRequestsManager";
 
+interface WarehouseItem {
+    id: string;
+    isDefault?: boolean;
+    name?: string;
+    branchId?: string;
+    [key: string]: unknown;
+}
+
+interface CategoryItem {
+    id: string;
+    name: string;
+    [key: string]: unknown;
+}
+
+interface ClientHelperProps {
+    categories?: CategoryItem[];
+    products?: Product[];
+    warehouses?: WarehouseItem[];
+    csrfToken?: string;
+    user?: { id?: string; permissions?: string[]; [key: string]: unknown };
+    features?: Record<string, unknown>;
+    currency?: string;
+    permissions?: { canManageCategories?: boolean; [key: string]: unknown };
+    units?: unknown[];
+    branches?: unknown[];
+    isHQUser?: boolean;
+    models?: unknown[];
+    attributes?: unknown[];
+}
+
 export default function InventoryTabs({
-    categories,
-    products,
-    warehouses,
+    categories = [],
+    products = [],
+    warehouses = [],
     csrfToken,
     user,
     features,
@@ -25,97 +56,99 @@ export default function InventoryTabs({
     isHQUser = false,
     models = [],
     attributes = []
-}: any) {
+}: ClientHelperProps) {
     const t = useTranslations('Inventory');
     const [activeSection, setActiveSection] = useState<'STOCK' | 'WAREHOUSES' | 'REORDER_RULES' | 'STOCK_REQUESTS'>('STOCK');
     const [stockTab, setStockTab] = useState<'PRODUCTS' | 'CATEGORIES' | 'SHORTAGES'>('PRODUCTS');
     const [customMinStock, setCustomMinStock] = useState<number | "">("");
-    const shortCount = (products || []).filter((p: any) => {
+    const shortCount = (products || []).filter((p: Product) => {
         if (!p.trackStock) return false;
         const limit = customMinStock !== "" ? customMinStock : Number(p.minStock);
         return Number(p.stock) <= limit;
     }).length;
 
     return (
-        <div className="space-y-6">
-            <div className="flex gap-4 border-b border-slate-200 dark:border-white/10 pb-2">
-                <button
-                    onClick={() => setActiveSection('STOCK')}
-                    className={clsx(
-                        "px-4 py-2 font-black rounded-lg transition-all",
-                        activeSection === 'STOCK' 
-                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                            : "hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
-                    )}
-                >
-                    {t('tabs.stock')}
-                </button>
-                {!features?.hideLocationsTab && (
+        <div className="space-y-2 font-cairo">
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-200/80 dark:border-white/10 pb-1.5">
+                <div className="inline-flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/80 dark:border-white/10 shadow-inner">
                     <button
-                        onClick={() => setActiveSection('WAREHOUSES')}
+                        onClick={() => setActiveSection('STOCK')}
                         className={clsx(
-                            "px-4 py-2 font-black rounded-lg transition-all",
-                            activeSection === 'WAREHOUSES' 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                                : "hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
+                            "px-3 h-8 text-xs font-bold rounded-lg transition-all tracking-wide",
+                            activeSection === 'STOCK' 
+                                ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
                         )}
                     >
-                        {t('tabs.locations')}
+                        {t('tabs.stock')}
                     </button>
-                )}
-                <button
-                    onClick={() => setActiveSection('REORDER_RULES')}
-                    className={clsx(
-                        "px-4 py-2 font-black rounded-lg transition-all",
-                        activeSection === 'REORDER_RULES' 
-                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                            : "hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
+                    {!features?.hideLocationsTab && (
+                        <button
+                            onClick={() => setActiveSection('WAREHOUSES')}
+                            className={clsx(
+                                "px-3 h-8 text-xs font-bold rounded-lg transition-all tracking-wide",
+                                activeSection === 'WAREHOUSES' 
+                                    ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
+                            )}
+                        >
+                            {t('tabs.locations')}
+                        </button>
                     )}
-                >
-                    Reorder Rules
-                </button>
-                <button
-                    onClick={() => setActiveSection('STOCK_REQUESTS')}
-                    className={clsx(
-                        "px-4 py-2 font-black rounded-lg transition-all",
-                        activeSection === 'STOCK_REQUESTS' 
-                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                            : "hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
-                    )}
-                >
-                    Stock Requests
-                </button>
+                    <button
+                        onClick={() => setActiveSection('REORDER_RULES')}
+                        className={clsx(
+                            "px-3 h-8 text-xs font-bold rounded-lg transition-all tracking-wide",
+                            activeSection === 'REORDER_RULES' 
+                                ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
+                        )}
+                    >
+                        Reorder Rules
+                    </button>
+                    <button
+                        onClick={() => setActiveSection('STOCK_REQUESTS')}
+                        className={clsx(
+                            "px-3 h-8 text-xs font-bold rounded-lg transition-all tracking-wide",
+                            activeSection === 'STOCK_REQUESTS' 
+                                ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
+                        )}
+                    >
+                        Stock Requests
+                    </button>
+                </div>
             </div>
 
             {/* Sub Tabs (Only for Stock) */}
             {activeSection === 'STOCK' && (
-                <div className="flex justify-between items-center bg-slate-50 dark:bg-white/5 p-2 rounded-2xl border border-slate-200 dark:border-white/10 overflow-x-auto animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm">
-                    <div className="flex gap-2">
+                <div className="flex justify-between items-center bg-zinc-50/80 dark:bg-zinc-900/40 p-1 px-1.5 rounded-xl border border-zinc-200/80 dark:border-white/10 overflow-x-auto shadow-xs gap-2">
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={() => setStockTab('PRODUCTS')}
                             className={clsx(
-                                "px-4 py-2 rounded-xl flex items-center gap-2 font-black transition-all whitespace-nowrap",
+                                "px-2.5 h-7 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all whitespace-nowrap",
                                 stockTab === 'PRODUCTS' 
-                                    ? "bg-primary text-primary-foreground shadow-md" 
-                                    : "text-slate-400 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5"
+                                    ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
                             )}
                         >
-                            <Package className="w-4 h-4" />
+                            <Package className="w-3.5 h-3.5" />
                             {t('tabs.products')}
                         </button>
                         <button
                             onClick={() => setStockTab('SHORTAGES')}
                             className={clsx(
-                                "px-4 py-2 rounded-xl flex items-center gap-2 font-black transition-all whitespace-nowrap",
+                                "px-2.5 h-7 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all whitespace-nowrap",
                                 stockTab === 'SHORTAGES' 
-                                    ? "bg-rose-500 text-white shadow-md shadow-rose-500/20" 
-                                    : "text-rose-500 hover:bg-rose-500/10 dark:hover:bg-rose-950/20"
+                                    ? "bg-rose-500 text-white shadow-xs font-bold" 
+                                    : "text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
                             )}
                         >
-                            <AlertTriangle className="w-4 h-4 text-rose-500" />
+                            <AlertTriangle className="w-3.5 h-3.5" />
                             النواقص
                             {shortCount > 0 && (
-                                <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold ml-1">
+                                <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold mr-1">
                                     {shortCount}
                                 </span>
                             )}
@@ -124,27 +157,27 @@ export default function InventoryTabs({
                             <button
                                 onClick={() => setStockTab('CATEGORIES')}
                                 className={clsx(
-                                    "px-4 py-2 rounded-xl flex items-center gap-2 font-black transition-all whitespace-nowrap",
+                                    "px-2.5 h-7 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all whitespace-nowrap",
                                     stockTab === 'CATEGORIES' 
-                                        ? "bg-primary text-primary-foreground shadow-md" 
-                                        : "text-slate-400 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5"
+                                        ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs" 
+                                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5"
                                 )}
                             >
-                                <Palette className="w-4 h-4" />
+                                <Palette className="w-3.5 h-3.5" />
                                 {t('tabs.categories')}
                             </button>
                         )}
                     </div>
                     {stockTab === 'SHORTAGES' && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-xl shadow-sm mr-auto ml-2">
-                            <span className="text-xs font-black text-slate-500 whitespace-nowrap">الحد الأدنى العام:</span>
+                        <div className="flex items-center gap-1.5 px-2.5 h-7 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/10 rounded-lg shadow-xs mr-auto ml-1">
+                            <span className="text-[11px] font-bold text-zinc-500 whitespace-nowrap">الحد الأدنى:</span>
                             <input
                                 type="number"
                                 value={customMinStock}
                                 onChange={(e) => {
                                     setCustomMinStock(e.target.value === "" ? "" : Number(e.target.value));
                                 }}
-                                className="w-12 bg-transparent text-center border-b border-slate-300 dark:border-zinc-700 focus:border-cyan-500 focus:outline-none font-bold text-slate-800 dark:text-white text-xs"
+                                className="w-14 h-5 px-1.5 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-white/10 text-xs font-mono font-bold text-center outline-none"
                                 placeholder="تلقائي"
                             />
                         </div>
@@ -153,7 +186,7 @@ export default function InventoryTabs({
             )}
 
             {/* TAB CONTENT */}
-            <div className="min-h-[500px]">
+            <div className="min-h-0">
                 {activeSection === 'STOCK' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                         {stockTab === 'PRODUCTS' && (
@@ -162,11 +195,11 @@ export default function InventoryTabs({
                                 categories={categories}
                                 csrfToken={csrfToken}
                                 user={user}
-                                warehouseId={warehouses.find((w: any) => w.isDefault)?.id}
+                                warehouseId={warehouses.find((w: WarehouseItem) => w.isDefault)?.id}
                                 currency={currency}
-                                initialUnits={units}
-                                models={models}
-                                attributes={attributes}
+                                initialUnits={units as Parameters<typeof ProductsTab>[0]['initialUnits']}
+                                models={models as Parameters<typeof ProductsTab>[0]['models']}
+                                attributes={attributes as Parameters<typeof ProductsTab>[0]['attributes']}
                                 features={features}
                             />
                         )}
@@ -177,11 +210,11 @@ export default function InventoryTabs({
                                 categories={categories}
                                 csrfToken={csrfToken}
                                 user={user}
-                                warehouseId={warehouses.find((w: any) => w.isDefault)?.id}
+                                warehouseId={warehouses.find((w: WarehouseItem) => w.isDefault)?.id}
                                 currency={currency}
-                                initialUnits={units}
-                                models={models}
-                                attributes={attributes}
+                                initialUnits={units as Parameters<typeof ProductsTab>[0]['initialUnits']}
+                                models={models as Parameters<typeof ProductsTab>[0]['models']}
+                                attributes={attributes as Parameters<typeof ProductsTab>[0]['attributes']}
                                 initialStockStatus="shortage"
                                 isShortageOnly={true}
                                 globalMinStock={customMinStock !== "" ? customMinStock : undefined}
@@ -199,7 +232,7 @@ export default function InventoryTabs({
                         <WarehouseClient
                             warehouses={warehouses}
                             products={products}
-                            csrfToken={csrfToken}
+                            csrfToken={csrfToken || ""}
                             branchId={warehouses?.[0]?.branchId}
                             branches={branches}
                             isHQUser={isHQUser}

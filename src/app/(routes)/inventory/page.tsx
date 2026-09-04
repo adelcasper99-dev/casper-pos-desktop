@@ -36,7 +36,7 @@ export default async function InventoryPage() {
         orderBy: { isDefault: 'desc' }
     });
 
-    const warehouses = warehousesRaw.map((w: any) => ({
+    const warehouses = warehousesRaw.map((w) => ({
         id: w.id,
         name: w.name,
         isDefault: w.isDefault,
@@ -55,7 +55,7 @@ export default async function InventoryPage() {
         },
         include: { model: true }
     });
-    const products = productsRaw.map((p: any) => ({
+    const products = productsRaw.map((p) => ({
         id: p.id,
         sku: p.sku,
         name: p.name,
@@ -86,7 +86,7 @@ export default async function InventoryPage() {
         include: { supplier: true },
         orderBy: { createdAt: 'desc' }
     });
-    const invoices = invoicesRaw.map((inv: any) => ({
+    const invoices = invoicesRaw.map((inv) => ({
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
         status: inv.status,
@@ -102,7 +102,7 @@ export default async function InventoryPage() {
     const csrfToken = await getCSRFToken();
     const session = await getSession();
 
-    const stockRequests: any[] = [];
+    const stockRequests: unknown[] = [];
 
     const settingsRaw = await prisma.storeSettings.findFirst({});
 
@@ -122,7 +122,7 @@ export default async function InventoryPage() {
         where: { isActive: true },
         orderBy: [{ category: 'asc' }, { name: 'asc' }]
     });
-    const units = unitsRaw.map((u: any) => ({
+    const units = unitsRaw.map((u) => ({
         id: u.id,
         name: u.name,
         code: u.code,
@@ -131,10 +131,17 @@ export default async function InventoryPage() {
     }));
 
     return (
-        <div className="space-y-6 max-w-[2400px] mx-auto">
-            <div>
-                <h1 className="text-3xl font-bold">{t('title')}</h1>
-                <p className="text-zinc-400 mt-1">{t('subtitle')}</p>
+        <div className="space-y-2.5 max-w-[1920px] mx-auto p-3 md:p-4 font-cairo">
+            <div className="flex items-center gap-2.5 bg-zinc-50/80 dark:bg-zinc-900/40 p-2.5 px-3.5 rounded-xl border border-zinc-200/80 dark:border-white/10 shadow-xs">
+                <div className="p-1.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs">
+                    <Box className="w-4 h-4" />
+                </div>
+                <div>
+                    <h1 className="text-base sm:text-lg font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+                        {t('title')}
+                        <span className="text-[11px] font-normal text-zinc-500 dark:text-zinc-400">({t('subtitle')})</span>
+                    </h1>
+                </div>
             </div>
 
             <ClientHelper
